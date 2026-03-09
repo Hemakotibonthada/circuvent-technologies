@@ -10,7 +10,7 @@
  */
 
 const GITHUB_API_BASE = "https://api.github.com";
-const GITHUB_ORG = "circuvent-technologies"; // Replace with actual org/user
+const GITHUB_ORG = "Hemakotibonthada";
 
 export interface GitHubRepo {
   id: number;
@@ -46,8 +46,9 @@ export async function fetchGitHubRepos(): Promise<GitHubRepo[]> {
       {
         headers: {
           Accept: "application/vnd.github.v3+json",
-          // Add token for higher rate limits:
-          // Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          ...(process.env.GITHUB_TOKEN
+            ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+            : {}),
         },
         next: { revalidate: 3600 }, // ISR: revalidate every hour
       }
