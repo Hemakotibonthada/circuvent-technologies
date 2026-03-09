@@ -1,0 +1,249 @@
+"use client";
+
+import AnimatedBackground from "@/components/AnimatedBackground";
+import PageHeader from "@/components/PageHeader";
+import ScrollReveal from "@/components/ScrollReveal";
+import { Shield, Lock, Eye, Database, Globe, FileText, Mail } from "lucide-react";
+
+const sections = [
+  {
+    icon: Database,
+    title: "Information We Collect",
+    content: [
+      "When you visit our website, we may collect certain information automatically, including your IP address, browser type, operating system, referring URLs, and pages visited. This data helps us understand how visitors use our site and improve the user experience.",
+      "If you contact us through our contact form, we collect the information you provide, including your name, email address, company name, and message content. This information is used solely to respond to your inquiry.",
+      "We may also collect information when you subscribe to our newsletter, including your email address. You can unsubscribe at any time using the link provided in each email.",
+    ],
+  },
+  {
+    icon: Eye,
+    title: "How We Use Your Information",
+    content: [
+      "We use the information we collect for the following purposes:",
+      "• To provide, maintain, and improve our website and services",
+      "• To respond to your inquiries and communicate with you",
+      "• To send you updates about our projects and engineering insights (if you've opted in)",
+      "• To analyze website usage and optimize user experience",
+      "• To detect, prevent, and address technical issues or security concerns",
+      "• To comply with legal obligations",
+      "We do not sell, trade, or otherwise transfer your personal information to third parties. We do not use your data for targeted advertising.",
+    ],
+  },
+  {
+    icon: Lock,
+    title: "Data Security",
+    content: [
+      "We implement industry-standard security measures to protect your information from unauthorized access, alteration, disclosure, or destruction. These measures include:",
+      "• HTTPS encryption for all data in transit",
+      "• Regular security audits and vulnerability assessments",
+      "• Access controls and authentication for internal systems",
+      "• Data minimization — we only collect what we need",
+      "However, no method of transmission over the Internet or electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your personal information, we cannot guarantee its absolute security.",
+    ],
+  },
+  {
+    icon: Globe,
+    title: "Cookies and Tracking",
+    content: [
+      "Our website uses minimal cookies and tracking technologies:",
+      "• Essential cookies: Required for the website to function properly (theme preference, session management)",
+      "• Analytics: We use privacy-respecting analytics to understand general usage patterns. No personal identifiers are collected or stored.",
+      "We do not use third-party advertising cookies, social media tracking pixels, or cross-site tracking mechanisms.",
+      "You can configure your browser to refuse all cookies or to indicate when a cookie is being sent. However, some features of our site may not function properly without cookies.",
+    ],
+  },
+  {
+    icon: Shield,
+    title: "Open Source and Code Privacy",
+    content: [
+      "Circuvent Technologies maintains 53+ open source repositories. All code in our public repositories is freely available under the MIT License unless otherwise specified.",
+      "For client projects, we maintain strict confidentiality. Client source code is never made public, shared with third parties, or used in our open source projects without explicit written consent.",
+      "Our AI systems (NEXUS AI OS, JARVIS, etc.) are designed with a local-first philosophy — all AI inference runs on-device by default, ensuring no user data is sent to external servers.",
+    ],
+  },
+  {
+    icon: FileText,
+    title: "Your Rights",
+    content: [
+      "You have the following rights regarding your personal information:",
+      "• Access: You can request a copy of the personal data we hold about you",
+      "• Correction: You can request that we correct any inaccurate information",
+      "• Deletion: You can request that we delete your personal information",
+      "• Objection: You can object to certain processing of your data",
+      "• Portability: You can request your data in a machine-readable format",
+      "• Withdrawal: You can withdraw consent for data processing at any time",
+      "To exercise any of these rights, please contact us at privacy@circuvent.tech. We will respond to your request within 30 days.",
+    ],
+  },
+  {
+    icon: Mail,
+    title: "Third-Party Services",
+    content: [
+      "Our website may contain links to third-party websites and services. We are not responsible for the privacy practices of these external sites. We encourage you to review their privacy policies before providing any personal information.",
+      "We may use the following third-party services:",
+      "• GitHub: For hosting our open source repositories and project collaboration",
+      "• Vercel: For website hosting and deployment",
+      "• Firebase: For backend services in some of our applications (with separate privacy policies for each app)",
+      "Each of these services has its own privacy policy governing the use of data on their platforms.",
+    ],
+  },
+];
+
+export default function PrivacyPolicyPage() {
+  const lastUpdated = "March 1, 2026";
+
+  return (
+    <>
+      <AnimatedBackground />
+
+      <PageHeader
+        eyebrow="Legal"
+        title="Privacy"
+        titleHighlight="Policy"
+        titleGradient="from-emerald-500 via-teal-500 to-cyan-500"
+        description="We take your privacy seriously. This policy explains how we collect, use, and protect your information when you use our website and services."
+      >
+        <div
+          className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full"
+          style={{
+            background: "var(--accent-cyan-muted)",
+            border: "1px solid var(--border-accent)",
+          }}
+        >
+          <Shield className="w-4 h-4" style={{ color: "var(--accent-cyan)" }} />
+          <span className="text-sm" style={{ color: "var(--text-tertiary)" }}>
+            Last updated: {lastUpdated}
+          </span>
+        </div>
+      </PageHeader>
+
+      {/* Content */}
+      <section className="relative z-10 py-12">
+        <div className="max-w-4xl mx-auto px-6 lg:px-8">
+          {/* Summary Box */}
+          <ScrollReveal>
+            <div
+              className="rounded-2xl p-8 mb-12"
+              style={{
+                background: "var(--bg-glass)",
+                border: "1px solid var(--border-primary)",
+                backdropFilter: "blur(24px)",
+              }}
+            >
+              <h2
+                className="text-lg font-bold mb-4"
+                style={{ color: "var(--text-primary)" }}
+              >
+                TL;DR — Our Privacy Commitment
+              </h2>
+              <ul className="space-y-2">
+                {[
+                  "We collect minimal data — only what's needed to serve you",
+                  "We never sell your data to third parties",
+                  "Our AI systems run local-first — your data stays on your device",
+                  "We use privacy-respecting analytics with no personal tracking",
+                  "All client code and data is kept strictly confidential",
+                  "You can request deletion of your data at any time",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <Shield className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+                    <span
+                      className="text-sm"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {item}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </ScrollReveal>
+
+          {/* Sections */}
+          <div className="space-y-16">
+            {sections.map((section, i) => (
+              <ScrollReveal key={section.title} delay={i * 0.05}>
+                <div>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div
+                      className="p-2.5 rounded-xl"
+                      style={{
+                        background: "var(--accent-cyan-muted)",
+                        border: "1px solid var(--border-accent)",
+                      }}
+                    >
+                      <section.icon
+                        className="w-5 h-5"
+                        style={{ color: "var(--accent-cyan)" }}
+                      />
+                    </div>
+                    <h2
+                      className="text-2xl font-bold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {section.title}
+                    </h2>
+                  </div>
+
+                  <div className="space-y-4 pl-12">
+                    {section.content.map((paragraph, j) => (
+                      <p
+                        key={j}
+                        className="text-sm leading-relaxed"
+                        style={{ color: "var(--text-tertiary)" }}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
+
+          {/* Changes to Policy */}
+          <ScrollReveal>
+            <div
+              className="mt-16 rounded-2xl p-8"
+              style={{
+                background: "var(--bg-glass)",
+                border: "1px solid var(--border-primary)",
+                backdropFilter: "blur(24px)",
+              }}
+            >
+              <h2
+                className="text-lg font-bold mb-4"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Changes to This Policy
+              </h2>
+              <p
+                className="text-sm leading-relaxed mb-4"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                We may update this privacy policy from time to time. We will notify
+                you of any changes by posting the new policy on this page and updating
+                the &ldquo;Last updated&rdquo; date. We encourage you to review this policy
+                periodically for any changes.
+              </p>
+              <p
+                className="text-sm"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                For questions about this policy, please contact us at{" "}
+                <a
+                  href="mailto:privacy@circuvent.tech"
+                  className="underline hover:text-[var(--accent-cyan)]"
+                  style={{ color: "var(--accent-cyan)" }}
+                >
+                  privacy@circuvent.tech
+                </a>
+                .
+              </p>
+            </div>
+          </ScrollReveal>
+        </div>
+      </section>
+    </>
+  );
+}
