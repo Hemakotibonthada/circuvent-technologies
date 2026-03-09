@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     // Send email via Resend
     const { data, error: resendError } = await resend.emails.send({
       from: "Circuvent Contact <onboarding@resend.dev>",
-      to: ["contact@circuvent.com"],
+      to: ["hemakotibonthada@gmail.com"],
       replyTo: email,
       subject: `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`,
       html: `
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     });
 
     if (resendError) {
-      console.error("Resend error:", resendError);
+      console.error("Resend error:", JSON.stringify(resendError, null, 2));
       return NextResponse.json(
         {
           success: false,
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("Contact email sent:", data?.id);
+    console.log("Contact email sent successfully:", JSON.stringify(data, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -117,7 +117,12 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Contact form error:", error);
+    console.error(
+      "Contact form error:",
+      error instanceof Error
+        ? { name: error.name, message: error.message, stack: error.stack }
+        : error
+    );
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(

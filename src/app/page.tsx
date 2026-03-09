@@ -11,6 +11,9 @@ import TiltCard from "@/components/TiltCard";
 import Marquee, { MarqueeTechItem } from "@/components/Marquee";
 import { ShimmerText, FloatingParticles } from "@/components/AnimationEffects";
 import { TextReveal } from "@/components/AnimationEffects";
+import SkillRadar, { AnimatedBarChart } from "@/components/SkillRadar";
+import ScrollTimeline from "@/components/ScrollTimeline";
+import { RotatingWords, StaggerLetters, MultiLineTyper } from "@/components/TextEffects";
 import { getFeaturedProjects } from "@/lib/projects-data";
 import { testimonials } from "@/lib/services-data";
 import { Button } from "@/components/ui/button";
@@ -292,6 +295,151 @@ export default function Home() {
           </ScrollReveal>
           <ScrollReveal>
             <TestimonialCarousel testimonials={testimonialData} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* SKILL RADAR SECTION */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <ScrollReveal>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Expertise</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3 mb-6" style={{ color: "var(--text-primary)" }}>
+                Our <ShimmerText>Skill Map</ShimmerText>
+              </h2>
+              <p className="text-lg leading-relaxed mb-8" style={{ color: "var(--text-tertiary)" }}>
+                Deep expertise spanning 8 core engineering disciplines — from embedded firmware to cloud AI.
+              </p>
+              <AnimatedBarChart
+                bars={[
+                  { label: "TypeScript / React", value: 95, gradient: "from-cyan-500 to-blue-500" },
+                  { label: "Python / FastAPI", value: 92, gradient: "from-violet-500 to-purple-500" },
+                  { label: "Flutter / Dart", value: 88, gradient: "from-pink-500 to-rose-500" },
+                  { label: "ESP32 / C++", value: 90, gradient: "from-emerald-500 to-teal-500" },
+                  { label: "Docker / DevOps", value: 85, gradient: "from-amber-500 to-orange-500" },
+                  { label: "AI / ML Models", value: 87, gradient: "from-indigo-500 to-violet-500" },
+                ]}
+              />
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.2}>
+              <SkillRadar
+                skills={[
+                  { label: "Frontend", value: 95 },
+                  { label: "Backend", value: 92 },
+                  { label: "AI / ML", value: 87 },
+                  { label: "IoT", value: 90 },
+                  { label: "Mobile", value: 85 },
+                  { label: "DevOps", value: 82 },
+                  { label: "Database", value: 88 },
+                  { label: "UI / UX", value: 90 },
+                ]}
+                size={380}
+              />
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* JOURNEY TIMELINE */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-16">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Journey</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                The <ShimmerText gradient="from-violet-400 via-purple-400 to-pink-400">Evolution</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollTimeline
+            milestones={[
+              {
+                date: "Jan 2023",
+                title: "The First Circuit",
+                description: "A single ESP32 blinking an LED — the project that started it all. From this moment, Circuvent's hardware-software journey began.",
+                icon: "🔌",
+                gradient: "from-cyan-500 to-teal-500",
+                stats: [{ label: "Projects", value: "1" }],
+              },
+              {
+                date: "Jun 2023",
+                title: "IoT Ecosystem",
+                description: "Expanded to 8 projects with SmartHome Flutter app, Firebase MQTT integration, and Alexa voice control.",
+                icon: "🏠",
+                gradient: "from-emerald-500 to-green-500",
+                stats: [{ label: "Projects", value: "8" }, { label: "IoT Devices", value: "4" }],
+              },
+              {
+                date: "Mar 2024",
+                title: "AI & Enterprise",
+                description: "Launched CancerGuard AI (94.2% accuracy) and HT Connect HRMS — replacing Keka + Jira with a single platform.",
+                icon: "🧠",
+                gradient: "from-violet-500 to-purple-500",
+                stats: [{ label: "Projects", value: "24" }, { label: "In Production", value: "3" }],
+              },
+              {
+                date: "Jan 2025",
+                title: "NEXUS AI OS",
+                description: "13-agent local-first AI operating system — personal, financial, health, and home agents running entirely on-device.",
+                icon: "🚀",
+                gradient: "from-pink-500 to-rose-500",
+                stats: [{ label: "Projects", value: "45" }, { label: "AI Agents", value: "13+" }],
+              },
+              {
+                date: "Mar 2026",
+                title: "53+ Projects",
+                description: "200K+ lines of code, 8 production apps, 15+ tech stacks mastered. The journey continues.",
+                icon: "✨",
+                gradient: "from-amber-500 to-orange-500",
+                stats: [{ label: "Total Projects", value: "53+" }, { label: "Lines of Code", value: "200K+" }],
+              },
+            ]}
+          />
+        </div>
+      </section>
+
+      {/* TERMINAL / CLI SECTION */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-4xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-500">Get Started</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Deploy in{" "}
+                <RotatingWords
+                  words={["Seconds", "One Command", "Docker", "Production"]}
+                  interval={2500}
+                />
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <div className="rounded-2xl overflow-hidden" style={{ background: "#1e1e2e", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 25px 50px rgba(0,0,0,0.4)" }}>
+              <div className="flex items-center gap-2 px-4 py-3" style={{ background: "rgba(0,0,0,0.3)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                  <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-xs font-mono" style={{ color: "#6c7086" }}>terminal</span>
+              </div>
+              <div className="p-6">
+                <MultiLineTyper
+                  lines={[
+                    { text: "git clone https://github.com/circuvent-technologies/nexus-ai-os", color: "#a6adc8" },
+                    { text: "cd nexus-ai-os", color: "#a6adc8", delay: 200 },
+                    { text: "docker-compose up -d", color: "#c3e88d", delay: 200 },
+                    { text: "✓ API server running on :8000", color: "#27c93f", delay: 500 },
+                    { text: "✓ Ollama inference on :11434", color: "#27c93f", delay: 300 },
+                    { text: "✓ Web dashboard on :3000", color: "#27c93f", delay: 300 },
+                    { text: "✓ 13 agents ready. NEXUS AI OS is live.", color: "#06b6d4", delay: 500 },
+                  ]}
+                  typingSpeed={30}
+                  loop
+                />
+              </div>
+            </div>
           </ScrollReveal>
         </div>
       </section>
