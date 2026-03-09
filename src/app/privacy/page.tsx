@@ -72,7 +72,7 @@ const sections = [
       "• Objection: You can object to certain processing of your data",
       "• Portability: You can request your data in a machine-readable format",
       "• Withdrawal: You can withdraw consent for data processing at any time",
-      "To exercise any of these rights, please contact us at privacy@circuvent.tech. We will respond to your request within 30 days.",
+      "To exercise any of these rights, please contact us at contact@circuvent.com. We will respond to your request within 30 days.",
     ],
   },
   {
@@ -232,11 +232,11 @@ export default function PrivacyPolicyPage() {
               >
                 For questions about this policy, please contact us at{" "}
                 <a
-                  href="mailto:privacy@circuvent.tech"
+                  href="mailto:contact@circuvent.com"
                   className="underline hover:text-[var(--accent-cyan)]"
                   style={{ color: "var(--accent-cyan)" }}
                 >
-                  privacy@circuvent.tech
+                  contact@circuvent.com
                 </a>
                 .
               </p>

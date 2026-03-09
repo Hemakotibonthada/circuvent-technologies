@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     // Send email via Resend
     const { data, error: resendError } = await resend.emails.send({
       from: "Circuvent Contact <onboarding@resend.dev>",
-      to: ["hemakotibonthada@gmail.com"],
+      to: ["contact@circuvent.com"],
       replyTo: email,
       subject: `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`,
       html: `
