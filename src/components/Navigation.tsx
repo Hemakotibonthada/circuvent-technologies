@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, CircleDot } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import CommandPalette from "./CommandPalette";
@@ -56,15 +57,19 @@ export default function Navigation() {
         <nav className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-3 group" aria-label="Circuvent Technologies home">
+            <Link href="/" className="flex items-center gap-2.5 group" aria-label="Circuvent Technologies home">
               <div className="relative">
-                <CircleDot
-                  className="w-8 h-8 transition-transform duration-500 group-hover:rotate-180"
-                  style={{ color: "var(--accent-cyan)" }}
+                <Image
+                  src="/logo.svg"
+                  alt="Circuvent Technologies logo"
+                  width={36}
+                  height={36}
+                  className="transition-transform duration-500 group-hover:rotate-12"
+                  priority
                 />
                 <div
-                  className="absolute inset-0 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                  style={{ background: "var(--accent-cyan)", opacity: 0 }}
+                  className="absolute inset-0 rounded-full blur-xl opacity-0 group-hover:opacity-40 transition-opacity duration-500"
+                  style={{ background: "var(--accent-cyan)" }}
                 />
               </div>
               <span className="text-xl font-bold tracking-tight">

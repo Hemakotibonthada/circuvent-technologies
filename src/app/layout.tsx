@@ -56,6 +56,7 @@ export default function RootLayout({
           href="/feed.xml"
         />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+        <link rel="icon" type="image/svg+xml" href="/logo.svg" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico" />
         {/* Inline script to prevent flash of wrong theme */}
         <script

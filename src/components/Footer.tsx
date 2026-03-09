@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { CircleDot, Github, Linkedin, Twitter, Mail, ArrowUpRight } from "lucide-react";
+import { Github, Linkedin, Twitter, Mail, ArrowUpRight } from "lucide-react";
+import Image from "next/image";
 
 const footerLinks = {
   product: [
@@ -50,10 +51,13 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-10 lg:gap-16">
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-4 lg:col-span-1 space-y-6">
-            <Link href="/" className="inline-flex items-center gap-3 group" aria-label="Circuvent home">
-              <CircleDot
-                className="w-7 h-7 transition-transform duration-500 group-hover:rotate-180"
-                style={{ color: "var(--accent-cyan)" }}
+            <Link href="/" className="inline-flex items-center gap-2.5 group" aria-label="Circuvent home">
+              <Image
+                src="/logo.svg"
+                alt="Circuvent Technologies logo"
+                width={32}
+                height={32}
+                className="transition-transform duration-500 group-hover:rotate-12"
               />
               <span className="text-lg font-bold tracking-tight">
                 <span style={{ color: "var(--text-primary)" }}>Circu</span>

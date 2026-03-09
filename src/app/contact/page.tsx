@@ -22,9 +22,16 @@ const contactInfo = [
   {
     icon: Mail,
     label: "Email",
-    value: "hello@circuvent.tech",
-    href: "mailto:hello@circuvent.tech",
+    value: "contact@circuvent.com",
+    href: "mailto:contact@circuvent.com",
     description: "For general inquiries and project discussions.",
+  },
+  {
+    icon: Phone,
+    label: "Phone",
+    value: "+91 765 999 333 1",
+    href: "tel:+917659993331",
+    description: "Available during IST business hours.",
   },
   {
     icon: MapPin,
