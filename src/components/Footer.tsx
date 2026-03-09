@@ -31,7 +31,7 @@ const socials = [
   { icon: Github, href: "https://github.com/circuvent-technologies", label: "GitHub" },
   { icon: Linkedin, href: "#", label: "LinkedIn" },
   { icon: Twitter, href: "#", label: "Twitter" },
-  { icon: Mail, href: "mailto:hello@circuvent.tech", label: "Email" },
+  { icon: Mail, href: "mailto:contact@circuvent.com", label: "Email" },
 ];
 
 export default function Footer() {

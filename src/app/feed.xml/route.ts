@@ -27,7 +27,7 @@ export async function GET() {
       <guid isPermaLink="true">${SITE_URL}/blog/${post.slug}</guid>
       <description>${escapeXml(post.excerpt)}</description>
       <pubDate>${new Date(post.date).toUTCString()}</pubDate>
-      <author>hello@circuvent.tech (${escapeXml(post.author)})</author>
+      <author>contact@circuvent.com (${escapeXml(post.author)})</author>
       <category>${escapeXml(post.category)}</category>
       ${post.tags.map((tag) => `<category>${escapeXml(tag)}</category>`).join("\n      ")}
     </item>`
@@ -41,8 +41,8 @@ export async function GET() {
     <link>${SITE_URL}/blog</link>
     <description>${escapeXml(SITE_DESCRIPTION)}</description>
     <language>en-us</language>
-    <managingEditor>hello@circuvent.tech (Harsha Bonthada)</managingEditor>
-    <webMaster>hello@circuvent.tech (Harsha Bonthada)</webMaster>
+    <managingEditor>contact@circuvent.com (Harsha Bonthada)</managingEditor>
+    <webMaster>contact@circuvent.com (Harsha Bonthada)</webMaster>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
     <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
     <image>
