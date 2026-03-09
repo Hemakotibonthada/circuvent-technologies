@@ -64,6 +64,9 @@ import {
   TestimonialMasonry,
   AnimatedCounterSection,
 } from "@/components/AdvancedSections";
+import { GradientBuilder, AnimationPlayground, ColorPaletteGenerator, SpacingVisualizer } from "@/components/InteractivePlayground";
+import { InteractiveSolarSystem, TechPeriodicTable, NetworkTopology } from "@/components/InteractiveMaps";
+import { techPeriodicElements, topologyNodes, topologyLinks, techSolarPlanets } from "@/lib/interactive-tools-data";
 import {
   codeEditorTabs,
   terminalCommands,
@@ -1004,6 +1007,110 @@ export default function Home() {
         colors={["rgba(6, 182, 212, 0.08)", "rgba(139, 92, 246, 0.06)", "rgba(236, 72, 153, 0.04)"]}
         height={150}
       />
+
+      {/* TECH PERIODIC TABLE */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-6xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Elements</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Periodic Table of <ShimmerText>Technology</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Every technology we&apos;ve mastered, organized by domain. Hover to see proficiency levels.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <TechPeriodicTable elements={techPeriodicElements} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* SOLAR SYSTEM */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <ScrollReveal>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Orbit</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3 mb-6" style={{ color: "var(--text-primary)" }}>
+                Tech <ShimmerText gradient="from-violet-400 to-cyan-400">Solar System</ShimmerText>
+              </h2>
+              <p className="text-lg leading-relaxed mb-6" style={{ color: "var(--text-tertiary)" }}>
+                Our technology stack orbiting around NEXUS — from web fundamentals to advanced AI, each technology plays a crucial role in our ecosystem.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {techSolarPlanets.map((planet) => (
+                  <motion.div key={planet.name} className="flex items-center gap-2 p-2.5 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }} whileHover={{ y: -2 }}>
+                    <span className="text-lg">{planet.icon}</span>
+                    <div>
+                      <div className="text-xs font-semibold" style={{ color: planet.color }}>{planet.name}</div>
+                      <div className="text-[9px]" style={{ color: "var(--text-muted)" }}>{planet.description}</div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.2}>
+              <div className="flex justify-center">
+                <InteractiveSolarSystem planets={techSolarPlanets} size={420} centerLabel="NEXUS" />
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* NETWORK TOPOLOGY */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Infrastructure</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Network <ShimmerText gradient="from-pink-400 to-violet-400">Topology</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Live view of our production infrastructure — hover over nodes to see real-time metrics.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <NetworkTopology nodes={topologyNodes} links={topologyLinks} width={700} height={460} animated />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* INTERACTIVE PLAYGROUND */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-16">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Tools</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Interactive <ShimmerText>Playground</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Design tools built right into the page — create gradients, shadows, animations, and color palettes.
+              </p>
+            </div>
+          </ScrollReveal>
+          <div className="grid lg:grid-cols-2 gap-6">
+            <ScrollReveal>
+              <GradientBuilder />
+            </ScrollReveal>
+            <ScrollReveal delay={0.1}>
+              <ColorPaletteGenerator />
+            </ScrollReveal>
+            <ScrollReveal delay={0.2}>
+              <AnimationPlayground />
+            </ScrollReveal>
+            <ScrollReveal delay={0.3}>
+              <SpacingVisualizer />
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
 
       {/* FINAL CTA */}
       <section className="relative z-10 py-32">
