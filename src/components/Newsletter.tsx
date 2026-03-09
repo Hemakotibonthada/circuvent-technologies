@@ -34,14 +34,30 @@ export default function Newsletter({
 
     setStatus("loading");
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    setStatus("success");
-    setEmail("");
+      const result = await response.json();
 
-    // Reset after 4 seconds
-    setTimeout(() => setStatus("idle"), 4000);
+      if (!response.ok || !result.success) {
+        setErrorMessage(result.error || "Failed to subscribe. Please try again.");
+        setStatus("error");
+        return;
+      }
+
+      setStatus("success");
+      setEmail("");
+
+      // Reset after 4 seconds
+      setTimeout(() => setStatus("idle"), 4000);
+    } catch {
+      setErrorMessage("Something went wrong. Please try again.");
+      setStatus("error");
+    }
   };
 
   if (variant === "inline") {
