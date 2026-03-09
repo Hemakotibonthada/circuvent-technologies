@@ -10,6 +10,18 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  */
 export async function POST(request: Request) {
   try {
+    if (!process.env.RESEND_API_KEY) {
+      console.error("RESEND_API_KEY is not configured");
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Email service is not configured. Please set the RESEND_API_KEY environment variable.",
+        },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
 
     const { name, email, company, service, budget, message } = body;
@@ -85,7 +97,10 @@ export async function POST(request: Request) {
     if (resendError) {
       console.error("Resend error:", resendError);
       return NextResponse.json(
-        { success: false, message: "Failed to send email. Please try again." },
+        {
+          success: false,
+          message: `Failed to send email: ${resendError.message || "Unknown Resend error"}`,
+        },
         { status: 500 }
       );
     }
@@ -103,10 +118,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Contact form error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       {
         success: false,
-        message: "Something went wrong. Please try again.",
+        message: `Something went wrong: ${errorMessage}`,
       },
       { status: 500 }
     );

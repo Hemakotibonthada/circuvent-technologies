@@ -61,6 +61,7 @@ export default function ContactForm() {
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
@@ -119,6 +120,9 @@ export default function ContactForm() {
         if (result.errors) {
           setErrors(result.errors);
         }
+        setErrorMessage(
+          result.message || `Request failed with status ${response.status}`
+        );
         setStatus("error");
         return;
       }
@@ -137,7 +141,12 @@ export default function ContactForm() {
         });
         setStatus("idle");
       }, 5000);
-    } catch {
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Network error. Please check your connection."
+      );
       setStatus("error");
     }
   };
@@ -282,7 +291,7 @@ export default function ContactForm() {
                   }}
                 >
                   <AlertCircle className="w-4 h-4 shrink-0" />
-                  Something went wrong. Please try again.
+                  {errorMessage || "Something went wrong. Please try again."}
                 </div>
               )}
             </motion.form>
