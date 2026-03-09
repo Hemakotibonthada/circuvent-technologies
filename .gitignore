@@ -45,3 +45,5 @@ yarn-error.log*
 /blob-report/
 /playwright/.cache/
 next-env.d.ts
+
+.vercel
