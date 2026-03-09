@@ -49,9 +49,12 @@ export async function POST(request: Request) {
     }
 
     // Send email via Resend
+    // NOTE: Using onboarding@resend.dev + owner email for testing.
+    // For production, verify your domain at resend.com/domains and update
+    // `from` to use your domain (e.g., contact@circuvent.com) and `to` as needed.
     const { data, error: resendError } = await resend.emails.send({
       from: "Circuvent Contact <onboarding@resend.dev>",
-      to: ["contact@circuvent.com"],
+      to: [process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com"],
       replyTo: email,
       subject: `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`,
       html: `

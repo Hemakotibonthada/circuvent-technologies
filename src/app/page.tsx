@@ -22,8 +22,84 @@ import { motion } from "framer-motion";
 import {
   ArrowRight, Brain, Cpu, Globe, Shield, Code2, Layers, Zap,
   Terminal, Rocket, Heart, Eye, Lock, Sparkles, TrendingUp,
-  Box, Wifi, Database, Cloud, GitBranch,
+  Box, Wifi, Database, Cloud, GitBranch, Star, Users, Award,
+  Target, Lightbulb, Puzzle, Gem, Crown, Flame, Compass,
 } from "lucide-react";
+
+// New component imports
+import { InteractiveParticleDemo } from "@/components/ParticleField";
+import { WaveAnimation, GradientMesh, MorphingShapes } from "@/components/ParticleField";
+import {
+  AnimatedDonutChart,
+  AnimatedAreaChart,
+  GitHubContributionGraph,
+  AnimatedProgressRings,
+  AnimatedHeatMap,
+  AnimatedTreeMap,
+  LiveStatsDashboard,
+  AnimatedGauge,
+} from "@/components/DataVisualization";
+import {
+  InteractiveCodeEditor,
+  InteractiveTerminal,
+  AnimatedFeatureCard,
+  AnimatedComparisonTable,
+  AnimatedPricingCards,
+  AnimatedAccordion,
+  AnimatedTabs,
+} from "@/components/InteractiveComponents";
+import {
+  AnimatedGlobe,
+  CircuitBoard,
+  NeuralNetworkViz,
+  OrbitAnimation,
+  TypingCodeDemo,
+} from "@/components/AdvancedVisuals";
+import {
+  BentoGrid,
+  InfiniteLogos,
+  HorizontalTimeline,
+  MetricsDashboard,
+  TechStackGrid,
+  TestimonialMasonry,
+  AnimatedCounterSection,
+} from "@/components/AdvancedSections";
+import {
+  codeEditorTabs,
+  terminalCommands,
+  fullTechStack,
+  orbitItems,
+  projectDistribution,
+  growthData,
+  comparisonHeaders,
+  comparisonRows,
+  faqItems,
+  pricingTiers,
+  timelineEvents,
+  bentoItems,
+  masonryTestimonials,
+  generateHeatMapData,
+  treeMapData,
+} from "@/lib/showcase-landing-data";
+import {
+  ShowcaseCarousel,
+  ArchitectureDiagram,
+  SkillTree,
+  FeatureShowcase,
+  NotificationFeed,
+  AnimatedMetricsGrid,
+  AnimatedLogoWall,
+} from "@/components/ShowcaseComponents";
+import {
+  architectureNodes,
+  architectureConnections,
+  skillTreeData,
+  featureShowcaseTabs,
+  showcaseSlides,
+  notificationFeedData,
+  metricsGridData,
+  logoWallItems,
+} from "@/lib/extended-showcase-data";
 
 const domains = [
   { icon: Brain, title: "AI & Agents", description: "Multi-agent orchestration, LLM integration, computer vision, and natural language processing.", count: 8, gradient: "from-violet-500 to-purple-500", href: "/domains/ai" },
@@ -71,6 +147,7 @@ export default function Home() {
     name: t.name, role: t.role, company: t.company,
     avatar: t.avatar, content: t.content, rating: t.rating,
   }));
+  const heatMapData = generateHeatMapData();
 
   return (
     <>
@@ -415,34 +492,518 @@ export default function Home() {
             </div>
           </ScrollReveal>
           <ScrollReveal>
-            <div className="rounded-2xl overflow-hidden" style={{ background: "#1e1e2e", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 25px 50px rgba(0,0,0,0.4)" }}>
-              <div className="flex items-center gap-2 px-4 py-3" style={{ background: "rgba(0,0,0,0.3)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-[#ff5f56]" />
-                  <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-                  <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
-                </div>
-                <span className="text-xs font-mono" style={{ color: "#6c7086" }}>terminal</span>
+            <InteractiveTerminal
+              commands={terminalCommands}
+              title="circuvent-deploy"
+              prompt="~/circuvent $"
+              autoPlay
+              autoPlayDelay={600}
+            />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* INTERACTIVE CODE EDITOR */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Live Code</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Built With <ShimmerText gradient="from-violet-400 via-purple-400 to-pink-400">Precision</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                From TypeScript agents to ESP32 firmware to Python ML pipelines — explore real code from our projects.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <InteractiveCodeEditor
+              tabs={codeEditorTabs}
+              title="circuvent-projects"
+              showLineNumbers
+              showMinimap
+            />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* GLOBAL REACH - GLOBE */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <ScrollReveal>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Global Impact</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3 mb-6" style={{ color: "var(--text-primary)" }}>
+                Connecting <ShimmerText>Worldwide</ShimmerText>
+              </h2>
+              <p className="text-lg leading-relaxed mb-8" style={{ color: "var(--text-tertiary)" }}>
+                Our solutions serve users across 12+ countries, with infrastructure spanning from Hyderabad to Silicon Valley.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "Countries Served", value: "12+", icon: Globe },
+                  { label: "Active Users", value: "5K+", icon: Users },
+                  { label: "API Uptime", value: "99.5%", icon: Wifi },
+                  { label: "Avg Response", value: "<200ms", icon: Zap },
+                ].map((stat) => (
+                  <motion.div key={stat.label} whileHover={{ y: -2 }} className="p-3 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
+                    <stat.icon className="w-4 h-4 mb-1" style={{ color: "var(--accent-cyan)" }} />
+                    <div className="text-lg font-bold bg-gradient-to-r from-cyan-500 to-violet-500 bg-clip-text text-transparent">{stat.value}</div>
+                    <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>{stat.label}</div>
+                  </motion.div>
+                ))}
               </div>
-              <div className="p-6">
-                <MultiLineTyper
-                  lines={[
-                    { text: "git clone https://github.com/circuvent-technologies/nexus-ai-os", color: "#a6adc8" },
-                    { text: "cd nexus-ai-os", color: "#a6adc8", delay: 200 },
-                    { text: "docker-compose up -d", color: "#c3e88d", delay: 200 },
-                    { text: "✓ API server running on :8000", color: "#27c93f", delay: 500 },
-                    { text: "✓ Ollama inference on :11434", color: "#27c93f", delay: 300 },
-                    { text: "✓ Web dashboard on :3000", color: "#27c93f", delay: 300 },
-                    { text: "✓ 13 agents ready. NEXUS AI OS is live.", color: "#06b6d4", delay: 500 },
-                  ]}
-                  typingSpeed={30}
-                  loop
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.2}>
+              <div className="flex justify-center">
+                <AnimatedGlobe size={380} interactive />
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* METRICS DASHBOARD */}
+      <section className="relative z-10 py-20">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Metrics</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                By The <ShimmerText>Numbers</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <MetricsDashboard />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* BENTO GRID */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Why Us</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                What Sets Us <ShimmerText gradient="from-violet-400 to-pink-400">Apart</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <BentoGrid
+              items={bentoItems.map((item) => ({
+                ...item,
+                icon: item.gradient?.includes("violet") ? <Brain className="w-5 h-5 text-violet-400" /> :
+                      item.gradient?.includes("cyan") ? <Wifi className="w-5 h-5 text-cyan-400" /> :
+                      item.gradient?.includes("blue") ? <Globe className="w-5 h-5 text-blue-400" /> :
+                      item.gradient?.includes("emerald") ? <GitBranch className="w-5 h-5 text-emerald-400" /> :
+                      item.gradient?.includes("amber") ? <Cloud className="w-5 h-5 text-amber-400" /> :
+                      <Lock className="w-5 h-5 text-pink-400" />,
+              }))}
+              columns={3}
+            />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* DATA VISUALIZATION - Charts */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-16">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Analytics</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Project <ShimmerText gradient="from-pink-400 via-rose-400 to-red-400">Analytics</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <div className="grid lg:grid-cols-2 gap-8">
+            <ScrollReveal>
+              <div className="rounded-2xl p-6" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(12px)" }}>
+                <h3 className="text-sm font-semibold mb-6" style={{ color: "var(--text-primary)" }}>Project Distribution</h3>
+                <div className="flex justify-center">
+                  <AnimatedDonutChart
+                    segments={projectDistribution}
+                    size={220}
+                    centerLabel="Total"
+                    centerValue="53+"
+                  />
+                </div>
+              </div>
+            </ScrollReveal>
+            <ScrollReveal delay={0.15}>
+              <div className="rounded-2xl p-6" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(12px)" }}>
+                <AnimatedAreaChart
+                  data={growthData}
+                  title="Project Growth Over Time"
+                  subtitle="Number of projects shipped per quarter"
+                  color="#06b6d4"
+                  gradientFrom="#06b6d4"
+                  height={260}
+                  showDots
+                  showGrid
                 />
               </div>
+            </ScrollReveal>
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-8 mt-8">
+            <ScrollReveal>
+              <div className="rounded-2xl p-6" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(12px)" }}>
+                <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Codebase Composition</h3>
+                <AnimatedTreeMap data={treeMapData} height={200} />
+              </div>
+            </ScrollReveal>
+            <ScrollReveal delay={0.1}>
+              <div className="rounded-2xl p-6 flex flex-col items-center" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(12px)" }}>
+                <h3 className="text-sm font-semibold mb-4 self-start" style={{ color: "var(--text-primary)" }}>Skill Mastery</h3>
+                <AnimatedProgressRings
+                  rings={[
+                    { label: "Frontend", value: 95, max: 100, color: "#06b6d4" },
+                    { label: "Backend", value: 92, max: 100, color: "#8b5cf6" },
+                    { label: "AI/ML", value: 87, max: 100, color: "#ec4899" },
+                    { label: "IoT", value: 90, max: 100, color: "#10b981" },
+                  ]}
+                  size={180}
+                />
+              </div>
+            </ScrollReveal>
+            <ScrollReveal delay={0.2}>
+              <div className="rounded-2xl p-6 flex flex-col items-center" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(12px)" }}>
+                <h3 className="text-sm font-semibold mb-4 self-start" style={{ color: "var(--text-primary)" }}>Performance Score</h3>
+                <AnimatedGauge
+                  value={95}
+                  max={100}
+                  color="#06b6d4"
+                  label="Lighthouse Score"
+                  size={180}
+                />
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* GITHUB CONTRIBUTIONS */}
+      <section className="relative z-10 py-20">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="rounded-2xl p-6 sm:p-8" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(12px)" }}>
+              <GitHubContributionGraph weeks={40} />
             </div>
           </ScrollReveal>
         </div>
       </section>
+
+      {/* PARTICLE PLAYGROUND */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Creativity</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Particle <ShimmerText>Playground</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Interactive canvas-based particle systems — explore different presets and see the creative possibilities.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <InteractiveParticleDemo className="min-h-[450px]" />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* NEURAL NETWORK + CIRCUIT BOARD */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-16">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Under the Hood</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                AI & IoT <ShimmerText gradient="from-violet-400 to-cyan-400">Visualized</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <div className="grid lg:grid-cols-2 gap-8">
+            <ScrollReveal>
+              <div className="rounded-2xl p-6 overflow-hidden" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
+                <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>🧠 Neural Network</h3>
+                <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Watch signals propagate through a multi-layer perceptron</p>
+                <NeuralNetworkViz layers={[4, 6, 8, 6, 3]} width={500} height={300} />
+              </div>
+            </ScrollReveal>
+            <ScrollReveal delay={0.15}>
+              <div className="rounded-2xl p-6 overflow-hidden" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
+                <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>⚡ Circuit Board</h3>
+                <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Data packets flowing through an IoT sensor network</p>
+                <CircuitBoard width={500} height={300} nodeCount={25} />
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* TECH ECOSYSTEM ORBIT */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <ScrollReveal>
+              <div className="flex justify-center">
+                <OrbitAnimation
+                  items={orbitItems}
+                  centerLabel="NEXUS"
+                  size={380}
+                  speed={0.6}
+                />
+              </div>
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.2}>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Ecosystem</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3 mb-6" style={{ color: "var(--text-primary)" }}>
+                Technology <ShimmerText gradient="from-violet-400 to-pink-400">Ecosystem</ShimmerText>
+              </h2>
+              <p className="text-lg leading-relaxed mb-8" style={{ color: "var(--text-tertiary)" }}>
+                12+ technologies orbiting around NEXUS — our core AI operating system. Every tool carefully selected and deeply integrated.
+              </p>
+              <TechStackGrid items={fullTechStack} />
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* HORIZONTAL TIMELINE */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Timeline</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Our <ShimmerText>Journey</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <HorizontalTimeline events={timelineEvents} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* COMPARISON TABLE */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-4xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Compare</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Why <ShimmerText gradient="from-pink-400 to-rose-400">Circuvent</ShimmerText>?
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <AnimatedComparisonTable
+              headers={comparisonHeaders}
+              rows={comparisonRows}
+              highlightColumn={0}
+            />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* TESTIMONIAL MASONRY */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-16">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Reviews</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Loved By <ShimmerText gradient="from-pink-400 via-rose-400 to-red-400">Developers</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <TestimonialMasonry testimonials={masonryTestimonials} columns={3} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-16">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Pricing</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Simple, <ShimmerText>Transparent</ShimmerText> Pricing
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Choose the plan that matches your project scope. Every plan includes a GitHub repo, documentation, and Docker deployment.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <AnimatedPricingCards tiers={pricingTiers} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-3xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>FAQ</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Frequently <ShimmerText gradient="from-violet-400 to-purple-400">Asked</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <AnimatedAccordion
+              items={faqItems.map((item) => ({
+                ...item,
+                icon: <Sparkles className="w-4 h-4" style={{ color: "var(--accent-cyan)" }} />,
+              }))}
+            />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* FEATURE SHOWCASE TABS */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-6xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Deep Dive</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Our <ShimmerText>Core Domains</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Explore our capabilities across AI, IoT, full-stack, and DevOps — each domain backed by production-proven systems.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <FeatureShowcase tabs={featureShowcaseTabs} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* ARCHITECTURE DIAGRAM */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-6xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Architecture</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                System <ShimmerText gradient="from-violet-400 to-cyan-400">Architecture</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Interactive diagram of our production stack — hover over nodes to explore connections.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <ArchitectureDiagram
+              nodes={architectureNodes}
+              connections={architectureConnections}
+              title="NEXUS Production Stack"
+              height={520}
+            />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* SKILL TREE */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Skills</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Skill <ShimmerText gradient="from-pink-400 to-rose-400">Tree</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Our technology progression — from HTML fundamentals to NEXUS AI OS.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <div className="rounded-2xl p-6" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
+              <SkillTree skills={skillTreeData} />
+            </div>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* PROJECT SHOWCASE CAROUSEL */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Showcase</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Flagship <ShimmerText>Projects</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <ShowcaseCarousel slides={showcaseSlides} autoPlay interval={6000} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* METRICS DEEP DIVE */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-6xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Engineering</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Quality <ShimmerText gradient="from-violet-400 to-purple-400">Metrics</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Real engineering metrics from our production systems — click any card for monthly breakdown.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <AnimatedMetricsGrid metrics={metricsGridData} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* LIVE ACTIVITY FEED + LOGO WALL */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-2">
+              <ScrollReveal>
+                <NotificationFeed notifications={notificationFeedData} maxVisible={6} autoScroll />
+              </ScrollReveal>
+            </div>
+            <div className="lg:col-span-3">
+              <ScrollReveal delay={0.1}>
+                <h4 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Technology Wall</h4>
+                <AnimatedLogoWall items={logoWallItems} rows={4} speed={20} />
+              </ScrollReveal>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* WAVE DIVIDER */}
+      <WaveAnimation
+        waves={3}
+        amplitude={30}
+        speed={0.015}
+        colors={["rgba(6, 182, 212, 0.08)", "rgba(139, 92, 246, 0.06)", "rgba(236, 72, 153, 0.04)"]}
+        height={150}
+      />
 
       {/* FINAL CTA */}
       <section className="relative z-10 py-32">

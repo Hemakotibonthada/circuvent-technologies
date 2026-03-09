@@ -30,8 +30,8 @@ export default function ContactError({
         </h2>
         <p className="text-sm mb-6" style={{ color: "var(--text-tertiary)" }}>
           Please try again, or reach out directly at{" "}
-          <a href="mailto:hello@circuvent.tech" className="text-[var(--accent-cyan)] underline">
-            hello@circuvent.tech
+          <a href="mailto:contact@circuvent.com" className="text-[var(--accent-cyan)] underline">
+            contact@circuvent.com
           </a>
         </p>
         <div className="flex items-center justify-center gap-3">
