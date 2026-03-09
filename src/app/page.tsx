@@ -66,7 +66,11 @@ import {
 } from "@/components/AdvancedSections";
 import { GradientBuilder, AnimationPlayground, ColorPaletteGenerator, SpacingVisualizer } from "@/components/InteractivePlayground";
 import { InteractiveSolarSystem, TechPeriodicTable, NetworkTopology } from "@/components/InteractiveMaps";
+import { MultiTerminal, InteractiveFileTree, BrowserMockup, DeviceShowcase, AnimatedCodeDiff } from "@/components/DeviceShowcase";
+import { ROICalculator, TechQuiz } from "@/components/InteractiveWidgets";
 import { techPeriodicElements, topologyNodes, topologyLinks, techSolarPlanets } from "@/lib/interactive-tools-data";
+import { projectFileTree, terminalSessions, sampleCodeDiff } from "@/lib/file-tree-data";
+import { techQuizQuestions } from "@/lib/quiz-data";
 import {
   codeEditorTabs,
   terminalCommands,
@@ -1107,6 +1111,74 @@ export default function Home() {
             </ScrollReveal>
             <ScrollReveal delay={0.3}>
               <SpacingVisualizer />
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* MULTI-TERMINAL */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-500">DevOps</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Multi-Session <ShimmerText gradient="from-emerald-400 to-cyan-400">Terminal</ShimmerText>
+              </h2>
+              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
+                Watch our development workflow unfold — from dev server to Docker deployment, testing, and git operations.
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal>
+            <MultiTerminal sessions={terminalSessions} autoPlay />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* PROJECT FILE TREE + CODE DIFF */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-12">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Codebase</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Inside The <ShimmerText gradient="from-violet-400 to-purple-400">Code</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <div className="grid lg:grid-cols-2 gap-6">
+            <ScrollReveal>
+              <InteractiveFileTree tree={projectFileTree} title="circuvent-technologies" />
+            </ScrollReveal>
+            <ScrollReveal delay={0.15}>
+              <AnimatedCodeDiff
+                title="Recent Fix: Resend Error Handling"
+                fileName="src/app/api/contact/route.ts"
+                lines={sampleCodeDiff}
+              />
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* QUIZ + ROI CALCULATOR */}
+      <section className="relative z-10 py-32">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-16">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Interactive</span>
+              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
+                Engage & <ShimmerText gradient="from-pink-400 to-rose-400">Estimate</ShimmerText>
+              </h2>
+            </div>
+          </ScrollReveal>
+          <div className="grid lg:grid-cols-2 gap-6">
+            <ScrollReveal>
+              <TechQuiz questions={techQuizQuestions} title="Test Your Tech Knowledge" />
+            </ScrollReveal>
+            <ScrollReveal delay={0.15}>
+              <ROICalculator />
             </ScrollReveal>
           </div>
         </div>
