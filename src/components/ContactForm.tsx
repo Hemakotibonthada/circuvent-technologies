@@ -106,23 +106,40 @@ export default function ContactForm() {
 
     setStatus("loading");
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    setStatus("success");
-
-    // Reset form after success
-    setTimeout(() => {
-      setFormData({
-        name: "",
-        email: "",
-        company: "",
-        service: "",
-        budget: "",
-        message: "",
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
       });
-      setStatus("idle");
-    }, 5000);
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        if (result.errors) {
+          setErrors(result.errors);
+        }
+        setStatus("error");
+        return;
+      }
+
+      setStatus("success");
+
+      // Reset form after success
+      setTimeout(() => {
+        setFormData({
+          name: "",
+          email: "",
+          company: "",
+          service: "",
+          budget: "",
+          message: "",
+        });
+        setStatus("idle");
+      }, 5000);
+    } catch {
+      setStatus("error");
+    }
   };
 
   return (
