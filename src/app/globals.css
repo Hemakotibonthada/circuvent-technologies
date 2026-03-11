@@ -2,47 +2,47 @@
 
 /* ===== THEME TOKENS ===== */
 :root {
-  /* Light theme (default) */
-  --bg-primary: #f8fafc;
-  --bg-secondary: #f1f5f9;
+  /* Light theme (default) — refined, professional, warm accents */
+  --bg-primary: #fafbfd;
+  --bg-secondary: #f0f4f8;
   --bg-surface: #ffffff;
-  --bg-surface-hover: #f1f5f9;
+  --bg-surface-hover: #f5f7fa;
   --bg-elevated: #ffffff;
-  --bg-overlay: rgba(255, 255, 255, 0.8);
-  --bg-glass: rgba(255, 255, 255, 0.7);
+  --bg-overlay: rgba(250, 251, 253, 0.88);
+  --bg-glass: rgba(255, 255, 255, 0.75);
 
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-tertiary: #64748b;
-  --text-muted: #94a3b8;
-  --text-inverted: #f8fafc;
+  --text-primary: #0c1222;
+  --text-secondary: #2d3a4e;
+  --text-tertiary: #536478;
+  --text-muted: #8494a7;
+  --text-inverted: #fafbfd;
 
-  --border-primary: rgba(15, 23, 42, 0.08);
-  --border-hover: rgba(15, 23, 42, 0.15);
-  --border-accent: rgba(6, 182, 212, 0.3);
+  --border-primary: rgba(12, 18, 34, 0.07);
+  --border-hover: rgba(12, 18, 34, 0.14);
+  --border-accent: rgba(6, 182, 212, 0.35);
 
   --accent-cyan: #0891b2;
   --accent-violet: #7c3aed;
   --accent-pink: #db2777;
-  --accent-cyan-muted: rgba(8, 145, 178, 0.1);
-  --accent-violet-muted: rgba(124, 58, 237, 0.1);
+  --accent-cyan-muted: rgba(8, 145, 178, 0.08);
+  --accent-violet-muted: rgba(124, 58, 237, 0.07);
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
-  --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
-  --shadow-glow-cyan: 0 0 30px rgba(6, 182, 212, 0.1);
+  --shadow-sm: 0 1px 3px rgba(12, 18, 34, 0.04), 0 1px 2px rgba(12, 18, 34, 0.03);
+  --shadow-md: 0 4px 12px rgba(12, 18, 34, 0.06), 0 2px 4px rgba(12, 18, 34, 0.04);
+  --shadow-lg: 0 12px 40px rgba(12, 18, 34, 0.08), 0 4px 12px rgba(12, 18, 34, 0.05);
+  --shadow-glow-cyan: 0 0 24px rgba(8, 145, 178, 0.12), 0 0 8px rgba(8, 145, 178, 0.06);
 
-  --scrollbar-thumb: rgba(8, 145, 178, 0.25);
-  --scrollbar-thumb-hover: rgba(8, 145, 178, 0.4);
-  --selection-bg: rgba(6, 182, 212, 0.2);
-  --selection-text: #0f172a;
+  --scrollbar-thumb: rgba(8, 145, 178, 0.2);
+  --scrollbar-thumb-hover: rgba(8, 145, 178, 0.35);
+  --selection-bg: rgba(6, 182, 212, 0.15);
+  --selection-text: #0c1222;
 
-  --noise-opacity: 0.008;
-  --particle-opacity: 0.4;
-  --particle-line-color: rgba(8, 145, 178, 0.06);
-  --grid-line-color: rgba(15, 23, 42, 0.03);
-  --spotlight-color: rgba(6, 182, 212, 0.04);
-  --orb-opacity: 0.04;
+  --noise-opacity: 0.012;
+  --particle-opacity: 0.35;
+  --particle-line-color: rgba(8, 145, 178, 0.05);
+  --grid-line-color: rgba(12, 18, 34, 0.025);
+  --spotlight-color: rgba(6, 182, 212, 0.035);
+  --orb-opacity: 0.035;
 }
 
 .dark {
@@ -203,4 +203,84 @@ body {
 .theme-transition,
 .theme-transition * {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, box-shadow 0.3s ease !important;
+}
+
+/* ===== LIGHT THEME ENHANCEMENTS ===== */
+:root {
+  /* Refined glass card in light mode */
+  --glass-blur: 16px;
+  --card-shadow: 0 1px 3px rgba(12, 18, 34, 0.04), 0 4px 16px rgba(12, 18, 34, 0.03);
+  --card-hover-shadow: 0 4px 20px rgba(12, 18, 34, 0.06), 0 8px 32px rgba(12, 18, 34, 0.04);
+  --card-border: rgba(12, 18, 34, 0.06);
+  --card-hover-border: rgba(8, 145, 178, 0.2);
+  --nav-shadow: 0 1px 3px rgba(12, 18, 34, 0.03), 0 4px 12px rgba(12, 18, 34, 0.02);
+  --input-bg: #f5f7fa;
+  --input-focus-ring: rgba(8, 145, 178, 0.2);
+  --badge-bg: rgba(8, 145, 178, 0.06);
+  --badge-text: #0891b2;
+  --gradient-primary: linear-gradient(135deg, #0891b2, #7c3aed);
+  --gradient-surface: linear-gradient(180deg, #ffffff, #f8fafc);
+  --gradient-hero: linear-gradient(135deg, rgba(8, 145, 178, 0.04), rgba(124, 58, 237, 0.03));
+}
+
+.dark {
+  --glass-blur: 24px;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --card-hover-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --card-border: rgba(255, 255, 255, 0.06);
+  --card-hover-border: rgba(6, 182, 212, 0.3);
+  --nav-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --input-bg: rgba(15, 23, 41, 0.5);
+  --input-focus-ring: rgba(6, 182, 212, 0.3);
+  --badge-bg: rgba(6, 182, 212, 0.1);
+  --badge-text: #06b6d4;
+  --gradient-primary: linear-gradient(135deg, #06b6d4, #8b5cf6);
+  --gradient-surface: linear-gradient(180deg, #0f1729, #030712);
+  --gradient-hero: linear-gradient(135deg, rgba(6, 182, 212, 0.06), rgba(139, 92, 246, 0.04));
+}
+
+/* Light mode card refinements */
+:root .glass-card {
+  box-shadow: var(--card-shadow);
+  border-color: var(--card-border);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+
+:root .glass-card:hover {
+  box-shadow: var(--card-hover-shadow);
+  border-color: var(--card-hover-border);
+}
+
+/* Better light mode input styling */
+:root input,
+:root textarea,
+:root select {
+  background: var(--input-bg);
+}
+
+:root input:focus,
+:root textarea:focus,
+:root select:focus {
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+  border-color: var(--accent-cyan) !important;
+}
+
+/* Light mode code blocks — only affects inline code, not editor components */
+:root :not([style*="1e1e2e"]) > pre,
+:root :not([style*="1e1e2e"]) > code {
+  background: #f3f4f6;
+}
+
+/* Subtle gradient on light mode body */
+:root body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 500px;
+  background: var(--gradient-hero);
+  pointer-events: none;
+  z-index: -1;
 }

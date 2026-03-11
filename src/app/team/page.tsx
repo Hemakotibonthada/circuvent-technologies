@@ -1,64 +1,130 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import ScrollReveal from "@/components/ScrollReveal";
 import AnimatedBackground from "@/components/AnimatedBackground";
-import TeamCard, { type TeamMember } from "@/components/TeamCard";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowRight, Users, MapPin, Mail, Briefcase } from "lucide-react";
+import Image from "next/image";
+import {
+  ArrowRight, Users, MapPin, Mail, Briefcase, Linkedin,
+  Instagram, Youtube, Twitter, Phone, ExternalLink, Star,
+  Code2, Brain, Rocket, Heart, Globe, Sparkles, X,
+} from "lucide-react";
 
-const teamMembers: TeamMember[] = [
+// ============================================================================
+// TEAM DATA - Real team members from HT Research & Development Labs
+// ============================================================================
+
+interface TeamMemberData {
+  name: string;
+  role: string;
+  bio: string;
+  image: string;
+  gradient: string;
+  skills: string[];
+  socials: {
+    linkedin?: string;
+    email?: string;
+    instagram?: string;
+    whatsapp?: string;
+    twitter?: string;
+    youtube?: string;
+  };
+  profileUrl?: string;
+  isFounder?: boolean;
+  badgeLabel?: string;
+  quote?: string;
+}
+
+const teamMembers: TeamMemberData[] = [
   {
-    name: "Harsha Bonthada",
-    role: "Founder & Lead Engineer",
-    bio: "Full-stack architect with a passion for AI agents, IoT systems, and building products that bypass technological limits.",
-    avatar: "🧑‍💻",
+    name: "Hema Koteswar Naidu",
+    role: "Founder & CEO",
+    bio: "A visionary leader with deep expertise in R&D and technological innovation. Hema drives the strategic direction of the lab, focusing on cutting-edge research in AI, distributed systems, IoT, and full-stack engineering. Built 53+ projects across 6 technology domains with 200K+ lines of production code.",
+    image: "https://res.cloudinary.com/djucuoojo/image/upload/v1758717823/MyImage_y6ydau.png",
     gradient: "from-cyan-500 to-violet-500",
+    skills: ["AI/ML", "Full-Stack", "IoT", "DevOps", "Python", "React", "Flutter"],
+    socials: {
+      linkedin: "https://linkedin.com/in/hemakoti",
+      email: "mailto:hema@htresearchlab.com",
+      instagram: "https://instagram.com/hemakoti.bonthada",
+      whatsapp: "https://wa.me/919966123105",
+      twitter: "https://twitter.com/hemakoti",
+      youtube: "https://youtube.com/@hemakotibonthada",
+    },
+    profileUrl: "https://www.htresearchlab.com/hemakoti",
+    isFounder: true,
+    badgeLabel: "Founder",
+    quote: "Engineering intelligent systems that bypass limitations.",
+  },
+  {
+    name: "Tejasri Veeranki",
+    role: "Co-Founder & Head of Operations",
+    bio: "Tejasri ensures the smooth functioning of all lab operations. Her expertise in project management and resource allocation is critical to translating research concepts into viable products. She bridges the gap between technical innovation and operational excellence.",
+    image: "https://res.cloudinary.com/djucuoojo/image/upload/v1758718620/teju_k1da72.png",
+    gradient: "from-pink-500 to-rose-500",
+    skills: ["Operations", "Project Management", "Strategy", "Team Building"],
     socials: {
       linkedin: "#",
-      github: "https://github.com",
-      twitter: "#",
+      email: "#",
     },
+    isFounder: true,
+    badgeLabel: "Co-Founder",
   },
   {
-    name: "Open Position",
-    role: "AI / ML Engineer",
-    bio: "We're looking for someone who lives and breathes machine learning — from training pipelines to edge deployment on NPUs.",
-    avatar: "🤖",
-    gradient: "from-violet-500 to-purple-500",
-    socials: {},
-  },
-  {
-    name: "Open Position",
-    role: "IoT & Embedded Systems",
-    bio: "ESP32 firmware, MQTT protocols, sensor networks — if you think in bits and bytes at the hardware level, we need you.",
-    avatar: "🔧",
-    gradient: "from-emerald-500 to-teal-500",
-    socials: {},
-  },
-  {
-    name: "Open Position",
-    role: "Frontend / Design Engineer",
-    bio: "Craft pixel-perfect interfaces with React, Next.js, and Framer Motion. We want someone who cares about every detail.",
-    avatar: "🎨",
-    gradient: "from-pink-500 to-rose-500",
-    socials: {},
-  },
-  {
-    name: "Open Position",
-    role: "Mobile Developer",
-    bio: "Flutter and React Native expert to extend our cross-platform reach. Production-quality apps across iOS and Android.",
-    avatar: "📱",
+    name: "Chiru Kotcherla",
+    role: "Co-Founder & Marketing Director",
+    bio: "Marketing guru with a knack for storytelling and brand building. Chiru leads our marketing strategies, ensuring our innovations reach the right audience effectively. He crafts compelling narratives around complex technology products.",
+    image: "https://res.cloudinary.com/djucuoojo/image/upload/v1758719410/Chiru_iw7icr.png",
     gradient: "from-amber-500 to-orange-500",
+    skills: ["Marketing", "Branding", "Content Strategy", "Growth"],
+    socials: {
+      email: "mailto:chiru.kotcherla@htresearchlab.com",
+    },
+    isFounder: true,
+    badgeLabel: "Co-Founder",
+  },
+];
+
+// AI Agents as "team members"
+const aiAgents: TeamMemberData[] = [
+  {
+    name: "NEXUS Personal Agent",
+    role: "AI Personal Assistant",
+    bio: "Local-first AI agent running on Ollama (Llama 3). Handles personal tasks, scheduling, note-taking, and conversational queries with full privacy — zero cloud dependency.",
+    image: "",
+    gradient: "from-violet-500 to-purple-500",
+    skills: ["NLP", "Task Management", "Scheduling", "Conversation"],
+    socials: {},
+    quote: "Your thoughts, your device, your privacy.",
+  },
+  {
+    name: "NEXUS Code Agent",
+    role: "AI Code Assistant",
+    bio: "Code-specialized agent running CodeStral. Assists with code generation, review, debugging, documentation, and refactoring across 10+ programming languages.",
+    image: "",
+    gradient: "from-blue-500 to-indigo-500",
+    skills: ["Code Gen", "Review", "Debugging", "Documentation"],
     socials: {},
   },
   {
-    name: "Open Position",
-    role: "DevOps & Platform",
-    bio: "Docker, CI/CD, cloud infrastructure, and monitoring. Keep our 8+ production apps running smoothly at scale.",
-    avatar: "☁️",
-    gradient: "from-blue-500 to-indigo-500",
+    name: "NEXUS Finance Agent",
+    role: "AI Financial Analyst",
+    bio: "Specialized agent for financial analysis, expense tracking, budgeting, and investment insights. Integrates with market data APIs for real-time analysis.",
+    image: "",
+    gradient: "from-emerald-500 to-teal-500",
+    skills: ["Finance", "Analytics", "Budgeting", "Markets"],
+    socials: {},
+  },
+  {
+    name: "NEXUS Home Agent",
+    role: "AI Home Controller",
+    bio: "IoT integration agent managing smart home devices via MQTT. Controls lights, temperature, security systems, and energy usage across 9+ ESP32 devices.",
+    image: "",
+    gradient: "from-cyan-500 to-teal-500",
+    skills: ["MQTT", "IoT", "Automation", "Energy"],
     socials: {},
   },
 ];
@@ -68,31 +134,350 @@ const openRoles = [
     title: "Senior AI Engineer",
     type: "Full-time",
     location: "Remote / India",
-    description:
-      "Lead our AI agent architecture. Experience with LLMs, RAG, vector databases, and edge AI deployment required.",
+    description: "Lead our AI agent architecture. Experience with LLMs, RAG, vector databases, and edge AI deployment required.",
+    gradient: "from-violet-500 to-purple-500",
   },
   {
     title: "IoT Platform Engineer",
     type: "Full-time",
     location: "Hyderabad, India",
-    description:
-      "Design and scale our ESP32 firmware and MQTT infrastructure. Strong C++ and embedded systems experience.",
+    description: "Design and scale our ESP32 firmware and MQTT infrastructure. Strong C++ and embedded systems experience.",
+    gradient: "from-cyan-500 to-teal-500",
   },
   {
     title: "Full-Stack Developer",
     type: "Full-time",
     location: "Remote / India",
-    description:
-      "React/Next.js frontend + Node.js/Python backend. Ship features across multiple products simultaneously.",
+    description: "React/Next.js frontend + Node.js/Python backend. Ship features across multiple products simultaneously.",
+    gradient: "from-blue-500 to-indigo-500",
   },
   {
     title: "Flutter Mobile Engineer",
     type: "Contract",
     location: "Remote",
-    description:
-      "Build and maintain our cross-platform mobile applications. Experience with Firebase, Riverpod, and native integrations.",
+    description: "Build and maintain our cross-platform mobile applications. Experience with Firebase, Riverpod, and native integrations.",
+    gradient: "from-pink-500 to-rose-500",
   },
 ];
+
+// Social icon mapping
+const socialIcons: Record<string, { icon: React.ElementType; color: string; hoverColor: string }> = {
+  linkedin: { icon: Linkedin, color: "#0a66c2", hoverColor: "rgba(10,102,194,0.15)" },
+  email: { icon: Mail, color: "#ea4335", hoverColor: "rgba(234,67,53,0.15)" },
+  instagram: { icon: Instagram, color: "#e1306c", hoverColor: "rgba(225,48,108,0.15)" },
+  whatsapp: { icon: Phone, color: "#25d366", hoverColor: "rgba(37,211,102,0.15)" },
+  twitter: { icon: Twitter, color: "#1da1f2", hoverColor: "rgba(29,161,242,0.15)" },
+  youtube: { icon: Youtube, color: "#ff0000", hoverColor: "rgba(255,0,0,0.15)" },
+};
+
+// ============================================================================
+// TEAM CARD COMPONENT - Enhanced with real photos
+// ============================================================================
+
+function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemberData; index: number; isAgent?: boolean }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const activeSocials = Object.entries(member.socials).filter(([, url]) => url && url !== "#");
+  const emojiMap: Record<string, string> = {
+    "AI Personal Assistant": "🤖",
+    "AI Code Assistant": "💻",
+    "AI Financial Analyst": "💰",
+    "AI Home Controller": "🏠",
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6, delay: index * 0.12, ease: [0.22, 1, 0.36, 1] }}
+        className="group relative cursor-pointer"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={() => setShowDetails(true)}
+      >
+        {/* Glow border on hover */}
+        <motion.div
+          className={`absolute -inset-[1px] rounded-3xl bg-gradient-to-r ${member.gradient} blur-sm`}
+          animate={{ opacity: isHovered ? 0.25 : 0 }}
+          transition={{ duration: 0.3 }}
+        />
+
+        <div
+          className="relative overflow-hidden rounded-3xl transition-all duration-500"
+          style={{
+            background: "var(--bg-glass)",
+            border: "1px solid var(--border-primary)",
+            boxShadow: isHovered ? "var(--shadow-lg)" : "var(--shadow-sm)",
+          }}
+        >
+          {/* Founder badge */}
+          {member.isFounder && (
+            <div className={`absolute top-4 right-4 z-20 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider text-white bg-gradient-to-r ${member.gradient}`}>
+              {member.badgeLabel || "Founder"}
+            </div>
+          )}
+
+          {/* Image area */}
+          <div className="relative w-full overflow-hidden" style={{ height: isAgent ? 200 : 320 }}>
+            {member.image ? (
+              <>
+                <Image
+                  src={member.image}
+                  alt={member.name}
+                  fill
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                />
+                {/* Gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              </>
+            ) : (
+              <div className={`w-full h-full bg-gradient-to-br ${member.gradient} flex items-center justify-center`}>
+                <span className="text-6xl opacity-50">
+                  {emojiMap[member.role] || "🧠"}
+                </span>
+              </div>
+            )}
+
+            {/* Name overlay on image */}
+            {member.image && (
+              <div className="absolute bottom-4 left-5 right-5 z-10">
+                <h3 className="text-xl font-bold text-white drop-shadow-lg">
+                  {member.name}
+                </h3>
+                <p className={`text-sm font-medium mt-0.5 bg-gradient-to-r ${member.gradient} bg-clip-text text-transparent`}>
+                  {member.role}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Info section */}
+          <div className="p-5">
+            {/* Name (for agents without image) */}
+            {!member.image && (
+              <div className="mb-3">
+                <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                  {member.name}
+                </h3>
+                <p className={`text-sm font-medium bg-gradient-to-r ${member.gradient} bg-clip-text text-transparent`}>
+                  {member.role}
+                </p>
+              </div>
+            )}
+
+            {/* Quote or bio */}
+            {member.quote && (
+              <p className="text-xs italic mb-3 px-3 py-2 rounded-xl" style={{
+                color: "var(--text-tertiary)",
+                background: "var(--bg-surface-hover)",
+                borderLeft: "3px solid var(--accent-cyan)",
+              }}>
+                &ldquo;{member.quote}&rdquo;
+              </p>
+            )}
+
+            <p className="text-sm leading-relaxed line-clamp-3" style={{ color: "var(--text-muted)" }}>
+              {member.bio}
+            </p>
+
+            {/* Skills */}
+            <div className="flex flex-wrap gap-1.5 mt-4">
+              {member.skills.slice(0, 5).map((skill) => (
+                <span
+                  key={skill}
+                  className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                  style={{
+                    background: "var(--accent-cyan-muted)",
+                    color: "var(--accent-cyan)",
+                  }}
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+
+            {/* Social icons */}
+            {activeSocials.length > 0 && (
+              <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: "1px solid var(--border-primary)" }}>
+                {activeSocials.map(([platform, url]) => {
+                  const social = socialIcons[platform];
+                  if (!social) return null;
+                  const Icon = social.icon;
+                  return (
+                    <motion.a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-2 rounded-xl transition-all duration-200"
+                      style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border-primary)",
+                        color: "var(--text-muted)",
+                      }}
+                      whileHover={{
+                        scale: 1.1,
+                        y: -2,
+                        backgroundColor: social.hoverColor,
+                        color: social.color,
+                      }}
+                      whileTap={{ scale: 0.95 }}
+                      aria-label={`${member.name} ${platform}`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </motion.a>
+                  );
+                })}
+
+                {member.profileUrl && (
+                  <motion.a
+                    href={member.profileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium"
+                    style={{
+                      background: "var(--accent-cyan-muted)",
+                      color: "var(--accent-cyan)",
+                      border: "1px solid var(--border-accent)",
+                    }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Profile <ExternalLink className="w-3 h-3" />
+                  </motion.a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Detail modal */}
+      <AnimatePresence>
+        {showDetails && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+            onClick={() => setShowDetails(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="relative max-w-lg w-full rounded-3xl overflow-hidden"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border-primary)",
+                boxShadow: "0 25px 60px rgba(0,0,0,0.4)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close */}
+              <button
+                onClick={() => setShowDetails(false)}
+                className="absolute top-4 right-4 z-20 p-2 rounded-full transition-colors"
+                style={{ background: "rgba(0,0,0,0.4)", color: "white" }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Image */}
+              {member.image ? (
+                <div className="relative w-full" style={{ height: 280 }}>
+                  <Image src={member.image} alt={member.name} fill className="object-cover" sizes="500px" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                  <div className="absolute bottom-5 left-6">
+                    {member.isFounder && (
+                      <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider text-white bg-gradient-to-r ${member.gradient} mb-2`}>
+                        {member.badgeLabel || "Founder"}
+                      </span>
+                    )}
+                    <h2 className="text-2xl font-bold text-white">{member.name}</h2>
+                    <p className={`text-sm font-medium bg-gradient-to-r ${member.gradient} bg-clip-text text-transparent`}>
+                      {member.role}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className={`w-full h-48 bg-gradient-to-br ${member.gradient} flex items-center justify-center`}>
+                  <span className="text-7xl opacity-30">{emojiMap[member.role] || "🧠"}</span>
+                  <div className="absolute bottom-5 left-6">
+                    <h2 className="text-2xl font-bold text-white">{member.name}</h2>
+                    <p className="text-sm font-medium text-white/70">{member.role}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-6 space-y-4">
+                {member.quote && (
+                  <p className="text-sm italic px-4 py-3 rounded-xl" style={{
+                    color: "var(--text-tertiary)",
+                    background: "var(--bg-surface-hover)",
+                    borderLeft: "3px solid var(--accent-cyan)",
+                  }}>
+                    &ldquo;{member.quote}&rdquo;
+                  </p>
+                )}
+
+                <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  {member.bio}
+                </p>
+
+                {/* Skills */}
+                <div className="flex flex-wrap gap-1.5">
+                  {member.skills.map((skill) => (
+                    <span key={skill} className="px-2.5 py-1 rounded-full text-[10px] font-medium" style={{ background: "var(--accent-cyan-muted)", color: "var(--accent-cyan)" }}>
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Socials */}
+                {activeSocials.length > 0 && (
+                  <div className="flex items-center gap-2 pt-3" style={{ borderTop: "1px solid var(--border-primary)" }}>
+                    {activeSocials.map(([platform, url]) => {
+                      const social = socialIcons[platform];
+                      if (!social) return null;
+                      const Icon = social.icon;
+                      return (
+                        <motion.a
+                          key={platform}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2.5 rounded-xl transition-all"
+                          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: social.color }}
+                          whileHover={{ scale: 1.1, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </motion.a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+// ============================================================================
+// PAGE
+// ============================================================================
 
 export default function TeamPage() {
   return (
@@ -114,20 +499,53 @@ export default function TeamPage() {
                 </span>
               </h1>
               <p className="text-lg leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-                A lean, high-impact team of engineers who believe great technology
-                is built by people who care deeply about craft, correctness, and pushing boundaries.
+                A lean, high-impact team of engineers and innovators building intelligent systems that bypass technological limitations — from AI agents to IoT ecosystems.
               </p>
             </div>
           </ScrollReveal>
         </div>
       </section>
 
-      {/* Team Grid */}
+      {/* Founding Team */}
       <section className="relative z-10 py-12">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="mb-10">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>
+                Leadership
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-bold mt-2" style={{ color: "var(--text-primary)" }}>
+                Founding Team
+              </h2>
+            </div>
+          </ScrollReveal>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {teamMembers.map((member, i) => (
-              <TeamCard key={member.name + member.role} member={member} index={i} />
+              <EnhancedTeamCard key={member.name} member={member} index={i} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* AI Agents Team */}
+      <section className="relative z-10 py-20">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="mb-10">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>
+                AI Workforce
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-bold mt-2" style={{ color: "var(--text-primary)" }}>
+                NEXUS AI Agents
+              </h2>
+              <p className="text-sm mt-2 max-w-2xl" style={{ color: "var(--text-muted)" }}>
+                13 specialized AI agents running locally on-device — our digital team members that never sleep.
+              </p>
+            </div>
+          </ScrollReveal>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {aiAgents.map((agent, i) => (
+              <EnhancedTeamCard key={agent.name} member={agent} index={i} isAgent />
             ))}
           </div>
         </div>
@@ -156,15 +574,18 @@ export default function TeamPage() {
                   </h2>
                   <div className="space-y-4">
                     {[
-                      { label: "Ship weekly", desc: "Continuous delivery over perfect planning." },
-                      { label: "Own your stack", desc: "From firmware to frontend — full ownership, full pride." },
-                      { label: "Build in public", desc: "Open source by default. Transparency breeds trust." },
-                      { label: "AI-augmented", desc: "We use AI tools daily to amplify our output 10x." },
+                      { icon: Rocket, label: "Ship weekly", desc: "Continuous delivery over perfect planning." },
+                      { icon: Code2, label: "Own your stack", desc: "From firmware to frontend — full ownership, full pride." },
+                      { icon: Globe, label: "Build in public", desc: "Open source by default. Transparency breeds trust." },
+                      { icon: Brain, label: "AI-augmented", desc: "We use AI tools daily to amplify our output 10x." },
+                      { icon: Heart, label: "Care deeply", desc: "Every pixel, every bit, every line matters." },
                     ].map((item) => (
                       <div key={item.label} className="flex items-start gap-3 group">
-                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 mt-2 group-hover:scale-150 transition-transform" />
+                        <div className="p-1.5 rounded-lg shrink-0" style={{ background: "var(--accent-cyan-muted)" }}>
+                          <item.icon className="w-3.5 h-3.5" style={{ color: "var(--accent-cyan)" }} />
+                        </div>
                         <div>
-                          <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                             {item.label}
                           </p>
                           <p className="text-xs" style={{ color: "var(--text-muted)" }}>{item.desc}</p>
@@ -174,13 +595,14 @@ export default function TeamPage() {
                   </div>
                 </div>
 
-                {/* Stats */}
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { value: "53+", label: "Projects Shipped" },
-                    { value: "6", label: "Tech Domains" },
-                    { value: "15+", label: "Tech Stacks" },
-                    { value: "∞", label: "Curiosity" },
+                    { value: "53+", label: "Projects Shipped", icon: "🚀" },
+                    { value: "6", label: "Tech Domains", icon: "🧠" },
+                    { value: "15+", label: "Tech Stacks", icon: "⚡" },
+                    { value: "13+", label: "AI Agents", icon: "🤖" },
+                    { value: "40K+", label: "Lines of Code", icon: "📝" },
+                    { value: "∞", label: "Curiosity", icon: "✨" },
                   ].map((stat) => (
                     <motion.div
                       key={stat.label}
@@ -191,10 +613,11 @@ export default function TeamPage() {
                         border: "1px solid var(--border-primary)",
                       }}
                     >
+                      <div className="text-xl mb-1">{stat.icon}</div>
                       <div className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-violet-500 bg-clip-text text-transparent">
                         {stat.value}
                       </div>
-                      <div className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                      <div className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
                         {stat.label}
                       </div>
                     </motion.div>
@@ -235,7 +658,7 @@ export default function TeamPage() {
                     border: "1px solid var(--border-primary)",
                   }}
                 >
-                  <div className="absolute top-0 left-0 bottom-0 w-[2px] bg-gradient-to-b from-cyan-500 to-violet-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className={`absolute top-0 left-0 bottom-0 w-[2px] bg-gradient-to-b ${role.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1">
@@ -270,17 +693,18 @@ export default function TeamPage() {
             ))}
           </div>
 
-          {/* General Application */}
           <ScrollReveal delay={0.3}>
             <div className="mt-12 text-center">
               <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
                 Don&apos;t see a perfect fit? We&apos;re always open to exceptional talent.
               </p>
-              <Button variant="glass" className="group">
-                <Mail className="w-4 h-4" />
-                Send General Application
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Button>
+              <Link href="/contact">
+                <Button variant="glass" className="group">
+                  <Mail className="w-4 h-4" />
+                  Send General Application
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
             </div>
           </ScrollReveal>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useId } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 import {
   BarChart3, PieChart, Activity, TrendingUp as TrendingUpIcon,
@@ -284,7 +284,7 @@ export function AnimatedAreaChart({
     return lines;
   }, [minValue, range]);
 
-  const gradientId = useMemo(() => `areaGrad-${Math.random().toString(36).slice(2)}`, []);
+  const gradientId = useId();
 
   return (
     <div ref={ref} className={`relative ${className}`}>
@@ -589,25 +589,33 @@ interface GitHubContributionGraphProps {
 
 function generateRandomContributions(weeks: number): ContributionDay[] {
   const contributions: ContributionDay[] = [];
-  const today = new Date();
+  const today = new Date("2026-03-09"); // Fixed date for SSR consistency
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - weeks * 7);
 
+  // Deterministic pseudo-random based on day index
+  let seed = 42;
+  const nextRand = () => {
+    seed = (seed * 16807 + 0) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+
+  let dayIndex = 0;
   for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
-    const rand = Math.random();
+    const rand = nextRand();
     let level: 0 | 1 | 2 | 3 | 4;
     let count: number;
 
     if (rand < 0.25) {
       level = 0; count = 0;
     } else if (rand < 0.5) {
-      level = 1; count = Math.floor(Math.random() * 3) + 1;
+      level = 1; count = Math.floor(nextRand() * 3) + 1;
     } else if (rand < 0.75) {
-      level = 2; count = Math.floor(Math.random() * 5) + 4;
+      level = 2; count = Math.floor(nextRand() * 5) + 4;
     } else if (rand < 0.92) {
-      level = 3; count = Math.floor(Math.random() * 8) + 9;
+      level = 3; count = Math.floor(nextRand() * 8) + 9;
     } else {
-      level = 4; count = Math.floor(Math.random() * 10) + 17;
+      level = 4; count = Math.floor(nextRand() * 10) + 17;
     }
 
     contributions.push({
@@ -615,6 +623,7 @@ function generateRandomContributions(weeks: number): ContributionDay[] {
       count,
       level,
     });
+    dayIndex++;
   }
 
   return contributions;
@@ -1199,10 +1208,10 @@ export function AnimatedGauge({
           return (
             <line
               key={i}
-              x1={center + innerR * Math.cos(angle)}
-              y1={center + innerR * Math.sin(angle)}
-              x2={center + outerR * Math.cos(angle)}
-              y2={center + outerR * Math.sin(angle)}
+              x1={Math.round((center + innerR * Math.cos(angle)) * 1000) / 1000}
+              y1={Math.round((center + innerR * Math.sin(angle)) * 1000) / 1000}
+              x2={Math.round((center + outerR * Math.cos(angle)) * 1000) / 1000}
+              y2={Math.round((center + outerR * Math.sin(angle)) * 1000) / 1000}
               stroke="var(--text-muted)"
               strokeWidth="1"
               opacity="0.3"

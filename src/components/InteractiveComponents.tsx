@@ -226,8 +226,9 @@ export function InteractiveCodeEditor({
 
         {/* Code */}
         <div className="flex-1 overflow-x-auto">
-          <pre className="p-4" style={{ fontSize: "13px", lineHeight: "1.7", margin: 0 }}>
+          <pre className="p-4" style={{ fontSize: "13px", lineHeight: "1.7", margin: 0, color: "#a6adc8" }}>
             <code
+              style={{ color: "#a6adc8" }}
               dangerouslySetInnerHTML={{
                 __html: highlightCode(typingEffect ? displayedCode : code, currentTab?.language || "typescript") +
                   (isTyping ? '<span class="code-cursor">|</span>' : ""),

@@ -88,21 +88,21 @@ export default function BlogPage() {
 
       {/* Filters */}
       <section
-        className="relative z-10 pb-4 sticky top-20 backdrop-blur-2xl"
+        className="relative z-30 pb-4 sticky top-0 backdrop-blur-2xl"
         style={{
           background: "var(--bg-overlay)",
           borderBottom: "1px solid var(--border-primary)",
         }}
       >
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 py-4">
+          <div className="flex items-center justify-between gap-4 py-3">
             {/* Category Pills */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {BLOG_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 cursor-pointer"
+                  className="px-3 py-1.5 rounded-full text-[13px] font-medium transition-all duration-300 cursor-pointer whitespace-nowrap"
                   style={
                     activeCategory === cat
                       ? {
@@ -118,7 +118,7 @@ export default function BlogPage() {
                 >
                   {cat}
                   {cat !== "All" && (
-                    <span className="ml-1.5 text-xs opacity-50">
+                    <span className="ml-1 text-[11px] opacity-50">
                       {getBlogPostsByCategory(cat).length}
                     </span>
                   )}
@@ -127,9 +127,9 @@ export default function BlogPage() {
             </div>
 
             {/* Search */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
                 style={{ color: "var(--text-muted)" }}
               />
               <input
@@ -137,7 +137,7 @@ export default function BlogPage() {
                 placeholder="Search articles..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] transition-all"
+                className="w-56 pl-9 pr-3 py-2 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] transition-all"
                 style={{
                   background: "var(--bg-surface)",
                   border: "1px solid var(--border-primary)",
