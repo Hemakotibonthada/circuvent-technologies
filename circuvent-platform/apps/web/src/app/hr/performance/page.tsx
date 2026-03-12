@@ -365,7 +365,7 @@ export default function PerformanceManagementPage() {
                 {bellCurve.distribution.map((bucket) => (
                   <div key={bucket.rating} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-white">{bucket.rating}</span>
+                      <span className="text-sm font-medium text-slate-900 dark:text-white">{bucket.rating}</span>
                       <span className="text-xs text-slate-400">{bucket.count} employees ({bucket.percentage}%)</span>
                     </div>
                     {bucket.employees.length > 0 && (

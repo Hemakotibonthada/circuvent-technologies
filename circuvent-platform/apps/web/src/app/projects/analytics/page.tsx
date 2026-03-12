@@ -100,7 +100,7 @@ export default function ProjectAnalyticsPage() {
           <Card>
             <CardHeader title="R&D Summary" />
             <div className="space-y-3">
-              <div className="flex justify-between"><span className="text-sm text-slate-400">R&D Projects</span><span className="text-white font-bold">{rndProjects.length}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-slate-400">R&D Projects</span><span className="text-slate-900 dark:text-white font-bold">{rndProjects.length}</span></div>
               <div className="flex justify-between"><span className="text-sm text-slate-400">R&D Budget</span><span className="text-green-400 font-bold">{formatCurrency(rndProjects.reduce((s: number, p: any) => s + (Number(p.budget) || 0), 0))}</span></div>
               <div className="flex justify-between"><span className="text-sm text-slate-400">% of Total Projects</span><span className="text-slate-900 dark:text-white">{(projects?.length || 0) > 0 ? Math.round((rndProjects.length / projects!.length) * 100) : 0}%</span></div>
             </div>
@@ -132,7 +132,7 @@ export default function ProjectAnalyticsPage() {
           <DataTable
             columns={[
               { key: "code", header: "Code", render: (p: any) => <span className="font-mono text-xs text-brand-400">{p.code}</span> },
-              { key: "name", header: "Project", render: (p: any) => <span className="text-white font-medium">{p.name}</span> },
+              { key: "name", header: "Project", render: (p: any) => <span className="text-slate-900 dark:text-white font-medium">{p.name}</span> },
               { key: "type", header: "Type", render: (p: any) => <Badge color={typeColors[p.type]}>{p.type}</Badge> },
               { key: "status", header: "Status", render: (p: any) => <Badge color={statusColors[p.status]}>{p.status}</Badge> },
               { key: "isRnD", header: "R&D", render: (p: any) => p.isRnD ? <Badge color="emerald">R&D</Badge> : "—" },
@@ -174,7 +174,7 @@ export default function ProjectAnalyticsPage() {
           <DataTable
             columns={[
               { key: "code", header: "Code", render: (p: any) => <span className="font-mono text-xs text-brand-400">{p.code}</span> },
-              { key: "name", header: "Project", render: (p: any) => <a href={`/projects/${p.id}`} className="text-white font-medium hover:text-brand-400">{p.name}</a> },
+              { key: "name", header: "Project", render: (p: any) => <a href={`/projects/${p.id}`} className="text-slate-900 dark:text-white font-medium hover:text-brand-400">{p.name}</a> },
               { key: "status", header: "Status", render: (p: any) => <Badge color={statusColors[p.status]}>{p.status}</Badge> },
               { key: "updatedAt", header: "Last Updated", render: (p: any) => timeAgo(p.updatedAt || p.createdAt) },
               { key: "sprints", header: "Sprints", render: (p: any) => p._count?.sprints ?? 0 },

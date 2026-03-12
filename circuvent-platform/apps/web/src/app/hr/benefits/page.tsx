@@ -295,7 +295,7 @@ export default function BenefitsAdminPage() {
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Plan</span>
-                <span className="text-white font-medium">{showEnroll.name}</span>
+                <span className="text-slate-900 dark:text-white font-medium">{showEnroll.name}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Type</span>

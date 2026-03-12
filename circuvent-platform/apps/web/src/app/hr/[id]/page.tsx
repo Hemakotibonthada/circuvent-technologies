@@ -79,7 +79,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
-                  <dd className="text-sm font-medium text-white">{value}</dd>
+                  <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -96,7 +96,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
-                  <dd className="text-sm font-medium text-white">{value}</dd>
+                  <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -112,7 +112,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
               { key: "period", header: "Period", render: (s: any) => `${new Date(2000, s.month - 1).toLocaleString("en", { month: "short" })} ${s.year}` },
               { key: "grossSalary", header: "Gross", render: (s: any) => formatCurrency(Number(s.grossSalary)) },
               { key: "totalDeductions", header: "Deductions", render: (s: any) => <span className="text-red-400">{formatCurrency(Number(s.totalDeductions))}</span> },
-              { key: "netSalary", header: "Net Pay", render: (s: any) => <span className="font-semibold text-white">{formatCurrency(Number(s.netSalary))}</span> },
+              { key: "netSalary", header: "Net Pay", render: (s: any) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(Number(s.netSalary))}</span> },
               { key: "tds", header: "TDS", render: (s: any) => formatCurrency(Number(s.tds)) },
               { key: "pfDeduction", header: "PF", render: (s: any) => formatCurrency(Number(s.pfDeduction)) },
               { key: "isPaid", header: "Status", render: (s: any) => s.isPaid ? <Badge color="green">Paid</Badge> : (

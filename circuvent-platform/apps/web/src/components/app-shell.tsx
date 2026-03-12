@@ -194,7 +194,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
           ) : (
-            <a href="/portal/profile" className="mx-auto flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white">{user.firstName?.[0]}</a>
+            <a href="/portal/profile" className="mx-auto flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-slate-900 dark:text-white">{user.firstName?.[0]}</a>
           )}
         </div>
       </aside>

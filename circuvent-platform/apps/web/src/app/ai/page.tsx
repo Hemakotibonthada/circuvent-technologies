@@ -135,7 +135,7 @@ export default function AIPage() {
               {resDash.byType.map((t) => (
                 <Card key={t.type} className="text-center">
                   <Badge color={t.type === "GPU" ? "green" : t.type === "TPU" ? "purple" : "blue"}>{t.type}</Badge>
-                  <p className="mt-2 text-2xl font-bold text-white">{t.count}</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{t.count}</p>
                   <p className="text-xs text-slate-500">{t.available} available</p>
                 </Card>
               ))}
@@ -146,7 +146,7 @@ export default function AIPage() {
             <DataTable
               columns={[
                 { key: "resourceCode", header: "Code", render: (r: any) => <span className="font-mono text-xs text-brand-400">{r.resourceCode}</span> },
-                { key: "name", header: "Name", render: (r: any) => <span className="text-white font-medium">{r.name}</span> },
+                { key: "name", header: "Name", render: (r: any) => <span className="text-slate-900 dark:text-white font-medium">{r.name}</span> },
                 { key: "type", header: "Type", render: (r: any) => <Badge color={r.type === "GPU" ? "green" : "blue"}>{r.type}</Badge> },
                 { key: "model", header: "Model", render: (r: any) => r.model || "—" },
                 { key: "vramGb", header: "VRAM", render: (r: any) => r.vramGb ? `${r.vramGb} GB` : "—" },
@@ -170,7 +170,7 @@ export default function AIPage() {
               {Object.entries(trainDash.byStatus || {}).map(([status, count]) => (
                 <Card key={status} className="text-center p-3">
                   <Badge color={statusColors[status]}>{status}</Badge>
-                  <p className="mt-1 text-xl font-bold text-white">{count as number}</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{count as number}</p>
                 </Card>
               ))}
             </div>
@@ -209,7 +209,7 @@ export default function AIPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="font-mono text-xs text-brand-400">{bot.botCode}</span>
-                        <p className="text-sm font-medium text-white">{bot.name}</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{bot.name}</p>
                       </div>
                       <Badge color={statusColors[bot.status]}>{bot.status}</Badge>
                     </div>

@@ -257,7 +257,7 @@ export default function ExitManagementPage() {
           <p className="text-xs text-slate-500 mt-1">Items Completed</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
-          <p className="text-sm font-medium text-white">{formatDate(workflow.lastWorkingDay)}</p>
+          <p className="text-sm font-medium text-slate-900 dark:text-white">{formatDate(workflow.lastWorkingDay)}</p>
           <p className="text-xs text-slate-500 mt-1">Last Working Day</p>
         </div>
       </div>
@@ -265,7 +265,7 @@ export default function ExitManagementPage() {
       {/* Progress Bar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-white">Exit Progress</span>
+          <span className="text-sm font-medium text-slate-900 dark:text-white">Exit Progress</span>
           <span className="text-sm text-slate-400">{progressPercent}%</span>
         </div>
         <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3">
@@ -289,7 +289,7 @@ export default function ExitManagementPage() {
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
               activeTab === tab.id
-                ? "bg-slate-50 dark:bg-slate-800 text-white"
+                ? "bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
                 : "text-slate-500 hover:text-slate-600 dark:text-slate-300"
             }`}
           >
@@ -313,7 +313,7 @@ export default function ExitManagementPage() {
                   </span>
                 </div>
               </div>
-              <div className="divide-y divide-slate-800/50">
+              <div className="divide-y divide-slate-200 dark:divide-slate-800/50">
                 {items.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 px-4 py-3">
                     <button
@@ -321,7 +321,7 @@ export default function ExitManagementPage() {
                       disabled={item.isCompleted || submitting}
                       className={`w-5 h-5 rounded flex items-center justify-center text-xs shrink-0 ${
                         item.isCompleted
-                          ? "bg-emerald-600 text-white"
+                          ? "bg-emerald-600 text-slate-900 dark:text-white"
                           : "bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:border-emerald-500 cursor-pointer"
                       }`}
                     >
@@ -358,7 +358,7 @@ export default function ExitManagementPage() {
             <p className="text-xs text-slate-500 mt-0.5">{assets.length} assets assigned — return required before exit</p>
           </div>
           {assets.length > 0 ? (
-            <div className="divide-y divide-slate-800/50">
+            <div className="divide-y divide-slate-200 dark:divide-slate-800/50">
               {assets.map((asset) => (
                 <div key={asset.assetId} className="flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -511,7 +511,7 @@ export default function ExitManagementPage() {
           {workflow.feedbackCollected ? (
             <div className="text-center py-8">
               <p className="text-3xl mb-3">✅</p>
-              <p className="text-white font-medium">Feedback Submitted</p>
+              <p className="text-slate-900 dark:text-white font-medium">Feedback Submitted</p>
               <p className="text-xs text-slate-500 mt-1">Thank you for sharing your experience.</p>
             </div>
           ) : (
@@ -546,7 +546,7 @@ export default function ExitManagementPage() {
                   <textarea
                     value={feedback.reasonForLeaving}
                     onChange={(e) => setFeedback({ ...feedback, reasonForLeaving: e.target.value })}
-                    className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                     rows={3}
                     placeholder="What prompted you to leave?"
                   />
@@ -558,7 +558,7 @@ export default function ExitManagementPage() {
                     <input
                       value={feedback.bestAspect}
                       onChange={(e) => setFeedback({ ...feedback, bestAspect: e.target.value })}
-                      className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+                      className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                       placeholder="What did you enjoy most?"
                     />
                   </div>
@@ -567,7 +567,7 @@ export default function ExitManagementPage() {
                     <input
                       value={feedback.worstAspect}
                       onChange={(e) => setFeedback({ ...feedback, worstAspect: e.target.value })}
-                      className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+                      className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                       placeholder="What could be better?"
                     />
                   </div>
@@ -578,7 +578,7 @@ export default function ExitManagementPage() {
                   <textarea
                     value={feedback.suggestions}
                     onChange={(e) => setFeedback({ ...feedback, suggestions: e.target.value })}
-                    className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+                    className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
                     rows={2}
                     placeholder="Any suggestions for improvement?"
                   />
@@ -629,7 +629,7 @@ export default function ExitManagementPage() {
               }`}
             >
               <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                item.done ? "bg-emerald-600 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-500"
+                item.done ? "bg-emerald-600 text-slate-900 dark:text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-500"
               }`}>
                 {item.done ? "✓" : ""}
               </span>

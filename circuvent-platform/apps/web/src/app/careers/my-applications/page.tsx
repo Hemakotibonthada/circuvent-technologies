@@ -67,7 +67,7 @@ export default function MyApplicationsPage() {
                       {(app.currentStage || "APPLIED").replace(/_/g, " ")}
                     </Badge>
                   </div>
-                  <h3 className="mt-1 text-base font-medium text-white">
+                  <h3 className="mt-1 text-base font-medium text-slate-900 dark:text-white">
                     {app.job?.title || "Position"}
                   </h3>
                   <p className="mt-0.5 text-xs text-slate-400">

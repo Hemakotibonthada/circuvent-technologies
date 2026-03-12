@@ -102,7 +102,7 @@ export default function ClientAnalyticsPage() {
                 <div key={s.status} className="flex items-center justify-between">
                   <Badge color={invoiceStatusColors[s.status]}>{s.status}</Badge>
                   <div className="text-right">
-                    <span className="text-sm font-medium text-white">{s._count.id}</span>
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">{s._count.id}</span>
                     <span className="ml-2 text-xs text-slate-500">({formatCurrency(Number(s._sum?.totalAmount || 0))})</span>
                   </div>
                 </div>
@@ -119,7 +119,7 @@ export default function ClientAnalyticsPage() {
             {pipeline.stages.map((stage) => (
               <div key={stage.status} className="flex-1 min-w-[120px] rounded-lg border border-slate-200 dark:border-slate-800 bg-white p- dark:bg-slate-800/304 text-center">
                 <Badge color={leadStatusColors[stage.status]}>{stage.status.replace("_", " ")}</Badge>
-                <p className="mt-2 text-2xl font-bold text-white">{stage.count}</p>
+                <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stage.count}</p>
                 <p className="text-xs text-slate-500">{formatCurrency(stage.totalValue)}</p>
               </div>
             ))}

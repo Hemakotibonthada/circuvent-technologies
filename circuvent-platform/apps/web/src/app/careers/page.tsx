@@ -159,7 +159,7 @@ export default function CareersPage() {
         {selectedJob && (
           <div className="space-y-4">
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 p-4 dark:bg-slate-800/50">
-              <p className="text-sm font-medium text-white">{selectedJob.title}</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedJob.title}</p>
               <p className="text-xs text-slate-400">{selectedJob.department} · {selectedJob.location || "Remote"}</p>
             </div>
 

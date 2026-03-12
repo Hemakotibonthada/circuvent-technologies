@@ -70,7 +70,7 @@ export default function CEODashboard() {
 
       {/* Risk Alerts */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Risk & Alert Center</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Risk & Alert Center</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
             <div className="flex items-center gap-2">
@@ -108,7 +108,7 @@ export default function CEODashboard() {
       {/* Department Distribution + Role Distribution */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Department Distribution</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Department Distribution</h3>
           <div className="space-y-3">
             {orgStats?.byDepartment?.map((dept) => {
               const count = dept._count?.id || 0;
@@ -125,7 +125,7 @@ export default function CEODashboard() {
                       />
                     </div>
                   </div>
-                  <span className="text-sm font-medium text-white">{count}</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">{count}</span>
                   <span className="text-xs text-slate-500">{pct}%</span>
                 </div>
               );
@@ -137,7 +137,7 @@ export default function CEODashboard() {
         </Card>
 
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">User Role Distribution</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">User Role Distribution</h3>
           <div className="space-y-2">
             {userStats?.byRole?.map(({ role, count }) => (
               <div key={role} className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
@@ -149,7 +149,7 @@ export default function CEODashboard() {
                 }>
                   {role.replace(/_/g, " ")}
                 </Badge>
-                <span className="text-sm font-medium text-white">{count}</span>
+                <span className="text-sm font-medium text-slate-900 dark:text-white">{count}</span>
               </div>
             ))}
           </div>
@@ -158,7 +158,7 @@ export default function CEODashboard() {
 
       {/* Project Performance */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Project Performance Overview</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Project Performance Overview</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -173,7 +173,7 @@ export default function CEODashboard() {
             <tbody>
               {projects?.slice(0, 10).map(p => (
                 <tr key={p.id} className="border-b border-slate-200/50 dark:border-slate-800/50">
-                  <td className="py-3 font-medium text-white">{p.name}</td>
+                  <td className="py-3 font-medium text-slate-900 dark:text-white">{p.name}</td>
                   <td className="py-3">
                     <Badge color={p.type === "IOT" ? "cyan" : p.type === "AI_ML" ? "purple" : "blue"}>
                       {p.type}
@@ -208,7 +208,7 @@ export default function CEODashboard() {
 
       {/* Employment Types */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Employment Type Breakdown</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Employment Type Breakdown</h3>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {orgStats?.byType?.map((t) => (
             <div key={t.employmentType} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 p-4 dark:bg-slate-800/50 text-center">
@@ -222,7 +222,7 @@ export default function CEODashboard() {
       {/* Financial Overview */}
       {financeData && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Financial Overview (Trial Balance)</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Financial Overview (Trial Balance)</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
               <p className="text-xs text-slate-400">Total Debits</p>

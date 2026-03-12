@@ -86,7 +86,7 @@ export default function IoTCommandCenterPage() {
               <div className="space-y-2">
                 {["RESTART", "STATUS_REPORT", "OTA_CHECK", "CALIBRATE", "SLEEP_MODE"].map(cmd => (
                   <button key={cmd} onClick={() => sendCommand(selectedDevice, cmd)}
-                    className="w-full px-3 py-2 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white transition-colors text-left flex items-center gap-2">
+                    className="w-full px-3 py-2 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors text-left flex items-center gap-2">
                     <span className="text-sm">{cmd === "RESTART" ? "🔄" : cmd === "STATUS_REPORT" ? "📊" : cmd === "OTA_CHECK" ? "📥" : cmd === "CALIBRATE" ? "🔧" : "💤"}</span>
                     {cmd.replace("_", " ")}
                   </button>

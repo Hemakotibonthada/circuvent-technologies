@@ -458,7 +458,7 @@ export default function WorkflowAutomationPage() {
 
             {/* step progress */}
             <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
-              <h4 className="mb-3 text-sm font-semibold text-white">Step Progress</h4>
+              <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Step Progress</h4>
               <div className="space-y-2">
                 {(showDetail.steps || []).map((step, idx) => (
                   <div key={step.id || idx} className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3">
@@ -471,7 +471,7 @@ export default function WorkflowAutomationPage() {
                       {step.status === "COMPLETED" ? "✓" : step.status === "FAILED" ? "✕" : idx + 1}
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-white">{step.name}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{step.name}</p>
                       <p className="text-xs text-slate-500">{step.type}</p>
                     </div>
                     <Badge color={stepStatusColors[step.status || "PENDING"] || "slate"}>

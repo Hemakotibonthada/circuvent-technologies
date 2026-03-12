@@ -147,7 +147,7 @@ export default function ProfilePage() {
 
       {/* Toast Message */}
       {message && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-lg ${message.type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-lg ${message.type === "success" ? "bg-emerald-600 text-slate-900 dark:text-white" : "bg-red-600 text-slate-900 dark:text-white"}`}>
           {message.type === "success" ? "✓" : "✗"} {message.text}
         </div>
       )}
@@ -159,13 +159,13 @@ export default function ProfilePage() {
             <div className="w-20 h-20 bg-gradient-to-br from-brand-500 to-cyan-600 rounded-full flex items-center justify-center text-3xl font-bold text-slate-900 dark:text-white mx-auto mb-3">
               {u?.firstName?.[0]}{u?.lastName?.[0]}
             </div>
-            <h2 className="text-xl font-semibold text-white">{u?.firstName} {u?.lastName}</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">{u?.firstName} {u?.lastName}</h2>
             <p className="text-slate-400">{e.designation}</p>
             <p className="text-sm text-slate-500">{e.department} · {e.employeeCode}</p>
             <span className={`mt-2 inline-block px-2 py-0.5 text-xs rounded ${u?.status === "ACTIVE" ? "bg-emerald-900/50 text-emerald-400" : "bg-red-900/50 text-red-400"}`}>{u?.status}</span>
           </div>
           <div className="space-y-2 text-sm border-t border-slate-200 dark:border-slate-800 pt-4">
-            <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="text-slate-300 text-xs">{u?.email}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="text-slate-600 dark:text-slate-300 text-xs">{u?.email}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Phone</span><span className="text-slate-600 dark:text-slate-300">{u?.phone || "—"}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Type</span><span className="text-slate-600 dark:text-slate-300">{e.employmentType}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Joined</span><span className="text-slate-600 dark:text-slate-300">{new Date(e.dateOfJoining).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span></div>
@@ -190,7 +190,7 @@ export default function ProfilePage() {
           <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-white"}`}>
+                className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
                 <span>{tab.icon}</span> {tab.label}
               </button>
             ))}
@@ -323,7 +323,7 @@ export default function ProfilePage() {
                 {["IDENTITY", "EDUCATION", "EXPERIENCE", "CERTIFICATION"].map(cat => {
                   const count = documents.filter(d => d.category === cat).length;
                   return (
-                    <div key={cat} className={`text-center p-2 rounded-lg ${count > 0 ? "bg-slate-50 dark:bg-slate-800/50 border border-slate-700" : "bg-red-900/10 border border-red-900/30"}`}>
+                    <div key={cat} className={`text-center p-2 rounded-lg ${count > 0 ? "bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700" : "bg-red-900/10 border border-red-900/30"}`}>
                       <p className={`text-lg font-bold ${count > 0 ? "text-brand-400" : "text-red-400"}`}>{count}</p>
                       <p className="text-xs text-slate-500">{cat.slice(0, 4)}.</p>
                     </div>
@@ -344,7 +344,7 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{doc.category === "IDENTITY" ? "🪪" : doc.category === "EDUCATION" ? "🎓" : doc.category === "EXPERIENCE" ? "💼" : doc.category === "CERTIFICATION" ? "🏅" : doc.category === "TAX" ? "📋" : "📄"}</span>
                         <div>
-                          <p className="text-sm font-medium text-white">{doc.title}</p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white">{doc.title}</p>
                           <div className="flex items-center gap-2 text-xs text-slate-500">
                             <span>{doc.category}</span>
                             <span>·</span>
@@ -420,7 +420,7 @@ export default function ProfilePage() {
                     <div key={td.id} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <h3 className="text-white font-medium">FY {td.financialYear}</h3>
+                          <h3 className="text-slate-900 dark:text-white font-medium">FY {td.financialYear}</h3>
                           <span className={`text-xs px-2 py-0.5 rounded ${td.regime === "NEW" ? "bg-blue-900/50 text-blue-400" : "bg-amber-900/50 text-amber-400"}`}>{td.regime} Regime</span>
                         </div>
                         <div className="text-right">
@@ -429,10 +429,10 @@ export default function ProfilePage() {
                         </div>
                       </div>
                       <div className="grid grid-cols-4 gap-3 text-sm">
-                        <div><p className="text-xs text-slate-500">80C</p><p className="text-slate-300 font-mono">₹{Number(td.section80C).toLocaleString("en-IN")}</p></div>
-                        <div><p className="text-xs text-slate-500">80D</p><p className="text-slate-300 font-mono">₹{Number(td.section80D).toLocaleString("en-IN")}</p></div>
-                        <div><p className="text-xs text-slate-500">Sec 24</p><p className="text-slate-300 font-mono">₹{Number(td.section24).toLocaleString("en-IN")}</p></div>
-                        <div><p className="text-xs text-slate-500">HRA</p><p className="text-slate-300 font-mono">₹{Number(td.hraExemption).toLocaleString("en-IN")}</p></div>
+                        <div><p className="text-xs text-slate-500">80C</p><p className="text-slate-600 dark:text-slate-300 font-mono">₹{Number(td.section80C).toLocaleString("en-IN")}</p></div>
+                        <div><p className="text-xs text-slate-500">80D</p><p className="text-slate-600 dark:text-slate-300 font-mono">₹{Number(td.section80D).toLocaleString("en-IN")}</p></div>
+                        <div><p className="text-xs text-slate-500">Sec 24</p><p className="text-slate-600 dark:text-slate-300 font-mono">₹{Number(td.section24).toLocaleString("en-IN")}</p></div>
+                        <div><p className="text-xs text-slate-500">HRA</p><p className="text-slate-600 dark:text-slate-300 font-mono">₹{Number(td.hraExemption).toLocaleString("en-IN")}</p></div>
                       </div>
                     </div>
                   ))}
@@ -456,7 +456,7 @@ export default function ProfilePage() {
                     <div key={r.id} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-white font-medium">{r.period} — {r.cycle}</p>
+                          <p className="text-slate-900 dark:text-white font-medium">{r.period} — {r.cycle}</p>
                           <span className={`text-xs px-2 py-0.5 rounded ${r.status === "COMPLETED" || r.status === "ACKNOWLEDGED" ? "bg-emerald-900/50 text-emerald-400" : "bg-amber-900/50 text-amber-400"}`}>{r.status}</span>
                         </div>
                         <div className="text-right">
@@ -514,7 +514,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowDocModal(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowDocModal(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={uploadDocument} disabled={saving || !docForm.title || !docForm.fileName || !docForm.fileUrl}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{saving ? "Uploading..." : "Upload Document"}</button>
             </div>
@@ -580,7 +580,7 @@ export default function ProfilePage() {
               )}
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowTaxModal(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowTaxModal(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={saveTaxDeclaration} disabled={saving}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{saving ? "Saving..." : "Submit Declaration"}</button>
             </div>

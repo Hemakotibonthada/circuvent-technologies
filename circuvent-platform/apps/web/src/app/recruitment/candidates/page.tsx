@@ -57,7 +57,7 @@ export default function CandidatesPage() {
               {candidates.map((c: any) => (
                 <tr key={c.id} className="border-b border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-800/30">
                   <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-white">{c.firstName} {c.lastName}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{c.firstName} {c.lastName}</p>
                     <p className="text-xs text-slate-500">{c.candidateCode} &middot; {c.email}</p>
                     {c.currentRole && <p className="text-xs text-slate-400">{c.currentRole}{c.currentCompany ? ` @ ${c.currentCompany}` : ""}</p>}
                   </td>
@@ -111,7 +111,7 @@ export default function CandidatesPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!form.firstName || !form.lastName || !form.email}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Add Candidate</button>
             </div>

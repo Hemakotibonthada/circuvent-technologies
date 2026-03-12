@@ -34,7 +34,7 @@ export default function InternDashboard() {
 
       {/* Goals */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Your Goals</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Your Goals</h3>
         <div className="space-y-2">
           {goals?.map((g: any) => (
             <div key={g.id} className="flex items-center gap-3 rounded-lg bg-slate-100 dark:bg-slate-800/50 px-4 py-3">
@@ -60,7 +60,7 @@ export default function InternDashboard() {
       {/* Training + Events */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Training Programs</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Training Programs</h3>
           <div className="space-y-2">
             {training?.slice(0, 5).map((t: any) => (
               <div key={t.id} className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
@@ -80,7 +80,7 @@ export default function InternDashboard() {
         </Card>
 
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Upcoming Events</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Upcoming Events</h3>
           <div className="space-y-2">
             {events?.slice(0, 5).map((e: any) => (
               <div key={e.id} className="flex items-center gap-3 rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
@@ -106,7 +106,7 @@ export default function InternDashboard() {
           { label: "Directory", href: "/portal/directory", icon: "👥" },
           { label: "Helpdesk", href: "/portal/helpdesk", icon: "🎫" },
         ].map((l) => (
-          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:text-white">
+          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
             <span>{l.icon}</span> {l.label}
           </a>
         ))}

@@ -67,7 +67,7 @@ export default function TalentPoolsPage() {
               <div key={pool.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="text-white font-medium">{pool.name}</h3>
+                    <h3 className="text-slate-900 dark:text-white font-medium">{pool.name}</h3>
                     <span className={`text-xs ${categoryColors[pool.category] || "text-slate-400"}`}>{pool.category.replace("_", " ")}</span>
                   </div>
                   {health && <span className={`px-2 py-0.5 text-xs rounded ${healthColors[health.health] || "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>{health.health}</span>}
@@ -98,7 +98,7 @@ export default function TalentPoolsPage() {
               <textarea placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm" rows={3} />
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!form.name} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create</button>
             </div>
           </div>

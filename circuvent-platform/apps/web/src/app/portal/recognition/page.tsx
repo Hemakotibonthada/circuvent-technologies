@@ -214,7 +214,7 @@ export default function RecognitionPage() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab ? "bg-brand-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-100 dark:bg-slate-800"
+              activeTab === tab ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800"
             }`}
           >
             {tab === "wall" && "🌟 "}
@@ -241,7 +241,7 @@ export default function RecognitionPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-sm font-medium text-white">{r.fromName}</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-white">{r.fromName}</span>
                         <span className="text-xs text-slate-500">recognized</span>
                         <span className="text-sm font-medium text-brand-400">{r.toName}</span>
                       </div>
@@ -306,7 +306,7 @@ export default function RecognitionPage() {
                         onClick={() => setKudosForm({ ...kudosForm, category: cat.value })}
                         className={`rounded-lg border p-2.5 text-left text-sm transition-colors ${
                           kudosForm.category === cat.value
-                            ? "border-brand-500 bg-brand-500/10 text-white"
+                            ? "border-brand-500 bg-brand-500/10 text-slate-900 dark:text-white"
                             : "border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-600"
                         }`}
                       >
@@ -343,7 +343,7 @@ export default function RecognitionPage() {
               <div className="p-4 border-b border-slate-200 dark:border-slate-800">
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-white">🏅 Recognition Leaderboard</h2>
               </div>
-              <div className="divide-y divide-slate-800">
+              <div className="divide-y divide-slate-200 dark:divide-slate-800">
                 {leaderboard.map((entry) => (
                   <div
                     key={entry.rank}
@@ -351,7 +351,7 @@ export default function RecognitionPage() {
                   >
                     <span className="text-xl w-8 text-center">{rankMedal(entry.rank)}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white">{entry.name}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{entry.name}</p>
                       <p className="text-xs text-slate-500">{entry.department}</p>
                     </div>
                     <div className="text-right">

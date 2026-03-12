@@ -92,7 +92,7 @@ export default function AISchedulerPage() {
                 {queue.queuedByPriority.map((p) => (
                   <div key={p.priority} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white p- dark:bg-slate-800/303 text-center">
                     <Badge color={p.priority <= 3 ? "red" : p.priority <= 6 ? "amber" : "slate"}>P{p.priority}</Badge>
-                    <p className="mt-1 text-xl font-bold text-white">{p.count}</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{p.count}</p>
                   </div>
                 ))}
               </div>
@@ -197,7 +197,7 @@ export default function AISchedulerPage() {
           <CardHeader title="Scheduler Performance" subtitle="Job throughput and resource utilization" />
           <div className="grid grid-cols-3 gap-6 text-center py-8">
             <div>
-              <p className="text-4xl font-bold text-white">{(jobs || []).filter((j: any) => j.status === "COMPLETED").length}</p>
+              <p className="text-4xl font-bold text-slate-900 dark:text-white">{(jobs || []).filter((j: any) => j.status === "COMPLETED").length}</p>
               <p className="text-xs text-slate-400">Jobs Completed</p>
             </div>
             <div>

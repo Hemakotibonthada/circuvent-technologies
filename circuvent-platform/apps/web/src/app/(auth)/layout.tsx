@@ -10,13 +10,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-brand-900 via-slate-900 to-slate-950 p-12">
         <div>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-white">CT</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-slate-900 dark:text-white">CT</div>
             <span className="text-xl font-bold text-slate-900 dark:text-white">Circuvent</span>
           </div>
         </div>
 
         <div className="space-y-8">
-          <h2 className="text-4xl font-bold leading-tight text-white">
+          <h2 className="text-4xl font-bold leading-tight text-slate-900 dark:text-white">
             One Platform.<br />
             <span className="text-brand-400">Infinite Possibilities.</span>
           </h2>

@@ -171,7 +171,7 @@ export default function SalaryAdvancePage() {
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-white">₹{Number(adv.amount).toLocaleString("en-IN")}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white">₹{Number(adv.amount).toLocaleString("en-IN")}</p>
                   {adv.status === "PENDING" && (
                     <button
                       onClick={() => handleCancel(adv.id)}
@@ -217,7 +217,7 @@ export default function SalaryAdvancePage() {
 
             {limits && (
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 mb-4 text-xs text-slate-400">
-                <p>Net Salary: <span className="text-white font-medium">₹{limits.netSalary.toLocaleString("en-IN")}</span></p>
+                <p>Net Salary: <span className="text-slate-900 dark:text-white font-medium">₹{limits.netSalary.toLocaleString("en-IN")}</span></p>
                 <p>Max Advance: <span className="text-blue-400 font-medium">₹{limits.maxAdvance.toLocaleString("en-IN")}</span></p>
                 <p>Available: <span className="text-emerald-400 font-medium">₹{limits.available.toLocaleString("en-IN")}</span></p>
               </div>
@@ -269,7 +269,7 @@ export default function SalaryAdvancePage() {
             </div>
 
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowRequest(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowRequest(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button
                 onClick={handleRequest}
                 disabled={submitting || !form.amount || !form.reason || Number(form.amount) > (limits?.available || 0) || Number(form.amount) <= 0}

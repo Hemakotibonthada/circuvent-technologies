@@ -81,10 +81,10 @@ export default function TrainingPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
-        <button onClick={() => setTab("available")} className={`px-4 py-2 rounded-lg text-sm ${tab === "available" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
+        <button onClick={() => setTab("available")} className={`px-4 py-2 rounded-lg text-sm ${tab === "available" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
           Available Programs ({programs.length})
         </button>
-        <button onClick={() => setTab("my")} className={`px-4 py-2 rounded-lg text-sm ${tab === "my" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
+        <button onClick={() => setTab("my")} className={`px-4 py-2 rounded-lg text-sm ${tab === "my" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
           My Enrollments ({myEnrollments.length})
         </button>
       </div>
@@ -101,7 +101,7 @@ export default function TrainingPage() {
                 <span className={`px-2 py-0.5 text-xs rounded ${statusColors[p.status]}`}>{p.status}</span>
                 <span className="text-xs text-slate-500">{p.mode}</span>
               </div>
-              <h3 className="text-white font-medium mb-1">{p.title}</h3>
+              <h3 className="text-slate-900 dark:text-white font-medium mb-1">{p.title}</h3>
               {p.description && <p className="text-xs text-slate-400 line-clamp-2 mb-3">{p.description}</p>}
               <div className="space-y-1 text-xs text-slate-500 mb-4">
                 {p.instructor && <p>👨‍🏫 {p.instructor}</p>}
@@ -129,7 +129,7 @@ export default function TrainingPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-white font-medium">{e.program?.title}</h3>
+                    <h3 className="text-slate-900 dark:text-white font-medium">{e.program?.title}</h3>
                     <span className={`px-2 py-0.5 text-xs rounded ${enrollColors[e.status]}`}>{e.status}</span>
                   </div>
                   <p className="text-xs text-slate-400">{e.program?.category} &middot; {e.program?.mode} &middot; {e.program?.duration || "Self-paced"}</p>

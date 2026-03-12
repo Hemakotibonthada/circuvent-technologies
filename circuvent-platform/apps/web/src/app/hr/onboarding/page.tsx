@@ -102,11 +102,11 @@ export default function OnboardingPage() {
           {/* Employee Info Card */}
           <Card>
             <div className="flex items-center gap-6">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-xl font-bold text-white">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-xl font-bold text-slate-900 dark:text-white">
                 {employee.user.firstName[0]}{employee.user.lastName[0]}
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-white">{employee.user.firstName} {employee.user.lastName}</h3>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{employee.user.firstName} {employee.user.lastName}</h3>
                 <p className="text-sm text-slate-400">{employee.designation} — {employee.department}</p>
                 <div className="mt-1 flex items-center gap-3">
                   <span className="text-xs text-slate-500">{employee.employeeCode}</span>
@@ -127,7 +127,7 @@ export default function OnboardingPage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-slate-400">Onboarding Progress</span>
-              <span className="text-sm font-medium text-white">{completedSteps.size}/{ONBOARDING_STEPS.length} completed</span>
+              <span className="text-sm font-medium text-slate-900 dark:text-white">{completedSteps.size}/{ONBOARDING_STEPS.length} completed</span>
             </div>
             <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800">
               <div

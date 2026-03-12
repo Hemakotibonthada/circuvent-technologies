@@ -36,7 +36,7 @@ export default function ManagerDashboard() {
 
       {/* Approval Queue */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Approval Queue</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Approval Queue</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <a href="/portal/leaves" className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 transition-colors hover:bg-amber-500/10">
             <p className="text-sm font-medium text-amber-400">Leave Requests</p>
@@ -61,12 +61,12 @@ export default function ManagerDashboard() {
       {/* Projects + Team Performance */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Your Projects</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Your Projects</h3>
           <div className="space-y-3">
             {projects?.slice(0, 6).map((p: any) => (
               <a key={p.id} href={`/projects/${p.id}`} className="block rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 transition-colors hover:bg-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-white">{p.name}</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">{p.name}</span>
                   <Badge color={p.status === "ACTIVE" ? "green" : p.status === "COMPLETED" ? "blue" : "amber"}>
                     {p.status}
                   </Badge>
@@ -86,12 +86,12 @@ export default function ManagerDashboard() {
         </Card>
 
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Team Goals Overview</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Team Goals Overview</h3>
           <div className="space-y-2">
             {goals?.slice(0, 8).map((g: any) => (
               <div key={g.id} className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm text-white">{g.title}</p>
+                  <p className="truncate text-sm text-slate-900 dark:text-white">{g.title}</p>
                   <p className="text-xs text-slate-500">{g.employee?.user?.firstName || "—"}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export default function ManagerDashboard() {
       {/* Timesheet Analytics */}
       {timesheetReport && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Timesheet Analytics</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Timesheet Analytics</h3>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
               <p className="text-xl font-bold text-slate-900 dark:text-white">{timesheetReport.averageWeeklyHours || 0}</p>
@@ -141,7 +141,7 @@ export default function ManagerDashboard() {
               {timesheetReport.byCategory.map((c: any) => (
                 <div key={c.category} className="flex items-center justify-between rounded bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5">
                   <span className="text-xs text-slate-600 dark:text-slate-300">{c.category}</span>
-                  <span className="text-xs font-medium text-white">{c.hours}h</span>
+                  <span className="text-xs font-medium text-slate-900 dark:text-white">{c.hours}h</span>
                 </div>
               ))}
             </div>
@@ -151,7 +151,7 @@ export default function ManagerDashboard() {
 
       {/* Quick Actions */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Quick Actions</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Quick Actions</h3>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {[
             { label: "Projects", href: "/projects", icon: "📊" },
@@ -163,7 +163,7 @@ export default function ManagerDashboard() {
             { label: "Recognition", href: "/hr/recognition", icon: "🏆" },
             { label: "Calendar", href: "/hr/calendar", icon: "📅" },
           ].map((l) => (
-            <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-white">
+            <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white">
               <span>{l.icon}</span> {l.label}
             </a>
           ))}

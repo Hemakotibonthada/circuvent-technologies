@@ -856,7 +856,7 @@ export default function LetterManagementPage() {
               <Card key={lt.key}>
                 <div className="flex flex-col items-center p-4 text-center">
                   <span className="mb-2 text-3xl">{lt.icon}</span>
-                  <h3 className="mb-1 text-sm font-semibold text-white">{lt.label}</h3>
+                  <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">{lt.label}</h3>
                   <p className="mb-4 text-xs leading-relaxed text-slate-500">{lt.description}</p>
                   <Button
                     size="sm"
@@ -1006,7 +1006,7 @@ export default function LetterManagementPage() {
           {/* Batch Compose */}
           <Card>
             <div className="p-5">
-              <h2 className="mb-1 text-lg font-semibold text-white">Batch Letter Dispatch</h2>
+              <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-white">Batch Letter Dispatch</h2>
               <p className="mb-5 text-sm text-slate-400">
                 Send letters to multiple recipients at once using a template
               </p>
@@ -1048,7 +1048,7 @@ export default function LetterManagementPage() {
                             <div
                               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
                                 selected
-                                  ? "border-brand-500 bg-brand-500 text-white"
+                                  ? "border-brand-500 bg-brand-500 text-slate-900 dark:text-white"
                                   : "border-slate-600"
                               }`}
                             >
@@ -1059,7 +1059,7 @@ export default function LetterManagementPage() {
                               )}
                             </div>
                             <div className="flex-1">
-                              <p className="text-sm font-medium text-white">{r.name}</p>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white">{r.name}</p>
                               <p className="text-xs text-slate-500">{r.email}</p>
                             </div>
                             <Badge color={r.type === "employee" ? "blue" : "cyan"}>
@@ -1096,7 +1096,7 @@ export default function LetterManagementPage() {
 
           {/* Batch History */}
           <div>
-            <h2 className="mb-3 text-lg font-semibold text-white">Batch History</h2>
+            <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Batch History</h2>
             <Card>
               <DataTable
                 columns={batchColumns}
@@ -1127,7 +1127,7 @@ export default function LetterManagementPage() {
                 {LETTER_TYPES.find((lt) => lt.key === quickSendType)?.icon}
               </span>
               <div>
-                <p className="text-sm font-medium text-white">
+                <p className="text-sm font-medium text-slate-900 dark:text-white">
                   {LETTER_TYPES.find((lt) => lt.key === quickSendType)?.label}
                 </p>
                 <p className="text-xs text-slate-500">
@@ -1172,14 +1172,14 @@ export default function LetterManagementPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-wider text-slate-500">Recipient</p>
-                  <p className="mt-0.5 text-sm font-medium text-white">{viewLetter.recipientName}</p>
+                  <p className="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">{viewLetter.recipientName}</p>
                   {viewLetter.recipientEmail && (
                     <p className="text-xs text-slate-400">{viewLetter.recipientEmail}</p>
                   )}
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-slate-500">Letter Type</p>
-                  <p className="mt-0.5 text-sm font-medium text-white">
+                  <p className="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">
                     {LETTER_TYPES.find((lt) => lt.key === viewLetter.letterType)?.label || viewLetter.letterType}
                   </p>
                 </div>
@@ -1213,7 +1213,7 @@ export default function LetterManagementPage() {
             {/* Metadata */}
             {viewLetter.metadata && Object.keys(viewLetter.metadata).length > 0 && (
               <div>
-                <h4 className="mb-2 text-sm font-semibold text-white">Additional Details</h4>
+                <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">Additional Details</h4>
                 <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-white p- dark:bg-slate-800/304">
                   <div className="grid grid-cols-2 gap-3">
                     {Object.entries(viewLetter.metadata).map(([key, value]) => (

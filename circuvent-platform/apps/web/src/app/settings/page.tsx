@@ -42,7 +42,7 @@ export default function SettingsPage() {
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
-                  <dd className="text-sm font-medium text-white">{value}</dd>
+                  <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -108,7 +108,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-3">
                   <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                   <div>
-                    <span className="text-sm font-medium text-white">{svc.name}</span>
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">{svc.name}</span>
                     <p className="text-xs text-slate-500">{svc.desc}</p>
                   </div>
                 </div>
@@ -226,7 +226,7 @@ export default function SettingsPage() {
             ].map((f) => (
               <div key={f.flag} className="flex items-center justify-between rounded-lg bg-slate-100 dark:bg-slate-800/50 px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-white">{f.flag}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{f.flag}</p>
                   <p className="text-xs text-slate-500">{f.desc}</p>
                 </div>
                 <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${f.enabled ? "bg-green-600" : "bg-slate-100 dark:bg-slate-700"}`}>

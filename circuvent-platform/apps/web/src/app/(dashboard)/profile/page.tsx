@@ -28,7 +28,7 @@ export default function ProfilePage() {
       {/* Profile Card */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50 p-6">
         <div className="flex items-center gap-6">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-600 text-2xl font-bold text-white">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-600 text-2xl font-bold text-slate-900 dark:text-white">
             {user.firstName?.[0]}{user.lastName?.[0]}
           </div>
           <div>
@@ -61,7 +61,7 @@ export default function ProfilePage() {
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                 <dt className="text-sm text-slate-400">{label}</dt>
-                <dd className="text-sm font-medium text-white">{value}</dd>
+                <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
               </div>
             ))}
           </dl>

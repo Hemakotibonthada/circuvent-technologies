@@ -165,7 +165,7 @@ export default function PortalGrievancePage() {
                     <span className={`px-2 py-0.5 text-xs rounded ${PRIORITY_COLORS[grv.priority]}`}>{grv.priority}</span>
                     {grv.isAnonymous && <span className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 rounded">Anonymous</span>}
                   </div>
-                  <h3 className="text-sm font-medium text-white">{grv.subject}</h3>
+                  <h3 className="text-sm font-medium text-slate-900 dark:text-white">{grv.subject}</h3>
                   <p className="text-xs text-slate-500 mt-1">{grv.category}</p>
                   <p className="text-xs text-slate-600 mt-0.5">
                     Filed on {new Date(grv.filedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -212,7 +212,7 @@ export default function PortalGrievancePage() {
 
               <div>
                 <p className="text-slate-500 text-xs mb-1">Description</p>
-                <p className="text-white text-sm bg-slate-100 dark:bg-slate-800 rounded-lg p-3">{selectedGrievance.description}</p>
+                <p className="text-slate-900 dark:text-white text-sm bg-slate-100 dark:bg-slate-800 rounded-lg p-3">{selectedGrievance.description}</p>
               </div>
 
               {selectedGrievance.resolution && (
@@ -250,7 +250,7 @@ export default function PortalGrievancePage() {
                   </button>
                 )}
               </div>
-              <button onClick={() => setSelectedGrievance(null)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Close</button>
+              <button onClick={() => setSelectedGrievance(null)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Close</button>
             </div>
           </div>
         </div>
@@ -288,7 +288,7 @@ export default function PortalGrievancePage() {
                       className={`flex-1 py-2 text-xs rounded-lg border transition-colors ${
                         form.priority === p
                           ? `${PRIORITY_COLORS[p]} border-transparent`
-                          : "border-slate-200 dark:border-slate-700 text-slate-400 hover:text-white"
+                          : "border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-900 dark:hover:text-white"
                       }`}>
                       {p}
                     </button>
@@ -318,7 +318,7 @@ export default function PortalGrievancePage() {
             </div>
 
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => { setShowCreate(false); resetForm(); }} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => { setShowCreate(false); resetForm(); }} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={submitting || !form.subject || !form.description}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Filing..." : form.isAnonymous ? "File Anonymously" : "File Grievance"}

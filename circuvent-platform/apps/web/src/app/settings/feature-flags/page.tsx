@@ -237,8 +237,8 @@ export default function FeatureFlagsPage() {
             onClick={() => setFilterEnv(env)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
               filterEnv === env
-                ? "bg-brand-600 text-white"
-                : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-white"
+                ? "bg-brand-600 text-slate-900 dark:text-white"
+                : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {env}
@@ -317,7 +317,7 @@ export default function FeatureFlagsPage() {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-slate-500">Name</p>
-                <p className="text-sm font-medium text-white">{showDetail.name}</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">{showDetail.name}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">Environment</p>
@@ -358,7 +358,7 @@ export default function FeatureFlagsPage() {
                     <div key={rule.id} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm">
                       <Badge color="purple">{rule.attribute}</Badge>
                       <span className="text-slate-500">{rule.operator}</span>
-                      <span className="text-white font-mono">{rule.value}</span>
+                      <span className="text-slate-900 dark:text-white font-mono">{rule.value}</span>
                     </div>
                   ))}
                 </div>

@@ -101,7 +101,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
                   className={`rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                     device.status === s
                       ? "border-brand-500 bg-brand-500/10 text-brand-400"
-                      : "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:border-slate-600 hover:text-white"
+                      : "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   {s}
@@ -113,7 +113,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
               <div className="mt-6">
                 <h4 className="text-sm font-medium text-slate-400 mb-2">Linked Project</h4>
                 <a href={`/projects/${device.project.id}`} className="block rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 hover:bg-slate-800">
-                  <p className="text-sm font-medium text-white">{device.project.name}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{device.project.name}</p>
                   <p className="text-xs text-slate-500">{device.project.code}</p>
                 </a>
               </div>
@@ -166,7 +166,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
       {/* Firmware Update Modal */}
       <Modal open={showFirmwareModal} onClose={() => setShowFirmwareModal(false)} title="Update Firmware">
         <div className="space-y-4">
-          <p className="text-sm text-slate-400">Current version: <span className="font-mono text-white">v{device.firmwareVersion}</span></p>
+          <p className="text-sm text-slate-400">Current version: <span className="font-mono text-slate-900 dark:text-white">v{device.firmwareVersion}</span></p>
           <Input label="New Version" placeholder="1.1.0" value={fwForm.toVersion} onChange={(e) => setFwForm({ ...fwForm, toVersion: e.target.value })} />
           <Input label="Notes" placeholder="Bug fixes, improvements..." value={fwForm.notes} onChange={(e) => setFwForm({ ...fwForm, notes: e.target.value })} />
           <div className="flex justify-end gap-3 pt-2">

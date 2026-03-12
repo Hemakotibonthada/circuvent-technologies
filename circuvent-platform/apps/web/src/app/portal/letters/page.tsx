@@ -186,7 +186,7 @@ export default function PortalLettersPage() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 text-xs rounded-md font-medium transition ${
-              activeTab === tab ? "bg-brand-600 text-white" : "text-slate-400 hover:text-white"
+              activeTab === tab ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -229,7 +229,7 @@ export default function PortalLettersPage() {
                           <span className="text-2xl">{LETTER_TYPE_ICONS[letter.letterType] || "📄"}</span>
                           <div>
                             <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-sm font-medium text-white">
+                              <span className="text-sm font-medium text-slate-900 dark:text-white">
                                 {LETTER_TYPE_LABELS[letter.letterType] || letter.letterType.replace(/_/g, " ")}
                               </span>
                               <span className={`px-2 py-0.5 text-[10px] rounded ${STATUS_CONFIG[letter.status]?.color || "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"}`}>
@@ -277,7 +277,7 @@ export default function PortalLettersPage() {
             {/* Toolbar */}
             <div className="bg-white dark:bg-slate-900 px-6 py-3 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-white">
+                <h3 className="text-sm font-medium text-slate-900 dark:text-white">
                   {LETTER_TYPE_LABELS[selectedLetter.letterType] || selectedLetter.letterType}
                 </h3>
                 <p className="text-xs text-slate-400">{selectedLetter.subject}</p>
@@ -304,7 +304,7 @@ export default function PortalLettersPage() {
                 )}
                 <button
                   onClick={() => setShowViewer(false)}
-                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 >
                   Close ✕
                 </button>

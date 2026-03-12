@@ -249,7 +249,7 @@ export default function PurchaseRequestsPage() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 text-xs rounded-md font-medium transition ${
-              activeTab === tab ? "bg-brand-600 text-white" : "text-slate-400 hover:text-white"
+              activeTab === tab ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -283,11 +283,11 @@ export default function PurchaseRequestsPage() {
                       {req.urgency}
                     </span>
                   </div>
-                  <h3 className="text-sm font-medium text-white">{req.title}</h3>
+                  <h3 className="text-sm font-medium text-slate-900 dark:text-white">{req.title}</h3>
                   <p className="text-xs text-slate-500 mt-1">{formatDate(req.createdAt)} · {req.items?.length || 0} items</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-white">₹{req.totalAmount.toLocaleString("en-IN")}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white">₹{req.totalAmount.toLocaleString("en-IN")}</p>
                   {req.actualAmount && req.actualAmount !== req.totalAmount && (
                     <p className="text-xs text-slate-500">Actual: ₹{req.actualAmount.toLocaleString("en-IN")}</p>
                   )}
@@ -414,7 +414,7 @@ export default function PurchaseRequestsPage() {
             </div>
 
             <div className="flex justify-end gap-2 mt-5 border-t border-slate-200 dark:border-slate-800 pt-4">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button
                 onClick={handleCreate}
                 disabled={submitting || !form.title || !form.justification || form.items.every((i) => !i.name || i.unitPrice <= 0)}
@@ -457,7 +457,7 @@ export default function PurchaseRequestsPage() {
                   <tbody>
                     {(selectedRequest.items || []).map((item, i) => (
                       <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
-                        <td className="px-3 py-2 text-white">{item.name}</td>
+                        <td className="px-3 py-2 text-slate-900 dark:text-white">{item.name}</td>
                         <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300">{item.quantity}</td>
                         <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">₹{Number(item.unitPrice).toLocaleString("en-IN")}</td>
                         <td className="px-3 py-2 text-right text-slate-900 dark:text-white font-medium">₹{(item.quantity * Number(item.unitPrice)).toLocaleString("en-IN")}</td>
@@ -484,7 +484,7 @@ export default function PurchaseRequestsPage() {
                       <div className={`w-2 h-2 rounded-full mt-1.5 ${approval.action === "APPROVED" ? "bg-emerald-400" : "bg-red-400"}`} />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-white">{approval.approverRole}</span>
+                          <span className="text-xs font-medium text-slate-900 dark:text-white">{approval.approverRole}</span>
                           <span className={`text-xs ${approval.action === "APPROVED" ? "text-emerald-400" : "text-red-400"}`}>
                             {approval.action}
                           </span>
@@ -525,7 +525,7 @@ export default function PurchaseRequestsPage() {
                   </button>
                 )}
               </div>
-              <button onClick={() => setShowDetail(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Close</button>
+              <button onClick={() => setShowDetail(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Close</button>
             </div>
           </div>
         </div>
@@ -555,7 +555,7 @@ export default function PurchaseRequestsPage() {
               />
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowReceipt(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowReceipt(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button
                 onClick={handleSubmitReceipt}
                 disabled={submitting || !receiptForm.receiptUrl}

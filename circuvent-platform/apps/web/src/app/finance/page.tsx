@@ -63,7 +63,7 @@ export default function FinanceDashboardPage() {
                 <span className="text-blue-400 font-mono">₹{Number(trialBalance.totalCredits).toLocaleString("en-IN")}</span>
               </div>
               <div className={`flex justify-between text-sm p-2 rounded ${trialBalance.isBalanced ? "bg-emerald-900/30" : "bg-red-900/30"}`}>
-                <span className="text-slate-300 font-medium">Balance Status</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Balance Status</span>
                 <span className={trialBalance.isBalanced ? "text-emerald-400" : "text-red-400"}>
                   {trialBalance.isBalanced ? "✓ Balanced" : `✗ Difference: ₹${trialBalance.difference}`}
                 </span>

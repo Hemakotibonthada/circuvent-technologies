@@ -122,7 +122,7 @@ export default function CompliancePage() {
                   <div key={label as string}>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-slate-400">{label}</span>
-                      <span className="text-white font-medium">{formatCurrency(amount as number)}</span>
+                      <span className="text-slate-900 dark:text-white font-medium">{formatCurrency(amount as number)}</span>
                     </div>
                     <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                       <div className={`h-2 rounded-full ${color}`} style={{ width: `${pct}%` }} />
@@ -140,7 +140,7 @@ export default function CompliancePage() {
         <Card padding={false}>
           <DataTable
             columns={[
-              { key: "name", header: "Deadline", render: (d: any) => <span className="text-white font-medium">{d.name}</span> },
+              { key: "name", header: "Deadline", render: (d: any) => <span className="text-slate-900 dark:text-white font-medium">{d.name}</span> },
               { key: "type", header: "Type", render: (d: any) => <Badge color="blue">{d.type}</Badge> },
               { key: "dueDate", header: "Due Date", render: (d: any) => d.dueDate },
               { key: "status", header: "Status", render: (d: any) => (
@@ -193,7 +193,7 @@ export default function CompliancePage() {
                   {form16Data.quarterlyTDS.map((q: any) => (
                     <Card key={q.quarter} className="text-center p-3">
                       <p className="text-xs text-slate-500">{q.quarter}</p>
-                      <p className="text-lg font-bold text-white">{formatCurrency(q.tds)}</p>
+                      <p className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(q.tds)}</p>
                     </Card>
                   ))}
                 </div>
@@ -205,7 +205,7 @@ export default function CompliancePage() {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between"><span className="text-slate-400">Gross Salary</span><span className="text-slate-900 dark:text-white">{formatCurrency(form16Data.taxComputation.grossSalary)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Standard Deduction</span><span className="text-slate-900 dark:text-white">-{formatCurrency(form16Data.taxComputation.standardDeduction)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Taxable Income</span><span className="text-white font-semibold">{formatCurrency(form16Data.taxComputation.taxableIncome)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Taxable Income</span><span className="text-slate-900 dark:text-white font-semibold">{formatCurrency(form16Data.taxComputation.taxableIncome)}</span></div>
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-2"><span className="text-slate-400">Tax on Income</span><span className="text-red-400">{formatCurrency(form16Data.taxComputation.taxOnIncome)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Cess (4%)</span><span className="text-red-400">{formatCurrency(form16Data.taxComputation.cess)}</span></div>
                     {form16Data.taxComputation.rebateApplied && (

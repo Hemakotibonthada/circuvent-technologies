@@ -9,17 +9,17 @@ export default function LandingPage() {
       <nav className="fixed top-0 z-50 w-full border-b border-slate-200/50 dark:border-slate-200 bg-slate dark:border-slate-800/50-950/80 backdrop-blur-lg">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white">CT</div>
-            <span className="text-lg font-bold text-white">Circuvent</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-slate-900 dark:text-white">CT</div>
+            <span className="text-lg font-bold text-slate-900 dark:text-white">Circuvent</span>
           </div>
           <div className="hidden items-center gap-8 md:flex">
-            <a href="#features" className="text-sm text-slate-400 hover:text-white transition-colors">Features</a>
-            <a href="#modules" className="text-sm text-slate-400 hover:text-white transition-colors">Modules</a>
-            <a href="#tech" className="text-sm text-slate-400 hover:text-white transition-colors">Tech Stack</a>
-            <a href="#contact" className="text-sm text-slate-400 hover:text-white transition-colors">Contact</a>
+            <a href="#features" className="text-sm text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
+            <a href="#modules" className="text-sm text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Modules</a>
+            <a href="#tech" className="text-sm text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Tech Stack</a>
+            <a href="#contact" className="text-sm text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Contact</a>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/login" className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-white transition-colors">Sign In</a>
+            <a href="/login" className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors">Sign In</a>
             <a href="/register" className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-slate-900 dark:text-white hover:bg-brand-700 transition-colors">Get Started</a>
           </div>
         </div>
@@ -48,7 +48,7 @@ export default function LandingPage() {
             <a href="/login" className="rounded-xl bg-brand-600 px-8 py-3.5 text-sm font-semibold text-slate-900 dark:text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700 transition-all hover:shadow-brand-600/30">
               Open Dashboard
             </a>
-            <a href="#modules" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white shadow-sm dark:bg-slate-900/50 px-8 py-3.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:border-slate-600 hover:text-white transition-all">
+            <a href="#modules" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white shadow-sm dark:bg-slate-900/50 px-8 py-3.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:border-slate-600 hover:text-slate-900 dark:hover:text-white transition-all">
               Explore Modules
             </a>
           </div>
@@ -88,7 +88,7 @@ export default function LandingPage() {
             ].map((f) => (
               <div key={f.title} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/30 p-6 hover:border-slate-700 transition-colors">
                 <span className="text-2xl">{f.icon}</span>
-                <h3 className="mt-3 text-lg font-semibold text-white">{f.title}</h3>
+                <h3 className="mt-3 text-lg font-semibold text-slate-900 dark:text-white">{f.title}</h3>
                 <p className="mt-2 text-sm text-slate-400">{f.desc}</p>
               </div>
             ))}
@@ -113,7 +113,7 @@ export default function LandingPage() {
             ].map((m) => (
               <div key={m.title} className={`rounded-xl border border-${m.color}-500/20 bg-${m.color}-500/5 p-6`}>
                 <span className="text-3xl">{m.icon}</span>
-                <h3 className="mt-4 text-lg font-semibold text-white">{m.title}</h3>
+                <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">{m.title}</h3>
                 <p className="mt-2 text-sm text-slate-400">{m.desc}</p>
               </div>
             ))}
@@ -160,7 +160,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl px-6">
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">CT</div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-slate-900 dark:text-white">CT</div>
               <div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white">Circuvent Technologies Pvt. Ltd.</p>
                 <p className="text-xs text-slate-500">HSR Layout, Bengaluru, Karnataka 560102</p>

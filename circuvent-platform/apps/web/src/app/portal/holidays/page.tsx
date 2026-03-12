@@ -52,7 +52,7 @@ export default function HolidaysPage() {
                           <p className="text-xs text-slate-500">{date.toLocaleDateString("en-IN", { weekday: "short" })}</p>
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-white font-medium">{h.name}</h3>
+                          <h3 className="text-slate-900 dark:text-white font-medium">{h.name}</h3>
                           {h.description && <p className="text-xs text-slate-400 mt-0.5">{h.description}</p>}
                           <div className="flex items-center gap-2 mt-1">
                             <span className={`px-2 py-0.5 text-xs rounded ${typeColors[h.type] || "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>{h.type}</span>

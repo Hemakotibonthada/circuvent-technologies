@@ -95,11 +95,11 @@ export default function AuditCompliancePage() {
               columns={[
                 { key: "createdAt", header: "Time", render: (l: AuditLog) => <span className="font-mono text-xs">{formatDateTime(l.createdAt)}</span> },
                 { key: "action", header: "Action", render: (l: AuditLog) => <Badge color={actionColors[l.action] || "slate"}>{l.action}</Badge> },
-                { key: "entity", header: "Entity", render: (l: AuditLog) => <span className="text-white text-xs">{l.entity}</span> },
+                { key: "entity", header: "Entity", render: (l: AuditLog) => <span className="text-slate-900 dark:text-white text-xs">{l.entity}</span> },
                 { key: "entityId", header: "Entity ID", render: (l: AuditLog) => l.entityId ? <span className="font-mono text-xs text-slate-500">{l.entityId.slice(0, 10)}...</span> : "—" },
                 { key: "user", header: "User", render: (l: AuditLog) => l.user ? (
                   <div>
-                    <span className="text-xs text-white">{l.user.firstName} {l.user.lastName}</span>
+                    <span className="text-xs text-slate-900 dark:text-white">{l.user.firstName} {l.user.lastName}</span>
                     <Badge color={l.user.role === "ADMIN" ? "red" : "blue"} className="ml-1">{l.user.role}</Badge>
                   </div>
                 ) : <span className="text-slate-500 text-xs">System</span> },

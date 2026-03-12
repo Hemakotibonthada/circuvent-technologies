@@ -23,7 +23,7 @@ export default function AnnouncementsPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     {a.isPinned && <span className="text-sm">📌</span>}
-                    <h2 className="text-white font-semibold">{a.title}</h2>
+                    <h2 className="text-slate-900 dark:text-white font-semibold">{a.title}</h2>
                     <span className={`px-2 py-0.5 text-xs rounded ${priorityBadges[a.priority]}`}>{a.priority}</span>
                     <span className="px-2 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">{a.category}</span>
                   </div>

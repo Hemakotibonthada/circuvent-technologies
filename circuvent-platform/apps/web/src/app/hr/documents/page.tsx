@@ -299,7 +299,7 @@ export default function DocumentManagementPage() {
           <Input label="Employee ID" placeholder="emp_xxxxxxxx" value={generateEmployeeId} onChange={(e) => setGenerateEmployeeId(e.target.value)} />
 
           <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
-            <h4 className="mb-3 text-sm font-semibold text-white">Template Variables</h4>
+            <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Template Variables</h4>
             <div className="grid grid-cols-2 gap-3">
               {Object.keys(generateVars).map((key) => (
                 <Input

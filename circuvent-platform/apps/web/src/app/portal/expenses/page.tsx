@@ -90,10 +90,10 @@ export default function PortalExpensesPage() {
                     <span className={`px-2 py-0.5 text-xs rounded ${statusColors[exp.status]}`}>{exp.status}</span>
                     {exp.isRnDExpense && <span className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 rounded">R&D</span>}
                   </div>
-                  <h3 className="text-sm font-medium text-white">{exp.title}</h3>
+                  <h3 className="text-sm font-medium text-slate-900 dark:text-white">{exp.title}</h3>
                   <p className="text-xs text-slate-500 mt-1">{new Date(exp.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
                 </div>
-                <p className="text-lg font-bold text-white">₹{Number(exp.totalAmount).toLocaleString("en-IN")}</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">₹{Number(exp.totalAmount).toLocaleString("en-IN")}</p>
               </div>
             </div>
           ))
@@ -125,7 +125,7 @@ export default function PortalExpensesPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={submitting || !form.title}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{submitting ? "Submitting..." : "Submit Claim"}</button>
             </div>

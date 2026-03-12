@@ -164,7 +164,7 @@ export default function EmployeePortalPage() {
                   <div key={a.id} className="bg-slate-50 border dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg p-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-sm font-medium text-white">{a.title}</h3>
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-white">{a.title}</h3>
                         <p className="text-xs text-slate-400 mt-1 line-clamp-2">{a.content}</p>
                       </div>
                       {a.priority === "URGENT" && (
@@ -241,7 +241,7 @@ export default function EmployeePortalPage() {
               <div className="w-16 h-16 bg-brand-600 rounded-full flex items-center justify-center text-2xl font-bold text-slate-900 dark:text-white mx-auto mb-3">
                 {d?.profile?.user?.firstName?.[0]}{d?.profile?.user?.lastName?.[0]}
               </div>
-              <h3 className="text-white font-semibold">{d?.profile?.user?.firstName} {d?.profile?.user?.lastName}</h3>
+              <h3 className="text-slate-900 dark:text-white font-semibold">{d?.profile?.user?.firstName} {d?.profile?.user?.lastName}</h3>
               <p className="text-slate-400 text-sm">{employee?.designation}</p>
               <p className="text-slate-500 text-xs mt-1">{employee?.department} &middot; {employee?.employeeCode}</p>
             </div>
@@ -269,7 +269,7 @@ export default function EmployeePortalPage() {
                 {d.upcomingHolidays.map((h: any) => (
                   <div key={h.id} className="flex items-center justify-between bg-slate-100 dark:bg-slate-800/50 rounded-lg p-2 text-sm">
                     <div>
-                      <p className="text-slate-300 font-medium">{h.name}</p>
+                      <p className="text-slate-600 dark:text-slate-300 font-medium">{h.name}</p>
                       <p className="text-xs text-slate-500">{h.type}{h.isOptional ? " (Optional)" : ""}</p>
                     </div>
                     <span className="text-xs text-slate-400">{new Date(h.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>

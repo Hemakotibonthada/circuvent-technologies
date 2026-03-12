@@ -38,12 +38,12 @@ export default function ApplicationsPage() {
       {/* Pipeline Summary */}
       {pipeline && (
         <div className="flex gap-1 mb-6 overflow-x-auto pb-2">
-          <button onClick={() => setStatusFilter("")} className={`px-3 py-1.5 rounded text-xs whitespace-nowrap ${!statusFilter ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>All</button>
+          <button onClick={() => setStatusFilter("")} className={`px-3 py-1.5 rounded text-xs whitespace-nowrap ${!statusFilter ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>All</button>
           {stages.map(stage => {
             const entry = pipeline.find((p: any) => p.stage === stage);
             return (
               <button key={stage} onClick={() => setStatusFilter(stage)}
-                className={`px-3 py-1.5 rounded text-xs whitespace-nowrap flex items-center gap-1 ${statusFilter === stage ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
+                className={`px-3 py-1.5 rounded text-xs whitespace-nowrap flex items-center gap-1 ${statusFilter === stage ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
                 {stage.replace(/_/g, " ")} {entry && <span className="bg-slate-100 dark:bg-slate-700 px-1.5 rounded text-xs">{entry.count}</span>}
               </button>
             );
@@ -63,7 +63,7 @@ export default function ApplicationsPage() {
                     <span className="text-xs text-slate-500 font-mono">{app.applicationCode}</span>
                     <span className={`px-2 py-0.5 text-xs rounded ${statusColors[app.status] || "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>{app.status.replace(/_/g, " ")}</span>
                   </div>
-                  <h3 className="text-sm font-medium text-white">
+                  <h3 className="text-sm font-medium text-slate-900 dark:text-white">
                     {app.candidate?.firstName} {app.candidate?.lastName}
                     <span className="text-slate-500 ml-2">→ {app.job?.title}</span>
                   </h3>

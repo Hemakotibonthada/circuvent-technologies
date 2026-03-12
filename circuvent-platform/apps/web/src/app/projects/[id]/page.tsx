@@ -146,7 +146,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                           <select
                             value={task.status}
                             onChange={(e) => handleUpdateTaskStatus(task.id, e.target.value)}
-                            className="rounded border border-slate-200 dark:border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
+                            className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
                           >
                             {["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE", "BLOCKED"].map((s) => (
                               <option key={s} value={s}>{s.replace("_", " ")}</option>
@@ -228,11 +228,11 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             {project.members.map((m) => (
               <div key={m.id} className="flex items-center justify-between rounded-lg bg-slate-100 dark:bg-slate-800/50 px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-slate-900 dark:text-white">
                     {m.user.firstName[0]}{m.user.lastName[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white">{m.user.firstName} {m.user.lastName}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{m.user.firstName} {m.user.lastName}</p>
                     <p className="text-xs text-slate-500">{m.user.email}</p>
                   </div>
                 </div>

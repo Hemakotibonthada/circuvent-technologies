@@ -44,24 +44,24 @@ export default function DeveloperDashboard() {
       {/* Current Sprint / Timesheet */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">This Week&apos;s Timesheet</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">This Week&apos;s Timesheet</h3>
           {currentTimesheet?.entries?.length > 0 ? (
             <div className="space-y-2">
               {currentTimesheet.entries.map((entry: any) => (
                 <div key={entry.id} className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
                   <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm text-white">{entry.description || entry.category}</p>
+                    <p className="truncate text-sm text-slate-900 dark:text-white">{entry.description || entry.category}</p>
                     <p className="text-xs text-slate-500">{new Date(entry.date).toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" })}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge color={entry.billable ? "green" : "slate"}>{entry.billable ? "Billable" : "Non-bill"}</Badge>
-                    <span className="text-sm font-medium text-white">{entry.hours}h</span>
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">{entry.hours}h</span>
                   </div>
                 </div>
               ))}
               <div className="mt-3 flex items-center justify-between rounded-lg border border-brand-500/30 bg-brand-500/5 p-3">
                 <span className="text-sm font-medium text-brand-400">Week Total</span>
-                <span className="text-lg font-bold text-white">{weekHours}h</span>
+                <span className="text-lg font-bold text-slate-900 dark:text-white">{weekHours}h</span>
               </div>
             </div>
           ) : (
@@ -76,12 +76,12 @@ export default function DeveloperDashboard() {
         </Card>
 
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">My Projects</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">My Projects</h3>
           <div className="space-y-3">
             {projects?.slice(0, 5).map((p: any) => (
               <a key={p.id} href={`/projects/${p.id}`} className="block rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 hover:bg-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-white">{p.name}</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">{p.name}</span>
                   <Badge color={p.status === "ACTIVE" ? "green" : "slate"}>{p.status}</Badge>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
@@ -102,7 +102,7 @@ export default function DeveloperDashboard() {
       {/* Goals + Upcoming Events */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">My Goals ({completedGoals}/{myGoals?.length || 0} completed)</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">My Goals ({completedGoals}/{myGoals?.length || 0} completed)</h3>
           <div className="space-y-2">
             {myGoals?.slice(0, 6).map((g: any) => (
               <div key={g.id} className="flex items-center gap-3 rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
@@ -124,7 +124,7 @@ export default function DeveloperDashboard() {
         </Card>
 
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Upcoming Events & Shifts</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Upcoming Events & Shifts</h3>
           <div className="space-y-2">
             {myShifts?.slice(0, 3).map((s: any) => (
               <div key={s.id} className="flex items-center gap-3 rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
@@ -157,7 +157,7 @@ export default function DeveloperDashboard() {
       {/* Recognition */}
       {myRecognitions && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Recent Recognitions Received</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Recent Recognitions Received</h3>
           <div className="space-y-2">
             {myRecognitions.received?.slice(0, 5).map((r: any) => (
               <div key={r.id} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
@@ -184,7 +184,7 @@ export default function DeveloperDashboard() {
           { label: "My Profile", href: "/portal/profile", icon: "👤" },
           { label: "Helpdesk", href: "/portal/helpdesk", icon: "🎫" },
         ].map((l) => (
-          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:text-white">
+          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
             <span>{l.icon}</span> {l.label}
           </a>
         ))}

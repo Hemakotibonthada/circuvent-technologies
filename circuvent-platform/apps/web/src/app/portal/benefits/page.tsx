@@ -150,10 +150,10 @@ export default function PortalBenefitsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg p-1">
-        <button onClick={() => setTab("enrolled")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "enrolled" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-white"}`}>
+        <button onClick={() => setTab("enrolled")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "enrolled" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           My Enrollments ({enrollments.filter(e => e.status === "ACTIVE").length})
         </button>
-        <button onClick={() => setTab("available")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "available" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-white"}`}>
+        <button onClick={() => setTab("available")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "available" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           Available Plans ({availablePlans.length})
         </button>
       </div>
@@ -175,7 +175,7 @@ export default function PortalBenefitsPage() {
                     <span className="text-2xl">{CATEGORY_ICONS[enrollment.planCategory] || "📋"}</span>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-medium text-white">{enrollment.planName}</h3>
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-white">{enrollment.planName}</h3>
                         <span className={`px-2 py-0.5 text-xs rounded ${STATUS_COLORS[enrollment.status]}`}>{enrollment.status}</span>
                       </div>
                       <p className="text-xs text-slate-500">{enrollment.planCategory}</p>
@@ -237,7 +237,7 @@ export default function PortalBenefitsPage() {
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">{CATEGORY_ICONS[plan.category] || "📋"}</span>
                     <div>
-                      <h3 className="text-sm font-medium text-white">{plan.name}</h3>
+                      <h3 className="text-sm font-medium text-slate-900 dark:text-white">{plan.name}</h3>
                       <p className="text-xs text-slate-500 mt-1">{plan.provider} · {plan.coverageType}</p>
                       <p className="text-xs text-slate-400 mt-1">{plan.description}</p>
                       <div className="flex gap-4 mt-2 text-xs">
@@ -276,7 +276,7 @@ export default function PortalBenefitsPage() {
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-2xl">{CATEGORY_ICONS[selectedPlan.category] || "📋"}</span>
                 <div>
-                  <h3 className="text-white font-medium">{selectedPlan.name}</h3>
+                  <h3 className="text-slate-900 dark:text-white font-medium">{selectedPlan.name}</h3>
                   <p className="text-xs text-slate-400">{selectedPlan.provider}</p>
                 </div>
               </div>
@@ -287,7 +287,7 @@ export default function PortalBenefitsPage() {
             </div>
             <p className="text-xs text-slate-400 mb-4">By enrolling, you agree to a monthly deduction of ₹{selectedPlan.employeeContribution.toLocaleString("en-IN")} from your salary.</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setSelectedPlan(null)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setSelectedPlan(null)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={() => handleEnroll(selectedPlan.id)} disabled={submitting}
                 className="px-4 py-2 bg-emerald-600 text-slate-900 dark:text-white rounded-lg hover:bg-emerald-700 text-sm disabled:opacity-50">
                 {submitting ? "Enrolling..." : "Confirm Enrollment"}
@@ -316,7 +316,7 @@ export default function PortalBenefitsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowAddDependent(null)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowAddDependent(null)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleAddDependent} disabled={submitting || !dependentForm.name || !dependentForm.dateOfBirth}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Adding..." : "Add Dependent"}

@@ -63,7 +63,7 @@ export default function GSTPage() {
 
             {result && (
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-400">Base Amount</span><span className="text-white font-mono">₹{Number(result.baseAmount).toLocaleString("en-IN")}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Base Amount</span><span className="text-slate-900 dark:text-white font-mono">₹{Number(result.baseAmount).toLocaleString("en-IN")}</span></div>
                 {!result.isInterState ? (
                   <>
                     <div className="flex justify-between"><span className="text-slate-400">CGST ({Number(result.rate) / 2}%)</span><span className="text-emerald-400 font-mono">₹{Number(result.cgst).toLocaleString("en-IN")}</span></div>
@@ -72,7 +72,7 @@ export default function GSTPage() {
                 ) : (
                   <div className="flex justify-between"><span className="text-slate-400">IGST ({result.rate}%)</span><span className="text-purple-400 font-mono">₹{Number(result.igst).toLocaleString("en-IN")}</span></div>
                 )}
-                <div className="flex justify-between font-bold border-t border-slate-200 dark:border-slate-700 pt-2"><span className="text-slate-900 dark:text-white">Grand Total</span><span className="text-white font-mono">₹{Number(result.grandTotal).toLocaleString("en-IN")}</span></div>
+                <div className="flex justify-between font-bold border-t border-slate-200 dark:border-slate-700 pt-2"><span className="text-slate-900 dark:text-white">Grand Total</span><span className="text-slate-900 dark:text-white font-mono">₹{Number(result.grandTotal).toLocaleString("en-IN")}</span></div>
               </div>
             )}
           </div>

@@ -352,7 +352,7 @@ export default function InternManagementPage() {
             columns={[
               { key: "name", header: "Program", render: (p: InternProgram) => (
                 <div>
-                  <p className="text-sm font-medium text-white">{p.name}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{p.name}</p>
                   {p.description && <p className="text-xs text-slate-500 truncate max-w-xs">{p.description}</p>}
                 </div>
               )},
@@ -433,7 +433,7 @@ export default function InternManagementPage() {
             columns={[
               { key: "internName", header: "Intern", render: (i: InternRecord) => (
                 <div>
-                  <p className="text-sm font-medium text-white">{i.internName}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{i.internName}</p>
                   <p className="text-xs text-slate-500">{i.employeeCode}</p>
                 </div>
               )},
@@ -542,7 +542,7 @@ export default function InternManagementPage() {
             </div>
           ) : (
             <div className="max-w-lg mx-auto space-y-4">
-              <p className="text-sm text-slate-400">Evaluating intern: <span className="text-white font-medium">{evalInternId}</span></p>
+              <p className="text-sm text-slate-400">Evaluating intern: <span className="text-slate-900 dark:text-white font-medium">{evalInternId}</span></p>
 
               {(Object.keys(evalScores) as Array<keyof EvaluationScores>).map((key) => (
                 <div key={key}>

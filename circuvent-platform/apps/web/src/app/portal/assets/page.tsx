@@ -136,10 +136,10 @@ export default function PortalAssetsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg p-1">
-        <button onClick={() => setTab("assets")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "assets" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-white"}`}>
+        <button onClick={() => setTab("assets")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "assets" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           Assigned Assets ({assets.length})
         </button>
-        <button onClick={() => setTab("requests")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "requests" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-white"}`}>
+        <button onClick={() => setTab("requests")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "requests" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           My Requests ({requests.length})
         </button>
       </div>
@@ -162,7 +162,7 @@ export default function PortalAssetsPage() {
                         <span className="text-xs text-slate-500 font-mono">{asset.assetCode}</span>
                         <span className={`px-2 py-0.5 text-xs rounded ${STATUS_COLORS[asset.status] || STATUS_COLORS.AVAILABLE}`}>{asset.status}</span>
                       </div>
-                      <h3 className="text-sm font-medium text-white">{asset.name}</h3>
+                      <h3 className="text-sm font-medium text-slate-900 dark:text-white">{asset.name}</h3>
                       <p className="text-xs text-slate-500 mt-1">{asset.category}</p>
                       {asset.serialNumber && <p className="text-xs text-slate-600 font-mono mt-0.5">S/N: {asset.serialNumber}</p>}
                     </div>
@@ -196,7 +196,7 @@ export default function PortalAssetsPage() {
                       <span className="text-sm">{CATEGORY_ICONS[req.assetCategory] || "📦"}</span>
                       <span className={`px-2 py-0.5 text-xs rounded ${STATUS_COLORS[req.status]}`}>{req.status}</span>
                     </div>
-                    <h3 className="text-sm font-medium text-white">{req.assetCategory}</h3>
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-white">{req.assetCategory}</h3>
                     <p className="text-xs text-slate-400 mt-1">{req.justification}</p>
                     {req.remarks && <p className="text-xs text-slate-500 mt-1 italic">Remarks: {req.remarks}</p>}
                   </div>
@@ -222,7 +222,7 @@ export default function PortalAssetsPage() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-slate-500 text-xs">Category</p><p className="text-slate-900 dark:text-white">{showDetail.category}</p></div>
               <div><p className="text-slate-500 text-xs">Condition</p><p className="text-slate-900 dark:text-white">{showDetail.condition || "Good"}</p></div>
-              {showDetail.serialNumber && <div><p className="text-slate-500 text-xs">Serial Number</p><p className="text-white font-mono text-xs">{showDetail.serialNumber}</p></div>}
+              {showDetail.serialNumber && <div><p className="text-slate-500 text-xs">Serial Number</p><p className="text-slate-900 dark:text-white font-mono text-xs">{showDetail.serialNumber}</p></div>}
               {showDetail.allocatedDate && <div><p className="text-slate-500 text-xs">Allocated On</p><p className="text-slate-900 dark:text-white">{new Date(showDetail.allocatedDate).toLocaleDateString("en-IN")}</p></div>}
               {showDetail.purchaseDate && <div><p className="text-slate-500 text-xs">Purchase Date</p><p className="text-slate-900 dark:text-white">{new Date(showDetail.purchaseDate).toLocaleDateString("en-IN")}</p></div>}
               {showDetail.purchasePrice != null && <div><p className="text-slate-500 text-xs">Purchase Price</p><p className="text-slate-900 dark:text-white">₹{showDetail.purchasePrice.toLocaleString("en-IN")}</p></div>}
@@ -242,11 +242,11 @@ export default function PortalAssetsPage() {
             {showDetail.notes && (
               <div className="mt-3">
                 <p className="text-slate-500 text-xs">Notes</p>
-                <p className="text-white text-sm">{showDetail.notes}</p>
+                <p className="text-slate-900 dark:text-white text-sm">{showDetail.notes}</p>
               </div>
             )}
             <div className="flex justify-end mt-5">
-              <button onClick={() => setShowDetail(null)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Close</button>
+              <button onClick={() => setShowDetail(null)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Close</button>
             </div>
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function PortalAssetsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowRequest(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowRequest(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleRequest} disabled={submitting || !form.justification}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Submitting..." : "Submit Request"}

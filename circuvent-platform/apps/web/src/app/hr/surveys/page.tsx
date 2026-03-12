@@ -338,7 +338,7 @@ export default function SurveyManagementPage() {
             results.map((r) => (
               <div key={r.questionId} className="rounded-lg border border-slate-200 dark:border-slate-800 p-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-medium text-white">{r.questionText}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{r.questionText}</p>
                   <Badge color={questionTypeColors[r.type] || "slate"}>{r.type}</Badge>
                 </div>
                 <p className="text-xs text-slate-500 mb-2">{r.responses} responses</p>

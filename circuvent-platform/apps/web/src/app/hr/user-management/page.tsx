@@ -410,7 +410,7 @@ export default function UserManagementPage() {
       {activeTab === "role-breakdown" && stats && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
-            <h3 className="mb-4 text-sm font-semibold text-white">By Role</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">By Role</h3>
             <div className="space-y-2">
               {stats.byRole.map(({ role, count }) => (
                 <div
@@ -418,13 +418,13 @@ export default function UserManagementPage() {
                   className="flex items-center justify-between rounded-lg bg-slate-100 px-4 py-2 dark:bg-slate-800/50"
                 >
                   <Badge color={ROLE_COLORS[role] || "slate"}>{role.replace(/_/g, " ")}</Badge>
-                  <span className="text-sm font-medium text-white">{count}</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">{count}</span>
                 </div>
               ))}
             </div>
           </Card>
           <Card>
-            <h3 className="mb-4 text-sm font-semibold text-white">By Status</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">By Status</h3>
             <div className="space-y-2">
               {stats.byStatus.map(({ status, count }) => (
                 <div
@@ -432,7 +432,7 @@ export default function UserManagementPage() {
                   className="flex items-center justify-between rounded-lg bg-slate-100 px-4 py-2 dark:bg-slate-800/50"
                 >
                   <Badge color={STATUS_COLORS[status] || "slate"}>{status}</Badge>
-                  <span className="text-sm font-medium text-white">{count}</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">{count}</span>
                 </div>
               ))}
             </div>
@@ -445,8 +445,8 @@ export default function UserManagementPage() {
         {selectedCandidate && (
           <div className="space-y-5">
             {/* Candidate info header */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-800/60 p-4">
-              <p className="text-sm font-medium text-white">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60 p-4">
+              <p className="text-sm font-medium text-slate-900 dark:text-white">
                 {selectedCandidate.firstName} {selectedCandidate.lastName}
               </p>
               <p className="text-xs text-slate-400">{selectedCandidate.email}</p>
@@ -544,8 +544,8 @@ export default function UserManagementPage() {
       <Modal open={roleModal} onClose={() => setRoleModal(false)} title="Change User Role">
         {roleTarget && (
           <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-800/60 p-4">
-              <p className="text-sm font-medium text-white">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60 p-4">
+              <p className="text-sm font-medium text-slate-900 dark:text-white">
                 {roleTarget.firstName} {roleTarget.lastName}
               </p>
               <p className="text-xs text-slate-400">

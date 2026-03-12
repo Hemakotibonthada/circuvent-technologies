@@ -163,8 +163,8 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab(tab)}
             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab
-                ? "bg-brand-600 text-white"
-                : "text-slate-400 hover:text-white hover:bg-slate-100 dark:bg-slate-800"
+                ? "bg-brand-600 text-slate-900 dark:text-white"
+                : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800"
             }`}
           >
             {tab === "overview" && "🖥️ "}
@@ -181,7 +181,7 @@ export default function AdminDashboard() {
         <>
           {/* Services Grid */}
           <Card>
-            <h3 className="mb-4 text-sm font-semibold text-white">Microservice Health</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Microservice Health</h3>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-3">
               {services.map((svc) => (
                 <div
@@ -191,7 +191,7 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-3">
                     <div className={`h-3 w-3 rounded-full ${statusColor(svc.status)} animate-pulse`} />
                     <div>
-                      <p className="text-sm font-medium text-white">{svc.name}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{svc.name}</p>
                       <p className="text-xs text-slate-500">{svc.responseTime}ms avg</p>
                     </div>
                   </div>
@@ -207,7 +207,7 @@ export default function AdminDashboard() {
           {/* System Metrics + User Stats */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card>
-              <h3 className="mb-4 text-sm font-semibold text-white">System Resources</h3>
+              <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">System Resources</h3>
               <div className="space-y-4">
                 {[
                   { label: "CPU Usage", value: systemMetrics.cpuUsage, color: systemMetrics.cpuUsage > 80 ? "bg-red-500" : "bg-emerald-500" },
@@ -218,7 +218,7 @@ export default function AdminDashboard() {
                   <div key={metric.label}>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-slate-400">{metric.label}</span>
-                      <span className="text-white font-medium">{metric.value}%</span>
+                      <span className="text-slate-900 dark:text-white font-medium">{metric.value}%</span>
                     </div>
                     <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700">
                       <div
@@ -231,18 +231,18 @@ export default function AdminDashboard() {
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-center">
-                  <p className="text-lg font-bold text-white">{systemMetrics.activeConnections}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white">{systemMetrics.activeConnections}</p>
                   <p className="text-xs text-slate-400">Active Connections</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-center">
-                  <p className="text-lg font-bold text-white">{systemHealth?.dbSize || "2.4 GB"}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white">{systemHealth?.dbSize || "2.4 GB"}</p>
                   <p className="text-xs text-slate-400">Database Size</p>
                 </div>
               </div>
             </Card>
 
             <Card>
-              <h3 className="mb-4 text-sm font-semibold text-white">Users by Role</h3>
+              <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Users by Role</h3>
               <div className="space-y-2">
                 {roleBreakdown.map((r) => (
                   <div
@@ -250,7 +250,7 @@ export default function AdminDashboard() {
                     className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50"
                   >
                     <span className={`text-sm ${r.color}`}>{r.role}</span>
-                    <span className="text-sm font-medium text-white">{r.count}</span>
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">{r.count}</span>
                   </div>
                 ))}
               </div>
@@ -268,7 +268,7 @@ export default function AdminDashboard() {
       {/* Audit Tab */}
       {activeTab === "audit" && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Recent Audit Trail</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Recent Audit Trail</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -292,7 +292,7 @@ export default function AdminDashboard() {
                         minute: "2-digit",
                       })}
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-white">{entry.userName}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-900 dark:text-white">{entry.userName}</td>
                     <td className="px-3 py-2.5">
                       <Badge
                         color={
@@ -322,7 +322,7 @@ export default function AdminDashboard() {
       {/* Config Tab */}
       {activeTab === "config" && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Configuration Management</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Configuration Management</h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {configSections.map((cfg) => (
               <div
@@ -332,7 +332,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-3">
                   <span className="text-xl">{cfg.icon}</span>
                   <div>
-                    <p className="text-sm font-medium text-white">{cfg.name}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{cfg.name}</p>
                     <p className="text-xs text-slate-500">{cfg.value}</p>
                   </div>
                 </div>
@@ -349,7 +349,7 @@ export default function AdminDashboard() {
       {activeTab === "activity" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
-            <h3 className="mb-4 text-sm font-semibold text-white">Platform Statistics</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Platform Statistics</h3>
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: "Total API Calls", value: platformStats?.totalApiCalls || "245K", icon: "📡" },
@@ -369,7 +369,7 @@ export default function AdminDashboard() {
           </Card>
 
           <Card>
-            <h3 className="mb-4 text-sm font-semibold text-white">Recent Registrations</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Recent Registrations</h3>
             <div className="space-y-2">
               {(userStats?.recentRegistrations || [
                 { name: "Priya Sharma", role: "DEVELOPER", date: "2026-03-10" },
@@ -393,7 +393,7 @@ export default function AdminDashboard() {
 
       {/* Quick Actions */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Quick Actions</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Quick Actions</h3>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {quickActions.map((action) => (
             <a
@@ -402,7 +402,7 @@ export default function AdminDashboard() {
               className="flex flex-col items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center transition-colors hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
             >
               <span className="text-2xl">{action.icon}</span>
-              <span className="text-sm font-medium text-white">{action.label}</span>
+              <span className="text-sm font-medium text-slate-900 dark:text-white">{action.label}</span>
               <span className="text-xs text-slate-500">{action.desc}</span>
             </a>
           ))}

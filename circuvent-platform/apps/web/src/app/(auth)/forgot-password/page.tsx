@@ -27,7 +27,7 @@ export default function ForgotPasswordPage() {
         </div>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Check your email</h2>
         <p className="mt-2 text-sm text-slate-400">
-          If an account with <span className="text-white font-medium">{email}</span> exists, we've sent a password reset link.
+          If an account with <span className="text-slate-900 dark:text-white font-medium">{email}</span> exists, we've sent a password reset link.
         </p>
         <p className="mt-4 text-xs text-slate-500">Didn't receive it? Check your spam folder or try again.</p>
         <div className="mt-8 space-y-3">

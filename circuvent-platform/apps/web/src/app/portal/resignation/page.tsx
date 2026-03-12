@@ -168,11 +168,11 @@ export default function ResignationPage() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
               <p className="text-xs text-slate-500">Last Working Day</p>
-              <p className="text-sm font-medium text-white">{formatDate(activeResignation.lastWorkingDate)}</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{formatDate(activeResignation.lastWorkingDate)}</p>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
               <p className="text-xs text-slate-500">Notice Period</p>
-              <p className="text-sm font-medium text-white">{activeResignation.noticePeriod} days</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{activeResignation.noticePeriod} days</p>
             </div>
           </div>
 
@@ -188,7 +188,7 @@ export default function ResignationPage() {
               <div className="space-y-1.5">
                 {activeResignation.exitChecklist.map((item) => (
                   <div key={item.id} className="flex items-center gap-2 bg-white dark:bg-slate-800/30 rounded-lg px-3 py-2">
-                    <span className={`w-4 h-4 rounded text-center text-xs leading-4 ${item.isCompleted ? "bg-emerald-600 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-500"}`}>
+                    <span className={`w-4 h-4 rounded text-center text-xs leading-4 ${item.isCompleted ? "bg-emerald-600 text-slate-900 dark:text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-500"}`}>
                       {item.isCompleted ? "✓" : ""}
                     </span>
                     <span className={`text-xs flex-1 ${item.isCompleted ? "text-slate-500 line-through" : "text-slate-600 dark:text-slate-300"}`}>
@@ -312,7 +312,7 @@ export default function ResignationPage() {
             </div>
 
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowSubmit(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowSubmit(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !form.reason}
@@ -386,7 +386,7 @@ export default function ResignationPage() {
             </div>
 
             <div className="flex justify-end mt-5">
-              <button onClick={() => setShowSettlement(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Close</button>
+              <button onClick={() => setShowSettlement(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Close</button>
             </div>
           </div>
         </div>

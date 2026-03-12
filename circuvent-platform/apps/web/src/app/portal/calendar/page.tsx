@@ -198,8 +198,8 @@ export default function CalendarPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📅 Calendar</h1>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setActiveView("month")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "month" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>Month</button>
-          <button onClick={() => setActiveView("list")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "list" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>List</button>
+          <button onClick={() => setActiveView("month")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "month" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>Month</button>
+          <button onClick={() => setActiveView("list")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "list" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>List</button>
           <button onClick={() => setShowCreate(true)} className="px-4 py-1.5 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-xs hover:bg-brand-700">+ New Event</button>
         </div>
       </div>
@@ -226,7 +226,7 @@ export default function CalendarPage() {
 
             {/* Calendar Cells */}
             {calendarGrid.map((week, wi) => (
-              <div key={wi} className="grid grid-cols-7 divide-x divide-slate-800 border-b border-slate-200 dark:border-slate-800 last:border-b-0">
+              <div key={wi} className="grid grid-cols-7 divide-x divide-slate-200 dark:divide-slate-800 border-b border-slate-200 dark:border-slate-800 last:border-b-0">
                 {week.map((cell) => {
                   const dayEvents = getEventsForDate(cell.dateStr);
                   const isSelected = cell.dateStr === selectedDate;
@@ -332,18 +332,18 @@ export default function CalendarPage() {
           <div className="p-4 border-b border-slate-200 dark:border-slate-800">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white">All Events — {MONTH_NAMES[currentMonth]} {currentYear}</h2>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {events
               .sort((a, b) => a.date.localeCompare(b.date))
               .map((ev) => (
                 <div key={ev.id} className="flex items-center gap-4 p-4 hover:bg-white dark:bg-slate-800/30">
                   <div className="w-16 text-center">
-                    <p className="text-lg font-bold text-white">{new Date(ev.date).getDate()}</p>
+                    <p className="text-lg font-bold text-slate-900 dark:text-white">{new Date(ev.date).getDate()}</p>
                     <p className="text-xs text-slate-500">{new Date(ev.date).toLocaleDateString("en-IN", { weekday: "short" })}</p>
                   </div>
                   <div className={`h-8 w-1 rounded-full ${EVENT_TYPE_COLORS[ev.type]?.dot}`} />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-white">{ev.title}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{ev.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-xs ${EVENT_TYPE_COLORS[ev.type]?.text}`}>{ev.type}</span>
                       {ev.startTime && <span className="text-xs text-slate-500">{ev.startTime} — {ev.endTime}</span>}
@@ -399,7 +399,7 @@ export default function CalendarPage() {
               <div><label className="text-xs text-slate-500">Description</label><textarea value={newEvent.description} onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })} rows={2} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm mt-1" /></div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreateEvent} disabled={!newEvent.title || !newEvent.date} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create</button>
             </div>
           </div>

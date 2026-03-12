@@ -178,7 +178,7 @@ export default function TimesheetManagementPage() {
     { key: "projectName", header: "Project", render: (e: TimesheetEntry) => e.projectName || "—" },
     { key: "taskDescription", header: "Task" },
     { key: "category", header: "Category", render: (e: TimesheetEntry) => <Badge color="blue">{e.category}</Badge> },
-    { key: "hours", header: "Hours", render: (e: TimesheetEntry) => <span className="font-mono text-white">{e.hours}h</span> },
+    { key: "hours", header: "Hours", render: (e: TimesheetEntry) => <span className="font-mono text-slate-900 dark:text-white">{e.hours}h</span> },
     { key: "overtimeHours", header: "OT", render: (e: TimesheetEntry) => e.overtimeHours > 0 ? <span className="font-mono text-amber-400">{e.overtimeHours}h</span> : "—" },
     {
       key: "actions", header: "",
@@ -190,7 +190,7 @@ export default function TimesheetManagementPage() {
 
   const historyColumns = [
     { key: "weekStartDate", header: "Week", render: (t: Timesheet) => `${formatDate(t.weekStartDate)} — ${formatDate(t.weekEndDate)}` },
-    { key: "totalHours", header: "Total", render: (t: Timesheet) => <span className="font-mono text-white">{t.totalHours}h</span> },
+    { key: "totalHours", header: "Total", render: (t: Timesheet) => <span className="font-mono text-slate-900 dark:text-white">{t.totalHours}h</span> },
     { key: "overtimeHours", header: "Overtime", render: (t: Timesheet) => <span className="font-mono text-amber-400">{t.overtimeHours}h</span> },
     { key: "status", header: "Status", render: (t: Timesheet) => <Badge color={statusColors[t.status] || "slate"}>{t.status}</Badge> },
     { key: "submittedAt", header: "Submitted", render: (t: Timesheet) => t.submittedAt ? formatDate(t.submittedAt) : "—" },
@@ -199,7 +199,7 @@ export default function TimesheetManagementPage() {
   const teamColumns = [
     { key: "employeeName", header: "Employee", render: (t: Timesheet) => <span className="font-medium text-slate-900 dark:text-white">{t.employeeName || t.employeeId}</span> },
     { key: "weekStartDate", header: "Week", render: (t: Timesheet) => `${formatDate(t.weekStartDate)} — ${formatDate(t.weekEndDate)}` },
-    { key: "totalHours", header: "Hours", render: (t: Timesheet) => <span className="font-mono text-white">{t.totalHours}h</span> },
+    { key: "totalHours", header: "Hours", render: (t: Timesheet) => <span className="font-mono text-slate-900 dark:text-white">{t.totalHours}h</span> },
     { key: "overtimeHours", header: "OT", render: (t: Timesheet) => <span className="font-mono text-amber-400">{t.overtimeHours}h</span> },
     { key: "status", header: "Status", render: (t: Timesheet) => <Badge color={statusColors[t.status] || "slate"}>{t.status}</Badge> },
     {
@@ -268,13 +268,13 @@ export default function TimesheetManagementPage() {
                       />
                     </div>
                     <span className="text-xs font-medium text-slate-400">{dayNames[i]}</span>
-                    <span className="text-xs font-mono text-white">{hours}h</span>
+                    <span className="text-xs font-mono text-slate-900 dark:text-white">{hours}h</span>
                   </div>
                 );
               })}
             </div>
             <div className="mt-4 flex gap-6 border-t border-slate-200 dark:border-slate-800 pt-3 text-sm">
-              <div><span className="text-slate-500">Regular:</span> <span className="font-mono text-white">{totalRegular}h</span></div>
+              <div><span className="text-slate-500">Regular:</span> <span className="font-mono text-slate-900 dark:text-white">{totalRegular}h</span></div>
               <div><span className="text-slate-500">Overtime:</span> <span className="font-mono text-amber-400">{totalOvertime}h</span></div>
               <div><span className="text-slate-500">Status:</span>{" "}
                 <Badge color={statusColors[currentTimesheet?.status || "DRAFT"] || "slate"}>

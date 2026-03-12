@@ -21,7 +21,7 @@ export default function FinancialReportsPage() {
       <div className="flex gap-2 mb-6">
         {[{ id: "trial" as const, label: "Trial Balance" }, { id: "pnl" as const, label: "Profit & Loss" }, { id: "bs" as const, label: "Balance Sheet" }].map(r => (
           <button key={r.id} onClick={() => setReport(r.id)}
-            className={`px-4 py-2 rounded-lg text-sm ${report === r.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{r.label}</button>
+            className={`px-4 py-2 rounded-lg text-sm ${report === r.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{r.label}</button>
         ))}
       </div>
 
@@ -37,14 +37,14 @@ export default function FinancialReportsPage() {
               {trialBalance.entries?.filter((e: any) => e.debit > 0 || e.credit > 0).map((e: any) => (
                 <tr key={e.code} className="border-b border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-800/30">
                   <td className="px-4 py-2 text-sm text-brand-400 font-mono">{e.code}</td>
-                  <td className="px-4 py-2 text-sm text-white">{e.name}</td>
+                  <td className="px-4 py-2 text-sm text-slate-900 dark:text-white">{e.name}</td>
                   <td className="px-4 py-2"><span className={`text-xs ${typeColors[e.type]}`}>{e.type}</span></td>
                   <td className="px-4 py-2 text-sm text-right font-mono text-emerald-400">{e.debit > 0 ? `₹${Number(e.debit).toLocaleString("en-IN")}` : ""}</td>
                   <td className="px-4 py-2 text-sm text-right font-mono text-blue-400">{e.credit > 0 ? `₹${Number(e.credit).toLocaleString("en-IN")}` : ""}</td>
                 </tr>
               ))}
               <tr className="border-t-2 border-slate-200 dark:border-slate-700 font-bold">
-                <td colSpan={3} className="px-4 py-3 text-sm text-white">TOTAL</td>
+                <td colSpan={3} className="px-4 py-3 text-sm text-slate-900 dark:text-white">TOTAL</td>
                 <td className="px-4 py-3 text-sm text-right font-mono text-emerald-400">₹{Number(trialBalance.totalDebits).toLocaleString("en-IN")}</td>
                 <td className="px-4 py-3 text-sm text-right font-mono text-blue-400">₹{Number(trialBalance.totalCredits).toLocaleString("en-IN")}</td>
               </tr>

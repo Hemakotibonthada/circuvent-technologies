@@ -174,13 +174,13 @@ export default function PortalTravelPage() {
                     <span className="text-xs text-slate-500 font-mono">{req.requestCode}</span>
                     <span className={`px-2 py-0.5 text-xs rounded ${STATUS_COLORS[req.status] || STATUS_COLORS.DRAFT}`}>{req.status}</span>
                   </div>
-                  <h3 className="text-sm font-medium text-white">{req.purpose}</h3>
+                  <h3 className="text-sm font-medium text-slate-900 dark:text-white">{req.purpose}</h3>
                   <p className="text-xs text-slate-400 mt-1">📍 {req.destination}</p>
                   <p className="text-xs text-slate-500 mt-1">
                     {new Date(req.departureDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} — {new Date(req.returnDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                   </p>
                 </div>
-                <p className="text-lg font-bold text-white">₹{(req.estimatedCost || 0).toLocaleString("en-IN")}</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">₹{(req.estimatedCost || 0).toLocaleString("en-IN")}</p>
               </div>
             </div>
           ))
@@ -198,7 +198,7 @@ export default function PortalTravelPage() {
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div><p className="text-slate-500 text-xs">Destination</p><p className="text-slate-900 dark:text-white">{selectedRequest.destination}</p></div>
-                <div><p className="text-slate-500 text-xs">Request Code</p><p className="text-white font-mono">{selectedRequest.requestCode}</p></div>
+                <div><p className="text-slate-500 text-xs">Request Code</p><p className="text-slate-900 dark:text-white font-mono">{selectedRequest.requestCode}</p></div>
                 <div><p className="text-slate-500 text-xs">Departure</p><p className="text-slate-900 dark:text-white">{new Date(selectedRequest.departureDate).toLocaleDateString("en-IN")}</p></div>
                 <div><p className="text-slate-500 text-xs">Return</p><p className="text-slate-900 dark:text-white">{new Date(selectedRequest.returnDate).toLocaleDateString("en-IN")}</p></div>
                 <div><p className="text-slate-500 text-xs">Estimated Cost</p><p className="text-slate-900 dark:text-white">₹{(selectedRequest.estimatedCost || 0).toLocaleString("en-IN")}</p></div>
@@ -245,7 +245,7 @@ export default function PortalTravelPage() {
               )}
             </div>
             <div className="flex justify-end mt-5">
-              <button onClick={() => setSelectedRequest(null)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Close</button>
+              <button onClick={() => setSelectedRequest(null)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Close</button>
             </div>
           </div>
         </div>
@@ -313,7 +313,7 @@ export default function PortalTravelPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => { setShowCreate(false); resetForm(); }} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => { setShowCreate(false); resetForm(); }} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={submitting || !form.purpose || !form.destination || !form.departureDate || !form.returnDate}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Submitting..." : "Submit Request"}

@@ -536,7 +536,7 @@ export default function FundsBudgetPage() {
               <div key={f.id} className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-2">
                 <div>
                   <span className="text-sm font-mono text-red-300">{f.code}</span>
-                  <span className="ml-2 text-sm text-white">{f.name}</span>
+                  <span className="ml-2 text-sm text-slate-900 dark:text-white">{f.name}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-sm text-red-400">
@@ -695,7 +695,7 @@ export default function FundsBudgetPage() {
                 key: "name",
                 header: "Name",
                 render: (f: Fund) => (
-                  <button onClick={() => selectFund(f)} className="text-white hover:text-brand-300 text-left">
+                  <button onClick={() => selectFund(f)} className="text-slate-900 dark:text-white hover:text-brand-300 text-left">
                     {f.name}
                   </button>
                 ),
@@ -717,7 +717,7 @@ export default function FundsBudgetPage() {
               {
                 key: "totalBudget",
                 header: "Budget",
-                render: (f: Fund) => <span className="font-semibold text-white">{formatCurrency(f.totalBudget)}</span>,
+                render: (f: Fund) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(f.totalBudget)}</span>,
               },
               {
                 key: "spentAmount",
@@ -852,7 +852,7 @@ export default function FundsBudgetPage() {
                       <div key={alloc.id} className="flex items-center justify-between rounded-lg bg-slate-100 dark:bg-slate-800/50 px-4 py-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-white">{alloc.allocatedTo}</span>
+                            <span className="text-sm font-medium text-slate-900 dark:text-white">{alloc.allocatedTo}</span>
                             <Badge color="cyan">{alloc.allocationType}</Badge>
                             {alloc.isActive ? (
                               <Badge color="green">Active</Badge>
@@ -1111,7 +1111,7 @@ export default function FundsBudgetPage() {
                     {
                       key: "amount",
                       header: "Amount",
-                      render: (a: FundAllocation) => <span className="font-semibold text-white">{formatCurrency(a.amount)}</span>,
+                      render: (a: FundAllocation) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(a.amount)}</span>,
                     },
                     {
                       key: "purpose",
@@ -1180,7 +1180,7 @@ export default function FundsBudgetPage() {
                 {
                   key: "bankName",
                   header: "Bank Name",
-                  render: (b: CompanyBankAccount) => <span className="text-sm font-medium text-white">{b.bankName}</span>,
+                  render: (b: CompanyBankAccount) => <span className="text-sm font-medium text-slate-900 dark:text-white">{b.bankName}</span>,
                 },
                 {
                   key: "accountNumber",
@@ -1205,7 +1205,7 @@ export default function FundsBudgetPage() {
                 {
                   key: "balance",
                   header: "Balance",
-                  render: (b: CompanyBankAccount) => <span className="font-semibold text-white">{formatCurrency(b.balance)}</span>,
+                  render: (b: CompanyBankAccount) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(b.balance)}</span>,
                 },
                 {
                   key: "isActive",
@@ -1375,7 +1375,7 @@ export default function FundsBudgetPage() {
             <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">Budget Amount</span>
-                <span className="text-lg font-bold text-white">{formatCurrency(Number(fundForm.totalBudget) || 0)}</span>
+                <span className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(Number(fundForm.totalBudget) || 0)}</span>
               </div>
             </div>
           )}
@@ -1402,7 +1402,7 @@ export default function FundsBudgetPage() {
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 text-sm">
               <span className="text-slate-400">Fund: </span>
               <span className="font-mono text-brand-400">{selectedFund.code}</span>
-              <span className="ml-2 text-white">{selectedFund.name}</span>
+              <span className="ml-2 text-slate-900 dark:text-white">{selectedFund.name}</span>
               <span className="ml-4 text-slate-400">
                 Remaining: <span className="text-green-400">{formatCurrency(selectedFund.remainingAmount)}</span>
               </span>
@@ -1529,7 +1529,7 @@ export default function FundsBudgetPage() {
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 text-sm">
               <span className="text-slate-400">Fund: </span>
               <span className="font-mono text-brand-400">{selectedFund.code}</span>
-              <span className="ml-2 text-white">{selectedFund.name}</span>
+              <span className="ml-2 text-slate-900 dark:text-white">{selectedFund.name}</span>
               <span className="ml-4 text-slate-400">
                 Available: <span className="text-green-400">{formatCurrency(selectedFund.remainingAmount)}</span>
               </span>

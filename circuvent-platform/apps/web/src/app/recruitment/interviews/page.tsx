@@ -132,7 +132,7 @@ export default function InterviewsPage() {
               <input placeholder="Meeting Link (optional)" value={form.meetingLink} onChange={e => setForm({ ...form, meetingLink: e.target.value })} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm" />
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowSchedule(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowSchedule(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleSchedule} disabled={!form.applicationId || !form.interviewerId || !form.scheduledAt}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Schedule</button>
             </div>

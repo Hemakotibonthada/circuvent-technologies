@@ -181,8 +181,8 @@ export default function ProductManagerDashboard() {
             onClick={() => setActiveTab(tab)}
             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab
-                ? "bg-brand-600 text-white"
-                : "text-slate-400 hover:text-white hover:bg-slate-100 dark:bg-slate-800"
+                ? "bg-brand-600 text-slate-900 dark:text-white"
+                : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800"
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -194,14 +194,14 @@ export default function ProductManagerDashboard() {
       {activeTab === "metrics" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
-            <h3 className="mb-4 text-sm font-semibold text-white">Client Engagement</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Client Engagement</h3>
             <div className="space-y-3">
               {clientEngagement.map((c) => (
                 <div key={c.client} className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <div className={`h-2.5 w-2.5 rounded-full ${healthDot(c.health)}`} />
-                      <span className="text-sm font-medium text-white">{c.client}</span>
+                      <span className="text-sm font-medium text-slate-900 dark:text-white">{c.client}</span>
                     </div>
                     <span className="text-xs text-slate-500">{c.lastContact}</span>
                   </div>
@@ -221,7 +221,7 @@ export default function ProductManagerDashboard() {
           </Card>
 
           <Card>
-            <h3 className="mb-4 text-sm font-semibold text-white">Team Workload</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Team Workload</h3>
             <div className="space-y-2">
               {teamWorkload.map((member) => {
                 const utilization = Math.round((member.tasks / member.capacity) * 100);
@@ -229,7 +229,7 @@ export default function ProductManagerDashboard() {
                   <div key={member.name} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
                     <div className="flex items-center justify-between mb-1">
                       <div>
-                        <span className="text-sm font-medium text-white">{member.name}</span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-white">{member.name}</span>
                         <span className="ml-2 text-xs text-slate-500">{member.role}</span>
                       </div>
                       <span className={`text-xs font-medium ${utilization >= 90 ? "text-red-400" : utilization >= 70 ? "text-amber-400" : "text-emerald-400"}`}>
@@ -261,7 +261,7 @@ export default function ProductManagerDashboard() {
       {/* Resources Tab */}
       {activeTab === "resources" && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Resource Allocation</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Resource Allocation</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -276,7 +276,7 @@ export default function ProductManagerDashboard() {
               <tbody>
                 {resourceAllocation.map((res) => (
                   <tr key={res.department} className="border-b border-slate-200 dark:border-slate-800">
-                    <td className="px-3 py-3 text-sm text-white">{res.department}</td>
+                    <td className="px-3 py-3 text-sm text-slate-900 dark:text-white">{res.department}</td>
                     <td className="px-3 py-3 text-sm text-slate-600 dark:text-slate-300">{res.allocated}</td>
                     <td className="px-3 py-3 text-sm text-slate-600 dark:text-slate-300">{res.available}</td>
                     <td className="px-3 py-3">
@@ -320,7 +320,7 @@ export default function ProductManagerDashboard() {
       {/* Roadmap Tab */}
       {activeTab === "roadmap" && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Release Roadmap</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Release Roadmap</h3>
           <div className="space-y-3">
             {roadmapItems.map((item) => (
               <div
@@ -330,7 +330,7 @@ export default function ProductManagerDashboard() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-slate-500">{item.id}</span>
-                    <span className="text-sm font-medium text-white">{item.title}</span>
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">{item.title}</span>
                   </div>
                   <Badge color={statusColor(item.status) as any}>{item.status.replace(/_/g, " ")}</Badge>
                 </div>
@@ -347,7 +347,7 @@ export default function ProductManagerDashboard() {
                       style={{ width: `${item.progress}%` }}
                     />
                   </div>
-                  <span className="text-xs font-medium text-white">{item.progress}%</span>
+                  <span className="text-xs font-medium text-slate-900 dark:text-white">{item.progress}%</span>
                 </div>
               </div>
             ))}
@@ -358,7 +358,7 @@ export default function ProductManagerDashboard() {
       {/* Feature Requests Tab */}
       {activeTab === "requests" && (
         <Card>
-          <h3 className="mb-4 text-sm font-semibold text-white">Feature Requests</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Feature Requests</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -375,11 +375,11 @@ export default function ProductManagerDashboard() {
                 {featureRequests.map((fr) => (
                   <tr key={fr.id} className="border-b border-slate-200 dark:border-slate-800 hover:bg-white dark:bg-slate-800/30">
                     <td className="px-3 py-2.5 text-xs font-mono text-slate-500">{fr.id}</td>
-                    <td className="px-3 py-2.5 text-sm text-white">{fr.title}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-900 dark:text-white">{fr.title}</td>
                     <td className="px-3 py-2.5 text-xs text-slate-400">{fr.requester}</td>
                     <td className="px-3 py-2.5"><Badge color={priorityColor(fr.priority) as any}>{fr.priority}</Badge></td>
                     <td className="px-3 py-2.5"><Badge color={statusColor(fr.status) as any}>{fr.status.replace(/_/g, " ")}</Badge></td>
-                    <td className="px-3 py-2.5 text-sm text-white">👍 {fr.votes}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-900 dark:text-white">👍 {fr.votes}</td>
                   </tr>
                 ))}
               </tbody>
@@ -390,13 +390,13 @@ export default function ProductManagerDashboard() {
 
       {/* Quick Actions */}
       <Card>
-        <h3 className="mb-4 text-sm font-semibold text-white">Quick Actions</h3>
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Quick Actions</h3>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
           {quickActions.map((action) => (
             <a
               key={action.label}
               href={action.href}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 transition-colors hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-white"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 transition-colors hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
             >
               <span>{action.icon}</span> {action.label}
             </a>

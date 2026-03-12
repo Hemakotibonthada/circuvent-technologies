@@ -29,7 +29,7 @@ export default function HRAnalyticsPage() {
       <div className="flex gap-2 mb-6">
         {[{ id: "workforce" as const, label: "Workforce" }, { id: "compensation" as const, label: "Compensation" }, { id: "compliance" as const, label: "Compliance" }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-sm ${tab === t.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{t.label}</button>
+            className={`px-4 py-2 rounded-lg text-sm ${tab === t.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{t.label}</button>
         ))}
       </div>
 
@@ -181,7 +181,7 @@ export default function HRAnalyticsPage() {
               <tbody>
                 {compensation.byDepartment?.map((d: any) => (
                   <tr key={d.department} className="border-b border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-800/30">
-                    <td className="px-4 py-2 text-sm text-white">{d.department}</td>
+                    <td className="px-4 py-2 text-sm text-slate-900 dark:text-white">{d.department}</td>
                     <td className="px-4 py-2 text-sm text-right text-slate-600 dark:text-slate-300">{d.count}</td>
                     <td className="px-4 py-2 text-sm text-right font-mono text-emerald-400">₹{Math.round(d.avg / 1000)}K</td>
                     <td className="px-4 py-2 text-sm text-right font-mono text-slate-400">₹{Math.round(d.min / 1000)}K</td>
@@ -213,7 +213,7 @@ export default function HRAnalyticsPage() {
             {compliance.items?.map((item: any) => (
               <div key={item.item} className={`bg-white shadow-sm dark:bg-slate-900 border rounded-xl p-5 ${item.percentage >= 90 ? "border-emerald-800/50" : item.percentage >= 70 ? "border-amber-800/50" : "border-red-800/50"}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-medium">{item.item}</h3>
+                  <h3 className="text-slate-900 dark:text-white font-medium">{item.item}</h3>
                   <span className={`text-lg font-bold ${item.percentage >= 90 ? "text-emerald-400" : item.percentage >= 70 ? "text-amber-400" : "text-red-400"}`}>{item.percentage}%</span>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-full h-3 mb-2">

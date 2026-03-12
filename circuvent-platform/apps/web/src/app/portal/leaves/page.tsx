@@ -99,7 +99,7 @@ export default function PortalLeavePage() {
                   <p className="text-xs text-slate-500 mt-1">{leave.reason}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-white">{leave.totalDays || "—"}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white">{leave.totalDays || "—"}</p>
                   <p className="text-xs text-slate-500">days</p>
                 </div>
               </div>
@@ -136,7 +136,7 @@ export default function PortalLeavePage() {
                 className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm" rows={3} />
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowApply(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowApply(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleApply} disabled={submitting || !form.startDate || !form.endDate || !form.reason}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{submitting ? "Submitting..." : "Submit"}</button>
             </div>

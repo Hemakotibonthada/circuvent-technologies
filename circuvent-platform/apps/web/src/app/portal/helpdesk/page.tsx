@@ -82,7 +82,7 @@ export default function HelpdeskPage() {
       <div className="flex gap-2 mb-4 overflow-x-auto">
         {[{ id: "all", label: "All" }, { id: "OPEN", label: "Open" }, { id: "IN_PROGRESS", label: "In Progress" }, { id: "RESOLVED", label: "Resolved" }, { id: "CLOSED", label: "Closed" }].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
-            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${filter === f.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-white"}`}>{f.label}</button>
+            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${filter === f.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>{f.label}</button>
         ))}
       </div>
 
@@ -101,7 +101,7 @@ export default function HelpdeskPage() {
                   <span className={`px-2 py-0.5 text-xs rounded ${statusColors[ticket.status]}`}>{ticket.status.replace(/_/g, " ")}</span>
                   <span className="text-sm">{priorityIcons[ticket.priority]}</span>
                 </div>
-                <h3 className="text-sm font-medium text-white">{ticket.subject}</h3>
+                <h3 className="text-sm font-medium text-slate-900 dark:text-white">{ticket.subject}</h3>
                 <p className="text-xs text-slate-400 mt-1 line-clamp-2">{ticket.description}</p>
                 <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                   <span>📁 {ticket.category.replace(/_/g, " ")}</span>
@@ -144,7 +144,7 @@ export default function HelpdeskPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!form.subject || !form.description}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Submit Ticket</button>
             </div>

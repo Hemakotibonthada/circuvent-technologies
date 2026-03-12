@@ -102,7 +102,7 @@ export default function IoTLiveDashboard() {
               <div key={i} className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/10 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Badge color={alert.severity === "CRITICAL" ? "red" : "amber"}>{alert.severity}</Badge>
-                  <span className="text-xs text-white">{alert.alertType}</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{alert.alertType}</span>
                   <span className="text-xs text-slate-500">{alert.message}</span>
                 </div>
                 <span className="text-[10px] text-slate-600">{timeAgo(alert.timestamp)}</span>

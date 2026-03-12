@@ -143,7 +143,7 @@ export default function IoTPage() {
             key={s}
             onClick={() => setStatusFilter(s)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              statusFilter === s ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-white"
+              statusFilter === s ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {s || "All"}

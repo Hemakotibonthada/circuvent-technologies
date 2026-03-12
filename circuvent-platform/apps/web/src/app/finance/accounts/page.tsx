@@ -65,7 +65,7 @@ export default function ChartOfAccountsPage() {
               {accounts.map((acc: any) => (
                 <tr key={acc.code} className="border-b border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-800/30">
                   <td className="px-4 py-3 text-sm text-brand-400 font-mono">{acc.code}</td>
-                  <td className="px-4 py-3 text-sm text-white">{acc.name}</td>
+                  <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">{acc.name}</td>
                   <td className="px-4 py-3"><span className={`text-xs ${typeColors[acc.type]}`}>{acc.type}</span></td>
                   <td className="px-4 py-3 text-xs text-slate-400">{acc.subType}</td>
                   <td className="px-4 py-3 text-sm text-right font-mono text-slate-600 dark:text-slate-300">₹{Number(acc.balance).toLocaleString("en-IN")}</td>
@@ -101,7 +101,7 @@ export default function ChartOfAccountsPage() {
                 className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm" />
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!form.code || !form.name}
                 className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create</button>
             </div>

@@ -212,13 +212,13 @@ export default function TimesheetPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab("current")}
-            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "current" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
+            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "current" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
           >
             Current Week
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "history" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
+            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "history" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
           >
             History
           </button>
@@ -268,7 +268,7 @@ export default function TimesheetPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-7 divide-x divide-slate-800">
+            <div className="grid grid-cols-7 divide-x divide-slate-200 dark:divide-slate-800">
               {DAYS.map((day, i) => {
                 const dateStr = weekDates[i];
                 const entries = getEntriesForDay(dateStr);
@@ -302,7 +302,7 @@ export default function TimesheetPage() {
                           className={`rounded p-1.5 text-[10px] ${entry.billable ? "bg-emerald-900/30 border border-emerald-800/30" : "bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50"}`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-white font-medium truncate">{entry.projectName}</span>
+                            <span className="text-slate-900 dark:text-white font-medium truncate">{entry.projectName}</span>
                             {currentTimesheet?.status === "DRAFT" && (
                               <button
                                 onClick={() => handleDeleteEntry(entry.id)}
@@ -346,7 +346,7 @@ export default function TimesheetPage() {
                 if (catHours === 0) return null;
                 return (
                   <div key={cat} className="rounded-lg bg-slate-100 dark:bg-slate-800/50 p-2 text-center">
-                    <p className="text-sm font-bold text-white">{catHours}h</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{catHours}h</p>
                     <p className="text-[10px] text-slate-400">{cat}</p>
                   </div>
                 );
@@ -371,7 +371,7 @@ export default function TimesheetPage() {
               <div key={ts.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="text-sm font-medium text-white">
+                    <span className="text-sm font-medium text-slate-900 dark:text-white">
                       {ts.weekStart} — {ts.weekEnd}
                     </span>
                   </div>
@@ -381,7 +381,7 @@ export default function TimesheetPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <p className="text-lg font-bold text-white">{ts.totalHours}h</p>
+                    <p className="text-lg font-bold text-slate-900 dark:text-white">{ts.totalHours}h</p>
                     <p className="text-xs text-slate-500">Total</p>
                   </div>
                   <div>
@@ -480,7 +480,7 @@ export default function TimesheetPage() {
                   setShowAddEntry(false);
                   setEditingDay(null);
                 }}
-                className="px-4 py-2 text-slate-400 hover:text-white text-sm"
+                className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm"
               >
                 Cancel
               </button>

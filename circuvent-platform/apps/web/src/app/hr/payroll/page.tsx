@@ -206,7 +206,7 @@ export default function PayrollDashboardPage() {
                   <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
                     <h4 className="text-sm font-semibold text-green-400 mb-3">NEW REGIME</h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-slate-400">Monthly Net</span><span className="text-white font-semibold">{formatCurrency(preview.newRegime.netSalary)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Monthly Net</span><span className="text-slate-900 dark:text-white font-semibold">{formatCurrency(preview.newRegime.netSalary)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">Monthly TDS</span><span className="text-red-400">{formatCurrency(preview.newRegime.deductions.tds)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">EPF (Employee)</span><span>{formatCurrency(preview.newRegime.deductions.epfEmployee)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">ESI</span><span>{formatCurrency(preview.newRegime.deductions.esiEmployee)}</span></div>
@@ -220,7 +220,7 @@ export default function PayrollDashboardPage() {
                   <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
                     <h4 className="text-sm font-semibold text-blue-400 mb-3">OLD REGIME</h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-slate-400">Monthly Net</span><span className="text-white font-semibold">{formatCurrency(preview.oldRegime.netSalary)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Monthly Net</span><span className="text-slate-900 dark:text-white font-semibold">{formatCurrency(preview.oldRegime.netSalary)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">Monthly TDS</span><span className="text-red-400">{formatCurrency(preview.oldRegime.deductions.tds)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">EPF (Employee)</span><span>{formatCurrency(preview.oldRegime.deductions.epfEmployee)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">ESI</span><span>{formatCurrency(preview.oldRegime.deductions.esiEmployee)}</span></div>

@@ -173,7 +173,7 @@ export default function RecognitionWallPage() {
     { key: "name", header: "Program", render: (a: AwardProgram) => <span className="font-medium text-slate-900 dark:text-white">{a.name}</span> },
     { key: "description", header: "Description" },
     { key: "tier", header: "Tier", render: (a: AwardProgram) => <Badge color={awardColors[a.tier] || "slate"}>{a.tier}</Badge> },
-    { key: "pointsRequired", header: "Points Required", render: (a: AwardProgram) => <span className="font-mono text-white">{a.pointsRequired}</span> },
+    { key: "pointsRequired", header: "Points Required", render: (a: AwardProgram) => <span className="font-mono text-slate-900 dark:text-white">{a.pointsRequired}</span> },
     { key: "winnersCount", header: "Winners", render: (a: AwardProgram) => a.winnersCount },
     { key: "isActive", header: "Status", render: (a: AwardProgram) => <Badge color={a.isActive ? "green" : "slate"}>{a.isActive ? "Active" : "Inactive"}</Badge> },
   ];

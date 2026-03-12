@@ -364,7 +364,7 @@ export default function PurchaseRequestsPage() {
       key: "title",
       header: "Title",
       render: (r: PurchaseRequest) => (
-        <button onClick={() => openDetail(r)} className="text-white hover:text-brand-300 text-left">
+        <button onClick={() => openDetail(r)} className="text-slate-900 dark:text-white hover:text-brand-300 text-left">
           {r.title}
         </button>
       ),
@@ -377,7 +377,7 @@ export default function PurchaseRequestsPage() {
     {
       key: "totalAmount",
       header: "Amount",
-      render: (r: PurchaseRequest) => <span className="font-semibold text-white">{formatCurrency(r.totalAmount)}</span>,
+      render: (r: PurchaseRequest) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(r.totalAmount)}</span>,
     },
     {
       key: "urgency",
@@ -583,13 +583,13 @@ export default function PurchaseRequestsPage() {
                           <tbody>
                             {req.items.map((item, i) => (
                               <tr key={item.id || i} className="border-b border-slate-200/50 dark:border-slate-800/50">
-                                <td className="py-2 text-white">{item.name}</td>
+                                <td className="py-2 text-slate-900 dark:text-white">{item.name}</td>
                                 <td className="py-2">
                                   <Badge color="slate">{item.category.replace(/_/g, " ")}</Badge>
                                 </td>
                                 <td className="py-2 text-right text-slate-600 dark:text-slate-300">{item.quantity}</td>
                                 <td className="py-2 text-right text-slate-600 dark:text-slate-300">{formatCurrency(item.unitPrice)}</td>
-                                <td className="py-2 text-right font-semibold text-white">{formatCurrency(item.total)}</td>
+                                <td className="py-2 text-right font-semibold text-slate-900 dark:text-white">{formatCurrency(item.total)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -886,7 +886,7 @@ export default function PurchaseRequestsPage() {
               </div>
               <div>
                 <p className="text-xs text-slate-400">Total Amount</p>
-                <p className="text-lg font-bold text-white">{formatCurrency(selectedRequest.totalAmount)}</p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(selectedRequest.totalAmount)}</p>
               </div>
             </div>
 
@@ -956,13 +956,13 @@ export default function PurchaseRequestsPage() {
                     <tbody>
                       {selectedRequest.items.map((item, i) => (
                         <tr key={item.id || i} className="border-t border-slate-200 dark:border-slate-800/50">
-                          <td className="py-2 px-3 text-white">{item.name}</td>
+                          <td className="py-2 px-3 text-slate-900 dark:text-white">{item.name}</td>
                           <td className="py-2 px-3">
                             <Badge color="slate">{item.category.replace(/_/g, " ")}</Badge>
                           </td>
                           <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-300">{item.quantity}</td>
                           <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-300">{formatCurrency(item.unitPrice)}</td>
-                          <td className="py-2 px-3 text-right font-semibold text-white">{formatCurrency(item.total)}</td>
+                          <td className="py-2 px-3 text-right font-semibold text-slate-900 dark:text-white">{formatCurrency(item.total)}</td>
                         </tr>
                       ))}
                     </tbody>
