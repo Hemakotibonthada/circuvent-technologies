@@ -100,7 +100,7 @@ export default function AssetManagementPage() {
   /* ── tabs ──────────────────────────────────────────────── */
   const [activeTab, setActiveTab] = useState("catalog");
   const tabs = [
-    { id: "catalog", label: "Asset Catalog" }, { key: "requests", label: "Requests" }, { key: "maintenance", label: "Maintenance" },
+    { id: "catalog", label: "Asset Catalog" }, { id: "requests", label: "Requests" }, { id: "maintenance", label: "Maintenance" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

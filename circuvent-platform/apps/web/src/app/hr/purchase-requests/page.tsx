@@ -388,7 +388,7 @@ export default function PurchaseRequestsPage() {
   const tabs = [
     { id: "my-requests", label: "My Requests", count: myRequests?.length },
     ...(isAdmin || isHR ? [{ id: "all-requests", label: "All Requests", count: allRequests?.length }] : []),
-    { id: "pending-approvals", label: "Pending Approvals", count: pendingApprovals?.length }, { key: "create", label: "Create Request" },
+    { id: "pending-approvals", label: "Pending Approvals", count: pendingApprovals?.length }, { id: "create", label: "Create Request" },
   ];
 
   // ══════════════════════════════════════════════════════════════

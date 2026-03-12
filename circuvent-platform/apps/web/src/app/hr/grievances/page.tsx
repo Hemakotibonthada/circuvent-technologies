@@ -78,7 +78,7 @@ export default function GrievanceManagementPage() {
 
   const [activeTab, setActiveTab] = useState("open");
   const tabs = [
-    { id: "open", label: "Open" }, { key: "investigating", label: "Investigating" }, { key: "resolved", label: "Resolved" }, { key: "all", label: "All" },
+    { id: "open", label: "Open" }, { id: "investigating", label: "Investigating" }, { id: "resolved", label: "Resolved" }, { id: "all", label: "All" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

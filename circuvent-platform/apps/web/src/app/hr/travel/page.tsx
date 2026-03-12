@@ -82,7 +82,7 @@ export default function TravelManagementPage() {
   /* ── tabs ──────────────────────────────────────────────── */
   const [activeTab, setActiveTab] = useState("my");
   const tabs = [
-    { id: "my", label: "My Requests" }, { key: "all", label: "All Requests" }, { key: "policies", label: "Policies" },
+    { id: "my", label: "My Requests" }, { id: "all", label: "All Requests" }, { id: "policies", label: "Policies" },
   ];
 
   /* ── data fetching ────────────────────────────────────── */

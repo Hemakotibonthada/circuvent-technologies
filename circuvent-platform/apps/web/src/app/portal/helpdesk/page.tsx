@@ -80,7 +80,7 @@ export default function HelpdeskPage() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-4 overflow-x-auto">
-        {[{ id: "all", label: "All" }, { key: "OPEN", label: "Open" }, { key: "IN_PROGRESS", label: "In Progress" }, { key: "RESOLVED", label: "Resolved" }, { key: "CLOSED", label: "Closed" }].map(f => (
+        {[{ id: "all", label: "All" }, { id: "OPEN", label: "Open" }, { id: "IN_PROGRESS", label: "In Progress" }, { id: "RESOLVED", label: "Resolved" }, { id: "CLOSED", label: "Closed" }].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
             className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${filter === f.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>{f.label}</button>
         ))}

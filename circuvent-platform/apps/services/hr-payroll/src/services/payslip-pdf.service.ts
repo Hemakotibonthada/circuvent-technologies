@@ -2,6 +2,9 @@
 // HR & Payroll — Payslip PDF Service
 // Generates India-compliant payslip PDFs using the PDF engine,
 // stores them in the database, and provides download endpoints.
+// Enhanced with HT repo features: banking info, employer
+// medical insurance, password-protected PDFs, conveyance/LTA
+// earnings, billable hours, leave days, and amount-in-words.
 // ──────────────────────────────────────────────────────────────
 
 import { PrismaClient } from "@prisma/client";
@@ -26,7 +29,28 @@ const COMPANY_INFO = {
   address: "HSR Layout, Bengaluru, Karnataka 560102, India",
   cin: "U72200KA2024PTC123456",
   gstin: "29AABCC1234F1Z5",
+  contact: "www.circuvent.tech | payroll@circuvent.tech | +91 765 999 3331",
 };
+
+/**
+ * Build a payslip password from employee name and date of joining.
+ * Format: first 4 chars of uppercased name + ddMM of DOJ.
+ */
+function buildPayslipPassword(fullName: string, dateOfJoining?: Date | string | null): string | null {
+  if (!fullName) return null;
+  const normalized = fullName.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (!normalized.length) return null;
+
+  let doj: Date | null = null;
+  if (dateOfJoining instanceof Date) doj = dateOfJoining;
+  else if (typeof dateOfJoining === "string") doj = new Date(dateOfJoining);
+  if (!doj || isNaN(doj.getTime())) return null;
+
+  const namePart = normalized.slice(0, 4).padEnd(4, "X");
+  const day = String(doj.getDate()).padStart(2, "0");
+  const month = String(doj.getMonth() + 1).padStart(2, "0");
+  return `${namePart}${day}${month}`;
+}
 
 export class PayslipPDFService {
   /**
@@ -60,17 +84,26 @@ export class PayslipPDFService {
     // Get YTD data
     const ytd = await EnhancedPayrollService.getEmployeeYTD(slip.employeeId);
 
-    // Build payslip input
+    // Build payslip input (enhanced with HT repo features)
+    const fullName = `${slip.employee.user.firstName} ${slip.employee.user.lastName}`;
+    const passwordHint = buildPayslipPassword(fullName, slip.employee.dateOfJoining);
+    const basePay = Number(slip.basePay);
+    const grossSalary = Number(slip.grossSalary);
+
     const payslipInput: PayslipInput = {
       employee: {
         code: slip.employee.employeeCode,
-        name: `${slip.employee.user.firstName} ${slip.employee.user.lastName}`,
+        name: fullName,
         designation: slip.employee.designation,
         department: slip.employee.department,
         pan: slip.employee.panNumber || "N/A",
         uan: slip.employee.uanNumber || "N/A",
         bankAccount: slip.employee.bankAccountNo || "N/A",
         bankIFSC: slip.employee.bankIFSC || "N/A",
+        bankName: slip.employee.bankName || "N/A",
+        accountHolderName: slip.employee.accountHolderName || fullName,
+        location: slip.employee.location || "N/A",
+        pfNumber: slip.employee.pfNumber || "N/A",
         dateOfJoining: slip.employee.dateOfJoining.toISOString().split("T")[0],
       },
       company: COMPANY_INFO,
@@ -79,17 +112,21 @@ export class PayslipPDFService {
         year: slip.year,
         monthName: new Date(2000, slip.month - 1).toLocaleString("en", { month: "long" }),
         totalDays: new Date(slip.year, slip.month, 0).getDate(),
-        workedDays: new Date(slip.year, slip.month, 0).getDate(), // Simplified; LOP handled in gross
+        workedDays: new Date(slip.year, slip.month, 0).getDate(),
         lopDays: 0,
+        billableHours: slip.billableHours ? Number(slip.billableHours) : undefined,
+        leaveDays: slip.leaveDays ? Number(slip.leaveDays) : undefined,
       },
       earnings: {
-        basePay: Number(slip.basePay),
+        basePay,
         hra: Number(slip.hra),
         da: Number(slip.da),
         specialAllowance: Number(slip.specialAllowance),
+        conveyanceAllowance: slip.conveyanceAllowance ? Number(slip.conveyanceAllowance) : undefined,
+        lta: slip.lta ? Number(slip.lta) : undefined,
         bonus: Number(slip.bonus),
         otherAllowances: 0,
-        grossSalary: Number(slip.grossSalary),
+        grossSalary,
       },
       deductions: {
         epfEmployee: Number(slip.pfDeduction),
@@ -100,9 +137,10 @@ export class PayslipPDFService {
         totalDeductions: Number(slip.totalDeductions),
       },
       employerContributions: {
-        epfEmployer: Math.round(Number(slip.basePay) * 0.0367),
-        esiEmployer: Number(slip.grossSalary) <= 21000 ? Math.ceil(Number(slip.grossSalary) * 0.0325) : 0,
-        gratuity: Math.round(Number(slip.basePay) * 15 / 26 / 12),
+        epfEmployer: Math.round(basePay * 0.12),
+        esiEmployer: grossSalary <= 21000 ? Math.ceil(grossSalary * 0.0325) : 0,
+        gratuity: Math.round(basePay * 15 / 26 / 12),
+        medicalInsurance: Math.round(grossSalary * 0.03),
       },
       netSalary: Number(slip.netSalary),
       yearToDate: {
@@ -112,6 +150,7 @@ export class PayslipPDFService {
         pfAccumulated: ytd.pfAccumulated,
         tdsDeducted: ytd.tdsDeducted,
       },
+      passwordHint: passwordHint ? `First 4 letters of name + DOJ (DDMM)` : undefined,
     };
 
     // Generate PDF

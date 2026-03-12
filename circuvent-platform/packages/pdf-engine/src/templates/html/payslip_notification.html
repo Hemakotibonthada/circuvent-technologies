@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Payslip Notification</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        background: linear-gradient(180deg, #ede9fe 0%, #ffffff 85%);
+        color: #1f2937;
+        margin: 0;
+        padding: 0;
+      }
+      .wrapper {
+        padding: 3rem 1.25rem;
+      }
+      .card {
+        width: 100%;
+        max-width: 660px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 22px;
+        padding: 3rem;
+        box-shadow: 0 38px 70px -34px rgba(79, 70, 229, 0.55);
+        border: 1px solid rgba(129, 140, 248, 0.35);
+      }
+      .letterhead {
+        display: flex;
+        align-items: center;
+        gap: 1.4rem;
+        margin-bottom: 2rem;
+      }
+      .letterhead-logo img {
+        height: 58px;
+        display: block;
+      }
+      .letterhead-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+      .company-name {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: #312e81;
+      }
+      .company-info {
+        margin: 0;
+        font-size: 0.76rem;
+        letter-spacing: 0.05em;
+        color: #4c51bf;
+      }
+      .letterhead-rule {
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(79, 70, 229, 0.08) 0%, rgba(79, 70, 229, 0.6) 50%, rgba(79, 70, 229, 0.08) 100%);
+        margin-bottom: 1.75rem;
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.45rem 0.9rem;
+        border-radius: 999px;
+        background: rgba(79, 70, 229, 0.12);
+        color: #4f46e5;
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+      h1 {
+        color: #4f46e5;
+        margin: 1.4rem 0 1rem;
+        font-size: 1.9rem;
+      }
+      p {
+        margin: 1.05rem 0;
+        font-size: 1.02rem;
+      }
+      strong {
+        color: #1f2937;
+      }
+      .details {
+        margin: 2rem 0;
+        padding: 1.75rem;
+        border-radius: 18px;
+        background: rgba(79, 70, 229, 0.08);
+        border: 1px solid rgba(79, 70, 229, 0.2);
+      }
+      .details-row {
+        margin: 0.75rem 0;
+      }
+      .details-label {
+        display: block;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-size: 0.72rem;
+        color: #4f46e5;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+      }
+      .cta {
+        display: inline-block;
+        margin-top: 1.75rem;
+        background: #4f46e5;
+        color: #ffffff;
+        padding: 0.85rem 1.9rem;
+        border-radius: 999px;
+        text-decoration: none;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+      }
+      .footer {
+        margin-top: 2.5rem;
+        font-size: 1rem;
+      }
+      .callout {
+        margin: 2rem 0;
+        padding: 1.35rem 1.55rem;
+        border-left: 4px solid #4f46e5;
+        border-radius: 16px;
+        background: rgba(79, 70, 229, 0.08);
+        font-size: 0.97rem;
+        color: #312e81;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="letterhead">
+          <div class="letterhead-logo">
+            <img src="cid:company_logo@circuvent" alt="Company Logo" />
+          </div>
+          <div class="letterhead-meta">
+            <p class="company-name">{{company_name}}</p>
+            <p class="company-info">#42, Innovation Park, Hyderabad, Telangana 500049</p>
+            <p class="company-info">www.circuvent.tech &middot; payroll@circuvent.tech &middot; +91 765 999 3331</p>
+          </div>
+        </div>
+        <div class="letterhead-rule"></div>
+        <span class="badge">Payroll notification</span>
+        <h1>Hello {{first_name}},</h1>
+
+        <p>
+          Your payslip for <strong>{{pay_period}}</strong> is now available on the
+          employee portal.
+        </p>
+
+        <div class="details">
+          <div class="details-row">
+            <span class="details-label">Net salary</span>
+            <span class="details-value">{{net_salary}}</span>
+          </div>
+          <div class="details-row">
+            <span class="details-label">Payment date</span>
+            <span class="details-value">{{payment_date}}</span>
+          </div>
+          <div class="details-row">
+            <span class="details-label">Download link</span>
+            <span class="details-value">{{payslip_download_link}}</span>
+          </div>
+        </div>
+
+        <p>
+          Please review your payslip at your earliest convenience. If you notice
+          any discrepancies, contact {{payroll_contact_name}} at
+          {{payroll_contact_email}} by {{dispute_deadline}}.
+        </p>
+
+        <div class="callout">
+          The download link remains active for 90 days. For password-protected PDFs, refer to the formatting guide shared
+          during onboarding. Need help? Reply to this email and the payroll desk will be in touch.
+        </div>
+
+        <a class="cta" href="{{portal_link}}">View payslip in portal</a>
+
+        <div class="footer">
+          <p>
+            Thank you,<br />
+            {{finance_team_name}}<br />
+            {{company_name}}
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

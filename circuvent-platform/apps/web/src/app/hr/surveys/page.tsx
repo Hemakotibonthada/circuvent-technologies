@@ -78,7 +78,7 @@ export default function SurveyManagementPage() {
 
   const [activeTab, setActiveTab] = useState("active");
   const tabs = [
-    { id: "active", label: "Active Surveys" }, { key: "draft", label: "Drafts" }, { key: "closed", label: "Closed" },
+    { id: "active", label: "Active Surveys" }, { id: "draft", label: "Drafts" }, { id: "closed", label: "Closed" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

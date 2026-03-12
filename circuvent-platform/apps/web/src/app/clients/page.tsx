@@ -101,7 +101,7 @@ export default function ClientsPage() {
   };
 
   const tabs = [
-    { id: "leads", label: "Lead Pipeline", count: leads?.length }, { key: "invoices", label: "Invoices", count: invoices?.length }, { key: "revenue", label: "Revenue" },
+    { id: "leads", label: "Lead Pipeline", count: leads?.length }, { id: "invoices", label: "Invoices", count: invoices?.length }, { id: "revenue", label: "Revenue" },
   ];
 
   const leadColumns = [

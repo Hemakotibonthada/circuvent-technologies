@@ -55,46 +55,25 @@ export default function ProductManagerDashboard() {
   const [activeTab, setActiveTab] = useState<"metrics" | "resources" | "roadmap" | "requests">("metrics");
 
   const metrics: ProjectMetrics = {
-    activeProjects: projects?.filter((p: any) => p.status === "ACTIVE").length || 8,
-    completedThisQuarter: projects?.filter((p: any) => p.status === "COMPLETED").length || 3,
-    totalBudget: 4500000,
-    budgetUtilized: 2850000,
-    avgVelocity: 42,
-    sprintCompletion: 87,
+    activeProjects: projects?.filter((p: any) => p.status === "ACTIVE").length || 0,
+    completedThisQuarter: projects?.filter((p: any) => p.status === "COMPLETED").length || 0,
+    totalBudget: projects?.reduce((s: number, p: any) => s + (p.budget || 0), 0) || 0,
+    budgetUtilized: projects?.reduce((s: number, p: any) => s + (p.budgetUsed || 0), 0) || 0,
+    avgVelocity: 0,
+    sprintCompletion: 0,
   };
 
-  const resourceAllocation: ResourceAllocation[] = [
-    { department: "Engineering", allocated: 18, available: 3, utilization: 86 },
-    { department: "Design", allocated: 4, available: 1, utilization: 80 },
-    { department: "QA/Testing", allocated: 6, available: 2, utilization: 75 },
-    { department: "DevOps", allocated: 3, available: 0, utilization: 100 },
-    { department: "Data Science", allocated: 4, available: 1, utilization: 80 },
-  ];
+  const resourceAllocation: ResourceAllocation[] = teamData?.byDepartment?.map((d: any) => ({
+    department: d.department || "Unknown",
+    allocated: d._count?.id || 0,
+    available: 0,
+    utilization: 0,
+  })) || [];
 
-  const clientEngagement = [
-    { client: "TechCorp Industries", project: "ERP Migration", health: "GREEN", lastContact: "2 days ago", satisfaction: 92 },
-    { client: "FinServ Solutions", project: "Payment Gateway", health: "GREEN", lastContact: "1 day ago", satisfaction: 88 },
-    { client: "MedLife Healthcare", project: "Patient Portal", health: "AMBER", lastContact: "5 days ago", satisfaction: 75 },
-    { client: "EduLearn Platform", project: "LMS Revamp", health: "GREEN", lastContact: "3 days ago", satisfaction: 95 },
-    { client: "RetailMax", project: "Inventory System", health: "RED", lastContact: "10 days ago", satisfaction: 62 },
-  ];
-
-  const teamWorkload = [
-    { name: "Amit Kumar", role: "Sr. Backend Dev", tasks: 6, capacity: 8, projects: ["ERP Migration", "Payment API"] },
-    { name: "Sneha Reddy", role: "Frontend Lead", tasks: 5, capacity: 7, projects: ["Patient Portal", "LMS"] },
-    { name: "Raj Patel", role: "Full Stack Dev", tasks: 8, capacity: 8, projects: ["ERP Migration", "LMS"] },
-    { name: "Priya Singh", role: "QA Engineer", tasks: 4, capacity: 6, projects: ["Payment Gateway"] },
-    { name: "Vikram Joshi", role: "DevOps Engineer", tasks: 7, capacity: 7, projects: ["All Projects"] },
-    { name: "Anjali Nair", role: "UI/UX Designer", tasks: 5, capacity: 6, projects: ["Patient Portal", "LMS"] },
-  ];
-
-  const featureRequests: FeatureRequest[] = [
-    { id: "FR-001", title: "Multi-currency support", requester: "FinServ Solutions", priority: "HIGH", status: "APPROVED", votes: 12, createdAt: "2026-02-15" }, { key: "FR-002", title: "Dark mode for portal", requester: "Internal", priority: "MEDIUM", status: "IN_REVIEW", votes: 28, createdAt: "2026-02-20" }, { key: "FR-003", title: "Bulk employee import", requester: "TechCorp", priority: "HIGH", status: "PLANNED", votes: 8, createdAt: "2026-03-01" }, { key: "FR-004", title: "Mobile app notifications", requester: "Internal", priority: "MEDIUM", status: "OPEN", votes: 35, createdAt: "2026-03-05" }, { key: "FR-005", title: "Custom report builder", requester: "MedLife", priority: "LOW", status: "OPEN", votes: 6, createdAt: "2026-03-08" }, { key: "FR-006", title: "SSO integration with Azure AD", requester: "EduLearn", priority: "HIGH", status: "IN_REVIEW", votes: 15, createdAt: "2026-02-28" },
-  ];
-
-  const roadmapItems: RoadmapItem[] = [
-    { id: "RM-001", title: "Phase 1: Core HR & Payroll", phase: "Q3 FY26", status: "COMPLETED", startDate: "2025-10-01", endDate: "2025-12-31", progress: 100 }, { key: "RM-002", title: "Phase 2: Advanced Payroll Engine", phase: "Q4 FY26", status: "COMPLETED", startDate: "2026-01-01", endDate: "2026-03-31", progress: 100 }, { key: "RM-003", title: "Phase 3: Employee Self-Service", phase: "Q1 FY27", status: "IN_PROGRESS", startDate: "2026-04-01", endDate: "2026-06-30", progress: 65 }, { key: "RM-004", title: "Phase 4: Analytics & AI", phase: "Q2 FY27", status: "PLANNED", startDate: "2026-07-01", endDate: "2026-09-30", progress: 0 }, { key: "RM-005", title: "Phase 5: Mobile App", phase: "Q3 FY27", status: "PLANNED", startDate: "2026-10-01", endDate: "2026-12-31", progress: 0 },
-  ];
+  const clientEngagement: any[] = [];
+  const teamWorkload: any[] = [];
+  const featureRequests: FeatureRequest[] = [];
+  const roadmapItems: RoadmapItem[] = [];
 
   const healthColor = (health: string) => {
     switch (health) {
@@ -161,7 +140,7 @@ export default function ProductManagerDashboard() {
         <StatCard title="Sprint Velocity" value={`${metrics.avgVelocity} pts`} icon="🏃" color="purple" />
         <StatCard title="Sprint Completion" value={`${metrics.sprintCompletion}%`} icon="📊" color="cyan" />
         <StatCard title="Budget Utilized" value={`${budgetPercent}%`} icon="💰" color="amber" />
-        <StatCard title="Active Clients" value={clientStats?.activeClients || 5} icon="🤝" color="orange" />
+        <StatCard title="Active Clients" value={clientStats?.activeClients || 0} icon="🤝" color="orange" />
       </div>
 
       {/* Tab Nav */}

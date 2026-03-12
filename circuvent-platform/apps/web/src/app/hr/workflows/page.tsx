@@ -109,7 +109,7 @@ export default function WorkflowAutomationPage() {
 
   const [activeTab, setActiveTab] = useState("templates");
   const tabs = [
-    { id: "templates", label: "Templates" }, { key: "instances", label: "Running Instances" }, { key: "logs", label: "Logs" },
+    { id: "templates", label: "Templates" }, { id: "instances", label: "Running Instances" }, { id: "logs", label: "Logs" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

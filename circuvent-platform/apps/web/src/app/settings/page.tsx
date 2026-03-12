@@ -9,7 +9,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("general");
 
   const tabs = [
-    { id: "general", label: "General" }, { key: "services", label: "Services" }, { key: "security", label: "Security" }, { key: "api", label: "API & Integrations" }, { key: "features", label: "Feature Flags" },
+    { id: "general", label: "General" }, { id: "services", label: "Services" }, { id: "security", label: "Security" }, { id: "api", label: "API & Integrations" }, { id: "features", label: "Feature Flags" },
   ];
 
   return (

@@ -81,36 +81,16 @@ export default function RecognitionPage() {
 
     if (recogRes.success && recogRes.data) {
       setRecognitions(recogRes.data);
-    } else {
-      // Sample data
-      setRecognitions([
-        { id: "r1", fromName: "Priya Sharma", fromDepartment: "Engineering", toName: "Rahul Verma", toDepartment: "Engineering", category: "TEAMWORK", message: "Amazing collaboration on the payment gateway integration! Your attention to detail saved us from a critical bug.", points: 50, reactions: 8, createdAt: new Date(Date.now() - 3600000).toISOString() }, { key: "r2", fromName: "Anita Deshmukh", fromDepartment: "HR", toName: "Sneha Reddy", toDepartment: "Engineering", category: "INNOVATION", message: "The new dashboard design is incredible! The user feedback has been overwhelmingly positive.", points: 100, reactions: 15, createdAt: new Date(Date.now() - 86400000).toISOString() }, { key: "r3", fromName: "Vikram Patel", fromDepartment: "Engineering", toName: "Amit Kumar", toDepartment: "Engineering", category: "GOING_EXTRA_MILE", message: "Stayed late to fix the production issue and documented everything for the team. True dedication!", points: 100, reactions: 12, createdAt: new Date(Date.now() - 172800000).toISOString() }, { key: "r4", fromName: "Raj Patel", fromDepartment: "Engineering", toName: "Anjali Nair", toDepartment: "Design", category: "QUALITY", message: "The UI components library you built is incredibly well-structured. Great work!", points: 50, reactions: 6, createdAt: new Date(Date.now() - 259200000).toISOString() }, { key: "r5", fromName: "Sonia Gupta", fromDepartment: "Product", toName: "Vikram Joshi", toDepartment: "DevOps", category: "PROBLEM_SOLVING", message: "Quick resolution of the CI/CD pipeline issues. The team was unblocked within an hour!", points: 75, reactions: 9, createdAt: new Date(Date.now() - 345600000).toISOString() },
-      ]);
     }
 
     if (leaderRes.success && leaderRes.data) {
       setLeaderboard(leaderRes.data);
-    } else {
-      setLeaderboard([
-        { rank: 1, name: "Amit Kumar", department: "Engineering", points: 450, recognitionsReceived: 12 },
-        { rank: 2, name: "Sneha Reddy", department: "Engineering", points: 380, recognitionsReceived: 9 },
-        { rank: 3, name: "Vikram Joshi", department: "DevOps", points: 325, recognitionsReceived: 8 },
-        { rank: 4, name: "Anjali Nair", department: "Design", points: 275, recognitionsReceived: 7 },
-        { rank: 5, name: "Rahul Verma", department: "Engineering", points: 250, recognitionsReceived: 6 },
-        { rank: 6, name: "Priya Singh", department: "QA", points: 200, recognitionsReceived: 5 },
-        { rank: 7, name: "Raj Patel", department: "Engineering", points: 175, recognitionsReceived: 4 },
-        { rank: 8, name: "Sonia Gupta", department: "Product", points: 150, recognitionsReceived: 4 },
-      ]);
     }
 
     if (myRes.success && myRes.data) {
       setMyPoints(myRes.data.totalPoints || 0);
       setMyGiven(myRes.data.given || 0);
       setMyReceived(myRes.data.received || 0);
-    } else {
-      setMyPoints(175);
-      setMyGiven(6);
-      setMyReceived(4);
     }
 
     if (empRes.success && empRes.data) {

@@ -95,7 +95,7 @@ export default function CalendarPage() {
 
   const [activeTab, setActiveTab] = useState("month");
   const tabs = [
-    { id: "month", label: "Month View" }, { key: "list", label: "Event List" }, { key: "rooms", label: "Meeting Rooms" },
+    { id: "month", label: "Month View" }, { id: "list", label: "Event List" }, { id: "rooms", label: "Meeting Rooms" },
   ];
 
   /* ── calendar navigation ──────────────────────────────── */

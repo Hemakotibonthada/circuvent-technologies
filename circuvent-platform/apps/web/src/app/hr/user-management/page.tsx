@@ -248,7 +248,7 @@ export default function UserManagementPage() {
       {/* Tabs */}
       <Tabs
         tabs={[
-          { id: "candidates", label: `Candidates (${candidates?.length ?? 0})` }, { key: "all-users", label: `All Users (${allUsers?.length ?? 0})` }, { key: "role-breakdown", label: "Role Breakdown" },
+          { id: "candidates", label: `Candidates (${candidates?.length ?? 0})` }, { id: "all-users", label: `All Users (${allUsers?.length ?? 0})` }, { id: "role-breakdown", label: "Role Breakdown" },
         ]}
         activeTab={activeTab}
         onChange={setActiveTab}

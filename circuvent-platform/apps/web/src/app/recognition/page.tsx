@@ -82,7 +82,7 @@ export default function RecognitionWallPage() {
 
   const [activeTab, setActiveTab] = useState("wall");
   const tabs = [
-    { id: "wall", label: "Recognition Wall" }, { key: "leaderboard", label: "Leaderboard" }, { key: "awards", label: "Award Programs" }, { key: "my", label: "My Points" },
+    { id: "wall", label: "Recognition Wall" }, { id: "leaderboard", label: "Leaderboard" }, { id: "awards", label: "Award Programs" }, { id: "my", label: "My Points" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

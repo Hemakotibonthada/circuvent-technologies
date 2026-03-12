@@ -19,7 +19,7 @@ export default function IoTFleetPage() {
   const [processing, setProcessing] = useState(false);
 
   const tabs = [
-    { id: "overview", label: "Fleet Overview" }, { key: "firmware", label: "Firmware" }, { key: "alerts", label: "Active Alerts", count: health?.criticalAlerts }, { key: "commands", label: "Commands" },
+    { id: "overview", label: "Fleet Overview" }, { id: "firmware", label: "Firmware" }, { id: "alerts", label: "Active Alerts", count: health?.criticalAlerts }, { id: "commands", label: "Commands" },
   ];
 
   const deviceStatusColors: Record<string, any> = {

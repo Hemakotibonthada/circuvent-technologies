@@ -129,7 +129,7 @@ export default function ProfilePage() {
   const e = employee;
   const u = e.user;
   const tabs = [
-    { id: "personal", label: "Personal Info", icon: "👤" }, { key: "bank", label: "Bank & Tax", icon: "🏦" }, { key: "documents", label: "Documents", icon: "📁" }, { key: "tax", label: "Tax Declarations", icon: "📋" }, { key: "reviews", label: "Performance", icon: "⭐" },
+    { id: "personal", label: "Personal Info", icon: "👤" }, { id: "bank", label: "Bank & Tax", icon: "🏦" }, { id: "documents", label: "Documents", icon: "📁" }, { id: "tax", label: "Tax Declarations", icon: "📋" }, { id: "reviews", label: "Performance", icon: "⭐" },
   ];
 
   return (

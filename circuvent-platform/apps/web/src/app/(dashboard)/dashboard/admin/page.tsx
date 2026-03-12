@@ -54,24 +54,14 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState<"overview" | "audit" | "config" | "activity">("overview");
 
-  const services: ServiceHealth[] = [
-    { name: "API Gateway", status: "UP", uptime: 99.98, responseTime: 12, lastCheck: new Date().toISOString() },
-    { name: "HR & Payroll", status: "UP", uptime: 99.95, responseTime: 45, lastCheck: new Date().toISOString() },
-    { name: "Financial Ledger", status: "UP", uptime: 99.97, responseTime: 38, lastCheck: new Date().toISOString() },
-    { name: "Project Tracker", status: "UP", uptime: 99.92, responseTime: 55, lastCheck: new Date().toISOString() },
-    { name: "ATS Engine", status: "UP", uptime: 99.96, responseTime: 42, lastCheck: new Date().toISOString() },
-    { name: "AI Orchestrator", status: systemHealth?.aiStatus || "UP", uptime: 99.88, responseTime: 120, lastCheck: new Date().toISOString() },
-    { name: "IoT Registry", status: "UP", uptime: 99.94, responseTime: 65, lastCheck: new Date().toISOString() },
-    { name: "Client Portal", status: "UP", uptime: 99.99, responseTime: 25, lastCheck: new Date().toISOString() },
-    { name: "Web Frontend", status: "UP", uptime: 99.99, responseTime: 8, lastCheck: new Date().toISOString() },
-  ];
+  const services: ServiceHealth[] = systemHealth?.services || [];
 
   const systemMetrics: SystemMetrics = {
-    cpuUsage: systemHealth?.cpu || 32,
-    memoryUsage: systemHealth?.memory || 58,
-    diskUsage: systemHealth?.disk || 41,
-    activeConnections: systemHealth?.connections || 156,
-    dbPoolUtilization: systemHealth?.dbPool || 45,
+    cpuUsage: systemHealth?.cpu || 0,
+    memoryUsage: systemHealth?.memory || 0,
+    diskUsage: systemHealth?.disk || 0,
+    activeConnections: systemHealth?.connections || 0,
+    dbPoolUtilization: systemHealth?.dbPool || 0,
   };
 
   const statusColor = (status: string) => {
@@ -92,17 +82,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const roleBreakdown = [
-    { role: "Admin", count: userStats?.byRole?.ADMIN || 2, color: "text-red-600 dark:text-red-400" },
-    { role: "HR Manager", count: userStats?.byRole?.HR_MANAGER || 4, color: "text-blue-600 dark:text-blue-400" },
-    { role: "Product Manager", count: userStats?.byRole?.PRODUCT_MANAGER || 3, color: "text-purple-600 dark:text-purple-400" },
-    { role: "Developer", count: userStats?.byRole?.DEVELOPER || 18, color: "text-emerald-600 dark:text-emerald-400" },
-    { role: "Engineer", count: userStats?.byRole?.ENGINEER || 12, color: "text-cyan-600 dark:text-cyan-400" },
-    { role: "Manager", count: userStats?.byRole?.MANAGER || 6, color: "text-amber-600 dark:text-amber-400" },
-    { role: "Intern", count: userStats?.byRole?.INTERN || 5, color: "text-pink-600 dark:text-pink-400" },
-    { role: "Client", count: userStats?.byRole?.CLIENT || 8, color: "text-orange-600 dark:text-orange-400" },
-    { role: "Candidate", count: userStats?.byRole?.CANDIDATE || 15, color: "text-slate-400" },
-  ];
+  const roleColors: Record<string, string> = {
+    ADMIN: "text-red-600 dark:text-red-400", HR_MANAGER: "text-blue-600 dark:text-blue-400",
+    PRODUCT_MANAGER: "text-purple-600 dark:text-purple-400", DEVELOPER: "text-emerald-600 dark:text-emerald-400",
+    ENGINEER: "text-cyan-600 dark:text-cyan-400", MANAGER: "text-amber-600 dark:text-amber-400",
+    INTERN: "text-pink-600 dark:text-pink-400", CLIENT: "text-orange-600 dark:text-orange-400",
+    CANDIDATE: "text-slate-400",
+  };
+  const roleBreakdown = (userStats?.byRole ? Object.entries(userStats.byRole) : []).map(([role, count]: [string, any]) => ({
+    role: role.replace(/_/g, " "), count: Number(count) || 0, color: roleColors[role] || "text-slate-400",
+  }));
 
   const quickActions = [
     { label: "User Management", href: "/hr/user-management", icon: "🔑", desc: "Manage users and roles" },
@@ -119,20 +108,7 @@ export default function AdminDashboard() {
     { label: "Integrations", href: "/admin/integrations", icon: "🔗", desc: "Third-party integrations" },
   ];
 
-  const recentAuditEntries: AuditEntry[] = auditLog?.slice(0, 10) || [
-    { id: "1", userId: "u1", userName: "Admin User", action: "CREATE", entity: "Employee", entityId: "emp-001", timestamp: new Date(Date.now() - 300000).toISOString(), ipAddress: "192.168.1.10" }, { key: "2", userId: "u2", userName: "HR Manager", action: "UPDATE", entity: "SalarySlip", entityId: "ss-042", timestamp: new Date(Date.now() - 600000).toISOString(), ipAddress: "192.168.1.22" }, { key: "3", userId: "u1", userName: "Admin User", action: "BULK_PAYROLL", entity: "SalarySlip", entityId: "payroll_2026_3", timestamp: new Date(Date.now() - 1800000).toISOString(), ipAddress: "192.168.1.10" }, { key: "4", userId: "u3", userName: "Dev Lead", action: "UPDATE", entity: "Project", entityId: "proj-007", timestamp: new Date(Date.now() - 3600000).toISOString(), ipAddress: "10.0.0.15" }, { key: "5", userId: "u4", userName: "System", action: "CRON_JOB", entity: "Attendance", entityId: "auto-mark", timestamp: new Date(Date.now() - 7200000).toISOString(), ipAddress: "127.0.0.1" },
-  ];
-
-  const configSections = [
-    { name: "Authentication", status: "Active", value: "JWT + Refresh Tokens", icon: "🔐" },
-    { name: "Rate Limiting", status: "Active", value: "100 req/min per user", icon: "⏱️" },
-    { name: "CORS", status: "Active", value: "Restricted origins", icon: "🌐" },
-    { name: "File Upload Limit", status: "Active", value: "10 MB max", icon: "📁" },
-    { name: "Session Timeout", status: "Active", value: "30 minutes", icon: "⏰" },
-    { name: "Password Policy", status: "Active", value: "8+ chars, mixed", icon: "🔑" },
-    { name: "Two-Factor Auth", status: "Inactive", value: "Not configured", icon: "📱" },
-    { name: "Audit Logging", status: "Active", value: "All mutations", icon: "📝" },
-  ];
+  const recentAuditEntries: AuditEntry[] = auditLog?.slice(0, 10) || [];
 
   return (
     <div className="space-y-6">
@@ -143,12 +119,12 @@ export default function AdminDashboard() {
 
       {/* Primary KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-6">
-        <StatCard title="Total Users" value={userStats?.totalUsers || 73} icon="👥" color="blue" />
+        <StatCard title="Total Users" value={userStats?.totalUsers || 0} icon="👥" color="blue" />
         <StatCard title="Active Sessions" value={systemMetrics.activeConnections} icon="🟢" color="green" />
-        <StatCard title="API Calls (24h)" value={platformStats?.totalApiCalls || "12.4K"} icon="📡" color="purple" />
-        <StatCard title="Uptime" value={`${platformStats?.uptimePercent || 99.97}%`} icon="⬆️" color="cyan" />
-        <StatCard title="Error Rate" value={`${platformStats?.errorRate || 0.03}%`} icon="⚠️" color="red" />
-        <StatCard title="Avg Response" value={`${platformStats?.averageResponseTime || 42}ms`} icon="⚡" color="amber" />
+        <StatCard title="API Calls (24h)" value={platformStats?.totalApiCalls || 0} icon="📡" color="purple" />
+        <StatCard title="Uptime" value={`${platformStats?.uptimePercent || 0}%`} icon="⬆️" color="cyan" />
+        <StatCard title="Error Rate" value={`${platformStats?.errorRate || 0}%`} icon="⚠️" color="red" />
+        <StatCard title="Avg Response" value={`${platformStats?.averageResponseTime || 0}ms`} icon="⚡" color="amber" />
       </div>
 
       {/* Tab Navigation */}
@@ -231,7 +207,7 @@ export default function AdminDashboard() {
                   <p className="text-xs text-slate-400">Active Connections</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-center">
-                  <p className="text-lg font-bold text-slate-900 dark:text-white">{systemHealth?.dbSize || "2.4 GB"}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white">{systemHealth?.dbSize || "—"}</p>
                   <p className="text-xs text-slate-400">Database Size</p>
                 </div>
               </div>
@@ -319,25 +295,7 @@ export default function AdminDashboard() {
       {activeTab === "config" && (
         <Card>
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Configuration Management</h3>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {configSections.map((cfg) => (
-              <div
-                key={cfg.name}
-                className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">{cfg.icon}</span>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900 dark:text-white">{cfg.name}</p>
-                    <p className="text-xs text-slate-500">{cfg.value}</p>
-                  </div>
-                </div>
-                <Badge color={cfg.status === "Active" ? "green" : "slate"}>
-                  {cfg.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+          <p className="py-8 text-center text-sm text-slate-500">Configuration data will be loaded from the system settings API.</p>
         </Card>
       )}
 
@@ -348,12 +306,12 @@ export default function AdminDashboard() {
             <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Platform Statistics</h3>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Total API Calls", value: platformStats?.totalApiCalls || "245K", icon: "📡" },
-                { label: "Avg Response Time", value: `${platformStats?.averageResponseTime || 42}ms`, icon: "⚡" },
-                { label: "Active Users (24h)", value: platformStats?.activeUsers || 47, icon: "👥" },
-                { label: "Peak Concurrency", value: platformStats?.peakConcurrency || 23, icon: "📈" },
-                { label: "Uptime (30d)", value: `${platformStats?.uptimePercent || 99.97}%`, icon: "⬆️" },
-                { label: "Error Rate", value: `${platformStats?.errorRate || 0.03}%`, icon: "🔴" },
+                { label: "Total API Calls", value: platformStats?.totalApiCalls || 0, icon: "📡" },
+                { label: "Avg Response Time", value: `${platformStats?.averageResponseTime || 0}ms`, icon: "⚡" },
+                { label: "Active Users (24h)", value: platformStats?.activeUsers || 0, icon: "👥" },
+                { label: "Peak Concurrency", value: platformStats?.peakConcurrency || 0, icon: "📈" },
+                { label: "Uptime (30d)", value: `${platformStats?.uptimePercent || 0}%`, icon: "⬆️" },
+                { label: "Error Rate", value: `${platformStats?.errorRate || 0}%`, icon: "🔴" },
               ].map((stat) => (
                 <div key={stat.label} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-center">
                   <span className="text-lg">{stat.icon}</span>
@@ -367,13 +325,7 @@ export default function AdminDashboard() {
           <Card>
             <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Recent Registrations</h3>
             <div className="space-y-2">
-              {(userStats?.recentRegistrations || [
-                { name: "Priya Sharma", role: "DEVELOPER", date: "2026-03-10" },
-                { name: "Rahul Verma", role: "INTERN", date: "2026-03-08" },
-                { name: "Anita Deshmukh", role: "HR_MANAGER", date: "2026-03-05" },
-                { name: "Vikram Patel", role: "ENGINEER", date: "2026-03-01" },
-                { name: "Sonia Gupta", role: "CANDIDATE", date: "2026-02-28" },
-              ]).map((reg: any, i: number) => (
+              {(userStats?.recentRegistrations || []).map((reg: any, i: number) => (
                 <div key={i} className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
                   <div>
                     <p className="text-sm text-slate-900 dark:text-white">{reg.name}</p>
@@ -381,8 +333,9 @@ export default function AdminDashboard() {
                   </div>
                   <Badge color="blue">{(reg.role || "").replace(/_/g, " ")}</Badge>
                 </div>
-              ))}
-            </div>
+              ))}              {(!userStats?.recentRegistrations || userStats.recentRegistrations.length === 0) && (
+                <p className=\"py-4 text-center text-sm text-slate-500\">No recent registrations</p>
+              )}            </div>
           </Card>
         </div>
       )}

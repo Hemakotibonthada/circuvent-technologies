@@ -127,7 +127,7 @@ export default function InternManagementPage() {
   });
 
   const tabs = [
-    { id: "dashboard", label: "Dashboard" }, { key: "programs", label: "Programs" }, { key: "interns", label: "Active Interns" }, { key: "evaluations", label: "Evaluate" }, { key: "actions", label: "Actions" },
+    { id: "dashboard", label: "Dashboard" }, { id: "programs", label: "Programs" }, { id: "interns", label: "Active Interns" }, { id: "evaluations", label: "Evaluate" }, { id: "actions", label: "Actions" },
   ];
 
   useEffect(() => {

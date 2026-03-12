@@ -71,7 +71,7 @@ export default function DocumentManagementPage() {
 
   const [activeTab, setActiveTab] = useState("templates");
   const tabs = [
-    { id: "templates", label: "Templates" }, { key: "generated", label: "Generated Documents" },
+    { id: "templates", label: "Templates" }, { id: "generated", label: "Generated Documents" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

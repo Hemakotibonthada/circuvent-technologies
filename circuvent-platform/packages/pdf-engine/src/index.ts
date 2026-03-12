@@ -6,3 +6,12 @@ export { generateInvoicePDF } from "./templates/invoice.template";
 export type { InvoiceInput } from "./templates/invoice.template";
 export { generateReportPDF, buildPayrollSummaryReport, buildFleetStatusReport, buildRnDTaxReport } from "./templates/report.template";
 export type { ReportInput } from "./templates/report.template";
+
+// HTML template paths for email/notification rendering
+import path from "path";
+const HTML_TEMPLATE_DIR = path.join(__dirname, "templates", "html");
+export const payslipHTMLTemplates = {
+  cover: path.join(HTML_TEMPLATE_DIR, "payslip_cover.html"),
+  notification: path.join(HTML_TEMPLATE_DIR, "payslip_notification.html"),
+  statement: path.join(HTML_TEMPLATE_DIR, "payslip_statement.html"),
+} as const;

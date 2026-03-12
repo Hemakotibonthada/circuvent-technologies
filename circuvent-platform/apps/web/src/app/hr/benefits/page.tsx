@@ -77,7 +77,7 @@ export default function BenefitsAdminPage() {
 
   const [activeTab, setActiveTab] = useState("plans");
   const tabs = [
-    { id: "plans", label: "Available Plans" }, { key: "my", label: "My Enrollments" },
+    { id: "plans", label: "Available Plans" }, { id: "my", label: "My Enrollments" },
     ...((isAdmin || isHR) ? [{ id: "all", label: "All Enrollments" }] : []),
   ];
 

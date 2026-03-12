@@ -89,7 +89,7 @@ export default function AIPage() {
   };
 
   const tabs = [
-    { id: "resources", label: "Compute Resources", count: resDash?.total }, { key: "training", label: "Training Jobs", count: trainDash?.total }, { key: "trading", label: "Trading Bots", count: tradeDash?.total },
+    { id: "resources", label: "Compute Resources", count: resDash?.total }, { id: "training", label: "Training Jobs", count: trainDash?.total }, { id: "trading", label: "Trading Bots", count: tradeDash?.total },
   ];
 
   const statusColors: Record<string, any> = {

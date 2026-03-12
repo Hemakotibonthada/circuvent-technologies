@@ -12,6 +12,7 @@ export default function PayslipsPage() {
   const [slips, setSlips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [selectedSlip, setSelectedSlip] = useState<string | null>(null);
 
   useEffect(() => { if (token) loadEmployee(); }, [token]);
   useEffect(() => { if (employee) loadSlips(); }, [employee]);
@@ -57,6 +58,7 @@ export default function PayslipsPage() {
   };
 
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const fmtINR = (v: number) => `₹${Number(v).toLocaleString("en-IN")}`;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
@@ -65,6 +67,32 @@ export default function PayslipsPage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">💰 My Payslips</h1>
         <p className="text-slate-400 text-sm mt-1">View your monthly salary breakdowns and download payslips</p>
       </div>
+
+      {/* Summary cards */}
+      {!loading && slips.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wider">Total Payslips</p>
+            <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{slips.length}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wider">Latest Net Pay</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{fmtINR(slips[0]?.netSalary || 0)}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wider">Current FY Gross</p>
+            <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+              {fmtINR(slips.reduce((sum: number, s: any) => sum + Number(s.grossSalary || 0), 0))}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <p className="text-xs text-slate-500 uppercase tracking-wider">Total Deductions</p>
+            <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">
+              {fmtINR(slips.reduce((sum: number, s: any) => sum + Number(s.totalDeductions || 0), 0))}
+            </p>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center text-slate-500 py-12">Loading payslips...</div>
@@ -82,7 +110,7 @@ export default function PayslipsPage() {
                   </div>
                 </div>
                 <div className="text-right flex flex-col items-end gap-2">
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">₹{Number(slip.netSalary).toLocaleString("en-IN")}</p>
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtINR(slip.netSalary)}</p>
                   <p className="text-xs text-slate-500">Net Salary</p>
                   <button
                     onClick={() => downloadPayslip(slip.id, slip.month, slip.year)}
@@ -97,34 +125,63 @@ export default function PayslipsPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Earnings summary */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
                 <div>
                   <p className="text-xs text-slate-500">Base Pay</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">₹{Number(slip.basePay).toLocaleString("en-IN")}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">{fmtINR(slip.basePay)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">HRA</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">₹{Number(slip.hra).toLocaleString("en-IN")}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">{fmtINR(slip.hra)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Gross Salary</p>
-                  <p className="text-sm text-slate-900 dark:text-white font-medium">₹{Number(slip.grossSalary).toLocaleString("en-IN")}</p>
+                  <p className="text-sm text-slate-900 dark:text-white font-medium">{fmtINR(slip.grossSalary)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Deductions</p>
-                  <p className="text-sm text-red-600 dark:text-red-400">-₹{Number(slip.totalDeductions).toLocaleString("en-IN")}</p>
+                  <p className="text-sm text-red-600 dark:text-red-400">-{fmtINR(slip.totalDeductions)}</p>
                 </div>
               </div>
-              <details className="mt-3">
+
+              {/* Full breakdown */}
+              <details className="mt-3" open={selectedSlip === slip.id} onToggle={(e) => setSelectedSlip((e.target as HTMLDetailsElement).open ? slip.id : null)}>
                 <summary className="text-xs text-brand-600 dark:text-brand-400 cursor-pointer hover:text-brand-300">View Full Breakdown</summary>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/50">
-                  <div><p className="text-xs text-slate-600">DA</p><p className="text-xs text-slate-400">₹{Number(slip.da).toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-xs text-slate-600">Special Allow.</p><p className="text-xs text-slate-400">₹{Number(slip.specialAllowance).toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-xs text-slate-600">Bonus</p><p className="text-xs text-slate-400">₹{Number(slip.bonus).toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-xs text-slate-600">PF</p><p className="text-xs text-red-600 dark:text-red-400/70">-₹{Number(slip.pfDeduction).toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-xs text-slate-600">ESI</p><p className="text-xs text-red-600 dark:text-red-400/70">-₹{Number(slip.esiDeduction).toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-xs text-slate-600">Prof. Tax</p><p className="text-xs text-red-600 dark:text-red-400/70">-₹{Number(slip.professionalTax).toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-xs text-slate-600">TDS</p><p className="text-xs text-red-600 dark:text-red-400/70">-₹{Number(slip.tds).toLocaleString("en-IN")}</p></div>
+
+                {/* Earnings breakdown */}
+                <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/50">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Earnings</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div><p className="text-xs text-slate-600">DA</p><p className="text-xs text-slate-400">{fmtINR(slip.da)}</p></div>
+                    <div><p className="text-xs text-slate-600">Special Allow.</p><p className="text-xs text-slate-400">{fmtINR(slip.specialAllowance)}</p></div>
+                    {slip.conveyanceAllowance > 0 && <div><p className="text-xs text-slate-600">Conveyance</p><p className="text-xs text-slate-400">{fmtINR(slip.conveyanceAllowance)}</p></div>}
+                    {slip.lta > 0 && <div><p className="text-xs text-slate-600">LTA</p><p className="text-xs text-slate-400">{fmtINR(slip.lta)}</p></div>}
+                    <div><p className="text-xs text-slate-600">Bonus</p><p className="text-xs text-slate-400">{fmtINR(slip.bonus)}</p></div>
+                  </div>
+                </div>
+
+                {/* Deductions breakdown */}
+                <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/50">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Deductions</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div><p className="text-xs text-slate-600">PF</p><p className="text-xs text-red-600 dark:text-red-400/70">-{fmtINR(slip.pfDeduction)}</p></div>
+                    <div><p className="text-xs text-slate-600">ESI</p><p className="text-xs text-red-600 dark:text-red-400/70">-{fmtINR(slip.esiDeduction)}</p></div>
+                    <div><p className="text-xs text-slate-600">Prof. Tax</p><p className="text-xs text-red-600 dark:text-red-400/70">-{fmtINR(slip.professionalTax)}</p></div>
+                    <div><p className="text-xs text-slate-600">TDS</p><p className="text-xs text-red-600 dark:text-red-400/70">-{fmtINR(slip.tds)}</p></div>
+                  </div>
+                </div>
+
+                {/* Employer contributions */}
+                <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/50">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Employer Contributions</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div><p className="text-xs text-slate-600">Employer PF</p><p className="text-xs text-blue-600 dark:text-blue-400">{fmtINR(Math.round(Number(slip.basePay) * 0.12))}</p></div>
+                    <div><p className="text-xs text-slate-600">Medical Ins.</p><p className="text-xs text-blue-600 dark:text-blue-400">{fmtINR(Math.round(Number(slip.grossSalary) * 0.03))}</p></div>
+                    <div><p className="text-xs text-slate-600">Gratuity</p><p className="text-xs text-blue-600 dark:text-blue-400">{fmtINR(Math.round(Number(slip.basePay) * 15 / 26 / 12))}</p></div>
+                    {Number(slip.grossSalary) <= 21000 && <div><p className="text-xs text-slate-600">Employer ESI</p><p className="text-xs text-blue-600 dark:text-blue-400">{fmtINR(Math.ceil(Number(slip.grossSalary) * 0.0325))}</p></div>}
+                  </div>
                 </div>
               </details>
             </div>

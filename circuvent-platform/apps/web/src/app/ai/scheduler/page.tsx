@@ -32,7 +32,7 @@ export default function AISchedulerPage() {
   };
 
   const tabs = [
-    { id: "queue", label: "Job Queue", count: queue?.queueDepth }, { key: "allocation", label: "Resource Allocation" }, { key: "performance", label: "Performance" },
+    { id: "queue", label: "Job Queue", count: queue?.queueDepth }, { id: "allocation", label: "Resource Allocation" }, { id: "performance", label: "Performance" },
   ];
 
   const statusColors: Record<string, any> = {

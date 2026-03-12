@@ -191,7 +191,7 @@ export default function ExitManagementPage() {
   }, [checklist]);
 
   const tabs = [
-    { id: "checklist", label: "Exit Checklist", icon: "📋" }, { key: "assets", label: "Asset Return", icon: "💻" }, { key: "settlement", label: "Settlement", icon: "💰" }, { key: "kt", label: "Knowledge Transfer", icon: "📚" }, { key: "interview", label: "Exit Interview", icon: "🎤" },
+    { id: "checklist", label: "Exit Checklist", icon: "📋" }, { id: "assets", label: "Asset Return", icon: "💻" }, { id: "settlement", label: "Settlement", icon: "💰" }, { id: "kt", label: "Knowledge Transfer", icon: "📚" }, { id: "interview", label: "Exit Interview", icon: "🎤" },
   ];
 
   if (loading) {
@@ -515,7 +515,7 @@ export default function ExitManagementPage() {
               <p className="text-xs text-slate-400 mb-4">Share your experience. This feedback is confidential and helps us improve.</p>
               <div className="space-y-4">
                 {[
-                  { id: "overallExperience", label: "Overall Experience" }, { key: "managementRating", label: "Management" }, { key: "workLifeBalance", label: "Work-Life Balance" }, { key: "growthOpportunities", label: "Growth Opportunities" }, { key: "compensationSatisfaction", label: "Compensation" },
+                  { id: "overallExperience", label: "Overall Experience" }, { id: "managementRating", label: "Management" }, { id: "workLifeBalance", label: "Work-Life Balance" }, { id: "growthOpportunities", label: "Growth Opportunities" }, { id: "compensationSatisfaction", label: "Compensation" },
                 ].map(({ key, label }) => (
                   <div key={key}>
                     <div className="flex justify-between items-center mb-1">

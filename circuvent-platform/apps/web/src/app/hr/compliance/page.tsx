@@ -56,7 +56,7 @@ export default function CompliancePage() {
   };
 
   const tabs = [
-    { id: "dashboard", label: "Compliance Dashboard" }, { key: "deadlines", label: "Deadlines", count: deadlines?.overdueCount }, { key: "form16", label: "Form 16" }, { key: "summary", label: "Employee Statutory" },
+    { id: "dashboard", label: "Compliance Dashboard" }, { id: "deadlines", label: "Deadlines", count: deadlines?.overdueCount }, { id: "form16", label: "Form 16" }, { id: "summary", label: "Employee Statutory" },
   ];
 
   const statusColors: Record<string, any> = {
@@ -95,7 +95,7 @@ export default function CompliancePage() {
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white uppercase">{key === "professionalTax" ? "Professional Tax" : key.toUpperCase()}</p>
                     <p className="text-xs text-slate-500">Due: {s.dueDate}</p>
-                  </Card>
+                  </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(s.amount)}</p>
                     <Badge color={statusColors[s.status]}>{s.status}</Badge>
@@ -103,7 +103,7 @@ export default function CompliancePage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           <Card>
             <CardHeader title="Statutory Breakdown" />
@@ -120,7 +120,7 @@ export default function CompliancePage() {
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-slate-400">{label}</span>
                       <span className="text-slate-900 dark:text-white font-medium">{formatCurrency(amount as number)}</span>
-                    </Card>
+                    </div>
                     <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                       <div className={`h-2 rounded-full ${color}`} style={{ width: `${pct}%` }} />
                     </div>
@@ -128,7 +128,7 @@ export default function CompliancePage() {
                 );
               })}
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
@@ -162,7 +162,7 @@ export default function CompliancePage() {
               { value: "2024-2025", label: "FY 2024-2025" },
             ]} value={fy} onChange={(e) => setFY(e.target.value)} />
             <Button onClick={handleFetchForm16} loading={loading} disabled={!empId}>Fetch</Button>
-          </Card>
+          </div>
 
           {form16Data && (
             <div className="space-y-6">
@@ -210,7 +210,7 @@ export default function CompliancePage() {
               )}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Employee Statutory Summary Tab */}
@@ -220,7 +220,7 @@ export default function CompliancePage() {
           <div className="flex items-end gap-4 mb-6">
             <Input label="Employee ID" value={summaryEmpId} onChange={(e) => setSummaryEmpId(e.target.value)} placeholder="Employee ID..." />
             <Button onClick={handleFetchSummary} loading={loading} disabled={!summaryEmpId}>Fetch</Button>
-          </Card>
+          </div>
 
           {statutorySummary && (
             <div className="grid gap-6 lg:grid-cols-2">
@@ -245,8 +245,8 @@ export default function CompliancePage() {
                   <div className="flex justify-between"><span className="text-slate-400">Employee (12%)</span><span>{formatCurrency(statutorySummary.epf.employeeContribution)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Employer EPF</span><span>{formatCurrency(statutorySummary.epf.employerEPFContribution)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Employer EPS</span><span>{formatCurrency(statutorySummary.epf.employerEPSContribution)}</span></div>
-                </Card>
-              </div>
+                </div>
+              </Card>
 
               {/* ESI */}
               <Card className="bg-slate-50 dark:bg-slate-800/30">
@@ -258,9 +258,9 @@ export default function CompliancePage() {
                   <div className="space-y-1 text-sm mt-2">
                     <div className="flex justify-between"><span className="text-slate-400">Employee (0.75%)</span><span>{formatCurrency(statutorySummary.esi.employeeContribution)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Employer (3.25%)</span><span>{formatCurrency(statutorySummary.esi.employerContribution)}</span></div>
-                  </Card>
+                  </div>
                 )}
-              </div>
+              </Card>
 
               {/* Gratuity */}
               <Card className="bg-slate-50 dark:bg-slate-800/30 lg:col-span-2">
@@ -274,7 +274,7 @@ export default function CompliancePage() {
               </Card>
             </div>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );

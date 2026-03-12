@@ -113,7 +113,7 @@ export default function PerformanceManagementPage() {
   const [calibrateResult, setCalibrateResult] = useState<any>(null);
 
   const tabs = [
-    { id: "overview", label: "Overview" }, { key: "cycles", label: "Review Cycles" }, { key: "bellcurve", label: "Bell Curve" }, { key: "performers", label: "Performers" }, { key: "pip", label: "PIPs" }, { key: "promotions", label: "Promotions" }, { key: "calibration", label: "Calibration" },
+    { id: "overview", label: "Overview" }, { id: "cycles", label: "Review Cycles" }, { id: "bellcurve", label: "Bell Curve" }, { id: "performers", label: "Performers" }, { id: "pip", label: "PIPs" }, { id: "promotions", label: "Promotions" }, { id: "calibration", label: "Calibration" },
   ];
 
   const handleCreateCycle = async () => {

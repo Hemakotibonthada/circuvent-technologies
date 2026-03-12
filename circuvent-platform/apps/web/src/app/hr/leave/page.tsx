@@ -46,7 +46,7 @@ export default function LeaveManagementPage() {
   };
 
   const tabs = [
-    { id: "requests", label: "All Requests" }, { key: "pending", label: "Pending Approvals" }, { key: "calendar", label: "Team Calendar" }, { key: "balance", label: "Leave Balance" },
+    { id: "requests", label: "All Requests" }, { id: "pending", label: "Pending Approvals" }, { id: "calendar", label: "Team Calendar" }, { id: "balance", label: "Leave Balance" },
   ];
 
   const leaveColumns = [

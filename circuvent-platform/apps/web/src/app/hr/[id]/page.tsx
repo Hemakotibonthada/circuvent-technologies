@@ -38,7 +38,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
 
   const monthlySalary = Number(emp.baseSalary) / 12;
   const tabs = [
-    { id: "overview", label: "Overview" }, { key: "salary", label: "Salary Slips", count: emp.salarySlips.length }, { key: "expenses", label: "Expenses", count: emp.expenseClaims.length }, { key: "leave", label: "Leave", count: emp.leaveRecords.length },
+    { id: "overview", label: "Overview" }, { id: "salary", label: "Salary Slips", count: emp.salarySlips.length }, { id: "expenses", label: "Expenses", count: emp.expenseClaims.length }, { id: "leave", label: "Leave", count: emp.leaveRecords.length },
   ];
 
   return (
@@ -77,10 +77,10 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
                   <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
-                </Card>
+                </div>
               ))}
             </dl>
-          </div>
+          </Card>
           <Card>
             <CardHeader title="Compliance & Tax" />
             <dl className="space-y-3">
@@ -94,10 +94,10 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
                   <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
-                </Card>
+                </div>
               ))}
             </dl>
-          </div>
+          </Card>
         </div>
       )}
 

@@ -72,7 +72,7 @@ export default function ShiftManagementPage() {
 
   const [activeTab, setActiveTab] = useState("definitions");
   const tabs = [
-    { id: "definitions", label: "Definitions" }, { key: "schedules", label: "Schedules" }, { key: "today", label: "Today's View" },
+    { id: "definitions", label: "Definitions" }, { id: "schedules", label: "Schedules" }, { id: "today", label: "Today's View" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

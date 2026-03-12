@@ -51,15 +51,15 @@ export default function HRPage() {
   };
 
   const tabs = [
-    { id: "employees", label: "Employees", count: employees?.length }, { key: "payroll", label: "Payroll" }, { key: "calculator", label: "Salary Calculator" },
+    { id: "employees", label: "Employees", count: employees?.length }, { id: "payroll", label: "Payroll" }, { id: "calculator", label: "Salary Calculator" },
   ];
 
   const empTypeColors: Record<string, any> = { FULL_TIME: "green", PART_TIME: "amber", CONTRACT: "cyan", INTERN: "purple" };
 
   const empColumns = [
-    { id: "employeeCode", header: "Code", render: (e: Employee) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{e.employeeCode}</span> }, { key: "name", header: "Name", render: (e: Employee) => (
+    { id: "employeeCode", header: "Code", render: (e: Employee) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{e.employeeCode}</span> }, { id: "name", header: "Name", render: (e: Employee) => (
       <a href={`/hr/${e.id}`} className="font-medium text-slate-900 dark:text-white hover:text-brand-600 dark:text-brand-400">{e.user.firstName} {e.user.lastName}</a>
-    )}, { key: "email", header: "Email", render: (e: Employee) => <span className="text-xs text-slate-400">{e.user.email}</span> }, { key: "designation", header: "Designation" }, { key: "department", header: "Department" }, { key: "employmentType", header: "Type", render: (e: Employee) => <Badge color={empTypeColors[e.employmentType]}>{e.employmentType.replace("_", " ")}</Badge> }, { key: "baseSalary", header: "CTC", render: (e: Employee) => formatCurrency(Number(e.baseSalary), e.currency) }, { key: "dateOfJoining", header: "Joined", render: (e: Employee) => formatDate(e.dateOfJoining) },
+    )}, { id: "email", header: "Email", render: (e: Employee) => <span className="text-xs text-slate-400">{e.user.email}</span> }, { id: "designation", header: "Designation" }, { id: "department", header: "Department" }, { id: "employmentType", header: "Type", render: (e: Employee) => <Badge color={empTypeColors[e.employmentType]}>{e.employmentType.replace("_", " ")}</Badge> }, { id: "baseSalary", header: "CTC", render: (e: Employee) => formatCurrency(Number(e.baseSalary), e.currency) }, { id: "dateOfJoining", header: "Joined", render: (e: Employee) => formatDate(e.dateOfJoining) },
   ];
 
   return (

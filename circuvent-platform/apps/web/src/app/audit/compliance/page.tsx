@@ -33,7 +33,7 @@ export default function AuditCompliancePage() {
   };
 
   const tabs = [
-    { id: "logs", label: "Audit Trail" }, { key: "security", label: "Security Events" }, { key: "compliance", label: "Compliance Report" }, { key: "activity", label: "Activity Summary" },
+    { id: "logs", label: "Audit Trail" }, { id: "security", label: "Security Events" }, { id: "compliance", label: "Compliance Report" }, { id: "activity", label: "Activity Summary" },
   ];
 
   const allLogs = (logs as any)?.logs || (logs as any) || [];

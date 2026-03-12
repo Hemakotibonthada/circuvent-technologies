@@ -43,7 +43,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
   if (!device) return <div className="py-20 text-center text-slate-400">Device not found</div>;
 
   const tabs = [
-    { id: "overview", label: "Overview" }, { key: "telemetry", label: "Telemetry", count: device.telemetryLogs.length }, { key: "firmware", label: "Firmware History", count: device.firmwareHistory.length },
+    { id: "overview", label: "Overview" }, { id: "telemetry", label: "Telemetry", count: device.telemetryLogs.length }, { id: "firmware", label: "Firmware History", count: device.firmwareHistory.length },
   ];
 
   return (

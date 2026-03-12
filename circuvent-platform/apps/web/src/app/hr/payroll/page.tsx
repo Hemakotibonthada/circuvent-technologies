@@ -83,7 +83,7 @@ export default function PayrollDashboardPage() {
   };
 
   const tabs = [
-    { id: "overview", label: "Payroll Overview" }, { key: "operations", label: "Bulk Operations" }, { key: "calculator", label: "Salary Calculator" }, { key: "departments", label: "Department View" },
+    { id: "overview", label: "Payroll Overview" }, { id: "operations", label: "Bulk Operations" }, { id: "calculator", label: "Salary Calculator" }, { id: "departments", label: "Department View" },
   ];
 
   return (

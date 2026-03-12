@@ -84,7 +84,7 @@ export default function TimesheetManagementPage() {
 
   const [activeTab, setActiveTab] = useState("current");
   const tabs = [
-    { id: "current", label: "Current Week" }, { key: "history", label: "My History" },
+    { id: "current", label: "Current Week" }, { id: "history", label: "My History" },
     ...((isAdmin || isHR) ? [{ id: "review", label: "Team Review" }] : []),
   ];
 

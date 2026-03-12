@@ -1,0 +1,286 @@
+@import "tailwindcss";
+
+/* ===== THEME TOKENS ===== */
+:root {
+  /* Light theme (default) — refined, professional, warm accents */
+  --bg-primary: #fafbfd;
+  --bg-secondary: #f0f4f8;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f5f7fa;
+  --bg-elevated: #ffffff;
+  --bg-overlay: rgba(250, 251, 253, 0.88);
+  --bg-glass: rgba(255, 255, 255, 0.75);
+
+  --text-primary: #0c1222;
+  --text-secondary: #2d3a4e;
+  --text-tertiary: #536478;
+  --text-muted: #8494a7;
+  --text-inverted: #fafbfd;
+
+  --border-primary: rgba(12, 18, 34, 0.07);
+  --border-hover: rgba(12, 18, 34, 0.14);
+  --border-accent: rgba(6, 182, 212, 0.35);
+
+  --accent-cyan: #0891b2;
+  --accent-violet: #7c3aed;
+  --accent-pink: #db2777;
+  --accent-cyan-muted: rgba(8, 145, 178, 0.08);
+  --accent-violet-muted: rgba(124, 58, 237, 0.07);
+
+  --shadow-sm: 0 1px 3px rgba(12, 18, 34, 0.04), 0 1px 2px rgba(12, 18, 34, 0.03);
+  --shadow-md: 0 4px 12px rgba(12, 18, 34, 0.06), 0 2px 4px rgba(12, 18, 34, 0.04);
+  --shadow-lg: 0 12px 40px rgba(12, 18, 34, 0.08), 0 4px 12px rgba(12, 18, 34, 0.05);
+  --shadow-glow-cyan: 0 0 24px rgba(8, 145, 178, 0.12), 0 0 8px rgba(8, 145, 178, 0.06);
+
+  --scrollbar-thumb: rgba(8, 145, 178, 0.2);
+  --scrollbar-thumb-hover: rgba(8, 145, 178, 0.35);
+  --selection-bg: rgba(6, 182, 212, 0.15);
+  --selection-text: #0c1222;
+
+  --noise-opacity: 0.012;
+  --particle-opacity: 0.35;
+  --particle-line-color: rgba(8, 145, 178, 0.05);
+  --grid-line-color: rgba(12, 18, 34, 0.025);
+  --spotlight-color: rgba(6, 182, 212, 0.035);
+  --orb-opacity: 0.035;
+}
+
+.dark {
+  --bg-primary: #030712;
+  --bg-secondary: #0a0f1a;
+  --bg-surface: #0f1729;
+  --bg-surface-hover: #151e33;
+  --bg-elevated: #111827;
+  --bg-overlay: rgba(3, 7, 18, 0.85);
+  --bg-glass: rgba(10, 15, 26, 0.7);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --text-muted: #475569;
+  --text-inverted: #0f172a;
+
+  --border-primary: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(6, 182, 212, 0.3);
+
+  --accent-cyan: #06b6d4;
+  --accent-violet: #8b5cf6;
+  --accent-pink: #ec4899;
+  --accent-cyan-muted: rgba(6, 182, 212, 0.1);
+  --accent-violet-muted: rgba(139, 92, 246, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.5);
+  --shadow-glow-cyan: 0 0 30px rgba(6, 182, 212, 0.15);
+
+  --scrollbar-thumb: rgba(6, 182, 212, 0.2);
+  --scrollbar-thumb-hover: rgba(6, 182, 212, 0.4);
+  --selection-bg: rgba(6, 182, 212, 0.3);
+  --selection-text: #f8fafc;
+
+  --noise-opacity: 0.015;
+  --particle-opacity: 0.6;
+  --particle-line-color: rgba(6, 182, 212, 0.08);
+  --grid-line-color: rgba(255, 255, 255, 0.02);
+  --spotlight-color: rgba(6, 182, 212, 0.06);
+  --orb-opacity: 0.08;
+}
+
+@theme inline {
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ===== SCROLLBAR ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+*::-webkit-scrollbar { width: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ===== BASE ===== */
+html {
+  scroll-behavior: smooth;
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  transition: background-color 0.4s ease, color 0.3s ease;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-text);
+}
+
+/* ===== NOISE OVERLAY ===== */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* ===== UTILITY CLASSES ===== */
+.glass-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== THEME-AWARE TOKEN CLASSES ===== */
+.theme-bg { background: var(--bg-primary); }
+.theme-bg-secondary { background: var(--bg-secondary); }
+.theme-bg-surface { background: var(--bg-surface); }
+.theme-bg-elevated { background: var(--bg-elevated); }
+.theme-bg-overlay { background: var(--bg-overlay); }
+.theme-bg-glass { background: var(--bg-glass); }
+
+.theme-text { color: var(--text-primary); }
+.theme-text-secondary { color: var(--text-secondary); }
+.theme-text-tertiary { color: var(--text-tertiary); }
+.theme-text-muted { color: var(--text-muted); }
+
+.theme-border { border-color: var(--border-primary); }
+.theme-border-hover { border-color: var(--border-hover); }
+
+/* ===== ANIMATIONS ===== */
+@keyframes gradient-rotate {
+  0% { --angle: 0deg; }
+  100% { --angle: 360deg; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ===== SMOOTH THEME TRANSITION ===== */
+.theme-transition,
+.theme-transition * {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, box-shadow 0.3s ease !important;
+}
+
+/* ===== LIGHT THEME ENHANCEMENTS ===== */
+:root {
+  /* Refined glass card in light mode */
+  --glass-blur: 16px;
+  --card-shadow: 0 1px 3px rgba(12, 18, 34, 0.04), 0 4px 16px rgba(12, 18, 34, 0.03);
+  --card-hover-shadow: 0 4px 20px rgba(12, 18, 34, 0.06), 0 8px 32px rgba(12, 18, 34, 0.04);
+  --card-border: rgba(12, 18, 34, 0.06);
+  --card-hover-border: rgba(8, 145, 178, 0.2);
+  --nav-shadow: 0 1px 3px rgba(12, 18, 34, 0.03), 0 4px 12px rgba(12, 18, 34, 0.02);
+  --input-bg: #f5f7fa;
+  --input-focus-ring: rgba(8, 145, 178, 0.2);
+  --badge-bg: rgba(8, 145, 178, 0.06);
+  --badge-text: #0891b2;
+  --gradient-primary: linear-gradient(135deg, #0891b2, #7c3aed);
+  --gradient-surface: linear-gradient(180deg, #ffffff, #f8fafc);
+  --gradient-hero: linear-gradient(135deg, rgba(8, 145, 178, 0.04), rgba(124, 58, 237, 0.03));
+}
+
+.dark {
+  --glass-blur: 24px;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --card-hover-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --card-border: rgba(255, 255, 255, 0.06);
+  --card-hover-border: rgba(6, 182, 212, 0.3);
+  --nav-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --input-bg: rgba(15, 23, 41, 0.5);
+  --input-focus-ring: rgba(6, 182, 212, 0.3);
+  --badge-bg: rgba(6, 182, 212, 0.1);
+  --badge-text: #06b6d4;
+  --gradient-primary: linear-gradient(135deg, #06b6d4, #8b5cf6);
+  --gradient-surface: linear-gradient(180deg, #0f1729, #030712);
+  --gradient-hero: linear-gradient(135deg, rgba(6, 182, 212, 0.06), rgba(139, 92, 246, 0.04));
+}
+
+/* Light mode card refinements */
+:root .glass-card {
+  box-shadow: var(--card-shadow);
+  border-color: var(--card-border);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+
+:root .glass-card:hover {
+  box-shadow: var(--card-hover-shadow);
+  border-color: var(--card-hover-border);
+}
+
+/* Better light mode input styling */
+:root input,
+:root textarea,
+:root select {
+  background: var(--input-bg);
+}
+
+:root input:focus,
+:root textarea:focus,
+:root select:focus {
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+  border-color: var(--accent-cyan) !important;
+}
+
+/* Light mode code blocks — only affects inline code, not editor components */
+:root :not([style*="1e1e2e"]) > pre,
+:root :not([style*="1e1e2e"]) > code {
+  background: #f3f4f6;
+}
+
+/* Subtle gradient on light mode body */
+:root body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 500px;
+  background: var(--gradient-hero);
+  pointer-events: none;
+  z-index: -1;
+}

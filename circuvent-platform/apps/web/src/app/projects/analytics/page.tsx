@@ -19,7 +19,7 @@ export default function ProjectAnalyticsPage() {
   const { data: projects } = useApi<any[]>("/projects");
 
   const tabsList = [
-    { id: "overview", label: "Overview" }, { key: "status", label: "Status Distribution" }, { key: "type", label: "Type Breakdown" }, { key: "recent", label: "Recent Activity" },
+    { id: "overview", label: "Overview" }, { id: "status", label: "Status Distribution" }, { id: "type", label: "Type Breakdown" }, { id: "recent", label: "Recent Activity" },
   ];
 
   const statusColors: Record<string, any> = {

@@ -84,7 +84,7 @@ export default function ExpenseWorkflowPage() {
   };
 
   const tabs = [
-    { id: "claims", label: "All Claims", count: expenses?.length }, { key: "pending", label: "My Approvals", count: pendingApprovals?.length }, { key: "rnd", label: "R&D Summary" },
+    { id: "claims", label: "All Claims", count: expenses?.length }, { id: "pending", label: "My Approvals", count: pendingApprovals?.length }, { id: "rnd", label: "R&D Summary" },
   ];
 
   return (

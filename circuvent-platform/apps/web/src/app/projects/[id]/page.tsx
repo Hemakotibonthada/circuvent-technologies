@@ -77,7 +77,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   if (!project) return <div className="py-20 text-center text-slate-400">Project not found</div>;
 
   const tabs = [
-    { id: "sprints", label: "Sprints", count: project._count.sprints }, { key: "hardware", label: "Hardware BOM", count: project._count.hardwareRevisions }, { key: "devices", label: "IoT Devices", count: project._count.devices }, { key: "members", label: "Team", count: project.members.length },
+    { id: "sprints", label: "Sprints", count: project._count.sprints }, { id: "hardware", label: "Hardware BOM", count: project._count.hardwareRevisions }, { id: "devices", label: "IoT Devices", count: project._count.devices }, { id: "members", label: "Team", count: project.members.length },
   ];
 
   const typeColors: Record<string, any> = { SOFTWARE: "blue", HARDWARE: "amber", HYBRID: "purple" };

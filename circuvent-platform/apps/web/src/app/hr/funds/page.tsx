@@ -474,7 +474,7 @@ export default function FundsBudgetPage() {
 
   // ── Tabs ───────────────────────────────────────────────────
   const tabs = [
-    { id: "overview", label: "Funds Overview", count: funds?.length }, { key: "details", label: "Fund Details" }, { key: "transactions", label: "Transactions" }, { key: "allocations", label: "Allocations" }, { key: "banks", label: "Bank Accounts", count: bankAccounts?.length }, { key: "reports", label: "Reports" },
+    { id: "overview", label: "Funds Overview", count: funds?.length }, { id: "details", label: "Fund Details" }, { id: "transactions", label: "Transactions" }, { id: "allocations", label: "Allocations" }, { id: "banks", label: "Bank Accounts", count: bankAccounts?.length }, { id: "reports", label: "Reports" },
   ];
 
   // ══════════════════════════════════════════════════════════════

@@ -68,7 +68,7 @@ export default function VisitorManagementPage() {
 
   const [activeTab, setActiveTab] = useState("today");
   const tabs = [
-    { id: "today", label: "Today" }, { key: "upcoming", label: "Upcoming" }, { key: "history", label: "History" },
+    { id: "today", label: "Today" }, { id: "upcoming", label: "Upcoming" }, { id: "history", label: "History" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */

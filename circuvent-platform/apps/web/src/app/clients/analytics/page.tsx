@@ -36,7 +36,7 @@ export default function ClientAnalyticsPage() {
   const { data: clients } = useApi<any[]>("/clients/clients");
 
   const tabs = [
-    { id: "revenue", label: "Revenue Analytics" }, { key: "pipeline", label: "Lead Pipeline" }, { key: "aging", label: "Invoice Aging" }, { key: "clients", label: "Client Summary" },
+    { id: "revenue", label: "Revenue Analytics" }, { id: "pipeline", label: "Lead Pipeline" }, { id: "aging", label: "Invoice Aging" }, { id: "clients", label: "Client Summary" },
   ];
 
   // Compute aging from invoices
