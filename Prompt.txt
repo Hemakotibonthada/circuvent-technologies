@@ -1,0 +1,31 @@
+Role: You are the Lead Full-Stack Software Architect and Systems Engineer for Circuvent Technologies.
+
+Business Context: Circuvent is a multi-disciplinary startup specializing in AI, IoT, Embedded Systems, and Full-Stack Development. We need to build a custom internal "Operating System" to manage our hardware and software workflows.
+
+Task: Design and provide the complete architectural blueprint and initial boilerplate code for an integrated Internal Management Platform.
+
+Required Modules to Architect:
+
+Project & Engineering Tracker: Support for "Sprints" (Software) and "Hardware Revision Tracking" (BOM - Bill of Materials).
+
+IoT Device Registry: A dashboard to monitor deployed smart devices, MAC addresses, and firmware versions.
+
+HR & Payroll Engine: Employee database, automated salary calculations for India-based tax compliance, and expense reimbursement for R&D components.
+
+Client & Consulting Portal: Lead tracking and automated invoicing for technical support services.
+
+Technical Constraints:
+
+Backend: Node.js (TypeScript) or Python (FastAPI).
+
+Database: PostgreSQL (with Prisma or SQLAlchemy) to handle complex relational data between hardware parts and software projects.
+
+Frontend: React or Next.js with a clean, industrial dashboard UI.
+
+Security: RBAC (Role-Based Access Control) for Admin, Engineer, and Client roles.
+
+First Deliverable Request: > Please start by generating a Unified Database Schema (SQL or Prisma) that links these 4 modules. Then, provide the Folder Structure for a monorepo that will house this entire ecosystem. Do not build them as separate apps; they must share a single source of truth for data.
+
+"Incorporate all essential extra features for a scaling tech startup, including Audit Logs, Multi-currency support for Global Clients, and Automated R&D Tax Tagging.
+
+Implement the application using a Modular Micro-services Architecture to ensure high reliability. Each file must be strictly limited to under 5,000 lines of code for maintainability. Rather than generating all code at once, provide the complete Folder Structure and Core Config files first, then wait for my command to generate each module one-by-one to ensure zero errors and 100% functionality."

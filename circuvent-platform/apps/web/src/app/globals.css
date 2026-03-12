@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════
+   Light Theme (default)
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --foreground: #1e293b;
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-secondary: #f1f5f9;
+  --surface-elevated: #ffffff;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent: #3b82f6;
+  --card: #ffffff;
+  --card-border: #e2e8f0;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e2e8f0;
+  --sidebar-text: #475569;
+  --sidebar-active: #eff6ff;
+  --sidebar-active-text: #2563eb;
+  --input-bg: #f8fafc;
+  --input-border: #cbd5e1;
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --modal-backdrop: rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Dark Theme
+   ═══════════════════════════════════════════════════════════ */
+.dark {
+  --foreground: #e2e8f0;
+  --background: #0d1117;
+  --surface: #161b22;
+  --surface-secondary: #1a2332;
+  --surface-elevated: #21262d;
+  --border-color: #30363d;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent: #3b82f6;
+  --card: #161b22;
+  --card-border: #30363d;
+  --sidebar-bg: #0d1117;
+  --sidebar-border: #21262d;
+  --sidebar-text: #8b949e;
+  --sidebar-active: rgba(59, 130, 246, 0.1);
+  --sidebar-active-text: #60a5fa;
+  --input-bg: #0d1117;
+  --input-border: #30363d;
+  --scrollbar-track: #0d1117;
+  --scrollbar-thumb: #4a5568;
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* Only transition theme-relevant properties on specific elements */
+body,
+aside,
+header,
+main,
+nav,
+.card-hover {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #718096; }
+
+/* ═══════════════════════════════════════════════════════════
+   Animation Utilities
+   ═══════════════════════════════════════════════════════════ */
+
+/* Staggered children animation */
+.animate-stagger > * {
+  opacity: 0;
+  animation: fade-in-up 0.4s ease-out forwards;
+}
+.animate-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.animate-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.animate-stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.animate-stagger > *:nth-child(4) { animation-delay: 0.2s; }
+.animate-stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.animate-stagger > *:nth-child(6) { animation-delay: 0.3s; }
+.animate-stagger > *:nth-child(7) { animation-delay: 0.35s; }
+.animate-stagger > *:nth-child(8) { animation-delay: 0.4s; }
+.animate-stagger > *:nth-child(n+9) { animation-delay: 0.45s; }
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card hover lift */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Shimmer loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-secondary) 25%, var(--surface-elevated) 50%, var(--surface-secondary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Glow effect for active elements */
+.glow-brand {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+}
+.dark .glow-brand {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.25);
+}
+
+/* Press effect for buttons */
+.press-effect:active {
+  transform: scale(0.97);
+}
+
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

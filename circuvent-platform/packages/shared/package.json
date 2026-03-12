@@ -1,0 +1,30 @@
+{
+  "name": "@circuvent/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared types, utilities, and constants for Circuvent Platform",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "@types/compression": "^1.7.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.0",
+    "@types/morgan": "^1.9.9",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "express": "^4.18.0",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "zod": "^3.22.0"
+  }
+}

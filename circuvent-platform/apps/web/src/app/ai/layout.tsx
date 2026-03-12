@@ -1,0 +1,5 @@
+"use client";
+import { AppShell } from "@/components/app-shell";
+export default function AILayout({ children }: { children: React.ReactNode }) {
+  return <AppShell>{children}</AppShell>;
+}

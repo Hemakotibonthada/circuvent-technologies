@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noImplicitAny": false,
+    "noEmit": false,
+    "declaration": false,
+    "paths": {
+      "@circuvent/shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src/**/*", "__tests__/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

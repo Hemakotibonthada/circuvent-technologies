@@ -1,0 +1,22 @@
+{
+  "name": "@circuvent/pdf-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PDF generation engine for payslips, invoices, and reports",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "pdfkit": "^0.15.0",
+    "@circuvent/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/pdfkit": "^0.13.4",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.4.0"
+  }
+}

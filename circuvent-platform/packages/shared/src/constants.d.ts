@@ -1,0 +1,31 @@
+export declare const APP_NAME = "Circuvent Platform";
+export declare const APP_VERSION = "1.0.0";
+export declare const DEFAULT_PAGE = 1;
+export declare const DEFAULT_LIMIT = 20;
+export declare const MAX_LIMIT = 100;
+export declare const JWT_EXPIRY = "15m";
+export declare const JWT_REFRESH_EXPIRY = "7d";
+export declare const MAX_FILE_SIZE: number;
+export declare const ALLOWED_FILE_TYPES: string[];
+export declare const DATE_FORMAT = "YYYY-MM-DD";
+export declare const DATETIME_FORMAT = "YYYY-MM-DD HH:mm:ss";
+export declare const EMPLOYEE_CODE_PREFIX = "CIR-EMP";
+export declare const PROJECT_CODE_PREFIX = "PROJ";
+export declare const INVOICE_PREFIX = "INV";
+export declare const EXPENSE_PREFIX = "EXP";
+export declare const DEVICE_CODE_PREFIX = "DEV";
+export declare const HTTP_STATUS: {
+    readonly OK: 200;
+    readonly CREATED: 201;
+    readonly NO_CONTENT: 204;
+    readonly BAD_REQUEST: 400;
+    readonly UNAUTHORIZED: 401;
+    readonly FORBIDDEN: 403;
+    readonly NOT_FOUND: 404;
+    readonly CONFLICT: 409;
+    readonly UNPROCESSABLE: 422;
+    readonly TOO_MANY_REQUESTS: 429;
+    readonly INTERNAL_ERROR: 500;
+    readonly SERVICE_UNAVAILABLE: 503;
+};
+//# sourceMappingURL=constants.d.ts.map
