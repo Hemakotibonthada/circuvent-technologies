@@ -82,18 +82,7 @@ const STATUS_COLORS: Record<string, BadgeColor> = {
 };
 
 const LETTER_TYPES = [
-  { key: "offer", label: "Offer Letter", icon: "📄", description: "Extend official job offers to selected candidates" },
-  { key: "call", label: "Call Letter", icon: "📞", description: "Invite candidates for interviews or assessments" },
-  { key: "experience", label: "Experience Letter", icon: "🏅", description: "Certify work experience for departing employees" },
-  { key: "relieving", label: "Relieving Letter", icon: "🔓", description: "Formally relieve employees from their duties" },
-  { key: "internship", label: "Internship Letter", icon: "🎓", description: "Onboard interns with role and stipend details" },
-  { key: "appointment", label: "Appointment Letter", icon: "📋", description: "Confirm official appointment after joining" },
-  { key: "promotion", label: "Promotion Letter", icon: "🚀", description: "Announce promotions with new designation and pay" },
-  { key: "warning", label: "Warning Letter", icon: "⚠️", description: "Issue formal warnings for policy violations" },
-  { key: "salary-revision", label: "Salary Revision", icon: "💰", description: "Communicate revised compensation details" },
-  { key: "appreciation", label: "Appreciation", icon: "⭐", description: "Recognize outstanding contributions and performance" },
-  { key: "internship-completion", label: "Internship Completion", icon: "🎉", description: "Certify successful completion of internship" },
-  { key: "employment-verification", label: "Employment Verification", icon: "✅", description: "Verify employment details for third-party requests" },
+  { id: "offer", label: "Offer Letter", icon: "📄", description: "Extend official job offers to selected candidates" }, { key: "call", label: "Call Letter", icon: "📞", description: "Invite candidates for interviews or assessments" }, { key: "experience", label: "Experience Letter", icon: "🏅", description: "Certify work experience for departing employees" }, { key: "relieving", label: "Relieving Letter", icon: "🔓", description: "Formally relieve employees from their duties" }, { key: "internship", label: "Internship Letter", icon: "🎓", description: "Onboard interns with role and stipend details" }, { key: "appointment", label: "Appointment Letter", icon: "📋", description: "Confirm official appointment after joining" }, { key: "promotion", label: "Promotion Letter", icon: "🚀", description: "Announce promotions with new designation and pay" }, { key: "warning", label: "Warning Letter", icon: "⚠️", description: "Issue formal warnings for policy violations" }, { key: "salary-revision", label: "Salary Revision", icon: "💰", description: "Communicate revised compensation details" }, { key: "appreciation", label: "Appreciation", icon: "⭐", description: "Recognize outstanding contributions and performance" }, { key: "internship-completion", label: "Internship Completion", icon: "🎉", description: "Certify successful completion of internship" }, { key: "employment-verification", label: "Employment Verification", icon: "✅", description: "Verify employment details for third-party requests" },
 ] as const;
 
 type LetterTypeKey = (typeof LETTER_TYPES)[number]["key"];
@@ -130,10 +119,7 @@ const CLEARANCE_STATUS_OPTIONS = [
 ];
 
 const TABS = [
-  { id: "quick-send", label: "Quick Send" },
-  { id: "all-letters", label: "All Letters" },
-  { id: "templates", label: "Templates" },
-  { id: "batch", label: "Batch Operations" },
+  { id: "quick-send", label: "Quick Send" }, { key: "all-letters", label: "All Letters" }, { key: "templates", label: "Templates" }, { key: "batch", label: "Batch Operations" },
 ];
 
 /* ══════════════════════════════════════════════════════════════
@@ -300,7 +286,7 @@ export default function LetterManagementPage() {
      ══════════════════════════════════════════════════════════ */
   const letterColumns = [
     {
-      key: "recipientName",
+      id: "recipientName",
       header: "Recipient",
       render: (l: Letter) => (
         <div>
@@ -308,9 +294,7 @@ export default function LetterManagementPage() {
           {l.recipientEmail && <p className="text-xs text-slate-500">{l.recipientEmail}</p>}
         </div>
       ),
-    },
-    {
-      key: "letterType",
+    }, { key: "letterType",
       header: "Letter Type",
       render: (l: Letter) => {
         const lt = LETTER_TYPES.find((t) => t.key === l.letterType);
@@ -321,18 +305,14 @@ export default function LetterManagementPage() {
           </span>
         );
       },
-    },
-    {
-      key: "status",
+    }, { key: "status",
       header: "Status",
       render: (l: Letter) => (
         <Badge color={STATUS_COLORS[l.status] || "slate"}>
           {l.status}
         </Badge>
       ),
-    },
-    {
-      key: "sentAt",
+    }, { key: "sentAt",
       header: "Sent",
       render: (l: Letter) =>
         l.sentAt ? (
@@ -343,9 +323,7 @@ export default function LetterManagementPage() {
         ) : (
           <span className="text-xs text-slate-600">—</span>
         ),
-    },
-    {
-      key: "actions",
+    }, { key: "actions",
       header: "",
       render: (l: Letter) => (
         <div className="flex items-center gap-2">
@@ -746,37 +724,27 @@ export default function LetterManagementPage() {
      ══════════════════════════════════════════════════════════ */
   const batchColumns = [
     {
-      key: "templateName",
+      id: "templateName",
       header: "Template",
       render: (b: BatchRecord) => <span className="font-medium text-slate-900 dark:text-white">{b.templateName}</span>,
-    },
-    {
-      key: "recipientCount",
+    }, { key: "recipientCount",
       header: "Recipients",
       render: (b: BatchRecord) => <span className="text-sm text-slate-600 dark:text-slate-300">{b.recipientCount}</span>,
-    },
-    {
-      key: "sentCount",
+    }, { key: "sentCount",
       header: "Sent",
       render: (b: BatchRecord) => <Badge color="green">{b.sentCount}</Badge>,
-    },
-    {
-      key: "failedCount",
+    }, { key: "failedCount",
       header: "Failed",
       render: (b: BatchRecord) =>
         b.failedCount > 0 ? <Badge color="red">{b.failedCount}</Badge> : <span className="text-xs text-slate-600">0</span>,
-    },
-    {
-      key: "status",
+    }, { key: "status",
       header: "Status",
       render: (b: BatchRecord) => (
         <Badge color={b.status === "COMPLETED" ? "green" : b.status === "PARTIAL" ? "amber" : b.status === "FAILED" ? "red" : "blue"}>
           {b.status}
         </Badge>
       ),
-    },
-    {
-      key: "createdAt",
+    }, { key: "createdAt",
       header: "Sent At",
       render: (b: BatchRecord) => (
         <div>
@@ -804,8 +772,8 @@ export default function LetterManagementPage() {
         <div
           className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
             feedback.type === "success"
-              ? "border border-green-500/30 bg-green-500/10 text-green-400"
-              : "border border-red-500/30 bg-red-500/10 text-red-400"
+              ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+              : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
           }`}
         >
           {feedback.msg}
@@ -865,8 +833,8 @@ export default function LetterManagementPage() {
                   >
                     Send
                   </Button>
-                </div>
-              </Card>
+                </Card>
+              </div>
             ))}
           </div>
         </div>
@@ -887,7 +855,7 @@ export default function LetterManagementPage() {
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
                 />
-              </div>
+              </Card>
               <div className="min-w-[180px]">
                 <Select
                   label="Status"
@@ -907,7 +875,7 @@ export default function LetterManagementPage() {
                 Clear Filters
               </Button>
             </div>
-          </Card>
+          </div>
 
           {/* Data Table */}
           <Card>
@@ -954,8 +922,8 @@ export default function LetterManagementPage() {
                 <Button onClick={handleSeedTemplates} loading={submitting}>
                   Seed Default Templates
                 </Button>
-              </div>
-            </Card>
+              </Card>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {(templates || []).map((tmpl) => (
@@ -967,7 +935,7 @@ export default function LetterManagementPage() {
                         {tmpl.description && (
                           <p className="mt-0.5 text-xs text-slate-500">{tmpl.description}</p>
                         )}
-                      </div>
+                      </Card>
                       <Badge color={tmpl.isActive ? "green" : "slate"}>
                         {tmpl.isActive ? "Active" : "Inactive"}
                       </Badge>
@@ -991,7 +959,7 @@ export default function LetterManagementPage() {
                       <span className="text-xs text-slate-600">{formatDate(tmpl.createdAt)}</span>
                     </div>
                   </div>
-                </Card>
+                </div>
               ))}
             </div>
           )}
@@ -1029,7 +997,7 @@ export default function LetterManagementPage() {
                     <Button variant="ghost" size="sm" onClick={selectAllRecipients}>
                       {batchRecipientIds.length === recipientList.length ? "Deselect All" : "Select All"}
                     </Button>
-                  </div>
+                  </Card>
 
                   <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/30">
                     {recipientList.length === 0 ? (
@@ -1041,14 +1009,14 @@ export default function LetterManagementPage() {
                           <button
                             key={r.id}
                             className={`flex w-full items-center gap-3 border-b border-slate-200 dark:border-slate-700/50 px-4 py-2.5 text-left transition-colors last:border-0 ${
-                              selected ? "bg-brand-500/10" : "hover:bg-slate-100 dark:bg-slate-700/30"
+                              selected ? "bg-brand-100 dark:bg-brand-500/10" : "hover:bg-slate-100 dark:bg-slate-700/30"
                             }`}
                             onClick={() => toggleBatchRecipient(r.id)}
                           >
                             <div
                               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
                                 selected
-                                  ? "border-brand-500 bg-brand-500 text-slate-900 dark:text-white"
+                                  ? "border-brand-500 bg-brand-500 text-white"
                                   : "border-slate-600"
                               }`}
                             >
@@ -1092,7 +1060,7 @@ export default function LetterManagementPage() {
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
 
           {/* Batch History */}
           <div>

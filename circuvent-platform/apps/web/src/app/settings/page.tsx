@@ -9,11 +9,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("general");
 
   const tabs = [
-    { id: "general", label: "General" },
-    { id: "services", label: "Services" },
-    { id: "security", label: "Security" },
-    { id: "api", label: "API & Integrations" },
-    { id: "features", label: "Feature Flags" },
+    { id: "general", label: "General" }, { key: "services", label: "Services" }, { key: "security", label: "Security" }, { key: "api", label: "API & Integrations" }, { key: "features", label: "Feature Flags" },
   ];
 
   return (
@@ -43,10 +39,10 @@ export default function SettingsPage() {
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
                   <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
-                </div>
+                </Card>
               ))}
             </dl>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="Supported Modules" />
@@ -63,12 +59,12 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-3">
                     <span>{mod.icon}</span>
                     <span className="text-sm text-slate-900 dark:text-white">{mod.name}</span>
-                  </div>
+                  </Card>
                   <Badge color={mod.enabled ? "green" : "red"}>{mod.enabled ? "Active" : "Disabled"}</Badge>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="Currencies" />
@@ -76,8 +72,8 @@ export default function SettingsPage() {
               {["INR", "USD", "EUR", "GBP", "AED", "SGD", "JPY", "AUD", "CAD"].map((c) => (
                 <Badge key={c} color={c === "INR" ? "green" : "slate"}>{c}</Badge>
               ))}
-            </div>
-          </Card>
+            </Card>
+          </div>
 
           <Card>
             <CardHeader title="R&D Tax Categories" />
@@ -85,8 +81,8 @@ export default function SettingsPage() {
               {["SOFTWARE_DEVELOPMENT", "HARDWARE_PROTOTYPING", "IOT_FIRMWARE", "AI_ML_RESEARCH", "COMPONENT_PROCUREMENT", "TESTING_VALIDATION", "DESIGN_ENGINEERING"].map((c) => (
                 <Badge key={c} color="emerald">{c.replace(/_/g, " ")}</Badge>
               ))}
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -110,7 +106,7 @@ export default function SettingsPage() {
                   <div>
                     <span className="text-sm font-medium text-slate-900 dark:text-white">{svc.name}</span>
                     <p className="text-xs text-slate-500">{svc.desc}</p>
-                  </div>
+                  </Card>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-slate-500">:{svc.port}</span>
@@ -119,7 +115,7 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Security Tab */}
@@ -140,10 +136,10 @@ export default function SettingsPage() {
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
                   <dd className="text-sm text-slate-900 dark:text-white">{value}</dd>
-                </div>
+                </Card>
               ))}
             </dl>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="RBAC Roles" />
             <div className="space-y-3">
@@ -155,10 +151,10 @@ export default function SettingsPage() {
                 <div key={r.role} className="rounded-lg border border-slate-200 dark:border-slate-800 p-4">
                   <Badge color={r.color as any}>{r.role}</Badge>
                   <p className="mt-2 text-xs text-slate-400">{r.perms}</p>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -181,11 +177,11 @@ export default function SettingsPage() {
               ].map(([name, path]) => (
                 <div key={name} className="flex justify-between rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
                   <span className="text-sm text-slate-900 dark:text-white">{name}</span>
-                  <span className="font-mono text-xs text-brand-400">{path}</span>
-                </div>
+                  <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{path}</span>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="WebSocket Channels" />
             <div className="space-y-2">
@@ -198,12 +194,12 @@ export default function SettingsPage() {
                 ["notifications", "User notification delivery"],
               ].map(([channel, desc]) => (
                 <div key={channel} className="rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/50">
-                  <span className="font-mono text-xs text-cyan-400">{channel}</span>
+                  <span className="font-mono text-xs text-cyan-600 dark:text-cyan-400">{channel}</span>
                   <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -228,14 +224,14 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">{f.flag}</p>
                   <p className="text-xs text-slate-500">{f.desc}</p>
-                </div>
+                </Card>
                 <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${f.enabled ? "bg-green-600" : "bg-slate-100 dark:bg-slate-700"}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${f.enabled ? "translate-x-6" : "translate-x-1"}`} />
                 </div>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );

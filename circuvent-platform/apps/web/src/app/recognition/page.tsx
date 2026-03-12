@@ -82,10 +82,7 @@ export default function RecognitionWallPage() {
 
   const [activeTab, setActiveTab] = useState("wall");
   const tabs = [
-    { id: "wall", label: "Recognition Wall" },
-    { id: "leaderboard", label: "Leaderboard" },
-    { id: "awards", label: "Award Programs" },
-    { id: "my", label: "My Points" },
+    { id: "wall", label: "Recognition Wall" }, { key: "leaderboard", label: "Leaderboard" }, { key: "awards", label: "Award Programs" }, { key: "my", label: "My Points" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -155,27 +152,17 @@ export default function RecognitionWallPage() {
   /* ── columns ──────────────────────────────────────────── */
   const leaderboardColumns = [
     {
-      key: "rank", header: "#",
+      id: "rank", header: "#",
       render: (e: LeaderboardEntry) => (
-        <span className={`font-bold ${e.rank <= 3 ? "text-amber-400" : "text-slate-400"}`}>
+        <span className={`font-bold ${e.rank <= 3 ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}`}>
           {e.rank === 1 ? "🥇" : e.rank === 2 ? "🥈" : e.rank === 3 ? "🥉" : `#${e.rank}`}
         </span>
       ),
-    },
-    { key: "userName", header: "Employee", render: (e: LeaderboardEntry) => <span className="font-medium text-slate-900 dark:text-white">{e.userName}</span> },
-    { key: "totalPoints", header: "Points", render: (e: LeaderboardEntry) => <span className="font-mono text-brand-400">{e.totalPoints}</span> },
-    { key: "recognitionsReceived", header: "Received", render: (e: LeaderboardEntry) => e.recognitionsReceived },
-    { key: "recognitionsGiven", header: "Given", render: (e: LeaderboardEntry) => e.recognitionsGiven },
-    { key: "topCategory", header: "Top Category", render: (e: LeaderboardEntry) => <Badge color={categoryColors[e.topCategory] || "slate"}>{e.topCategory}</Badge> },
+    }, { key: "userName", header: "Employee", render: (e: LeaderboardEntry) => <span className="font-medium text-slate-900 dark:text-white">{e.userName}</span> }, { key: "totalPoints", header: "Points", render: (e: LeaderboardEntry) => <span className="font-mono text-brand-600 dark:text-brand-400">{e.totalPoints}</span> }, { key: "recognitionsReceived", header: "Received", render: (e: LeaderboardEntry) => e.recognitionsReceived }, { key: "recognitionsGiven", header: "Given", render: (e: LeaderboardEntry) => e.recognitionsGiven }, { key: "topCategory", header: "Top Category", render: (e: LeaderboardEntry) => <Badge color={categoryColors[e.topCategory] || "slate"}>{e.topCategory}</Badge> },
   ];
 
   const awardColumns = [
-    { key: "name", header: "Program", render: (a: AwardProgram) => <span className="font-medium text-slate-900 dark:text-white">{a.name}</span> },
-    { key: "description", header: "Description" },
-    { key: "tier", header: "Tier", render: (a: AwardProgram) => <Badge color={awardColors[a.tier] || "slate"}>{a.tier}</Badge> },
-    { key: "pointsRequired", header: "Points Required", render: (a: AwardProgram) => <span className="font-mono text-slate-900 dark:text-white">{a.pointsRequired}</span> },
-    { key: "winnersCount", header: "Winners", render: (a: AwardProgram) => a.winnersCount },
-    { key: "isActive", header: "Status", render: (a: AwardProgram) => <Badge color={a.isActive ? "green" : "slate"}>{a.isActive ? "Active" : "Inactive"}</Badge> },
+    { id: "name", header: "Program", render: (a: AwardProgram) => <span className="font-medium text-slate-900 dark:text-white">{a.name}</span> }, { key: "description", header: "Description" }, { key: "tier", header: "Tier", render: (a: AwardProgram) => <Badge color={awardColors[a.tier] || "slate"}>{a.tier}</Badge> }, { key: "pointsRequired", header: "Points Required", render: (a: AwardProgram) => <span className="font-mono text-slate-900 dark:text-white">{a.pointsRequired}</span> }, { key: "winnersCount", header: "Winners", render: (a: AwardProgram) => a.winnersCount }, { key: "isActive", header: "Status", render: (a: AwardProgram) => <Badge color={a.isActive ? "green" : "slate"}>{a.isActive ? "Active" : "Inactive"}</Badge> },
   ];
 
   const s = stats || { totalRecognitions: 0, myPoints: 0, myRecognitionsGiven: 0, myRecognitionsReceived: 0, thisMonthTotal: 0 };
@@ -185,8 +172,8 @@ export default function RecognitionWallPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -225,25 +212,25 @@ export default function RecognitionWallPage() {
               </svg>
             </div>
           ) : (recognitions || []).length === 0 ? (
-            <EmptyState title="No Recognitions Yet" description="Be the first to give recognition to a colleague!" action={<Button onClick={() => setShowGive(true)}>Give Recognition</Button>} />
+            <EmptyState title="No Recognitions Yet" subtitle="Be the first to give recognition to a colleague!" actions={<Button onClick={() => setShowGive(true)}>Give Recognition</Button>} />
           ) : (
             (recognitions || []).map((r) => (
               <Card key={r.id}>
                 <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-600/20 text-lg font-bold text-brand-400">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-600/20 text-lg font-bold text-brand-600 dark:text-brand-400">
                     {r.fromUserName?.charAt(0) || "?"}
-                  </div>
+                  </Card>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-slate-900 dark:text-white">{r.fromUserName}</span>
                       <span className="text-slate-500">→</span>
-                      <span className="font-medium text-brand-400">{r.toUserName}</span>
+                      <span className="font-medium text-brand-600 dark:text-brand-400">{r.toUserName}</span>
                       <Badge color={categoryColors[r.category] || "slate"}>{r.category}</Badge>
                       <span className="ml-auto text-xs text-slate-500">{timeAgo(r.createdAt)}</span>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">{r.message}</p>
                     <div className="flex items-center gap-3">
-                      <span className="rounded-full bg-brand-600/20 px-2.5 py-0.5 text-xs font-mono font-bold text-brand-400">+{r.points} pts</span>
+                      <span className="rounded-full bg-brand-600/20 px-2.5 py-0.5 text-xs font-mono font-bold text-brand-600 dark:text-brand-400">+{r.points} pts</span>
                       <div className="flex gap-1">
                         {emojis.map((emoji) => (
                           <button
@@ -258,7 +245,7 @@ export default function RecognitionWallPage() {
                     </div>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))
           )}
         </div>
@@ -287,8 +274,8 @@ export default function RecognitionWallPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-400">Your Total Points</p>
-                <p className="text-4xl font-bold text-brand-400">{s.myPoints}</p>
-              </div>
+                <p className="text-4xl font-bold text-brand-600 dark:text-brand-400">{s.myPoints}</p>
+              </Card>
               <div className="grid grid-cols-2 gap-6 text-center">
                 <div>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{s.myRecognitionsReceived}</p>
@@ -300,7 +287,7 @@ export default function RecognitionWallPage() {
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="My Recognitions" subtitle="Recognitions you've received" />
             {myLoading ? (
@@ -309,9 +296,9 @@ export default function RecognitionWallPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-              </div>
+              </Card>
             ) : (myRecognitions || []).length === 0 ? (
-              <EmptyState title="No Recognitions" description="You haven't received any recognitions yet." />
+              <EmptyState title="No Recognitions" subtitle="You haven't received any recognitions yet." />
             ) : (
               <div className="space-y-3">
                 {(myRecognitions || []).map((r) => (
@@ -321,12 +308,12 @@ export default function RecognitionWallPage() {
                       <p className="text-sm text-slate-600 dark:text-slate-300">{r.message}</p>
                       <p className="text-xs text-slate-500">From: {r.fromUserName} • {timeAgo(r.createdAt)}</p>
                     </div>
-                    <span className="font-mono text-brand-400">+{r.points}</span>
+                    <span className="font-mono text-brand-600 dark:text-brand-400">+{r.points}</span>
                   </div>
                 ))}
               </div>
             )}
-          </Card>
+          </div>
         </div>
       )}
 

@@ -16,7 +16,7 @@ export default function DirectoryPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">👥 Employee Directory</h1>
         </div>
       </div>
@@ -73,7 +73,7 @@ export default function DirectoryPage() {
             <div className="space-y-2">
               {departments?.map((d: any) => (
                 <button key={d.name} onClick={() => setDept(d.name === dept ? "" : d.name)}
-                  className={`w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors ${d.name === dept ? "bg-brand-900/50 text-brand-400 border border-brand-500/30" : "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-800"}`}>
+                  className={`w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors ${d.name === dept ? "bg-brand-900/50 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-500/30" : "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-800"}`}>
                   <span>{d.name}</span>
                   <span className="text-xs font-semibold">{d.count}</span>
                 </button>
@@ -92,7 +92,7 @@ export default function DirectoryPage() {
                       <p className="text-slate-600 dark:text-slate-300">{a.name}</p>
                       <p className="text-xs text-slate-500">{a.department}</p>
                     </div>
-                    <span className="text-amber-400 text-xs font-semibold">{a.years}y</span>
+                    <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold">{a.years}y</span>
                   </div>
                 ))}
               </div>

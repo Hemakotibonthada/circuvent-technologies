@@ -68,9 +68,7 @@ export default function VisitorManagementPage() {
 
   const [activeTab, setActiveTab] = useState("today");
   const tabs = [
-    { id: "today", label: "Today" },
-    { id: "upcoming", label: "Upcoming" },
-    { id: "history", label: "History" },
+    { id: "today", label: "Today" }, { key: "upcoming", label: "Upcoming" }, { key: "history", label: "History" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -131,48 +129,35 @@ export default function VisitorManagementPage() {
   /* ── columns ──────────────────────────────────────────── */
   const visitorColumns = [
     {
-      key: "name", header: "Visitor",
+      id: "name", header: "Visitor",
       render: (v: Visitor) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{v.name}</p>
           {v.company && <p className="text-xs text-slate-500">{v.company}</p>}
         </div>
       ),
-    },
-    {
-      key: "contact", header: "Contact",
+    }, { key: "contact", header: "Contact",
       render: (v: Visitor) => (
         <div className="text-xs">
           {v.email && <p>{v.email}</p>}
           {v.phone && <p className="text-slate-500">{v.phone}</p>}
         </div>
       ),
-    },
-    { key: "purpose", header: "Purpose", render: (v: Visitor) => <Badge color={purposeColors[v.purpose] || "slate"}>{v.purpose}</Badge> },
-    { key: "hostName", header: "Host", render: (v: Visitor) => v.hostName || v.hostEmployeeId },
-    { key: "status", header: "Status", render: (v: Visitor) => <Badge color={statusColors[v.status] || "slate"}>{v.status.replace(/_/g, " ")}</Badge> },
-    {
-      key: "badge", header: "Badge",
+    }, { key: "purpose", header: "Purpose", render: (v: Visitor) => <Badge color={purposeColors[v.purpose] || "slate"}>{v.purpose}</Badge> }, { key: "hostName", header: "Host", render: (v: Visitor) => v.hostName || v.hostEmployeeId }, { key: "status", header: "Status", render: (v: Visitor) => <Badge color={statusColors[v.status] || "slate"}>{v.status.replace(/_/g, " ")}</Badge> }, { key: "badge", header: "Badge",
       render: (v: Visitor) => v.badgeNumber ?
-        <span className="rounded bg-brand-600/20 px-2 py-0.5 text-xs font-mono text-brand-400">{v.badgeNumber}</span>
+        <span className="rounded bg-brand-600/20 px-2 py-0.5 text-xs font-mono text-brand-600 dark:text-brand-400">{v.badgeNumber}</span>
         : <span className="text-slate-500">—</span>,
-    },
-    {
-      key: "checkInTime", header: "Check In",
+    }, { key: "checkInTime", header: "Check In",
       render: (v: Visitor) => v.checkInTime ?
-        <span className="text-green-400 text-xs">{formatDateTime(v.checkInTime)}</span>
+        <span className="text-green-600 dark:text-green-400 text-xs">{formatDateTime(v.checkInTime)}</span>
         : v.expectedArrival ?
         <span className="text-slate-500 text-xs">Expected: {formatDateTime(v.expectedArrival)}</span>
         : <span className="text-slate-500">—</span>,
-    },
-    {
-      key: "checkOutTime", header: "Check Out",
+    }, { key: "checkOutTime", header: "Check Out",
       render: (v: Visitor) => v.checkOutTime ?
         <span className="text-slate-400 text-xs">{formatDateTime(v.checkOutTime)}</span>
         : <span className="text-slate-500">—</span>,
-    },
-    {
-      key: "actions", header: "",
+    }, { key: "actions", header: "",
       render: (v: Visitor) => (
         <div className="flex gap-2">
           {v.status === "PRE_REGISTERED" && (
@@ -195,8 +180,8 @@ export default function VisitorManagementPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 

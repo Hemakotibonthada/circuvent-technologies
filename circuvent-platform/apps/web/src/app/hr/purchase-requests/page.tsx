@@ -352,45 +352,33 @@ export default function PurchaseRequestsPage() {
   // ── Columns ────────────────────────────────────────────────
   const requestColumns = [
     {
-      key: "requestNumber",
+      id: "requestNumber",
       header: "Request #",
       render: (r: PurchaseRequest) => (
-        <button onClick={() => openDetail(r)} className="font-mono text-xs text-brand-400 hover:underline">
+        <button onClick={() => openDetail(r)} className="font-mono text-xs text-brand-600 dark:text-brand-600 dark:text-brand-400 hover:underline">
           {r.requestNumber}
         </button>
       ),
-    },
-    {
-      key: "title",
+    }, { key: "title",
       header: "Title",
       render: (r: PurchaseRequest) => (
         <button onClick={() => openDetail(r)} className="text-slate-900 dark:text-white hover:text-brand-300 text-left">
           {r.title}
         </button>
       ),
-    },
-    {
-      key: "type",
+    }, { key: "type",
       header: "Type",
       render: (r: PurchaseRequest) => <Badge color={typeColors[r.type] || "slate"}>{typeLabels[r.type] || r.type}</Badge>,
-    },
-    {
-      key: "totalAmount",
+    }, { key: "totalAmount",
       header: "Amount",
       render: (r: PurchaseRequest) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(r.totalAmount)}</span>,
-    },
-    {
-      key: "urgency",
+    }, { key: "urgency",
       header: "Urgency",
       render: (r: PurchaseRequest) => <Badge color={urgencyColors[r.urgency] || "slate"}>{r.urgency}</Badge>,
-    },
-    {
-      key: "status",
+    }, { key: "status",
       header: "Status",
       render: (r: PurchaseRequest) => <Badge color={statusColors[r.status] || "slate"}>{statusLabels[r.status] || r.status}</Badge>,
-    },
-    {
-      key: "createdAt",
+    }, { key: "createdAt",
       header: "Created",
       render: (r: PurchaseRequest) => <span className="text-xs text-slate-400">{timeAgo(r.createdAt)}</span>,
     },
@@ -400,8 +388,7 @@ export default function PurchaseRequestsPage() {
   const tabs = [
     { id: "my-requests", label: "My Requests", count: myRequests?.length },
     ...(isAdmin || isHR ? [{ id: "all-requests", label: "All Requests", count: allRequests?.length }] : []),
-    { id: "pending-approvals", label: "Pending Approvals", count: pendingApprovals?.length },
-    { id: "create", label: "Create Request" },
+    { id: "pending-approvals", label: "Pending Approvals", count: pendingApprovals?.length }, { key: "create", label: "Create Request" },
   ];
 
   // ══════════════════════════════════════════════════════════════
@@ -473,7 +460,7 @@ export default function PurchaseRequestsPage() {
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                 />
-              </div>
+              </Card>
               <div className="w-48">
                 <Select
                   label="Filter by Department"
@@ -491,20 +478,18 @@ export default function PurchaseRequestsPage() {
                 </Button>
               )}
             </div>
-          </Card>
+          </div>
 
           <Card padding={false}>
             <DataTable
               columns={[
                 ...requestColumns,
                 {
-                  key: "employee",
+                  id: "employee",
                   header: "Employee",
                   render: (r: PurchaseRequest) =>
                     r.employee?.user ? `${r.employee.user.firstName} ${r.employee.user.lastName}` : "—",
-                },
-                {
-                  key: "department",
+                }, { key: "department",
                   header: "Department",
                   render: (r: PurchaseRequest) => r.department || r.employee?.department || "—",
                 },
@@ -537,10 +522,10 @@ export default function PurchaseRequestsPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-3 mb-1">
-                        <span className="font-mono text-sm text-brand-400">{req.requestNumber}</span>
+                        <span className="font-mono text-sm text-brand-600 dark:text-brand-400">{req.requestNumber}</span>
                         <Badge color={typeColors[req.type] || "slate"}>{typeLabels[req.type] || req.type}</Badge>
                         <Badge color={urgencyColors[req.urgency] || "slate"}>{req.urgency}</Badge>
-                      </div>
+                      </Card>
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{req.title}</h3>
                       <p className="text-sm text-slate-400 mt-1">
                         Requested by{" "}
@@ -596,7 +581,7 @@ export default function PurchaseRequestsPage() {
                           <tfoot>
                             <tr>
                               <td colSpan={4} className="py-2 text-right text-slate-400 font-medium">Total</td>
-                              <td className="py-2 text-right font-bold text-green-400">{formatCurrency(req.totalAmount)}</td>
+                              <td className="py-2 text-right font-bold text-green-600 dark:text-green-400">{formatCurrency(req.totalAmount)}</td>
                             </tr>
                           </tfoot>
                         </table>
@@ -635,7 +620,7 @@ export default function PurchaseRequestsPage() {
                     </Button>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))
           )}
         </div>
@@ -658,7 +643,7 @@ export default function PurchaseRequestsPage() {
                     onClick={() => setForm({ ...form, type: t })}
                     className={`rounded-lg border p-4 text-left transition-all ${
                       form.type === t
-                        ? "border-brand-500 bg-brand-500/10 ring-1 ring-brand-500"
+                        ? "border-brand-500 bg-brand-100 dark:bg-brand-500/10 ring-1 ring-brand-500"
                         : "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 hover:border-slate-600"
                     }`}
                   >
@@ -670,7 +655,7 @@ export default function PurchaseRequestsPage() {
                     </p>
                   </button>
                 ))}
-              </div>
+              </Card>
             </div>
 
             {/* Basic Info */}
@@ -719,7 +704,7 @@ export default function PurchaseRequestsPage() {
                         <button
                           type="button"
                           onClick={() => removeItem(i)}
-                          className="text-red-400 hover:text-red-300 text-sm"
+                          className="text-red-600 dark:text-red-400 hover:text-red-300 text-sm"
                         >
                           Remove
                         </button>
@@ -808,7 +793,7 @@ export default function PurchaseRequestsPage() {
                   value={form.billUrl}
                   onChange={(e) => setForm({ ...form, billUrl: e.target.value })}
                 />
-                <p className="text-xs text-amber-400">
+                <p className="text-xs text-amber-600 dark:text-amber-400">
                   Upload your bill/receipt and paste the link here. This is required for reimbursement processing.
                 </p>
               </div>
@@ -818,10 +803,10 @@ export default function PurchaseRequestsPage() {
             {form.type === "REIMBURSEMENT" && (
               <div className="rounded-lg border border-emerald-800/50 bg-emerald-900/20 p-4">
                 <div className="flex items-start gap-3">
-                  <span className="text-emerald-400 text-lg">💳</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 text-lg">💳</span>
                   <div>
                     <p className="text-sm font-medium text-emerald-300">Auto-debit Reimbursement</p>
-                    <p className="text-xs text-emerald-400 mt-1">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
                       Auto-debit will process to employee bank account once the reimbursement is approved and the bill is verified.
                       Ensure your bank details are up to date in your HR profile.
                     </p>
@@ -852,7 +837,7 @@ export default function PurchaseRequestsPage() {
               </Button>
             </div>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -931,7 +916,7 @@ export default function PurchaseRequestsPage() {
               {selectedRequest.billUrl && (
                 <div>
                   <span className="text-slate-400">Bill: </span>
-                  <a href={selectedRequest.billUrl} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
+                  <a href={selectedRequest.billUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 dark:text-brand-600 dark:text-brand-400 hover:underline">
                     View Receipt
                   </a>
                 </div>
@@ -969,7 +954,7 @@ export default function PurchaseRequestsPage() {
                     <tfoot>
                       <tr className="border-t border-slate-200 dark:border-slate-700">
                         <td colSpan={4} className="py-2 px-3 text-right font-medium text-slate-400">Grand Total</td>
-                        <td className="py-2 px-3 text-right font-bold text-green-400">
+                        <td className="py-2 px-3 text-right font-bold text-green-600 dark:text-green-400">
                           {formatCurrency(selectedRequest.totalAmount)}
                         </td>
                       </tr>
@@ -1020,7 +1005,7 @@ export default function PurchaseRequestsPage() {
                           <p className="text-xs text-slate-400 mt-1">{approval.comments}</p>
                         )}
                         {approval.modifiedAmount != null && (
-                          <p className="text-xs text-amber-400 mt-1">
+                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                             Modified amount: {formatCurrency(approval.modifiedAmount)}
                           </p>
                         )}
@@ -1053,10 +1038,10 @@ export default function PurchaseRequestsPage() {
             {selectedRequest.type === "REIMBURSEMENT" && (
               <div className="rounded-lg border border-emerald-800/50 bg-emerald-900/20 p-4">
                 <div className="flex items-start gap-3">
-                  <span className="text-emerald-400 text-lg">💳</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 text-lg">💳</span>
                   <div>
                     <p className="text-sm font-medium text-emerald-300">Auto-debit Reimbursement</p>
-                    <p className="text-xs text-emerald-400 mt-1">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
                       Auto-debit will process to employee bank account once the reimbursement is approved and the bill is verified.
                     </p>
                   </div>
@@ -1200,7 +1185,7 @@ export default function PurchaseRequestsPage() {
             />
 
             {!rejectReason.trim() && (
-              <p className="text-xs text-red-400">A rejection reason is required.</p>
+              <p className="text-xs text-red-600 dark:text-red-400">A rejection reason is required.</p>
             )}
 
             <div className="flex justify-end gap-3 pt-2">

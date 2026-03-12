@@ -30,9 +30,9 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-brand-600/5 via-transparent to-transparent" />
         <div className="absolute top-20 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-brand-600/10 blur-3xl" />
         <div className="relative mx-auto max-w-7xl px-6 text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/5 px-4 py-1.5">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200 dark:border-brand-500/20 bg-brand-50 dark:bg-brand-500/5 px-4 py-1.5">
             <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-medium text-brand-400">Platform v2.0 — Now with AI Orchestrator</span>
+            <span className="text-xs font-medium text-brand-600 dark:text-brand-400">Platform v2.0 — Now with AI Orchestrator</span>
           </div>
           <h1 className="mx-auto max-w-4xl text-5xl font-bold leading-tight text-slate-900 dark:text-white md:text-7xl">
             Build the Future with{" "}

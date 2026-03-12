@@ -187,8 +187,8 @@ export default function FundsBudgetPage() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <Card>
           <div className="p-12 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
-              <svg className="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/10">
+              <svg className="h-8 w-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728l-12.728-12.728" />
               </svg>
             </div>
@@ -474,12 +474,7 @@ export default function FundsBudgetPage() {
 
   // ── Tabs ───────────────────────────────────────────────────
   const tabs = [
-    { id: "overview", label: "Funds Overview", count: funds?.length },
-    { id: "details", label: "Fund Details" },
-    { id: "transactions", label: "Transactions" },
-    { id: "allocations", label: "Allocations" },
-    { id: "banks", label: "Bank Accounts", count: bankAccounts?.length },
-    { id: "reports", label: "Reports" },
+    { id: "overview", label: "Funds Overview", count: funds?.length }, { key: "details", label: "Fund Details" }, { key: "transactions", label: "Transactions" }, { key: "allocations", label: "Allocations" }, { key: "banks", label: "Bank Accounts", count: bankAccounts?.length }, { key: "reports", label: "Reports" },
   ];
 
   // ══════════════════════════════════════════════════════════════
@@ -528,18 +523,18 @@ export default function FundsBudgetPage() {
       {dashboard?.overBudgetFunds && dashboard.overBudgetFunds.length > 0 && (
         <Card>
           <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-red-400 text-xs font-bold">!</span>
-            <h3 className="text-sm font-semibold text-red-400">Over-Budget Alerts</h3>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-200 dark:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-bold">!</span>
+            <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">Over-Budget Alerts</h3>
           </div>
           <div className="space-y-2">
             {dashboard.overBudgetFunds.map((f) => (
-              <div key={f.id} className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-2">
+              <div key={f.id} className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 px-4 py-2">
                 <div>
                   <span className="text-sm font-mono text-red-300">{f.code}</span>
                   <span className="ml-2 text-sm text-slate-900 dark:text-white">{f.name}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm text-red-400">
+                  <span className="text-sm text-red-600 dark:text-red-400">
                     Spent {formatCurrency(f.spentAmount)} / {formatCurrency(f.totalBudget)}
                   </span>
                   <Badge color="red" className="ml-2">
@@ -628,7 +623,7 @@ export default function FundsBudgetPage() {
               return (
                 <div key={f.code} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono text-xs text-brand-400">{f.code}</span>
+                    <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{f.code}</span>
                     <Badge color={utilizationColor(pct)}>{pct.toFixed(0)}%</Badge>
                   </div>
                   <p className="text-sm text-slate-900 dark:text-white mb-2">{f.name}</p>
@@ -661,7 +656,7 @@ export default function FundsBudgetPage() {
                   <span className="text-sm text-slate-900 dark:text-white">{tx.description}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-sm font-semibold ${tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "text-green-400" : "text-red-400"}`}>
+                  <span className={`text-sm font-semibold ${tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                     {tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "+" : "−"}{formatCurrency(tx.amount)}
                   </span>
                   <span className="text-xs text-slate-500">{timeAgo(tx.createdAt)}</span>
@@ -681,56 +676,40 @@ export default function FundsBudgetPage() {
       {activeTab === "overview" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              {
-                key: "code",
+            columns={[{ key: "code",
                 header: "Code",
                 render: (f: Fund) => (
-                  <button onClick={() => selectFund(f)} className="font-mono text-xs text-brand-400 hover:underline">
+                  <button onClick={() => selectFund(f)} className="font-mono text-xs text-brand-600 dark:text-brand-600 dark:text-brand-400 hover:underline">
                     {f.code}
                   </button>
                 ),
-              },
-              {
-                key: "name",
+              }, { key: "name",
                 header: "Name",
                 render: (f: Fund) => (
                   <button onClick={() => selectFund(f)} className="text-slate-900 dark:text-white hover:text-brand-300 text-left">
                     {f.name}
                   </button>
                 ),
-              },
-              {
-                key: "category",
+              }, { key: "category",
                 header: "Category",
                 render: (f: Fund) => (
                   <Badge color={categoryColors[f.category] || "slate"}>
                     {categoryLabels[f.category] || f.category}
                   </Badge>
                 ),
-              },
-              {
-                key: "department",
+              }, { key: "department",
                 header: "Department",
                 render: (f: Fund) => <span className="text-sm text-slate-600 dark:text-slate-300">{f.department || "—"}</span>,
-              },
-              {
-                key: "totalBudget",
+              }, { key: "totalBudget",
                 header: "Budget",
                 render: (f: Fund) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(f.totalBudget)}</span>,
-              },
-              {
-                key: "spentAmount",
+              }, { key: "spentAmount",
                 header: "Spent",
                 render: (f: Fund) => <span className="text-sm text-slate-600 dark:text-slate-300">{formatCurrency(f.spentAmount)}</span>,
-              },
-              {
-                key: "remainingAmount",
+              }, { key: "remainingAmount",
                 header: "Remaining",
-                render: (f: Fund) => <span className="text-sm text-green-400">{formatCurrency(f.remainingAmount)}</span>,
-              },
-              {
-                key: "utilization",
+                render: (f: Fund) => <span className="text-sm text-green-600 dark:text-green-400">{formatCurrency(f.remainingAmount)}</span>,
+              }, { key: "utilization",
                 header: "Utilization",
                 render: (f: Fund) => {
                   const pct = f.totalBudget > 0 ? (f.spentAmount / f.totalBudget) * 100 : 0;
@@ -746,9 +725,7 @@ export default function FundsBudgetPage() {
                     </div>
                   );
                 },
-              },
-              {
-                key: "isActive",
+              }, { key: "isActive",
                 header: "Status",
                 render: (f: Fund) => <Badge color={fundStatusColor(f.isActive)}>{f.isActive ? "Active" : "Inactive"}</Badge>,
               },
@@ -773,8 +750,8 @@ export default function FundsBudgetPage() {
                 <Button variant="outline" className="mt-4" onClick={() => setActiveTab("overview")}>
                   Go to Funds Overview
                 </Button>
-              </div>
-            </Card>
+              </Card>
+            </div>
           ) : (
             <>
               {/* Fund Header */}
@@ -782,7 +759,7 @@ export default function FundsBudgetPage() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-3 mb-1">
-                      <span className="font-mono text-lg text-brand-400">{selectedFundDetail?.code || selectedFund.code}</span>
+                      <span className="font-mono text-lg text-brand-600 dark:text-brand-400">{selectedFundDetail?.code || selectedFund.code}</span>
                       <Badge color={fundStatusColor(selectedFundDetail?.isActive ?? selectedFund.isActive)}>
                         {(selectedFundDetail?.isActive ?? selectedFund.isActive) ? "Active" : "Inactive"}
                       </Badge>
@@ -894,7 +871,7 @@ export default function FundsBudgetPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           <Badge color={txStatusColors[tx.status] || "slate"}>{tx.status}</Badge>
-                          <span className={`text-sm font-semibold ${tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "text-green-400" : "text-red-400"}`}>
+                          <span className={`text-sm font-semibold ${tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                             {tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "+" : "−"}{formatCurrency(tx.amount)}
                           </span>
                           <span className="text-xs text-slate-500">{timeAgo(tx.createdAt)}</span>
@@ -980,9 +957,7 @@ export default function FundsBudgetPage() {
               {/* Transaction Table */}
               <Card padding={false}>
                 <DataTable
-                  columns={[
-                    {
-                      key: "createdAt",
+                  columns={[{ key: "createdAt",
                       header: "Date",
                       render: (tx: FundTransaction) => (
                         <div>
@@ -990,30 +965,22 @@ export default function FundsBudgetPage() {
                           <span className="ml-2 text-xs text-slate-500">{timeAgo(tx.createdAt)}</span>
                         </div>
                       ),
-                    },
-                    {
-                      key: "transactionType",
+                    }, { key: "transactionType",
                       header: "Type",
                       render: (tx: FundTransaction) => (
                         <Badge color={txTypeColors[tx.transactionType] || "slate"}>{tx.transactionType}</Badge>
                       ),
-                    },
-                    {
-                      key: "amount",
+                    }, { key: "amount",
                       header: "Amount",
                       render: (tx: FundTransaction) => (
-                        <span className={`font-semibold ${tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "text-green-400" : "text-red-400"}`}>
+                        <span className={`font-semibold ${tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                           {tx.transactionType === "CREDIT" || tx.transactionType === "REFUND" ? "+" : "−"}{formatCurrency(tx.amount)}
                         </span>
                       ),
-                    },
-                    {
-                      key: "description",
+                    }, { key: "description",
                       header: "Description",
                       render: (tx: FundTransaction) => <span className="text-sm text-slate-900 dark:text-white">{tx.description}</span>,
-                    },
-                    {
-                      key: "referenceType",
+                    }, { key: "referenceType",
                       header: "Reference",
                       render: (tx: FundTransaction) => tx.referenceType ? (
                         <div>
@@ -1021,23 +988,17 @@ export default function FundsBudgetPage() {
                           {tx.referenceId && <span className="ml-1 text-xs text-slate-500 font-mono">{tx.referenceId.slice(0, 8)}</span>}
                         </div>
                       ) : <span className="text-xs text-slate-600">—</span>,
-                    },
-                    {
-                      key: "bankAccount",
+                    }, { key: "bankAccount",
                       header: "Bank",
                       render: (tx: FundTransaction) => tx.bankAccount ? (
                         <span className="text-xs text-slate-400">{tx.bankAccount}</span>
                       ) : <span className="text-xs text-slate-600">—</span>,
-                    },
-                    {
-                      key: "status",
+                    }, { key: "status",
                       header: "Status",
                       render: (tx: FundTransaction) => (
                         <Badge color={txStatusColors[tx.status] || "slate"}>{tx.status}</Badge>
                       ),
-                    },
-                    {
-                      key: "balance",
+                    }, { key: "balance",
                       header: "Balance",
                       render: (tx: FundTransaction) => (
                         <div className="text-xs">
@@ -1085,7 +1046,7 @@ export default function FundsBudgetPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      Allocations for <span className="text-brand-400">{selectedFund.code}</span> — {selectedFund.name}
+                      Allocations for <span className="text-brand-600 dark:text-brand-400">{selectedFund.code}</span> — {selectedFund.name}
                     </h3>
                     <p className="text-xs text-slate-400 mt-1">
                       Total Allocated: {formatCurrency(selectedFundDetail?.allocatedAmount ?? selectedFund.allocatedAmount)} of {formatCurrency(selectedFundDetail?.totalBudget ?? selectedFund.totalBudget)}
@@ -1097,9 +1058,7 @@ export default function FundsBudgetPage() {
 
               <Card padding={false}>
                 <DataTable
-                  columns={[
-                    {
-                      key: "allocatedTo",
+                  columns={[{ key: "allocatedTo",
                       header: "Allocated To",
                       render: (a: FundAllocation) => (
                         <div>
@@ -1107,35 +1066,25 @@ export default function FundsBudgetPage() {
                           <Badge color="cyan" className="ml-2">{a.allocationType}</Badge>
                         </div>
                       ),
-                    },
-                    {
-                      key: "amount",
+                    }, { key: "amount",
                       header: "Amount",
                       render: (a: FundAllocation) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(a.amount)}</span>,
-                    },
-                    {
-                      key: "purpose",
+                    }, { key: "purpose",
                       header: "Purpose",
                       render: (a: FundAllocation) => <span className="text-sm text-slate-600 dark:text-slate-300">{a.purpose}</span>,
-                    },
-                    {
-                      key: "period",
+                    }, { key: "period",
                       header: "Period",
                       render: (a: FundAllocation) => (
                         <span className="text-xs text-slate-400">
                           {formatDate(a.startDate)}{a.endDate ? ` — ${formatDate(a.endDate)}` : " — Ongoing"}
                         </span>
                       ),
-                    },
-                    {
-                      key: "isActive",
+                    }, { key: "isActive",
                       header: "Status",
                       render: (a: FundAllocation) => (
                         <Badge color={a.isActive ? "green" : "slate"}>{a.isActive ? "Active" : "Inactive"}</Badge>
                       ),
-                    },
-                    {
-                      key: "actions",
+                    }, { key: "actions",
                       header: "",
                       render: (a: FundAllocation) => a.isActive ? (
                         <Button
@@ -1176,39 +1125,25 @@ export default function FundsBudgetPage() {
 
           <Card padding={false}>
             <DataTable
-              columns={[
-                {
-                  key: "bankName",
+              columns={[{ key: "bankName",
                   header: "Bank Name",
                   render: (b: CompanyBankAccount) => <span className="text-sm font-medium text-slate-900 dark:text-white">{b.bankName}</span>,
-                },
-                {
-                  key: "accountNumber",
+                }, { key: "accountNumber",
                   header: "Account Number",
                   render: (b: CompanyBankAccount) => <span className="font-mono text-sm text-slate-600 dark:text-slate-300">{maskAccount(b.accountNumber)}</span>,
-                },
-                {
-                  key: "ifscCode",
+                }, { key: "ifscCode",
                   header: "IFSC",
                   render: (b: CompanyBankAccount) => <span className="font-mono text-xs text-slate-400">{b.ifscCode}</span>,
-                },
-                {
-                  key: "branchName",
+                }, { key: "branchName",
                   header: "Branch",
                   render: (b: CompanyBankAccount) => <span className="text-sm text-slate-600 dark:text-slate-300">{b.branchName}</span>,
-                },
-                {
-                  key: "accountType",
+                }, { key: "accountType",
                   header: "Type",
                   render: (b: CompanyBankAccount) => <Badge color="blue">{b.accountType}</Badge>,
-                },
-                {
-                  key: "balance",
+                }, { key: "balance",
                   header: "Balance",
                   render: (b: CompanyBankAccount) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(b.balance)}</span>,
-                },
-                {
-                  key: "isActive",
+                }, { key: "isActive",
                   header: "Status",
                   render: (b: CompanyBankAccount) => (
                     <div className="flex items-center gap-2">
@@ -1216,9 +1151,7 @@ export default function FundsBudgetPage() {
                       {b.isDefault && <Badge color="amber">Default</Badge>}
                     </div>
                   ),
-                },
-                {
-                  key: "actions",
+                }, { key: "actions",
                   header: "",
                   render: (b: CompanyBankAccount) => !b.isDefault && b.isActive ? (
                     <Button size="sm" variant="ghost" onClick={() => handleSetDefaultBank(b.id)} disabled={submitting}>
@@ -1401,10 +1334,10 @@ export default function FundsBudgetPage() {
           {selectedFund && (
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 text-sm">
               <span className="text-slate-400">Fund: </span>
-              <span className="font-mono text-brand-400">{selectedFund.code}</span>
+              <span className="font-mono text-brand-600 dark:text-brand-400">{selectedFund.code}</span>
               <span className="ml-2 text-slate-900 dark:text-white">{selectedFund.name}</span>
               <span className="ml-4 text-slate-400">
-                Remaining: <span className="text-green-400">{formatCurrency(selectedFund.remainingAmount)}</span>
+                Remaining: <span className="text-green-600 dark:text-green-400">{formatCurrency(selectedFund.remainingAmount)}</span>
               </span>
             </div>
           )}
@@ -1528,10 +1461,10 @@ export default function FundsBudgetPage() {
           {selectedFund && (
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50 text-sm">
               <span className="text-slate-400">Fund: </span>
-              <span className="font-mono text-brand-400">{selectedFund.code}</span>
+              <span className="font-mono text-brand-600 dark:text-brand-400">{selectedFund.code}</span>
               <span className="ml-2 text-slate-900 dark:text-white">{selectedFund.name}</span>
               <span className="ml-4 text-slate-400">
-                Available: <span className="text-green-400">{formatCurrency(selectedFund.remainingAmount)}</span>
+                Available: <span className="text-green-600 dark:text-green-400">{formatCurrency(selectedFund.remainingAmount)}</span>
               </span>
             </div>
           )}

@@ -62,47 +62,33 @@ export default function ProjectsPage() {
 
   const columns = [
     {
-      key: "code",
+      id: "code",
       header: "Code",
-      render: (p: Project) => <span className="font-mono text-xs text-brand-400">{p.code}</span>,
-    },
-    {
-      key: "name",
+      render: (p: Project) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{p.code}</span>,
+    }, { key: "name",
       header: "Project Name",
       render: (p: Project) => (
         <div>
-          <a href={`/projects/${p.id}`} className="font-medium text-slate-900 dark:text-white hover:text-brand-400">{p.name}</a>
+          <a href={`/projects/${p.id}`} className="font-medium text-slate-900 dark:text-white hover:text-brand-600 dark:text-brand-400">{p.name}</a>
           {p.description && <p className="mt-0.5 text-xs text-slate-500 line-clamp-1">{p.description}</p>}
         </div>
       ),
-    },
-    {
-      key: "type",
+    }, { key: "type",
       header: "Type",
       render: (p: Project) => <Badge color={typeColors[p.type] as any}>{p.type}</Badge>,
-    },
-    {
-      key: "status",
+    }, { key: "status",
       header: "Status",
       render: (p: Project) => <Badge color={projectStatusColors[p.status]}>{p.status}</Badge>,
-    },
-    {
-      key: "isRnD",
+    }, { key: "isRnD",
       header: "R&D",
       render: (p: Project) => p.isRnD ? <Badge color="emerald">R&D</Badge> : <span className="text-slate-600">—</span>,
-    },
-    {
-      key: "sprint_count",
+    }, { key: "sprint_count",
       header: "Sprints",
       render: (p: Project) => <span>{p._count.sprints}</span>,
-    },
-    {
-      key: "hw_count",
+    }, { key: "hw_count",
       header: "HW Revs",
       render: (p: Project) => <span>{p._count.hardwareRevisions}</span>,
-    },
-    {
-      key: "budget",
+    }, { key: "budget",
       header: "Budget",
       render: (p: Project) => p.budget ? formatCurrency(Number(p.budget), p.budgetCurrency) : "—",
     },
@@ -139,7 +125,7 @@ export default function ProjectsPage() {
       <Card padding={false}>
         <div className="p-4 border-b border-slate-200 dark:border-slate-800">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">All Projects</h3>
-        </div>
+        </Card>
         <DataTable
           columns={columns}
           data={projects || []}
@@ -147,7 +133,7 @@ export default function ProjectsPage() {
           loading={loading}
           emptyMessage="No projects yet. Create your first project to get started."
         />
-      </Card>
+      </div>
 
       {/* Create Modal */}
       <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Create New Project" size="lg">

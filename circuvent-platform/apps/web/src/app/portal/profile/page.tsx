@@ -129,18 +129,14 @@ export default function ProfilePage() {
   const e = employee;
   const u = e.user;
   const tabs = [
-    { id: "personal", label: "Personal Info", icon: "👤" },
-    { id: "bank", label: "Bank & Tax", icon: "🏦" },
-    { id: "documents", label: "Documents", icon: "📁" },
-    { id: "tax", label: "Tax Declarations", icon: "📋" },
-    { id: "reviews", label: "Performance", icon: "⭐" },
+    { id: "personal", label: "Personal Info", icon: "👤" }, { key: "bank", label: "Bank & Tax", icon: "🏦" }, { key: "documents", label: "Documents", icon: "📁" }, { key: "tax", label: "Tax Declarations", icon: "📋" }, { key: "reviews", label: "Performance", icon: "⭐" },
   ];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       {/* Header */}
       <div className="mb-6">
-        <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+        <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">👤 My Profile</h1>
         <p className="text-slate-400 text-sm">Manage your personal details, documents, and tax declarations</p>
       </div>
@@ -162,7 +158,7 @@ export default function ProfilePage() {
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white">{u?.firstName} {u?.lastName}</h2>
             <p className="text-slate-400">{e.designation}</p>
             <p className="text-sm text-slate-500">{e.department} · {e.employeeCode}</p>
-            <span className={`mt-2 inline-block px-2 py-0.5 text-xs rounded ${u?.status === "ACTIVE" ? "bg-emerald-900/50 text-emerald-400" : "bg-red-900/50 text-red-400"}`}>{u?.status}</span>
+            <span className={`mt-2 inline-block px-2 py-0.5 text-xs rounded ${u?.status === "ACTIVE" ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : "bg-red-900/50 text-red-600 dark:text-red-400"}`}>{u?.status}</span>
           </div>
           <div className="space-y-2 text-sm border-t border-slate-200 dark:border-slate-800 pt-4">
             <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="text-slate-600 dark:text-slate-300 text-xs">{u?.email}</span></div>
@@ -174,11 +170,11 @@ export default function ProfilePage() {
           {/* Quick Stats */}
           <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
             <div className="text-center bg-slate-100 dark:bg-slate-800/50 rounded-lg p-2">
-              <p className="text-lg font-bold text-brand-400">{documents.length}</p>
+              <p className="text-lg font-bold text-brand-600 dark:text-brand-400">{documents.length}</p>
               <p className="text-xs text-slate-500">Documents</p>
             </div>
             <div className="text-center bg-slate-100 dark:bg-slate-800/50 rounded-lg p-2">
-              <p className="text-lg font-bold text-purple-400">{reviews.length}</p>
+              <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{reviews.length}</p>
               <p className="text-xs text-slate-500">Reviews</p>
             </div>
           </div>
@@ -190,7 +186,7 @@ export default function ProfilePage() {
           <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
+                className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
                 <span>{tab.icon}</span> {tab.label}
               </button>
             ))}
@@ -235,7 +231,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex justify-end mt-6">
                 <button onClick={savePersonal} disabled={saving}
-                  className="px-6 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
+                  className="px-6 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
@@ -301,7 +297,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex justify-end mt-6">
                 <button onClick={saveBank} disabled={saving}
-                  className="px-6 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
+                  className="px-6 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                   {saving ? "Saving..." : "Save Bank Details"}
                 </button>
               </div>
@@ -316,7 +312,7 @@ export default function ProfilePage() {
                   <h2 className="text-lg font-semibold text-slate-900 dark:text-white">📁 My Documents</h2>
                   <p className="text-sm text-slate-400">Upload identity, education, experience, and certification documents</p>
                 </div>
-                <button onClick={() => setShowDocModal(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ Upload Document</button>
+                <button onClick={() => setShowDocModal(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ Upload Document</button>
               </div>
               {/* Document Categories Summary */}
               <div className="grid grid-cols-4 gap-2 mb-4">
@@ -324,7 +320,7 @@ export default function ProfilePage() {
                   const count = documents.filter(d => d.category === cat).length;
                   return (
                     <div key={cat} className={`text-center p-2 rounded-lg ${count > 0 ? "bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700" : "bg-red-900/10 border border-red-900/30"}`}>
-                      <p className={`text-lg font-bold ${count > 0 ? "text-brand-400" : "text-red-400"}`}>{count}</p>
+                      <p className={`text-lg font-bold ${count > 0 ? "text-brand-600 dark:text-brand-400" : "text-red-600 dark:text-red-400"}`}>{count}</p>
                       <p className="text-xs text-slate-500">{cat.slice(0, 4)}.</p>
                     </div>
                   );
@@ -356,13 +352,13 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {doc.isVerified ? (
-                          <span className="px-2 py-0.5 text-xs bg-emerald-900/50 text-emerald-400 rounded">✓ Verified</span>
+                          <span className="px-2 py-0.5 text-xs bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded">✓ Verified</span>
                         ) : (
-                          <span className="px-2 py-0.5 text-xs bg-amber-900/50 text-amber-400 rounded">Pending</span>
+                          <span className="px-2 py-0.5 text-xs bg-amber-900/50 text-amber-600 dark:text-amber-400 rounded">Pending</span>
                         )}
                         <span className="text-xs text-slate-500">{new Date(doc.createdAt).toLocaleDateString()}</span>
                         {!doc.isVerified && (
-                          <button onClick={() => deleteDocument(doc.id)} className="text-xs text-red-400 hover:text-red-300 ml-2">Delete</button>
+                          <button onClick={() => deleteDocument(doc.id)} className="text-xs text-red-600 dark:text-red-400 hover:text-red-300 ml-2">Delete</button>
                         )}
                       </div>
                     </div>
@@ -388,7 +384,7 @@ export default function ProfilePage() {
                     const hasDoc = documents.some(d => d.title.toLowerCase().includes(req.name.toLowerCase().split(" ")[0].toLowerCase()));
                     return (
                       <div key={req.name} className="flex items-center gap-2">
-                        <span className={`text-sm ${hasDoc ? "text-emerald-400" : "text-slate-600"}`}>{hasDoc ? "✓" : "○"}</span>
+                        <span className={`text-sm ${hasDoc ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600"}`}>{hasDoc ? "✓" : "○"}</span>
                         <span className={`text-xs ${hasDoc ? "text-slate-600 dark:text-slate-300" : "text-slate-500"}`}>{req.name}</span>
                       </div>
                     );
@@ -406,7 +402,7 @@ export default function ProfilePage() {
                   <h2 className="text-lg font-semibold text-slate-900 dark:text-white">📋 Tax Declarations</h2>
                   <p className="text-sm text-slate-400">Submit your investment declarations for optimal TDS deduction</p>
                 </div>
-                <button onClick={() => setShowTaxModal(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ New Declaration</button>
+                <button onClick={() => setShowTaxModal(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ New Declaration</button>
               </div>
               {taxDeclarations.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
@@ -421,10 +417,10 @@ export default function ProfilePage() {
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <h3 className="text-slate-900 dark:text-white font-medium">FY {td.financialYear}</h3>
-                          <span className={`text-xs px-2 py-0.5 rounded ${td.regime === "NEW" ? "bg-blue-900/50 text-blue-400" : "bg-amber-900/50 text-amber-400"}`}>{td.regime} Regime</span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${td.regime === "NEW" ? "bg-blue-900/50 text-blue-600 dark:text-blue-400" : "bg-amber-900/50 text-amber-600 dark:text-amber-400"}`}>{td.regime} Regime</span>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-brand-400">₹{Number(td.totalDeclared).toLocaleString("en-IN")}</p>
+                          <p className="text-lg font-bold text-brand-600 dark:text-brand-400">₹{Number(td.totalDeclared).toLocaleString("en-IN")}</p>
                           <p className="text-xs text-slate-500">Total Declared</p>
                         </div>
                       </div>
@@ -457,16 +453,16 @@ export default function ProfilePage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-slate-900 dark:text-white font-medium">{r.period} — {r.cycle}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded ${r.status === "COMPLETED" || r.status === "ACKNOWLEDGED" ? "bg-emerald-900/50 text-emerald-400" : "bg-amber-900/50 text-amber-400"}`}>{r.status}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${r.status === "COMPLETED" || r.status === "ACKNOWLEDGED" ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : "bg-amber-900/50 text-amber-600 dark:text-amber-400"}`}>{r.status}</span>
                         </div>
                         <div className="text-right">
-                          {r.overallRating && <p className="text-2xl font-bold text-amber-400">{Number(r.overallRating).toFixed(1)}<span className="text-sm text-slate-500">/5</span></p>}
+                          {r.overallRating && <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{Number(r.overallRating).toFixed(1)}<span className="text-sm text-slate-500">/5</span></p>}
                         </div>
                       </div>
                       {(r.strengths || r.areasOfImprovement) && (
                         <div className="mt-3 grid grid-cols-2 gap-3">
-                          {r.strengths && <div><p className="text-xs text-emerald-400 mb-1">Strengths</p><p className="text-xs text-slate-400">{r.strengths}</p></div>}
-                          {r.areasOfImprovement && <div><p className="text-xs text-amber-400 mb-1">Areas to Improve</p><p className="text-xs text-slate-400">{r.areasOfImprovement}</p></div>}
+                          {r.strengths && <div><p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Strengths</p><p className="text-xs text-slate-400">{r.strengths}</p></div>}
+                          {r.areasOfImprovement && <div><p className="text-xs text-amber-600 dark:text-amber-400 mb-1">Areas to Improve</p><p className="text-xs text-slate-400">{r.areasOfImprovement}</p></div>}
                         </div>
                       )}
                     </div>
@@ -480,7 +476,7 @@ export default function ProfilePage() {
 
       {/* ─── Upload Document Modal ─── */}
       {showDocModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">📤 Upload Document</h2>
             <div className="space-y-3">
@@ -516,7 +512,7 @@ export default function ProfilePage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowDocModal(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={uploadDocument} disabled={saving || !docForm.title || !docForm.fileName || !docForm.fileUrl}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{saving ? "Uploading..." : "Upload Document"}</button>
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{saving ? "Uploading..." : "Upload Document"}</button>
             </div>
           </div>
         </div>
@@ -524,7 +520,7 @@ export default function ProfilePage() {
 
       {/* ─── Tax Declaration Modal ─── */}
       {showTaxModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">📋 Tax Declaration</h2>
             <div className="space-y-3">
@@ -574,15 +570,15 @@ export default function ProfilePage() {
               {taxForm.regime === "NEW" && (
                 <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-3 text-sm text-blue-300">
                   <p className="font-medium mb-1">New Tax Regime (FY 2025-26)</p>
-                  <p className="text-xs text-blue-400">Under the new regime, most deductions under 80C, 80D, and HRA are not available. Standard deduction of ₹75,000 is automatically applied.</p>
-                  <p className="text-xs text-blue-400 mt-1">Benefit: Lower slab rates (0% up to ₹3L, 5% for ₹3-7L, 10% for ₹7-10L, etc.)</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">Under the new regime, most deductions under 80C, 80D, and HRA are not available. Standard deduction of ₹75,000 is automatically applied.</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Benefit: Lower slab rates (0% up to ₹3L, 5% for ₹3-7L, 10% for ₹7-10L, etc.)</p>
                 </div>
               )}
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowTaxModal(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={saveTaxDeclaration} disabled={saving}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{saving ? "Saving..." : "Submit Declaration"}</button>
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{saving ? "Saving..." : "Submit Declaration"}</button>
             </div>
           </div>
         </div>

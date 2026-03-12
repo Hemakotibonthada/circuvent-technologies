@@ -32,9 +32,7 @@ export default function AISchedulerPage() {
   };
 
   const tabs = [
-    { id: "queue", label: "Job Queue", count: queue?.queueDepth },
-    { id: "allocation", label: "Resource Allocation" },
-    { id: "performance", label: "Performance" },
+    { id: "queue", label: "Job Queue", count: queue?.queueDepth }, { key: "allocation", label: "Resource Allocation" }, { key: "performance", label: "Performance" },
   ];
 
   const statusColors: Record<string, any> = {
@@ -68,15 +66,15 @@ export default function AISchedulerPage() {
 
       {/* Process Result */}
       {processResult && (
-        <Card className="border-green-500/20 bg-green-500/5">
+        <Card className="border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-green-400">Queue Processed</p>
+              <p className="text-sm font-semibold text-green-600 dark:text-green-400">Queue Processed</p>
               <p className="text-xs text-slate-400">{processResult.assigned} jobs assigned, {processResult.remaining} remaining</p>
-            </div>
+            </Card>
             <Button size="sm" variant="ghost" onClick={() => setProcessResult(null)}>Dismiss</Button>
           </div>
-        </Card>
+        </div>
       )}
 
       <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
@@ -93,44 +91,34 @@ export default function AISchedulerPage() {
                   <div key={p.priority} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white p- dark:bg-slate-800/303 text-center">
                     <Badge color={p.priority <= 3 ? "red" : p.priority <= 6 ? "amber" : "slate"}>P{p.priority}</Badge>
                     <p className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{p.count}</p>
-                  </div>
+                  </Card>
                 ))}
               </div>
-            </Card>
+            </div>
           )}
 
           {/* Queued Jobs */}
           <Card padding={false}>
             <div className="p-4 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-sm font-semibold text-slate-400">Queued Jobs ({queuedJobs.length})</h3>
-            </div>
+            </Card>
             <DataTable
-              columns={[
-                { key: "jobCode", header: "Code", render: (j: any) => <span className="font-mono text-xs text-brand-400">{j.jobCode}</span> },
-                { key: "name", header: "Name", render: (j: any) => <span className="text-slate-900 dark:text-white">{j.name}</span> },
-                { key: "modelName", header: "Model" },
-                { key: "framework", header: "Framework", render: (j: any) => <Badge color="cyan">{j.framework}</Badge> },
-                { key: "priority", header: "Priority", render: (j: any) => <Badge color={j.priority <= 3 ? "red" : j.priority <= 6 ? "amber" : "slate"}>P{j.priority}</Badge> },
-                { key: "epochsTotal", header: "Epochs", render: (j: any) => j.epochsTotal || "—" },
-                { key: "createdAt", header: "Queued", render: (j: any) => timeAgo(j.createdAt) },
+              columns={[{ key: "jobCode", header: "Code", render: (j: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{j.jobCode}</span> }, { key: "name", header: "Name", render: (j: any) => <span className="text-slate-900 dark:text-white">{j.name}</span> }, { key: "modelName", header: "Model" }, { key: "framework", header: "Framework", render: (j: any) => <Badge color="cyan">{j.framework}</Badge> }, { key: "priority", header: "Priority", render: (j: any) => <Badge color={j.priority <= 3 ? "red" : j.priority <= 6 ? "amber" : "slate"}>P{j.priority}</Badge> }, { key: "epochsTotal", header: "Epochs", render: (j: any) => j.epochsTotal || "—" }, { key: "createdAt", header: "Queued", render: (j: any) => timeAgo(j.createdAt) },
               ]}
               data={queuedJobs}
               keyExtractor={(j: any) => j.id}
               emptyMessage="No jobs in queue."
             />
-          </Card>
+          </div>
 
           {/* Running Jobs */}
           {runningJobs.length > 0 && (
             <Card padding={false}>
               <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-                <h3 className="text-sm font-semibold text-green-400">Running Jobs ({runningJobs.length})</h3>
-              </div>
+                <h3 className="text-sm font-semibold text-green-600 dark:text-green-400">Running Jobs ({runningJobs.length})</h3>
+              </Card>
               <DataTable
-                columns={[
-                  { key: "jobCode", header: "Code", render: (j: any) => <span className="font-mono text-xs text-brand-400">{j.jobCode}</span> },
-                  { key: "name", header: "Name", render: (j: any) => <span className="text-slate-900 dark:text-white">{j.name}</span> },
-                  { key: "progress", header: "Progress", render: (j: any) => {
+                columns={[{ key: "jobCode", header: "Code", render: (j: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{j.jobCode}</span> }, { key: "name", header: "Name", render: (j: any) => <span className="text-slate-900 dark:text-white">{j.name}</span> }, { key: "progress", header: "Progress", render: (j: any) => {
                     const pct = j.epochsTotal ? Math.round((j.epochsCompleted / j.epochsTotal) * 100) : 0;
                     return (
                       <div className="flex items-center gap-2">
@@ -140,14 +128,12 @@ export default function AISchedulerPage() {
                         <span className="text-xs text-slate-400">{pct}%</span>
                       </div>
                     );
-                  }},
-                  { key: "resource", header: "Resource", render: (j: any) => j.resource ? <Badge color="blue">{j.resource.name}</Badge> : "—" },
-                  { key: "startedAt", header: "Started", render: (j: any) => j.startedAt ? timeAgo(j.startedAt) : "—" },
+                  }}, { key: "resource", header: "Resource", render: (j: any) => j.resource ? <Badge color="blue">{j.resource.name}</Badge> : "—" }, { key: "startedAt", header: "Started", render: (j: any) => j.startedAt ? timeAgo(j.startedAt) : "—" },
                 ]}
                 data={runningJobs}
                 keyExtractor={(j: any) => j.id}
               />
-            </Card>
+            </div>
           )}
         </div>
       )}
@@ -161,16 +147,16 @@ export default function AISchedulerPage() {
               {allocatedResources.map((r: any) => (
                 <div key={r.id} className="flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
                   <div>
-                    <span className="font-mono text-xs text-brand-400">{r.resourceCode}</span>
+                    <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{r.resourceCode}</span>
                     <p className="text-sm text-slate-900 dark:text-white">{r.name}</p>
                     <p className="text-xs text-slate-500">{r.model} {r.vramGb ? `— ${r.vramGb}GB` : ""}</p>
-                  </div>
+                  </Card>
                   <Badge color="blue">ALLOCATED</Badge>
                 </div>
               ))}
               {allocatedResources.length === 0 && <p className="text-sm text-slate-500 text-center py-4">No resources allocated.</p>}
             </div>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="Available Resources" subtitle={`${availableResources.length} free`} />
@@ -178,16 +164,16 @@ export default function AISchedulerPage() {
               {availableResources.map((r: any) => (
                 <div key={r.id} className="flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
                   <div>
-                    <span className="font-mono text-xs text-brand-400">{r.resourceCode}</span>
+                    <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{r.resourceCode}</span>
                     <p className="text-sm text-slate-900 dark:text-white">{r.name}</p>
                     <p className="text-xs text-slate-500">{r.model} {r.vramGb ? `— ${r.vramGb}GB` : ""}</p>
-                  </div>
+                  </Card>
                   <Badge color="green">AVAILABLE</Badge>
                 </div>
               ))}
               {availableResources.length === 0 && <p className="text-sm text-slate-500 text-center py-4">No resources available.</p>}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -199,19 +185,19 @@ export default function AISchedulerPage() {
             <div>
               <p className="text-4xl font-bold text-slate-900 dark:text-white">{(jobs || []).filter((j: any) => j.status === "COMPLETED").length}</p>
               <p className="text-xs text-slate-400">Jobs Completed</p>
-            </div>
+            </Card>
             <div>
-              <p className="text-4xl font-bold text-red-400">{(jobs || []).filter((j: any) => j.status === "FAILED").length}</p>
+              <p className="text-4xl font-bold text-red-600 dark:text-red-400">{(jobs || []).filter((j: any) => j.status === "FAILED").length}</p>
               <p className="text-xs text-slate-400">Jobs Failed</p>
             </div>
             <div>
-              <p className="text-4xl font-bold text-cyan-400">
+              <p className="text-4xl font-bold text-cyan-600 dark:text-cyan-400">
                 {resources?.length ? Math.round((allocatedResources.length / resources.length) * 100) : 0}%
               </p>
               <p className="text-xs text-slate-400">Utilization</p>
             </div>
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );

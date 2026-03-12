@@ -76,7 +76,7 @@ export default function MyApplicationsPage() {
                 </div>
                 {app.atsScore !== null && app.atsScore !== undefined && (
                   <div className="text-right">
-                    <p className={`text-lg font-bold ${app.atsScore >= 70 ? "text-green-400" : app.atsScore >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                    <p className={`text-lg font-bold ${app.atsScore >= 70 ? "text-green-600 dark:text-green-400" : app.atsScore >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
                       {app.atsScore}<span className="text-xs text-slate-500">/100</span>
                     </p>
                     <p className="text-xs text-slate-500">Match Score</p>

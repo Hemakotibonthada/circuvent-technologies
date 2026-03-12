@@ -21,7 +21,7 @@ export default function FinanceDashboardPage() {
           <p className="text-slate-400 text-sm mt-1">Double-entry accounting, GST, P&L, and balance sheet</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/finance/journals"><button className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ New Journal Entry</button></Link>
+          <Link href="/finance/journals"><button className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ New Journal Entry</button></Link>
         </div>
       </div>
 
@@ -50,21 +50,21 @@ export default function FinanceDashboardPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white">📋 Trial Balance</h2>
-            <Link href="/finance/reports" className="text-xs text-brand-400 hover:text-brand-300">Full Report →</Link>
+            <Link href="/finance/reports" className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">Full Report →</Link>
           </div>
           {trialBalance ? (
             <div>
               <div className="flex justify-between text-sm mb-3">
                 <span className="text-slate-400">Total Debits</span>
-                <span className="text-emerald-400 font-mono">₹{Number(trialBalance.totalDebits).toLocaleString("en-IN")}</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-mono">₹{Number(trialBalance.totalDebits).toLocaleString("en-IN")}</span>
               </div>
               <div className="flex justify-between text-sm mb-3">
                 <span className="text-slate-400">Total Credits</span>
-                <span className="text-blue-400 font-mono">₹{Number(trialBalance.totalCredits).toLocaleString("en-IN")}</span>
+                <span className="text-blue-600 dark:text-blue-400 font-mono">₹{Number(trialBalance.totalCredits).toLocaleString("en-IN")}</span>
               </div>
               <div className={`flex justify-between text-sm p-2 rounded ${trialBalance.isBalanced ? "bg-emerald-900/30" : "bg-red-900/30"}`}>
                 <span className="text-slate-600 dark:text-slate-300 font-medium">Balance Status</span>
-                <span className={trialBalance.isBalanced ? "text-emerald-400" : "text-red-400"}>
+                <span className={trialBalance.isBalanced ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
                   {trialBalance.isBalanced ? "✓ Balanced" : `✗ Difference: ₹${trialBalance.difference}`}
                 </span>
               </div>
@@ -73,8 +73,8 @@ export default function FinanceDashboardPage() {
                   <div key={e.code} className="flex items-center justify-between text-xs py-1 border-b border-slate-200/50 dark:border-slate-800/50">
                     <span className="text-slate-400">{e.code} {e.name}</span>
                     <div className="flex gap-4">
-                      {e.debit > 0 && <span className="text-emerald-400 font-mono w-20 text-right">₹{Number(e.debit).toLocaleString("en-IN")}</span>}
-                      {e.credit > 0 && <span className="text-blue-400 font-mono w-20 text-right">₹{Number(e.credit).toLocaleString("en-IN")}</span>}
+                      {e.debit > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-mono w-20 text-right">₹{Number(e.debit).toLocaleString("en-IN")}</span>}
+                      {e.credit > 0 && <span className="text-blue-600 dark:text-blue-400 font-mono w-20 text-right">₹{Number(e.credit).toLocaleString("en-IN")}</span>}
                     </div>
                   </div>
                 ))}
@@ -87,7 +87,7 @@ export default function FinanceDashboardPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white">📒 Recent Journals</h2>
-            <Link href="/finance/journals" className="text-xs text-brand-400 hover:text-brand-300">View All →</Link>
+            <Link href="/finance/journals" className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">View All →</Link>
           </div>
           {d?.recentJournals?.length > 0 ? (
             <div className="space-y-2">
@@ -98,7 +98,7 @@ export default function FinanceDashboardPage() {
                       <span className="text-xs text-slate-500 font-mono">{j.entryNumber}</span>
                       <p className="text-sm text-slate-900 dark:text-white">{j.description}</p>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded ${j.status === "POSTED" ? "bg-emerald-900/50 text-emerald-400" : j.status === "DRAFT" ? "bg-amber-900/50 text-amber-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>
+                    <span className={`px-2 py-0.5 text-xs rounded ${j.status === "POSTED" ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : j.status === "DRAFT" ? "bg-amber-900/50 text-amber-600 dark:text-amber-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>
                       {j.status}
                     </span>
                   </div>
@@ -123,7 +123,7 @@ export default function FinanceDashboardPage() {
           { label: "Budget Tracking", icon: "💰", href: "/finance/budget" },
         ].map(item => (
           <Link key={item.label} href={item.href}>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-brand-500/50 transition-colors cursor-pointer">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-brand-300 dark:hover:border-brand-500/50 transition-colors cursor-pointer">
               <span className="text-2xl block mb-1">{item.icon}</span>
               <span className="text-xs text-slate-600 dark:text-slate-300">{item.label}</span>
             </div>

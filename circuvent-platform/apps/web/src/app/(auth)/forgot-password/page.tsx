@@ -20,8 +20,8 @@ export default function ForgotPasswordPage() {
   if (submitted) {
     return (
       <div className="text-center">
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/20">
-          <svg className="h-8 w-8 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-brand-200 dark:bg-brand-500/20">
+          <svg className="h-8 w-8 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </div>
@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
       </form>
 
       <div className="mt-6 text-center">
-        <a href="/login" className="text-sm text-brand-400 hover:text-brand-300 transition-colors">← Back to Sign In</a>
+        <a href="/login" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors">← Back to Sign In</a>
       </div>
 
       <div className="mt-4 text-center">

@@ -197,6 +197,7 @@ router.post("/login", async (req: Request, res: Response) => {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          avatarUrl: user.avatarUrl,
         },
         accessToken,
         refreshToken,

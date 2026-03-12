@@ -127,11 +127,7 @@ export default function InternManagementPage() {
   });
 
   const tabs = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "programs", label: "Programs" },
-    { id: "interns", label: "Active Interns" },
-    { id: "evaluations", label: "Evaluate" },
-    { id: "actions", label: "Actions" },
+    { id: "dashboard", label: "Dashboard" }, { key: "programs", label: "Programs" }, { key: "interns", label: "Active Interns" }, { key: "evaluations", label: "Evaluate" }, { key: "actions", label: "Actions" },
   ];
 
   useEffect(() => {
@@ -280,14 +276,14 @@ export default function InternManagementPage() {
                         className="h-2 rounded-full bg-cyan-500"
                         style={{ width: `${Math.min(100, (d.count / Math.max(1, dashboard.totalActiveInterns)) * 100)}%` }}
                       />
-                    </div>
+                    </Card>
                     <Badge color="blue">{d.count}</Badge>
                   </div>
                 </div>
               ))}
               {dashboard.byDepartment.length === 0 && <p className="text-sm text-slate-500">No data available.</p>}
             </div>
-          </Card>
+          </div>
 
           {/* Recent Enrollments */}
           <Card>
@@ -298,34 +294,29 @@ export default function InternManagementPage() {
                   <div>
                     <p className="text-sm text-slate-900 dark:text-white font-medium">{e.name}</p>
                     <p className="text-xs text-slate-500">{e.program}</p>
-                  </div>
+                  </Card>
                   <span className="text-xs text-slate-400">{formatDate(e.startDate)}</span>
                 </div>
               ))}
               {dashboard.recentEnrollments.length === 0 && <p className="text-sm text-slate-500">No recent enrollments.</p>}
             </div>
-          </Card>
+          </div>
 
           {/* Upcoming Completions */}
           <Card className="lg:col-span-2">
             <CardHeader title="Upcoming Completions (30 days)" subtitle="Interns completing their program soon" />
             {dashboard.upcomingCompletions.length > 0 ? (
               <DataTable
-                columns={[
-                  { key: "name", header: "Intern", render: (c: any) => <span className="font-medium text-slate-900 dark:text-white">{c.name}</span> },
-                  { key: "program", header: "Program", render: (c: any) => c.program },
-                  { key: "endDate", header: "End Date", render: (c: any) => formatDate(c.endDate) },
-                  { key: "score", header: "Score", render: (c: any) => (
-                    <span className={`font-bold ${c.score >= 4 ? "text-emerald-400" : c.score >= 3 ? "text-amber-400" : "text-red-400"}`}>
+                columns={[{ key: "name", header: "Intern", render: (c: any) => <span className="font-medium text-slate-900 dark:text-white">{c.name}</span> }, { key: "program", header: "Program", render: (c: any) => c.program }, { key: "endDate", header: "End Date", render: (c: any) => formatDate(c.endDate) }, { key: "score", header: "Score", render: (c: any) => (
+                    <span className={`font-bold ${c.score >= 4 ? "text-emerald-600 dark:text-emerald-400" : c.score >= 3 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
                       {c.score > 0 ? c.score.toFixed(1) : "—"}
                     </span>
-                  )},
-                  { key: "actions", header: "", render: (c: any) => (
+                  )}, { key: "actions", header: "", render: (c: any) => (
                     <div className="flex gap-1">
                       <Button size="sm" variant="outline" onClick={() => { setConvertId(c.internId || ""); setShowConvertForm(true); }}>
                         Convert
                       </Button>
-                    </div>
+                    </Card>
                   )},
                 ]}
                 data={dashboard.upcomingCompletions}
@@ -335,7 +326,7 @@ export default function InternManagementPage() {
             ) : (
               <p className="text-sm text-slate-500 py-4">No interns completing in the next 30 days.</p>
             )}
-          </Card>
+          </div>
         </div>
       )}
 
@@ -345,22 +336,16 @@ export default function InternManagementPage() {
           <CardHeader
             title="Intern Programs"
             subtitle="Create and manage intern programs"
-            action={<Button onClick={() => setShowCreateProgram(true)}>+ New Program</Button>}
+            actions={<Button onClick={() => setShowCreateProgram(true)}>+ New Program</Button>}
           />
 
           <DataTable
-            columns={[
-              { key: "name", header: "Program", render: (p: InternProgram) => (
+            columns={[{ key: "name", header: "Program", render: (p: InternProgram) => (
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">{p.name}</p>
                   {p.description && <p className="text-xs text-slate-500 truncate max-w-xs">{p.description}</p>}
-                </div>
-              )},
-              { key: "department", header: "Department", render: (p: InternProgram) => <Badge color="blue">{p.department}</Badge> },
-              { key: "mentor", header: "Mentor", render: (p: InternProgram) => p.mentorName },
-              { key: "duration", header: "Duration", render: (p: InternProgram) => `${p.durationWeeks} weeks` },
-              { key: "stipend", header: "Stipend", render: (p: InternProgram) => formatCurrency(p.stipend) + "/mo" },
-              { key: "capacity", header: "Enrollment", render: (p: InternProgram) => (
+                </Card>
+              )}, { key: "department", header: "Department", render: (p: InternProgram) => <Badge color="blue">{p.department}</Badge> }, { key: "mentor", header: "Mentor", render: (p: InternProgram) => p.mentorName }, { key: "duration", header: "Duration", render: (p: InternProgram) => `${p.durationWeeks} weeks` }, { key: "stipend", header: "Stipend", render: (p: InternProgram) => formatCurrency(p.stipend) + "/mo" }, { key: "capacity", header: "Enrollment", render: (p: InternProgram) => (
                 <div className="flex items-center gap-2">
                   <div className="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                     <div
@@ -370,8 +355,7 @@ export default function InternManagementPage() {
                   </div>
                   <span className="text-xs text-slate-400">{p.enrolledCount}/{p.maxCapacity}</span>
                 </div>
-              )},
-              { key: "status", header: "Status", render: (p: InternProgram) => (
+              )}, { key: "status", header: "Status", render: (p: InternProgram) => (
                 <Badge color={PROGRAM_STATUS_COLORS[p.status] as any || "slate"}>{p.status}</Badge>
               )},
             ]}
@@ -382,7 +366,7 @@ export default function InternManagementPage() {
 
           {/* Create Program Modal */}
           {showCreateProgram && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Create Intern Program</h2>
                 <div className="space-y-3">
@@ -417,7 +401,7 @@ export default function InternManagementPage() {
               </div>
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Active Interns Tab */}
@@ -426,20 +410,16 @@ export default function InternManagementPage() {
           <CardHeader
             title="Active Interns"
             subtitle={`${activeInterns.length} interns currently active`}
-            action={<Button onClick={() => setShowEnrollForm(true)}>+ Enroll Intern</Button>}
+            actions={<Button onClick={() => setShowEnrollForm(true)}>+ Enroll Intern</Button>}
           />
 
           <DataTable
-            columns={[
-              { key: "internName", header: "Intern", render: (i: InternRecord) => (
+            columns={[{ key: "internName", header: "Intern", render: (i: InternRecord) => (
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">{i.internName}</p>
                   <p className="text-xs text-slate-500">{i.employeeCode}</p>
-                </div>
-              )},
-              { key: "programName", header: "Program", render: (i: InternRecord) => i.programName },
-              { key: "mentorName", header: "Mentor", render: (i: InternRecord) => i.mentorName },
-              { key: "progress", header: "Progress", render: (i: InternRecord) => (
+                </Card>
+              )}, { key: "programName", header: "Program", render: (i: InternRecord) => i.programName }, { key: "mentorName", header: "Mentor", render: (i: InternRecord) => i.mentorName }, { key: "progress", header: "Progress", render: (i: InternRecord) => (
                 <div className="flex items-center gap-2">
                   <div className="w-20 bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                     <div
@@ -449,21 +429,17 @@ export default function InternManagementPage() {
                   </div>
                   <span className="text-xs text-slate-400">{i.progressPercent || 0}%</span>
                 </div>
-              )},
-              { key: "week", header: "Week", render: (i: InternRecord) => i.weekNumber && i.totalWeeks ? `${i.weekNumber}/${i.totalWeeks}` : "—" },
-              { key: "score", header: "Score", render: (i: InternRecord) => (
+              )}, { key: "week", header: "Week", render: (i: InternRecord) => i.weekNumber && i.totalWeeks ? `${i.weekNumber}/${i.totalWeeks}` : "—" }, { key: "score", header: "Score", render: (i: InternRecord) => (
                 <span className={`text-sm font-bold ${
-                  (i.avgScore || 0) >= 4 ? "text-emerald-400" :
-                  (i.avgScore || 0) >= 3 ? "text-amber-400" :
-                  (i.avgScore || 0) > 0 ? "text-red-400" : "text-slate-500"
+                  (i.avgScore || 0) >= 4 ? "text-emerald-600 dark:text-emerald-400" :
+                  (i.avgScore || 0) >= 3 ? "text-amber-600 dark:text-amber-400" :
+                  (i.avgScore || 0) > 0 ? "text-red-600 dark:text-red-400" : "text-slate-500"
                 }`}>
                   {i.avgScore ? i.avgScore.toFixed(1) : "—"}
                 </span>
-              )},
-              { key: "status", header: "Status", render: (i: InternRecord) => (
+              )}, { key: "status", header: "Status", render: (i: InternRecord) => (
                 <Badge color={INTERN_STATUS_COLORS[i.status] as any || "slate"}>{i.status}</Badge>
-              )},
-              { key: "actions", header: "", render: (i: InternRecord) => (
+              )}, { key: "actions", header: "", render: (i: InternRecord) => (
                 <div className="flex gap-1">
                   <Button size="sm" variant="outline" onClick={() => {
                     setEvalInternId(i.internId);
@@ -494,7 +470,7 @@ export default function InternManagementPage() {
 
           {/* Enroll Modal */}
           {showEnrollForm && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Enroll Intern</h2>
                 <div className="space-y-3">
@@ -516,7 +492,7 @@ export default function InternManagementPage() {
               </div>
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Evaluate Tab */}
@@ -532,7 +508,7 @@ export default function InternManagementPage() {
                   <div>
                     <p className="text-sm text-slate-900 dark:text-white font-medium">{intern.internName}</p>
                     <p className="text-xs text-slate-500">{intern.programName} · Week {intern.weekNumber || "?"}/{intern.totalWeeks || "?"}</p>
-                  </div>
+                  </Card>
                   <Button size="sm" onClick={() => { setEvalInternId(intern.internId); setShowEvalForm(true); }}>
                     Evaluate
                   </Button>
@@ -585,7 +561,7 @@ export default function InternManagementPage() {
               </div>
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Actions Tab */}
@@ -602,7 +578,7 @@ export default function InternManagementPage() {
                     <div>
                       <p className="text-sm text-slate-900 dark:text-white font-medium">{intern.internName}</p>
                       <p className="text-xs text-slate-500">Score: {intern.avgScore?.toFixed(1) || "—"}</p>
-                    </div>
+                    </Card>
                     <Button size="sm" onClick={() => { setConvertId(intern.internId); setShowConvertForm(true); }}>
                       Convert
                     </Button>
@@ -612,7 +588,7 @@ export default function InternManagementPage() {
                 <p className="text-sm text-slate-500 py-4">No interns eligible for conversion (score &gt;= 3.5 required).</p>
               )}
             </div>
-          </Card>
+          </div>
 
           {/* Generate Certificates */}
           <Card>
@@ -623,7 +599,7 @@ export default function InternManagementPage() {
                   <div>
                     <p className="text-sm text-slate-900 dark:text-white font-medium">{intern.internName}</p>
                     <p className="text-xs text-slate-500">{intern.programName}</p>
-                  </div>
+                  </Card>
                   <Button size="sm" variant="outline" onClick={() => handleGenerateCertificate(intern.internId)} loading={loading}>
                     Generate
                   </Button>
@@ -631,13 +607,13 @@ export default function InternManagementPage() {
               ))}
               {interns.length === 0 && <p className="text-sm text-slate-500 py-4">No interns to generate certificates for.</p>}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
       {/* Convert Modal */}
       {showConvertForm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Convert to Full-Time</h2>
             <p className="text-xs text-slate-500 mb-4">This will promote the intern to a permanent employee with a new employee code and offer letter.</p>
@@ -646,7 +622,7 @@ export default function InternManagementPage() {
               <Input label="Annual CTC (₹)" type="number" value={convertForm.baseSalary} onChange={(e) => setConvertForm({ ...convertForm, baseSalary: e.target.value })} />
               <Input label="Department (optional)" value={convertForm.department} onChange={(e) => setConvertForm({ ...convertForm, department: e.target.value })} placeholder="Same as intern program" />
             </div>
-            <div className="bg-emerald-900/20 border border-emerald-900/30 rounded-lg p-3 mt-4 text-xs text-emerald-400">
+            <div className="bg-emerald-900/20 border border-emerald-900/30 rounded-lg p-3 mt-4 text-xs text-emerald-600 dark:text-emerald-400">
               <p className="font-medium mb-1">This action will:</p>
               <ul className="list-disc list-inside space-y-0.5 text-emerald-300/80">
                 <li>Change employment type from INTERN to FULL_TIME</li>
@@ -665,7 +641,7 @@ export default function InternManagementPage() {
 
       {/* Eval Modal (standalone) */}
       {showEvalForm && activeTab !== "evaluations" && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md my-8">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Evaluate Intern</h2>
             {(Object.keys(evalScores) as Array<keyof EvaluationScores>).map((key) => (

@@ -83,10 +83,7 @@ export default function PayrollDashboardPage() {
   };
 
   const tabs = [
-    { id: "overview", label: "Payroll Overview" },
-    { id: "operations", label: "Bulk Operations" },
-    { id: "calculator", label: "Salary Calculator" },
-    { id: "departments", label: "Department View" },
+    { id: "overview", label: "Payroll Overview" }, { key: "operations", label: "Bulk Operations" }, { key: "calculator", label: "Salary Calculator" }, { key: "departments", label: "Department View" },
   ];
 
   return (
@@ -119,10 +116,10 @@ export default function PayrollDashboardPage() {
             <div className="space-y-3">
               {[
                 ["Total Gross Salary", formatCurrency(dashboard.payroll.totalGross), "text-slate-900 dark:text-white"],
-                ["Total Deductions", formatCurrency(dashboard.payroll.totalDeductions), "text-red-400"],
-                ["Total Net Pay", formatCurrency(dashboard.payroll.totalNet), "text-green-400"],
-                ["Pending Expenses", String(dashboard.pendingExpenses), "text-amber-400"],
-                ["Upcoming Leaves (30d)", String(dashboard.upcomingLeaves), "text-cyan-400"],
+                ["Total Deductions", formatCurrency(dashboard.payroll.totalDeductions), "text-red-600 dark:text-red-400"],
+                ["Total Net Pay", formatCurrency(dashboard.payroll.totalNet), "text-green-600 dark:text-green-400"],
+                ["Pending Expenses", String(dashboard.pendingExpenses), "text-amber-600 dark:text-amber-400"],
+                ["Upcoming Leaves (30d)", String(dashboard.upcomingLeaves), "text-cyan-600 dark:text-cyan-400"],
               ].map(([label, value, color]) => (
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <span className="text-sm text-slate-400">{label}</span>
@@ -167,9 +164,9 @@ export default function PayrollDashboardPage() {
             {bulkResult && (
               <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50">
                 <div className="grid grid-cols-3 gap-4 text-center">
-                  <div><p className="text-2xl font-bold text-green-400">{bulkResult.generated}</p><p className="text-xs text-slate-400">Generated</p></div>
-                  <div><p className="text-2xl font-bold text-amber-400">{bulkResult.skipped}</p><p className="text-xs text-slate-400">Skipped</p></div>
-                  <div><p className="text-2xl font-bold text-red-400">{bulkResult.errors?.length || 0}</p><p className="text-xs text-slate-400">Errors</p></div>
+                  <div><p className="text-2xl font-bold text-green-600 dark:text-green-400">{bulkResult.generated}</p><p className="text-xs text-slate-400">Generated</p></div>
+                  <div><p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{bulkResult.skipped}</p><p className="text-xs text-slate-400">Skipped</p></div>
+                  <div><p className="text-2xl font-bold text-red-600 dark:text-red-400">{bulkResult.errors?.length || 0}</p><p className="text-xs text-slate-400">Errors</p></div>
                 </div>
               </div>
             )}
@@ -194,38 +191,38 @@ export default function PayrollDashboardPage() {
             {preview && (
               <div className="space-y-6">
                 {/* Recommendation banner */}
-                <div className={`rounded-lg p-4 text-center ${preview.comparison.recommendation === "NEW" ? "bg-green-500/10 border border-green-500/20" : "bg-blue-500/10 border border-blue-500/20"}`}>
+                <div className={`rounded-lg p-4 text-center ${preview.comparison.recommendation === "NEW" ? "bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20" : "bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20"}`}>
                   <p className="text-sm text-slate-400">Recommended Regime</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{preview.comparison.recommendation} TAX REGIME</p>
-                  <p className="text-sm text-green-400">Save {formatCurrency(preview.comparison.annualSavings)}/year</p>
+                  <p className="text-sm text-green-600 dark:text-green-400">Save {formatCurrency(preview.comparison.annualSavings)}/year</p>
                 </div>
 
                 {/* Side-by-side comparison */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* New Regime */}
-                  <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
-                    <h4 className="text-sm font-semibold text-green-400 mb-3">NEW REGIME</h4>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                    <h4 className="text-sm font-semibold text-green-600 dark:text-green-400 mb-3">NEW REGIME</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between"><span className="text-slate-400">Monthly Net</span><span className="text-slate-900 dark:text-white font-semibold">{formatCurrency(preview.newRegime.netSalary)}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Monthly TDS</span><span className="text-red-400">{formatCurrency(preview.newRegime.deductions.tds)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Monthly TDS</span><span className="text-red-600 dark:text-red-400">{formatCurrency(preview.newRegime.deductions.tds)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">EPF (Employee)</span><span>{formatCurrency(preview.newRegime.deductions.epfEmployee)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">ESI</span><span>{formatCurrency(preview.newRegime.deductions.esiEmployee)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">Prof. Tax</span><span>{formatCurrency(preview.newRegime.deductions.professionalTax)}</span></div>
-                      <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2"><span className="text-slate-400">Total Deductions</span><span className="text-red-400 font-semibold">{formatCurrency(preview.newRegime.deductions.totalDeductions)}</span></div>
+                      <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2"><span className="text-slate-400">Total Deductions</span><span className="text-red-600 dark:text-red-400 font-semibold">{formatCurrency(preview.newRegime.deductions.totalDeductions)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">Effective Tax Rate</span><span>{preview.newRegime.tds.effectiveRate}%</span></div>
                     </div>
                   </div>
 
                   {/* Old Regime */}
-                  <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
-                    <h4 className="text-sm font-semibold text-blue-400 mb-3">OLD REGIME</h4>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                    <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-3">OLD REGIME</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between"><span className="text-slate-400">Monthly Net</span><span className="text-slate-900 dark:text-white font-semibold">{formatCurrency(preview.oldRegime.netSalary)}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Monthly TDS</span><span className="text-red-400">{formatCurrency(preview.oldRegime.deductions.tds)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Monthly TDS</span><span className="text-red-600 dark:text-red-400">{formatCurrency(preview.oldRegime.deductions.tds)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">EPF (Employee)</span><span>{formatCurrency(preview.oldRegime.deductions.epfEmployee)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">ESI</span><span>{formatCurrency(preview.oldRegime.deductions.esiEmployee)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">Prof. Tax</span><span>{formatCurrency(preview.oldRegime.deductions.professionalTax)}</span></div>
-                      <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2"><span className="text-slate-400">Total Deductions</span><span className="text-red-400 font-semibold">{formatCurrency(preview.oldRegime.deductions.totalDeductions)}</span></div>
+                      <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2"><span className="text-slate-400">Total Deductions</span><span className="text-red-600 dark:text-red-400 font-semibold">{formatCurrency(preview.oldRegime.deductions.totalDeductions)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">Effective Tax Rate</span><span>{preview.oldRegime.tds.effectiveRate}%</span></div>
                     </div>
                   </div>
@@ -240,12 +237,7 @@ export default function PayrollDashboardPage() {
       {activeTab === "departments" && dashboard && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "department", header: "Department", render: (d: any) => <span className="font-medium text-slate-900 dark:text-white">{d.department}</span> },
-              { key: "headcount", header: "Headcount", render: (d: any) => <Badge color="blue">{d.headcount}</Badge> },
-              { key: "totalCTC", header: "Total Annual CTC", render: (d: any) => formatCurrency(d.totalCTC) },
-              { key: "avgCTC", header: "Avg CTC", render: (d: any) => d.headcount > 0 ? formatCurrency(d.totalCTC / d.headcount) : "—" },
-              { key: "monthlyBurn", header: "Monthly Burn", render: (d: any) => formatCurrency(d.totalCTC / 12) },
+            columns={[{ key: "department", header: "Department", render: (d: any) => <span className="font-medium text-slate-900 dark:text-white">{d.department}</span> }, { key: "headcount", header: "Headcount", render: (d: any) => <Badge color="blue">{d.headcount}</Badge> }, { key: "totalCTC", header: "Total Annual CTC", render: (d: any) => formatCurrency(d.totalCTC) }, { key: "avgCTC", header: "Avg CTC", render: (d: any) => d.headcount > 0 ? formatCurrency(d.totalCTC / d.headcount) : "—" }, { key: "monthlyBurn", header: "Monthly Burn", render: (d: any) => formatCurrency(d.totalCTC / 12) },
             ]}
             data={dashboard.byDepartment}
             keyExtractor={(d: any) => d.department}

@@ -73,12 +73,12 @@ export default function IoTLiveDashboard() {
 
       {/* Connection Status Banner */}
       {!isConnected && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-center gap-3">
-          <svg className="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-4 flex items-center gap-3">
+          <svg className="h-5 w-5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-amber-400">WebSocket Not Connected</p>
+            <p className="text-sm font-medium text-amber-600 dark:text-amber-400">WebSocket Not Connected</p>
             <p className="text-xs text-slate-400">Real-time data requires WebSocket. Sign in and ensure the WS server is running.</p>
           </div>
         </div>
@@ -99,17 +99,17 @@ export default function IoTLiveDashboard() {
           <CardHeader title="Live Alert Stream" subtitle="Real-time alerts from devices" />
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {alerts.map((alert, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/10 px-3 py-2">
+              <div key={i} className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-500/5 border border-red-500/10 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Badge color={alert.severity === "CRITICAL" ? "red" : "amber"}>{alert.severity}</Badge>
                   <span className="text-xs text-slate-900 dark:text-white">{alert.alertType}</span>
                   <span className="text-xs text-slate-500">{alert.message}</span>
-                </div>
+                </Card>
                 <span className="text-[10px] text-slate-600">{timeAgo(alert.timestamp)}</span>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Live Device Grid */}
@@ -134,14 +134,14 @@ export default function IoTLiveDashboard() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {liveDevices.map((device) => (
-              <Card key={device.deviceId} className={device.isHealthy ? "border-green-500/10" : "border-red-500/20 bg-red-500/5"}>
+              <Card key={device.deviceId} className={device.isHealthy ? "border-green-500/10" : "border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/5"}>
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <span className="font-mono text-xs text-brand-400">{device.deviceCode || device.deviceId.slice(0, 12)}</span>
+                    <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{device.deviceCode || device.deviceId.slice(0, 12)}</span>
                     <div className="flex items-center gap-1 mt-0.5">
                       <span className={`h-1.5 w-1.5 rounded-full ${device.isHealthy ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
                       <span className="text-[10px] text-slate-500">{device.isHealthy ? "Healthy" : "Attention"}</span>
-                    </div>
+                    </Card>
                   </div>
                   <span className="text-[10px] text-slate-600">{timeAgo(device.timestamp)}</span>
                 </div>
@@ -151,7 +151,7 @@ export default function IoTLiveDashboard() {
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase">CPU</p>
                       <div className="flex items-center gap-2">
-                        <p className={`text-lg font-bold ${device.cpuUsage > 80 ? "text-red-400" : "text-slate-900 dark:text-white"}`}>{device.cpuUsage}%</p>
+                        <p className={`text-lg font-bold ${device.cpuUsage > 80 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>{device.cpuUsage}%</p>
                         <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
                           <div className={`h-1.5 rounded-full ${device.cpuUsage > 80 ? "bg-red-500" : "bg-green-500"}`} style={{ width: `${device.cpuUsage}%` }} />
                         </div>
@@ -162,7 +162,7 @@ export default function IoTLiveDashboard() {
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase">Memory</p>
                       <div className="flex items-center gap-2">
-                        <p className={`text-lg font-bold ${device.memoryUsage > 85 ? "text-red-400" : "text-slate-900 dark:text-white"}`}>{device.memoryUsage}%</p>
+                        <p className={`text-lg font-bold ${device.memoryUsage > 85 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>{device.memoryUsage}%</p>
                         <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
                           <div className={`h-1.5 rounded-full ${device.memoryUsage > 85 ? "bg-red-500" : "bg-blue-500"}`} style={{ width: `${device.memoryUsage}%` }} />
                         </div>
@@ -172,17 +172,17 @@ export default function IoTLiveDashboard() {
                   {device.temperature !== undefined && (
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase">Temp</p>
-                      <p className={`text-lg font-bold ${device.temperature > 70 ? "text-amber-400" : "text-slate-900 dark:text-white"}`}>{device.temperature}°C</p>
+                      <p className={`text-lg font-bold ${device.temperature > 70 ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>{device.temperature}°C</p>
                     </div>
                   )}
                   {device.batteryLevel !== undefined && (
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase">Battery</p>
-                      <p className={`text-lg font-bold ${device.batteryLevel < 20 ? "text-red-400" : "text-slate-900 dark:text-white"}`}>{device.batteryLevel}%</p>
+                      <p className={`text-lg font-bold ${device.batteryLevel < 20 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>{device.batteryLevel}%</p>
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         )}
@@ -196,17 +196,17 @@ export default function IoTLiveDashboard() {
             <div>
               <p className="text-2xl font-bold text-slate-900 dark:text-white">{health.online ?? 0}</p>
               <p className="text-xs text-slate-500">Online</p>
-            </div>
+            </Card>
             <div>
-              <p className="text-2xl font-bold text-red-400">{health.offline ?? 0}</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{health.offline ?? 0}</p>
               <p className="text-xs text-slate-500">Offline</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-amber-400">{health.criticalAlerts ?? 0}</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{health.criticalAlerts ?? 0}</p>
               <p className="text-xs text-slate-500">Critical Alerts</p>
             </div>
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );

@@ -20,7 +20,7 @@ export default function GSTPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="mb-6">
-        <Link href="/finance" className="text-sm text-brand-400 hover:text-brand-300">← Finance</Link>
+        <Link href="/finance" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Finance</Link>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🏛️ GST Management</h1>
       </div>
 
@@ -30,13 +30,13 @@ export default function GSTPage() {
           <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">GST Summary</h2>
           {summary ? (
             <div className="space-y-3">
-              <div className="flex justify-between text-sm"><span className="text-slate-400">Output Tax (Collected)</span><span className="text-blue-400 font-mono">₹{Number(summary.outputTax).toLocaleString("en-IN")}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-slate-400">Input Credit (Paid)</span><span className="text-emerald-400 font-mono">₹{Number(summary.inputCredit).toLocaleString("en-IN")}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-400">Output Tax (Collected)</span><span className="text-blue-600 dark:text-blue-400 font-mono">₹{Number(summary.outputTax).toLocaleString("en-IN")}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-400">Input Credit (Paid)</span><span className="text-emerald-600 dark:text-emerald-400 font-mono">₹{Number(summary.inputCredit).toLocaleString("en-IN")}</span></div>
               <div className="flex justify-between text-sm p-2 bg-slate-100 dark:bg-slate-800 rounded-lg font-semibold">
                 <span className="text-slate-900 dark:text-white">Net Liability</span>
-                <span className={summary.netLiability > 0 ? "text-red-400" : "text-emerald-400"}>₹{Number(summary.netLiability).toLocaleString("en-IN")}</span>
+                <span className={summary.netLiability > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}>₹{Number(summary.netLiability).toLocaleString("en-IN")}</span>
               </div>
-              {summary.refundable > 0 && <p className="text-xs text-emerald-400">ITC Refundable: ₹{Number(summary.refundable).toLocaleString("en-IN")}</p>}
+              {summary.refundable > 0 && <p className="text-xs text-emerald-600 dark:text-emerald-400">ITC Refundable: ₹{Number(summary.refundable).toLocaleString("en-IN")}</p>}
             </div>
           ) : <p className="text-slate-500 text-sm text-center py-4">No GST data</p>}
         </div>
@@ -59,18 +59,18 @@ export default function GSTPage() {
                 Inter-State
               </label>
             </div>
-            <button onClick={handleCalc} className="w-full px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm">Calculate GST</button>
+            <button onClick={handleCalc} className="w-full px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">Calculate GST</button>
 
             {result && (
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-slate-400">Base Amount</span><span className="text-slate-900 dark:text-white font-mono">₹{Number(result.baseAmount).toLocaleString("en-IN")}</span></div>
                 {!result.isInterState ? (
                   <>
-                    <div className="flex justify-between"><span className="text-slate-400">CGST ({Number(result.rate) / 2}%)</span><span className="text-emerald-400 font-mono">₹{Number(result.cgst).toLocaleString("en-IN")}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">SGST ({Number(result.rate) / 2}%)</span><span className="text-blue-400 font-mono">₹{Number(result.sgst).toLocaleString("en-IN")}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">CGST ({Number(result.rate) / 2}%)</span><span className="text-emerald-600 dark:text-emerald-400 font-mono">₹{Number(result.cgst).toLocaleString("en-IN")}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">SGST ({Number(result.rate) / 2}%)</span><span className="text-blue-600 dark:text-blue-400 font-mono">₹{Number(result.sgst).toLocaleString("en-IN")}</span></div>
                   </>
                 ) : (
-                  <div className="flex justify-between"><span className="text-slate-400">IGST ({result.rate}%)</span><span className="text-purple-400 font-mono">₹{Number(result.igst).toLocaleString("en-IN")}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">IGST ({result.rate}%)</span><span className="text-purple-600 dark:text-purple-400 font-mono">₹{Number(result.igst).toLocaleString("en-IN")}</span></div>
                 )}
                 <div className="flex justify-between font-bold border-t border-slate-200 dark:border-slate-700 pt-2"><span className="text-slate-900 dark:text-white">Grand Total</span><span className="text-slate-900 dark:text-white font-mono">₹{Number(result.grandTotal).toLocaleString("en-IN")}</span></div>
               </div>
@@ -86,12 +86,12 @@ export default function GSTPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Object.entries(rates as Record<string, any[]>).map(([category, items]) => (
               <div key={category}>
-                <h3 className="text-xs text-brand-400 uppercase font-semibold mb-2">{category}</h3>
+                <h3 className="text-xs text-brand-600 dark:text-brand-400 uppercase font-semibold mb-2">{category}</h3>
                 <div className="space-y-1">
                   {items.map((item: any) => (
                     <div key={item.code} className="flex justify-between text-xs bg-slate-100 dark:bg-slate-800/50 rounded px-2 py-1">
                       <span className="text-slate-400">{item.code} — {item.description}</span>
-                      <span className="text-amber-400 font-semibold">{item.rate}%</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold">{item.rate}%</span>
                     </div>
                   ))}
                 </div>

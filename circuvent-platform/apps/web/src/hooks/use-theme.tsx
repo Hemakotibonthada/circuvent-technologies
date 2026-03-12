@@ -137,7 +137,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         </svg>
         {/* Moon icon */}
         <svg
-          className={`absolute h-4 w-4 text-blue-400 transition-all duration-500 ${
+          className={`absolute h-4 w-4 text-blue-600 dark:text-blue-400 transition-all duration-500 ${
             resolvedTheme === "dark" ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0"
           }`}
           fill="none"
@@ -154,7 +154,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         onClick={() => setTheme("system")}
         className={`flex h-6 items-center rounded px-1.5 text-[10px] font-medium transition-all ${
           theme === "system"
-            ? "bg-brand-500/20 text-brand-500"
+            ? "bg-brand-200 dark:bg-brand-500/20 text-brand-500"
             : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-600 dark:text-slate-300"
         }`}
         title="Sync with system theme"

@@ -109,9 +109,7 @@ export default function WorkflowAutomationPage() {
 
   const [activeTab, setActiveTab] = useState("templates");
   const tabs = [
-    { id: "templates", label: "Templates" },
-    { id: "instances", label: "Running Instances" },
-    { id: "logs", label: "Logs" },
+    { id: "templates", label: "Templates" }, { key: "instances", label: "Running Instances" }, { key: "logs", label: "Logs" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -217,22 +215,14 @@ export default function WorkflowAutomationPage() {
   /* ── columns ──────────────────────────────────────────── */
   const templateColumns = [
     {
-      key: "name", header: "Workflow",
+      id: "name", header: "Workflow",
       render: (t: WorkflowTemplate) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{t.name}</p>
           <p className="text-xs text-slate-500">{t.description?.slice(0, 60)}</p>
         </div>
       ),
-    },
-    { key: "category", header: "Category", render: (t: WorkflowTemplate) => <Badge color="blue">{t.category}</Badge> },
-    { key: "trigger", header: "Trigger", render: (t: WorkflowTemplate) => <Badge color={triggerColors[t.trigger] || "slate"}>{t.trigger}</Badge> },
-    { key: "steps", header: "Steps", render: (t: WorkflowTemplate) => <span className="text-slate-400">{t.steps?.length || 0}</span> },
-    { key: "status", header: "Status", render: (t: WorkflowTemplate) => <Badge color={templateStatusColors[t.status] || "slate"}>{t.status}</Badge> },
-    { key: "executionCount", header: "Runs", render: (t: WorkflowTemplate) => t.executionCount },
-    { key: "lastRun", header: "Last Run", render: (t: WorkflowTemplate) => t.lastRun ? formatDate(t.lastRun) : "—" },
-    {
-      key: "actions", header: "",
+    }, { key: "category", header: "Category", render: (t: WorkflowTemplate) => <Badge color="blue">{t.category}</Badge> }, { key: "trigger", header: "Trigger", render: (t: WorkflowTemplate) => <Badge color={triggerColors[t.trigger] || "slate"}>{t.trigger}</Badge> }, { key: "steps", header: "Steps", render: (t: WorkflowTemplate) => <span className="text-slate-400">{t.steps?.length || 0}</span> }, { key: "status", header: "Status", render: (t: WorkflowTemplate) => <Badge color={templateStatusColors[t.status] || "slate"}>{t.status}</Badge> }, { key: "executionCount", header: "Runs", render: (t: WorkflowTemplate) => t.executionCount }, { key: "lastRun", header: "Last Run", render: (t: WorkflowTemplate) => t.lastRun ? formatDate(t.lastRun) : "—" }, { key: "actions", header: "",
       render: (t: WorkflowTemplate) => t.status === "ACTIVE" && t.trigger === "MANUAL" ? (
         <Button size="sm" variant="outline" onClick={() => { setShowTrigger(t); setTriggerParams(""); }}>
           Trigger
@@ -242,10 +232,7 @@ export default function WorkflowAutomationPage() {
   ];
 
   const instanceColumns = [
-    { key: "templateName", header: "Workflow", render: (i: WorkflowInstance) => <span className="font-medium text-slate-900 dark:text-white">{i.templateName || i.templateId}</span> },
-    { key: "status", header: "Status", render: (i: WorkflowInstance) => <Badge color={instanceStatusColors[i.status] || "slate"}>{i.status}</Badge> },
-    {
-      key: "progress", header: "Progress",
+    { id: "templateName", header: "Workflow", render: (i: WorkflowInstance) => <span className="font-medium text-slate-900 dark:text-white">{i.templateName || i.templateId}</span> }, { key: "status", header: "Status", render: (i: WorkflowInstance) => <Badge color={instanceStatusColors[i.status] || "slate"}>{i.status}</Badge> }, { key: "progress", header: "Progress",
       render: (i: WorkflowInstance) => {
         const pct = i.totalSteps > 0 ? Math.round((i.currentStep / i.totalSteps) * 100) : 0;
         return (
@@ -257,12 +244,7 @@ export default function WorkflowAutomationPage() {
           </div>
         );
       },
-    },
-    { key: "triggeredByName", header: "Triggered By", render: (i: WorkflowInstance) => i.triggeredByName || "System" },
-    { key: "startedAt", header: "Started", render: (i: WorkflowInstance) => formatDateTime(i.startedAt) },
-    { key: "completedAt", header: "Completed", render: (i: WorkflowInstance) => i.completedAt ? formatDateTime(i.completedAt) : "—" },
-    {
-      key: "actions", header: "",
+    }, { key: "triggeredByName", header: "Triggered By", render: (i: WorkflowInstance) => i.triggeredByName || "System" }, { key: "startedAt", header: "Started", render: (i: WorkflowInstance) => formatDateTime(i.startedAt) }, { key: "completedAt", header: "Completed", render: (i: WorkflowInstance) => i.completedAt ? formatDateTime(i.completedAt) : "—" }, { key: "actions", header: "",
       render: (i: WorkflowInstance) => (
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => setShowDetail(i)}>Details</Button>
@@ -281,18 +263,13 @@ export default function WorkflowAutomationPage() {
   ];
 
   const logColumns = [
-    { key: "timestamp", header: "Time", render: (l: WorkflowLog) => <span className="text-xs font-mono">{formatDateTime(l.timestamp)}</span> },
-    { key: "templateName", header: "Workflow", render: (l: WorkflowLog) => l.templateName || l.instanceId },
-    { key: "stepName", header: "Step", render: (l: WorkflowLog) => <span className="text-slate-600 dark:text-slate-300">{l.stepName}</span> },
-    {
-      key: "level", header: "Level",
+    { id: "timestamp", header: "Time", render: (l: WorkflowLog) => <span className="text-xs font-mono">{formatDateTime(l.timestamp)}</span> }, { key: "templateName", header: "Workflow", render: (l: WorkflowLog) => l.templateName || l.instanceId }, { key: "stepName", header: "Step", render: (l: WorkflowLog) => <span className="text-slate-600 dark:text-slate-300">{l.stepName}</span> }, { key: "level", header: "Level",
       render: (l: WorkflowLog) => (
         <Badge color={l.level === "ERROR" ? "red" : l.level === "WARN" ? "amber" : l.level === "INFO" ? "blue" : "slate"}>
           {l.level}
         </Badge>
       ),
-    },
-    { key: "message", header: "Message", render: (l: WorkflowLog) => <span className="text-sm text-slate-400">{l.message}</span> },
+    }, { key: "message", header: "Message", render: (l: WorkflowLog) => <span className="text-sm text-slate-400">{l.message}</span> },
   ];
 
   const s = stats || { activeTemplates: 0, totalExecutions: 0, runningInstances: 0, successRate: 0, failedThisWeek: 0, avgDuration: "—" };
@@ -301,8 +278,8 @@ export default function WorkflowAutomationPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -369,7 +346,7 @@ export default function WorkflowAutomationPage() {
           ]} value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value })} />
 
           {/* step builder */}
-          <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Workflow Steps</h4>
               <Button size="sm" variant="outline" onClick={addStep}>+ Add Step</Button>
@@ -378,7 +355,7 @@ export default function WorkflowAutomationPage() {
               {steps.map((step, idx) => (
                 <div key={idx} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2">
                   <div className="flex items-start gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-600/20 text-xs font-bold text-brand-400 mt-1">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-600/20 text-xs font-bold text-brand-600 dark:text-brand-400 mt-1">
                       {idx + 1}
                     </div>
                     <div className="flex-1 space-y-2">
@@ -450,22 +427,22 @@ export default function WorkflowAutomationPage() {
             </div>
 
             {showDetail.error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
-                <p className="text-xs font-medium text-red-400">Error</p>
+              <div className="rounded-lg border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/5 p-3">
+                <p className="text-xs font-medium text-red-600 dark:text-red-400">Error</p>
                 <p className="text-sm text-red-300">{showDetail.error}</p>
               </div>
             )}
 
             {/* step progress */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
               <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Step Progress</h4>
               <div className="space-y-2">
                 {(showDetail.steps || []).map((step, idx) => (
                   <div key={step.id || idx} className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3">
                     <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
-                      step.status === "COMPLETED" ? "bg-green-500/20 text-green-400"
-                      : step.status === "IN_PROGRESS" ? "bg-blue-500/20 text-blue-400"
-                      : step.status === "FAILED" ? "bg-red-500/20 text-red-400"
+                      step.status === "COMPLETED" ? "bg-green-200 dark:bg-green-500/20 text-green-600 dark:text-green-400"
+                      : step.status === "IN_PROGRESS" ? "bg-blue-500/20 text-blue-600 dark:text-blue-400"
+                      : step.status === "FAILED" ? "bg-red-200 dark:bg-red-500/20 text-red-600 dark:text-red-400"
                       : "bg-slate-50 dark:bg-slate-800 text-slate-500"
                     }`}>
                       {step.status === "COMPLETED" ? "✓" : step.status === "FAILED" ? "✕" : idx + 1}

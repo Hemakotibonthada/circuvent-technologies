@@ -74,20 +74,20 @@ interface KTAssignment {
 }
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: string }> = {
-  INITIATED: { color: "bg-blue-900/50 text-blue-400", label: "Initiated", icon: "🚀" },
-  IN_PROGRESS: { color: "bg-amber-900/50 text-amber-400", label: "In Progress", icon: "⏳" },
-  CHECKLIST_PENDING: { color: "bg-orange-900/50 text-orange-400", label: "Checklist Pending", icon: "📋" },
-  SETTLEMENT_PENDING: { color: "bg-purple-900/50 text-purple-400", label: "Settlement Pending", icon: "💰" },
-  COMPLETED: { color: "bg-emerald-900/50 text-emerald-400", label: "Completed", icon: "✅" },
+  INITIATED: { color: "bg-blue-900/50 text-blue-600 dark:text-blue-400", label: "Initiated", icon: "🚀" },
+  IN_PROGRESS: { color: "bg-amber-900/50 text-amber-600 dark:text-amber-400", label: "In Progress", icon: "⏳" },
+  CHECKLIST_PENDING: { color: "bg-orange-900/50 text-orange-600 dark:text-orange-400", label: "Checklist Pending", icon: "📋" },
+  SETTLEMENT_PENDING: { color: "bg-purple-900/50 text-purple-600 dark:text-purple-400", label: "Settlement Pending", icon: "💰" },
+  COMPLETED: { color: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", label: "Completed", icon: "✅" },
   CANCELLED: { color: "bg-slate-100 dark:bg-slate-700 text-slate-400", label: "Cancelled", icon: "❌" },
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  IT: "text-cyan-400 bg-cyan-900/30",
-  HR: "text-pink-400 bg-pink-900/30",
-  FINANCE: "text-green-400 bg-green-900/30",
-  ADMIN: "text-amber-400 bg-amber-900/30",
-  TEAM: "text-purple-400 bg-purple-900/30",
+  IT: "text-cyan-600 dark:text-cyan-400 bg-cyan-900/30",
+  HR: "text-pink-600 dark:text-pink-400 bg-pink-900/30",
+  FINANCE: "text-green-600 dark:text-green-400 bg-green-900/30",
+  ADMIN: "text-amber-600 dark:text-amber-400 bg-amber-900/30",
+  TEAM: "text-purple-600 dark:text-purple-400 bg-purple-900/30",
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -191,11 +191,7 @@ export default function ExitManagementPage() {
   }, [checklist]);
 
   const tabs = [
-    { id: "checklist", label: "Exit Checklist", icon: "📋" },
-    { id: "assets", label: "Asset Return", icon: "💻" },
-    { id: "settlement", label: "Settlement", icon: "💰" },
-    { id: "kt", label: "Knowledge Transfer", icon: "📚" },
-    { id: "interview", label: "Exit Interview", icon: "🎤" },
+    { id: "checklist", label: "Exit Checklist", icon: "📋" }, { key: "assets", label: "Asset Return", icon: "💻" }, { key: "settlement", label: "Settlement", icon: "💰" }, { key: "kt", label: "Knowledge Transfer", icon: "📚" }, { key: "interview", label: "Exit Interview", icon: "🎤" },
   ];
 
   if (loading) {
@@ -209,7 +205,7 @@ export default function ExitManagementPage() {
   if (!workflow) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
-        <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+        <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
         <div className="mt-8 text-center bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl p-12">
           <p className="text-4xl mb-4">🏢</p>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No Active Exit Process</h2>
@@ -227,7 +223,7 @@ export default function ExitManagementPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🚪 Exit Management</h1>
           <p className="text-sm text-slate-500">Manage your exit process and checklist</p>
         </div>
@@ -241,11 +237,11 @@ export default function ExitManagementPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5 mb-6">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-amber-400">{daysRemaining}</p>
+          <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{daysRemaining}</p>
           <p className="text-xs text-slate-500 mt-1">Days Remaining</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-cyan-400">{progressPercent}%</p>
+          <p className="text-3xl font-bold text-cyan-600 dark:text-cyan-400">{progressPercent}%</p>
           <p className="text-xs text-slate-500 mt-1">Checklist Progress</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
@@ -253,7 +249,7 @@ export default function ExitManagementPage() {
           <p className="text-xs text-slate-500 mt-1">Notice Period (days)</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-green-400">{completedCount}/{totalCount}</p>
+          <p className="text-3xl font-bold text-green-600 dark:text-green-400">{completedCount}/{totalCount}</p>
           <p className="text-xs text-slate-500 mt-1">Items Completed</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
@@ -336,8 +332,8 @@ export default function ExitManagementPage() {
                       )}
                     </div>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      item.priority === "HIGH" ? "text-red-400 bg-red-900/20" :
-                      item.priority === "MEDIUM" ? "text-amber-400 bg-amber-900/20" :
+                      item.priority === "HIGH" ? "text-red-600 dark:text-red-400 bg-red-900/20" :
+                      item.priority === "MEDIUM" ? "text-amber-600 dark:text-amber-400 bg-amber-900/20" :
                       "text-slate-400 bg-slate-100 dark:bg-slate-800"
                     }`}>
                       {item.priority}
@@ -371,7 +367,7 @@ export default function ExitManagementPage() {
                     </div>
                   </div>
                   <span className={`px-2 py-0.5 text-xs rounded ${
-                    asset.status === "RETURNED" ? "bg-emerald-900/50 text-emerald-400" : "bg-amber-900/50 text-amber-400"
+                    asset.status === "RETURNED" ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : "bg-amber-900/50 text-amber-600 dark:text-amber-400"
                   }`}>
                     {asset.status || "PENDING"}
                   </span>
@@ -396,7 +392,7 @@ export default function ExitManagementPage() {
 
               {/* Payable */}
               <div className="mb-6">
-                <h4 className="text-xs text-emerald-400 font-medium mb-2">Payable Components</h4>
+                <h4 className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-2">Payable Components</h4>
                 <div className="space-y-1.5">
                   {[
                     { label: "Pending Salary", value: settlement.components.pendingSalary },
@@ -408,12 +404,12 @@ export default function ExitManagementPage() {
                   ].filter((c) => c.value > 0).map((c) => (
                     <div key={c.label} className="flex justify-between items-center bg-emerald-900/10 rounded px-3 py-2">
                       <span className="text-xs text-slate-400">{c.label}</span>
-                      <span className="text-xs text-emerald-400 font-medium">{formatCurrency(c.value)}</span>
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(c.value)}</span>
                     </div>
                   ))}
                   <div className="flex justify-between items-center bg-emerald-900/20 rounded px-3 py-2 font-medium">
                     <span className="text-xs text-slate-600 dark:text-slate-300">Total Payable</span>
-                    <span className="text-sm text-emerald-400">{formatCurrency(settlement.totalPayable)}</span>
+                    <span className="text-sm text-emerald-600 dark:text-emerald-400">{formatCurrency(settlement.totalPayable)}</span>
                   </div>
                 </div>
               </div>
@@ -421,7 +417,7 @@ export default function ExitManagementPage() {
               {/* Deductions */}
               {settlement.totalDeductions > 0 && (
                 <div className="mb-6">
-                  <h4 className="text-xs text-red-400 font-medium mb-2">Deductions</h4>
+                  <h4 className="text-xs text-red-600 dark:text-red-400 font-medium mb-2">Deductions</h4>
                   <div className="space-y-1.5">
                     {[
                       { label: "Professional Tax", value: settlement.components.deductions },
@@ -430,12 +426,12 @@ export default function ExitManagementPage() {
                     ].filter((c) => c.value > 0).map((c) => (
                       <div key={c.label} className="flex justify-between items-center bg-red-900/10 rounded px-3 py-2">
                         <span className="text-xs text-slate-400">{c.label}</span>
-                        <span className="text-xs text-red-400 font-medium">-{formatCurrency(c.value)}</span>
+                        <span className="text-xs text-red-600 dark:text-red-400 font-medium">-{formatCurrency(c.value)}</span>
                       </div>
                     ))}
                     <div className="flex justify-between items-center bg-red-900/20 rounded px-3 py-2 font-medium">
                       <span className="text-xs text-slate-600 dark:text-slate-300">Total Deductions</span>
-                      <span className="text-sm text-red-400">-{formatCurrency(settlement.totalDeductions)}</span>
+                      <span className="text-sm text-red-600 dark:text-red-400">-{formatCurrency(settlement.totalDeductions)}</span>
                     </div>
                   </div>
                 </div>
@@ -451,7 +447,7 @@ export default function ExitManagementPage() {
           ) : (
             <div className="text-center">
               <p className="text-slate-400 mb-4">Settlement preview not yet available.</p>
-              <button onClick={loadSettlement} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">
+              <button onClick={loadSettlement} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">
                 Load Settlement Preview
               </button>
             </div>
@@ -484,7 +480,7 @@ export default function ExitManagementPage() {
                     sessionDate.setDate(sessionDate.getDate() + session.daysFromNow);
                     return (
                       <div key={i} className="flex items-center gap-3 bg-white dark:bg-slate-800/30 rounded-lg px-3 py-2">
-                        <span className="w-6 h-6 rounded bg-purple-900/50 text-purple-400 flex items-center justify-center text-xs font-bold">{i + 1}</span>
+                        <span className="w-6 h-6 rounded bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs font-bold">{i + 1}</span>
                         <div className="flex-1">
                           <p className="text-sm text-slate-200">{session.topic}</p>
                           <p className="text-[10px] text-slate-500">{formatDate(sessionDate.toISOString())}</p>
@@ -519,11 +515,7 @@ export default function ExitManagementPage() {
               <p className="text-xs text-slate-400 mb-4">Share your experience. This feedback is confidential and helps us improve.</p>
               <div className="space-y-4">
                 {[
-                  { key: "overallExperience", label: "Overall Experience" },
-                  { key: "managementRating", label: "Management" },
-                  { key: "workLifeBalance", label: "Work-Life Balance" },
-                  { key: "growthOpportunities", label: "Growth Opportunities" },
-                  { key: "compensationSatisfaction", label: "Compensation" },
+                  { id: "overallExperience", label: "Overall Experience" }, { key: "managementRating", label: "Management" }, { key: "workLifeBalance", label: "Work-Life Balance" }, { key: "growthOpportunities", label: "Growth Opportunities" }, { key: "compensationSatisfaction", label: "Compensation" },
                 ].map(({ key, label }) => (
                   <div key={key}>
                     <div className="flex justify-between items-center mb-1">
@@ -589,7 +581,7 @@ export default function ExitManagementPage() {
                   <button
                     onClick={() => setFeedback({ ...feedback, wouldRecommend: !feedback.wouldRecommend })}
                     className={`px-3 py-1 text-xs rounded-full ${
-                      feedback.wouldRecommend ? "bg-emerald-900/50 text-emerald-400" : "bg-red-900/50 text-red-400"
+                      feedback.wouldRecommend ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : "bg-red-900/50 text-red-600 dark:text-red-400"
                     }`}
                   >
                     {feedback.wouldRecommend ? "Yes" : "No"}
@@ -600,7 +592,7 @@ export default function ExitManagementPage() {
                   <button
                     onClick={handleSubmitFeedback}
                     disabled={submitting || !feedback.reasonForLeaving}
-                    className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 disabled:opacity-50"
                   >
                     {submitting ? "Submitting..." : "Submit Feedback"}
                   </button>
@@ -633,7 +625,7 @@ export default function ExitManagementPage() {
               }`}>
                 {item.done ? "✓" : ""}
               </span>
-              <span className={`text-xs ${item.done ? "text-emerald-400" : "text-slate-500"}`}>{item.label}</span>
+              <span className={`text-xs ${item.done ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500"}`}>{item.label}</span>
             </div>
           ))}
         </div>

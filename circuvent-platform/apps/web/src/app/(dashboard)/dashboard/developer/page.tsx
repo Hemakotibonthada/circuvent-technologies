@@ -59,8 +59,8 @@ export default function DeveloperDashboard() {
                   </div>
                 </div>
               ))}
-              <div className="mt-3 flex items-center justify-between rounded-lg border border-brand-500/30 bg-brand-500/5 p-3">
-                <span className="text-sm font-medium text-brand-400">Week Total</span>
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/5 p-3">
+                <span className="text-sm font-medium text-brand-600 dark:text-brand-400">Week Total</span>
                 <span className="text-lg font-bold text-slate-900 dark:text-white">{weekHours}h</span>
               </div>
             </div>
@@ -164,7 +164,7 @@ export default function DeveloperDashboard() {
                 <div className="flex items-center gap-2">
                   <Badge color={r.type === "KUDOS" ? "green" : r.type === "AWARD" ? "amber" : "blue"}>{r.type}</Badge>
                   <span className="text-xs text-slate-400">{r.category}</span>
-                  <span className="ml-auto text-xs text-brand-400">+{r.points} pts</span>
+                  <span className="ml-auto text-xs text-brand-600 dark:text-brand-400">+{r.points} pts</span>
                 </div>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{r.message}</p>
               </div>
@@ -184,7 +184,7 @@ export default function DeveloperDashboard() {
           { label: "My Profile", href: "/portal/profile", icon: "👤" },
           { label: "Helpdesk", href: "/portal/helpdesk", icon: "🎫" },
         ].map((l) => (
-          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
+          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
             <span>{l.icon}</span> {l.label}
           </a>
         ))}

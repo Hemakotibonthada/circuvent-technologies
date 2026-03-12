@@ -33,10 +33,10 @@ interface AdvanceLimits {
 }
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  PENDING: { color: "bg-amber-900/50 text-amber-400", label: "Pending" },
-  APPROVED: { color: "bg-emerald-900/50 text-emerald-400", label: "Approved" },
-  REJECTED: { color: "bg-red-900/50 text-red-400", label: "Rejected" },
-  DISBURSED: { color: "bg-blue-900/50 text-blue-400", label: "Disbursed" },
+  PENDING: { color: "bg-amber-900/50 text-amber-600 dark:text-amber-400", label: "Pending" },
+  APPROVED: { color: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", label: "Approved" },
+  REJECTED: { color: "bg-red-900/50 text-red-600 dark:text-red-400", label: "Rejected" },
+  DISBURSED: { color: "bg-blue-900/50 text-blue-600 dark:text-blue-400", label: "Disbursed" },
   DEDUCTED: { color: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", label: "Deducted" },
   CANCELLED: { color: "bg-slate-50 dark:bg-slate-800 text-slate-500", label: "Cancelled" },
 };
@@ -105,14 +105,14 @@ export default function SalaryAdvancePage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">💰 Salary Advance</h1>
           <p className="text-sm text-slate-500">Request advance on your salary</p>
         </div>
         <button
           onClick={() => setShowRequest(true)}
           disabled={!limits || limits.available <= 0}
-          className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm font-medium disabled:opacity-50"
+          className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm font-medium disabled:opacity-50"
         >
           + Request Advance
         </button>
@@ -127,15 +127,15 @@ export default function SalaryAdvancePage() {
               <p className="text-xs text-slate-500">Net Salary</p>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-              <p className="text-xl font-bold text-blue-400">₹{limits.maxAdvance.toLocaleString("en-IN")}</p>
+              <p className="text-xl font-bold text-blue-600 dark:text-blue-400">₹{limits.maxAdvance.toLocaleString("en-IN")}</p>
               <p className="text-xs text-slate-500">Max Advance (50%)</p>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-              <p className="text-xl font-bold text-amber-400">₹{limits.pendingAdvances.toLocaleString("en-IN")}</p>
+              <p className="text-xl font-bold text-amber-600 dark:text-amber-400">₹{limits.pendingAdvances.toLocaleString("en-IN")}</p>
               <p className="text-xs text-slate-500">Pending/Active</p>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-              <p className="text-xl font-bold text-emerald-400">₹{limits.available.toLocaleString("en-IN")}</p>
+              <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">₹{limits.available.toLocaleString("en-IN")}</p>
               <p className="text-xs text-slate-500">Available</p>
             </div>
           </>
@@ -167,7 +167,7 @@ export default function SalaryAdvancePage() {
                     Repayment: {adv.repaymentMonths} months · ₹{Math.round(Number(adv.amount) / adv.repaymentMonths).toLocaleString("en-IN")}/month
                   </p>
                   {adv.rejectionReason && (
-                    <p className="text-xs text-red-400 mt-1">Reason: {adv.rejectionReason}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">Reason: {adv.rejectionReason}</p>
                   )}
                 </div>
                 <div className="text-right">
@@ -175,7 +175,7 @@ export default function SalaryAdvancePage() {
                   {adv.status === "PENDING" && (
                     <button
                       onClick={() => handleCancel(adv.id)}
-                      className="text-xs text-red-400 hover:text-red-300 mt-1"
+                      className="text-xs text-red-600 dark:text-red-400 hover:text-red-300 mt-1"
                     >
                       Cancel
                     </button>
@@ -194,7 +194,7 @@ export default function SalaryAdvancePage() {
                       const monthlyAmt = Math.round(Number(adv.amount) / adv.repaymentMonths);
                       const isPast = d < new Date();
                       return (
-                        <div key={i} className={`text-center p-1.5 rounded text-xs ${isPast ? "bg-emerald-900/20 text-emerald-400" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
+                        <div key={i} className={`text-center p-1.5 rounded text-xs ${isPast ? "bg-emerald-900/20 text-emerald-600 dark:text-emerald-400" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
                           <p className="font-medium">{d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" })}</p>
                           <p>₹{monthlyAmt.toLocaleString("en-IN")}</p>
                           {isPast && <p className="text-[10px]">✓ Deducted</p>}
@@ -211,15 +211,15 @@ export default function SalaryAdvancePage() {
 
       {/* Request Modal */}
       {showRequest && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Request Salary Advance</h2>
 
             {limits && (
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 mb-4 text-xs text-slate-400">
                 <p>Net Salary: <span className="text-slate-900 dark:text-white font-medium">₹{limits.netSalary.toLocaleString("en-IN")}</span></p>
-                <p>Max Advance: <span className="text-blue-400 font-medium">₹{limits.maxAdvance.toLocaleString("en-IN")}</span></p>
-                <p>Available: <span className="text-emerald-400 font-medium">₹{limits.available.toLocaleString("en-IN")}</span></p>
+                <p>Max Advance: <span className="text-blue-600 dark:text-blue-400 font-medium">₹{limits.maxAdvance.toLocaleString("en-IN")}</span></p>
+                <p>Available: <span className="text-emerald-600 dark:text-emerald-400 font-medium">₹{limits.available.toLocaleString("en-IN")}</span></p>
               </div>
             )}
 
@@ -235,7 +235,7 @@ export default function SalaryAdvancePage() {
                   className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm"
                 />
                 {Number(form.amount) > (limits?.available || 0) && (
-                  <p className="text-xs text-red-400 mt-1">Exceeds available limit</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">Exceeds available limit</p>
                 )}
               </div>
               <div>
@@ -262,7 +262,7 @@ export default function SalaryAdvancePage() {
               </div>
               {form.amount && Number(form.amount) > 0 && (
                 <div className="bg-blue-900/20 border border-blue-900/30 rounded-lg p-3 text-xs">
-                  <p className="text-blue-400">Monthly deduction: <strong>₹{monthlyDeduction.toLocaleString("en-IN")}</strong></p>
+                  <p className="text-blue-600 dark:text-blue-400">Monthly deduction: <strong>₹{monthlyDeduction.toLocaleString("en-IN")}</strong></p>
                   <p className="text-slate-500 mt-0.5">Will be auto-deducted from your payroll for {form.repaymentMonths} months</p>
                 </div>
               )}
@@ -273,7 +273,7 @@ export default function SalaryAdvancePage() {
               <button
                 onClick={handleRequest}
                 disabled={submitting || !form.amount || !form.reason || Number(form.amount) > (limits?.available || 0) || Number(form.amount) <= 0}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
               >
                 {submitting ? "Requesting..." : "Submit Request"}
               </button>

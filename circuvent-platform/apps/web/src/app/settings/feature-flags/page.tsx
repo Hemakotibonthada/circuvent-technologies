@@ -67,7 +67,7 @@ export default function FeatureFlagsPage() {
   const [filterEnv, setFilterEnv] = useState("ALL");
 
   const [form, setForm] = useState({
-    key: "", name: "", description: "",
+    id: "", name: "", description: "",
     environment: "ALL", percentage: "100",
   });
 
@@ -99,7 +99,7 @@ export default function FeatureFlagsPage() {
     if (res.success) {
       flash("success", "Feature flag created");
       setShowCreate(false);
-      setForm({ key: "", name: "", description: "", environment: "ALL", percentage: "100" });
+      setForm({ id: "", name: "", description: "", environment: "ALL", percentage: "100" });
       setRules([]);
       refetch();
     } else flash("error", res.error || "Failed to create flag");
@@ -147,18 +147,14 @@ export default function FeatureFlagsPage() {
   /* ── columns ──────────────────────────────────────────── */
   const flagColumns = [
     {
-      key: "name", header: "Flag",
+      id: "name", header: "Flag",
       render: (f: FeatureFlag) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{f.name}</p>
           <p className="text-xs text-slate-500 font-mono">{f.key}</p>
         </div>
       ),
-    },
-    { key: "description", header: "Description", render: (f: FeatureFlag) => <span className="text-xs text-slate-400">{f.description?.slice(0, 80)}</span> },
-    { key: "environment", header: "Environment", render: (f: FeatureFlag) => <Badge color={environmentColors[f.environment] || "slate"}>{f.environment}</Badge> },
-    {
-      key: "percentage", header: "Rollout",
+    }, { key: "description", header: "Description", render: (f: FeatureFlag) => <span className="text-xs text-slate-400">{f.description?.slice(0, 80)}</span> }, { key: "environment", header: "Environment", render: (f: FeatureFlag) => <Badge color={environmentColors[f.environment] || "slate"}>{f.environment}</Badge> }, { key: "percentage", header: "Rollout",
       render: (f: FeatureFlag) => (
         <div className="flex items-center gap-2">
           <div className="h-2 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -167,15 +163,11 @@ export default function FeatureFlagsPage() {
           <span className="text-xs text-slate-400">{f.percentage}%</span>
         </div>
       ),
-    },
-    {
-      key: "targeting", header: "Targeting",
+    }, { key: "targeting", header: "Targeting",
       render: (f: FeatureFlag) => (f.targetingRules || []).length > 0 ?
         <Badge color="purple">{f.targetingRules.length} rule{f.targetingRules.length > 1 ? "s" : ""}</Badge>
         : <span className="text-slate-500">None</span>,
-    },
-    {
-      key: "isEnabled", header: "Status",
+    }, { key: "isEnabled", header: "Status",
       render: (f: FeatureFlag) => (
         <button
           onClick={() => handleToggle(f)}
@@ -184,10 +176,7 @@ export default function FeatureFlagsPage() {
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${f.isEnabled ? "translate-x-6" : "translate-x-1"}`} />
         </button>
       ),
-    },
-    { key: "updatedAt", header: "Updated", render: (f: FeatureFlag) => <span className="text-xs text-slate-500">{formatDate(f.updatedAt)}</span> },
-    {
-      key: "actions", header: "",
+    }, { key: "updatedAt", header: "Updated", render: (f: FeatureFlag) => <span className="text-xs text-slate-500">{formatDate(f.updatedAt)}</span> }, { key: "actions", header: "",
       render: (f: FeatureFlag) => (
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => setShowDetail(f)}>Details</Button>
@@ -202,8 +191,8 @@ export default function FeatureFlagsPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -237,7 +226,7 @@ export default function FeatureFlagsPage() {
             onClick={() => setFilterEnv(env)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
               filterEnv === env
-                ? "bg-brand-600 text-slate-900 dark:text-white"
+                ? "bg-brand-600 text-white"
                 : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
@@ -270,7 +259,7 @@ export default function FeatureFlagsPage() {
           </div>
 
           {/* targeting rules */}
-          <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Targeting Rules</h4>
               <Button size="sm" variant="outline" onClick={addRule}>+ Add Rule</Button>
@@ -351,7 +340,7 @@ export default function FeatureFlagsPage() {
 
             {/* targeting rules */}
             {(showDetail.targetingRules || []).length > 0 && (
-              <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
                 <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Targeting Rules</h4>
                 <div className="space-y-1">
                   {showDetail.targetingRules.map((rule) => (

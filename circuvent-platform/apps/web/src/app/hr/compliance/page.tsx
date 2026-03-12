@@ -56,10 +56,7 @@ export default function CompliancePage() {
   };
 
   const tabs = [
-    { id: "dashboard", label: "Compliance Dashboard" },
-    { id: "deadlines", label: "Deadlines", count: deadlines?.overdueCount },
-    { id: "form16", label: "Form 16" },
-    { id: "summary", label: "Employee Statutory" },
+    { id: "dashboard", label: "Compliance Dashboard" }, { key: "deadlines", label: "Deadlines", count: deadlines?.overdueCount }, { key: "form16", label: "Form 16" }, { key: "summary", label: "Employee Statutory" },
   ];
 
   const statusColors: Record<string, any> = {
@@ -98,7 +95,7 @@ export default function CompliancePage() {
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white uppercase">{key === "professionalTax" ? "Professional Tax" : key.toUpperCase()}</p>
                     <p className="text-xs text-slate-500">Due: {s.dueDate}</p>
-                  </div>
+                  </Card>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(s.amount)}</p>
                     <Badge color={statusColors[s.status]}>{s.status}</Badge>
@@ -106,7 +103,7 @@ export default function CompliancePage() {
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="Statutory Breakdown" />
@@ -123,7 +120,7 @@ export default function CompliancePage() {
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-slate-400">{label}</span>
                       <span className="text-slate-900 dark:text-white font-medium">{formatCurrency(amount as number)}</span>
-                    </div>
+                    </Card>
                     <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                       <div className={`h-2 rounded-full ${color}`} style={{ width: `${pct}%` }} />
                     </div>
@@ -131,7 +128,7 @@ export default function CompliancePage() {
                 );
               })}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -139,16 +136,11 @@ export default function CompliancePage() {
       {activeTab === "deadlines" && deadlines && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "name", header: "Deadline", render: (d: any) => <span className="text-slate-900 dark:text-white font-medium">{d.name}</span> },
-              { key: "type", header: "Type", render: (d: any) => <Badge color="blue">{d.type}</Badge> },
-              { key: "dueDate", header: "Due Date", render: (d: any) => d.dueDate },
-              { key: "status", header: "Status", render: (d: any) => (
+            columns={[{ key: "name", header: "Deadline", render: (d: any) => <span className="text-slate-900 dark:text-white font-medium">{d.name}</span> }, { key: "type", header: "Type", render: (d: any) => <Badge color="blue">{d.type}</Badge> }, { key: "dueDate", header: "Due Date", render: (d: any) => d.dueDate }, { key: "status", header: "Status", render: (d: any) => (
                 <Badge color={statusColors[d.status] || "slate"}>{d.status.replace("_", " ")}</Badge>
-              )},
-              { key: "daysUntil", header: "Days", render: (d: any) => {
+              )}, { key: "daysUntil", header: "Days", render: (d: any) => {
                 const days = Math.ceil((new Date(d.dueDate).getTime() - Date.now()) / 86400000);
-                return <span className={days < 0 ? "text-red-400 font-bold" : days < 3 ? "text-amber-400" : "text-slate-400"}>
+                return <span className={days < 0 ? "text-red-600 dark:text-red-400 font-bold" : days < 3 ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}>
                   {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
                 </span>;
               }},
@@ -170,7 +162,7 @@ export default function CompliancePage() {
               { value: "2024-2025", label: "FY 2024-2025" },
             ]} value={fy} onChange={(e) => setFY(e.target.value)} />
             <Button onClick={handleFetchForm16} loading={loading} disabled={!empId}>Fetch</Button>
-          </div>
+          </Card>
 
           {form16Data && (
             <div className="space-y-6">
@@ -183,7 +175,7 @@ export default function CompliancePage() {
                 <div>
                   <h4 className="text-sm font-medium text-slate-400 mb-2">Tax Summary</h4>
                   <p className="text-slate-900 dark:text-white">Annual Salary: {formatCurrency(form16Data.annualSalary)}</p>
-                  <p className="text-green-400">Total TDS: {formatCurrency(form16Data.totalTDS)}</p>
+                  <p className="text-green-600 dark:text-green-400">Total TDS: {formatCurrency(form16Data.totalTDS)}</p>
                 </div>
               </div>
 
@@ -206,19 +198,19 @@ export default function CompliancePage() {
                     <div className="flex justify-between"><span className="text-slate-400">Gross Salary</span><span className="text-slate-900 dark:text-white">{formatCurrency(form16Data.taxComputation.grossSalary)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Standard Deduction</span><span className="text-slate-900 dark:text-white">-{formatCurrency(form16Data.taxComputation.standardDeduction)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Taxable Income</span><span className="text-slate-900 dark:text-white font-semibold">{formatCurrency(form16Data.taxComputation.taxableIncome)}</span></div>
-                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-2"><span className="text-slate-400">Tax on Income</span><span className="text-red-400">{formatCurrency(form16Data.taxComputation.taxOnIncome)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Cess (4%)</span><span className="text-red-400">{formatCurrency(form16Data.taxComputation.cess)}</span></div>
+                    <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-2"><span className="text-slate-400">Tax on Income</span><span className="text-red-600 dark:text-red-400">{formatCurrency(form16Data.taxComputation.taxOnIncome)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Cess (4%)</span><span className="text-red-600 dark:text-red-400">{formatCurrency(form16Data.taxComputation.cess)}</span></div>
                     {form16Data.taxComputation.rebateApplied && (
-                      <div className="flex justify-between"><span className="text-slate-400">Section 87A Rebate</span><span className="text-green-400">-{formatCurrency(form16Data.taxComputation.rebateAmount)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Section 87A Rebate</span><span className="text-green-600 dark:text-green-400">-{formatCurrency(form16Data.taxComputation.rebateAmount)}</span></div>
                     )}
                     <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-2 font-bold"><span className="text-slate-600 dark:text-slate-300">Net Tax Payable</span><span className="text-slate-900 dark:text-white">{formatCurrency(form16Data.taxComputation.netTax)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Effective Rate</span><span className="text-cyan-400">{form16Data.taxComputation.effectiveRate}%</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Effective Rate</span><span className="text-cyan-600 dark:text-cyan-400">{form16Data.taxComputation.effectiveRate}%</span></div>
                   </div>
                 </div>
               )}
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Employee Statutory Summary Tab */}
@@ -228,7 +220,7 @@ export default function CompliancePage() {
           <div className="flex items-end gap-4 mb-6">
             <Input label="Employee ID" value={summaryEmpId} onChange={(e) => setSummaryEmpId(e.target.value)} placeholder="Employee ID..." />
             <Button onClick={handleFetchSummary} loading={loading} disabled={!summaryEmpId}>Fetch</Button>
-          </div>
+          </Card>
 
           {statutorySummary && (
             <div className="grid gap-6 lg:grid-cols-2">
@@ -239,26 +231,26 @@ export default function CompliancePage() {
                 <p className="text-sm text-slate-400">Monthly Gross: {formatCurrency(statutorySummary.employee.monthlyGross)}</p>
               </div>
 
-              <div className="rounded-lg bg-brand-600/10 border border-brand-500/20 p-4 text-center">
+              <div className="rounded-lg bg-brand-600/10 border border-brand-200 dark:border-brand-500/20 p-4 text-center">
                 <p className="text-xs text-slate-400">Recommended Regime</p>
                 <p className="text-2xl font-bold text-slate-900 dark:text-white">{statutorySummary.regimeRecommendation} TAX REGIME</p>
-                <p className="text-sm text-green-400">Save {formatCurrency(statutorySummary.annualSavings)}/year</p>
+                <p className="text-sm text-green-600 dark:text-green-400">Save {formatCurrency(statutorySummary.annualSavings)}/year</p>
               </div>
 
               {/* EPF */}
               <Card className="bg-slate-50 dark:bg-slate-800/30">
-                <h4 className="text-sm font-semibold text-blue-400 mb-2">EPF (Provident Fund)</h4>
+                <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-2">EPF (Provident Fund)</h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between"><span className="text-slate-400">PF Wage</span><span>{formatCurrency(statutorySummary.epf.pfWage)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Employee (12%)</span><span>{formatCurrency(statutorySummary.epf.employeeContribution)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Employer EPF</span><span>{formatCurrency(statutorySummary.epf.employerEPFContribution)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Employer EPS</span><span>{formatCurrency(statutorySummary.epf.employerEPSContribution)}</span></div>
-                </div>
-              </Card>
+                </Card>
+              </div>
 
               {/* ESI */}
               <Card className="bg-slate-50 dark:bg-slate-800/30">
-                <h4 className="text-sm font-semibold text-green-400 mb-2">ESI</h4>
+                <h4 className="text-sm font-semibold text-green-600 dark:text-green-400 mb-2">ESI</h4>
                 <p className="text-sm text-slate-400">
                   {statutorySummary.esi.isEligible ? "Applicable" : "Not applicable (gross > ₹21,000)"}
                 </p>
@@ -266,13 +258,13 @@ export default function CompliancePage() {
                   <div className="space-y-1 text-sm mt-2">
                     <div className="flex justify-between"><span className="text-slate-400">Employee (0.75%)</span><span>{formatCurrency(statutorySummary.esi.employeeContribution)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Employer (3.25%)</span><span>{formatCurrency(statutorySummary.esi.employerContribution)}</span></div>
-                  </div>
+                  </Card>
                 )}
-              </Card>
+              </div>
 
               {/* Gratuity */}
               <Card className="bg-slate-50 dark:bg-slate-800/30 lg:col-span-2">
-                <h4 className="text-sm font-semibold text-amber-400 mb-2">Gratuity</h4>
+                <h4 className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-2">Gratuity</h4>
                 <p className="text-sm text-slate-400">
                   {statutorySummary.gratuity.isEligible
                     ? `Eligible — ${statutorySummary.gratuity.completedYears} years of service. Amount: ${formatCurrency(statutorySummary.gratuity.computedGratuity)}`
@@ -282,7 +274,7 @@ export default function CompliancePage() {
               </Card>
             </div>
           )}
-        </Card>
+        </div>
       )}
     </div>
   );

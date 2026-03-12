@@ -25,16 +25,7 @@ interface Employee {
 }
 
 const ONBOARDING_STEPS = [
-  { id: "profile", label: "Personal Information", description: "Name, email, phone, and address verified", mandatory: true },
-  { id: "documents", label: "Identity Documents", description: "PAN card, Aadhaar, and photo ID submitted", mandatory: true },
-  { id: "bank", label: "Bank Account Details", description: "Bank account number and IFSC for salary credit", mandatory: true },
-  { id: "pf", label: "PF / UAN Registration", description: "Provident Fund UAN number linked", mandatory: true },
-  { id: "tax", label: "Tax Declaration", description: "Investment declaration for TDS computation", mandatory: false },
-  { id: "it_setup", label: "IT Equipment Setup", description: "Laptop, email, Slack, GitHub access provisioned", mandatory: true },
-  { id: "nda", label: "NDA & Policy Acknowledgment", description: "Non-disclosure and company policy signed", mandatory: true },
-  { id: "buddy", label: "Buddy Assignment", description: "Onboarding buddy assigned for first 30 days", mandatory: false },
-  { id: "training", label: "Orientation Training", description: "Company overview, tools, and process training completed", mandatory: false },
-  { id: "probation", label: "Probation Review", description: "6-month probation period review scheduled", mandatory: true },
+  { id: "profile", label: "Personal Information", description: "Name, email, phone, and address verified", mandatory: true }, { key: "documents", label: "Identity Documents", description: "PAN card, Aadhaar, and photo ID submitted", mandatory: true }, { key: "bank", label: "Bank Account Details", description: "Bank account number and IFSC for salary credit", mandatory: true }, { key: "pf", label: "PF / UAN Registration", description: "Provident Fund UAN number linked", mandatory: true }, { key: "tax", label: "Tax Declaration", description: "Investment declaration for TDS computation", mandatory: false }, { key: "it_setup", label: "IT Equipment Setup", description: "Laptop, email, Slack, GitHub access provisioned", mandatory: true }, { key: "nda", label: "NDA & Policy Acknowledgment", description: "Non-disclosure and company policy signed", mandatory: true }, { key: "buddy", label: "Buddy Assignment", description: "Onboarding buddy assigned for first 30 days", mandatory: false }, { key: "training", label: "Orientation Training", description: "Company overview, tools, and process training completed", mandatory: false }, { key: "probation", label: "Probation Review", description: "6-month probation period review scheduled", mandatory: true },
 ];
 
 export default function OnboardingPage() {
@@ -136,13 +127,13 @@ export default function OnboardingPage() {
               />
             </div>
             {!mandatoryComplete && (
-              <p className="mt-2 text-xs text-amber-400">⚠ Some mandatory steps are incomplete</p>
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">⚠ Some mandatory steps are incomplete</p>
             )}
             {mandatoryComplete && completionPercent < 100 && (
-              <p className="mt-2 text-xs text-green-400">✓ All mandatory steps complete. Optional steps remaining.</p>
+              <p className="mt-2 text-xs text-green-600 dark:text-green-400">✓ All mandatory steps complete. Optional steps remaining.</p>
             )}
             {completionPercent === 100 && (
-              <p className="mt-2 text-xs text-green-400">✓ Onboarding fully complete!</p>
+              <p className="mt-2 text-xs text-green-600 dark:text-green-400">✓ Onboarding fully complete!</p>
             )}
           </div>
 
@@ -156,15 +147,15 @@ export default function OnboardingPage() {
                   onClick={() => toggleStep(step.id)}
                   className={`flex items-center gap-4 rounded-xl border p-4 cursor-pointer transition-all ${
                     isComplete
-                      ? "border-green-500/20 bg-green-500/5"
+                      ? "border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/5"
                       : "border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/50 hover:border-slate-700"
                   }`}
                 >
                   <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                    isComplete ? "border-green-500 bg-green-500/20" : "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
+                    isComplete ? "border-green-500 bg-green-200 dark:bg-green-500/20" : "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
                   }`}>
                     {isComplete ? (
-                      <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="h-4 w-4 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                       </svg>
                     ) : (
@@ -174,7 +165,7 @@ export default function OnboardingPage() {
 
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <p className={`text-sm font-medium ${isComplete ? "text-green-400 line-through" : "text-slate-900 dark:text-white"}`}>{step.label}</p>
+                      <p className={`text-sm font-medium ${isComplete ? "text-green-600 dark:text-green-400 line-through" : "text-slate-900 dark:text-white"}`}>{step.label}</p>
                       {step.mandatory && <Badge color={isComplete ? "green" : "red"}>Required</Badge>}
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">{step.description}</p>
@@ -193,9 +184,9 @@ export default function OnboardingPage() {
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 {employee._analysis.complianceChecklist.map((check) => (
                   <div key={check.item} className={`flex items-center gap-2 rounded-lg p-3 ${
-                    check.status === "OK" ? "bg-green-500/5 border border-green-500/20" :
-                    check.status === "MISSING" ? "bg-red-500/5 border border-red-500/20" :
-                    "bg-amber-500/5 border border-amber-500/20"
+                    check.status === "OK" ? "bg-green-50 dark:bg-green-500/5 border border-green-200 dark:border-green-500/20" :
+                    check.status === "MISSING" ? "bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20" :
+                    "bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20"
                   }`}>
                     <span className={`h-2 w-2 rounded-full ${
                       check.status === "OK" ? "bg-green-500" : check.status === "MISSING" ? "bg-red-500" : "bg-amber-500"

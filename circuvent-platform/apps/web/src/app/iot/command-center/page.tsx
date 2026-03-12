@@ -61,7 +61,7 @@ export default function IoTCommandCenterPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {devices?.map((d: any) => (
                 <button key={d.id} onClick={() => setSelectedDevice(d.id)}
-                  className={`bg-slate-100 dark:bg-slate-800/50 border rounded-lg p-3 text-left transition-colors hover:border-brand-500/50
+                  className={`bg-slate-100 dark:bg-slate-800/50 border rounded-lg p-3 text-left transition-colors hover:border-brand-300 dark:hover:border-brand-500/50
                     ${selectedDevice === d.id ? "border-brand-500 bg-brand-900/20" : "border-slate-200 dark:border-slate-700"}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <div className={`w-2 h-2 rounded-full ${statusColors[d.status] || "bg-slate-500"}`} />
@@ -92,7 +92,7 @@ export default function IoTCommandCenterPage() {
                   </button>
                 ))}
                 {commandResult && (
-                  <div className="mt-2 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-2 text-xs text-emerald-400">
+                  <div className="mt-2 bg-slate-100 dark:bg-slate-800/50 rounded-lg p-2 text-xs text-emerald-600 dark:text-emerald-400">
                     ✓ Command sent: {JSON.stringify(commandResult).slice(0, 100)}
                   </div>
                 )}
@@ -109,7 +109,7 @@ export default function IoTCommandCenterPage() {
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {health.recentAlerts.slice(0, 10).map((alert: any, i: number) => (
                   <div key={i} className="bg-red-900/20 border border-red-900/30 rounded-lg p-2 text-xs">
-                    <p className="text-red-400">{alert.message || alert.alertType}</p>
+                    <p className="text-red-600 dark:text-red-400">{alert.message || alert.alertType}</p>
                     <p className="text-slate-500">{alert.deviceId?.slice(0, 12)}... — {new Date(alert.triggeredAt || alert.createdAt).toLocaleString()}</p>
                   </div>
                 ))}

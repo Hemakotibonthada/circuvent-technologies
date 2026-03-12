@@ -84,9 +84,7 @@ export default function ExpenseWorkflowPage() {
   };
 
   const tabs = [
-    { id: "claims", label: "All Claims", count: expenses?.length },
-    { id: "pending", label: "My Approvals", count: pendingApprovals?.length },
-    { id: "rnd", label: "R&D Summary" },
+    { id: "claims", label: "All Claims", count: expenses?.length }, { key: "pending", label: "My Approvals", count: pendingApprovals?.length }, { key: "rnd", label: "R&D Summary" },
   ];
 
   return (
@@ -112,20 +110,11 @@ export default function ExpenseWorkflowPage() {
       {activeTab === "claims" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "claimCode", header: "Code", render: (c: any) => <span className="font-mono text-xs text-brand-400">{c.claimCode}</span> },
-              { key: "title", header: "Title", render: (c: any) => <span className="text-slate-900 dark:text-white">{c.title}</span> },
-              { key: "employee", header: "Employee", render: (c: any) => c.employee?.user ? `${c.employee.user.firstName} ${c.employee.user.lastName}` : "—" },
-              { key: "totalAmount", header: "Amount", render: (c: any) => <span className="font-semibold">{formatCurrency(Number(c.totalAmount))}</span> },
-              { key: "items", header: "Items", render: (c: any) => c._count?.items ?? c.items?.length ?? 0 },
-              { key: "isRnD", header: "R&D", render: (c: any) => c.isRnDExpense ? <Badge color="emerald">R&D</Badge> : "—" },
-              { key: "status", header: "Status", render: (c: any) => <Badge color={expenseStatusColors[c.status]}>{c.status}</Badge> },
-              { key: "createdAt", header: "Created", render: (c: any) => timeAgo(c.createdAt) },
-              { key: "actions", header: "", render: (c: any) => c.status === "SUBMITTED" ? (
+            columns={[{ key: "claimCode", header: "Code", render: (c: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{c.claimCode}</span> }, { key: "title", header: "Title", render: (c: any) => <span className="text-slate-900 dark:text-white">{c.title}</span> }, { key: "employee", header: "Employee", render: (c: any) => c.employee?.user ? `${c.employee.user.firstName} ${c.employee.user.lastName}` : "—" }, { key: "totalAmount", header: "Amount", render: (c: any) => <span className="font-semibold">{formatCurrency(Number(c.totalAmount))}</span> }, { key: "items", header: "Items", render: (c: any) => c._count?.items ?? c.items?.length ?? 0 }, { key: "isRnD", header: "R&D", render: (c: any) => c.isRnDExpense ? <Badge color="emerald">R&D</Badge> : "—" }, { key: "status", header: "Status", render: (c: any) => <Badge color={expenseStatusColors[c.status]}>{c.status}</Badge> }, { key: "createdAt", header: "Created", render: (c: any) => timeAgo(c.createdAt) }, { key: "actions", header: "", render: (c: any) => c.status === "SUBMITTED" ? (
                 <div className="flex gap-1">
                   <Button size="sm" variant="outline" onClick={() => handleApprove(c.id)}>Approve</Button>
                   <Button size="sm" variant="ghost" onClick={() => handleReject(c.id)}>Reject</Button>
-                </div>
+                </Card>
               ) : null },
             ]}
             data={expenses || []}
@@ -133,7 +122,7 @@ export default function ExpenseWorkflowPage() {
             loading={loading}
             emptyMessage="No expense claims found."
           />
-        </Card>
+        </div>
       )}
 
       {/* Pending Approvals */}
@@ -151,13 +140,13 @@ export default function ExpenseWorkflowPage() {
                     <p className="text-xs text-slate-400">
                       {step.workflow.entityType}: {step.workflow.entityId}
                     </p>
-                  </div>
+                  </Card>
                   <Badge color="amber">Pending</Badge>
                 </div>
               ))}
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* R&D Summary */}
@@ -169,13 +158,13 @@ export default function ExpenseWorkflowPage() {
               <div className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                 <span className="text-sm text-slate-400">Total R&D Records</span>
                 <span className="text-sm font-semibold text-slate-900 dark:text-white">{rndSummary.recordCount}</span>
-              </div>
+              </Card>
               <div className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                 <span className="text-sm text-slate-400">Grand Total</span>
-                <span className="text-sm font-semibold text-green-400">{formatCurrency(rndSummary.grandTotal)}</span>
+                <span className="text-sm font-semibold text-green-600 dark:text-green-400">{formatCurrency(rndSummary.grandTotal)}</span>
               </div>
             </div>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="By Category" />
             <div className="space-y-2">
@@ -183,10 +172,10 @@ export default function ExpenseWorkflowPage() {
                 <div key={category} className="flex items-center justify-between">
                   <Badge color="emerald">{category.replace(/_/g, " ")}</Badge>
                   <span className="text-sm text-slate-900 dark:text-white">{formatCurrency(amount as number)}</span>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -239,7 +228,7 @@ export default function ExpenseWorkflowPage() {
                     </div>
                     <div className="col-span-1 flex items-center">
                       {form.items.length > 1 && (
-                        <button onClick={() => removeItem(i)} className="text-red-400 hover:text-red-300">×</button>
+                        <button onClick={() => removeItem(i)} className="text-red-600 dark:text-red-400 hover:text-red-300">×</button>
                       )}
                     </div>
                   </div>

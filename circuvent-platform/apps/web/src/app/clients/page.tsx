@@ -101,16 +101,11 @@ export default function ClientsPage() {
   };
 
   const tabs = [
-    { id: "leads", label: "Lead Pipeline", count: leads?.length },
-    { id: "invoices", label: "Invoices", count: invoices?.length },
-    { id: "revenue", label: "Revenue" },
+    { id: "leads", label: "Lead Pipeline", count: leads?.length }, { key: "invoices", label: "Invoices", count: invoices?.length }, { key: "revenue", label: "Revenue" },
   ];
 
   const leadColumns = [
-    { key: "title", header: "Title", render: (l: Lead) => <span className="font-medium text-slate-900 dark:text-white">{l.title}</span> },
-    { key: "client", header: "Client", render: (l: Lead) => l.client?.companyName || "—" },
-    { key: "source", header: "Source", render: (l: Lead) => <Badge color="cyan">{l.source}</Badge> },
-    { key: "status", header: "Status", render: (l: Lead) => (
+    { id: "title", header: "Title", render: (l: Lead) => <span className="font-medium text-slate-900 dark:text-white">{l.title}</span> }, { key: "client", header: "Client", render: (l: Lead) => l.client?.companyName || "—" }, { key: "source", header: "Source", render: (l: Lead) => <Badge color="cyan">{l.source}</Badge> }, { key: "status", header: "Status", render: (l: Lead) => (
       <select
         value={l.status}
         onChange={(e) => handleUpdateLeadStatus(l.id, e.target.value)}
@@ -120,21 +115,11 @@ export default function ClientsPage() {
           <option key={s} value={s}>{s.replace("_", " ")}</option>
         ))}
       </select>
-    )},
-    { key: "value", header: "Value", render: (l: Lead) => l.estimatedValue ? formatCurrency(Number(l.estimatedValue), l.currency) : "—" },
-    { key: "probability", header: "Win %", render: (l: Lead) => l.probability ? `${l.probability}%` : "—" },
-    { key: "assignedTo", header: "Assigned To", render: (l: Lead) => l.assignedTo ? `${l.assignedTo.firstName} ${l.assignedTo.lastName}` : "Unassigned" },
-    { key: "createdAt", header: "Created", render: (l: Lead) => timeAgo(l.createdAt) },
+    )}, { key: "value", header: "Value", render: (l: Lead) => l.estimatedValue ? formatCurrency(Number(l.estimatedValue), l.currency) : "—" }, { key: "probability", header: "Win %", render: (l: Lead) => l.probability ? `${l.probability}%` : "—" }, { key: "assignedTo", header: "Assigned To", render: (l: Lead) => l.assignedTo ? `${l.assignedTo.firstName} ${l.assignedTo.lastName}` : "Unassigned" }, { key: "createdAt", header: "Created", render: (l: Lead) => timeAgo(l.createdAt) },
   ];
 
   const invoiceColumns = [
-    { key: "invoiceNumber", header: "Invoice #", render: (i: Invoice) => <span className="font-mono text-xs text-brand-400">{i.invoiceNumber}</span> },
-    { key: "title", header: "Title", render: (i: Invoice) => <span className="text-slate-900 dark:text-white">{i.title}</span> },
-    { key: "client", header: "Client", render: (i: Invoice) => i.client.companyName },
-    { key: "totalAmount", header: "Total", render: (i: Invoice) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(Number(i.totalAmount), i.currency)}</span> },
-    { key: "paidAmount", header: "Paid", render: (i: Invoice) => formatCurrency(Number(i.paidAmount), i.currency) },
-    { key: "status", header: "Status", render: (i: Invoice) => <Badge color={invoiceStatusColors[i.status]}>{i.status}</Badge> },
-    { key: "dueDate", header: "Due", render: (i: Invoice) => formatDate(i.dueDate) },
+    { id: "invoiceNumber", header: "Invoice #", render: (i: Invoice) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{i.invoiceNumber}</span> }, { key: "title", header: "Title", render: (i: Invoice) => <span className="text-slate-900 dark:text-white">{i.title}</span> }, { key: "client", header: "Client", render: (i: Invoice) => i.client.companyName }, { key: "totalAmount", header: "Total", render: (i: Invoice) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(Number(i.totalAmount), i.currency)}</span> }, { key: "paidAmount", header: "Paid", render: (i: Invoice) => formatCurrency(Number(i.paidAmount), i.currency) }, { key: "status", header: "Status", render: (i: Invoice) => <Badge color={invoiceStatusColors[i.status]}>{i.status}</Badge> }, { key: "dueDate", header: "Due", render: (i: Invoice) => formatDate(i.dueDate) },
   ];
 
   return (
@@ -169,10 +154,10 @@ export default function ClientsPage() {
                 <Badge color={leadStatusColors[stage.status]}>{stage.status.replace("_", " ")}</Badge>
                 <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stage.count}</p>
                 <p className="text-xs text-slate-500">{formatCurrency(stage.totalValue)}</p>
-              </div>
+              </Card>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
@@ -198,18 +183,18 @@ export default function ClientsPage() {
             <CardHeader title="Revenue Summary" subtitle={`FY ${revenue.year}`} />
             <div className="space-y-4">
               {[
-                ["Total Revenue", formatCurrency(revenue.totalRevenue), "text-green-400"],
-                ["Collected", formatCurrency(revenue.totalCollected), "text-blue-400"],
-                ["Outstanding", formatCurrency(revenue.outstanding), "text-amber-400"],
-                ["Overdue Invoices", revenue.overdueInvoices, "text-red-400"],
+                ["Total Revenue", formatCurrency(revenue.totalRevenue), "text-green-600 dark:text-green-400"],
+                ["Collected", formatCurrency(revenue.totalCollected), "text-blue-600 dark:text-blue-400"],
+                ["Outstanding", formatCurrency(revenue.outstanding), "text-amber-600 dark:text-amber-400"],
+                ["Overdue Invoices", revenue.overdueInvoices, "text-red-600 dark:text-red-400"],
               ].map(([label, value, color]) => (
                 <div key={label as string} className="flex justify-between">
                   <span className="text-sm text-slate-400">{label}</span>
                   <span className={`text-sm font-semibold ${color}`}>{value}</span>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="Invoices by Status" />
             <div className="space-y-3">
@@ -217,7 +202,7 @@ export default function ClientsPage() {
                 <div key={s.status} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Badge color={invoiceStatusColors[s.status]}>{s.status}</Badge>
-                  </div>
+                  </Card>
                   <div className="text-right">
                     <span className="text-sm font-medium text-slate-900 dark:text-white">{s._count.id}</span>
                     <span className="ml-2 text-xs text-slate-500">({formatCurrency(Number(s._sum.totalAmount || 0))})</span>
@@ -225,7 +210,7 @@ export default function ClientsPage() {
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -286,7 +271,7 @@ export default function ClientsPage() {
                   </div>
                   <div className="col-span-1">
                     {invoiceForm.lineItems.length > 1 && (
-                      <button onClick={() => removeLineItem(i)} className="text-red-400 hover:text-red-300 p-2">×</button>
+                      <button onClick={() => removeLineItem(i)} className="text-red-600 dark:text-red-400 hover:text-red-300 p-2">×</button>
                     )}
                   </div>
                 </div>

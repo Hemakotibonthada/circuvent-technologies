@@ -41,10 +41,10 @@ export default function HRManagerDashboard() {
         <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Pending Actions</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           {[
-            { label: "Travel Requests", count: travelDash?.byStatus?.find((s: any) => s.status === "SUBMITTED")?.count || 0, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", href: "/hr/travel" },
-            { label: "Candidate Onboarding", count: userStats?.pendingCandidates || 0, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", href: "/hr/user-management" },
-            { label: "Overdue Grievances", count: grievanceDash?.overdue || 0, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", href: "/hr/grievances" },
-            { label: "Today Absent", count: shiftDash?.todayAbsent || 0, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", href: "/hr/shifts" },
+            { label: "Travel Requests", count: travelDash?.byStatus?.find((s: any) => s.status === "SUBMITTED")?.count || 0, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20", href: "/hr/travel" },
+            { label: "Candidate Onboarding", count: userStats?.pendingCandidates || 0, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20", href: "/hr/user-management" },
+            { label: "Overdue Grievances", count: grievanceDash?.overdue || 0, color: "text-red-600 dark:text-red-400", bg: "bg-red-100 dark:bg-red-500/10 border-red-200 dark:border-red-500/20", href: "/hr/grievances" },
+            { label: "Today Absent", count: shiftDash?.todayAbsent || 0, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100 dark:bg-orange-500/10 border-orange-500/20", href: "/hr/shifts" },
           ].map((item) => (
             <a key={item.label} href={item.href} className={`rounded-lg border p-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${item.bg}`}>
               <p className={`text-sm font-medium ${item.color}`}>{item.label}</p>
@@ -79,7 +79,7 @@ export default function HRManagerDashboard() {
           </div>
           <div className="grid grid-cols-2 gap-3 mt-4">
             {empDash?.byType?.map((t: any) => (
-              <div key={t.employmentType} className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-center">
+              <div key={t.employmentType} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-center">
                 <p className="text-lg font-bold text-slate-900 dark:text-white">{t._count?.id || 0}</p>
                 <p className="text-xs text-slate-400">{(t.employmentType || "").replace(/_/g, " ")}</p>
               </div>
@@ -93,11 +93,11 @@ export default function HRManagerDashboard() {
         <Card>
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Recognition This Month</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-2xl font-bold text-slate-900 dark:text-white">{recognitionDash?.thisMonthRecognitions || 0}</p>
               <p className="text-xs text-slate-400">Recognitions</p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-2xl font-bold text-slate-900 dark:text-white">{recognitionDash?.totalPointsDistributed || 0}</p>
               <p className="text-xs text-slate-400">Total Points</p>
             </div>
@@ -112,11 +112,11 @@ export default function HRManagerDashboard() {
         <Card>
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Travel Budget</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(travelDash?.totalEstimatedBudget || 0)}</p>
               <p className="text-xs text-slate-400">Estimated</p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(travelDash?.totalActualCost || 0)}</p>
               <p className="text-xs text-slate-400">Actual</p>
             </div>
@@ -151,7 +151,7 @@ export default function HRManagerDashboard() {
             { label: "Visitors", href: "/hr/visitors", icon: "🏢" },
             { label: "Feature Flags", href: "/settings", icon: "🚩" },
           ].map((link) => (
-            <a key={link.label} href={link.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 transition-colors hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white">
+            <a key={link.label} href={link.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300 transition-colors hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white">
               <span>{link.icon}</span> {link.label}
             </a>
           ))}

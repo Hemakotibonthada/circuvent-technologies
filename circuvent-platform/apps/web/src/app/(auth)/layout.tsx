@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex min-h-screen">
       {/* Left branding panel */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-brand-900 via-slate-900 to-slate-950 p-12">
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 p-12">
         <div>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-slate-900 dark:text-white">CT</div>
@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="space-y-8">
           <h2 className="text-4xl font-bold leading-tight text-slate-900 dark:text-white">
             One Platform.<br />
-            <span className="text-brand-400">Infinite Possibilities.</span>
+            <span className="text-brand-600 dark:text-brand-400">Infinite Possibilities.</span>
           </h2>
           <p className="max-w-md text-slate-400">
             Manage your entire tech startup from a single dashboard — projects, IoT devices, HR compliance, client invoicing, and AI workloads.
@@ -33,7 +33,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               { icon: "🤖", label: "AI Training" },
               { icon: "🔒", label: "Audit Trail" },
             ].map((item) => (
-              <div key={item.label} className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2">
+              <div key={item.label} className="flex items-center gap-2 rounded-lg bg-slate-100 dark:bg-white/5 px-3 py-2">
                 <span>{item.icon}</span>
                 <span className="text-sm text-slate-600 dark:text-slate-300">{item.label}</span>
               </div>
@@ -47,7 +47,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* Right form panel */}
-      <div className="flex w-full items-center justify-center bg-white px-6 dark:bg-slate-50 dark:bg-slate-950 lg:w-1/2 transition-colors">
+      <div className="flex w-full items-center justify-center bg-white px-6 dark:bg-slate-950 lg:w-1/2 transition-colors">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="mb-8 text-center lg:hidden">

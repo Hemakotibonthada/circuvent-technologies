@@ -46,20 +46,20 @@ export default function GoalsPage() {
     loadGoals();
   };
 
-  const priorityColors: Record<string, string> = { LOW: "text-slate-400", MEDIUM: "text-blue-400", HIGH: "text-amber-400", CRITICAL: "text-red-400" };
+  const priorityColors: Record<string, string> = { LOW: "text-slate-400", MEDIUM: "text-blue-600 dark:text-blue-400", HIGH: "text-amber-600 dark:text-amber-400", CRITICAL: "text-red-600 dark:text-red-400" };
   const statusColors: Record<string, string> = {
-    NOT_STARTED: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", IN_PROGRESS: "bg-blue-900/50 text-blue-400",
-    COMPLETED: "bg-emerald-900/50 text-emerald-400", DEFERRED: "bg-amber-900/50 text-amber-400", CANCELLED: "bg-red-900/50 text-red-400",
+    NOT_STARTED: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", IN_PROGRESS: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+    COMPLETED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", DEFERRED: "bg-amber-900/50 text-amber-600 dark:text-amber-400", CANCELLED: "bg-red-900/50 text-red-600 dark:text-red-400",
   };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🎯 My Goals & OKRs</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm">+ New Goal</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">+ New Goal</button>
       </div>
 
       {/* Stats */}
@@ -103,7 +103,7 @@ export default function GoalsPage() {
                 </div>
               </div>
               <div className="text-right min-w-[80px]">
-                <p className="text-2xl font-bold text-brand-400">{goal.progress}%</p>
+                <p className="text-2xl font-bold text-brand-600 dark:text-brand-400">{goal.progress}%</p>
               </div>
             </div>
             {/* Progress Bar */}
@@ -126,7 +126,7 @@ export default function GoalsPage() {
 
       {/* Create Goal Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Create New Goal</h2>
             <div className="space-y-3">
@@ -153,7 +153,7 @@ export default function GoalsPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
-              <button onClick={handleCreate} disabled={!form.title} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create Goal</button>
+              <button onClick={handleCreate} disabled={!form.title} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create Goal</button>
             </div>
           </div>
         </div>

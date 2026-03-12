@@ -44,8 +44,8 @@ export default function HelpdeskPage() {
   };
 
   const statusColors: Record<string, string> = {
-    OPEN: "bg-blue-900/50 text-blue-400", IN_PROGRESS: "bg-amber-900/50 text-amber-400",
-    WAITING_ON_USER: "bg-purple-900/50 text-purple-400", RESOLVED: "bg-emerald-900/50 text-emerald-400",
+    OPEN: "bg-blue-900/50 text-blue-600 dark:text-blue-400", IN_PROGRESS: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+    WAITING_ON_USER: "bg-purple-900/50 text-purple-600 dark:text-purple-400", RESOLVED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
     CLOSED: "bg-slate-100 dark:bg-slate-700 text-slate-400",
   };
   const priorityIcons: Record<string, string> = { LOW: "🟢", MEDIUM: "🟡", HIGH: "🟠", CRITICAL: "🔴" };
@@ -54,10 +54,10 @@ export default function HelpdeskPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🎫 Helpdesk & Support</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm">+ Raise Ticket</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">+ Raise Ticket</button>
       </div>
 
       {/* Stats */}
@@ -80,9 +80,9 @@ export default function HelpdeskPage() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-4 overflow-x-auto">
-        {[{ id: "all", label: "All" }, { id: "OPEN", label: "Open" }, { id: "IN_PROGRESS", label: "In Progress" }, { id: "RESOLVED", label: "Resolved" }, { id: "CLOSED", label: "Closed" }].map(f => (
+        {[{ id: "all", label: "All" }, { key: "OPEN", label: "Open" }, { key: "IN_PROGRESS", label: "In Progress" }, { key: "RESOLVED", label: "Resolved" }, { key: "CLOSED", label: "Closed" }].map(f => (
           <button key={f.id} onClick={() => setFilter(f.id)}
-            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${filter === f.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>{f.label}</button>
+            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${filter === f.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>{f.label}</button>
         ))}
       </div>
 
@@ -111,7 +111,7 @@ export default function HelpdeskPage() {
               </div>
             </div>
             {ticket.resolution && (
-              <div className="mt-3 bg-emerald-900/20 border border-emerald-900/30 rounded-lg p-2 text-xs text-emerald-400">
+              <div className="mt-3 bg-emerald-900/20 border border-emerald-900/30 rounded-lg p-2 text-xs text-emerald-600 dark:text-emerald-400">
                 ✅ Resolution: {ticket.resolution}
               </div>
             )}
@@ -121,7 +121,7 @@ export default function HelpdeskPage() {
 
       {/* Create Ticket Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Raise a Support Ticket</h2>
             <div className="space-y-3">
@@ -146,7 +146,7 @@ export default function HelpdeskPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!form.subject || !form.description}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Submit Ticket</button>
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Submit Ticket</button>
             </div>
           </div>
         </div>

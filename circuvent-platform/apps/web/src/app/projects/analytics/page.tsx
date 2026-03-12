@@ -19,10 +19,7 @@ export default function ProjectAnalyticsPage() {
   const { data: projects } = useApi<any[]>("/projects");
 
   const tabsList = [
-    { id: "overview", label: "Overview" },
-    { id: "status", label: "Status Distribution" },
-    { id: "type", label: "Type Breakdown" },
-    { id: "recent", label: "Recent Activity" },
+    { id: "overview", label: "Overview" }, { key: "status", label: "Status Distribution" }, { key: "type", label: "Type Breakdown" }, { key: "recent", label: "Recent Activity" },
   ];
 
   const statusColors: Record<string, any> = {
@@ -68,7 +65,7 @@ export default function ProjectAnalyticsPage() {
                     <div className="flex justify-between text-sm mb-1">
                       <Badge color={statusColors[status]}>{status}</Badge>
                       <span className="text-slate-900 dark:text-white">{count} ({pct}%)</span>
-                    </div>
+                    </Card>
                     <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-800">
                       <div className={`h-3 rounded-full transition-all ${
                         status === "ACTIVE" ? "bg-green-500" :
@@ -80,7 +77,7 @@ export default function ProjectAnalyticsPage() {
                 );
               })}
             </div>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="Type Distribution" />
@@ -91,54 +88,46 @@ export default function ProjectAnalyticsPage() {
                   <div key={type}>
                     <p className="text-3xl font-bold text-slate-900 dark:text-white">{count}</p>
                     <Badge color={typeColors[type]}>{type}</Badge>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="R&D Summary" />
             <div className="space-y-3">
               <div className="flex justify-between"><span className="text-sm text-slate-400">R&D Projects</span><span className="text-slate-900 dark:text-white font-bold">{rndProjects.length}</span></div>
-              <div className="flex justify-between"><span className="text-sm text-slate-400">R&D Budget</span><span className="text-green-400 font-bold">{formatCurrency(rndProjects.reduce((s: number, p: any) => s + (Number(p.budget) || 0), 0))}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-slate-400">R&D Budget</span><span className="text-green-600 dark:text-green-400 font-bold">{formatCurrency(rndProjects.reduce((s: number, p: any) => s + (Number(p.budget) || 0), 0))}</span></div>
               <div className="flex justify-between"><span className="text-sm text-slate-400">% of Total Projects</span><span className="text-slate-900 dark:text-white">{(projects?.length || 0) > 0 ? Math.round((rndProjects.length / projects!.length) * 100) : 0}%</span></div>
-            </div>
-          </Card>
+            </Card>
+          </div>
 
           <Card>
             <CardHeader title="Active Projects at Risk" />
             <div className="space-y-2">
               {activeProjects.filter((p: any) => p.endDate && new Date(p.endDate) < new Date()).length === 0 ? (
-                <p className="text-sm text-green-400 text-center py-4">No overdue projects</p>
+                <p className="text-sm text-green-600 dark:text-green-400 text-center py-4">No overdue projects</p>
               ) : (
                 activeProjects.filter((p: any) => p.endDate && new Date(p.endDate) < new Date()).map((p: any) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 p-3">
+                  <div key={p.id} className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 p-3">
                     <div>
-                      <span className="font-mono text-xs text-brand-400">{p.code}</span>
+                      <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{p.code}</span>
                       <p className="text-sm text-slate-900 dark:text-white">{p.name}</p>
-                    </div>
+                    </Card>
                     <Badge color="red">OVERDUE</Badge>
                   </div>
                 ))
               )}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
       {activeTab === "status" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "code", header: "Code", render: (p: any) => <span className="font-mono text-xs text-brand-400">{p.code}</span> },
-              { key: "name", header: "Project", render: (p: any) => <span className="text-slate-900 dark:text-white font-medium">{p.name}</span> },
-              { key: "type", header: "Type", render: (p: any) => <Badge color={typeColors[p.type]}>{p.type}</Badge> },
-              { key: "status", header: "Status", render: (p: any) => <Badge color={statusColors[p.status]}>{p.status}</Badge> },
-              { key: "isRnD", header: "R&D", render: (p: any) => p.isRnD ? <Badge color="emerald">R&D</Badge> : "—" },
-              { key: "budget", header: "Budget", render: (p: any) => p.budget ? formatCurrency(Number(p.budget)) : "—" },
-              { key: "sprints", header: "Sprints", render: (p: any) => p._count?.sprints ?? 0 },
-              { key: "members", header: "Team", render: (p: any) => p.members?.length ?? 0 },
+            columns={[{ key: "code", header: "Code", render: (p: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{p.code}</span> }, { key: "name", header: "Project", render: (p: any) => <span className="text-slate-900 dark:text-white font-medium">{p.name}</span> }, { key: "type", header: "Type", render: (p: any) => <Badge color={typeColors[p.type]}>{p.type}</Badge> }, { key: "status", header: "Status", render: (p: any) => <Badge color={statusColors[p.status]}>{p.status}</Badge> }, { key: "isRnD", header: "R&D", render: (p: any) => p.isRnD ? <Badge color="emerald">R&D</Badge> : "—" }, { key: "budget", header: "Budget", render: (p: any) => p.budget ? formatCurrency(Number(p.budget)) : "—" }, { key: "sprints", header: "Sprints", render: (p: any) => p._count?.sprints ?? 0 }, { key: "members", header: "Team", render: (p: any) => p.members?.length ?? 0 },
             ]}
             data={projects || []}
             keyExtractor={(p: any) => p.id}
@@ -157,13 +146,13 @@ export default function ProjectAnalyticsPage() {
                 <div className="space-y-2">
                   {typeProjects.slice(0, 5).map((p: any) => (
                     <div key={p.id} className="flex items-center justify-between text-sm">
-                      <a href={`/projects/${p.id}`} className="text-brand-400 hover:underline">{p.name}</a>
+                      <a href={`/projects/${p.id}`} className="text-brand-600 dark:text-brand-600 dark:text-brand-400 hover:underline">{p.name}</a>
                       <Badge color={statusColors[p.status]}>{p.status}</Badge>
-                    </div>
+                    </Card>
                   ))}
                   {typeProjects.length === 0 && <p className="text-xs text-slate-500 text-center py-4">No {type.toLowerCase()} projects</p>}
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
@@ -172,12 +161,7 @@ export default function ProjectAnalyticsPage() {
       {activeTab === "recent" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "code", header: "Code", render: (p: any) => <span className="font-mono text-xs text-brand-400">{p.code}</span> },
-              { key: "name", header: "Project", render: (p: any) => <a href={`/projects/${p.id}`} className="text-slate-900 dark:text-white font-medium hover:text-brand-400">{p.name}</a> },
-              { key: "status", header: "Status", render: (p: any) => <Badge color={statusColors[p.status]}>{p.status}</Badge> },
-              { key: "updatedAt", header: "Last Updated", render: (p: any) => timeAgo(p.updatedAt || p.createdAt) },
-              { key: "sprints", header: "Sprints", render: (p: any) => p._count?.sprints ?? 0 },
+            columns={[{ key: "code", header: "Code", render: (p: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{p.code}</span> }, { key: "name", header: "Project", render: (p: any) => <a href={`/projects/${p.id}`} className="text-slate-900 dark:text-white font-medium hover:text-brand-600 dark:text-brand-400">{p.name}</a> }, { key: "status", header: "Status", render: (p: any) => <Badge color={statusColors[p.status]}>{p.status}</Badge> }, { key: "updatedAt", header: "Last Updated", render: (p: any) => timeAgo(p.updatedAt || p.createdAt) }, { key: "sprints", header: "Sprints", render: (p: any) => p._count?.sprints ?? 0 },
             ]}
             data={[...(projects || [])].sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()).slice(0, 20)}
             keyExtractor={(p: any) => p.id}

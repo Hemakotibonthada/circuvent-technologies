@@ -29,16 +29,16 @@ interface GrievanceUpdate {
 
 const PRIORITY_COLORS: Record<string, string> = {
   LOW: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
-  MEDIUM: "bg-amber-900/50 text-amber-400",
-  HIGH: "bg-orange-900/50 text-orange-400",
-  CRITICAL: "bg-red-900/50 text-red-400",
+  MEDIUM: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+  HIGH: "bg-orange-900/50 text-orange-600 dark:text-orange-400",
+  CRITICAL: "bg-red-900/50 text-red-600 dark:text-red-400",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  OPEN: "bg-blue-900/50 text-blue-400",
-  INVESTIGATING: "bg-amber-900/50 text-amber-400",
-  ESCALATED: "bg-orange-900/50 text-orange-400",
-  RESOLVED: "bg-emerald-900/50 text-emerald-400",
+  OPEN: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+  INVESTIGATING: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+  ESCALATED: "bg-orange-900/50 text-orange-600 dark:text-orange-400",
+  RESOLVED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
   CLOSED: "bg-slate-100 dark:bg-slate-700 text-slate-400",
   WITHDRAWN: "bg-slate-100 dark:bg-slate-700 text-slate-400",
 };
@@ -119,10 +119,10 @@ export default function PortalGrievancePage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📋 My Grievances</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm">+ File Grievance</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">+ File Grievance</button>
       </div>
 
       {/* Stats */}
@@ -132,11 +132,11 @@ export default function PortalGrievancePage() {
           <p className="text-xs text-slate-500">Total Filed</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-amber-400">{openCount}</p>
+          <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{openCount}</p>
           <p className="text-xs text-slate-500">Open / In Progress</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-emerald-400">{resolvedCount}</p>
+          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{resolvedCount}</p>
           <p className="text-xs text-slate-500">Resolved</p>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function PortalGrievancePage() {
                     <span className="text-xs text-slate-500 font-mono">{grv.grievanceCode}</span>
                     <span className={`px-2 py-0.5 text-xs rounded ${STATUS_COLORS[grv.status]}`}>{grv.status}</span>
                     <span className={`px-2 py-0.5 text-xs rounded ${PRIORITY_COLORS[grv.priority]}`}>{grv.priority}</span>
-                    {grv.isAnonymous && <span className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 rounded">Anonymous</span>}
+                    {grv.isAnonymous && <span className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded">Anonymous</span>}
                   </div>
                   <h3 className="text-sm font-medium text-slate-900 dark:text-white">{grv.subject}</h3>
                   <p className="text-xs text-slate-500 mt-1">{grv.category}</p>
@@ -173,7 +173,7 @@ export default function PortalGrievancePage() {
                 </div>
                 {grv.status === "RESOLVED" && grv.resolvedDate && (
                   <div className="text-right">
-                    <p className="text-xs text-emerald-400">Resolved</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Resolved</p>
                     <p className="text-xs text-slate-500">{new Date(grv.resolvedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
                   </div>
                 )}
@@ -185,7 +185,7 @@ export default function PortalGrievancePage() {
 
       {/* View Grievance Detail */}
       {selectedGrievance && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -206,7 +206,7 @@ export default function PortalGrievancePage() {
                   <div><p className="text-slate-500 text-xs">Assigned To</p><p className="text-slate-900 dark:text-white">{selectedGrievance.assignedTo}</p></div>
                 )}
                 {selectedGrievance.isAnonymous && (
-                  <div><p className="text-slate-500 text-xs">Filing Type</p><p className="text-purple-400">Anonymous</p></div>
+                  <div><p className="text-slate-500 text-xs">Filing Type</p><p className="text-purple-600 dark:text-purple-400">Anonymous</p></div>
                 )}
               </div>
 
@@ -218,7 +218,7 @@ export default function PortalGrievancePage() {
               {selectedGrievance.resolution && (
                 <div>
                   <p className="text-slate-500 text-xs mb-1">Resolution</p>
-                  <p className="text-emerald-400 text-sm bg-slate-100 dark:bg-slate-800 rounded-lg p-3">{selectedGrievance.resolution}</p>
+                  <p className="text-emerald-600 dark:text-emerald-400 text-sm bg-slate-100 dark:bg-slate-800 rounded-lg p-3">{selectedGrievance.resolution}</p>
                 </div>
               )}
 
@@ -245,7 +245,7 @@ export default function PortalGrievancePage() {
               <div>
                 {["OPEN", "INVESTIGATING"].includes(selectedGrievance.status) && (
                   <button onClick={() => handleWithdraw(selectedGrievance.id)} disabled={submitting}
-                    className="px-4 py-2 text-red-400 hover:text-red-300 text-sm disabled:opacity-50">
+                    className="px-4 py-2 text-red-600 dark:text-red-400 hover:text-red-300 text-sm disabled:opacity-50">
                     Withdraw Grievance
                   </button>
                 )}
@@ -258,7 +258,7 @@ export default function PortalGrievancePage() {
 
       {/* File New Grievance Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">File New Grievance</h2>
             <div className="space-y-3">
@@ -320,7 +320,7 @@ export default function PortalGrievancePage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => { setShowCreate(false); resetForm(); }} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={submitting || !form.subject || !form.description}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Filing..." : form.isAnonymous ? "File Anonymously" : "File Grievance"}
               </button>
             </div>

@@ -40,11 +40,11 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
-            <svg className="h-4 w-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-3">
+            <svg className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
 
@@ -63,7 +63,7 @@ export default function LoginPage() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-600 dark:text-slate-300">Password</label>
-            <a href="/forgot-password" className="text-xs text-brand-400 hover:text-brand-300 transition-colors">Forgot password?</a>
+            <a href="/forgot-password" className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors">Forgot password?</a>
           </div>
           <div className="relative">
             <input
@@ -111,7 +111,7 @@ export default function LoginPage() {
       <div className="mt-6 text-center">
         <p className="text-sm text-slate-400">
           Don't have an account?{" "}
-          <a href="/register" className="font-medium text-brand-400 hover:text-brand-300 transition-colors">
+          <a href="/register" className="font-medium text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors">
             Create one
           </a>
         </p>

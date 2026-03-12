@@ -7,9 +7,9 @@ export default function HolidaysPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const { data: holidays, loading } = useApi<any[]>(`/hr/portal/holidays?year=${year}`);
   const typeColors: Record<string, string> = {
-    NATIONAL: "bg-red-900/50 text-red-400", REGIONAL: "bg-blue-900/50 text-blue-400",
-    OPTIONAL: "bg-purple-900/50 text-purple-400", COMPANY: "bg-emerald-900/50 text-emerald-400",
-    RESTRICTED: "bg-amber-900/50 text-amber-400",
+    NATIONAL: "bg-red-900/50 text-red-600 dark:text-red-400", REGIONAL: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+    OPTIONAL: "bg-purple-900/50 text-purple-600 dark:text-purple-400", COMPANY: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+    RESTRICTED: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
   };
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -25,7 +25,7 @@ export default function HolidaysPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🎉 Holiday Calendar {year}</h1>
         </div>
         <select value={year} onChange={e => setYear(Number(e.target.value))} className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-300 text-sm">

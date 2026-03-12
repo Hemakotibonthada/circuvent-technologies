@@ -20,38 +20,38 @@ export default function TalentPoolsPage() {
   };
 
   const categoryColors: Record<string, string> = {
-    SILVER_MEDALIST: "text-slate-600 dark:text-slate-300", NICHE_AI_EXPERT: "text-purple-400", IOT_FIRMWARE: "text-cyan-400",
-    FULL_STACK_PRO: "text-blue-400", DEVOPS_SRE: "text-amber-400", LEADERSHIP: "text-emerald-400",
-    INTERN_PIPELINE: "text-pink-400", GENERAL: "text-slate-400",
+    SILVER_MEDALIST: "text-slate-600 dark:text-slate-300", NICHE_AI_EXPERT: "text-purple-600 dark:text-purple-400", IOT_FIRMWARE: "text-cyan-600 dark:text-cyan-400",
+    FULL_STACK_PRO: "text-blue-600 dark:text-blue-400", DEVOPS_SRE: "text-amber-600 dark:text-amber-400", LEADERSHIP: "text-emerald-600 dark:text-emerald-400",
+    INTERN_PIPELINE: "text-pink-600 dark:text-pink-400", GENERAL: "text-slate-400",
   };
 
   const healthColors: Record<string, string> = {
-    HEALTHY: "bg-emerald-900/50 text-emerald-400", GROWING: "bg-blue-900/50 text-blue-400", NEEDS_ATTENTION: "bg-red-900/50 text-red-400",
+    HEALTHY: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", GROWING: "bg-blue-900/50 text-blue-600 dark:text-blue-400", NEEDS_ATTENTION: "bg-red-900/50 text-red-600 dark:text-red-400",
   };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/recruitment" className="text-sm text-brand-400 hover:text-brand-300">← Recruitment</Link>
+          <Link href="/recruitment" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Recruitment</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🏊 Talent Pools</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ New Pool</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ New Pool</button>
       </div>
 
       {/* Pool Health Summary */}
       {poolHealth && (
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-brand-400">{poolHealth.totalPools}</p>
+            <p className="text-xl font-bold text-brand-600 dark:text-brand-400">{poolHealth.totalPools}</p>
             <p className="text-xs text-slate-500">Total Pools</p>
           </div>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-emerald-400">{poolHealth.activePools}</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{poolHealth.activePools}</p>
             <p className="text-xs text-slate-500">Active</p>
           </div>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-cyan-400">{poolHealth.totalMembers}</p>
+            <p className="text-xl font-bold text-cyan-600 dark:text-cyan-400">{poolHealth.totalMembers}</p>
             <p className="text-xs text-slate-500">Total Candidates</p>
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function TalentPoolsPage() {
                 </div>
                 {pool.description && <p className="text-xs text-slate-400 mb-3">{pool.description}</p>}
                 <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800">
-                  <span className="text-2xl font-bold text-brand-400">{pool._count?.members || 0}</span>
+                  <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">{pool._count?.members || 0}</span>
                   <span className="text-xs text-slate-500">members</span>
                 </div>
               </div>
@@ -84,7 +84,7 @@ export default function TalentPoolsPage() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Create Talent Pool</h2>
             <div className="space-y-3">
@@ -99,7 +99,7 @@ export default function TalentPoolsPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
-              <button onClick={handleCreate} disabled={!form.name} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create</button>
+              <button onClick={handleCreate} disabled={!form.name} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create</button>
             </div>
           </div>
         </div>

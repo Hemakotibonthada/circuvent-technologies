@@ -61,15 +61,15 @@ function UnifiedDashboard() {
       {iotHealth?.criticalAlerts > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-center justify-between dark:border-red-500/30 dark:bg-red-500/5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/20">
-              <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.27 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-200 dark:bg-red-500/20">
+              <svg className="h-5 w-5 text-red-600 dark:text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.27 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
             </div>
             <div>
-              <p className="text-sm font-semibold text-red-700 dark:text-red-400">{iotHealth.criticalAlerts} Critical Alert(s)</p>
+              <p className="text-sm font-semibold text-red-700 dark:text-red-600 dark:text-red-400">{iotHealth.criticalAlerts} Critical Alert(s)</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">{iotHealth.devicesNeedingAttention?.length || 0} devices need attention</p>
             </div>
           </div>
-          <a href="/iot/health" className="rounded-lg bg-red-100 px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-400 dark:hover:bg-red-500/30">View →</a>
+          <a href="/iot/health" className="rounded-lg bg-red-100 px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-200 dark:bg-red-200 dark:bg-red-500/20 dark:text-red-600 dark:text-red-400 dark:hover:bg-red-200 dark:hover:bg-red-500/30">View →</a>
         </div>
       )}
 
@@ -83,10 +83,10 @@ function UnifiedDashboard() {
           { icon: "🤖", title: "AI Orchestrator", desc: "GPU pool, jobs, bots", href: "/ai", tags: ["Scheduler", "Risk Engine"] },
           { icon: "🔒", title: "Audit", desc: "ISO audit trail", href: "/audit", tags: ["Compliance", "Security"] },
         ].map((m) => (
-          <a key={m.title} href={m.href} className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-brand-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-brand-500/50 dark:hover:bg-slate-900">
+          <a key={m.title} href={m.href} className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-brand-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-brand-300 dark:hover:border-brand-500/50 dark:hover:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <span className="text-xl">{m.icon}</span>
-              <h3 className="text-base font-semibold text-slate-900 group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-400">{m.title}</h3>
+              <h3 className="text-base font-semibold text-slate-900 group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-600 dark:text-brand-400">{m.title}</h3>
             </div>
             <p className="text-xs text-slate-500 mb-3 dark:text-slate-400">{m.desc}</p>
             <div className="flex gap-1.5">

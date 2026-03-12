@@ -51,24 +51,15 @@ export default function HRPage() {
   };
 
   const tabs = [
-    { id: "employees", label: "Employees", count: employees?.length },
-    { id: "payroll", label: "Payroll" },
-    { id: "calculator", label: "Salary Calculator" },
+    { id: "employees", label: "Employees", count: employees?.length }, { key: "payroll", label: "Payroll" }, { key: "calculator", label: "Salary Calculator" },
   ];
 
   const empTypeColors: Record<string, any> = { FULL_TIME: "green", PART_TIME: "amber", CONTRACT: "cyan", INTERN: "purple" };
 
   const empColumns = [
-    { key: "employeeCode", header: "Code", render: (e: Employee) => <span className="font-mono text-xs text-brand-400">{e.employeeCode}</span> },
-    { key: "name", header: "Name", render: (e: Employee) => (
-      <a href={`/hr/${e.id}`} className="font-medium text-slate-900 dark:text-white hover:text-brand-400">{e.user.firstName} {e.user.lastName}</a>
-    )},
-    { key: "email", header: "Email", render: (e: Employee) => <span className="text-xs text-slate-400">{e.user.email}</span> },
-    { key: "designation", header: "Designation" },
-    { key: "department", header: "Department" },
-    { key: "employmentType", header: "Type", render: (e: Employee) => <Badge color={empTypeColors[e.employmentType]}>{e.employmentType.replace("_", " ")}</Badge> },
-    { key: "baseSalary", header: "CTC", render: (e: Employee) => formatCurrency(Number(e.baseSalary), e.currency) },
-    { key: "dateOfJoining", header: "Joined", render: (e: Employee) => formatDate(e.dateOfJoining) },
+    { id: "employeeCode", header: "Code", render: (e: Employee) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{e.employeeCode}</span> }, { key: "name", header: "Name", render: (e: Employee) => (
+      <a href={`/hr/${e.id}`} className="font-medium text-slate-900 dark:text-white hover:text-brand-600 dark:text-brand-400">{e.user.firstName} {e.user.lastName}</a>
+    )}, { key: "email", header: "Email", render: (e: Employee) => <span className="text-xs text-slate-400">{e.user.email}</span> }, { key: "designation", header: "Designation" }, { key: "department", header: "Department" }, { key: "employmentType", header: "Type", render: (e: Employee) => <Badge color={empTypeColors[e.employmentType]}>{e.employmentType.replace("_", " ")}</Badge> }, { key: "baseSalary", header: "CTC", render: (e: Employee) => formatCurrency(Number(e.baseSalary), e.currency) }, { key: "dateOfJoining", header: "Joined", render: (e: Employee) => formatDate(e.dateOfJoining) },
   ];
 
   return (
@@ -107,17 +98,17 @@ export default function HRPage() {
               <Select label="Month" options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(2000, i).toLocaleString("en", { month: "long" }) }))} value={bulkMonth} onChange={(e) => setBulkMonth(e.target.value)} />
               <Select label="Year" options={["2025", "2026", "2027"].map(y => ({ value: y, label: y }))} value={bulkYear} onChange={(e) => setBulkYear(e.target.value)} />
               <Button onClick={handleBulkGenerate} loading={submitting}>Generate All Slips</Button>
-            </div>
+            </Card>
             {bulkResult && (
               <div className="mt-4 rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50">
                 <div className="grid grid-cols-3 gap-4 text-center">
-                  <div><p className="text-2xl font-bold text-green-400">{bulkResult.generated}</p><p className="text-xs text-slate-400">Generated</p></div>
-                  <div><p className="text-2xl font-bold text-amber-400">{bulkResult.skipped}</p><p className="text-xs text-slate-400">Skipped</p></div>
-                  <div><p className="text-2xl font-bold text-red-400">{bulkResult.errors}</p><p className="text-xs text-slate-400">Errors</p></div>
+                  <div><p className="text-2xl font-bold text-green-600 dark:text-green-400">{bulkResult.generated}</p><p className="text-xs text-slate-400">Generated</p></div>
+                  <div><p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{bulkResult.skipped}</p><p className="text-xs text-slate-400">Skipped</p></div>
+                  <div><p className="text-2xl font-bold text-red-600 dark:text-red-400">{bulkResult.errors}</p><p className="text-xs text-slate-400">Errors</p></div>
                 </div>
               </div>
             )}
-          </Card>
+          </div>
         </div>
       )}
 
@@ -128,12 +119,12 @@ export default function HRPage() {
           <div className="flex items-end gap-4 mb-6">
             <Input label="Annual CTC (₹)" type="number" placeholder="1200000" value={previewSalary} onChange={(e) => setPreviewSalary(e.target.value)} />
             <Button onClick={handlePreview}>Calculate</Button>
-          </div>
+          </Card>
 
           {salaryBreakdown && (
             <div className="grid gap-6 lg:grid-cols-2">
               <div>
-                <h4 className="text-sm font-medium text-green-400 mb-3">Earnings</h4>
+                <h4 className="text-sm font-medium text-green-600 dark:text-green-400 mb-3">Earnings</h4>
                 <div className="space-y-2">
                   {[
                     ["Base Pay", salaryBreakdown.basePay],
@@ -147,13 +138,13 @@ export default function HRPage() {
                     </div>
                   ))}
                   <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 text-sm font-semibold">
-                    <span className="text-green-400">Gross Salary</span>
-                    <span className="text-green-400">{formatCurrency(salaryBreakdown.grossSalary)}</span>
+                    <span className="text-green-600 dark:text-green-400">Gross Salary</span>
+                    <span className="text-green-600 dark:text-green-400">{formatCurrency(salaryBreakdown.grossSalary)}</span>
                   </div>
                 </div>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-red-400 mb-3">Deductions</h4>
+                <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-3">Deductions</h4>
                 <div className="space-y-2">
                   {[
                     ["PF (Employee)", salaryBreakdown.pfDeduction],
@@ -167,19 +158,19 @@ export default function HRPage() {
                     </div>
                   ))}
                   <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 text-sm font-semibold">
-                    <span className="text-red-400">Total Deductions</span>
-                    <span className="text-red-400">{formatCurrency(salaryBreakdown.totalDeductions)}</span>
+                    <span className="text-red-600 dark:text-red-400">Total Deductions</span>
+                    <span className="text-red-600 dark:text-red-400">{formatCurrency(salaryBreakdown.totalDeductions)}</span>
                   </div>
                 </div>
               </div>
-              <div className="lg:col-span-2 rounded-lg bg-brand-600/10 border border-brand-500/20 p-4 text-center">
+              <div className="lg:col-span-2 rounded-lg bg-brand-600/10 border border-brand-200 dark:border-brand-500/20 p-4 text-center">
                 <p className="text-sm text-slate-400">Net Monthly Take-Home</p>
                 <p className="text-4xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(salaryBreakdown.netSalary)}</p>
                 <p className="text-xs text-slate-500 mt-1">({formatCurrency(salaryBreakdown.netSalary * 12)} per year)</p>
               </div>
             </div>
           )}
-        </Card>
+        </div>
       )}
     </div>
   );

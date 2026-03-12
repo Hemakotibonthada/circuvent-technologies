@@ -39,9 +39,9 @@ export default function AIModelsPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
-        {[{ id: "resources" as const, label: "GPU Resources" }, { id: "training" as const, label: "Training Jobs" }, { id: "models" as const, label: "Model Registry" }].map(t => (
+        {[{ id: "resources" as const, label: "GPU Resources" }, { key: "training" as const, label: "Training Jobs" }, { key: "models" as const, label: "Model Registry" }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-sm ${tab === t.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{t.label}</button>
+            className={`px-4 py-2 rounded-lg text-sm ${tab === t.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{t.label}</button>
         ))}
       </div>
 
@@ -60,7 +60,7 @@ export default function AIModelsPage() {
                   <tr key={r.id} className="border-b border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-800/30">
                     <td className="px-4 py-2 text-sm text-slate-900 dark:text-white">{r.name}</td>
                     <td className="px-4 py-2 text-sm text-slate-400">{r.gpuType || r.type}</td>
-                    <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${r.status === "AVAILABLE" ? "bg-emerald-900/50 text-emerald-400" : r.status === "IN_USE" ? "bg-amber-900/50 text-amber-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>{r.status}</span></td>
+                    <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded ${r.status === "AVAILABLE" ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : r.status === "IN_USE" ? "bg-amber-900/50 text-amber-600 dark:text-amber-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>{r.status}</span></td>
                     <td className="px-4 py-2 text-sm text-right text-slate-600 dark:text-slate-300">{r.vramGB || r.memoryGB || "—"} GB</td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -86,14 +86,14 @@ export default function AIModelsPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-slate-500 font-mono">{job.jobCode}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded ${job.status === "RUNNING" ? "bg-blue-900/50 text-blue-400" : job.status === "COMPLETED" ? "bg-emerald-900/50 text-emerald-400" : job.status === "FAILED" ? "bg-red-900/50 text-red-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>{job.status}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${job.status === "RUNNING" ? "bg-blue-900/50 text-blue-600 dark:text-blue-400" : job.status === "COMPLETED" ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : job.status === "FAILED" ? "bg-red-900/50 text-red-600 dark:text-red-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400"}`}>{job.status}</span>
                   </div>
                   <h3 className="text-sm font-medium text-slate-900 dark:text-white">{job.name}</h3>
                   <p className="text-xs text-slate-400 mt-1">{job.framework} &middot; {job.modelType || job.type}</p>
                 </div>
                 {job.progress !== undefined && (
                   <div className="text-right">
-                    <p className="text-lg font-bold text-brand-400">{job.progress}%</p>
+                    <p className="text-lg font-bold text-brand-600 dark:text-brand-400">{job.progress}%</p>
                     {job.currentEpoch && <p className="text-xs text-slate-500">Epoch {job.currentEpoch}/{job.totalEpochs}</p>}
                   </div>
                 )}
@@ -126,7 +126,7 @@ export default function AIModelsPage() {
           { label: "Inference", href: "/ai", icon: "🔮" },
         ].map(n => (
           <Link key={n.label} href={n.href}>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center hover:border-brand-500/50 transition-colors">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center hover:border-brand-300 dark:hover:border-brand-500/50 transition-colors">
               <span className="text-xl block mb-1">{n.icon}</span>
               <span className="text-xs text-slate-600 dark:text-slate-300">{n.label}</span>
             </div>

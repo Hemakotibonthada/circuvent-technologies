@@ -44,10 +44,10 @@ export default function MarketingDashboard() {
             const count = leads?.filter(l => l.status === stage)?.length || 0;
             const colors: Record<string, string> = {
               NEW: "border-slate-500/20 bg-slate-500/5",
-              CONTACTED: "border-blue-500/20 bg-blue-500/5",
-              QUALIFIED: "border-amber-500/20 bg-amber-500/5",
-              PROPOSAL: "border-purple-500/20 bg-purple-500/5",
-              CLOSED_WON: "border-green-500/20 bg-green-500/5",
+              CONTACTED: "border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/5",
+              QUALIFIED: "border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/5",
+              PROPOSAL: "border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-500/5",
+              CLOSED_WON: "border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/5",
             };
             return (
               <div key={stage} className={`rounded-lg border p-4 text-center ${colors[stage] || ""}`}>
@@ -122,7 +122,7 @@ export default function MarketingDashboard() {
           { label: "Calendar", href: "/hr/calendar", icon: "📅" },
           { label: "Recognition", href: "/hr/recognition", icon: "🏆" },
         ].map((l) => (
-          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
+          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
             <span>{l.icon}</span> {l.label}
           </a>
         ))}

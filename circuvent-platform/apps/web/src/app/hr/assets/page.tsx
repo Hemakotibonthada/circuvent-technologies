@@ -100,9 +100,7 @@ export default function AssetManagementPage() {
   /* ── tabs ──────────────────────────────────────────────── */
   const [activeTab, setActiveTab] = useState("catalog");
   const tabs = [
-    { id: "catalog", label: "Asset Catalog" },
-    { id: "requests", label: "Requests" },
-    { id: "maintenance", label: "Maintenance" },
+    { id: "catalog", label: "Asset Catalog" }, { key: "requests", label: "Requests" }, { key: "maintenance", label: "Maintenance" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -208,22 +206,14 @@ export default function AssetManagementPage() {
   /* ── columns ──────────────────────────────────────────── */
   const assetColumns = [
     {
-      key: "name", header: "Asset",
+      id: "name", header: "Asset",
       render: (a: Asset) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{a.name}</p>
           <p className="text-xs text-slate-500">SN: {a.serialNumber}</p>
         </div>
       ),
-    },
-    { key: "category", header: "Category", render: (a: Asset) => <Badge color={categoryColors[a.category] || "slate"}>{a.category}</Badge> },
-    { key: "status", header: "Status", render: (a: Asset) => <Badge color={statusColors[a.status] || "slate"}>{a.status}</Badge> },
-    { key: "assignedToName", header: "Assigned To", render: (a: Asset) => a.assignedToName || <span className="text-slate-500">—</span> },
-    { key: "location", header: "Location" },
-    { key: "purchaseCost", header: "Purchase Cost", render: (a: Asset) => formatCurrency(a.purchaseCost) },
-    { key: "currentValue", header: "Current Value", render: (a: Asset) => formatCurrency(a.currentValue) },
-    {
-      key: "actions", header: "",
+    }, { key: "category", header: "Category", render: (a: Asset) => <Badge color={categoryColors[a.category] || "slate"}>{a.category}</Badge> }, { key: "status", header: "Status", render: (a: Asset) => <Badge color={statusColors[a.status] || "slate"}>{a.status}</Badge> }, { key: "assignedToName", header: "Assigned To", render: (a: Asset) => a.assignedToName || <span className="text-slate-500">—</span> }, { key: "location", header: "Location" }, { key: "purchaseCost", header: "Purchase Cost", render: (a: Asset) => formatCurrency(a.purchaseCost) }, { key: "currentValue", header: "Current Value", render: (a: Asset) => formatCurrency(a.currentValue) }, { key: "actions", header: "",
       render: (a: Asset) => (
         <div className="flex gap-2">
           {a.status === "AVAILABLE" && (isAdmin || isHR) && (
@@ -238,13 +228,7 @@ export default function AssetManagementPage() {
   ];
 
   const requestColumns = [
-    { key: "employeeName", header: "Employee", render: (r: AssetRequest) => <span className="font-medium text-slate-900 dark:text-white">{r.employeeName || r.employeeId}</span> },
-    { key: "assetCategory", header: "Category", render: (r: AssetRequest) => <Badge color={categoryColors[r.assetCategory] || "slate"}>{r.assetCategory}</Badge> },
-    { key: "reason", header: "Reason" },
-    { key: "status", header: "Status", render: (r: AssetRequest) => <Badge color={requestStatusColors[r.status] || "slate"}>{r.status}</Badge> },
-    { key: "createdAt", header: "Requested", render: (r: AssetRequest) => formatDate(r.createdAt) },
-    {
-      key: "actions", header: "",
+    { id: "employeeName", header: "Employee", render: (r: AssetRequest) => <span className="font-medium text-slate-900 dark:text-white">{r.employeeName || r.employeeId}</span> }, { key: "assetCategory", header: "Category", render: (r: AssetRequest) => <Badge color={categoryColors[r.assetCategory] || "slate"}>{r.assetCategory}</Badge> }, { key: "reason", header: "Reason" }, { key: "status", header: "Status", render: (r: AssetRequest) => <Badge color={requestStatusColors[r.status] || "slate"}>{r.status}</Badge> }, { key: "createdAt", header: "Requested", render: (r: AssetRequest) => formatDate(r.createdAt) }, { key: "actions", header: "",
       render: (r: AssetRequest) => r.status === "PENDING" && (isAdmin || isHR) ? (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => handleApproveRequest(r.id)}>Approve</Button>
@@ -255,13 +239,7 @@ export default function AssetManagementPage() {
   ];
 
   const maintenanceColumns = [
-    { key: "assetName", header: "Asset", render: (m: MaintenanceRecord) => <span className="font-medium text-slate-900 dark:text-white">{m.assetName || m.assetId}</span> },
-    { key: "type", header: "Type", render: (m: MaintenanceRecord) => <Badge color={m.type === "PREVENTIVE" ? "blue" : "amber"}>{m.type}</Badge> },
-    { key: "scheduledDate", header: "Scheduled", render: (m: MaintenanceRecord) => formatDate(m.scheduledDate) },
-    { key: "completedDate", header: "Completed", render: (m: MaintenanceRecord) => m.completedDate ? formatDate(m.completedDate) : <span className="text-slate-500">—</span> },
-    { key: "cost", header: "Cost", render: (m: MaintenanceRecord) => formatCurrency(m.cost) },
-    { key: "vendor", header: "Vendor", render: (m: MaintenanceRecord) => m.vendor || "—" },
-    { key: "status", header: "Status", render: (m: MaintenanceRecord) => <Badge color={m.status === "COMPLETED" ? "green" : m.status === "SCHEDULED" ? "amber" : "red"}>{m.status}</Badge> },
+    { id: "assetName", header: "Asset", render: (m: MaintenanceRecord) => <span className="font-medium text-slate-900 dark:text-white">{m.assetName || m.assetId}</span> }, { key: "type", header: "Type", render: (m: MaintenanceRecord) => <Badge color={m.type === "PREVENTIVE" ? "blue" : "amber"}>{m.type}</Badge> }, { key: "scheduledDate", header: "Scheduled", render: (m: MaintenanceRecord) => formatDate(m.scheduledDate) }, { key: "completedDate", header: "Completed", render: (m: MaintenanceRecord) => m.completedDate ? formatDate(m.completedDate) : <span className="text-slate-500">—</span> }, { key: "cost", header: "Cost", render: (m: MaintenanceRecord) => formatCurrency(m.cost) }, { key: "vendor", header: "Vendor", render: (m: MaintenanceRecord) => m.vendor || "—" }, { key: "status", header: "Status", render: (m: MaintenanceRecord) => <Badge color={m.status === "COMPLETED" ? "green" : m.status === "SCHEDULED" ? "amber" : "red"}>{m.status}</Badge> },
   ];
 
   /* ── computed ─────────────────────────────────────────── */
@@ -272,8 +250,8 @@ export default function AssetManagementPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -323,7 +301,7 @@ export default function AssetManagementPage() {
             <CardHeader
               title="Maintenance Schedule"
               subtitle="Upcoming and completed maintenance"
-              action={<Button size="sm" variant="outline" onClick={() => setShowMaintenance(true)}>+ Schedule</Button>}
+              actions={<Button size="sm" variant="outline" onClick={() => setShowMaintenance(true)}>+ Schedule</Button>}
             />
             <DataTable columns={maintenanceColumns} data={maintenance || []} keyExtractor={(m) => m.id} loading={maintLoading} emptyMessage="No maintenance records." />
           </>

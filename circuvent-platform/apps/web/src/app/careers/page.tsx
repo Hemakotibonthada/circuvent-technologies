@@ -74,7 +74,7 @@ export default function CareersPage() {
       />
 
       {message && (
-        <div className={`flex items-center justify-between rounded-lg border p-4 ${message.type === "success" ? "border-green-500/20 bg-green-500/10 text-green-400" : "border-red-500/20 bg-red-500/10 text-red-400"}`}>
+        <div className={`flex items-center justify-between rounded-lg border p-4 ${message.type === "success" ? "border-green-200 dark:border-green-500/20 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400" : "border-red-200 dark:border-red-500/20 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
           <span className="text-sm">{message.text}</span>
           <button onClick={() => setMessage(null)} className="text-xs hover:underline">Dismiss</button>
         </div>
@@ -132,7 +132,7 @@ export default function CareersPage() {
 
               {(job.minSalary || job.maxSalary) && (
                 <p className="mt-2 text-xs text-slate-500">
-                  💰 {job.minSalary ? `₹${(job.minSalary / 100000).toFixed(1)}L` : ""} 
+                  💰 {job.minSalary ? `₹${(job.minSalary / 100000).toFixed(1)}L` : ""}
                   {job.minSalary && job.maxSalary ? " — " : ""}
                   {job.maxSalary ? `₹${(job.maxSalary / 100000).toFixed(1)}L` : ""} / year
                 </p>
@@ -174,14 +174,14 @@ export default function CareersPage() {
               label="Cover Letter (optional)"
               placeholder="Tell us why you're a great fit for this role..."
               value={coverLetter}
-              onChange={(e) => setCoverLetter(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCoverLetter(e.target.value)}
             />
 
             <Input
               label="Resume URL (optional)"
               placeholder="https://drive.google.com/your-resume"
               value={resumeUrl}
-              onChange={(e) => setResumeUrl(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setResumeUrl(e.target.value)}
             />
 
             <div className="flex justify-end gap-3 pt-2">

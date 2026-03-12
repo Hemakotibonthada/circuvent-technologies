@@ -66,9 +66,9 @@ interface PromotionRecommendation {
 
 const CYCLE_STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
-  ACTIVE: "bg-green-900/50 text-green-400",
-  COMPLETED: "bg-blue-900/50 text-blue-400",
-  CANCELLED: "bg-red-900/50 text-red-400",
+  ACTIVE: "bg-green-900/50 text-green-600 dark:text-green-400",
+  COMPLETED: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+  CANCELLED: "bg-red-900/50 text-red-600 dark:text-red-400",
 };
 
 const BELL_CURVE_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#8b5cf6"];
@@ -113,13 +113,7 @@ export default function PerformanceManagementPage() {
   const [calibrateResult, setCalibrateResult] = useState<any>(null);
 
   const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "cycles", label: "Review Cycles" },
-    { id: "bellcurve", label: "Bell Curve" },
-    { id: "performers", label: "Performers" },
-    { id: "pip", label: "PIPs" },
-    { id: "promotions", label: "Promotions" },
-    { id: "calibration", label: "Calibration" },
+    { id: "overview", label: "Overview" }, { key: "cycles", label: "Review Cycles" }, { key: "bellcurve", label: "Bell Curve" }, { key: "performers", label: "Performers" }, { key: "pip", label: "PIPs" }, { key: "promotions", label: "Promotions" }, { key: "calibration", label: "Calibration" },
   ];
 
   const handleCreateCycle = async () => {
@@ -232,7 +226,7 @@ export default function PerformanceManagementPage() {
                   <div>
                     <p className="text-sm text-slate-900 dark:text-white font-medium">{cycle.name}</p>
                     <p className="text-xs text-slate-500">{cycle.type} · {formatDate(cycle.startDate)} — {formatDate(cycle.endDate)}</p>
-                  </div>
+                  </Card>
                   <div className="flex items-center gap-2">
                     <Badge color={cycle.status === "ACTIVE" ? "green" : cycle.status === "COMPLETED" ? "blue" : "slate"}>
                       {cycle.status}
@@ -245,7 +239,7 @@ export default function PerformanceManagementPage() {
               ))}
               {(!cycles || cycles.length === 0) && <p className="text-sm text-slate-500">No review cycles created yet.</p>}
             </div>
-          </Card>
+          </div>
 
           {report && (
             <Card>
@@ -259,12 +253,12 @@ export default function PerformanceManagementPage() {
                         className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full"
                         style={{ width: `${d.percentage}%` }}
                       />
-                    </div>
+                    </Card>
                     <span className="text-xs text-slate-600 dark:text-slate-300 w-16 text-right">{d.count} ({d.percentage}%)</span>
                   </div>
                 ))}
               </div>
-            </Card>
+            </div>
           )}
         </div>
       )}
@@ -275,21 +269,14 @@ export default function PerformanceManagementPage() {
           <CardHeader
             title="Review Cycles"
             subtitle="Create and manage performance review cycles"
-            action={<Button onClick={() => setShowCreateCycle(true)}>+ New Cycle</Button>}
+            actions={<Button onClick={() => setShowCreateCycle(true)}>+ New Cycle</Button>}
           />
 
           {/* Cycle list */}
           <DataTable
-            columns={[
-              { key: "name", header: "Name", render: (c: ReviewCycle) => <span className="font-medium text-slate-900 dark:text-white">{c.name}</span> },
-              { key: "type", header: "Type", render: (c: ReviewCycle) => <Badge color="blue">{c.type}</Badge> },
-              { key: "period", header: "Period", render: (c: ReviewCycle) => <span className="text-xs text-slate-400">{formatDate(c.startDate)} — {formatDate(c.endDate)}</span> },
-              { key: "participants", header: "Participants", render: (c: ReviewCycle) => c.totalParticipants },
-              { key: "completed", header: "Completed", render: (c: ReviewCycle) => `${c.completedReviews}/${c.totalParticipants}` },
-              { key: "status", header: "Status", render: (c: ReviewCycle) => (
+            columns={[{ key: "name", header: "Name", render: (c: ReviewCycle) => <span className="font-medium text-slate-900 dark:text-white">{c.name}</span> }, { key: "type", header: "Type", render: (c: ReviewCycle) => <Badge color="blue">{c.type}</Badge> }, { key: "period", header: "Period", render: (c: ReviewCycle) => <span className="text-xs text-slate-400">{formatDate(c.startDate)} — {formatDate(c.endDate)}</span> }, { key: "participants", header: "Participants", render: (c: ReviewCycle) => c.totalParticipants }, { key: "completed", header: "Completed", render: (c: ReviewCycle) => `${c.completedReviews}/${c.totalParticipants}` }, { key: "status", header: "Status", render: (c: ReviewCycle) => (
                 <span className={`px-2 py-0.5 text-xs rounded ${CYCLE_STATUS_COLORS[c.status] || "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"}`}>{c.status}</span>
-              )},
-              { key: "actions", header: "", render: (c: ReviewCycle) => (
+              )}, { key: "actions", header: "", render: (c: ReviewCycle) => (
                 <Button size="sm" variant="outline" onClick={() => loadReport(c.id)}>Report</Button>
               )},
             ]}
@@ -300,7 +287,7 @@ export default function PerformanceManagementPage() {
 
           {/* Create Cycle Modal */}
           {showCreateCycle && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Create Review Cycle</h2>
                 <div className="space-y-3">
@@ -319,7 +306,7 @@ export default function PerformanceManagementPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Start Date" type="date" value={cycleForm.startDate} onChange={(e) => setCycleForm({ ...cycleForm, startDate: e.target.value })} />
                     <Input label="End Date" type="date" value={cycleForm.endDate} onChange={(e) => setCycleForm({ ...cycleForm, endDate: e.target.value })} />
-                  </div>
+                  </Card>
                   <Input label="Target Roles (comma-separated)" value={cycleForm.targetRoles} onChange={(e) => setCycleForm({ ...cycleForm, targetRoles: e.target.value })} placeholder="ENGINEER, MANAGER" />
                 </div>
                 <div className="flex justify-end gap-2 mt-5">
@@ -329,7 +316,7 @@ export default function PerformanceManagementPage() {
               </div>
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Bell Curve Tab */}
@@ -355,7 +342,7 @@ export default function PerformanceManagementPage() {
                       />
                       <span className="text-[10px] text-slate-400 text-center leading-tight">{bucket.rating}</span>
                       <span className="text-[10px] text-slate-600">{bucket.range}</span>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -387,7 +374,7 @@ export default function PerformanceManagementPage() {
           ) : (
             <p className="text-sm text-slate-500 py-6 text-center">Select a review cycle from the Cycles tab to view the bell curve.</p>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Performers Tab */}
@@ -399,18 +386,18 @@ export default function PerformanceManagementPage() {
             <div className="space-y-2">
               {report.topPerformers.map((p, i) => (
                 <div key={i} className="flex items-center gap-3 bg-emerald-900/10 rounded-lg px-3 py-2">
-                  <span className="w-6 h-6 rounded-full bg-emerald-900/50 text-emerald-400 flex items-center justify-center text-xs font-bold">
+                  <span className="w-6 h-6 rounded-full bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold">
                     {i + 1}
                   </span>
                   <div className="flex-1">
                     <p className="text-sm text-slate-900 dark:text-white font-medium">{p.name}</p>
                     <p className="text-xs text-slate-500">{p.department}</p>
-                  </div>
-                  <span className="text-sm font-bold text-emerald-400">{p.rating.toFixed(1)}</span>
+                  </Card>
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{p.rating.toFixed(1)}</span>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
           {/* Low Performers */}
           <Card>
@@ -418,33 +405,28 @@ export default function PerformanceManagementPage() {
             <div className="space-y-2">
               {report.bottomPerformers.map((p, i) => (
                 <div key={i} className="flex items-center gap-3 bg-red-900/10 rounded-lg px-3 py-2">
-                  <span className="w-6 h-6 rounded-full bg-red-900/50 text-red-400 flex items-center justify-center text-xs font-bold">
+                  <span className="w-6 h-6 rounded-full bg-red-900/50 text-red-600 dark:text-red-400 flex items-center justify-center text-xs font-bold">
                     {i + 1}
                   </span>
                   <div className="flex-1">
                     <p className="text-sm text-slate-900 dark:text-white font-medium">{p.name}</p>
                     <p className="text-xs text-slate-500">{p.department}</p>
-                  </div>
-                  <span className="text-sm font-bold text-red-400">{p.rating.toFixed(1)}</span>
+                  </Card>
+                  <span className="text-sm font-bold text-red-600 dark:text-red-400">{p.rating.toFixed(1)}</span>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
           {/* Department Performance */}
           <Card className="lg:col-span-2">
             <CardHeader title="Department-wise Performance" />
             <DataTable
-              columns={[
-                { key: "department", header: "Department", render: (d: any) => <span className="font-medium text-slate-900 dark:text-white">{d.department}</span> },
-                { key: "avgRating", header: "Avg Rating", render: (d: any) => (
-                  <span className={`font-bold ${d.avgRating >= 4 ? "text-emerald-400" : d.avgRating >= 3 ? "text-amber-400" : "text-red-400"}`}>
+              columns={[{ key: "department", header: "Department", render: (d: any) => <span className="font-medium text-slate-900 dark:text-white">{d.department}</span> }, { key: "avgRating", header: "Avg Rating", render: (d: any) => (
+                  <span className={`font-bold ${d.avgRating >= 4 ? "text-emerald-600 dark:text-emerald-400" : d.avgRating >= 3 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
                     {d.avgRating.toFixed(2)}
                   </span>
-                )},
-                { key: "totalReviews", header: "Reviews", render: (d: any) => d.totalReviews },
-                { key: "highPerformers", header: "High Performers", render: (d: any) => <Badge color="green">{d.highPerformers}</Badge> },
-                { key: "lowPerformers", header: "Low Performers", render: (d: any) => <Badge color={d.lowPerformers > 0 ? "red" : "slate"}>{d.lowPerformers}</Badge> },
+                )}, { key: "totalReviews", header: "Reviews", render: (d: any) => d.totalReviews }, { key: "highPerformers", header: "High Performers", render: (d: any) => <Badge color="green">{d.highPerformers}</Badge> }, { key: "lowPerformers", header: "Low Performers", render: (d: any) => <Badge color={d.lowPerformers > 0 ? "red" : "slate"}>{d.lowPerformers}</Badge> },
               ]}
               data={report.byDepartment}
               keyExtractor={(d: any) => d.department}
@@ -466,18 +448,13 @@ export default function PerformanceManagementPage() {
           <CardHeader
             title="Performance Improvement Plans"
             subtitle="Active and historical PIPs"
-            action={<Button onClick={() => setShowPIPForm(true)}>+ Create PIP</Button>}
+            actions={<Button onClick={() => setShowPIPForm(true)}>+ Create PIP</Button>}
           />
 
           <DataTable
-            columns={[
-              { key: "employeeName", header: "Employee", render: (p: PIPRecord) => <span className="font-medium text-slate-900 dark:text-white">{p.employeeName}</span> },
-              { key: "areas", header: "Areas", render: (p: PIPRecord) => (
+            columns={[{ key: "employeeName", header: "Employee", render: (p: PIPRecord) => <span className="font-medium text-slate-900 dark:text-white">{p.employeeName}</span> }, { key: "areas", header: "Areas", render: (p: PIPRecord) => (
                 <div className="flex flex-wrap gap-1">{p.areas.map((a) => <Badge key={a} color="amber">{a}</Badge>)}</div>
-              )},
-              { key: "timeline", header: "Timeline", render: (p: PIPRecord) => `${p.timeline} days` },
-              { key: "period", header: "Period", render: (p: PIPRecord) => `${formatDate(p.startDate)} — ${formatDate(p.endDate)}` },
-              { key: "status", header: "Status", render: (p: PIPRecord) => (
+              )}, { key: "timeline", header: "Timeline", render: (p: PIPRecord) => `${p.timeline} days` }, { key: "period", header: "Period", render: (p: PIPRecord) => `${formatDate(p.startDate)} — ${formatDate(p.endDate)}` }, { key: "status", header: "Status", render: (p: PIPRecord) => (
                 <Badge color={p.status === "ACTIVE" ? "amber" : p.status === "COMPLETED" ? "green" : p.status === "FAILED" ? "red" : "slate"}>
                   {p.status}
                 </Badge>
@@ -490,7 +467,7 @@ export default function PerformanceManagementPage() {
 
           {/* PIP Form Modal */}
           {showPIPForm && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Create PIP</h2>
                 <div className="space-y-3">
@@ -505,7 +482,7 @@ export default function PerformanceManagementPage() {
                       rows={4}
                       placeholder="Improve code review quality|Review accuracy|95%&#10;Complete communication training|Certificate|Completed"
                     />
-                  </div>
+                  </Card>
                   <Select
                     label="Timeline (days)"
                     options={[
@@ -525,7 +502,7 @@ export default function PerformanceManagementPage() {
               </div>
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Promotions Tab */}
@@ -533,16 +510,11 @@ export default function PerformanceManagementPage() {
         <Card>
           <CardHeader title="Promotion Recommendations" subtitle="Pending and approved promotions" />
           <DataTable
-            columns={[
-              { key: "employeeName", header: "Employee", render: (p: PromotionRecommendation) => <span className="font-medium text-slate-900 dark:text-white">{p.employeeName}</span> },
-              { key: "current", header: "Current", render: (p: PromotionRecommendation) => (
+            columns={[{ key: "employeeName", header: "Employee", render: (p: PromotionRecommendation) => <span className="font-medium text-slate-900 dark:text-white">{p.employeeName}</span> }, { key: "current", header: "Current", render: (p: PromotionRecommendation) => (
                 <div><p className="text-xs text-slate-400">{p.currentDesignation}</p><p className="text-xs text-slate-500">{formatCurrency(p.currentSalary)}</p></div>
-              )},
-              { key: "proposed", header: "Proposed", render: (p: PromotionRecommendation) => (
-                <div><p className="text-xs text-slate-900 dark:text-white font-medium">{p.newDesignation}</p><p className="text-xs text-green-400">{formatCurrency(p.newSalary)}</p></div>
-              )},
-              { key: "increment", header: "Increment", render: (p: PromotionRecommendation) => <Badge color="green">{p.incrementPercent}%</Badge> },
-              { key: "status", header: "Status", render: (p: PromotionRecommendation) => (
+              )}, { key: "proposed", header: "Proposed", render: (p: PromotionRecommendation) => (
+                <div><p className="text-xs text-slate-900 dark:text-white font-medium">{p.newDesignation}</p><p className="text-xs text-green-600 dark:text-green-400">{formatCurrency(p.newSalary)}</p></div>
+              )}, { key: "increment", header: "Increment", render: (p: PromotionRecommendation) => <Badge color="green">{p.incrementPercent}%</Badge> }, { key: "status", header: "Status", render: (p: PromotionRecommendation) => (
                 <Badge color={p.status === "APPROVED" ? "green" : p.status === "PENDING" ? "amber" : "red"}>{p.status}</Badge>
               )},
             ]}
@@ -559,7 +531,7 @@ export default function PerformanceManagementPage() {
           <CardHeader
             title="Rating Calibration"
             subtitle="Normalize ratings across departments to ensure fairness"
-            action={
+            actions={
               <Button onClick={handleCalibrate} loading={loading} disabled={!selectedCycleId}>
                 Run Calibration
               </Button>
@@ -576,27 +548,23 @@ export default function PerformanceManagementPage() {
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{calibrateResult.adjustments}</p>
                   <p className="text-xs text-slate-500">Adjustments Made</p>
-                </div>
+                </Card>
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-amber-400">{calibrateResult.avgBefore}</p>
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{calibrateResult.avgBefore}</p>
                   <p className="text-xs text-slate-500">Avg Before</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{calibrateResult.avgAfter}</p>
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{calibrateResult.avgAfter}</p>
                   <p className="text-xs text-slate-500">Avg After</p>
                 </div>
               </div>
 
               <DataTable
-                columns={[
-                  { key: "department", header: "Department", render: (d: any) => <span className="font-medium text-slate-900 dark:text-white">{d.department}</span> },
-                  { key: "avgBefore", header: "Avg Before", render: (d: any) => d.avgBefore.toFixed(2) },
-                  { key: "avgAfter", header: "Avg After", render: (d: any) => (
-                    <span className={d.avgAfter > d.avgBefore ? "text-green-400" : d.avgAfter < d.avgBefore ? "text-red-400" : "text-slate-900 dark:text-white"}>
+                columns={[{ key: "department", header: "Department", render: (d: any) => <span className="font-medium text-slate-900 dark:text-white">{d.department}</span> }, { key: "avgBefore", header: "Avg Before", render: (d: any) => d.avgBefore.toFixed(2) }, { key: "avgAfter", header: "Avg After", render: (d: any) => (
+                    <span className={d.avgAfter > d.avgBefore ? "text-green-600 dark:text-green-400" : d.avgAfter < d.avgBefore ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}>
                       {d.avgAfter.toFixed(2)}
                     </span>
-                  )},
-                  { key: "adjustments", header: "Adjustments", render: (d: any) => <Badge color={d.adjustments > 0 ? "amber" : "slate"}>{d.adjustments}</Badge> },
+                  )}, { key: "adjustments", header: "Adjustments", render: (d: any) => <Badge color={d.adjustments > 0 ? "amber" : "slate"}>{d.adjustments}</Badge> },
                 ]}
                 data={calibrateResult.byDepartment}
                 keyExtractor={(d: any) => d.department}
@@ -604,7 +572,7 @@ export default function PerformanceManagementPage() {
               />
             </div>
           )}
-        </Card>
+        </div>
       )}
     </div>
   );

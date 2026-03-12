@@ -42,13 +42,13 @@ export default function TrainingPage() {
   };
 
   const statusColors: Record<string, string> = {
-    UPCOMING: "bg-blue-900/50 text-blue-400", ONGOING: "bg-emerald-900/50 text-emerald-400",
-    COMPLETED: "bg-slate-100 dark:bg-slate-700 text-slate-400", CANCELLED: "bg-red-900/50 text-red-400",
+    UPCOMING: "bg-blue-900/50 text-blue-600 dark:text-blue-400", ONGOING: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+    COMPLETED: "bg-slate-100 dark:bg-slate-700 text-slate-400", CANCELLED: "bg-red-900/50 text-red-600 dark:text-red-400",
   };
   const enrollColors: Record<string, string> = {
-    ENROLLED: "bg-blue-900/50 text-blue-400", IN_PROGRESS: "bg-amber-900/50 text-amber-400",
-    COMPLETED: "bg-emerald-900/50 text-emerald-400", DROPPED: "bg-red-900/50 text-red-400",
-    WAITLISTED: "bg-purple-900/50 text-purple-400",
+    ENROLLED: "bg-blue-900/50 text-blue-600 dark:text-blue-400", IN_PROGRESS: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+    COMPLETED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", DROPPED: "bg-red-900/50 text-red-600 dark:text-red-400",
+    WAITLISTED: "bg-purple-900/50 text-purple-600 dark:text-purple-400",
   };
 
   const enrolledIds = new Set(myEnrollments.map(e => e.programId));
@@ -57,7 +57,7 @@ export default function TrainingPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📚 Training & Learning</h1>
         </div>
       </div>
@@ -81,10 +81,10 @@ export default function TrainingPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
-        <button onClick={() => setTab("available")} className={`px-4 py-2 rounded-lg text-sm ${tab === "available" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
+        <button onClick={() => setTab("available")} className={`px-4 py-2 rounded-lg text-sm ${tab === "available" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
           Available Programs ({programs.length})
         </button>
-        <button onClick={() => setTab("my")} className={`px-4 py-2 rounded-lg text-sm ${tab === "my" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
+        <button onClick={() => setTab("my")} className={`px-4 py-2 rounded-lg text-sm ${tab === "my" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
           My Enrollments ({myEnrollments.length})
         </button>
       </div>
@@ -109,13 +109,13 @@ export default function TrainingPage() {
                 {p.startDate && <p>📅 {new Date(p.startDate).toLocaleDateString()} — {p.endDate ? new Date(p.endDate).toLocaleDateString() : "TBD"}</p>}
                 {p.maxSeats && <p>💺 {p._count?.enrollments || 0}/{p.maxSeats} seats</p>}
                 {p.certificate && <p>🏅 Certificate on completion</p>}
-                {p.mandatory && <p className="text-red-400">⚠ Mandatory</p>}
+                {p.mandatory && <p className="text-red-600 dark:text-red-400">⚠ Mandatory</p>}
               </div>
               {enrolledIds.has(p.id) ? (
-                <span className="inline-block px-3 py-1.5 text-xs bg-emerald-900/50 text-emerald-400 rounded-lg">✓ Enrolled</span>
+                <span className="inline-block px-3 py-1.5 text-xs bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-lg">✓ Enrolled</span>
               ) : (
                 <button onClick={() => handleEnroll(p.id)}
-                  className="px-3 py-1.5 text-xs bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700">Enroll Now</button>
+                  className="px-3 py-1.5 text-xs bg-brand-600 text-white rounded-lg hover:bg-brand-700">Enroll Now</button>
               )}
             </div>
           ))}
@@ -135,7 +135,7 @@ export default function TrainingPage() {
                   <p className="text-xs text-slate-400">{e.program?.category} &middot; {e.program?.mode} &middot; {e.program?.duration || "Self-paced"}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-bold text-brand-400">{e.progress}%</p>
+                  <p className="text-xl font-bold text-brand-600 dark:text-brand-400">{e.progress}%</p>
                   {e.score && <p className="text-xs text-slate-500">Score: {Number(e.score).toFixed(0)}</p>}
                 </div>
               </div>
@@ -145,7 +145,7 @@ export default function TrainingPage() {
               <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                 <span>Enrolled: {new Date(e.enrolledAt).toLocaleDateString()}</span>
                 {e.completedAt && <span>Completed: {new Date(e.completedAt).toLocaleDateString()}</span>}
-                {e.certificateUrl && <a href={e.certificateUrl} className="text-brand-400">📜 Certificate</a>}
+                {e.certificateUrl && <a href={e.certificateUrl} className="text-brand-600 dark:text-brand-400">📜 Certificate</a>}
               </div>
             </div>
           ))}

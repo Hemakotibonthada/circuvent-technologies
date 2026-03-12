@@ -36,9 +36,9 @@ export default function ProfilePage() {
             <p className="text-sm text-slate-400">{user.email}</p>
             <div className="mt-2 flex items-center gap-2">
               <span className={`rounded-full px-3 py-0.5 text-xs font-medium ${
-                user.role === "ADMIN" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
-                user.role === "ENGINEER" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
-                "bg-green-500/10 text-green-400 border border-green-500/20"
+                user.role === "ADMIN" ? "bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/20" :
+                user.role === "ENGINEER" ? "bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20" :
+                "bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/20"
               }`}>{user.role}</span>
               <span className="h-1 w-1 rounded-full bg-slate-600" />
               <span className="text-xs text-slate-500">Active</span>
@@ -95,7 +95,7 @@ export default function ProfilePage() {
                   <button className="rounded-lg bg-brand-600 px-4 py-2 text-xs text-slate-900 dark:text-white hover:bg-brand-700">Update Password</button>
                   <button onClick={() => setChangingPassword(false)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs text-slate-600 dark:text-slate-300">Cancel</button>
                 </div>
-                {message && <p className="text-xs text-green-400">{message}</p>}
+                {message && <p className="text-xs text-green-600 dark:text-green-400">{message}</p>}
               </div>
             )}
 
@@ -104,7 +104,7 @@ export default function ProfilePage() {
                 <p className="text-sm text-slate-900 dark:text-white">Two-Factor Auth</p>
                 <p className="text-xs text-slate-500">Not configured</p>
               </div>
-              <span className="rounded-full bg-amber-500/10 px-3 py-0.5 text-xs text-amber-400 border border-amber-500/20">Recommended</span>
+              <span className="rounded-full bg-amber-100 dark:bg-amber-500/10 px-3 py-0.5 text-xs text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">Recommended</span>
             </div>
 
             <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
@@ -112,7 +112,7 @@ export default function ProfilePage() {
                 <p className="text-sm text-slate-900 dark:text-white">Active Sessions</p>
                 <p className="text-xs text-slate-500">1 active session</p>
               </div>
-              <button onClick={handleLogoutAll} className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors">
+              <button onClick={handleLogoutAll} className="rounded-lg border border-red-200 dark:border-red-500/30 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-100 dark:bg-red-500/10 transition-colors">
                 Logout All
               </button>
             </div>
@@ -143,11 +143,11 @@ export default function ProfilePage() {
       </div>
 
       {/* Danger Zone */}
-      <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
-        <h3 className="text-lg font-semibold text-red-400 mb-2">Danger Zone</h3>
+      <div className="rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/5 p-6">
+        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Danger Zone</h3>
         <p className="text-sm text-slate-400 mb-4">These actions are irreversible. Please be careful.</p>
         <div className="flex gap-3">
-          <button onClick={logout} className="rounded-lg border border-red-500/30 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors">
+          <button onClick={logout} className="rounded-lg border border-red-200 dark:border-red-500/30 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-100 dark:bg-red-500/10 transition-colors">
             Sign Out
           </button>
         </div>

@@ -89,27 +89,18 @@ export default function ProductManagerDashboard() {
   ];
 
   const featureRequests: FeatureRequest[] = [
-    { id: "FR-001", title: "Multi-currency support", requester: "FinServ Solutions", priority: "HIGH", status: "APPROVED", votes: 12, createdAt: "2026-02-15" },
-    { id: "FR-002", title: "Dark mode for portal", requester: "Internal", priority: "MEDIUM", status: "IN_REVIEW", votes: 28, createdAt: "2026-02-20" },
-    { id: "FR-003", title: "Bulk employee import", requester: "TechCorp", priority: "HIGH", status: "PLANNED", votes: 8, createdAt: "2026-03-01" },
-    { id: "FR-004", title: "Mobile app notifications", requester: "Internal", priority: "MEDIUM", status: "OPEN", votes: 35, createdAt: "2026-03-05" },
-    { id: "FR-005", title: "Custom report builder", requester: "MedLife", priority: "LOW", status: "OPEN", votes: 6, createdAt: "2026-03-08" },
-    { id: "FR-006", title: "SSO integration with Azure AD", requester: "EduLearn", priority: "HIGH", status: "IN_REVIEW", votes: 15, createdAt: "2026-02-28" },
+    { id: "FR-001", title: "Multi-currency support", requester: "FinServ Solutions", priority: "HIGH", status: "APPROVED", votes: 12, createdAt: "2026-02-15" }, { key: "FR-002", title: "Dark mode for portal", requester: "Internal", priority: "MEDIUM", status: "IN_REVIEW", votes: 28, createdAt: "2026-02-20" }, { key: "FR-003", title: "Bulk employee import", requester: "TechCorp", priority: "HIGH", status: "PLANNED", votes: 8, createdAt: "2026-03-01" }, { key: "FR-004", title: "Mobile app notifications", requester: "Internal", priority: "MEDIUM", status: "OPEN", votes: 35, createdAt: "2026-03-05" }, { key: "FR-005", title: "Custom report builder", requester: "MedLife", priority: "LOW", status: "OPEN", votes: 6, createdAt: "2026-03-08" }, { key: "FR-006", title: "SSO integration with Azure AD", requester: "EduLearn", priority: "HIGH", status: "IN_REVIEW", votes: 15, createdAt: "2026-02-28" },
   ];
 
   const roadmapItems: RoadmapItem[] = [
-    { id: "RM-001", title: "Phase 1: Core HR & Payroll", phase: "Q3 FY26", status: "COMPLETED", startDate: "2025-10-01", endDate: "2025-12-31", progress: 100 },
-    { id: "RM-002", title: "Phase 2: Advanced Payroll Engine", phase: "Q4 FY26", status: "COMPLETED", startDate: "2026-01-01", endDate: "2026-03-31", progress: 100 },
-    { id: "RM-003", title: "Phase 3: Employee Self-Service", phase: "Q1 FY27", status: "IN_PROGRESS", startDate: "2026-04-01", endDate: "2026-06-30", progress: 65 },
-    { id: "RM-004", title: "Phase 4: Analytics & AI", phase: "Q2 FY27", status: "PLANNED", startDate: "2026-07-01", endDate: "2026-09-30", progress: 0 },
-    { id: "RM-005", title: "Phase 5: Mobile App", phase: "Q3 FY27", status: "PLANNED", startDate: "2026-10-01", endDate: "2026-12-31", progress: 0 },
+    { id: "RM-001", title: "Phase 1: Core HR & Payroll", phase: "Q3 FY26", status: "COMPLETED", startDate: "2025-10-01", endDate: "2025-12-31", progress: 100 }, { key: "RM-002", title: "Phase 2: Advanced Payroll Engine", phase: "Q4 FY26", status: "COMPLETED", startDate: "2026-01-01", endDate: "2026-03-31", progress: 100 }, { key: "RM-003", title: "Phase 3: Employee Self-Service", phase: "Q1 FY27", status: "IN_PROGRESS", startDate: "2026-04-01", endDate: "2026-06-30", progress: 65 }, { key: "RM-004", title: "Phase 4: Analytics & AI", phase: "Q2 FY27", status: "PLANNED", startDate: "2026-07-01", endDate: "2026-09-30", progress: 0 }, { key: "RM-005", title: "Phase 5: Mobile App", phase: "Q3 FY27", status: "PLANNED", startDate: "2026-10-01", endDate: "2026-12-31", progress: 0 },
   ];
 
   const healthColor = (health: string) => {
     switch (health) {
-      case "GREEN": return "text-emerald-400";
-      case "AMBER": return "text-amber-400";
-      case "RED": return "text-red-400";
+      case "GREEN": return "text-emerald-600 dark:text-emerald-400";
+      case "AMBER": return "text-amber-600 dark:text-amber-400";
+      case "RED": return "text-red-600 dark:text-red-400";
       default: return "text-slate-400";
     }
   };
@@ -181,7 +172,7 @@ export default function ProductManagerDashboard() {
             onClick={() => setActiveTab(tab)}
             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab
-                ? "bg-brand-600 text-slate-900 dark:text-white"
+                ? "bg-brand-600 text-white"
                 : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800"
             }`}
           >
@@ -197,7 +188,7 @@ export default function ProductManagerDashboard() {
             <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Client Engagement</h3>
             <div className="space-y-3">
               {clientEngagement.map((c) => (
-                <div key={c.client} className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003">
+                <div key={c.client} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <div className={`h-2.5 w-2.5 rounded-full ${healthDot(c.health)}`} />
@@ -232,7 +223,7 @@ export default function ProductManagerDashboard() {
                         <span className="text-sm font-medium text-slate-900 dark:text-white">{member.name}</span>
                         <span className="ml-2 text-xs text-slate-500">{member.role}</span>
                       </div>
-                      <span className={`text-xs font-medium ${utilization >= 90 ? "text-red-400" : utilization >= 70 ? "text-amber-400" : "text-emerald-400"}`}>
+                      <span className={`text-xs font-medium ${utilization >= 90 ? "text-red-600 dark:text-red-400" : utilization >= 70 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                         {member.tasks}/{member.capacity} tasks
                       </span>
                     </div>
@@ -301,16 +292,16 @@ export default function ProductManagerDashboard() {
             </table>
           </div>
           <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-2xl font-bold text-slate-900 dark:text-white">{resourceAllocation.reduce((s, r) => s + r.allocated, 0)}</p>
               <p className="text-xs text-slate-400">Total Allocated</p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
-              <p className="text-2xl font-bold text-emerald-400">{resourceAllocation.reduce((s, r) => s + r.available, 0)}</p>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{resourceAllocation.reduce((s, r) => s + r.available, 0)}</p>
               <p className="text-xs text-slate-400">Available</p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
-              <p className="text-2xl font-bold text-amber-400">{Math.round(resourceAllocation.reduce((s, r) => s + r.utilization, 0) / resourceAllocation.length)}%</p>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{Math.round(resourceAllocation.reduce((s, r) => s + r.utilization, 0) / resourceAllocation.length)}%</p>
               <p className="text-xs text-slate-400">Avg Utilization</p>
             </div>
           </div>
@@ -325,7 +316,7 @@ export default function ProductManagerDashboard() {
             {roadmapItems.map((item) => (
               <div
                 key={item.id}
-                className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 hover:bg-slate-800/30 transition-colors"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-800/30 transition-colors"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -396,7 +387,7 @@ export default function ProductManagerDashboard() {
             <a
               key={action.label}
               href={action.href}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 transition-colors hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300 transition-colors hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
             >
               <span>{action.icon}</span> {action.label}
             </a>

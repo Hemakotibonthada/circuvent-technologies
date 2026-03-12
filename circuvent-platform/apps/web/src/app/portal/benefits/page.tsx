@@ -44,9 +44,9 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: "bg-emerald-900/50 text-emerald-400",
-  PENDING: "bg-amber-900/50 text-amber-400",
-  CANCELLED: "bg-red-900/50 text-red-400",
+  ACTIVE: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+  PENDING: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+  CANCELLED: "bg-red-900/50 text-red-600 dark:text-red-400",
   EXPIRED: "bg-slate-100 dark:bg-slate-700 text-slate-400",
 };
 
@@ -127,7 +127,7 @@ export default function PortalBenefitsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🛡️ My Benefits</h1>
         </div>
       </div>
@@ -139,21 +139,21 @@ export default function PortalBenefitsPage() {
           <p className="text-xs text-slate-500">Active Plans</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-blue-400">{availablePlans.length}</p>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{availablePlans.length}</p>
           <p className="text-xs text-slate-500">Available Plans</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-emerald-400">₹{monthlyContribution.toLocaleString("en-IN")}</p>
+          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">₹{monthlyContribution.toLocaleString("en-IN")}</p>
           <p className="text-xs text-slate-500">Monthly Contribution</p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg p-1">
-        <button onClick={() => setTab("enrolled")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "enrolled" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
+        <button onClick={() => setTab("enrolled")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "enrolled" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           My Enrollments ({enrollments.filter(e => e.status === "ACTIVE").length})
         </button>
-        <button onClick={() => setTab("available")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "available" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
+        <button onClick={() => setTab("available")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "available" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           Available Plans ({availablePlans.length})
         </button>
       </div>
@@ -190,8 +190,8 @@ export default function PortalBenefitsPage() {
                   <div className="flex flex-col gap-1">
                     {enrollment.status === "ACTIVE" && (
                       <>
-                        <button onClick={() => setShowAddDependent(enrollment.id)} className="text-xs text-brand-400 hover:text-brand-300">+ Dependent</button>
-                        <button onClick={() => handleCancel(enrollment.id)} disabled={submitting} className="text-xs text-red-400 hover:text-red-300">Cancel</button>
+                        <button onClick={() => setShowAddDependent(enrollment.id)} className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">+ Dependent</button>
+                        <button onClick={() => handleCancel(enrollment.id)} disabled={submitting} className="text-xs text-red-600 dark:text-red-400 hover:text-red-300">Cancel</button>
                       </>
                     )}
                   </div>
@@ -209,7 +209,7 @@ export default function PortalBenefitsPage() {
                             <span className="text-slate-900 dark:text-white">{dep.name}</span>
                             <span className="text-slate-500">({dep.relationship})</span>
                           </div>
-                          <span className={dep.isActive ? "text-emerald-400" : "text-slate-500"}>
+                          <span className={dep.isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500"}>
                             {dep.isActive ? "Active" : "Inactive"}
                           </span>
                         </div>
@@ -243,7 +243,7 @@ export default function PortalBenefitsPage() {
                       <div className="flex gap-4 mt-2 text-xs">
                         <span className="text-slate-400">Coverage: <span className="text-slate-900 dark:text-white">₹{plan.coverageAmount.toLocaleString("en-IN")}</span></span>
                         <span className="text-slate-400">Employee: <span className="text-slate-900 dark:text-white">₹{plan.employeeContribution.toLocaleString("en-IN")}/mo</span></span>
-                        <span className="text-slate-400">Employer: <span className="text-emerald-400">₹{plan.employerContribution.toLocaleString("en-IN")}/mo</span></span>
+                        <span className="text-slate-400">Employer: <span className="text-emerald-600 dark:text-emerald-400">₹{plan.employerContribution.toLocaleString("en-IN")}/mo</span></span>
                       </div>
                       {plan.features?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -257,7 +257,7 @@ export default function PortalBenefitsPage() {
                       )}
                     </div>
                   </div>
-                  <button onClick={() => setSelectedPlan(plan)} className="px-3 py-1.5 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-xs whitespace-nowrap">
+                  <button onClick={() => setSelectedPlan(plan)} className="px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-xs whitespace-nowrap">
                     Enroll
                   </button>
                 </div>
@@ -269,7 +269,7 @@ export default function PortalBenefitsPage() {
 
       {/* Confirm Enrollment Modal */}
       {selectedPlan && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Confirm Enrollment</h2>
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mb-4">
@@ -299,7 +299,7 @@ export default function PortalBenefitsPage() {
 
       {/* Add Dependent Modal */}
       {showAddDependent && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Add Dependent</h2>
             <div className="space-y-3">
@@ -318,7 +318,7 @@ export default function PortalBenefitsPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowAddDependent(null)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleAddDependent} disabled={submitting || !dependentForm.name || !dependentForm.dateOfBirth}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Adding..." : "Add Dependent"}
               </button>
             </div>

@@ -72,32 +72,32 @@ export default function IoTHealthPage() {
 
       {/* Alert Summary */}
       <div className="grid grid-cols-2 gap-4">
-        <Card className={dashboard?.criticalAlerts ? "border-red-500/30 bg-red-500/5" : ""}>
+        <Card className={dashboard?.criticalAlerts ? "border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/5" : ""}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-400">Critical Alerts</p>
-              <p className="text-3xl font-bold text-red-400">{dashboard?.criticalAlerts ?? 0}</p>
-            </div>
-            <div className="rounded-full bg-red-500/10 p-3">
-              <svg className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <p className="text-3xl font-bold text-red-600 dark:text-red-400">{dashboard?.criticalAlerts ?? 0}</p>
+            </Card>
+            <div className="rounded-full bg-red-100 dark:bg-red-500/10 p-3">
+              <svg className="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
           </div>
-        </Card>
-        <Card className={dashboard?.warningAlerts ? "border-amber-500/30 bg-amber-500/5" : ""}>
+        </div>
+        <Card className={dashboard?.warningAlerts ? "border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5" : ""}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-400">Warning Alerts</p>
-              <p className="text-3xl font-bold text-amber-400">{dashboard?.warningAlerts ?? 0}</p>
-            </div>
-            <div className="rounded-full bg-amber-500/10 p-3">
-              <svg className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{dashboard?.warningAlerts ?? 0}</p>
+            </Card>
+            <div className="rounded-full bg-amber-100 dark:bg-amber-500/10 p-3">
+              <svg className="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Devices Needing Attention */}
@@ -105,41 +105,35 @@ export default function IoTHealthPage() {
         <Card>
           <CardHeader title="Devices Needing Attention" subtitle={`${dashboard.devicesNeedingAttention.length} critical issues`} />
           <DataTable
-            columns={[
-              { key: "deviceCode", header: "Device", render: (d: any) => (
+            columns={[{ key: "deviceCode", header: "Device", render: (d: any) => (
                 <div>
-                  <span className="font-mono text-xs text-brand-400">{d.deviceCode}</span>
+                  <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{d.deviceCode}</span>
                   <p className="text-xs text-slate-400">{d.deviceName}</p>
-                </div>
-              )},
-              { key: "alertType", header: "Alert Type", render: (d: any) => <Badge color="red">{d.alertType}</Badge> },
-              { key: "severity", header: "Severity", render: (d: any) => <Badge color={d.severity === "CRITICAL" ? "red" : "amber"}>{d.severity}</Badge> },
-              { key: "message", header: "Message", render: (d: any) => <span className="text-xs">{d.message}</span> },
-              { key: "since", header: "Since", render: (d: any) => timeAgo(d.since) },
-              { key: "action", header: "", render: (d: any) => (
+                </Card>
+              )}, { key: "alertType", header: "Alert Type", render: (d: any) => <Badge color="red">{d.alertType}</Badge> }, { key: "severity", header: "Severity", render: (d: any) => <Badge color={d.severity === "CRITICAL" ? "red" : "amber"}>{d.severity}</Badge> }, { key: "message", header: "Message", render: (d: any) => <span className="text-xs">{d.message}</span> }, { key: "since", header: "Since", render: (d: any) => timeAgo(d.since) }, { key: "action", header: "", render: (d: any) => (
                 <Button size="sm" variant="outline" onClick={() => handleResolveAlert(d.alertId)}>Resolve</Button>
               )},
             ]}
             data={dashboard.devicesNeedingAttention}
             keyExtractor={(d: any) => d.alertId}
           />
-        </Card>
+        </div>
       )}
 
       {!dashboard?.devicesNeedingAttention?.length && (
-        <Card className="border-green-500/20 bg-green-500/5">
+        <Card className="border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/5">
           <div className="flex items-center justify-center py-8 text-center">
             <div>
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20">
-                <svg className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-200 dark:bg-green-500/20">
+                <svg className="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-green-400">All Systems Healthy</h3>
+              </Card>
+              <h3 className="text-lg font-semibold text-green-600 dark:text-green-400">All Systems Healthy</h3>
               <p className="mt-1 text-sm text-slate-400">No critical alerts. All monitored devices are operating normally.</p>
             </div>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Send Command Modal */}

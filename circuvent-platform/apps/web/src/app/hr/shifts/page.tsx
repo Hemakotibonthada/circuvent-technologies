@@ -72,9 +72,7 @@ export default function ShiftManagementPage() {
 
   const [activeTab, setActiveTab] = useState("definitions");
   const tabs = [
-    { id: "definitions", label: "Definitions" },
-    { id: "schedules", label: "Schedules" },
-    { id: "today", label: "Today's View" },
+    { id: "definitions", label: "Definitions" }, { key: "schedules", label: "Schedules" }, { key: "today", label: "Today's View" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -157,14 +155,7 @@ export default function ShiftManagementPage() {
 
   /* ── columns ──────────────────────────────────────────── */
   const defColumns = [
-    { key: "name", header: "Shift Name", render: (d: ShiftDefinition) => <span className="font-medium text-slate-900 dark:text-white">{d.name}</span> },
-    { key: "type", header: "Type", render: (d: ShiftDefinition) => <Badge color={shiftTypeColors[d.type] || "slate"}>{d.type}</Badge> },
-    { key: "startTime", header: "Start" },
-    { key: "endTime", header: "End" },
-    { key: "breakMinutes", header: "Break", render: (d: ShiftDefinition) => `${d.breakMinutes} min` },
-    { key: "graceMinutes", header: "Grace", render: (d: ShiftDefinition) => `${d.graceMinutes} min` },
-    {
-      key: "isActive", header: "Status",
+    { id: "name", header: "Shift Name", render: (d: ShiftDefinition) => <span className="font-medium text-slate-900 dark:text-white">{d.name}</span> }, { key: "type", header: "Type", render: (d: ShiftDefinition) => <Badge color={shiftTypeColors[d.type] || "slate"}>{d.type}</Badge> }, { key: "startTime", header: "Start" }, { key: "endTime", header: "End" }, { key: "breakMinutes", header: "Break", render: (d: ShiftDefinition) => `${d.breakMinutes} min` }, { key: "graceMinutes", header: "Grace", render: (d: ShiftDefinition) => `${d.graceMinutes} min` }, { key: "isActive", header: "Status",
       render: (d: ShiftDefinition) => (
         <button
           onClick={() => handleToggleActive(d.id, d.isActive)}
@@ -177,14 +168,7 @@ export default function ShiftManagementPage() {
   ];
 
   const schedColumns = [
-    { key: "employeeName", header: "Employee", render: (s: ShiftSchedule) => <span className="font-medium text-slate-900 dark:text-white">{s.employeeName || s.employeeId}</span> },
-    { key: "shiftName", header: "Shift", render: (s: ShiftSchedule) => <Badge color="blue">{s.shiftName || s.shiftId}</Badge> },
-    { key: "date", header: "Date", render: (s: ShiftSchedule) => formatDate(s.date) },
-    { key: "status", header: "Status", render: (s: ShiftSchedule) => <Badge color={attendanceColors[s.status] || "slate"}>{s.status}</Badge> },
-    { key: "checkIn", header: "Check In", render: (s: ShiftSchedule) => s.checkIn || <span className="text-slate-500">—</span> },
-    { key: "checkOut", header: "Check Out", render: (s: ShiftSchedule) => s.checkOut || <span className="text-slate-500">—</span> },
-    {
-      key: "actions", header: "",
+    { id: "employeeName", header: "Employee", render: (s: ShiftSchedule) => <span className="font-medium text-slate-900 dark:text-white">{s.employeeName || s.employeeId}</span> }, { key: "shiftName", header: "Shift", render: (s: ShiftSchedule) => <Badge color="blue">{s.shiftName || s.shiftId}</Badge> }, { key: "date", header: "Date", render: (s: ShiftSchedule) => formatDate(s.date) }, { key: "status", header: "Status", render: (s: ShiftSchedule) => <Badge color={attendanceColors[s.status] || "slate"}>{s.status}</Badge> }, { key: "checkIn", header: "Check In", render: (s: ShiftSchedule) => s.checkIn || <span className="text-slate-500">—</span> }, { key: "checkOut", header: "Check Out", render: (s: ShiftSchedule) => s.checkOut || <span className="text-slate-500">—</span> }, { key: "actions", header: "",
       render: (s: ShiftSchedule) => (
         <div className="flex gap-2">
           {!s.checkIn && <Button size="sm" variant="outline" onClick={() => handleCheckIn(s.id)}>Check In</Button>}
@@ -195,21 +179,11 @@ export default function ShiftManagementPage() {
   ];
 
   const todayColumns = [
-    { key: "employeeName", header: "Employee", render: (t: TodayView) => <span className="font-medium text-slate-900 dark:text-white">{t.employeeName}</span> },
-    { key: "shiftName", header: "Shift", render: (t: TodayView) => <Badge color="blue">{t.shiftName}</Badge> },
-    { key: "scheduledStart", header: "Scheduled Start" },
-    { key: "scheduledEnd", header: "Scheduled End" },
-    {
-      key: "checkIn", header: "Check In",
-      render: (t: TodayView) => t.checkIn ? <span className="text-green-400">{t.checkIn}</span> : <span className="text-slate-500">—</span>,
-    },
-    {
-      key: "checkOut", header: "Check Out",
-      render: (t: TodayView) => t.checkOut ? <span className="text-green-400">{t.checkOut}</span> : <span className="text-slate-500">—</span>,
-    },
-    { key: "status", header: "Status", render: (t: TodayView) => <Badge color={attendanceColors[t.status] || "slate"}>{t.status}</Badge> },
-    {
-      key: "actions", header: "",
+    { id: "employeeName", header: "Employee", render: (t: TodayView) => <span className="font-medium text-slate-900 dark:text-white">{t.employeeName}</span> }, { key: "shiftName", header: "Shift", render: (t: TodayView) => <Badge color="blue">{t.shiftName}</Badge> }, { key: "scheduledStart", header: "Scheduled Start" }, { key: "scheduledEnd", header: "Scheduled End" }, { key: "checkIn", header: "Check In",
+      render: (t: TodayView) => t.checkIn ? <span className="text-green-600 dark:text-green-400">{t.checkIn}</span> : <span className="text-slate-500">—</span>,
+    }, { key: "checkOut", header: "Check Out",
+      render: (t: TodayView) => t.checkOut ? <span className="text-green-600 dark:text-green-400">{t.checkOut}</span> : <span className="text-slate-500">—</span>,
+    }, { key: "status", header: "Status", render: (t: TodayView) => <Badge color={attendanceColors[t.status] || "slate"}>{t.status}</Badge> }, { key: "actions", header: "",
       render: (t: TodayView) => (
         <div className="flex gap-2">
           {!t.checkIn && <Button size="sm" variant="outline" onClick={() => handleCheckIn(t.id)}>In</Button>}
@@ -225,8 +199,8 @@ export default function ShiftManagementPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -257,7 +231,7 @@ export default function ShiftManagementPage() {
       <Card>
         {activeTab === "definitions" && (
           <>
-            <CardHeader title="Shift Definitions" subtitle="All configured shifts" action={<Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>+ Add</Button>} />
+            <CardHeader title="Shift Definitions" subtitle="All configured shifts" actions={<Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>+ Add</Button>} />
             <DataTable columns={defColumns} data={definitions || []} keyExtractor={(d) => d.id} loading={defLoading} emptyMessage="No shift definitions yet." />
           </>
         )}

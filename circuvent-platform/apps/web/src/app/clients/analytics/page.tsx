@@ -36,10 +36,7 @@ export default function ClientAnalyticsPage() {
   const { data: clients } = useApi<any[]>("/clients/clients");
 
   const tabs = [
-    { id: "revenue", label: "Revenue Analytics" },
-    { id: "pipeline", label: "Lead Pipeline" },
-    { id: "aging", label: "Invoice Aging" },
-    { id: "clients", label: "Client Summary" },
+    { id: "revenue", label: "Revenue Analytics" }, { key: "pipeline", label: "Lead Pipeline" }, { key: "aging", label: "Invoice Aging" }, { key: "clients", label: "Client Summary" },
   ];
 
   // Compute aging from invoices
@@ -80,20 +77,20 @@ export default function ClientAnalyticsPage() {
             <CardHeader title="Revenue Summary" subtitle={`Year ${revenue.year}`} />
             <div className="space-y-3">
               {[
-                ["Total Revenue", formatCurrency(revenue.totalRevenue), "text-green-400"],
-                ["Collected", formatCurrency(revenue.totalCollected), "text-blue-400"],
-                ["Outstanding", formatCurrency(revenue.outstanding), "text-amber-400"],
+                ["Total Revenue", formatCurrency(revenue.totalRevenue), "text-green-600 dark:text-green-400"],
+                ["Collected", formatCurrency(revenue.totalCollected), "text-blue-600 dark:text-blue-400"],
+                ["Outstanding", formatCurrency(revenue.outstanding), "text-amber-600 dark:text-amber-400"],
                 ["Invoices", String(revenue.invoiceCount), "text-slate-900 dark:text-white"],
-                ["Overdue Invoices", String(revenue.overdueInvoices), "text-red-400"],
-                ["Collection Rate", revenue.totalRevenue > 0 ? `${Math.round((revenue.totalCollected / revenue.totalRevenue) * 100)}%` : "—", "text-cyan-400"],
+                ["Overdue Invoices", String(revenue.overdueInvoices), "text-red-600 dark:text-red-400"],
+                ["Collection Rate", revenue.totalRevenue > 0 ? `${Math.round((revenue.totalCollected / revenue.totalRevenue) * 100)}%` : "—", "text-cyan-600 dark:text-cyan-400"],
               ].map(([label, value, color]) => (
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <span className="text-sm text-slate-400">{label}</span>
                   <span className={`text-sm font-semibold ${color}`}>{value}</span>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="Invoices by Status" />
@@ -104,11 +101,11 @@ export default function ClientAnalyticsPage() {
                   <div className="text-right">
                     <span className="text-sm font-medium text-slate-900 dark:text-white">{s._count.id}</span>
                     <span className="ml-2 text-xs text-slate-500">({formatCurrency(Number(s._sum?.totalAmount || 0))})</span>
-                  </div>
+                  </Card>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -131,19 +128,19 @@ export default function ClientAnalyticsPage() {
               <div>
                 <p className="text-3xl font-bold text-slate-900 dark:text-white">{pipeline.totalLeads}</p>
                 <p className="text-xs text-slate-400">Total Leads</p>
-              </div>
+              </Card>
               <div>
-                <p className="text-3xl font-bold text-green-400">{formatCurrency(pipeline.totalPipelineValue)}</p>
+                <p className="text-3xl font-bold text-green-600 dark:text-green-400">{formatCurrency(pipeline.totalPipelineValue)}</p>
                 <p className="text-xs text-slate-400">Pipeline Value</p>
               </div>
               <div>
-                <p className="text-3xl font-bold text-purple-400">
+                <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                   {pipeline.totalLeads > 0 ? formatCurrency(pipeline.totalPipelineValue / pipeline.totalLeads) : "—"}
                 </p>
                 <p className="text-xs text-slate-400">Avg Deal Size</p>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -171,30 +168,23 @@ export default function ClientAnalyticsPage() {
           {overdue.length > 0 && (
             <Card padding={false}>
               <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-                <h3 className="text-sm font-semibold text-red-400">Overdue Invoices</h3>
-              </div>
+                <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">Overdue Invoices</h3>
+              </Card>
               <DataTable
-                columns={[
-                  { key: "invoiceNumber", header: "Invoice", render: (i: any) => <span className="font-mono text-xs text-brand-400">{i.invoiceNumber}</span> },
-                  { key: "client", header: "Client", render: (i: any) => i.client?.companyName || "—" },
-                  { key: "totalAmount", header: "Amount", render: (i: any) => <span className="font-semibold">{formatCurrency(Number(i.totalAmount), i.currency)}</span> },
-                  { key: "balance", header: "Balance", render: (i: any) => <span className="text-red-400">{formatCurrency(Number(i.totalAmount) - Number(i.paidAmount), i.currency)}</span> },
-                  { key: "dueDate", header: "Due", render: (i: any) => formatDate(i.dueDate) },
-                  { key: "daysOverdue", header: "Days", render: (i: any) => {
+                columns={[{ key: "invoiceNumber", header: "Invoice", render: (i: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{i.invoiceNumber}</span> }, { key: "client", header: "Client", render: (i: any) => i.client?.companyName || "—" }, { key: "totalAmount", header: "Amount", render: (i: any) => <span className="font-semibold">{formatCurrency(Number(i.totalAmount), i.currency)}</span> }, { key: "balance", header: "Balance", render: (i: any) => <span className="text-red-600 dark:text-red-400">{formatCurrency(Number(i.totalAmount) - Number(i.paidAmount), i.currency)}</span> }, { key: "dueDate", header: "Due", render: (i: any) => formatDate(i.dueDate) }, { key: "daysOverdue", header: "Days", render: (i: any) => {
                     const days = Math.floor((Date.now() - new Date(i.dueDate).getTime()) / 86400000);
                     return <Badge color={days > 60 ? "red" : days > 30 ? "orange" : "amber"}>{days}d</Badge>;
-                  }},
-                  { key: "status", header: "Status", render: (i: any) => <Badge color={invoiceStatusColors[i.status]}>{i.status}</Badge> },
+                  }}, { key: "status", header: "Status", render: (i: any) => <Badge color={invoiceStatusColors[i.status]}>{i.status}</Badge> },
                 ]}
                 data={overdue}
                 keyExtractor={(i: any) => i.id}
               />
-            </Card>
+            </div>
           )}
 
           {overdue.length === 0 && (
-            <Card className="border-green-500/20 bg-green-500/5 text-center py-12">
-              <p className="text-lg font-semibold text-green-400">No Overdue Invoices</p>
+            <Card className="border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/5 text-center py-12">
+              <p className="text-lg font-semibold text-green-600 dark:text-green-400">No Overdue Invoices</p>
               <p className="text-sm text-slate-400">All invoices are current. Great job!</p>
             </Card>
           )}
@@ -205,14 +195,7 @@ export default function ClientAnalyticsPage() {
       {activeTab === "clients" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "companyName", header: "Company", render: (c: any) => <span className="font-medium text-slate-900 dark:text-white">{c.companyName}</span> },
-              { key: "contact", header: "Contact", render: (c: any) => c.user ? `${c.user.firstName} ${c.user.lastName}` : "—" },
-              { key: "country", header: "Country" },
-              { key: "currency", header: "Currency", render: (c: any) => <Badge color="blue">{c.preferredCurrency}</Badge> },
-              { key: "leads", header: "Leads", render: (c: any) => c._count?.leads ?? 0 },
-              { key: "invoices", header: "Invoices", render: (c: any) => c._count?.invoices ?? 0 },
-              { key: "projects", header: "Projects", render: (c: any) => c._count?.projects ?? 0 },
+            columns={[{ key: "companyName", header: "Company", render: (c: any) => <span className="font-medium text-slate-900 dark:text-white">{c.companyName}</span> }, { key: "contact", header: "Contact", render: (c: any) => c.user ? `${c.user.firstName} ${c.user.lastName}` : "—" }, { key: "country", header: "Country" }, { key: "currency", header: "Currency", render: (c: any) => <Badge color="blue">{c.preferredCurrency}</Badge> }, { key: "leads", header: "Leads", render: (c: any) => c._count?.leads ?? 0 }, { key: "invoices", header: "Invoices", render: (c: any) => c._count?.invoices ?? 0 }, { key: "projects", header: "Projects", render: (c: any) => c._count?.projects ?? 0 },
             ]}
             data={clients || []}
             keyExtractor={(c: any) => c.id}

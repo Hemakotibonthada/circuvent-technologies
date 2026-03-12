@@ -36,14 +36,14 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  AVAILABLE: "bg-emerald-900/50 text-emerald-400",
-  ALLOCATED: "bg-blue-900/50 text-blue-400",
-  UNDER_REPAIR: "bg-amber-900/50 text-amber-400",
+  AVAILABLE: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+  ALLOCATED: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+  UNDER_REPAIR: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
   RETIRED: "bg-slate-100 dark:bg-slate-700 text-slate-400",
-  PENDING: "bg-amber-900/50 text-amber-400",
-  APPROVED: "bg-emerald-900/50 text-emerald-400",
-  REJECTED: "bg-red-900/50 text-red-400",
-  FULFILLED: "bg-cyan-900/50 text-cyan-400",
+  PENDING: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+  APPROVED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+  REJECTED: "bg-red-900/50 text-red-600 dark:text-red-400",
+  FULFILLED: "bg-cyan-900/50 text-cyan-600 dark:text-cyan-400",
 };
 
 const ASSET_CATEGORIES = ["LAPTOP", "MONITOR", "KEYBOARD", "MOUSE", "HEADSET", "PHONE", "FURNITURE", "OTHER"];
@@ -112,10 +112,10 @@ export default function PortalAssetsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🖥️ My Assets</h1>
         </div>
-        <button onClick={() => setShowRequest(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm">+ Request Asset</button>
+        <button onClick={() => setShowRequest(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">+ Request Asset</button>
       </div>
 
       {/* Stats */}
@@ -125,21 +125,21 @@ export default function PortalAssetsPage() {
           <p className="text-xs text-slate-500">Assigned Assets</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-amber-400">{assets.filter(a => isWarrantyExpiring(a.warrantyExpiry)).length}</p>
+          <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{assets.filter(a => isWarrantyExpiring(a.warrantyExpiry)).length}</p>
           <p className="text-xs text-slate-500">Warranty Expiring</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-blue-400">{requests.filter(r => r.status === "PENDING").length}</p>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{requests.filter(r => r.status === "PENDING").length}</p>
           <p className="text-xs text-slate-500">Pending Requests</p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg p-1">
-        <button onClick={() => setTab("assets")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "assets" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
+        <button onClick={() => setTab("assets")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "assets" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           Assigned Assets ({assets.length})
         </button>
-        <button onClick={() => setTab("requests")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "requests" ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
+        <button onClick={() => setTab("requests")} className={`flex-1 py-2 text-sm rounded-md transition-colors ${tab === "requests" ? "bg-brand-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"}`}>
           My Requests ({requests.length})
         </button>
       </div>
@@ -169,10 +169,10 @@ export default function PortalAssetsPage() {
                   </div>
                   <div className="text-right">
                     {isWarrantyExpiring(asset.warrantyExpiry) && (
-                      <span className="text-xs text-amber-400">⚠️ Warranty expiring</span>
+                      <span className="text-xs text-amber-600 dark:text-amber-400">⚠️ Warranty expiring</span>
                     )}
                     {isMaintenanceDue(asset.nextMaintenanceDate) && (
-                      <span className="text-xs text-blue-400 block">🔧 Maintenance due</span>
+                      <span className="text-xs text-blue-600 dark:text-blue-400 block">🔧 Maintenance due</span>
                     )}
                   </div>
                 </div>
@@ -210,7 +210,7 @@ export default function PortalAssetsPage() {
 
       {/* Asset Detail Modal */}
       {showDetail && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">{CATEGORY_ICONS[showDetail.category] || "📦"}</span>
@@ -228,13 +228,13 @@ export default function PortalAssetsPage() {
               {showDetail.purchasePrice != null && <div><p className="text-slate-500 text-xs">Purchase Price</p><p className="text-slate-900 dark:text-white">₹{showDetail.purchasePrice.toLocaleString("en-IN")}</p></div>}
               <div>
                 <p className="text-slate-500 text-xs">Warranty Expiry</p>
-                <p className={`${showDetail.warrantyExpiry && isWarrantyExpiring(showDetail.warrantyExpiry) ? "text-amber-400" : "text-slate-900 dark:text-white"}`}>
+                <p className={`${showDetail.warrantyExpiry && isWarrantyExpiring(showDetail.warrantyExpiry) ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>
                   {showDetail.warrantyExpiry ? new Date(showDetail.warrantyExpiry).toLocaleDateString("en-IN") : "N/A"}
                 </p>
               </div>
               <div>
                 <p className="text-slate-500 text-xs">Next Maintenance</p>
-                <p className={`${showDetail.nextMaintenanceDate && isMaintenanceDue(showDetail.nextMaintenanceDate) ? "text-blue-400" : "text-slate-900 dark:text-white"}`}>
+                <p className={`${showDetail.nextMaintenanceDate && isMaintenanceDue(showDetail.nextMaintenanceDate) ? "text-blue-600 dark:text-blue-400" : "text-slate-900 dark:text-white"}`}>
                   {showDetail.nextMaintenanceDate ? new Date(showDetail.nextMaintenanceDate).toLocaleDateString("en-IN") : "N/A"}
                 </p>
               </div>
@@ -254,7 +254,7 @@ export default function PortalAssetsPage() {
 
       {/* Request Asset Modal */}
       {showRequest && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Request New Asset</h2>
             <div className="space-y-3">
@@ -275,7 +275,7 @@ export default function PortalAssetsPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowRequest(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleRequest} disabled={submitting || !form.justification}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Submitting..." : "Submit Request"}
               </button>
             </div>

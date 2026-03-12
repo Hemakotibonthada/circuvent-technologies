@@ -194,9 +194,9 @@ export default function TimesheetPage() {
 
   const statusColors: Record<string, string> = {
     DRAFT: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
-    SUBMITTED: "bg-blue-900/50 text-blue-400",
-    APPROVED: "bg-emerald-900/50 text-emerald-400",
-    REJECTED: "bg-red-900/50 text-red-400",
+    SUBMITTED: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+    APPROVED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+    REJECTED: "bg-red-900/50 text-red-600 dark:text-red-400",
   };
 
   return (
@@ -204,7 +204,7 @@ export default function TimesheetPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
             ← Back to Portal
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">⏱️ My Timesheets</h1>
@@ -212,13 +212,13 @@ export default function TimesheetPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab("current")}
-            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "current" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
+            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "current" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
           >
             Current Week
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "history" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
+            className={`px-4 py-2 rounded-lg text-sm ${activeTab === "history" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}
           >
             History
           </button>
@@ -236,11 +236,11 @@ export default function TimesheetPage() {
               <p className="text-xs text-slate-500">Total Hours</p>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-emerald-400">{currentTimesheet?.billableHours || 0}h</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{currentTimesheet?.billableHours || 0}h</p>
               <p className="text-xs text-slate-500">Billable</p>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-amber-400">{currentTimesheet?.nonBillableHours || 0}h</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{currentTimesheet?.nonBillableHours || 0}h</p>
               <p className="text-xs text-slate-500">Non-Billable</p>
             </div>
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
@@ -261,7 +261,7 @@ export default function TimesheetPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={submitting || (currentTimesheet?.totalHours || 0) === 0}
-                  className="px-4 py-1.5 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-xs hover:bg-brand-700 disabled:opacity-50"
+                  className="px-4 py-1.5 bg-brand-600 text-white rounded-lg text-xs hover:bg-brand-700 disabled:opacity-50"
                 >
                   {submitting ? "Submitting..." : "Submit for Approval"}
                 </button>
@@ -278,11 +278,11 @@ export default function TimesheetPage() {
                 return (
                   <div
                     key={day}
-                    className={`min-h-[200px] p-2 ${isToday ? "bg-brand-500/5" : ""}`}
+                    className={`min-h-[200px] p-2 ${isToday ? "bg-brand-50 dark:bg-brand-500/5" : ""}`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <span className={`text-xs font-medium ${isToday ? "text-brand-400" : "text-slate-400"}`}>
+                        <span className={`text-xs font-medium ${isToday ? "text-brand-600 dark:text-brand-400" : "text-slate-400"}`}>
                           {day}
                         </span>
                         <span className="text-xs text-slate-600 ml-1">
@@ -306,7 +306,7 @@ export default function TimesheetPage() {
                             {currentTimesheet?.status === "DRAFT" && (
                               <button
                                 onClick={() => handleDeleteEntry(entry.id)}
-                                className="text-red-400 hover:text-red-300 text-[10px]"
+                                className="text-red-600 dark:text-red-400 hover:text-red-300 text-[10px]"
                               >
                                 ✕
                               </button>
@@ -324,7 +324,7 @@ export default function TimesheetPage() {
                           setEditingDay(i);
                           setShowAddEntry(true);
                         }}
-                        className="mt-2 w-full rounded border border-dashed border-slate-200 p- dark:border-slate-7001 text-[10px] text-slate-500 hover:border-brand-500 hover:text-brand-400 transition-colors"
+                        className="mt-2 w-full rounded border border-dashed border-slate-200 dark:border-slate-700 p-1 text-[10px] text-slate-500 hover:border-brand-500 hover:text-brand-600 dark:text-brand-400 transition-colors"
                       >
                         + Add
                       </button>
@@ -385,11 +385,11 @@ export default function TimesheetPage() {
                     <p className="text-xs text-slate-500">Total</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-emerald-400">{ts.billableHours}h</p>
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{ts.billableHours}h</p>
                     <p className="text-xs text-slate-500">Billable</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-amber-400">{ts.nonBillableHours}h</p>
+                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{ts.nonBillableHours}h</p>
                     <p className="text-xs text-slate-500">Non-Billable</p>
                   </div>
                 </div>
@@ -407,7 +407,7 @@ export default function TimesheetPage() {
 
       {/* Add Entry Modal */}
       {showAddEntry && editingDay !== null && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Add Time Entry</h2>
             <p className="text-xs text-slate-400 mb-4">
@@ -487,7 +487,7 @@ export default function TimesheetPage() {
               <button
                 onClick={handleAddEntry}
                 disabled={!newEntry.projectId || !newEntry.hours}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
               >
                 Add Entry
               </button>

@@ -106,7 +106,7 @@ export default function InternDashboard() {
           { label: "Directory", href: "/portal/directory", icon: "👥" },
           { label: "Helpdesk", href: "/portal/helpdesk", icon: "🎫" },
         ].map((l) => (
-          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
+          <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-500/50 hover:text-slate-900 dark:hover:text-white">
             <span>{l.icon}</span> {l.label}
           </a>
         ))}

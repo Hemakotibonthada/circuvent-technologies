@@ -28,7 +28,7 @@ export default function RecruitmentDashboardPage() {
           <p className="text-slate-400 text-sm mt-1">Hiring pipeline, source analytics, and talent pool health</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/recruitment/jobs"><button className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ Post Job</button></Link>
+          <Link href="/recruitment/jobs"><button className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ Post Job</button></Link>
           <Link href="/recruitment/candidates"><button className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-slate-200 dark:hover:bg-slate-600">Candidates</button></Link>
         </div>
       </div>
@@ -86,7 +86,7 @@ export default function RecruitmentDashboardPage() {
             {sources.map((s: any) => (
               <div key={s.source} className="flex items-center justify-between bg-slate-100 dark:bg-slate-800/50 rounded-lg p-2">
                 <span className="text-sm text-slate-600 dark:text-slate-300">{s.source}</span>
-                <span className="text-sm font-bold text-brand-400">{s.count}</span>
+                <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{s.count}</span>
               </div>
             ))}
             {sources.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No data yet</p>}
@@ -104,7 +104,7 @@ export default function RecruitmentDashboardPage() {
           { label: "Interviews", icon: "🎙️", href: "/recruitment/interviews" },
         ].map(item => (
           <Link key={item.label} href={item.href}>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-brand-500/50 transition-colors cursor-pointer">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-brand-300 dark:hover:border-brand-500/50 transition-colors cursor-pointer">
               <span className="text-2xl block mb-1">{item.icon}</span>
               <span className="text-xs text-slate-600 dark:text-slate-300">{item.label}</span>
             </div>

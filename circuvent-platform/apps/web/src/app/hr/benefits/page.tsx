@@ -77,8 +77,7 @@ export default function BenefitsAdminPage() {
 
   const [activeTab, setActiveTab] = useState("plans");
   const tabs = [
-    { id: "plans", label: "Available Plans" },
-    { id: "my", label: "My Enrollments" },
+    { id: "plans", label: "Available Plans" }, { key: "my", label: "My Enrollments" },
     ...((isAdmin || isHR) ? [{ id: "all", label: "All Enrollments" }] : []),
   ];
 
@@ -153,25 +152,16 @@ export default function BenefitsAdminPage() {
   /* ── columns ──────────────────────────────────────────── */
   const planColumns = [
     {
-      key: "name", header: "Plan",
+      id: "name", header: "Plan",
       render: (p: BenefitPlan) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{p.name}</p>
           <p className="text-xs text-slate-500">{p.provider}</p>
         </div>
       ),
-    },
-    { key: "type", header: "Type", render: (p: BenefitPlan) => <Badge color={planTypeColors[p.type] || "slate"}>{p.type}</Badge> },
-    { key: "coverageAmount", header: "Coverage", render: (p: BenefitPlan) => formatCurrency(p.coverageAmount) },
-    { key: "employeeCost", header: "Employee Cost", render: (p: BenefitPlan) => <span className="text-amber-400">{formatCurrency(p.employeeCost)}/mo</span> },
-    { key: "employerCost", header: "Employer Cost", render: (p: BenefitPlan) => formatCurrency(p.employerCost) },
-    { key: "eligibility", header: "Eligibility", render: (p: BenefitPlan) => <Badge color="blue">{p.eligibility}</Badge> },
-    {
-      key: "isActive", header: "Status",
+    }, { key: "type", header: "Type", render: (p: BenefitPlan) => <Badge color={planTypeColors[p.type] || "slate"}>{p.type}</Badge> }, { key: "coverageAmount", header: "Coverage", render: (p: BenefitPlan) => formatCurrency(p.coverageAmount) }, { key: "employeeCost", header: "Employee Cost", render: (p: BenefitPlan) => <span className="text-amber-600 dark:text-amber-400">{formatCurrency(p.employeeCost)}/mo</span> }, { key: "employerCost", header: "Employer Cost", render: (p: BenefitPlan) => formatCurrency(p.employerCost) }, { key: "eligibility", header: "Eligibility", render: (p: BenefitPlan) => <Badge color="blue">{p.eligibility}</Badge> }, { key: "isActive", header: "Status",
       render: (p: BenefitPlan) => <Badge color={p.isActive ? "green" : "slate"}>{p.isActive ? "Open" : "Closed"}</Badge>,
-    },
-    {
-      key: "actions", header: "",
+    }, { key: "actions", header: "",
       render: (p: BenefitPlan) => (
         <div className="flex gap-2">
           {p.isActive && (
@@ -183,14 +173,7 @@ export default function BenefitsAdminPage() {
   ];
 
   const enrollmentColumns = [
-    { key: "planName", header: "Plan", render: (e: Enrollment) => <span className="font-medium text-slate-900 dark:text-white">{e.planName || e.planId}</span> },
-    { key: "planType", header: "Type", render: (e: Enrollment) => <Badge color={planTypeColors[e.planType || ""] || "slate"}>{e.planType || "—"}</Badge> },
-    { key: "status", header: "Status", render: (e: Enrollment) => <Badge color={enrollmentStatusColors[e.status] || "slate"}>{e.status}</Badge> },
-    { key: "dependents", header: "Dependents", render: (e: Enrollment) => e.dependents },
-    { key: "enrolledAt", header: "Enrolled", render: (e: Enrollment) => formatDate(e.enrolledAt) },
-    { key: "expiresAt", header: "Expires", render: (e: Enrollment) => e.expiresAt ? formatDate(e.expiresAt) : "—" },
-    {
-      key: "actions", header: "",
+    { id: "planName", header: "Plan", render: (e: Enrollment) => <span className="font-medium text-slate-900 dark:text-white">{e.planName || e.planId}</span> }, { key: "planType", header: "Type", render: (e: Enrollment) => <Badge color={planTypeColors[e.planType || ""] || "slate"}>{e.planType || "—"}</Badge> }, { key: "status", header: "Status", render: (e: Enrollment) => <Badge color={enrollmentStatusColors[e.status] || "slate"}>{e.status}</Badge> }, { key: "dependents", header: "Dependents", render: (e: Enrollment) => e.dependents }, { key: "enrolledAt", header: "Enrolled", render: (e: Enrollment) => formatDate(e.enrolledAt) }, { key: "expiresAt", header: "Expires", render: (e: Enrollment) => e.expiresAt ? formatDate(e.expiresAt) : "—" }, { key: "actions", header: "",
       render: (e: Enrollment) => e.status === "ACTIVE" ? (
         <Button size="sm" variant="danger" onClick={() => handleCancel(e.id)}>Cancel</Button>
       ) : null,
@@ -198,7 +181,7 @@ export default function BenefitsAdminPage() {
   ];
 
   const allEnrollmentColumns = [
-    { key: "employeeName", header: "Employee", render: (e: Enrollment) => <span className="font-medium text-slate-900 dark:text-white">{e.employeeName || e.employeeId}</span> },
+    { id: "employeeName", header: "Employee", render: (e: Enrollment) => <span className="font-medium text-slate-900 dark:text-white">{e.employeeName || e.employeeId}</span> },
     ...enrollmentColumns,
   ];
 
@@ -208,8 +191,8 @@ export default function BenefitsAdminPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -307,7 +290,7 @@ export default function BenefitsAdminPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Your Monthly Cost</span>
-                <span className="text-amber-400 font-medium">{formatCurrency(showEnroll.employeeCost)}</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium">{formatCurrency(showEnroll.employeeCost)}</span>
               </div>
             </div>
 

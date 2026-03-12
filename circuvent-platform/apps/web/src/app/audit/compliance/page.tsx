@@ -33,10 +33,7 @@ export default function AuditCompliancePage() {
   };
 
   const tabs = [
-    { id: "logs", label: "Audit Trail" },
-    { id: "security", label: "Security Events" },
-    { id: "compliance", label: "Compliance Report" },
-    { id: "activity", label: "Activity Summary" },
+    { id: "logs", label: "Audit Trail" }, { key: "security", label: "Security Events" }, { key: "compliance", label: "Compliance Report" }, { key: "activity", label: "Activity Summary" },
   ];
 
   const allLogs = (logs as any)?.logs || (logs as any) || [];
@@ -92,25 +89,19 @@ export default function AuditCompliancePage() {
 
           <Card padding={false}>
             <DataTable
-              columns={[
-                { key: "createdAt", header: "Time", render: (l: AuditLog) => <span className="font-mono text-xs">{formatDateTime(l.createdAt)}</span> },
-                { key: "action", header: "Action", render: (l: AuditLog) => <Badge color={actionColors[l.action] || "slate"}>{l.action}</Badge> },
-                { key: "entity", header: "Entity", render: (l: AuditLog) => <span className="text-slate-900 dark:text-white text-xs">{l.entity}</span> },
-                { key: "entityId", header: "Entity ID", render: (l: AuditLog) => l.entityId ? <span className="font-mono text-xs text-slate-500">{l.entityId.slice(0, 10)}...</span> : "—" },
-                { key: "user", header: "User", render: (l: AuditLog) => l.user ? (
+              columns={[{ key: "createdAt", header: "Time", render: (l: AuditLog) => <span className="font-mono text-xs">{formatDateTime(l.createdAt)}</span> }, { key: "action", header: "Action", render: (l: AuditLog) => <Badge color={actionColors[l.action] || "slate"}>{l.action}</Badge> }, { key: "entity", header: "Entity", render: (l: AuditLog) => <span className="text-slate-900 dark:text-white text-xs">{l.entity}</span> }, { key: "entityId", header: "Entity ID", render: (l: AuditLog) => l.entityId ? <span className="font-mono text-xs text-slate-500">{l.entityId.slice(0, 10)}...</span> : "—" }, { key: "user", header: "User", render: (l: AuditLog) => l.user ? (
                   <div>
                     <span className="text-xs text-slate-900 dark:text-white">{l.user.firstName} {l.user.lastName}</span>
                     <Badge color={l.user.role === "ADMIN" ? "red" : "blue"} className="ml-1">{l.user.role}</Badge>
-                  </div>
-                ) : <span className="text-slate-500 text-xs">System</span> },
-                { key: "ip", header: "IP", render: (l: AuditLog) => <span className="font-mono text-xs text-slate-500">{l.ipAddress || "—"}</span> },
+                  </Card>
+                ) : <span className="text-slate-500 text-xs">System</span> }, { key: "ip", header: "IP", render: (l: AuditLog) => <span className="font-mono text-xs text-slate-500">{l.ipAddress || "—"}</span> },
               ]}
               data={filteredLogs}
               keyExtractor={(l) => l.id}
               loading={loading}
               emptyMessage="No audit logs found."
             />
-          </Card>
+          </div>
         </div>
       )}
 
@@ -118,15 +109,10 @@ export default function AuditCompliancePage() {
       {activeTab === "security" && (
         <Card padding={false}>
           <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-            <h3 className="text-sm font-semibold text-purple-400">Security Events</h3>
-          </div>
+            <h3 className="text-sm font-semibold text-purple-600 dark:text-purple-400">Security Events</h3>
+          </Card>
           <DataTable
-            columns={[
-              { key: "createdAt", header: "Time", render: (l: AuditLog) => <span className="font-mono text-xs">{formatDateTime(l.createdAt)}</span> },
-              { key: "action", header: "Event", render: (l: AuditLog) => <Badge color={actionColors[l.action] || "slate"}>{l.action}</Badge> },
-              { key: "user", header: "User", render: (l: AuditLog) => l.user ? `${l.user.firstName} ${l.user.lastName} (${l.user.email})` : "Unknown" },
-              { key: "ip", header: "IP", render: (l: AuditLog) => l.ipAddress || "—" },
-              { key: "risk", header: "Risk", render: (l: AuditLog) => {
+            columns={[{ key: "createdAt", header: "Time", render: (l: AuditLog) => <span className="font-mono text-xs">{formatDateTime(l.createdAt)}</span> }, { key: "action", header: "Event", render: (l: AuditLog) => <Badge color={actionColors[l.action] || "slate"}>{l.action}</Badge> }, { key: "user", header: "User", render: (l: AuditLog) => l.user ? `${l.user.firstName} ${l.user.lastName} (${l.user.email})` : "Unknown" }, { key: "ip", header: "IP", render: (l: AuditLog) => l.ipAddress || "—" }, { key: "risk", header: "Risk", render: (l: AuditLog) => {
                 const high = ["LOGIN_FAILED", "SESSION_INVALIDATE", "ROLE_CHANGE", "CONFIG_CHANGE"];
                 return <Badge color={high.includes(l.action) ? "red" : "slate"}>{high.includes(l.action) ? "HIGH" : "LOW"}</Badge>;
               }},
@@ -135,7 +121,7 @@ export default function AuditCompliancePage() {
             keyExtractor={(l) => l.id}
             emptyMessage="No security events."
           />
-        </Card>
+        </div>
       )}
 
       {/* Compliance Report Tab */}
@@ -146,19 +132,19 @@ export default function AuditCompliancePage() {
             <div className="space-y-3">
               {[
                 ["Total Audit Events", String(allLogs.length), "text-slate-900 dark:text-white"],
-                ["Write Operations", String(allLogs.filter((l: AuditLog) => ["CREATE", "UPDATE", "DELETE"].includes(l.action)).length), "text-green-400"],
-                ["Login Events", String(allLogs.filter((l: AuditLog) => l.action === "LOGIN").length), "text-cyan-400"],
-                ["Failed Logins", String(allLogs.filter((l: AuditLog) => l.action === "LOGIN_FAILED").length), "text-red-400"],
-                ["Config Changes", String(allLogs.filter((l: AuditLog) => l.action === "CONFIG_CHANGE").length), "text-orange-400"],
-                ["Data Exports", String(allLogs.filter((l: AuditLog) => l.action === "EXPORT").length), "text-purple-400"],
+                ["Write Operations", String(allLogs.filter((l: AuditLog) => ["CREATE", "UPDATE", "DELETE"].includes(l.action)).length), "text-green-600 dark:text-green-400"],
+                ["Login Events", String(allLogs.filter((l: AuditLog) => l.action === "LOGIN").length), "text-cyan-600 dark:text-cyan-400"],
+                ["Failed Logins", String(allLogs.filter((l: AuditLog) => l.action === "LOGIN_FAILED").length), "text-red-600 dark:text-red-400"],
+                ["Config Changes", String(allLogs.filter((l: AuditLog) => l.action === "CONFIG_CHANGE").length), "text-orange-600 dark:text-orange-400"],
+                ["Data Exports", String(allLogs.filter((l: AuditLog) => l.action === "EXPORT").length), "text-purple-600 dark:text-purple-400"],
               ].map(([label, value, color]) => (
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <span className="text-sm text-slate-400">{label}</span>
                   <span className={`text-sm font-semibold ${color}`}>{value}</span>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="ISO 27001 Checklist" />
             <div className="space-y-3">
@@ -176,12 +162,12 @@ export default function AuditCompliancePage() {
                   <div>
                     <p className="text-sm text-slate-900 dark:text-white">{item}</p>
                     <p className="text-xs text-slate-500">{desc}</p>
-                  </div>
+                  </Card>
                   <Badge color={status ? "green" : "red"}>{status ? "PASS" : "FAIL"}</Badge>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -197,13 +183,13 @@ export default function AuditCompliancePage() {
                   <div className="flex items-center gap-2">
                     <div className="w-24 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                       <div className="h-2 rounded-full bg-brand-500" style={{ width: `${(count / allLogs.length) * 100}%` }} />
-                    </div>
+                    </Card>
                     <span className="text-sm text-slate-900 dark:text-white w-8 text-right">{count}</span>
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="Events by Entity" />
             <div className="space-y-2">
@@ -213,13 +199,13 @@ export default function AuditCompliancePage() {
                   <div className="flex items-center gap-2">
                     <div className="w-24 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                       <div className="h-2 rounded-full bg-cyan-500" style={{ width: `${(count / allLogs.length) * 100}%` }} />
-                    </div>
+                    </Card>
                     <span className="text-sm text-slate-900 dark:text-white w-8 text-right">{count}</span>
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
     </div>

@@ -26,11 +26,11 @@ interface Letter {
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: string }> = {
   DRAFT: { color: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", label: "Draft", icon: "📝" },
-  GENERATED: { color: "bg-blue-900/50 text-blue-400", label: "Generated", icon: "📄" },
-  SENT: { color: "bg-amber-900/50 text-amber-400", label: "Sent", icon: "📨" },
-  ACKNOWLEDGED: { color: "bg-emerald-900/50 text-emerald-400", label: "Acknowledged", icon: "✅" },
-  SIGNED: { color: "bg-green-900/50 text-green-400", label: "Signed", icon: "✍️" },
-  REJECTED: { color: "bg-red-900/50 text-red-400", label: "Rejected", icon: "❌" },
+  GENERATED: { color: "bg-blue-900/50 text-blue-600 dark:text-blue-400", label: "Generated", icon: "📄" },
+  SENT: { color: "bg-amber-900/50 text-amber-600 dark:text-amber-400", label: "Sent", icon: "📨" },
+  ACKNOWLEDGED: { color: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", label: "Acknowledged", icon: "✅" },
+  SIGNED: { color: "bg-green-900/50 text-green-600 dark:text-green-400", label: "Signed", icon: "✍️" },
+  REJECTED: { color: "bg-red-900/50 text-red-600 dark:text-red-400", label: "Rejected", icon: "❌" },
   REVOKED: { color: "bg-slate-50 dark:bg-slate-800 text-slate-500", label: "Revoked", icon: "🚫" },
 };
 
@@ -159,7 +159,7 @@ export default function PortalLettersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📧 My Letters</h1>
           <p className="text-sm text-slate-500">View and acknowledge your HR letters</p>
         </div>
@@ -169,8 +169,8 @@ export default function PortalLettersPage() {
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
           { label: "Total Letters", value: stats.total, color: "text-slate-900 dark:text-white" },
-          { label: "Pending Action", value: stats.pending, color: "text-amber-400" },
-          { label: "Acknowledged", value: stats.acknowledged, color: "text-emerald-400" },
+          { label: "Pending Action", value: stats.pending, color: "text-amber-600 dark:text-amber-400" },
+          { label: "Acknowledged", value: stats.acknowledged, color: "text-emerald-600 dark:text-emerald-400" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
             <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -186,7 +186,7 @@ export default function PortalLettersPage() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 text-xs rounded-md font-medium transition ${
-              activeTab === tab ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              activeTab === tab ? "bg-brand-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -248,14 +248,14 @@ export default function PortalLettersPage() {
                             <button
                               onClick={(e) => { e.stopPropagation(); handleAcknowledge(letter.id); }}
                               disabled={acknowledging}
-                              className="px-3 py-1 text-xs bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
+                              className="px-3 py-1 text-xs bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
                             >
                               Acknowledge
                             </button>
                           )}
                           <button
                             onClick={(e) => { e.stopPropagation(); openViewer(letter); }}
-                            className="px-3 py-1 text-xs text-brand-400 border border-brand-900/50 rounded-lg hover:bg-brand-900/20"
+                            className="px-3 py-1 text-xs text-brand-600 dark:text-brand-400 border border-brand-900/50 rounded-lg hover:bg-brand-900/20"
                           >
                             View
                           </button>
@@ -297,7 +297,7 @@ export default function PortalLettersPage() {
                     href={selectedLetter.pdfUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1.5 text-xs text-brand-400 border border-brand-400/30 rounded-lg hover:bg-brand-900/20"
+                    className="px-3 py-1.5 text-xs text-brand-600 dark:text-brand-400 border border-brand-400/30 rounded-lg hover:bg-brand-900/20"
                   >
                     Download PDF
                   </a>

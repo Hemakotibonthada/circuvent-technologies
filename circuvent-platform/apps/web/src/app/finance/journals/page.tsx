@@ -49,18 +49,18 @@ export default function JournalsPage() {
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
 
   const statusColors: Record<string, string> = {
-    DRAFT: "bg-amber-900/50 text-amber-400", POSTED: "bg-emerald-900/50 text-emerald-400",
-    REVERSED: "bg-purple-900/50 text-purple-400", VOID: "bg-slate-100 dark:bg-slate-700 text-slate-400",
+    DRAFT: "bg-amber-900/50 text-amber-600 dark:text-amber-400", POSTED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+    REVERSED: "bg-purple-900/50 text-purple-600 dark:text-purple-400", VOID: "bg-slate-100 dark:bg-slate-700 text-slate-400",
   };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/finance" className="text-sm text-brand-400 hover:text-brand-300">← Finance</Link>
+          <Link href="/finance" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Finance</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📒 Journal Entries</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ New Journal</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ New Journal</button>
       </div>
 
       {/* Journals List */}
@@ -101,8 +101,8 @@ export default function JournalsPage() {
                       {j.lines.map((l: any, i: number) => (
                         <tr key={i} className="border-t border-slate-200 dark:border-slate-800/50">
                           <td className="py-1 text-slate-400">{l.accountCode} — {l.account?.name || l.description}</td>
-                          <td className="py-1 text-right text-emerald-400 font-mono">{Number(l.debit) > 0 ? `₹${Number(l.debit).toLocaleString("en-IN")}` : ""}</td>
-                          <td className="py-1 text-right text-blue-400 font-mono">{Number(l.credit) > 0 ? `₹${Number(l.credit).toLocaleString("en-IN")}` : ""}</td>
+                          <td className="py-1 text-right text-emerald-600 dark:text-emerald-400 font-mono">{Number(l.debit) > 0 ? `₹${Number(l.debit).toLocaleString("en-IN")}` : ""}</td>
+                          <td className="py-1 text-right text-blue-600 dark:text-blue-400 font-mono">{Number(l.credit) > 0 ? `₹${Number(l.credit).toLocaleString("en-IN")}` : ""}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -116,7 +116,7 @@ export default function JournalsPage() {
 
       {/* Create Journal Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-2xl my-8">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">New Journal Entry</h2>
             <div className="space-y-3">
@@ -136,7 +136,7 @@ export default function JournalsPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-slate-500 font-semibold">Journal Lines</p>
-                  <button onClick={addLine} className="text-xs text-brand-400 hover:text-brand-300">+ Add Line</button>
+                  <button onClick={addLine} className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">+ Add Line</button>
                 </div>
                 {form.lines.map((line, i) => (
                   <div key={i} className="grid grid-cols-4 gap-2">
@@ -145,10 +145,10 @@ export default function JournalsPage() {
                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-sm font-mono" />
                     <input placeholder="Debit" type="number" value={line.debit}
                       onChange={e => { const lines = [...form.lines]; lines[i].debit = e.target.value; setForm({ ...form, lines }); }}
-                      className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-emerald-400 text-sm" />
+                      className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-emerald-600 dark:text-emerald-400 text-sm" />
                     <input placeholder="Credit" type="number" value={line.credit}
                       onChange={e => { const lines = [...form.lines]; lines[i].credit = e.target.value; setForm({ ...form, lines }); }}
-                      className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-blue-400 text-sm" />
+                      className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-blue-600 dark:text-blue-400 text-sm" />
                     <input placeholder="Note" value={line.description}
                       onChange={e => { const lines = [...form.lines]; lines[i].description = e.target.value; setForm({ ...form, lines }); }}
                       className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-600 dark:text-slate-300 text-sm" />
@@ -157,9 +157,9 @@ export default function JournalsPage() {
                 <div className={`flex justify-between text-sm p-2 rounded ${isBalanced && totalDebit > 0 ? "bg-emerald-900/30" : totalDebit > 0 ? "bg-red-900/30" : "bg-slate-50 dark:bg-slate-800/50"}`}>
                   <span className="text-slate-400">Totals:</span>
                   <div className="flex gap-6">
-                    <span className="text-emerald-400 font-mono">DR ₹{totalDebit.toLocaleString("en-IN")}</span>
-                    <span className="text-blue-400 font-mono">CR ₹{totalCredit.toLocaleString("en-IN")}</span>
-                    {!isBalanced && totalDebit > 0 && <span className="text-red-400">Diff: ₹{Math.abs(totalDebit - totalCredit).toLocaleString("en-IN")}</span>}
+                    <span className="text-emerald-600 dark:text-emerald-400 font-mono">DR ₹{totalDebit.toLocaleString("en-IN")}</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-mono">CR ₹{totalCredit.toLocaleString("en-IN")}</span>
+                    {!isBalanced && totalDebit > 0 && <span className="text-red-600 dark:text-red-400">Diff: ₹{Math.abs(totalDebit - totalCredit).toLocaleString("en-IN")}</span>}
                   </div>
                 </div>
               </div>
@@ -167,7 +167,7 @@ export default function JournalsPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!form.description || !isBalanced || totalDebit === 0}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create Journal</button>
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create Journal</button>
             </div>
           </div>
         </div>

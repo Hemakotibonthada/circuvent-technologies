@@ -43,9 +43,9 @@ export default function PortalExpensesPage() {
   };
 
   const statusColors: Record<string, string> = {
-    DRAFT: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", SUBMITTED: "bg-blue-900/50 text-blue-400",
-    APPROVED: "bg-emerald-900/50 text-emerald-400", REJECTED: "bg-red-900/50 text-red-400",
-    REIMBURSED: "bg-cyan-900/50 text-cyan-400",
+    DRAFT: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", SUBMITTED: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+    APPROVED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", REJECTED: "bg-red-900/50 text-red-600 dark:text-red-400",
+    REIMBURSED: "bg-cyan-900/50 text-cyan-600 dark:text-cyan-400",
   };
 
   const totalAmount = expenses.reduce((s, e) => s + Number(e.totalAmount || 0), 0);
@@ -55,10 +55,10 @@ export default function PortalExpensesPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🧾 My Expenses</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm">+ New Claim</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">+ New Claim</button>
       </div>
 
       {/* Stats */}
@@ -68,11 +68,11 @@ export default function PortalExpensesPage() {
           <p className="text-xs text-slate-500">Total Claims</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-blue-400">₹{totalAmount.toLocaleString("en-IN")}</p>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">₹{totalAmount.toLocaleString("en-IN")}</p>
           <p className="text-xs text-slate-500">Total Claimed</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-emerald-400">₹{approved.reduce((s, e) => s + Number(e.totalAmount || 0), 0).toLocaleString("en-IN")}</p>
+          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">₹{approved.reduce((s, e) => s + Number(e.totalAmount || 0), 0).toLocaleString("en-IN")}</p>
           <p className="text-xs text-slate-500">Approved</p>
         </div>
       </div>
@@ -88,7 +88,7 @@ export default function PortalExpensesPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs text-slate-500 font-mono">{exp.claimCode}</span>
                     <span className={`px-2 py-0.5 text-xs rounded ${statusColors[exp.status]}`}>{exp.status}</span>
-                    {exp.isRnDExpense && <span className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 rounded">R&D</span>}
+                    {exp.isRnDExpense && <span className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded">R&D</span>}
                   </div>
                   <h3 className="text-sm font-medium text-slate-900 dark:text-white">{exp.title}</h3>
                   <p className="text-xs text-slate-500 mt-1">{new Date(exp.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
@@ -102,7 +102,7 @@ export default function PortalExpensesPage() {
 
       {/* Create Expense Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">New Expense Claim</h2>
             <div className="space-y-3">
@@ -121,13 +121,13 @@ export default function PortalExpensesPage() {
                   </div>
                 ))}
                 <button onClick={() => setForm({ ...form, items: [...form.items, { description: "", amount: "" }] })}
-                  className="text-xs text-brand-400 hover:text-brand-300">+ Add Item</button>
+                  className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">+ Add Item</button>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={submitting || !form.title}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{submitting ? "Submitting..." : "Submit Claim"}</button>
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">{submitting ? "Submitting..." : "Submit Claim"}</button>
             </div>
           </div>
         </div>

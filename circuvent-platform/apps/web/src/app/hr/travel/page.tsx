@@ -82,9 +82,7 @@ export default function TravelManagementPage() {
   /* ── tabs ──────────────────────────────────────────────── */
   const [activeTab, setActiveTab] = useState("my");
   const tabs = [
-    { id: "my", label: "My Requests" },
-    { id: "all", label: "All Requests" },
-    { id: "policies", label: "Policies" },
+    { id: "my", label: "My Requests" }, { key: "all", label: "All Requests" }, { key: "policies", label: "Policies" },
   ];
 
   /* ── data fetching ────────────────────────────────────── */
@@ -205,36 +203,26 @@ export default function TravelManagementPage() {
   /* ── columns ──────────────────────────────────────────── */
   const requestColumns = [
     {
-      key: "purpose", header: "Purpose",
+      id: "purpose", header: "Purpose",
       render: (r: TravelRequest) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{r.purpose}</p>
           <p className="text-xs text-slate-500">{r.destination}</p>
         </div>
       ),
-    },
-    {
-      key: "travelType", header: "Type",
+    }, { key: "travelType", header: "Type",
       render: (r: TravelRequest) => <Badge color={travelTypeColors[r.travelType] || "slate"}>{r.travelType}</Badge>,
-    },
-    {
-      key: "dates", header: "Dates",
+    }, { key: "dates", header: "Dates",
       render: (r: TravelRequest) => (
         <span className="text-xs">
           {formatDate(r.departureDate)} → {formatDate(r.returnDate)}
         </span>
       ),
-    },
-    {
-      key: "estimatedCost", header: "Est. Cost",
+    }, { key: "estimatedCost", header: "Est. Cost",
       render: (r: TravelRequest) => formatCurrency(r.estimatedCost),
-    },
-    {
-      key: "status", header: "Status",
+    }, { key: "status", header: "Status",
       render: (r: TravelRequest) => <Badge color={statusColors[r.status] || "slate"}>{r.status}</Badge>,
-    },
-    {
-      key: "actions", header: "",
+    }, { key: "actions", header: "",
       render: (r: TravelRequest) => (
         <div className="flex gap-2">
           {r.status === "PENDING" && (isAdmin || isHR) && (
@@ -253,29 +241,20 @@ export default function TravelManagementPage() {
 
   const allRequestColumns = [
     {
-      key: "employee", header: "Employee",
+      id: "employee", header: "Employee",
       render: (r: TravelRequest) => <span className="font-medium text-slate-900 dark:text-white">{r.employeeName || r.employeeId}</span>,
     },
     ...requestColumns,
   ];
 
   const policyColumns = [
-    { key: "name", header: "Policy Name", render: (p: TravelPolicy) => <span className="font-medium text-slate-900 dark:text-white">{p.name}</span> },
-    { key: "description", header: "Description" },
-    {
-      key: "maxDailyAllowance", header: "Max Daily",
+    { id: "name", header: "Policy Name", render: (p: TravelPolicy) => <span className="font-medium text-slate-900 dark:text-white">{p.name}</span> }, { key: "description", header: "Description" }, { key: "maxDailyAllowance", header: "Max Daily",
       render: (p: TravelPolicy) => formatCurrency(p.maxDailyAllowance),
-    },
-    {
-      key: "requiresPreApproval", header: "Pre-Approval",
+    }, { key: "requiresPreApproval", header: "Pre-Approval",
       render: (p: TravelPolicy) => <Badge color={p.requiresPreApproval ? "amber" : "green"}>{p.requiresPreApproval ? "Required" : "Not Required"}</Badge>,
-    },
-    {
-      key: "applicableTo", header: "Applies To",
+    }, { key: "applicableTo", header: "Applies To",
       render: (p: TravelPolicy) => <Badge color="blue">{p.applicableTo}</Badge>,
-    },
-    {
-      key: "isActive", header: "Status",
+    }, { key: "isActive", header: "Status",
       render: (p: TravelPolicy) => <Badge color={p.isActive ? "green" : "slate"}>{p.isActive ? "Active" : "Inactive"}</Badge>,
     },
   ];
@@ -292,8 +271,8 @@ export default function TravelManagementPage() {
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
           feedback.type === "success"
-            ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+            ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>
           {feedback.msg}
         </div>
@@ -353,7 +332,7 @@ export default function TravelManagementPage() {
                 emptyMessage="No travel requests found."
               />
             ) : (
-              <EmptyState title="Access Restricted" description="Only HR and Admins can view all requests." />
+              <EmptyState title="Access Restricted" subtitle="Only HR and Admins can view all requests." />
             )}
           </>
         )}
@@ -363,7 +342,7 @@ export default function TravelManagementPage() {
             <CardHeader
               title="Travel Policies"
               subtitle="Company travel policies and limits"
-              action={(isAdmin || isHR) ? <Button size="sm" variant="outline" onClick={() => setShowPolicy(true)}>Add Policy</Button> : undefined}
+              actions={(isAdmin || isHR) ? <Button size="sm" variant="outline" onClick={() => setShowPolicy(true)}>Add Policy</Button> : undefined}
             />
             <DataTable
               columns={policyColumns}
@@ -391,7 +370,7 @@ export default function TravelManagementPage() {
           </div>
 
           {/* itinerary builder */}
-          <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Itinerary</h4>
               <Button size="sm" variant="outline" onClick={addLeg}>+ Add Leg</Button>

@@ -8,6 +8,7 @@ import { Router, Request, Response } from "express";
 import { EnhancedPayrollService } from "../services/enhanced-payroll.service";
 import { PayslipPDFService } from "../services/payslip-pdf.service";
 import { ExpenseApprovalWorkflow } from "../workflows/expense-approval.workflow";
+import { EmailService } from "../services/email.service";
 
 const router = Router();
 
@@ -100,7 +101,24 @@ router.post("/v2/slips/:slipId/pdf", async (req: Request, res: Response) => {
   try {
     const actorId = (req as any).user?.userId;
     const result = await PayslipPDFService.generateAndStore(req.params.slipId, actorId);
-    res.status(201).json({ success: true, data: result, message: "Payslip PDF generated" });
+
+    // Send email notification to the employee
+    try {
+      const slipInfo = await PayslipPDFService.getSlipWithEmployee(req.params.slipId);
+      if (slipInfo?.employee?.user?.email) {
+        const monthName = new Date(2000, slipInfo.month - 1).toLocaleString("en", { month: "long" });
+        await EmailService.sendTemplateEmail(slipInfo.employee.user.email, "payslip_ready", {
+          employeeName: `${slipInfo.employee.user.firstName} ${slipInfo.employee.user.lastName}`,
+          month: monthName,
+          year: String(slipInfo.year),
+          netSalary: Number(slipInfo.netSalary).toLocaleString("en-IN"),
+        });
+      }
+    } catch (emailErr: any) {
+      console.warn(`[PayslipPDF] Email notification failed: ${emailErr.message}`);
+    }
+
+    res.status(201).json({ success: true, data: result, message: "Payslip PDF generated and email sent" });
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 : error.message.includes("already generated") ? 409 : 500;
     res.status(status).json({ success: false, error: error.message });
@@ -113,9 +131,38 @@ router.post("/v2/pdf/bulk", async (req: Request, res: Response) => {
     const { month, year } = req.body;
     const actorId = (req as any).user?.userId;
     const result = await PayslipPDFService.bulkGenerate(month, year, actorId);
-    res.json({ success: true, data: result, message: `PDFs: ${result.generated} generated, ${result.skipped} skipped` });
+
+    // Send email notifications for all newly generated PDFs
+    if (result.generated > 0) {
+      try {
+        await PayslipPDFService.sendBulkPayslipEmails(month, year);
+      } catch (emailErr: any) {
+        console.warn(`[PayslipPDF] Bulk email notification failed: ${emailErr.message}`);
+      }
+    }
+
+    res.json({ success: true, data: result, message: `PDFs: ${result.generated} generated, ${result.skipped} skipped. Emails sent.` });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ── GET /api/payroll/v2/slips/:slipId/download ──
+// Employee self-service: download payslip PDF by salary slip ID
+router.get("/v2/slips/:slipId/download", async (req: Request, res: Response) => {
+  try {
+    const doc = await PayslipPDFService.getBySlipId(req.params.slipId);
+    if (!doc) {
+      res.status(404).json({ success: false, error: "Payslip PDF not yet generated for this slip" });
+      return;
+    }
+    const { buffer, filename, checksum } = await PayslipPDFService.download(doc.id);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("X-Checksum-SHA256", checksum);
+    res.send(buffer);
+  } catch (error: any) {
+    res.status(404).json({ success: false, error: error.message });
   }
 });
 

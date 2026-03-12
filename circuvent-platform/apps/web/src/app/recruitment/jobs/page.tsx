@@ -34,18 +34,18 @@ export default function JobPostingsPage() {
   };
 
   const statusColors: Record<string, string> = {
-    DRAFT: "bg-amber-900/50 text-amber-400", OPEN: "bg-emerald-900/50 text-emerald-400",
-    CLOSED: "bg-slate-100 dark:bg-slate-700 text-slate-400", CANCELLED: "bg-red-900/50 text-red-400", ON_HOLD: "bg-purple-900/50 text-purple-400",
+    DRAFT: "bg-amber-900/50 text-amber-600 dark:text-amber-400", OPEN: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+    CLOSED: "bg-slate-100 dark:bg-slate-700 text-slate-400", CANCELLED: "bg-red-900/50 text-red-600 dark:text-red-400", ON_HOLD: "bg-purple-900/50 text-purple-600 dark:text-purple-400",
   };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/recruitment" className="text-sm text-brand-400 hover:text-brand-300">← Recruitment</Link>
+          <Link href="/recruitment" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Recruitment</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📋 Job Postings</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ New Job</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ New Job</button>
       </div>
 
       <div className="space-y-3">
@@ -66,7 +66,7 @@ export default function JobPostingsPage() {
                   {job.skills?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {job.skills.map((s: string) => (
-                        <span key={s} className="px-2 py-0.5 text-xs bg-brand-900/50 text-brand-400 rounded">{s}</span>
+                        <span key={s} className="px-2 py-0.5 text-xs bg-brand-900/50 text-brand-600 dark:text-brand-400 rounded">{s}</span>
                       ))}
                     </div>
                   )}
@@ -86,7 +86,7 @@ export default function JobPostingsPage() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-2xl my-8">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Post a New Job</h2>
             <div className="space-y-3">
@@ -113,7 +113,7 @@ export default function JobPostingsPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!form.title || !form.description || !form.requirements}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create Job</button>
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create Job</button>
             </div>
           </div>
         </div>

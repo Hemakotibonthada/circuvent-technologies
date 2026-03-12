@@ -24,10 +24,10 @@ const typeIcons: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  info: "text-blue-400",
-  warning: "text-amber-400",
-  error: "text-red-400",
-  success: "text-green-400",
+  info: "text-blue-600 dark:text-blue-400",
+  warning: "text-amber-600 dark:text-amber-400",
+  error: "text-red-600 dark:text-red-400",
+  success: "text-green-600 dark:text-green-400",
 };
 
 export function NotificationBell() {
@@ -117,11 +117,11 @@ export function NotificationBell() {
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</h3>
               {unreadCount > 0 && (
-                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-400">{unreadCount} new</span>
+                <span className="rounded-full bg-red-100 dark:bg-red-500/10 px-2 py-0.5 text-xs text-red-600 dark:text-red-400">{unreadCount} new</span>
               )}
             </div>
             {unreadCount > 0 && (
-              <button onClick={handleMarkAllRead} className="text-xs text-brand-400 hover:text-brand-300">
+              <button onClick={handleMarkAllRead} className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
                 Mark all read
               </button>
             )}
@@ -143,7 +143,7 @@ export function NotificationBell() {
                 <div
                   key={notification.id}
                   className={`flex gap-3 border-b border-slate-200/50 dark:border-slate-800/50 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
-                    !notification.isRead ? "bg-brand-500/5" : ""
+                    !notification.isRead ? "bg-brand-50 dark:bg-brand-500/5" : ""
                   }`}
                 >
                   <span className="mt-0.5 text-sm flex-shrink-0">{typeIcons[notification.type] || "📌"}</span>
@@ -169,7 +169,7 @@ export function NotificationBell() {
                       <span className={`text-[10px] ${typeColors[notification.type]}`}>{notification.module}</span>
                     </div>
                     {notification.actionUrl && (
-                      <a href={notification.actionUrl} className="mt-1 inline-block text-xs text-brand-400 hover:text-brand-300">
+                      <a href={notification.actionUrl} className="mt-1 inline-block text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
                         View details →
                       </a>
                     )}

@@ -84,8 +84,7 @@ export default function TimesheetManagementPage() {
 
   const [activeTab, setActiveTab] = useState("current");
   const tabs = [
-    { id: "current", label: "Current Week" },
-    { id: "history", label: "My History" },
+    { id: "current", label: "Current Week" }, { key: "history", label: "My History" },
     ...((isAdmin || isHR) ? [{ id: "review", label: "Team Review" }] : []),
   ];
 
@@ -174,14 +173,7 @@ export default function TimesheetManagementPage() {
 
   /* ── columns ──────────────────────────────────────────── */
   const entryColumns = [
-    { key: "date", header: "Date", render: (e: TimesheetEntry) => formatDate(e.date) },
-    { key: "projectName", header: "Project", render: (e: TimesheetEntry) => e.projectName || "—" },
-    { key: "taskDescription", header: "Task" },
-    { key: "category", header: "Category", render: (e: TimesheetEntry) => <Badge color="blue">{e.category}</Badge> },
-    { key: "hours", header: "Hours", render: (e: TimesheetEntry) => <span className="font-mono text-slate-900 dark:text-white">{e.hours}h</span> },
-    { key: "overtimeHours", header: "OT", render: (e: TimesheetEntry) => e.overtimeHours > 0 ? <span className="font-mono text-amber-400">{e.overtimeHours}h</span> : "—" },
-    {
-      key: "actions", header: "",
+    { id: "date", header: "Date", render: (e: TimesheetEntry) => formatDate(e.date) }, { key: "projectName", header: "Project", render: (e: TimesheetEntry) => e.projectName || "—" }, { key: "taskDescription", header: "Task" }, { key: "category", header: "Category", render: (e: TimesheetEntry) => <Badge color="blue">{e.category}</Badge> }, { key: "hours", header: "Hours", render: (e: TimesheetEntry) => <span className="font-mono text-slate-900 dark:text-white">{e.hours}h</span> }, { key: "overtimeHours", header: "OT", render: (e: TimesheetEntry) => e.overtimeHours > 0 ? <span className="font-mono text-amber-600 dark:text-amber-400">{e.overtimeHours}h</span> : "—" }, { key: "actions", header: "",
       render: (e: TimesheetEntry) => currentTimesheet?.status === "DRAFT" ? (
         <Button size="sm" variant="ghost" onClick={() => handleDeleteEntry(e.id)}>✕</Button>
       ) : null,
@@ -189,21 +181,11 @@ export default function TimesheetManagementPage() {
   ];
 
   const historyColumns = [
-    { key: "weekStartDate", header: "Week", render: (t: Timesheet) => `${formatDate(t.weekStartDate)} — ${formatDate(t.weekEndDate)}` },
-    { key: "totalHours", header: "Total", render: (t: Timesheet) => <span className="font-mono text-slate-900 dark:text-white">{t.totalHours}h</span> },
-    { key: "overtimeHours", header: "Overtime", render: (t: Timesheet) => <span className="font-mono text-amber-400">{t.overtimeHours}h</span> },
-    { key: "status", header: "Status", render: (t: Timesheet) => <Badge color={statusColors[t.status] || "slate"}>{t.status}</Badge> },
-    { key: "submittedAt", header: "Submitted", render: (t: Timesheet) => t.submittedAt ? formatDate(t.submittedAt) : "—" },
+    { id: "weekStartDate", header: "Week", render: (t: Timesheet) => `${formatDate(t.weekStartDate)} — ${formatDate(t.weekEndDate)}` }, { key: "totalHours", header: "Total", render: (t: Timesheet) => <span className="font-mono text-slate-900 dark:text-white">{t.totalHours}h</span> }, { key: "overtimeHours", header: "Overtime", render: (t: Timesheet) => <span className="font-mono text-amber-600 dark:text-amber-400">{t.overtimeHours}h</span> }, { key: "status", header: "Status", render: (t: Timesheet) => <Badge color={statusColors[t.status] || "slate"}>{t.status}</Badge> }, { key: "submittedAt", header: "Submitted", render: (t: Timesheet) => t.submittedAt ? formatDate(t.submittedAt) : "—" },
   ];
 
   const teamColumns = [
-    { key: "employeeName", header: "Employee", render: (t: Timesheet) => <span className="font-medium text-slate-900 dark:text-white">{t.employeeName || t.employeeId}</span> },
-    { key: "weekStartDate", header: "Week", render: (t: Timesheet) => `${formatDate(t.weekStartDate)} — ${formatDate(t.weekEndDate)}` },
-    { key: "totalHours", header: "Hours", render: (t: Timesheet) => <span className="font-mono text-slate-900 dark:text-white">{t.totalHours}h</span> },
-    { key: "overtimeHours", header: "OT", render: (t: Timesheet) => <span className="font-mono text-amber-400">{t.overtimeHours}h</span> },
-    { key: "status", header: "Status", render: (t: Timesheet) => <Badge color={statusColors[t.status] || "slate"}>{t.status}</Badge> },
-    {
-      key: "actions", header: "",
+    { id: "employeeName", header: "Employee", render: (t: Timesheet) => <span className="font-medium text-slate-900 dark:text-white">{t.employeeName || t.employeeId}</span> }, { key: "weekStartDate", header: "Week", render: (t: Timesheet) => `${formatDate(t.weekStartDate)} — ${formatDate(t.weekEndDate)}` }, { key: "totalHours", header: "Hours", render: (t: Timesheet) => <span className="font-mono text-slate-900 dark:text-white">{t.totalHours}h</span> }, { key: "overtimeHours", header: "OT", render: (t: Timesheet) => <span className="font-mono text-amber-600 dark:text-amber-400">{t.overtimeHours}h</span> }, { key: "status", header: "Status", render: (t: Timesheet) => <Badge color={statusColors[t.status] || "slate"}>{t.status}</Badge> }, { key: "actions", header: "",
       render: (t: Timesheet) => t.status === "SUBMITTED" ? (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => handleApprove(t.id)}>Approve</Button>
@@ -219,8 +201,8 @@ export default function TimesheetManagementPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -266,7 +248,7 @@ export default function TimesheetManagementPage() {
                         className="absolute bottom-0 w-full rounded-lg bg-brand-600/60"
                         style={{ height: `${barH}%` }}
                       />
-                    </div>
+                    </Card>
                     <span className="text-xs font-medium text-slate-400">{dayNames[i]}</span>
                     <span className="text-xs font-mono text-slate-900 dark:text-white">{hours}h</span>
                   </div>
@@ -275,21 +257,21 @@ export default function TimesheetManagementPage() {
             </div>
             <div className="mt-4 flex gap-6 border-t border-slate-200 dark:border-slate-800 pt-3 text-sm">
               <div><span className="text-slate-500">Regular:</span> <span className="font-mono text-slate-900 dark:text-white">{totalRegular}h</span></div>
-              <div><span className="text-slate-500">Overtime:</span> <span className="font-mono text-amber-400">{totalOvertime}h</span></div>
+              <div><span className="text-slate-500">Overtime:</span> <span className="font-mono text-amber-600 dark:text-amber-400">{totalOvertime}h</span></div>
               <div><span className="text-slate-500">Status:</span>{" "}
                 <Badge color={statusColors[currentTimesheet?.status || "DRAFT"] || "slate"}>
                   {currentTimesheet?.status || "DRAFT"}
                 </Badge>
               </div>
             </div>
-          </Card>
+          </div>
 
           {/* entries table */}
           <Card>
             <CardHeader
               title="Time Entries"
               subtitle={`${entries.length} entries this week`}
-              action={currentTimesheet?.status === "DRAFT" ? <Button size="sm" onClick={() => setShowAddEntry(true)}>+ Add</Button> : undefined}
+              actions={currentTimesheet?.status === "DRAFT" ? <Button size="sm" onClick={() => setShowAddEntry(true)}>+ Add</Button> : undefined}
             />
             <DataTable
               columns={entryColumns}

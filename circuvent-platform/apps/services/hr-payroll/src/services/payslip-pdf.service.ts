@@ -6,6 +6,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { createAuditLog } from "@circuvent/audit";
+import { EmailService } from "./email.service";
 
 type PayslipInput = any;
 async function getPayslipPDFGenerator() {
@@ -209,5 +210,60 @@ export class PayslipPDFService {
       where: { salarySlipId },
       select: { id: true, checksum: true, generatedAt: true, month: true, year: true },
     });
+  }
+
+  /**
+   * Get salary slip with employee and user details (for email notifications).
+   */
+  static async getSlipWithEmployee(salarySlipId: string): Promise<any> {
+    return prisma.salarySlip.findUnique({
+      where: { id: salarySlipId },
+      include: {
+        employee: {
+          include: {
+            user: { select: { firstName: true, lastName: true, email: true } },
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Send payslip-ready emails to all employees for a given month/year.
+   */
+  static async sendBulkPayslipEmails(month: number, year: number): Promise<{ sent: number; failed: number }> {
+    const slips = await prisma.salarySlip.findMany({
+      where: { month, year },
+      include: {
+        employee: {
+          include: {
+            user: { select: { firstName: true, lastName: true, email: true } },
+          },
+        },
+      },
+    });
+
+    const monthName = new Date(2000, month - 1).toLocaleString("en", { month: "long" });
+    let sent = 0, failed = 0;
+
+    for (const slip of slips) {
+      const email = slip.employee?.user?.email;
+      if (!email) { failed++; continue; }
+
+      try {
+        await EmailService.sendTemplateEmail(email, "payslip_ready", {
+          employeeName: `${slip.employee.user.firstName} ${slip.employee.user.lastName}`,
+          month: monthName,
+          year: String(year),
+          netSalary: Number(slip.netSalary).toLocaleString("en-IN"),
+        });
+        sent++;
+      } catch {
+        failed++;
+      }
+    }
+
+    console.log(`[PayslipPDF] Bulk email: ${sent} sent, ${failed} failed for ${monthName} ${year}`);
+    return { sent, failed };
   }
 }

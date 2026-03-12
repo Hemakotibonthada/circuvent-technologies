@@ -6,12 +6,12 @@ import Link from "next/link";
 export default function AnnouncementsPage() {
   const { data: announcements, loading } = useApi<any[]>("/hr/portal/announcements");
   const priorityColors: Record<string, string> = { LOW: "border-slate-200 dark:border-slate-700", NORMAL: "border-slate-200 dark:border-slate-700", HIGH: "border-amber-700/50", URGENT: "border-red-700/50" };
-  const priorityBadges: Record<string, string> = { LOW: "bg-slate-100 dark:bg-slate-700 text-slate-400", NORMAL: "bg-blue-900/50 text-blue-400", HIGH: "bg-amber-900/50 text-amber-400", URGENT: "bg-red-900/50 text-red-400" };
+  const priorityBadges: Record<string, string> = { LOW: "bg-slate-100 dark:bg-slate-700 text-slate-400", NORMAL: "bg-blue-900/50 text-blue-600 dark:text-blue-400", HIGH: "bg-amber-900/50 text-amber-600 dark:text-amber-400", URGENT: "bg-red-900/50 text-red-600 dark:text-red-400" };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="mb-6">
-        <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+        <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📢 Announcements</h1>
       </div>
       {loading ? <div className="text-center text-slate-500 py-12">Loading...</div> :

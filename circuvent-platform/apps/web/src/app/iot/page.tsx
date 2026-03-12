@@ -52,29 +52,21 @@ export default function IoTPage() {
 
   const columns = [
     {
-      key: "deviceCode",
+      id: "deviceCode",
       header: "Code",
-      render: (d: Device) => <span className="font-mono text-xs text-brand-400">{d.deviceCode}</span>,
-    },
-    {
-      key: "deviceName",
+      render: (d: Device) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{d.deviceCode}</span>,
+    }, { key: "deviceName",
       header: "Device Name",
       render: (d: Device) => (
-        <a href={`/iot/${d.id}`} className="font-medium text-slate-900 dark:text-white hover:text-brand-400">{d.deviceName}</a>
+        <a href={`/iot/${d.id}`} className="font-medium text-slate-900 dark:text-white hover:text-brand-600 dark:text-brand-400">{d.deviceName}</a>
       ),
-    },
-    {
-      key: "macAddress",
+    }, { key: "macAddress",
       header: "MAC Address",
       render: (d: Device) => <span className="font-mono text-xs text-slate-400">{d.macAddress}</span>,
-    },
-    {
-      key: "firmwareVersion",
+    }, { key: "firmwareVersion",
       header: "Firmware",
       render: (d: Device) => <Badge color="cyan">v{d.firmwareVersion}</Badge>,
-    },
-    {
-      key: "status",
+    }, { key: "status",
       header: "Status",
       render: (d: Device) => (
         <div className="flex items-center gap-2">
@@ -82,19 +74,13 @@ export default function IoTPage() {
           <Badge color={deviceStatusColors[d.status]}>{d.status}</Badge>
         </div>
       ),
-    },
-    {
-      key: "project",
+    }, { key: "project",
       header: "Project",
       render: (d: Device) => d.project ? <span className="text-xs">{d.project.name}</span> : <span className="text-slate-600">—</span>,
-    },
-    {
-      key: "location",
+    }, { key: "location",
       header: "Location",
       render: (d: Device) => d.location || "—",
-    },
-    {
-      key: "lastHeartbeat",
+    }, { key: "lastHeartbeat",
       header: "Last Seen",
       render: (d: Device) => d.lastHeartbeat ? timeAgo(d.lastHeartbeat) : "Never",
     },
@@ -120,20 +106,20 @@ export default function IoTPage() {
 
       {/* Alerts Panel */}
       {dashboard?.recentAlerts && dashboard.recentAlerts.length > 0 && (
-        <Card className="border-red-500/30 bg-red-500/5">
-          <h3 className="mb-3 text-sm font-semibold text-red-400">Recent Alerts</h3>
+        <Card className="border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/5">
+          <h3 className="mb-3 text-sm font-semibold text-red-600 dark:text-red-400">Recent Alerts</h3>
           <div className="space-y-2">
             {dashboard.recentAlerts.slice(0, 5).map((alert: any) => (
               <div key={alert.id} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <Badge color={alert.logLevel === "CRITICAL" ? "red" : "orange"}>{alert.logLevel}</Badge>
                   <span className="text-slate-600 dark:text-slate-300">{alert.device.deviceName}</span>
-                </div>
+                </Card>
                 <span className="text-slate-500">{timeAgo(alert.timestamp)}</span>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Status Filter */}
@@ -143,7 +129,7 @@ export default function IoTPage() {
             key={s}
             onClick={() => setStatusFilter(s)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              statusFilter === s ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              statusFilter === s ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {s || "All"}

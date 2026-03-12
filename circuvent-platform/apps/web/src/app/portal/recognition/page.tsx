@@ -84,11 +84,7 @@ export default function RecognitionPage() {
     } else {
       // Sample data
       setRecognitions([
-        { id: "r1", fromName: "Priya Sharma", fromDepartment: "Engineering", toName: "Rahul Verma", toDepartment: "Engineering", category: "TEAMWORK", message: "Amazing collaboration on the payment gateway integration! Your attention to detail saved us from a critical bug.", points: 50, reactions: 8, createdAt: new Date(Date.now() - 3600000).toISOString() },
-        { id: "r2", fromName: "Anita Deshmukh", fromDepartment: "HR", toName: "Sneha Reddy", toDepartment: "Engineering", category: "INNOVATION", message: "The new dashboard design is incredible! The user feedback has been overwhelmingly positive.", points: 100, reactions: 15, createdAt: new Date(Date.now() - 86400000).toISOString() },
-        { id: "r3", fromName: "Vikram Patel", fromDepartment: "Engineering", toName: "Amit Kumar", toDepartment: "Engineering", category: "GOING_EXTRA_MILE", message: "Stayed late to fix the production issue and documented everything for the team. True dedication!", points: 100, reactions: 12, createdAt: new Date(Date.now() - 172800000).toISOString() },
-        { id: "r4", fromName: "Raj Patel", fromDepartment: "Engineering", toName: "Anjali Nair", toDepartment: "Design", category: "QUALITY", message: "The UI components library you built is incredibly well-structured. Great work!", points: 50, reactions: 6, createdAt: new Date(Date.now() - 259200000).toISOString() },
-        { id: "r5", fromName: "Sonia Gupta", fromDepartment: "Product", toName: "Vikram Joshi", toDepartment: "DevOps", category: "PROBLEM_SOLVING", message: "Quick resolution of the CI/CD pipeline issues. The team was unblocked within an hour!", points: 75, reactions: 9, createdAt: new Date(Date.now() - 345600000).toISOString() },
+        { id: "r1", fromName: "Priya Sharma", fromDepartment: "Engineering", toName: "Rahul Verma", toDepartment: "Engineering", category: "TEAMWORK", message: "Amazing collaboration on the payment gateway integration! Your attention to detail saved us from a critical bug.", points: 50, reactions: 8, createdAt: new Date(Date.now() - 3600000).toISOString() }, { key: "r2", fromName: "Anita Deshmukh", fromDepartment: "HR", toName: "Sneha Reddy", toDepartment: "Engineering", category: "INNOVATION", message: "The new dashboard design is incredible! The user feedback has been overwhelmingly positive.", points: 100, reactions: 15, createdAt: new Date(Date.now() - 86400000).toISOString() }, { key: "r3", fromName: "Vikram Patel", fromDepartment: "Engineering", toName: "Amit Kumar", toDepartment: "Engineering", category: "GOING_EXTRA_MILE", message: "Stayed late to fix the production issue and documented everything for the team. True dedication!", points: 100, reactions: 12, createdAt: new Date(Date.now() - 172800000).toISOString() }, { key: "r4", fromName: "Raj Patel", fromDepartment: "Engineering", toName: "Anjali Nair", toDepartment: "Design", category: "QUALITY", message: "The UI components library you built is incredibly well-structured. Great work!", points: 50, reactions: 6, createdAt: new Date(Date.now() - 259200000).toISOString() }, { key: "r5", fromName: "Sonia Gupta", fromDepartment: "Product", toName: "Vikram Joshi", toDepartment: "DevOps", category: "PROBLEM_SOLVING", message: "Quick resolution of the CI/CD pipeline issues. The team was unblocked within an hour!", points: 75, reactions: 9, createdAt: new Date(Date.now() - 345600000).toISOString() },
       ]);
     }
 
@@ -186,7 +182,7 @@ export default function RecognitionPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🏆 Recognition</h1>
         </div>
       </div>
@@ -194,15 +190,15 @@ export default function RecognitionPage() {
       {/* Points Summary */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-amber-400">{myPoints}</p>
+          <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{myPoints}</p>
           <p className="text-xs text-slate-500">My Points</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-400">{myReceived}</p>
+          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{myReceived}</p>
           <p className="text-xs text-slate-500">Received</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-blue-400">{myGiven}</p>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{myGiven}</p>
           <p className="text-xs text-slate-500">Given</p>
         </div>
       </div>
@@ -214,7 +210,7 @@ export default function RecognitionPage() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800"
+              activeTab === tab ? "bg-brand-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800"
             }`}
           >
             {tab === "wall" && "🌟 "}
@@ -236,27 +232,27 @@ export default function RecognitionPage() {
               {recognitions.map((r) => (
                 <div key={r.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-brand-500/20 flex items-center justify-center text-lg">
+                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-brand-200 dark:bg-brand-500/20 flex items-center justify-center text-lg">
                       {CATEGORY_ICONS[r.category] || "🌟"}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 flex-wrap">
                         <span className="text-sm font-medium text-slate-900 dark:text-white">{r.fromName}</span>
                         <span className="text-xs text-slate-500">recognized</span>
-                        <span className="text-sm font-medium text-brand-400">{r.toName}</span>
+                        <span className="text-sm font-medium text-brand-600 dark:text-brand-400">{r.toName}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-slate-500">{r.fromDepartment}</span>
                         <span className="text-xs text-slate-600">·</span>
                         <span className="text-xs text-slate-500">{formatTimeAgo(r.createdAt)}</span>
                         <span className="text-xs text-slate-600">·</span>
-                        <span className="text-xs font-medium text-amber-400">+{r.points} pts</span>
+                        <span className="text-xs font-medium text-amber-600 dark:text-amber-400">+{r.points} pts</span>
                       </div>
                       <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{r.message}</p>
                       <div className="flex items-center gap-3 mt-3">
                         <button
                           onClick={() => handleReact(r.id)}
-                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-amber-400 transition-colors"
+                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-amber-600 dark:text-amber-400 transition-colors"
                         >
                           👏 {r.reactions}
                         </button>
@@ -306,12 +302,12 @@ export default function RecognitionPage() {
                         onClick={() => setKudosForm({ ...kudosForm, category: cat.value })}
                         className={`rounded-lg border p-2.5 text-left text-sm transition-colors ${
                           kudosForm.category === cat.value
-                            ? "border-brand-500 bg-brand-500/10 text-slate-900 dark:text-white"
+                            ? "border-brand-500 bg-brand-100 dark:bg-brand-500/10 text-slate-900 dark:text-white"
                             : "border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-600"
                         }`}
                       >
                         <span>{cat.label}</span>
-                        <span className="block text-[10px] text-amber-400 mt-0.5">+{cat.points} pts</span>
+                        <span className="block text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">+{cat.points} pts</span>
                       </button>
                     ))}
                   </div>
@@ -329,7 +325,7 @@ export default function RecognitionPage() {
                 <button
                   onClick={handleGiveKudos}
                   disabled={submitting || !kudosForm.toEmployeeId || !kudosForm.message}
-                  className="w-full px-4 py-2.5 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
+                  className="w-full px-4 py-2.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
                 >
                   {submitting ? "Sending..." : "🎉 Send Kudos"}
                 </button>
@@ -355,7 +351,7 @@ export default function RecognitionPage() {
                       <p className="text-xs text-slate-500">{entry.department}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-amber-400">{entry.points}</p>
+                      <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{entry.points}</p>
                       <p className="text-[10px] text-slate-500">{entry.recognitionsReceived} received</p>
                     </div>
                   </div>
@@ -376,7 +372,7 @@ export default function RecognitionPage() {
                       <div key={r.id} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-slate-900 dark:text-white">From: {r.fromName}</span>
-                          <span className="text-xs text-amber-400">+{r.points} pts</span>
+                          <span className="text-xs text-amber-600 dark:text-amber-400">+{r.points} pts</span>
                         </div>
                         <p className="text-xs text-slate-400 mt-1">{r.message}</p>
                         <span className="text-[10px] text-slate-500">{formatTimeAgo(r.createdAt)}</span>

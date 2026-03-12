@@ -77,10 +77,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   if (!project) return <div className="py-20 text-center text-slate-400">Project not found</div>;
 
   const tabs = [
-    { id: "sprints", label: "Sprints", count: project._count.sprints },
-    { id: "hardware", label: "Hardware BOM", count: project._count.hardwareRevisions },
-    { id: "devices", label: "IoT Devices", count: project._count.devices },
-    { id: "members", label: "Team", count: project.members.length },
+    { id: "sprints", label: "Sprints", count: project._count.sprints }, { key: "hardware", label: "Hardware BOM", count: project._count.hardwareRevisions }, { key: "devices", label: "IoT Devices", count: project._count.devices }, { key: "members", label: "Team", count: project.members.length },
   ];
 
   const typeColors: Record<string, any> = { SOFTWARE: "blue", HARDWARE: "amber", HYBRID: "purple" };
@@ -120,7 +117,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           </div>
 
           {project.sprints.length === 0 ? (
-            <EmptyState title="No Sprints" description="Create your first sprint to start tracking work." action={<Button onClick={() => setShowSprintModal(true)} size="sm">Create Sprint</Button>} />
+            <EmptyState title="No Sprints" subtitle="Create your first sprint to start tracking work." actions={<Button onClick={() => setShowSprintModal(true)} size="sm">Create Sprint</Button>} />
           ) : (
             project.sprints.map((sprint) => (
               <Card key={sprint.id}>
@@ -129,7 +126,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                     <div className="flex items-center gap-3">
                       <h4 className="text-lg font-semibold text-slate-900 dark:text-white">{sprint.name}</h4>
                       <Badge color={sprintStatusColors[sprint.status]}>{sprint.status}</Badge>
-                    </div>
+                    </Card>
                     <p className="text-xs text-slate-500 mt-1">
                       Sprint #{sprint.sprintNumber} · {formatDate(sprint.startDate)} – {formatDate(sprint.endDate)} · {sprint._count.tasks} tasks
                     </p>
@@ -168,7 +165,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 ) : (
                   <p className="text-sm text-slate-500 text-center py-4">No tasks in this sprint yet.</p>
                 )}
-              </Card>
+              </div>
             ))
           )}
         </div>
@@ -182,15 +179,10 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           </div>
 
           {project.hardwareRevisions.length === 0 ? (
-            <EmptyState title="No Hardware Revisions" description="Create a hardware revision to track BOM and PCB designs." action={<Button onClick={() => setShowRevisionModal(true)} size="sm">Create Revision</Button>} />
+            <EmptyState title="No Hardware Revisions" subtitle="Create a hardware revision to track BOM and PCB designs." actions={<Button onClick={() => setShowRevisionModal(true)} size="sm">Create Revision</Button>} />
           ) : (
             <DataTable
-              columns={[
-                { key: "revisionCode", header: "Rev", render: (r: any) => <span className="font-mono text-brand-400">{r.revisionCode}</span> },
-                { key: "title", header: "Title", render: (r: any) => <span className="text-slate-900 dark:text-white">{r.title}</span> },
-                { key: "status", header: "Status", render: (r: any) => <Badge color={revisionStatusColors[r.status]}>{r.status}</Badge> },
-                { key: "bomItems", header: "BOM Items", render: (r: any) => <span>{r._count.bomItems}</span> },
-                { key: "createdAt", header: "Created", render: (r: any) => timeAgo(r.createdAt) },
+              columns={[{ key: "revisionCode", header: "Rev", render: (r: any) => <span className="font-mono text-brand-600 dark:text-brand-400">{r.revisionCode}</span> }, { key: "title", header: "Title", render: (r: any) => <span className="text-slate-900 dark:text-white">{r.title}</span> }, { key: "status", header: "Status", render: (r: any) => <Badge color={revisionStatusColors[r.status]}>{r.status}</Badge> }, { key: "bomItems", header: "BOM Items", render: (r: any) => <span>{r._count.bomItems}</span> }, { key: "createdAt", header: "Created", render: (r: any) => timeAgo(r.createdAt) },
               ]}
               data={project.hardwareRevisions}
               keyExtractor={(r: any) => r.id}
@@ -203,15 +195,10 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       {activeTab === "devices" && (
         <div>
           {project.devices.length === 0 ? (
-            <EmptyState title="No Devices Linked" description="Register IoT devices and link them to this project." />
+            <EmptyState title="No Devices Linked" subtitle="Register IoT devices and link them to this project." />
           ) : (
             <DataTable
-              columns={[
-                { key: "deviceCode", header: "Code" },
-                { key: "deviceName", header: "Name" },
-                { key: "macAddress", header: "MAC Address", render: (d: any) => <span className="font-mono text-xs">{d.macAddress}</span> },
-                { key: "firmwareVersion", header: "Firmware" },
-                { key: "status", header: "Status", render: (d: any) => <Badge color={d.status === "ONLINE" ? "green" : "red"}>{d.status}</Badge> },
+              columns={[{ key: "deviceCode", header: "Code" }, { key: "deviceName", header: "Name" }, { key: "macAddress", header: "MAC Address", render: (d: any) => <span className="font-mono text-xs">{d.macAddress}</span> }, { key: "firmwareVersion", header: "Firmware" }, { key: "status", header: "Status", render: (d: any) => <Badge color={d.status === "ONLINE" ? "green" : "red"}>{d.status}</Badge> },
               ]}
               data={project.devices}
               keyExtractor={(d: any) => d.id}
@@ -230,7 +217,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-slate-900 dark:text-white">
                     {m.user.firstName[0]}{m.user.lastName[0]}
-                  </div>
+                  </Card>
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white">{m.user.firstName} {m.user.lastName}</p>
                     <p className="text-xs text-slate-500">{m.user.email}</p>
@@ -240,7 +227,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* ── MODALS ── */}

@@ -46,30 +46,19 @@ export default function LeaveManagementPage() {
   };
 
   const tabs = [
-    { id: "requests", label: "All Requests" },
-    { id: "pending", label: "Pending Approvals" },
-    { id: "calendar", label: "Team Calendar" },
-    { id: "balance", label: "Leave Balance" },
+    { id: "requests", label: "All Requests" }, { key: "pending", label: "Pending Approvals" }, { key: "calendar", label: "Team Calendar" }, { key: "balance", label: "Leave Balance" },
   ];
 
   const leaveColumns = [
     {
-      key: "employee", header: "Employee",
+      id: "employee", header: "Employee",
       render: (l: any) => l.employee ? (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{l.employee.user?.firstName} {l.employee.user?.lastName}</p>
           <p className="text-xs text-slate-500">{l.employee.employeeCode}</p>
         </div>
       ) : "—",
-    },
-    { key: "leaveType", header: "Type", render: (l: any) => <Badge color={leaveTypeColors[l.leaveType]}>{l.leaveType}</Badge> },
-    { key: "startDate", header: "From", render: (l: any) => formatDate(l.startDate) },
-    { key: "endDate", header: "To", render: (l: any) => formatDate(l.endDate) },
-    { key: "totalDays", header: "Days", render: (l: any) => `${Number(l.totalDays)}d` },
-    { key: "reason", header: "Reason", render: (l: any) => l.reason || "—" },
-    { key: "status", header: "Status", render: (l: any) => <Badge color={statusColors[l.status]}>{l.status}</Badge> },
-    {
-      key: "actions", header: "",
+    }, { key: "leaveType", header: "Type", render: (l: any) => <Badge color={leaveTypeColors[l.leaveType]}>{l.leaveType}</Badge> }, { key: "startDate", header: "From", render: (l: any) => formatDate(l.startDate) }, { key: "endDate", header: "To", render: (l: any) => formatDate(l.endDate) }, { key: "totalDays", header: "Days", render: (l: any) => `${Number(l.totalDays)}d` }, { key: "reason", header: "Reason", render: (l: any) => l.reason || "—" }, { key: "status", header: "Status", render: (l: any) => <Badge color={statusColors[l.status]}>{l.status}</Badge> }, { key: "actions", header: "",
       render: (l: any) => l.status === "PENDING" ? (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => handleApprove(l.id)}>Approve</Button>
@@ -127,11 +116,11 @@ export default function LeaveManagementPage() {
             {Array.from({ length: 35 }, (_, i) => (
               <div key={i} className={`rounded-lg border border-slate-200 dark:border-slate-800 p-2 text-center text-xs ${i % 7 >= 5 ? "bg-slate-900/50 text-slate-600" : "text-slate-400"}`}>
                 {i + 1 <= 31 ? i + 1 : ""}
-              </div>
+              </Card>
             ))}
           </div>
           <p className="mt-4 text-xs text-slate-500 text-center">Select a department and month to view the team leave calendar.</p>
-        </Card>
+        </div>
       )}
 
       {/* Balance Tab */}

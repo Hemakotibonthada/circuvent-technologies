@@ -51,11 +51,11 @@ interface SettlementData {
 }
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: string }> = {
-  SUBMITTED: { color: "bg-amber-900/50 text-amber-400", label: "Under Review", icon: "⏳" },
-  ACCEPTED: { color: "bg-blue-900/50 text-blue-400", label: "Accepted", icon: "✅" },
-  REJECTED: { color: "bg-red-900/50 text-red-400", label: "Rejected", icon: "❌" },
+  SUBMITTED: { color: "bg-amber-900/50 text-amber-600 dark:text-amber-400", label: "Under Review", icon: "⏳" },
+  ACCEPTED: { color: "bg-blue-900/50 text-blue-600 dark:text-blue-400", label: "Accepted", icon: "✅" },
+  REJECTED: { color: "bg-red-900/50 text-red-600 dark:text-red-400", label: "Rejected", icon: "❌" },
   WITHDRAWN: { color: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", label: "Withdrawn", icon: "↩️" },
-  COMPLETED: { color: "bg-emerald-900/50 text-emerald-400", label: "Completed", icon: "🏁" },
+  COMPLETED: { color: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", label: "Completed", icon: "🏁" },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -134,7 +134,7 @@ export default function ResignationPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📝 Resignation</h1>
           <p className="text-sm text-slate-500">Submit and track your resignation</p>
         </div>
@@ -160,7 +160,7 @@ export default function ResignationPage() {
               <p className="text-sm text-slate-400 mt-1">Submitted on {formatDate(activeResignation.createdAt)}</p>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-bold text-amber-400">{daysRemaining}</p>
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{daysRemaining}</p>
               <p className="text-xs text-slate-500">days remaining</p>
             </div>
           </div>
@@ -209,7 +209,7 @@ export default function ResignationPage() {
             {activeResignation.status === "SUBMITTED" && (
               <button
                 onClick={() => handleWithdraw(activeResignation.id)}
-                className="px-4 py-2 text-sm text-amber-400 border border-amber-900/50 rounded-lg hover:bg-amber-900/20"
+                className="px-4 py-2 text-sm text-amber-600 dark:text-amber-400 border border-amber-900/50 rounded-lg hover:bg-amber-900/20"
               >
                 ↩️ Withdraw Resignation
               </button>
@@ -218,13 +218,13 @@ export default function ResignationPage() {
               <>
                 <button
                   onClick={() => handleWithdraw(activeResignation.id)}
-                  className="px-4 py-2 text-sm text-amber-400 border border-amber-900/50 rounded-lg hover:bg-amber-900/20"
+                  className="px-4 py-2 text-sm text-amber-600 dark:text-amber-400 border border-amber-900/50 rounded-lg hover:bg-amber-900/20"
                 >
                   ↩️ Withdraw
                 </button>
                 <button
                   onClick={() => loadSettlement(activeResignation.id)}
-                  className="px-4 py-2 text-sm text-brand-400 border border-brand-900/50 rounded-lg hover:bg-brand-900/20"
+                  className="px-4 py-2 text-sm text-brand-600 dark:text-brand-400 border border-brand-900/50 rounded-lg hover:bg-brand-900/20"
                 >
                   💰 View Settlement
                 </button>
@@ -269,7 +269,7 @@ export default function ResignationPage() {
 
       {/* Submit Resignation Modal */}
       {showSubmit && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Submit Resignation</h2>
             <p className="text-xs text-slate-500 mb-4">This will initiate the resignation process with your manager and HR.</p>
@@ -300,7 +300,7 @@ export default function ResignationPage() {
                 </p>
               </div>
 
-              <div className="bg-amber-900/20 border border-amber-900/30 rounded-lg p-3 text-xs text-amber-400">
+              <div className="bg-amber-900/20 border border-amber-900/30 rounded-lg p-3 text-xs text-amber-600 dark:text-amber-400">
                 <p className="font-medium mb-1">⚠️ Important</p>
                 <ul className="list-disc list-inside space-y-0.5 text-amber-300/80">
                   <li>Your resignation will be reviewed by HR/Management</li>
@@ -327,7 +327,7 @@ export default function ResignationPage() {
 
       {/* Settlement Preview Modal */}
       {showSettlement && settlement && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg my-8">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Final Settlement Preview</h2>
             <p className="text-xs text-slate-500 mb-4">
@@ -336,7 +336,7 @@ export default function ResignationPage() {
 
             {/* Payable */}
             <div className="mb-4">
-              <h3 className="text-xs text-emerald-400 font-medium mb-2">Payable Components</h3>
+              <h3 className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-2">Payable Components</h3>
               <div className="space-y-1.5">
                 {[
                   { label: "Pending Salary", value: settlement.components.pendingSalary },
@@ -346,12 +346,12 @@ export default function ResignationPage() {
                 ].filter((c) => c.value > 0).map((c) => (
                   <div key={c.label} className="flex justify-between items-center bg-emerald-900/10 rounded px-3 py-2">
                     <span className="text-xs text-slate-400">{c.label}</span>
-                    <span className="text-xs text-emerald-400 font-medium">₹{c.value.toLocaleString("en-IN")}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">₹{c.value.toLocaleString("en-IN")}</span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center bg-emerald-900/20 rounded px-3 py-2 font-medium">
                   <span className="text-xs text-slate-600 dark:text-slate-300">Total Payable</span>
-                  <span className="text-sm text-emerald-400">₹{settlement.totalPayable.toLocaleString("en-IN")}</span>
+                  <span className="text-sm text-emerald-600 dark:text-emerald-400">₹{settlement.totalPayable.toLocaleString("en-IN")}</span>
                 </div>
               </div>
             </div>
@@ -359,7 +359,7 @@ export default function ResignationPage() {
             {/* Deductions */}
             {settlement.totalDeductions > 0 && (
               <div className="mb-4">
-                <h3 className="text-xs text-red-400 font-medium mb-2">Deductions</h3>
+                <h3 className="text-xs text-red-600 dark:text-red-400 font-medium mb-2">Deductions</h3>
                 <div className="space-y-1.5">
                   {[
                     { label: "Advance Recovery", value: settlement.components.advanceRecovery },
@@ -367,12 +367,12 @@ export default function ResignationPage() {
                   ].filter((c) => c.value > 0).map((c) => (
                     <div key={c.label} className="flex justify-between items-center bg-red-900/10 rounded px-3 py-2">
                       <span className="text-xs text-slate-400">{c.label}</span>
-                      <span className="text-xs text-red-400 font-medium">-₹{c.value.toLocaleString("en-IN")}</span>
+                      <span className="text-xs text-red-600 dark:text-red-400 font-medium">-₹{c.value.toLocaleString("en-IN")}</span>
                     </div>
                   ))}
                   <div className="flex justify-between items-center bg-red-900/20 rounded px-3 py-2 font-medium">
                     <span className="text-xs text-slate-600 dark:text-slate-300">Total Deductions</span>
-                    <span className="text-sm text-red-400">-₹{settlement.totalDeductions.toLocaleString("en-IN")}</span>
+                    <span className="text-sm text-red-600 dark:text-red-400">-₹{settlement.totalDeductions.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
               </div>

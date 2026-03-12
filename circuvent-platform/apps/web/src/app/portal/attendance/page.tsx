@@ -38,12 +38,12 @@ export default function AttendancePage() {
 
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const statusColors: Record<string, string> = {
-    PRESENT: "bg-emerald-900/50 text-emerald-400",
-    HALF_DAY: "bg-amber-900/50 text-amber-400",
-    ABSENT: "bg-red-900/50 text-red-400",
-    WORK_FROM_HOME: "bg-blue-900/50 text-blue-400",
-    ON_LEAVE: "bg-purple-900/50 text-purple-400",
-    HOLIDAY: "bg-cyan-900/50 text-cyan-400",
+    PRESENT: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+    HALF_DAY: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+    ABSENT: "bg-red-900/50 text-red-600 dark:text-red-400",
+    WORK_FROM_HOME: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+    ON_LEAVE: "bg-purple-900/50 text-purple-600 dark:text-purple-400",
+    HOLIDAY: "bg-cyan-900/50 text-cyan-600 dark:text-cyan-400",
     WEEK_OFF: "bg-slate-100 dark:bg-slate-700 text-slate-400",
   };
 
@@ -51,7 +51,7 @@ export default function AttendancePage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📅 Attendance & Time Tracking</h1>
         </div>
         <div className="flex gap-2">
@@ -115,7 +115,7 @@ export default function AttendancePage() {
                     <td className="px-4 py-3 text-sm text-slate-400">{log.checkIn ? new Date(log.checkIn).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
                     <td className="px-4 py-3 text-sm text-slate-400">{log.checkOut ? new Date(log.checkOut).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{log.totalHours ? `${Number(log.totalHours).toFixed(1)}h` : "—"}</td>
-                    <td className="px-4 py-3 text-sm text-orange-400">{log.overtimeHours && Number(log.overtimeHours) > 0 ? `+${Number(log.overtimeHours).toFixed(1)}h` : "—"}</td>
+                    <td className="px-4 py-3 text-sm text-orange-600 dark:text-orange-400">{log.overtimeHours && Number(log.overtimeHours) > 0 ? `+${Number(log.overtimeHours).toFixed(1)}h` : "—"}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{log.location || "—"}</td>
                   </tr>
                 ))}

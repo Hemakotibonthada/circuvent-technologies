@@ -78,9 +78,7 @@ export default function SurveyManagementPage() {
 
   const [activeTab, setActiveTab] = useState("active");
   const tabs = [
-    { id: "active", label: "Active Surveys" },
-    { id: "draft", label: "Drafts" },
-    { id: "closed", label: "Closed" },
+    { id: "active", label: "Active Surveys" }, { key: "draft", label: "Drafts" }, { key: "closed", label: "Closed" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -177,17 +175,14 @@ export default function SurveyManagementPage() {
   /* ── columns ──────────────────────────────────────────── */
   const surveyColumns = [
     {
-      key: "title", header: "Survey",
+      id: "title", header: "Survey",
       render: (s: Survey) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{s.title}</p>
           <p className="text-xs text-slate-500">{s.description?.slice(0, 60)}{s.description?.length > 60 ? "…" : ""}</p>
         </div>
       ),
-    },
-    { key: "status", header: "Status", render: (s: Survey) => <Badge color={statusColors[s.status] || "slate"}>{s.status}</Badge> },
-    {
-      key: "responseRate", header: "Response Rate",
+    }, { key: "status", header: "Status", render: (s: Survey) => <Badge color={statusColors[s.status] || "slate"}>{s.status}</Badge> }, { key: "responseRate", header: "Response Rate",
       render: (s: Survey) => (
         <div className="flex items-center gap-2">
           <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -196,22 +191,13 @@ export default function SurveyManagementPage() {
           <span className="text-xs text-slate-400">{s.responseRate}%</span>
         </div>
       ),
-    },
-    {
-      key: "totalResponses", header: "Responses",
+    }, { key: "totalResponses", header: "Responses",
       render: (s: Survey) => `${s.totalResponses}/${s.targetResponses || "∞"}`,
-    },
-    {
-      key: "questions", header: "Questions",
+    }, { key: "questions", header: "Questions",
       render: (s: Survey) => <span className="text-slate-400">{s.questions?.length || 0}</span>,
-    },
-    { key: "deadline", header: "Deadline", render: (s: Survey) => s.deadline ? formatDate(s.deadline) : "—" },
-    {
-      key: "isAnonymous", header: "",
+    }, { key: "deadline", header: "Deadline", render: (s: Survey) => s.deadline ? formatDate(s.deadline) : "—" }, { key: "isAnonymous", header: "",
       render: (s: Survey) => s.isAnonymous ? <Badge color="purple">Anonymous</Badge> : null,
-    },
-    {
-      key: "actions", header: "",
+    }, { key: "actions", header: "",
       render: (s: Survey) => (
         <div className="flex gap-2">
           {s.status === "ACTIVE" || s.status === "CLOSED" ? (
@@ -234,8 +220,8 @@ export default function SurveyManagementPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -279,7 +265,7 @@ export default function SurveyManagementPage() {
           </div>
 
           {/* question builder */}
-          <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Questions</h4>
               <Button size="sm" variant="outline" onClick={addQuestion}>+ Add Question</Button>
@@ -333,7 +319,7 @@ export default function SurveyManagementPage() {
               </svg>
             </div>
           ) : results.length === 0 ? (
-            <EmptyState title="No Results" description="No responses have been recorded yet." />
+            <EmptyState title="No Results" subtitle="No responses have been recorded yet." />
           ) : (
             results.map((r) => (
               <div key={r.questionId} className="rounded-lg border border-slate-200 dark:border-slate-800 p-4">
@@ -362,7 +348,7 @@ export default function SurveyManagementPage() {
                 )}
 
                 {r.averageRating !== undefined && (
-                  <p className="text-lg font-bold text-brand-400">{r.averageRating.toFixed(1)} / 5</p>
+                  <p className="text-lg font-bold text-brand-600 dark:text-brand-400">{r.averageRating.toFixed(1)} / 5</p>
                 )}
 
                 {r.textResponses && r.textResponses.length > 0 && (

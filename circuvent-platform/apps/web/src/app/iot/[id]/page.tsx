@@ -43,9 +43,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
   if (!device) return <div className="py-20 text-center text-slate-400">Device not found</div>;
 
   const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "telemetry", label: "Telemetry", count: device.telemetryLogs.length },
-    { id: "firmware", label: "Firmware History", count: device.firmwareHistory.length },
+    { id: "overview", label: "Overview" }, { key: "telemetry", label: "Telemetry", count: device.telemetryLogs.length }, { key: "firmware", label: "Firmware History", count: device.firmwareHistory.length },
   ];
 
   return (
@@ -85,10 +83,10 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
                   <dd className="text-sm font-medium text-slate-900 dark:text-white font-mono">{value}</dd>
-                </div>
+                </Card>
               ))}
             </dl>
-          </Card>
+          </div>
 
           <Card>
             <CardHeader title="Status Control" />
@@ -100,14 +98,14 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
                   disabled={device.status === s}
                   className={`rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                     device.status === s
-                      ? "border-brand-500 bg-brand-500/10 text-brand-400"
+                      ? "border-brand-500 bg-brand-100 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"
                       : "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   {s}
                 </button>
               ))}
-            </div>
+            </Card>
 
             {device.project && (
               <div className="mt-6">
@@ -125,7 +123,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
                 <pre className="overflow-auto rounded-lg bg-slate-100 dark:bg-slate-800 p-3 text-xs text-slate-600 dark:text-slate-300">{JSON.stringify(device.metadata, null, 2)}</pre>
               </div>
             )}
-          </Card>
+          </div>
         </div>
       )}
 
@@ -133,10 +131,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
       {activeTab === "telemetry" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "timestamp", header: "Time", render: (l: any) => <span className="text-xs font-mono">{formatDateTime(l.timestamp)}</span> },
-              { key: "logLevel", header: "Level", render: (l: any) => <Badge color={l.logLevel === "ERROR" ? "red" : l.logLevel === "CRITICAL" ? "red" : l.logLevel === "WARN" ? "amber" : "green"}>{l.logLevel}</Badge> },
-              { key: "payload", header: "Payload", render: (l: any) => <pre className="text-xs text-slate-400 max-w-md truncate">{JSON.stringify(l.payload)}</pre> },
+            columns={[{ key: "timestamp", header: "Time", render: (l: any) => <span className="text-xs font-mono">{formatDateTime(l.timestamp)}</span> }, { key: "logLevel", header: "Level", render: (l: any) => <Badge color={l.logLevel === "ERROR" ? "red" : l.logLevel === "CRITICAL" ? "red" : l.logLevel === "WARN" ? "amber" : "green"}>{l.logLevel}</Badge> }, { key: "payload", header: "Payload", render: (l: any) => <pre className="text-xs text-slate-400 max-w-md truncate">{JSON.stringify(l.payload)}</pre> },
             ]}
             data={device.telemetryLogs}
             keyExtractor={(l: any) => l.id}
@@ -149,12 +144,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
       {activeTab === "firmware" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "initiatedAt", header: "Date", render: (f: any) => formatDateTime(f.initiatedAt) },
-              { key: "fromVersion", header: "From", render: (f: any) => <span className="font-mono text-xs">v{f.fromVersion}</span> },
-              { key: "toVersion", header: "To", render: (f: any) => <span className="font-mono text-xs text-green-400">v{f.toVersion}</span> },
-              { key: "status", header: "Status", render: (f: any) => <Badge color={f.status === "completed" ? "green" : f.status === "failed" ? "red" : "amber"}>{f.status}</Badge> },
-              { key: "notes", header: "Notes", render: (f: any) => f.notes || "—" },
+            columns={[{ key: "initiatedAt", header: "Date", render: (f: any) => formatDateTime(f.initiatedAt) }, { key: "fromVersion", header: "From", render: (f: any) => <span className="font-mono text-xs">v{f.fromVersion}</span> }, { key: "toVersion", header: "To", render: (f: any) => <span className="font-mono text-xs text-green-600 dark:text-green-400">v{f.toVersion}</span> }, { key: "status", header: "Status", render: (f: any) => <Badge color={f.status === "completed" ? "green" : f.status === "failed" ? "red" : "amber"}>{f.status}</Badge> }, { key: "notes", header: "Notes", render: (f: any) => f.notes || "—" },
             ]}
             data={device.firmwareHistory}
             keyExtractor={(f: any) => f.id}

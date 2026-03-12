@@ -95,9 +95,7 @@ export default function CalendarPage() {
 
   const [activeTab, setActiveTab] = useState("month");
   const tabs = [
-    { id: "month", label: "Month View" },
-    { id: "list", label: "Event List" },
-    { id: "rooms", label: "Meeting Rooms" },
+    { id: "month", label: "Month View" }, { key: "list", label: "Event List" }, { key: "rooms", label: "Meeting Rooms" },
   ];
 
   /* ── calendar navigation ──────────────────────────────── */
@@ -195,34 +193,25 @@ export default function CalendarPage() {
   /* ── columns ──────────────────────────────────────────── */
   const eventListColumns = [
     {
-      key: "title", header: "Event",
+      id: "title", header: "Event",
       render: (e: CalendarEvent) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{e.title}</p>
           {e.location && <p className="text-xs text-slate-500">{e.location}</p>}
         </div>
       ),
-    },
-    { key: "type", header: "Type", render: (e: CalendarEvent) => <Badge color={eventTypeColors[e.type] || "slate"}>{e.type}</Badge> },
-    {
-      key: "startTime", header: "When",
+    }, { key: "type", header: "Type", render: (e: CalendarEvent) => <Badge color={eventTypeColors[e.type] || "slate"}>{e.type}</Badge> }, { key: "startTime", header: "When",
       render: (e: CalendarEvent) => (
         <span className="text-xs">
           {e.isAllDay ? formatDate(e.startTime) : formatDateTime(e.startTime)}
           {e.endTime && !e.isAllDay && ` — ${formatDateTime(e.endTime)}`}
         </span>
       ),
-    },
-    { key: "organizerName", header: "Organizer", render: (e: CalendarEvent) => e.organizerName || e.organizer },
-    { key: "roomName", header: "Room", render: (e: CalendarEvent) => e.roomName || "—" },
-    {
-      key: "myRsvp", header: "RSVP",
+    }, { key: "organizerName", header: "Organizer", render: (e: CalendarEvent) => e.organizerName || e.organizer }, { key: "roomName", header: "Room", render: (e: CalendarEvent) => e.roomName || "—" }, { key: "myRsvp", header: "RSVP",
       render: (e: CalendarEvent) => e.myRsvp ?
         <Badge color={rsvpColors[e.myRsvp] || "slate"}>{e.myRsvp}</Badge>
         : <span className="text-slate-500">—</span>,
-    },
-    {
-      key: "actions", header: "",
+    }, { key: "actions", header: "",
       render: (e: CalendarEvent) => (
         <Button size="sm" variant="ghost" onClick={() => setShowEventDetail(e)}>View</Button>
       ),
@@ -230,11 +219,7 @@ export default function CalendarPage() {
   ];
 
   const roomColumns = [
-    { key: "name", header: "Room", render: (r: MeetingRoom) => <span className="font-medium text-slate-900 dark:text-white">{r.name}</span> },
-    { key: "floor", header: "Floor" },
-    { key: "capacity", header: "Capacity", render: (r: MeetingRoom) => `${r.capacity} people` },
-    {
-      key: "facilities", header: "Facilities",
+    { id: "name", header: "Room", render: (r: MeetingRoom) => <span className="font-medium text-slate-900 dark:text-white">{r.name}</span> }, { key: "floor", header: "Floor" }, { key: "capacity", header: "Capacity", render: (r: MeetingRoom) => `${r.capacity} people` }, { key: "facilities", header: "Facilities",
       render: (r: MeetingRoom) => (
         <div className="flex flex-wrap gap-1">
           {(r.facilities || []).map((f) => (
@@ -242,11 +227,7 @@ export default function CalendarPage() {
           ))}
         </div>
       ),
-    },
-    { key: "status", header: "Status", render: (r: MeetingRoom) => <Badge color={roomStatusColors[r.status] || "slate"}>{r.status}</Badge> },
-    { key: "currentBooking", header: "Current", render: (r: MeetingRoom) => r.currentBooking || <span className="text-slate-500">Free</span> },
-    {
-      key: "actions", header: "",
+    }, { key: "status", header: "Status", render: (r: MeetingRoom) => <Badge color={roomStatusColors[r.status] || "slate"}>{r.status}</Badge> }, { key: "currentBooking", header: "Current", render: (r: MeetingRoom) => r.currentBooking || <span className="text-slate-500">Free</span> }, { key: "actions", header: "",
       render: (r: MeetingRoom) => r.status === "AVAILABLE" ? (
         <Button size="sm" variant="outline" onClick={() => handleBookRoom(r.id)}>Book</Button>
       ) : null,
@@ -259,8 +240,8 @@ export default function CalendarPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -288,7 +269,7 @@ export default function CalendarPage() {
             <div className="flex items-center gap-3">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{MONTH_NAMES[currentMonth]} {currentYear}</h3>
               <Button size="sm" variant="outline" onClick={goToday}>Today</Button>
-            </div>
+            </Card>
             <Button size="sm" variant="ghost" onClick={nextMonth}>Next →</Button>
           </div>
 
@@ -328,7 +309,7 @@ export default function CalendarPage() {
                         isToday ? "bg-brand-600/5 ring-1 ring-brand-500/30" : ""
                       }`}
                     >
-                      <div className={`mb-1 text-right text-xs font-medium ${isToday ? "text-brand-400" : "text-slate-500"}`}>
+                      <div className={`mb-1 text-right text-xs font-medium ${isToday ? "text-brand-600 dark:text-brand-400" : "text-slate-500"}`}>
                         {day}
                       </div>
                       <div className="space-y-0.5">
@@ -337,10 +318,10 @@ export default function CalendarPage() {
                             key={ev.id}
                             onClick={() => setShowEventDetail(ev)}
                             className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-xs ${
-                              ev.type === "HOLIDAY" ? "bg-green-500/10 text-green-400"
-                              : ev.type === "MEETING" ? "bg-blue-500/10 text-blue-400"
-                              : ev.type === "BIRTHDAY" ? "bg-pink-500/10 text-pink-400"
-                              : ev.type === "DEADLINE" ? "bg-red-500/10 text-red-400"
+                              ev.type === "HOLIDAY" ? "bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+                              : ev.type === "MEETING" ? "bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                              : ev.type === "BIRTHDAY" ? "bg-pink-500/10 text-pink-600 dark:text-pink-400"
+                              : ev.type === "DEADLINE" ? "bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
                               : "bg-slate-500/10 text-slate-400"
                             }`}
                           >
@@ -357,7 +338,7 @@ export default function CalendarPage() {
               </div>
             </>
           )}
-        </Card>
+        </div>
       )}
 
       {/* ── list view ───────────────────────────────────── */}

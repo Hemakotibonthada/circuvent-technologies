@@ -13,6 +13,7 @@ interface User {
   firstName: string;
   lastName: string;
   role: "ADMIN" | "SUPER_ADMIN" | "HR_MANAGER" | "MANAGER" | "PRODUCT_MANAGER" | "ENGINEER" | "DEVELOPER" | "TESTER" | "INTERN" | "MARKETING" | "CEO" | "CLIENT" | "CANDIDATE";
+  avatarUrl?: string | null;
 }
 
 interface AuthCtx {

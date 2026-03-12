@@ -213,8 +213,8 @@ export default function UserManagementPage() {
         <div
           className={`flex items-center justify-between rounded-lg border p-4 ${
             actionMsg.type === "success"
-              ? "border-green-500/20 bg-green-500/10 text-green-400"
-              : "border-red-500/20 bg-red-500/10 text-red-400"
+              ? "border-green-200 dark:border-green-500/20 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+              : "border-red-200 dark:border-red-500/20 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
           }`}
         >
           <span className="text-sm">{actionMsg.text}</span>
@@ -248,9 +248,7 @@ export default function UserManagementPage() {
       {/* Tabs */}
       <Tabs
         tabs={[
-          { id: "candidates", label: `Candidates (${candidates?.length ?? 0})` },
-          { id: "all-users", label: `All Users (${allUsers?.length ?? 0})` },
-          { id: "role-breakdown", label: "Role Breakdown" },
+          { id: "candidates", label: `Candidates (${candidates?.length ?? 0})` }, { key: "all-users", label: `All Users (${allUsers?.length ?? 0})` }, { key: "role-breakdown", label: "Role Breakdown" },
         ]}
         activeTab={activeTab}
         onChange={setActiveTab}
@@ -262,7 +260,7 @@ export default function UserManagementPage() {
           {loadingCandidates ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-            </div>
+            </Card>
           ) : !candidates || candidates.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-4xl">🎉</p>
@@ -270,9 +268,7 @@ export default function UserManagementPage() {
             </div>
           ) : (
             <DataTable
-              columns={[
-                {
-                  key: "name",
+              columns={[{ key: "name",
                   header: "Name",
                   render: (c: CandidateUser) => (
                     <div>
@@ -282,16 +278,12 @@ export default function UserManagementPage() {
                       <p className="text-xs text-slate-400">{c.email}</p>
                     </div>
                   ),
-                },
-                {
-                  key: "phone",
+                }, { key: "phone",
                   header: "Phone",
                   render: (c: CandidateUser) => (
                     <span className="text-sm text-slate-600 dark:text-slate-300">{c.phone || "—"}</span>
                   ),
-                },
-                {
-                  key: "registered",
+                }, { key: "registered",
                   header: "Registered",
                   render: (c: CandidateUser) => (
                     <div>
@@ -299,9 +291,7 @@ export default function UserManagementPage() {
                       <p className="text-xs text-slate-500">{timeAgo(c.createdAt)}</p>
                     </div>
                   ),
-                },
-                {
-                  key: "actions",
+                }, { key: "actions",
                   header: "Actions",
                   render: (c: CandidateUser) => (
                     <Button size="sm" onClick={() => openPromote(c)}>
@@ -314,7 +304,7 @@ export default function UserManagementPage() {
               keyExtractor={(c) => c.id}
             />
           )}
-        </Card>
+        </div>
       )}
 
       {/* ─── All Users Tab ─────────────────────────────── */}
@@ -323,12 +313,10 @@ export default function UserManagementPage() {
           {loadingUsers ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-            </div>
+            </Card>
           ) : (
             <DataTable
-              columns={[
-                {
-                  key: "name",
+              columns={[{ key: "name",
                   header: "User",
                   render: (u: AllUser) => (
                     <div>
@@ -338,37 +326,27 @@ export default function UserManagementPage() {
                       <p className="text-xs text-slate-400">{u.email}</p>
                     </div>
                   ),
-                },
-                {
-                  key: "role",
+                }, { key: "role",
                   header: "Role",
                   render: (u: AllUser) => (
                     <Badge color={ROLE_COLORS[u.role] || "slate"}>{u.role.replace(/_/g, " ")}</Badge>
                   ),
-                },
-                {
-                  key: "status",
+                }, { key: "status",
                   header: "Status",
                   render: (u: AllUser) => (
                     <Badge color={STATUS_COLORS[u.status] || "slate"}>{u.status}</Badge>
                   ),
-                },
-                {
-                  key: "dept",
+                }, { key: "dept",
                   header: "Department",
                   render: (u: AllUser) => (
                     <span className="text-sm text-slate-600 dark:text-slate-300">{u.department || "—"}</span>
                   ),
-                },
-                {
-                  key: "joined",
+                }, { key: "joined",
                   header: "Joined",
                   render: (u: AllUser) => (
                     <span className="text-sm text-slate-400">{formatDate(u.createdAt)}</span>
                   ),
-                },
-                {
-                  key: "actions",
+                }, { key: "actions",
                   header: "Actions",
                   render: (u: AllUser) => (
                     <div className="flex gap-2">
@@ -383,8 +361,8 @@ export default function UserManagementPage() {
                         onClick={() => handleStatusToggle(u)}
                         className={`rounded px-2 py-1 text-xs ${
                           u.status === "ACTIVE"
-                            ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                            : "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                            ? "bg-red-200 dark:bg-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30"
+                            : "bg-green-200 dark:bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-500/30"
                         }`}
                         title={u.status === "ACTIVE" ? "Suspend" : "Activate"}
                       >
@@ -403,7 +381,7 @@ export default function UserManagementPage() {
               keyExtractor={(u) => u.id}
             />
           )}
-        </Card>
+        </div>
       )}
 
       {/* ─── Role Breakdown Tab ────────────────────────── */}
@@ -419,10 +397,10 @@ export default function UserManagementPage() {
                 >
                   <Badge color={ROLE_COLORS[role] || "slate"}>{role.replace(/_/g, " ")}</Badge>
                   <span className="text-sm font-medium text-slate-900 dark:text-white">{count}</span>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
           <Card>
             <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">By Status</h3>
             <div className="space-y-2">
@@ -433,10 +411,10 @@ export default function UserManagementPage() {
                 >
                   <Badge color={STATUS_COLORS[status] || "slate"}>{status}</Badge>
                   <span className="text-sm font-medium text-slate-900 dark:text-white">{count}</span>
-                </div>
+                </Card>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       )}
 

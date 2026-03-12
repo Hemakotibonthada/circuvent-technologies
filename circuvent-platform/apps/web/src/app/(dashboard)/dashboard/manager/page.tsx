@@ -38,20 +38,20 @@ export default function ManagerDashboard() {
       <Card>
         <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Approval Queue</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <a href="/portal/leaves" className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 transition-colors hover:bg-amber-500/10">
-            <p className="text-sm font-medium text-amber-400">Leave Requests</p>
+          <a href="/portal/leaves" className="rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 p-4 transition-colors hover:bg-amber-100 dark:bg-amber-500/10">
+            <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Leave Requests</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-white">
               {leaveStats?.filter?.((l: any) => l.status === "PENDING")?.length || 0}
             </p>
             <p className="text-xs text-slate-500">Pending your approval</p>
           </a>
-          <a href="/portal/expenses" className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 transition-colors hover:bg-blue-500/10">
-            <p className="text-sm font-medium text-blue-400">Expense Claims</p>
+          <a href="/portal/expenses" className="rounded-lg border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/5 p-4 transition-colors hover:bg-blue-100 dark:bg-blue-500/10">
+            <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Expense Claims</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-white">0</p>
             <p className="text-xs text-slate-500">Need review</p>
           </a>
-          <a href="/hr/timesheets" className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-4 transition-colors hover:bg-purple-500/10">
-            <p className="text-sm font-medium text-purple-400">Timesheets</p>
+          <a href="/hr/timesheets" className="rounded-lg border border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-500/5 p-4 transition-colors hover:bg-purple-100 dark:bg-purple-500/10">
+            <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Timesheets</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-white">{pendingTimesheets}</p>
             <p className="text-xs text-slate-500">Submitted for review</p>
           </a>
@@ -119,19 +119,19 @@ export default function ManagerDashboard() {
         <Card>
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Timesheet Analytics</h3>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-xl font-bold text-slate-900 dark:text-white">{timesheetReport.averageWeeklyHours || 0}</p>
               <p className="text-xs text-slate-400">Avg Weekly Hours</p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-xl font-bold text-slate-900 dark:text-white">{timesheetReport.billableRate || 0}%</p>
               <p className="text-xs text-slate-400">Billable Rate</p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-xl font-bold text-slate-900 dark:text-white">{timesheetReport.totalSubmitted || 0}</p>
               <p className="text-xs text-slate-400">Submitted</p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center">
               <p className="text-xl font-bold text-slate-900 dark:text-white">{timesheetReport.totalApproved || 0}</p>
               <p className="text-xs text-slate-400">Approved</p>
             </div>
@@ -163,7 +163,7 @@ export default function ManagerDashboard() {
             { label: "Recognition", href: "/hr/recognition", icon: "🏆" },
             { label: "Calendar", href: "/hr/calendar", icon: "📅" },
           ].map((l) => (
-            <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white">
+            <a key={l.label} href={l.href} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white">
               <span>{l.icon}</span> {l.label}
             </a>
           ))}

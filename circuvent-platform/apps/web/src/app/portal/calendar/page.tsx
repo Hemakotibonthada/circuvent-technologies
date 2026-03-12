@@ -24,13 +24,13 @@ interface CalendarEvent {
 }
 
 const EVENT_TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  MEETING:     { bg: "bg-blue-900/30 border-blue-800/30", text: "text-blue-400", dot: "bg-blue-500" },
-  HOLIDAY:     { bg: "bg-emerald-900/30 border-emerald-800/30", text: "text-emerald-400", dot: "bg-emerald-500" },
-  LEAVE:       { bg: "bg-purple-900/30 border-purple-800/30", text: "text-purple-400", dot: "bg-purple-500" },
-  BIRTHDAY:    { bg: "bg-pink-900/30 border-pink-800/30", text: "text-pink-400", dot: "bg-pink-500" },
-  ANNIVERSARY: { bg: "bg-amber-900/30 border-amber-800/30", text: "text-amber-400", dot: "bg-amber-500" },
-  TRAINING:    { bg: "bg-cyan-900/30 border-cyan-800/30", text: "text-cyan-400", dot: "bg-cyan-500" },
-  DEADLINE:    { bg: "bg-red-900/30 border-red-800/30", text: "text-red-400", dot: "bg-red-500" },
+  MEETING:     { bg: "bg-blue-900/30 border-blue-800/30", text: "text-blue-600 dark:text-blue-400", dot: "bg-blue-500" },
+  HOLIDAY:     { bg: "bg-emerald-900/30 border-emerald-800/30", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
+  LEAVE:       { bg: "bg-purple-900/30 border-purple-800/30", text: "text-purple-600 dark:text-purple-400", dot: "bg-purple-500" },
+  BIRTHDAY:    { bg: "bg-pink-900/30 border-pink-800/30", text: "text-pink-600 dark:text-pink-400", dot: "bg-pink-500" },
+  ANNIVERSARY: { bg: "bg-amber-900/30 border-amber-800/30", text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
+  TRAINING:    { bg: "bg-cyan-900/30 border-cyan-800/30", text: "text-cyan-600 dark:text-cyan-400", dot: "bg-cyan-500" },
+  DEADLINE:    { bg: "bg-red-900/30 border-red-800/30", text: "text-red-600 dark:text-red-400", dot: "bg-red-500" },
   PERSONAL:    { bg: "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50", text: "text-slate-600 dark:text-slate-300", dot: "bg-slate-400" },
 };
 
@@ -108,10 +108,7 @@ export default function CalendarPage() {
     if (allEvents.length === 0) {
       const today = new Date().toISOString().split("T")[0];
       allEvents.push(
-        { id: "s1", title: "Team Standup", date: today, startTime: "09:30", endTime: "09:45", type: "MEETING", isAllDay: false, location: "Google Meet" },
-        { id: "s2", title: "Sprint Planning", date: today, startTime: "14:00", endTime: "15:30", type: "MEETING", isAllDay: false, location: "Conference Room A" },
-        { id: "s3", title: "Holi Festival", date: `${currentYear}-03-14`, type: "HOLIDAY", isAllDay: true },
-        { id: "s4", title: "Code Review Training", date: `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-20`, startTime: "11:00", endTime: "12:00", type: "TRAINING", isAllDay: false },
+        { id: "s1", title: "Team Standup", date: today, startTime: "09:30", endTime: "09:45", type: "MEETING", isAllDay: false, location: "Google Meet" }, { key: "s2", title: "Sprint Planning", date: today, startTime: "14:00", endTime: "15:30", type: "MEETING", isAllDay: false, location: "Conference Room A" }, { key: "s3", title: "Holi Festival", date: `${currentYear}-03-14`, type: "HOLIDAY", isAllDay: true }, { key: "s4", title: "Code Review Training", date: `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-20`, startTime: "11:00", endTime: "12:00", type: "TRAINING", isAllDay: false },
       );
     }
 
@@ -194,13 +191,13 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📅 Calendar</h1>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setActiveView("month")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "month" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>Month</button>
-          <button onClick={() => setActiveView("list")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "list" ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>List</button>
-          <button onClick={() => setShowCreate(true)} className="px-4 py-1.5 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-xs hover:bg-brand-700">+ New Event</button>
+          <button onClick={() => setActiveView("month")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "month" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>Month</button>
+          <button onClick={() => setActiveView("list")} className={`px-3 py-1.5 rounded-lg text-xs ${activeView === "list" ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>List</button>
+          <button onClick={() => setShowCreate(true)} className="px-4 py-1.5 bg-brand-600 text-white rounded-lg text-xs hover:bg-brand-700">+ New Event</button>
         </div>
       </div>
 
@@ -236,10 +233,10 @@ export default function CalendarPage() {
                       onClick={() => setSelectedDate(cell.dateStr)}
                       className={`min-h-[80px] p-1.5 text-left transition-colors ${
                         !cell.isCurrentMonth ? "opacity-30" : ""
-                      } ${isSelected ? "bg-brand-500/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
+                      } ${isSelected ? "bg-brand-100 dark:bg-brand-500/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
                     >
                       <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${
-                        cell.isToday ? "bg-brand-600 text-slate-900 dark:text-white font-bold" : "text-slate-600 dark:text-slate-300"
+                        cell.isToday ? "bg-brand-600 text-white font-bold" : "text-slate-600 dark:text-slate-300"
                       }`}>
                         {cell.day}
                       </span>
@@ -362,7 +359,7 @@ export default function CalendarPage() {
 
       {/* Create Event Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Create Event</h2>
             <div className="space-y-3">
@@ -400,7 +397,7 @@ export default function CalendarPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
-              <button onClick={handleCreateEvent} disabled={!newEvent.title || !newEvent.date} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create</button>
+              <button onClick={handleCreateEvent} disabled={!newEvent.title || !newEvent.date} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Create</button>
             </div>
           </div>
         </div>

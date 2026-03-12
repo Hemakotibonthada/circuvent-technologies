@@ -17,7 +17,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-brand-600 text-slate-900 dark:text-white hover:bg-brand-700 border-brand-600 shadow-sm press-effect",
+  primary: "bg-brand-600 text-white hover:bg-brand-700 border-brand-600 shadow-sm press-effect",
   secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-200 dark:hover:bg-slate-600 dark:border-slate-700 shadow-sm press-effect",
   danger: "bg-red-600 text-slate-900 dark:text-white hover:bg-red-700 border-red-600 shadow-sm press-effect",
   ghost: "bg-transparent text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white border-transparent",
@@ -118,16 +118,16 @@ interface BadgeProps {
 }
 
 const badgeColors: Record<BadgeColor, string> = {
-  blue: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
-  green: "bg-green-100 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20",
-  red: "bg-red-100 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-  amber: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
-  purple: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20",
+  blue: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-600 dark:text-blue-400 dark:border-blue-500/20",
+  green: "bg-green-100 text-green-700 border-green-200 dark:bg-green-100 dark:bg-green-500/10 dark:text-green-600 dark:text-green-400 dark:border-green-500/20",
+  red: "bg-red-100 text-red-700 border-red-200 dark:bg-red-100 dark:bg-red-500/10 dark:text-red-600 dark:text-red-400 dark:border-red-500/20",
+  amber: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-600 dark:text-amber-400 dark:border-amber-500/20",
+  purple: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-600 dark:text-purple-400 dark:border-purple-200 dark:border-purple-500/20",
   slate: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20",
-  cyan: "bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20",
-  pink: "bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-500/20",
-  emerald: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
-  orange: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20",
+  cyan: "bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-600 dark:text-cyan-400 dark:border-cyan-200 dark:border-cyan-500/20",
+  pink: "bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-500/10 dark:text-pink-600 dark:text-pink-400 dark:border-pink-500/20",
+  emerald: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-600 dark:text-emerald-400 dark:border-emerald-500/20",
+  orange: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-100 dark:bg-orange-500/10 dark:text-orange-600 dark:text-orange-400 dark:border-orange-500/20",
 };
 
 export function Badge({ children, color = "slate", className }: BadgeProps) {
@@ -329,7 +329,7 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm dark:bg-black/60 animate-fade-in" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm dark:bg-black/30 dark:bg-black/60 animate-fade-in" onClick={onClose} />
       <div
         className={cn(
           "relative w-full rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 animate-scale-in",
@@ -372,8 +372,8 @@ export function StatCard({ title, value, subtitle, icon, trend, color = "blue" }
     green: "border-green-200 bg-green-50 dark:border-green-500/20 dark:bg-green-500/5",
     red: "border-red-200 bg-red-50 dark:border-red-500/20 dark:bg-red-500/5",
     amber: "border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/5",
-    purple: "border-purple-200 bg-purple-50 dark:border-purple-500/20 dark:bg-purple-500/5",
-    cyan: "border-cyan-200 bg-cyan-50 dark:border-cyan-500/20 dark:bg-cyan-500/5",
+    purple: "border-purple-200 bg-purple-50 dark:border-purple-200 dark:border-purple-500/20 dark:bg-purple-500/5",
+    cyan: "border-cyan-200 bg-cyan-50 dark:border-cyan-200 dark:border-cyan-500/20 dark:bg-cyan-500/5",
     emerald: "border-emerald-200 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/5",
     orange: "border-orange-200 bg-orange-50 dark:border-orange-500/20 dark:bg-orange-500/5",
     pink: "border-pink-200 bg-pink-50 dark:border-pink-500/20 dark:bg-pink-500/5",
@@ -389,7 +389,7 @@ export function StatCard({ title, value, subtitle, icon, trend, color = "blue" }
       <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{value}</p>
       {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
       {trend && (
-        <p className={cn("mt-1 text-xs", trend.value >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
+        <p className={cn("mt-1 text-xs", trend.value >= 0 ? "text-green-600 dark:text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-600 dark:text-red-400")}>
           {trend.value >= 0 ? "+" : ""}
           {trend.value}% {trend.label}
         </p>
@@ -453,7 +453,7 @@ export function Tabs({
           className={cn(
             "flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-all duration-200",
             activeTab === tab.id
-              ? "border-brand-500 text-brand-600 dark:text-brand-400"
+              ? "border-brand-500 text-brand-600 dark:text-brand-600 dark:text-brand-400"
               : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white"
           )}
         >

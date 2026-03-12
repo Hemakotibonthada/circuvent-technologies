@@ -89,9 +89,7 @@ export default function AIPage() {
   };
 
   const tabs = [
-    { id: "resources", label: "Compute Resources", count: resDash?.total },
-    { id: "training", label: "Training Jobs", count: trainDash?.total },
-    { id: "trading", label: "Trading Bots", count: tradeDash?.total },
+    { id: "resources", label: "Compute Resources", count: resDash?.total }, { key: "training", label: "Training Jobs", count: trainDash?.total }, { key: "trading", label: "Trading Bots", count: tradeDash?.total },
   ];
 
   const statusColors: Record<string, any> = {
@@ -144,15 +142,7 @@ export default function AIPage() {
 
           <Card padding={false}>
             <DataTable
-              columns={[
-                { key: "resourceCode", header: "Code", render: (r: any) => <span className="font-mono text-xs text-brand-400">{r.resourceCode}</span> },
-                { key: "name", header: "Name", render: (r: any) => <span className="text-slate-900 dark:text-white font-medium">{r.name}</span> },
-                { key: "type", header: "Type", render: (r: any) => <Badge color={r.type === "GPU" ? "green" : "blue"}>{r.type}</Badge> },
-                { key: "model", header: "Model", render: (r: any) => r.model || "—" },
-                { key: "vramGb", header: "VRAM", render: (r: any) => r.vramGb ? `${r.vramGb} GB` : "—" },
-                { key: "status", header: "Status", render: (r: any) => <Badge color={statusColors[r.status]}>{r.status}</Badge> },
-                { key: "cost", header: "₹/hr", render: (r: any) => r.costPerHourINR ? formatCurrency(Number(r.costPerHourINR)) : "—" },
-                { key: "location", header: "Location", render: (r: any) => r.location || "—" },
+              columns={[{ key: "resourceCode", header: "Code", render: (r: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{r.resourceCode}</span> }, { key: "name", header: "Name", render: (r: any) => <span className="text-slate-900 dark:text-white font-medium">{r.name}</span> }, { key: "type", header: "Type", render: (r: any) => <Badge color={r.type === "GPU" ? "green" : "blue"}>{r.type}</Badge> }, { key: "model", header: "Model", render: (r: any) => r.model || "—" }, { key: "vramGb", header: "VRAM", render: (r: any) => r.vramGb ? `${r.vramGb} GB` : "—" }, { key: "status", header: "Status", render: (r: any) => <Badge color={statusColors[r.status]}>{r.status}</Badge> }, { key: "cost", header: "₹/hr", render: (r: any) => r.costPerHourINR ? formatCurrency(Number(r.costPerHourINR)) : "—" }, { key: "location", header: "Location", render: (r: any) => r.location || "—" },
               ]}
               data={resources || []}
               keyExtractor={(r: any) => r.id}
@@ -178,16 +168,7 @@ export default function AIPage() {
 
           <Card padding={false}>
             <DataTable
-              columns={[
-                { key: "jobCode", header: "Code", render: (j: any) => <span className="font-mono text-xs text-brand-400">{j.jobCode}</span> },
-                { key: "name", header: "Name", render: (j: any) => <span className="text-slate-900 dark:text-white">{j.name}</span> },
-                { key: "modelName", header: "Model" },
-                { key: "framework", header: "Framework", render: (j: any) => <Badge color="cyan">{j.framework}</Badge> },
-                { key: "status", header: "Status", render: (j: any) => <Badge color={statusColors[j.status]}>{j.status}</Badge> },
-                { key: "progress", header: "Progress", render: (j: any) => j.epochsTotal ? `${j.epochsCompleted || 0}/${j.epochsTotal} epochs` : "—" },
-                { key: "resource", header: "Resource", render: (j: any) => j.resource ? j.resource.name : "Unassigned" },
-                { key: "priority", header: "Priority", render: (j: any) => <Badge color={j.priority <= 3 ? "red" : j.priority <= 6 ? "amber" : "slate"}>P{j.priority}</Badge> },
-                { key: "createdAt", header: "Submitted", render: (j: any) => timeAgo(j.createdAt) },
+              columns={[{ key: "jobCode", header: "Code", render: (j: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{j.jobCode}</span> }, { key: "name", header: "Name", render: (j: any) => <span className="text-slate-900 dark:text-white">{j.name}</span> }, { key: "modelName", header: "Model" }, { key: "framework", header: "Framework", render: (j: any) => <Badge color="cyan">{j.framework}</Badge> }, { key: "status", header: "Status", render: (j: any) => <Badge color={statusColors[j.status]}>{j.status}</Badge> }, { key: "progress", header: "Progress", render: (j: any) => j.epochsTotal ? `${j.epochsCompleted || 0}/${j.epochsTotal} epochs` : "—" }, { key: "resource", header: "Resource", render: (j: any) => j.resource ? j.resource.name : "Unassigned" }, { key: "priority", header: "Priority", render: (j: any) => <Badge color={j.priority <= 3 ? "red" : j.priority <= 6 ? "amber" : "slate"}>P{j.priority}</Badge> }, { key: "createdAt", header: "Submitted", render: (j: any) => timeAgo(j.createdAt) },
               ]}
               data={jobs || []}
               keyExtractor={(j: any) => j.id}
@@ -208,9 +189,9 @@ export default function AIPage() {
                   <div key={bot.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 p-4 dark:bg-slate-800/50">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-mono text-xs text-brand-400">{bot.botCode}</span>
+                        <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{bot.botCode}</span>
                         <p className="text-sm font-medium text-slate-900 dark:text-white">{bot.name}</p>
-                      </div>
+                      </Card>
                       <Badge color={statusColors[bot.status]}>{bot.status}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">Strategy: {bot.strategy}</p>
@@ -218,19 +199,12 @@ export default function AIPage() {
                   </div>
                 ))}
               </div>
-            </Card>
+            </div>
           )}
 
           <Card padding={false}>
             <DataTable
-              columns={[
-                { key: "botCode", header: "Code", render: (b: any) => <span className="font-mono text-xs text-brand-400">{b.botCode}</span> },
-                { key: "name", header: "Name", render: (b: any) => <span className="text-slate-900 dark:text-white">{b.name}</span> },
-                { key: "strategy", header: "Strategy" },
-                { key: "status", header: "Status", render: (b: any) => <Badge color={statusColors[b.status]}>{b.status}</Badge> },
-                { key: "lastTradeAt", header: "Last Trade", render: (b: any) => b.lastTradeAt ? timeAgo(b.lastTradeAt) : "Never" },
-                { key: "logs", header: "Logs", render: (b: any) => b._count?.logs ?? 0 },
-                { key: "createdAt", header: "Created", render: (b: any) => timeAgo(b.createdAt) },
+              columns={[{ key: "botCode", header: "Code", render: (b: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{b.botCode}</span> }, { key: "name", header: "Name", render: (b: any) => <span className="text-slate-900 dark:text-white">{b.name}</span> }, { key: "strategy", header: "Strategy" }, { key: "status", header: "Status", render: (b: any) => <Badge color={statusColors[b.status]}>{b.status}</Badge> }, { key: "lastTradeAt", header: "Last Trade", render: (b: any) => b.lastTradeAt ? timeAgo(b.lastTradeAt) : "Never" }, { key: "logs", header: "Logs", render: (b: any) => b._count?.logs ?? 0 }, { key: "createdAt", header: "Created", render: (b: any) => timeAgo(b.createdAt) },
               ]}
               data={bots || []}
               keyExtractor={(b: any) => b.id}

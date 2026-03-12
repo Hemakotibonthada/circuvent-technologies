@@ -37,6 +37,12 @@ import { purchaseRequestRouter } from "./routes/purchase-request.routes";
 import { fundsRouter } from "./routes/funds.routes";
 import { salaryAdvanceRouter } from "./routes/salary-advance.routes";
 import { resignationRouter } from "./routes/resignation.routes";
+import { icmRouter } from "./routes/icm.routes";
+import { workstationRouter } from "./routes/workstation.routes";
+import { messagingRouter } from "./routes/messaging.routes";
+import { wikiRouter } from "./routes/wiki.routes";
+import { apiDocsRouter } from "./routes/api-docs.routes";
+import { devflowRouter } from "./routes/devflow.routes";
 
 const config = {
   name: "hr-payroll",
@@ -76,6 +82,12 @@ app.use("/api/purchase-requests", purchaseRequestRouter);
 app.use("/api/funds", fundsRouter);
 app.use("/api/salary-advances", salaryAdvanceRouter);
 app.use("/api/resignations", resignationRouter);
+app.use("/api/icm", icmRouter);
+app.use("/api/workstation", workstationRouter);
+app.use("/api/messages", messagingRouter);
+app.use("/api/wiki", wikiRouter);
+app.use("/api/api-docs", apiDocsRouter);
+app.use("/api/devflow", devflowRouter);
 // Gateway-proxied paths
 app.use("/api/hr/employees", employeeRouter);
 app.use("/api/hr/payroll", enhancedPayrollRouter);
@@ -107,6 +119,12 @@ app.use("/api/hr/purchase-requests", purchaseRequestRouter);
 app.use("/api/hr/funds", fundsRouter);
 app.use("/api/hr/salary-advances", salaryAdvanceRouter);
 app.use("/api/hr/resignations", resignationRouter);
+app.use("/api/hr/icm", icmRouter);
+app.use("/api/hr/workstation", workstationRouter);
+app.use("/api/hr/messages", messagingRouter);
+app.use("/api/hr/wiki", wikiRouter);
+app.use("/api/hr/api-docs", apiDocsRouter);
+app.use("/api/hr/devflow", devflowRouter);
 app.use("/api/hr/directory", directoryRouter);
 app.use("/api/hr/portal", portalRouter);
 

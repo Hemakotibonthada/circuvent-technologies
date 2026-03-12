@@ -24,8 +24,8 @@ export default function InterviewsPage() {
   };
 
   const statusColors: Record<string, string> = {
-    SCHEDULED: "bg-blue-900/50 text-blue-400", IN_PROGRESS: "bg-amber-900/50 text-amber-400",
-    COMPLETED: "bg-emerald-900/50 text-emerald-400", CANCELLED: "bg-red-900/50 text-red-400", NO_SHOW: "bg-slate-100 dark:bg-slate-700 text-slate-400",
+    SCHEDULED: "bg-blue-900/50 text-blue-600 dark:text-blue-400", IN_PROGRESS: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+    COMPLETED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", CANCELLED: "bg-red-900/50 text-red-600 dark:text-red-400", NO_SHOW: "bg-slate-100 dark:bg-slate-700 text-slate-400",
   };
 
   const today = new Date();
@@ -36,10 +36,10 @@ export default function InterviewsPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/recruitment" className="text-sm text-brand-400 hover:text-brand-300">← Recruitment</Link>
+          <Link href="/recruitment" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Recruitment</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🎙️ Interviews</h1>
         </div>
-        <button onClick={() => setShowSchedule(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg text-sm hover:bg-brand-700">+ Schedule Interview</button>
+        <button onClick={() => setShowSchedule(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700">+ Schedule Interview</button>
       </div>
 
       {/* Stats */}
@@ -75,7 +75,7 @@ export default function InterviewsPage() {
                     <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                       <span>📅 {new Date(i.scheduledAt).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                       <span>⏱️ {i.durationMinutes}min</span>
-                      {i.meetingLink && <a href={i.meetingLink} className="text-brand-400 hover:text-brand-300">🔗 Join</a>}
+                      {i.meetingLink && <a href={i.meetingLink} className="text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">🔗 Join</a>}
                     </div>
                   </div>
                   <button onClick={() => handleComplete(i.id)} className="px-3 py-1 text-xs bg-emerald-600 text-slate-900 dark:text-white rounded hover:bg-emerald-700">Complete</button>
@@ -101,7 +101,7 @@ export default function InterviewsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {i.review && (
-                    <span className={`px-2 py-0.5 text-xs rounded ${i.review.decision === "STRONG_YES" || i.review.decision === "YES" ? "bg-emerald-900/50 text-emerald-400" : i.review.decision === "NO" || i.review.decision === "STRONG_NO" ? "bg-red-900/50 text-red-400" : "bg-amber-900/50 text-amber-400"}`}>
+                    <span className={`px-2 py-0.5 text-xs rounded ${i.review.decision === "STRONG_YES" || i.review.decision === "YES" ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : i.review.decision === "NO" || i.review.decision === "STRONG_NO" ? "bg-red-900/50 text-red-600 dark:text-red-400" : "bg-amber-900/50 text-amber-600 dark:text-amber-400"}`}>
                       {i.review.decision} {i.review.overallScore ? `(${Number(i.review.overallScore).toFixed(1)})` : ""}
                     </span>
                   )}
@@ -114,7 +114,7 @@ export default function InterviewsPage() {
       </div>
 
       {showSchedule && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Schedule Interview</h2>
             <div className="space-y-3">
@@ -134,7 +134,7 @@ export default function InterviewsPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowSchedule(false)} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleSchedule} disabled={!form.applicationId || !form.interviewerId || !form.scheduledAt}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Schedule</button>
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">Schedule</button>
             </div>
           </div>
         </div>

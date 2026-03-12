@@ -78,10 +78,7 @@ export default function GrievanceManagementPage() {
 
   const [activeTab, setActiveTab] = useState("open");
   const tabs = [
-    { id: "open", label: "Open" },
-    { id: "investigating", label: "Investigating" },
-    { id: "resolved", label: "Resolved" },
-    { id: "all", label: "All" },
+    { id: "open", label: "Open" }, { key: "investigating", label: "Investigating" }, { key: "resolved", label: "Resolved" }, { key: "all", label: "All" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -162,28 +159,18 @@ export default function GrievanceManagementPage() {
   /* ── columns ──────────────────────────────────────────── */
   const columns = [
     {
-      key: "title", header: "Grievance",
+      id: "title", header: "Grievance",
       render: (g: Grievance) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{g.title}</p>
           <p className="text-xs text-slate-500">{g.isAnonymous ? "Anonymous" : g.filedByName || g.filedBy}</p>
         </div>
       ),
-    },
-    { key: "category", header: "Category", render: (g: Grievance) => <Badge color={categoryColors[g.category] || "slate"}>{g.category.replace(/_/g, " ")}</Badge> },
-    { key: "priority", header: "Priority", render: (g: Grievance) => <Badge color={priorityColors[g.priority] || "slate"}>{g.priority}</Badge> },
-    { key: "status", header: "Status", render: (g: Grievance) => <Badge color={statusColors[g.status] || "slate"}>{g.status}</Badge> },
-    {
-      key: "assignedToName", header: "Assigned To",
+    }, { key: "category", header: "Category", render: (g: Grievance) => <Badge color={categoryColors[g.category] || "slate"}>{g.category.replace(/_/g, " ")}</Badge> }, { key: "priority", header: "Priority", render: (g: Grievance) => <Badge color={priorityColors[g.priority] || "slate"}>{g.priority}</Badge> }, { key: "status", header: "Status", render: (g: Grievance) => <Badge color={statusColors[g.status] || "slate"}>{g.status}</Badge> }, { key: "assignedToName", header: "Assigned To",
       render: (g: Grievance) => g.assignedToName || <span className="text-slate-500">Unassigned</span>,
-    },
-    { key: "filedAt", header: "Filed", render: (g: Grievance) => formatDate(g.filedAt) },
-    {
-      key: "overdue", header: "",
+    }, { key: "filedAt", header: "Filed", render: (g: Grievance) => formatDate(g.filedAt) }, { key: "overdue", header: "",
       render: (g: Grievance) => g.isOverdue ? <Badge color="red">OVERDUE</Badge> : null,
-    },
-    {
-      key: "actions", header: "",
+    }, { key: "actions", header: "",
       render: (g: Grievance) => (
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => { setShowDetail(g); setResolveNote(""); }}>View</Button>
@@ -207,8 +194,8 @@ export default function GrievanceManagementPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -323,8 +310,8 @@ export default function GrievanceManagementPage() {
             </div>
 
             {showDetail.resolution && (
-              <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4">
-                <p className="text-xs font-medium text-green-400 mb-1">Resolution</p>
+              <div className="rounded-lg border border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/5 p-4">
+                <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Resolution</p>
                 <p className="text-sm text-slate-600 dark:text-slate-300">{showDetail.resolution}</p>
               </div>
             )}

@@ -38,11 +38,11 @@ interface TimelineEvent {
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
-  SUBMITTED: "bg-blue-900/50 text-blue-400",
-  APPROVED: "bg-emerald-900/50 text-emerald-400",
-  REJECTED: "bg-red-900/50 text-red-400",
-  IN_PROGRESS: "bg-amber-900/50 text-amber-400",
-  COMPLETED: "bg-cyan-900/50 text-cyan-400",
+  SUBMITTED: "bg-blue-900/50 text-blue-600 dark:text-blue-400",
+  APPROVED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+  REJECTED: "bg-red-900/50 text-red-600 dark:text-red-400",
+  IN_PROGRESS: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+  COMPLETED: "bg-cyan-900/50 text-cyan-600 dark:text-cyan-400",
   CANCELLED: "bg-slate-100 dark:bg-slate-700 text-slate-400",
 };
 
@@ -135,10 +135,10 @@ export default function PortalTravelPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">✈️ My Travel Requests</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm">+ New Request</button>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">+ New Request</button>
       </div>
 
       {/* Stats */}
@@ -148,11 +148,11 @@ export default function PortalTravelPage() {
           <p className="text-xs text-slate-500">Total Requests</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-emerald-400">{approvedCount}</p>
+          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{approvedCount}</p>
           <p className="text-xs text-slate-500">Approved</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-xl font-bold text-blue-400">₹{totalEstimated.toLocaleString("en-IN")}</p>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">₹{totalEstimated.toLocaleString("en-IN")}</p>
           <p className="text-xs text-slate-500">Est. Total Cost</p>
         </div>
       </div>
@@ -189,7 +189,7 @@ export default function PortalTravelPage() {
 
       {/* View Request Detail with Timeline */}
       {selectedRequest && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{selectedRequest.purpose}</h2>
@@ -216,7 +216,7 @@ export default function PortalTravelPage() {
                       <div key={i} className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-xs">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-slate-400">{item.date ? new Date(item.date).toLocaleDateString("en-IN") : "—"}</span>
-                          <span className="text-brand-400">{item.mode}</span>
+                          <span className="text-brand-600 dark:text-brand-400">{item.mode}</span>
                         </div>
                         <p className="text-slate-900 dark:text-white">{item.from} → {item.to}</p>
                         {item.accommodation && <p className="text-slate-400 mt-1">🏨 {item.accommodation}</p>}
@@ -253,7 +253,7 @@ export default function PortalTravelPage() {
 
       {/* Create Travel Request Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">New Travel Request</h2>
             <div className="space-y-3">
@@ -287,7 +287,7 @@ export default function PortalTravelPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-400">Leg {i + 1}</span>
                         {form.itinerary.length > 1 && (
-                          <button onClick={() => removeItinerary(i)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+                          <button onClick={() => removeItinerary(i)} className="text-xs text-red-600 dark:text-red-400 hover:text-red-300">Remove</button>
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -309,13 +309,13 @@ export default function PortalTravelPage() {
                     </div>
                   ))}
                 </div>
-                <button onClick={addItineraryItem} className="text-xs text-brand-400 hover:text-brand-300 mt-2">+ Add Leg</button>
+                <button onClick={addItineraryItem} className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 mt-2">+ Add Leg</button>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => { setShowCreate(false); resetForm(); }} className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={submitting || !form.purpose || !form.destination || !form.departureDate || !form.returnDate}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50">
                 {submitting ? "Submitting..." : "Submit Request"}
               </button>
             </div>

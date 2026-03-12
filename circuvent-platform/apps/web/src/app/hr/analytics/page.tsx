@@ -27,9 +27,9 @@ export default function HRAnalyticsPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
-        {[{ id: "workforce" as const, label: "Workforce" }, { id: "compensation" as const, label: "Compensation" }, { id: "compliance" as const, label: "Compliance" }].map(t => (
+        {[{ id: "workforce" as const, label: "Workforce" }, { key: "compensation" as const, label: "Compensation" }, { key: "compliance" as const, label: "Compliance" }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-sm ${tab === t.id ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{t.label}</button>
+            className={`px-4 py-2 rounded-lg text-sm ${tab === t.id ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>{t.label}</button>
         ))}
       </div>
 
@@ -86,7 +86,7 @@ export default function HRAnalyticsPage() {
                   const height = max > 0 ? (h.count / max) * 100 : 0;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-xs text-brand-400 font-semibold">{h.count}</span>
+                      <span className="text-xs text-brand-600 dark:text-brand-400 font-semibold">{h.count}</span>
                       <div className="w-full bg-brand-500/30 rounded-t" style={{ height: `${height}%` }}>
                         <div className="w-full h-full bg-brand-500 rounded-t" />
                       </div>
@@ -103,7 +103,7 @@ export default function HRAnalyticsPage() {
               <div className="grid grid-cols-2 gap-3">
                 {workforce.byEmploymentType?.map((t: any) => (
                   <div key={t.type} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
-                    <p className="text-xl font-bold text-brand-400">{t.count}</p>
+                    <p className="text-xl font-bold text-brand-600 dark:text-brand-400">{t.count}</p>
                     <p className="text-xs text-slate-500">{t.type.replace("_", " ")}</p>
                   </div>
                 ))}
@@ -183,10 +183,10 @@ export default function HRAnalyticsPage() {
                   <tr key={d.department} className="border-b border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-800/30">
                     <td className="px-4 py-2 text-sm text-slate-900 dark:text-white">{d.department}</td>
                     <td className="px-4 py-2 text-sm text-right text-slate-600 dark:text-slate-300">{d.count}</td>
-                    <td className="px-4 py-2 text-sm text-right font-mono text-emerald-400">₹{Math.round(d.avg / 1000)}K</td>
+                    <td className="px-4 py-2 text-sm text-right font-mono text-emerald-600 dark:text-emerald-400">₹{Math.round(d.avg / 1000)}K</td>
                     <td className="px-4 py-2 text-sm text-right font-mono text-slate-400">₹{Math.round(d.min / 1000)}K</td>
                     <td className="px-4 py-2 text-sm text-right font-mono text-slate-400">₹{Math.round(d.max / 1000)}K</td>
-                    <td className="px-4 py-2 text-sm text-right font-mono text-blue-400">₹{(d.total / 100000).toFixed(1)}L</td>
+                    <td className="px-4 py-2 text-sm text-right font-mono text-blue-600 dark:text-blue-400">₹{(d.total / 100000).toFixed(1)}L</td>
                   </tr>
                 ))}
               </tbody>
@@ -200,7 +200,7 @@ export default function HRAnalyticsPage() {
           {/* Overall Compliance */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 text-center">
             <div className="relative inline-block">
-              <div className={`text-6xl font-bold ${compliance.overallCompliancePercent >= 90 ? "text-emerald-400" : compliance.overallCompliancePercent >= 70 ? "text-amber-400" : "text-red-400"}`}>
+              <div className={`text-6xl font-bold ${compliance.overallCompliancePercent >= 90 ? "text-emerald-600 dark:text-emerald-400" : compliance.overallCompliancePercent >= 70 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
                 {compliance.overallCompliancePercent}%
               </div>
               <p className="text-slate-400 text-sm mt-2">Overall Compliance Score</p>
@@ -214,15 +214,15 @@ export default function HRAnalyticsPage() {
               <div key={item.item} className={`bg-white shadow-sm dark:bg-slate-900 border rounded-xl p-5 ${item.percentage >= 90 ? "border-emerald-800/50" : item.percentage >= 70 ? "border-amber-800/50" : "border-red-800/50"}`}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-slate-900 dark:text-white font-medium">{item.item}</h3>
-                  <span className={`text-lg font-bold ${item.percentage >= 90 ? "text-emerald-400" : item.percentage >= 70 ? "text-amber-400" : "text-red-400"}`}>{item.percentage}%</span>
+                  <span className={`text-lg font-bold ${item.percentage >= 90 ? "text-emerald-600 dark:text-emerald-400" : item.percentage >= 70 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>{item.percentage}%</span>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-full h-3 mb-2">
                   <div className={`h-3 rounded-full ${item.percentage >= 90 ? "bg-emerald-500" : item.percentage >= 70 ? "bg-amber-500" : "bg-red-500"}`}
                     style={{ width: `${item.percentage}%` }} />
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-emerald-400">✓ {item.compliant} compliant</span>
-                  {item.nonCompliant > 0 && <span className="text-red-400">✗ {item.nonCompliant} missing</span>}
+                  <span className="text-emerald-600 dark:text-emerald-400">✓ {item.compliant} compliant</span>
+                  {item.nonCompliant > 0 && <span className="text-red-600 dark:text-red-400">✗ {item.nonCompliant} missing</span>}
                 </div>
               </div>
             ))}

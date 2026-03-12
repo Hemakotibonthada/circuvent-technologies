@@ -29,6 +29,7 @@ export default function EmployeePortalPage() {
   const [employee, setEmployee] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [clockLoading, setClockLoading] = useState(false);
+  const [clockedIn, setClockedIn] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -44,24 +45,41 @@ export default function EmployeePortalPage() {
       if (myEmp) {
         setEmployee(myEmp);
         const res = await api.get<DashboardData>(`/hr/portal/my-dashboard/${myEmp.id}`, token);
-        if (res.success && res.data) setDashboard(res.data);
+        if (res.success && res.data) {
+          setDashboard(res.data);
+          setClockedIn(!!res.data.attendance?.isClockedIn);
+        }
       }
     }
     setLoading(false);
   };
 
   const handleClockIn = async () => {
-    if (!employee || !token) return;
+    if (!token) return;
     setClockLoading(true);
-    await api.post("/hr/attendance/clock-in", { employeeId: employee.id, location: "Office" }, token);
+    const body: any = { location: "Office" };
+    if (employee?.id) body.employeeId = employee.id;
+    else body.userId = user?.id;
+    const res = await api.post("/hr/attendance/clock-in", body, token);
+    if (res.success) {
+      setClockedIn(true);
+    } else {
+      alert(res.error || "Clock-in failed");
+    }
     await loadDashboard();
     setClockLoading(false);
   };
 
   const handleClockOut = async () => {
-    if (!employee || !token) return;
+    if (!token) return;
     setClockLoading(true);
-    await api.post("/hr/attendance/clock-out", { employeeId: employee.id }, token);
+    const body: any = {};
+    if (employee?.id) body.employeeId = employee.id;
+    else body.userId = user?.id;
+    const res = await api.post("/hr/attendance/clock-out", body, token);
+    if (res.success) {
+      setClockedIn(false);
+    }
     await loadDashboard();
     setClockLoading(false);
   };
@@ -84,7 +102,7 @@ export default function EmployeePortalPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-brand-900/50 to-cyan-900/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
+      <div className="bg-gradient-to-r from-brand-600 to-cyan-600 dark:from-brand-900/50 dark:to-cyan-900/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{greeting}, {d?.profile?.user?.firstName || user?.email?.split("@")[0]}! 👋</h1>
@@ -94,11 +112,11 @@ export default function EmployeePortalPage() {
           </div>
           {/* Clock In/Out Button */}
           <div className="flex items-center gap-3">
-            {d?.attendance?.isClockedIn ? (
+            {clockedIn ? (
               <button
                 onClick={handleClockOut}
                 disabled={clockLoading}
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-slate-900 dark:text-white rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 {clockLoading ? (
                   <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -109,7 +127,7 @@ export default function EmployeePortalPage() {
               <button
                 onClick={handleClockIn}
                 disabled={clockLoading}
-                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-slate-900 dark:text-white rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 {clockLoading ? (
                   <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -120,7 +138,7 @@ export default function EmployeePortalPage() {
             <div className="text-right text-sm">
               <p className="text-slate-400">{now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}</p>
               {d?.attendance?.today?.checkIn && (
-                <p className="text-emerald-400">In: {new Date(d.attendance.today.checkIn).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
+                <p className="text-emerald-600 dark:text-emerald-400">In: {new Date(d.attendance.today.checkIn).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
               )}
             </div>
           </div>
@@ -156,7 +174,7 @@ export default function EmployeePortalPage() {
           <div className="bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">📢 Announcements</h2>
-              <Link href="/portal/announcements" className="text-xs text-brand-400 hover:text-brand-300">View All →</Link>
+              <Link href="/portal/announcements" className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">View All →</Link>
             </div>
             {d?.announcements && d.announcements.length > 0 ? (
               <div className="space-y-3">
@@ -168,7 +186,7 @@ export default function EmployeePortalPage() {
                         <p className="text-xs text-slate-400 mt-1 line-clamp-2">{a.content}</p>
                       </div>
                       {a.priority === "URGENT" && (
-                        <span className="px-2 py-0.5 text-xs bg-red-900/50 text-red-400 rounded-full">URGENT</span>
+                        <span className="px-2 py-0.5 text-xs bg-red-900/50 text-red-600 dark:text-red-400 rounded-full">URGENT</span>
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-2">
@@ -198,7 +216,7 @@ export default function EmployeePortalPage() {
                 { label: "My Profile", icon: "👤", href: "/portal/profile" },
               ].map((action) => (
                 <Link href={action.href} key={action.label}>
-                  <div className="bg-slate-50 border dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg p-3 text-center hover:border-brand-500/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                  <div className="bg-slate-50 border dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg p-3 text-center hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
                     <span className="text-2xl block mb-1">{action.icon}</span>
                     <span className="text-xs text-slate-600 dark:text-slate-300">{action.label}</span>
                   </div>
@@ -212,20 +230,20 @@ export default function EmployeePortalPage() {
             <div className="bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">💰 Latest Payslip</h2>
-                <Link href="/portal/payslips" className="text-xs text-brand-400 hover:text-brand-300">View All →</Link>
+                <Link href="/portal/payslips" className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">View All →</Link>
               </div>
               <div className="bg-slate-50 border dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-lg p-4">
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="text-sm text-slate-400">{`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.payroll.latestSlip.month - 1]} ${d.payroll.latestSlip.year}`}</p>
-                    <p className="text-lg font-semibold text-emerald-400 mt-1">₹{Number(d.payroll.latestSlip.netSalary).toLocaleString("en-IN")}</p>
+                    <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400 mt-1">₹{Number(d.payroll.latestSlip.netSalary).toLocaleString("en-IN")}</p>
                   </div>
                   <div className="text-right text-sm">
                     <p className="text-slate-500">Gross: ₹{Number(d.payroll.latestSlip.grossSalary).toLocaleString("en-IN")}</p>
                     <p className="text-slate-500">Deductions: ₹{Number(d.payroll.latestSlip.totalDeductions).toLocaleString("en-IN")}</p>
                   </div>
                 </div>
-                <div className={`mt-2 px-2 py-0.5 text-xs rounded inline-block ${d.payroll.latestSlip.isPaid ? "bg-emerald-900/50 text-emerald-400" : "bg-amber-900/50 text-amber-400"}`}>
+                <div className={`mt-2 px-2 py-0.5 text-xs rounded inline-block ${d.payroll.latestSlip.isPaid ? "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400" : "bg-amber-900/50 text-amber-600 dark:text-amber-400"}`}>
                   {d.payroll.latestSlip.isPaid ? "✓ Paid" : "⏳ Processing"}
                 </div>
               </div>
@@ -262,7 +280,7 @@ export default function EmployeePortalPage() {
           <div className="bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">🎉 Upcoming Holidays</h2>
-              <Link href="/portal/holidays" className="text-xs text-brand-400 hover:text-brand-300">All →</Link>
+              <Link href="/portal/holidays" className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">All →</Link>
             </div>
             {d?.upcomingHolidays && d.upcomingHolidays.length > 0 ? (
               <div className="space-y-2">
@@ -285,10 +303,10 @@ export default function EmployeePortalPage() {
           <div className="bg-white border dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">📚 Training</h2>
-              <Link href="/portal/training" className="text-xs text-brand-400 hover:text-brand-300">All →</Link>
+              <Link href="/portal/training" className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">All →</Link>
             </div>
             <div className="text-center py-4">
-              <span className="text-3xl font-bold text-cyan-400">{d?.training?.activeEnrollments || 0}</span>
+              <span className="text-3xl font-bold text-cyan-600 dark:text-cyan-400">{d?.training?.activeEnrollments || 0}</span>
               <p className="text-xs text-slate-500 mt-1">Active Enrollments</p>
             </div>
           </div>

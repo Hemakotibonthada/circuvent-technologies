@@ -5,8 +5,9 @@
     "noImplicitAny": false,
     "noEmit": false,
     "declaration": false,
-    "types": ["jest", "node"]
+    "types": ["jest", "node"],
+    "skipLibCheck": true
   },
-  "include": ["src/**/*", "__tests__/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "__tests__", "**/*.test.ts", "**/*.spec.ts"]
 }

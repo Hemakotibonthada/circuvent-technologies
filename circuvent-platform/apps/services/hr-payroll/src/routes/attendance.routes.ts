@@ -12,8 +12,21 @@ const router = Router();
 // ── POST / — Clock In ──
 router.post("/clock-in", async (req: Request, res: Response) => {
   try {
-    const { employeeId, location, notes } = req.body;
-    if (!employeeId) { res.status(400).json(errorResponse("employeeId required")); return; }
+    let { employeeId, location, notes } = req.body;
+
+    // If no employeeId provided, try to find employee by userId from JWT
+    if (!employeeId) {
+      const userId = (req as any).user?.userId || req.body.userId;
+      if (userId) {
+        const emp = await prisma.employee.findUnique({ where: { userId } });
+        if (emp) employeeId = emp.id;
+      }
+    }
+
+    if (!employeeId) {
+      res.status(400).json(errorResponse("Employee record not found. Please contact HR to complete your onboarding."));
+      return;
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -44,8 +57,20 @@ router.post("/clock-in", async (req: Request, res: Response) => {
 // ── POST /clock-out — Clock Out ──
 router.post("/clock-out", async (req: Request, res: Response) => {
   try {
-    const { employeeId } = req.body;
-    if (!employeeId) { res.status(400).json(errorResponse("employeeId required")); return; }
+    let { employeeId } = req.body;
+
+    if (!employeeId) {
+      const userId = (req as any).user?.userId || req.body.userId;
+      if (userId) {
+        const emp = await prisma.employee.findUnique({ where: { userId } });
+        if (emp) employeeId = emp.id;
+      }
+    }
+
+    if (!employeeId) {
+      res.status(400).json(errorResponse("Employee record not found."));
+      return;
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

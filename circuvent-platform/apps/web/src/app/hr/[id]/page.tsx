@@ -38,10 +38,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
 
   const monthlySalary = Number(emp.baseSalary) / 12;
   const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "salary", label: "Salary Slips", count: emp.salarySlips.length },
-    { id: "expenses", label: "Expenses", count: emp.expenseClaims.length },
-    { id: "leave", label: "Leave", count: emp.leaveRecords.length },
+    { id: "overview", label: "Overview" }, { key: "salary", label: "Salary Slips", count: emp.salarySlips.length }, { key: "expenses", label: "Expenses", count: emp.expenseClaims.length }, { key: "leave", label: "Leave", count: emp.leaveRecords.length },
   ];
 
   return (
@@ -80,10 +77,10 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
                   <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
-                </div>
+                </Card>
               ))}
             </dl>
-          </Card>
+          </div>
           <Card>
             <CardHeader title="Compliance & Tax" />
             <dl className="space-y-3">
@@ -97,10 +94,10 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
                 <div key={label} className="flex justify-between border-b border-slate-200/50 dark:border-slate-800/50 pb-2">
                   <dt className="text-sm text-slate-400">{label}</dt>
                   <dd className="text-sm font-medium text-slate-900 dark:text-white">{value}</dd>
-                </div>
+                </Card>
               ))}
             </dl>
-          </Card>
+          </div>
         </div>
       )}
 
@@ -108,14 +105,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
       {activeTab === "salary" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "period", header: "Period", render: (s: any) => `${new Date(2000, s.month - 1).toLocaleString("en", { month: "short" })} ${s.year}` },
-              { key: "grossSalary", header: "Gross", render: (s: any) => formatCurrency(Number(s.grossSalary)) },
-              { key: "totalDeductions", header: "Deductions", render: (s: any) => <span className="text-red-400">{formatCurrency(Number(s.totalDeductions))}</span> },
-              { key: "netSalary", header: "Net Pay", render: (s: any) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(Number(s.netSalary))}</span> },
-              { key: "tds", header: "TDS", render: (s: any) => formatCurrency(Number(s.tds)) },
-              { key: "pfDeduction", header: "PF", render: (s: any) => formatCurrency(Number(s.pfDeduction)) },
-              { key: "isPaid", header: "Status", render: (s: any) => s.isPaid ? <Badge color="green">Paid</Badge> : (
+            columns={[{ key: "period", header: "Period", render: (s: any) => `${new Date(2000, s.month - 1).toLocaleString("en", { month: "short" })} ${s.year}` }, { key: "grossSalary", header: "Gross", render: (s: any) => formatCurrency(Number(s.grossSalary)) }, { key: "totalDeductions", header: "Deductions", render: (s: any) => <span className="text-red-600 dark:text-red-400">{formatCurrency(Number(s.totalDeductions))}</span> }, { key: "netSalary", header: "Net Pay", render: (s: any) => <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(Number(s.netSalary))}</span> }, { key: "tds", header: "TDS", render: (s: any) => formatCurrency(Number(s.tds)) }, { key: "pfDeduction", header: "PF", render: (s: any) => formatCurrency(Number(s.pfDeduction)) }, { key: "isPaid", header: "Status", render: (s: any) => s.isPaid ? <Badge color="green">Paid</Badge> : (
                 <Button size="sm" variant="outline" onClick={() => handleMarkPaid(s.id)}>Mark Paid</Button>
               )},
             ]}
@@ -130,13 +120,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
       {activeTab === "expenses" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "claimCode", header: "Code", render: (c: any) => <span className="font-mono text-xs text-brand-400">{c.claimCode}</span> },
-              { key: "title", header: "Title" },
-              { key: "totalAmount", header: "Amount", render: (c: any) => formatCurrency(Number(c.totalAmount)) },
-              { key: "isRnDExpense", header: "R&D", render: (c: any) => c.isRnDExpense ? <Badge color="emerald">R&D</Badge> : "—" },
-              { key: "status", header: "Status", render: (c: any) => <Badge color={expenseStatusColors[c.status]}>{c.status}</Badge> },
-              { key: "actions", header: "", render: (c: any) => c.status === "SUBMITTED" ? (
+            columns={[{ key: "claimCode", header: "Code", render: (c: any) => <span className="font-mono text-xs text-brand-600 dark:text-brand-400">{c.claimCode}</span> }, { key: "title", header: "Title" }, { key: "totalAmount", header: "Amount", render: (c: any) => formatCurrency(Number(c.totalAmount)) }, { key: "isRnDExpense", header: "R&D", render: (c: any) => c.isRnDExpense ? <Badge color="emerald">R&D</Badge> : "—" }, { key: "status", header: "Status", render: (c: any) => <Badge color={expenseStatusColors[c.status]}>{c.status}</Badge> }, { key: "actions", header: "", render: (c: any) => c.status === "SUBMITTED" ? (
                 <Button size="sm" variant="outline" onClick={() => handleApproveExpense(c.id)}>Approve</Button>
               ) : null },
             ]}
@@ -151,13 +135,7 @@ export default function EmployeeDetailPage({ params }: { params: { id: string } 
       {activeTab === "leave" && (
         <Card padding={false}>
           <DataTable
-            columns={[
-              { key: "leaveType", header: "Type", render: (l: any) => <Badge color="blue">{l.leaveType}</Badge> },
-              { key: "startDate", header: "From", render: (l: any) => formatDate(l.startDate) },
-              { key: "endDate", header: "To", render: (l: any) => formatDate(l.endDate) },
-              { key: "totalDays", header: "Days", render: (l: any) => `${l.totalDays}d` },
-              { key: "reason", header: "Reason", render: (l: any) => l.reason || "—" },
-              { key: "status", header: "Status", render: (l: any) => <Badge color={l.status === "APPROVED" ? "green" : l.status === "REJECTED" ? "red" : "amber"}>{l.status}</Badge> },
+            columns={[{ key: "leaveType", header: "Type", render: (l: any) => <Badge color="blue">{l.leaveType}</Badge> }, { key: "startDate", header: "From", render: (l: any) => formatDate(l.startDate) }, { key: "endDate", header: "To", render: (l: any) => formatDate(l.endDate) }, { key: "totalDays", header: "Days", render: (l: any) => `${l.totalDays}d` }, { key: "reason", header: "Reason", render: (l: any) => l.reason || "—" }, { key: "status", header: "Status", render: (l: any) => <Badge color={l.status === "APPROVED" ? "green" : l.status === "REJECTED" ? "red" : "amber"}>{l.status}</Badge> },
             ]}
             data={emp.leaveRecords}
             keyExtractor={(l: any) => l.id}

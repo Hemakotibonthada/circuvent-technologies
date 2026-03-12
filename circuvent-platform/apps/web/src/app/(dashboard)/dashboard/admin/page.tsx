@@ -93,14 +93,14 @@ export default function AdminDashboard() {
   };
 
   const roleBreakdown = [
-    { role: "Admin", count: userStats?.byRole?.ADMIN || 2, color: "text-red-400" },
-    { role: "HR Manager", count: userStats?.byRole?.HR_MANAGER || 4, color: "text-blue-400" },
-    { role: "Product Manager", count: userStats?.byRole?.PRODUCT_MANAGER || 3, color: "text-purple-400" },
-    { role: "Developer", count: userStats?.byRole?.DEVELOPER || 18, color: "text-emerald-400" },
-    { role: "Engineer", count: userStats?.byRole?.ENGINEER || 12, color: "text-cyan-400" },
-    { role: "Manager", count: userStats?.byRole?.MANAGER || 6, color: "text-amber-400" },
-    { role: "Intern", count: userStats?.byRole?.INTERN || 5, color: "text-pink-400" },
-    { role: "Client", count: userStats?.byRole?.CLIENT || 8, color: "text-orange-400" },
+    { role: "Admin", count: userStats?.byRole?.ADMIN || 2, color: "text-red-600 dark:text-red-400" },
+    { role: "HR Manager", count: userStats?.byRole?.HR_MANAGER || 4, color: "text-blue-600 dark:text-blue-400" },
+    { role: "Product Manager", count: userStats?.byRole?.PRODUCT_MANAGER || 3, color: "text-purple-600 dark:text-purple-400" },
+    { role: "Developer", count: userStats?.byRole?.DEVELOPER || 18, color: "text-emerald-600 dark:text-emerald-400" },
+    { role: "Engineer", count: userStats?.byRole?.ENGINEER || 12, color: "text-cyan-600 dark:text-cyan-400" },
+    { role: "Manager", count: userStats?.byRole?.MANAGER || 6, color: "text-amber-600 dark:text-amber-400" },
+    { role: "Intern", count: userStats?.byRole?.INTERN || 5, color: "text-pink-600 dark:text-pink-400" },
+    { role: "Client", count: userStats?.byRole?.CLIENT || 8, color: "text-orange-600 dark:text-orange-400" },
     { role: "Candidate", count: userStats?.byRole?.CANDIDATE || 15, color: "text-slate-400" },
   ];
 
@@ -120,11 +120,7 @@ export default function AdminDashboard() {
   ];
 
   const recentAuditEntries: AuditEntry[] = auditLog?.slice(0, 10) || [
-    { id: "1", userId: "u1", userName: "Admin User", action: "CREATE", entity: "Employee", entityId: "emp-001", timestamp: new Date(Date.now() - 300000).toISOString(), ipAddress: "192.168.1.10" },
-    { id: "2", userId: "u2", userName: "HR Manager", action: "UPDATE", entity: "SalarySlip", entityId: "ss-042", timestamp: new Date(Date.now() - 600000).toISOString(), ipAddress: "192.168.1.22" },
-    { id: "3", userId: "u1", userName: "Admin User", action: "BULK_PAYROLL", entity: "SalarySlip", entityId: "payroll_2026_3", timestamp: new Date(Date.now() - 1800000).toISOString(), ipAddress: "192.168.1.10" },
-    { id: "4", userId: "u3", userName: "Dev Lead", action: "UPDATE", entity: "Project", entityId: "proj-007", timestamp: new Date(Date.now() - 3600000).toISOString(), ipAddress: "10.0.0.15" },
-    { id: "5", userId: "u4", userName: "System", action: "CRON_JOB", entity: "Attendance", entityId: "auto-mark", timestamp: new Date(Date.now() - 7200000).toISOString(), ipAddress: "127.0.0.1" },
+    { id: "1", userId: "u1", userName: "Admin User", action: "CREATE", entity: "Employee", entityId: "emp-001", timestamp: new Date(Date.now() - 300000).toISOString(), ipAddress: "192.168.1.10" }, { key: "2", userId: "u2", userName: "HR Manager", action: "UPDATE", entity: "SalarySlip", entityId: "ss-042", timestamp: new Date(Date.now() - 600000).toISOString(), ipAddress: "192.168.1.22" }, { key: "3", userId: "u1", userName: "Admin User", action: "BULK_PAYROLL", entity: "SalarySlip", entityId: "payroll_2026_3", timestamp: new Date(Date.now() - 1800000).toISOString(), ipAddress: "192.168.1.10" }, { key: "4", userId: "u3", userName: "Dev Lead", action: "UPDATE", entity: "Project", entityId: "proj-007", timestamp: new Date(Date.now() - 3600000).toISOString(), ipAddress: "10.0.0.15" }, { key: "5", userId: "u4", userName: "System", action: "CRON_JOB", entity: "Attendance", entityId: "auto-mark", timestamp: new Date(Date.now() - 7200000).toISOString(), ipAddress: "127.0.0.1" },
   ];
 
   const configSections = [
@@ -163,7 +159,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab(tab)}
             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab
-                ? "bg-brand-600 text-slate-900 dark:text-white"
+                ? "bg-brand-600 text-white"
                 : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:bg-slate-800"
             }`}
           >
@@ -230,11 +226,11 @@ export default function AdminDashboard() {
                 ))}
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-center">
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-center">
                   <p className="text-lg font-bold text-slate-900 dark:text-white">{systemMetrics.activeConnections}</p>
                   <p className="text-xs text-slate-400">Active Connections</p>
                 </div>
-                <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-center">
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-center">
                   <p className="text-lg font-bold text-slate-900 dark:text-white">{systemHealth?.dbSize || "2.4 GB"}</p>
                   <p className="text-xs text-slate-400">Database Size</p>
                 </div>
@@ -254,7 +250,7 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
-              <div className="mt-4 rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 text-center">
+              <div className="mt-4 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/5 p-3 text-center">
                 <p className="text-2xl font-bold text-slate-900 dark:text-white">
                   {roleBreakdown.reduce((s, r) => s + r.count, 0)}
                 </p>
@@ -327,7 +323,7 @@ export default function AdminDashboard() {
             {configSections.map((cfg) => (
               <div
                 key={cfg.name}
-                className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">{cfg.icon}</span>
@@ -359,7 +355,7 @@ export default function AdminDashboard() {
                 { label: "Uptime (30d)", value: `${platformStats?.uptimePercent || 99.97}%`, icon: "⬆️" },
                 { label: "Error Rate", value: `${platformStats?.errorRate || 0.03}%`, icon: "🔴" },
               ].map((stat) => (
-                <div key={stat.label} className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7003 text-center">
+                <div key={stat.label} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-center">
                   <span className="text-lg">{stat.icon}</span>
                   <p className="text-lg font-bold text-slate-900 dark:text-white mt-1">{stat.value}</p>
                   <p className="text-xs text-slate-400">{stat.label}</p>
@@ -399,7 +395,7 @@ export default function AdminDashboard() {
             <a
               key={action.label}
               href={action.href}
-              className="flex flex-col items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004 text-center transition-colors hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              className="flex flex-col items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 p-4 text-center transition-colors hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/50"
             >
               <span className="text-2xl">{action.icon}</span>
               <span className="text-sm font-medium text-slate-900 dark:text-white">{action.label}</span>

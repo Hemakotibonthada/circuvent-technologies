@@ -11,12 +11,12 @@ export default function ApplicationsPage() {
   const { data: pipeline } = useApi<any[]>("/recruitment/applications/pipeline/summary");
 
   const statusColors: Record<string, string> = {
-    APPLIED: "bg-blue-900/50 text-blue-400", SCREENING: "bg-cyan-900/50 text-cyan-400",
-    SHORTLISTED: "bg-emerald-900/50 text-emerald-400", TECHNICAL_ROUND: "bg-purple-900/50 text-purple-400",
-    HR_ROUND: "bg-pink-900/50 text-pink-400", FINAL_ROUND: "bg-amber-900/50 text-amber-400",
-    OFFER_EXTENDED: "bg-orange-900/50 text-orange-400", OFFER_ACCEPTED: "bg-emerald-900/50 text-emerald-400",
-    HIRED: "bg-emerald-800 text-emerald-300", REJECTED: "bg-red-900/50 text-red-400",
-    WITHDRAWN: "bg-slate-100 dark:bg-slate-700 text-slate-400", ON_HOLD: "bg-amber-900/50 text-amber-400",
+    APPLIED: "bg-blue-900/50 text-blue-600 dark:text-blue-400", SCREENING: "bg-cyan-900/50 text-cyan-600 dark:text-cyan-400",
+    SHORTLISTED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", TECHNICAL_ROUND: "bg-purple-900/50 text-purple-600 dark:text-purple-400",
+    HR_ROUND: "bg-pink-900/50 text-pink-600 dark:text-pink-400", FINAL_ROUND: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
+    OFFER_EXTENDED: "bg-orange-900/50 text-orange-600 dark:text-orange-400", OFFER_ACCEPTED: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400",
+    HIRED: "bg-emerald-800 text-emerald-300", REJECTED: "bg-red-900/50 text-red-600 dark:text-red-400",
+    WITHDRAWN: "bg-slate-100 dark:bg-slate-700 text-slate-400", ON_HOLD: "bg-amber-900/50 text-amber-600 dark:text-amber-400",
   };
 
   const stages = ["APPLIED", "SCREENING", "SHORTLISTED", "TECHNICAL_ROUND", "HR_ROUND", "FINAL_ROUND", "OFFER_EXTENDED", "HIRED", "REJECTED"];
@@ -30,7 +30,7 @@ export default function ApplicationsPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/recruitment" className="text-sm text-brand-400 hover:text-brand-300">← Recruitment</Link>
+          <Link href="/recruitment" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Recruitment</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">📩 Applications Pipeline</h1>
         </div>
       </div>
@@ -38,12 +38,12 @@ export default function ApplicationsPage() {
       {/* Pipeline Summary */}
       {pipeline && (
         <div className="flex gap-1 mb-6 overflow-x-auto pb-2">
-          <button onClick={() => setStatusFilter("")} className={`px-3 py-1.5 rounded text-xs whitespace-nowrap ${!statusFilter ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>All</button>
+          <button onClick={() => setStatusFilter("")} className={`px-3 py-1.5 rounded text-xs whitespace-nowrap ${!statusFilter ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>All</button>
           {stages.map(stage => {
             const entry = pipeline.find((p: any) => p.stage === stage);
             return (
               <button key={stage} onClick={() => setStatusFilter(stage)}
-                className={`px-3 py-1.5 rounded text-xs whitespace-nowrap flex items-center gap-1 ${statusFilter === stage ? "bg-brand-600 text-slate-900 dark:text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
+                className={`px-3 py-1.5 rounded text-xs whitespace-nowrap flex items-center gap-1 ${statusFilter === stage ? "bg-brand-600 text-white" : "bg-slate-50 dark:bg-slate-800 text-slate-400"}`}>
                 {stage.replace(/_/g, " ")} {entry && <span className="bg-slate-100 dark:bg-slate-700 px-1.5 rounded text-xs">{entry.count}</span>}
               </button>
             );
@@ -76,14 +76,14 @@ export default function ApplicationsPage() {
                   </div>
                   {app.candidate?.tags?.length > 0 && (
                     <div className="flex gap-1 mt-2">
-                      {app.candidate.tags.map((t: string) => <span key={t} className="px-1.5 py-0.5 text-xs bg-brand-900/50 text-brand-400 rounded">{t}</span>)}
+                      {app.candidate.tags.map((t: string) => <span key={t} className="px-1.5 py-0.5 text-xs bg-brand-900/50 text-brand-600 dark:text-brand-400 rounded">{t}</span>)}
                     </div>
                   )}
                 </div>
                 <div className="text-right">
                   {app.matchScore && (
                     <div>
-                      <span className={`text-lg font-bold ${Number(app.matchScore) >= 70 ? "text-emerald-400" : Number(app.matchScore) >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                      <span className={`text-lg font-bold ${Number(app.matchScore) >= 70 ? "text-emerald-600 dark:text-emerald-400" : Number(app.matchScore) >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
                         {Number(app.matchScore).toFixed(0)}
                       </span>
                       <span className="text-xs text-slate-500">/100</span>

@@ -72,31 +72,31 @@ export default function CEODashboard() {
       <Card>
         <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Risk & Alert Center</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
+          <div className="rounded-lg border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/5 p-4">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🔴</span>
               <div>
-                <p className="text-sm font-medium text-red-400">Pending Expenses</p>
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">Pending Expenses</p>
                 <p className="text-2xl font-bold text-slate-900 dark:text-white">{orgStats?.pendingExpenses || 0}</p>
                 <p className="text-xs text-slate-500">Awaiting approval</p>
               </div>
             </div>
           </div>
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+          <div className="rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 p-4">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🟡</span>
               <div>
-                <p className="text-sm font-medium text-amber-400">New Registrations</p>
+                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">New Registrations</p>
                 <p className="text-2xl font-bold text-slate-900 dark:text-white">{userStats?.newRegistrations30d || 0}</p>
                 <p className="text-xs text-slate-500">Last 30 days</p>
               </div>
             </div>
           </div>
-          <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4">
+          <div className="rounded-lg border border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/5 p-4">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🟢</span>
               <div>
-                <p className="text-sm font-medium text-green-400">Payroll Processed</p>
+                <p className="text-sm font-medium text-green-600 dark:text-green-400">Payroll Processed</p>
                 <p className="text-2xl font-bold text-slate-900 dark:text-white">{orgStats?.thisMonthPayroll?._count?.id || 0}</p>
                 <p className="text-xs text-slate-500">This month</p>
               </div>
@@ -224,13 +224,13 @@ export default function CEODashboard() {
         <Card>
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Financial Overview (Trial Balance)</h3>
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
               <p className="text-xs text-slate-400">Total Debits</p>
               <p className="text-xl font-bold text-slate-900 dark:text-white">
                 {formatCurrency(financeData?.totalDebits || financeData?.data?.totalDebits || 0)}
               </p>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
               <p className="text-xs text-slate-400">Total Credits</p>
               <p className="text-xl font-bold text-slate-900 dark:text-white">
                 {formatCurrency(financeData?.totalCredits || financeData?.data?.totalCredits || 0)}

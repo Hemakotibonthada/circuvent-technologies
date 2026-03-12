@@ -48,19 +48,19 @@ interface PurchaseRequest {
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   DRAFT: { color: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300", label: "Draft" },
-  SUBMITTED: { color: "bg-blue-900/50 text-blue-400", label: "Pending" },
-  MANAGER_APPROVED: { color: "bg-amber-900/50 text-amber-400", label: "Manager Approved" },
+  SUBMITTED: { color: "bg-blue-900/50 text-blue-600 dark:text-blue-400", label: "Pending" },
+  MANAGER_APPROVED: { color: "bg-amber-900/50 text-amber-600 dark:text-amber-400", label: "Manager Approved" },
   FINANCE_APPROVED: { color: "bg-indigo-900/50 text-indigo-400", label: "Finance Approved" },
-  CEO_APPROVED: { color: "bg-purple-900/50 text-purple-400", label: "CEO Approved" },
-  PROCUREMENT_PROCESSING: { color: "bg-cyan-900/50 text-cyan-400", label: "Processing" },
+  CEO_APPROVED: { color: "bg-purple-900/50 text-purple-600 dark:text-purple-400", label: "CEO Approved" },
+  PROCUREMENT_PROCESSING: { color: "bg-cyan-900/50 text-cyan-600 dark:text-cyan-400", label: "Processing" },
   ORDERED: { color: "bg-teal-900/50 text-teal-400", label: "Ordered" },
-  DELIVERED: { color: "bg-green-900/50 text-green-400", label: "Delivered" },
-  BILL_SUBMITTED: { color: "bg-orange-900/50 text-orange-400", label: "Bill Submitted" },
-  REIMBURSED: { color: "bg-emerald-900/50 text-emerald-400", label: "Reimbursed" },
-  REJECTED: { color: "bg-red-900/50 text-red-400", label: "Rejected" },
+  DELIVERED: { color: "bg-green-900/50 text-green-600 dark:text-green-400", label: "Delivered" },
+  BILL_SUBMITTED: { color: "bg-orange-900/50 text-orange-600 dark:text-orange-400", label: "Bill Submitted" },
+  REIMBURSED: { color: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", label: "Reimbursed" },
+  REJECTED: { color: "bg-red-900/50 text-red-600 dark:text-red-400", label: "Rejected" },
   CANCELLED: { color: "bg-slate-50 dark:bg-slate-800 text-slate-500", label: "Cancelled" },
   PAYMENT_PROCESSING: { color: "bg-yellow-900/50 text-yellow-400", label: "Payment Processing" },
-  PAYMENT_COMPLETED: { color: "bg-emerald-900/50 text-emerald-400", label: "Payment Completed" },
+  PAYMENT_COMPLETED: { color: "bg-emerald-900/50 text-emerald-600 dark:text-emerald-400", label: "Payment Completed" },
 };
 
 const CATEGORIES = [
@@ -72,9 +72,9 @@ const URGENCY_OPTIONS = ["LOW", "NORMAL", "HIGH", "URGENT"];
 
 const URGENCY_COLORS: Record<string, string> = {
   LOW: "text-slate-400",
-  NORMAL: "text-blue-400",
-  HIGH: "text-amber-400",
-  URGENT: "text-red-400",
+  NORMAL: "text-blue-600 dark:text-blue-400",
+  HIGH: "text-amber-600 dark:text-amber-400",
+  URGENT: "text-red-600 dark:text-red-400",
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -218,11 +218,11 @@ export default function PurchaseRequestsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link href="/portal" className="text-sm text-brand-400 hover:text-brand-300">← Back to Portal</Link>
+          <Link href="/portal" className="text-sm text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">← Back to Portal</Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">🛒 Purchase Requests</h1>
           <p className="text-sm text-slate-500">Request materials, equipment, and services</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm font-medium">
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm font-medium">
           + New Request
         </button>
       </div>
@@ -231,9 +231,9 @@ export default function PurchaseRequestsPage() {
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[
           { label: "Total Requests", value: stats.total, color: "text-slate-900 dark:text-white" },
-          { label: "Pending", value: stats.pending, color: "text-amber-400" },
-          { label: "Approved", value: stats.approved, color: "text-emerald-400" },
-          { label: "Total Amount", value: `₹${stats.totalAmount.toLocaleString("en-IN")}`, color: "text-blue-400" },
+          { label: "Pending", value: stats.pending, color: "text-amber-600 dark:text-amber-400" },
+          { label: "Approved", value: stats.approved, color: "text-emerald-600 dark:text-emerald-400" },
+          { label: "Total Amount", value: `₹${stats.totalAmount.toLocaleString("en-IN")}`, color: "text-blue-600 dark:text-blue-400" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center">
             <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -249,7 +249,7 @@ export default function PurchaseRequestsPage() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-3 py-1.5 text-xs rounded-md font-medium transition ${
-              activeTab === tab ? "bg-brand-600 text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              activeTab === tab ? "bg-brand-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -300,7 +300,7 @@ export default function PurchaseRequestsPage() {
 
       {/* Create Purchase Request Modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-2xl my-8">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">New Purchase Request</h2>
             <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
@@ -351,7 +351,7 @@ export default function PurchaseRequestsPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-slate-400 font-medium">Items</p>
-                  <button onClick={handleAddItem} className="text-xs text-brand-400 hover:text-brand-300">+ Add Item</button>
+                  <button onClick={handleAddItem} className="text-xs text-brand-600 dark:text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">+ Add Item</button>
                 </div>
                 <div className="space-y-2">
                   {form.items.map((item, i) => (
@@ -382,7 +382,7 @@ export default function PurchaseRequestsPage() {
                         <div className="flex items-center">
                           <span className="text-xs text-slate-400 mr-1">₹{(item.quantity * item.unitPrice).toLocaleString("en-IN")}</span>
                           {form.items.length > 1 && (
-                            <button onClick={() => handleRemoveItem(i)} className="text-red-500 hover:text-red-400 text-xs ml-auto">✕</button>
+                            <button onClick={() => handleRemoveItem(i)} className="text-red-500 hover:text-red-600 dark:text-red-400 text-xs ml-auto">✕</button>
                           )}
                         </div>
                       </div>
@@ -407,7 +407,7 @@ export default function PurchaseRequestsPage() {
                 <div className="text-right mt-2">
                   <span className="text-sm font-semibold text-slate-900 dark:text-white">Total: ₹{totalItems.toLocaleString("en-IN")}</span>
                   {totalItems < 5000 && totalItems > 0 && (
-                    <span className="text-xs text-emerald-400 ml-2">✓ Auto-approve eligible</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 ml-2">✓ Auto-approve eligible</span>
                   )}
                 </div>
               </div>
@@ -418,7 +418,7 @@ export default function PurchaseRequestsPage() {
               <button
                 onClick={handleCreate}
                 disabled={submitting || !form.title || !form.justification || form.items.every((i) => !i.name || i.unitPrice <= 0)}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
               >
                 {submitting ? "Submitting..." : "Submit Request"}
               </button>
@@ -429,7 +429,7 @@ export default function PurchaseRequestsPage() {
 
       {/* Request Detail Modal */}
       {showDetail && selectedRequest && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-2xl my-8">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -485,7 +485,7 @@ export default function PurchaseRequestsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-slate-900 dark:text-white">{approval.approverRole}</span>
-                          <span className={`text-xs ${approval.action === "APPROVED" ? "text-emerald-400" : "text-red-400"}`}>
+                          <span className={`text-xs ${approval.action === "APPROVED" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                             {approval.action}
                           </span>
                           <span className="text-xs text-slate-500">{formatDate(approval.createdAt)}</span>
@@ -501,7 +501,7 @@ export default function PurchaseRequestsPage() {
             {/* Rejection reason */}
             {selectedRequest.rejectionReason && (
               <div className="bg-red-900/20 border border-red-900/30 rounded-lg p-3 mb-4">
-                <p className="text-xs text-red-400"><strong>Rejection Reason:</strong> {selectedRequest.rejectionReason}</p>
+                <p className="text-xs text-red-600 dark:text-red-400"><strong>Rejection Reason:</strong> {selectedRequest.rejectionReason}</p>
               </div>
             )}
 
@@ -511,7 +511,7 @@ export default function PurchaseRequestsPage() {
                 {["DRAFT", "SUBMITTED"].includes(selectedRequest.status) && (
                   <button
                     onClick={() => { handleCancel(selectedRequest.id); setShowDetail(false); }}
-                    className="px-3 py-1.5 text-xs text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/20"
+                    className="px-3 py-1.5 text-xs text-red-600 dark:text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/20"
                   >
                     Cancel Request
                   </button>
@@ -519,7 +519,7 @@ export default function PurchaseRequestsPage() {
                 {["DELIVERED", "PROCUREMENT_PROCESSING", "ORDERED"].includes(selectedRequest.status) && !selectedRequest.billUrl && (
                   <button
                     onClick={() => { setShowReceipt(true); setShowDetail(false); }}
-                    className="px-3 py-1.5 text-xs text-brand-400 border border-brand-900/50 rounded-lg hover:bg-brand-900/20"
+                    className="px-3 py-1.5 text-xs text-brand-600 dark:text-brand-400 border border-brand-900/50 rounded-lg hover:bg-brand-900/20"
                   >
                     Submit Receipt
                   </button>
@@ -533,7 +533,7 @@ export default function PurchaseRequestsPage() {
 
       {/* Receipt Submission Modal */}
       {showReceipt && selectedRequest && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Submit Receipt</h2>
             <p className="text-xs text-slate-500 mb-3">
@@ -559,7 +559,7 @@ export default function PurchaseRequestsPage() {
               <button
                 onClick={handleSubmitReceipt}
                 disabled={submitting || !receiptForm.receiptUrl}
-                className="px-4 py-2 bg-brand-600 text-slate-900 dark:text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm disabled:opacity-50"
               >
                 {submitting ? "Submitting..." : "Submit Receipt"}
               </button>

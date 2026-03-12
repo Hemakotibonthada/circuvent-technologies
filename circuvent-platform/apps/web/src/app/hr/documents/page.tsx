@@ -71,8 +71,7 @@ export default function DocumentManagementPage() {
 
   const [activeTab, setActiveTab] = useState("templates");
   const tabs = [
-    { id: "templates", label: "Templates" },
-    { id: "generated", label: "Generated Documents" },
+    { id: "templates", label: "Templates" }, { key: "generated", label: "Generated Documents" },
   ];
 
   /* ── data ─────────────────────────────────────────────── */
@@ -164,17 +163,14 @@ export default function DocumentManagementPage() {
   /* ── columns ──────────────────────────────────────────── */
   const templateColumns = [
     {
-      key: "name", header: "Template",
+      id: "name", header: "Template",
       render: (t: DocTemplate) => (
         <div>
           <p className="font-medium text-slate-900 dark:text-white">{t.name}</p>
           <p className="text-xs text-slate-500">{t.description?.slice(0, 80)}</p>
         </div>
       ),
-    },
-    { key: "category", header: "Category", render: (t: DocTemplate) => <Badge color={categoryColors[t.category] || "slate"}>{t.category.replace(/_/g, " ")}</Badge> },
-    {
-      key: "variables", header: "Variables",
+    }, { key: "category", header: "Category", render: (t: DocTemplate) => <Badge color={categoryColors[t.category] || "slate"}>{t.category.replace(/_/g, " ")}</Badge> }, { key: "variables", header: "Variables",
       render: (t: DocTemplate) => (
         <div className="flex flex-wrap gap-1">
           {(t.variables || []).slice(0, 4).map((v) => (
@@ -183,9 +179,7 @@ export default function DocumentManagementPage() {
           {(t.variables || []).length > 4 && <span className="text-xs text-slate-500">+{t.variables.length - 4}</span>}
         </div>
       ),
-    },
-    {
-      key: "isActive", header: "Status",
+    }, { key: "isActive", header: "Status",
       render: (t: DocTemplate) => (
         <button
           onClick={() => handleToggleTemplate(t.id, t.isActive)}
@@ -194,9 +188,7 @@ export default function DocumentManagementPage() {
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${t.isActive ? "translate-x-6" : "translate-x-1"}`} />
         </button>
       ),
-    },
-    {
-      key: "actions", header: "",
+    }, { key: "actions", header: "",
       render: (t: DocTemplate) => t.isActive ? (
         <Button size="sm" variant="outline" onClick={() => openGenerate(t)}>Generate</Button>
       ) : null,
@@ -204,13 +196,7 @@ export default function DocumentManagementPage() {
   ];
 
   const docColumns = [
-    { key: "templateName", header: "Template", render: (d: GeneratedDocument) => <span className="font-medium text-slate-900 dark:text-white">{d.templateName || d.templateId}</span> },
-    { key: "category", header: "Category", render: (d: GeneratedDocument) => <Badge color={categoryColors[d.category] || "slate"}>{d.category.replace(/_/g, " ")}</Badge> },
-    { key: "employeeName", header: "Employee", render: (d: GeneratedDocument) => d.employeeName || d.employeeId },
-    { key: "status", header: "Status", render: (d: GeneratedDocument) => <Badge color={docStatusColors[d.status] || "slate"}>{d.status}</Badge> },
-    { key: "generatedAt", header: "Generated", render: (d: GeneratedDocument) => formatDateTime(d.generatedAt) },
-    {
-      key: "actions", header: "",
+    { id: "templateName", header: "Template", render: (d: GeneratedDocument) => <span className="font-medium text-slate-900 dark:text-white">{d.templateName || d.templateId}</span> }, { key: "category", header: "Category", render: (d: GeneratedDocument) => <Badge color={categoryColors[d.category] || "slate"}>{d.category.replace(/_/g, " ")}</Badge> }, { key: "employeeName", header: "Employee", render: (d: GeneratedDocument) => d.employeeName || d.employeeId }, { key: "status", header: "Status", render: (d: GeneratedDocument) => <Badge color={docStatusColors[d.status] || "slate"}>{d.status}</Badge> }, { key: "generatedAt", header: "Generated", render: (d: GeneratedDocument) => formatDateTime(d.generatedAt) }, { key: "actions", header: "",
       render: (d: GeneratedDocument) => d.status === "GENERATED" ? (
         <Button size="sm" variant="ghost" onClick={() => handleDownload(d)}>Download</Button>
       ) : null,
@@ -223,8 +209,8 @@ export default function DocumentManagementPage() {
     <div className="space-y-6">
       {feedback && (
         <div className={`fixed right-4 top-4 z-[100] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
-          feedback.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400"
-            : "border border-red-500/30 bg-red-500/10 text-red-400"
+          feedback.type === "success" ? "border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400"
+            : "border border-red-200 dark:border-red-500/30 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400"
         }`}>{feedback.msg}</div>
       )}
 
@@ -298,7 +284,7 @@ export default function DocumentManagementPage() {
         <div className="space-y-4">
           <Input label="Employee ID" placeholder="emp_xxxxxxxx" value={generateEmployeeId} onChange={(e) => setGenerateEmployeeId(e.target.value)} />
 
-          <div className="rounded-lg border border-slate-200 dark:border-slate-200 p- dark:border-slate-7004">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
             <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Template Variables</h4>
             <div className="grid grid-cols-2 gap-3">
               {Object.keys(generateVars).map((key) => (
