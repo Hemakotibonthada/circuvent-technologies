@@ -1,19 +1,42 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
+const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_CV365_FIREBASE_PROJECT_ID || "circuvent";
+const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_CV365_FIREBASE_API_KEY;
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_CV365_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_CV365_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_CV365_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_CV365_FIREBASE_STORAGE_BUCKET,
-  appId: process.env.NEXT_PUBLIC_CV365_FIREBASE_APP_ID,
-};
+/**
+ * Save a contact message to CV-365 Firestore via REST API.
+ * This works reliably in server-side API routes (no client SDK needed).
+ */
+export async function saveContactMessage(data: {
+  name: string;
+  email: string;
+  subject: string;
+  category: string;
+  message: string;
+  source: string;
+}) {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/contactMessages?key=${FIREBASE_API_KEY}`;
 
-const appName = "cv365";
-const app = getApps().find((a) => a.name === appName)
-  ? getApp(appName)
-  : initializeApp(firebaseConfig, appName);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fields: {
+        name: { stringValue: data.name },
+        email: { stringValue: data.email },
+        subject: { stringValue: data.subject },
+        category: { stringValue: data.category },
+        message: { stringValue: data.message },
+        status: { stringValue: "new" },
+        source: { stringValue: data.source },
+        createdAt: { timestampValue: new Date().toISOString() },
+      },
+    }),
+    signal: AbortSignal.timeout(5000),
+  });
 
-const db = getFirestore(app);
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Firestore REST error ${response.status}: ${err}`);
+  }
 
-export { db, collection, addDoc, serverTimestamp };
+  return response.json();
+}
