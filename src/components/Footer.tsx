@@ -195,7 +195,7 @@ export default function Footer() {
           variants={containerVariants}
           initial="hidden"
           animate={isInView ? "visible" : "hidden"}
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 lg:gap-10"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 sm:gap-8 lg:gap-10"
         >
           {/* Brand Column */}
           <motion.div variants={itemVariants} className="col-span-2 md:col-span-3 lg:col-span-2 space-y-6">

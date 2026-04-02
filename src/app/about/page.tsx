@@ -119,7 +119,7 @@ export default function AboutPage() {
               >
                 About Circuvent
               </motion.span>
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mt-1 mb-8 leading-[0.95]" style={{ color: "var(--text-primary)" }}>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mt-1 mb-8 leading-[0.95]" style={{ color: "var(--text-primary)" }}>
                 Circuventing the
                 <br />
                 <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">

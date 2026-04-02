@@ -28,11 +28,11 @@ export default function CTASection({
   secondaryCTA,
 }: CTASectionProps) {
   return (
-    <section className="relative z-10 py-32">
+    <section className="relative z-10 py-16 sm:py-24 lg:py-32">
       <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center">
         <ScrollReveal>
           <div
-            className="relative overflow-hidden rounded-3xl backdrop-blur-xl p-12 sm:p-16"
+            className="relative overflow-hidden rounded-2xl sm:rounded-3xl backdrop-blur-xl p-8 sm:p-12 lg:p-16"
             style={{
               background: "var(--bg-glass)",
               border: "1px solid var(--border-primary)",
@@ -60,7 +60,7 @@ export default function CTASection({
 
             <div className="relative z-10">
               <h2
-                className="text-3xl sm:text-5xl font-bold mb-6"
+                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6"
                 style={{ color: "var(--text-primary)" }}
               >
                 {title}{" "}

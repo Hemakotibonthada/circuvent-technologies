@@ -322,7 +322,7 @@ export default function Home() {
                 <Briefcase className="w-3.5 h-3.5" />
                 Enterprise Suite
               </motion.div>
-              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold mt-3 mb-5" style={{ color: "var(--text-primary)" }}>
+              <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mt-3 mb-5" style={{ color: "var(--text-primary)" }}>
                 The Circuvent{" "}
                 <ShimmerText gradient="from-cyan-400 via-violet-400 to-pink-400">Office Suite</ShimmerText>
               </h2>
@@ -600,16 +600,16 @@ export default function Home() {
       <section className="relative z-10 py-24">
         <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center">
           <ScrollReveal>
-            <div className="relative overflow-hidden rounded-3xl backdrop-blur-xl p-12 sm:p-16" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", boxShadow: "var(--shadow-lg)" }}>
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl backdrop-blur-xl p-8 sm:p-12 lg:p-16" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", boxShadow: "var(--shadow-lg)" }}>
               <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5" />
               <div className="relative z-10">
                 <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
-                  <Sparkles className="w-10 h-10 mx-auto mb-6" style={{ color: "var(--accent-cyan)" }} />
+                  <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-6" style={{ color: "var(--accent-cyan)" }} />
                 </motion.div>
-                <h2 className="text-3xl sm:text-5xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>
                   Ready to <ShimmerText>Circuvent</ShimmerText> Limits?
                 </h2>
-                <p className="text-lg max-w-xl mx-auto mb-10" style={{ color: "var(--text-tertiary)" }}>
+                <p className="text-base sm:text-lg max-w-xl mx-auto mb-8 sm:mb-10" style={{ color: "var(--text-tertiary)" }}>
                   Whether you&apos;re exploring our open source work or looking to collaborate, we&apos;d love to connect.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-4">

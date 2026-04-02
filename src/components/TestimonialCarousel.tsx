@@ -77,12 +77,12 @@ export default function TestimonialCarousel({
   return (
     <div ref={ref} className={`relative ${className || ""}`}>
       <div
-        className="relative overflow-hidden rounded-3xl p-8 sm:p-12"
+        className="relative overflow-hidden rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-12"
         style={{
           background: "var(--bg-glass)",
           border: "1px solid var(--border-primary)",
           backdropFilter: "blur(24px)",
-          minHeight: "320px",
+          minHeight: "240px",
         }}
       >
         {/* Background decoration */}

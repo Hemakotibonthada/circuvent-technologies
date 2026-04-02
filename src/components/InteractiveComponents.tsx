@@ -783,7 +783,7 @@ export function AnimatedPricingCards({
   }, []);
 
   return (
-    <div ref={ref} className={`grid md:grid-cols-3 gap-6 items-start ${className}`}>
+    <div ref={ref} className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start ${className}`}>
       {tiers.map((tier, i) => (
         <motion.div
           key={tier.name}

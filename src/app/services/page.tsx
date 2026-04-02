@@ -231,7 +231,7 @@ export default function ServicesPage() {
             </div>
           </ScrollReveal>
 
-          <div className="grid lg:grid-cols-5 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8 items-start">
             {/* Step selector */}
             <div className="lg:col-span-2 space-y-3">
               {processSteps.map((step, i) => (

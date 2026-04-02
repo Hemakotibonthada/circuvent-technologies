@@ -215,12 +215,12 @@ export default function CodeShowcase({ className, typingSpeed = 40 }: CodeShowca
           </div>
 
           {/* File tabs */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 overflow-x-auto">
             {codeExamples.map((ex, i) => (
               <button
                 key={ex.title}
                 onClick={() => setActiveExample(i)}
-                className={`px-3 py-1 text-xs font-mono rounded-md transition-all cursor-pointer ${
+                className={`px-2 sm:px-3 py-1 text-xs font-mono rounded-md transition-all cursor-pointer whitespace-nowrap ${
                   i === activeExample
                     ? "bg-[#2d2d3f] text-[#cdd6f4]"
                     : "text-[#6c7086] hover:text-[#a6adc8]"
@@ -244,7 +244,7 @@ export default function CodeShowcase({ className, typingSpeed = 40 }: CodeShowca
         </div>
 
         {/* Code content */}
-        <div className="p-5 font-mono text-sm leading-relaxed overflow-x-auto min-h-[350px]">
+        <div className="p-3 sm:p-5 font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto min-h-[250px] sm:min-h-[350px]">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeExample}

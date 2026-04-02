@@ -126,6 +126,38 @@ body {
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
   transition: background-color 0.4s ease, color 0.3s ease;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== MOBILE-FIRST RESPONSIVE SCALING ===== */
+
+/* Scale section padding on smaller screens */
+@media (max-width: 639px) {
+  section.py-24 { padding-top: 3rem; padding-bottom: 3rem; }
+  section.py-20 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
+  section.py-32 { padding-top: 4rem; padding-bottom: 4rem; }
+  .pt-32 { padding-top: 6rem; }
+  .pb-20 { padding-bottom: 3rem; }
+
+  /* Scale large headings for mobile */
+  .text-4xl { font-size: 1.5rem; line-height: 1.1; }
+  .text-5xl { font-size: 1.75rem; line-height: 1.05; }
+
+  /* Reduce gaps on mobile */
+  .gap-6 { gap: 1rem; }
+  .gap-8 { gap: 1.25rem; }
+
+  /* Ensure images/media don't overflow */
+  img, video, svg, canvas { max-width: 100%; height: auto; }
+}
+
+/* Touch-friendly sizing — ensure min tap target 44px */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 ::selection {

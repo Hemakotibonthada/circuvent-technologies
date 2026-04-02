@@ -153,7 +153,7 @@ export default function ContactPage() {
       {/* Quick Stats */}
       <section className="relative z-10 py-8">
         <div className="max-w-4xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {quickStats.map((stat, i) => (
               <ScrollReveal key={stat.label} delay={i * 0.08}>
                 <motion.div

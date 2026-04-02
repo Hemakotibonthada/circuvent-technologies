@@ -60,7 +60,7 @@ export default function Hero() {
 
             {/* Headline — Kinetic Typography */}
             <ScrollReveal delay={0.1}>
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold leading-[0.9] tracking-tight">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold leading-[0.9] tracking-tight">
                 <motion.span
                   className="block"
                   style={{ color: "var(--text-primary)" }}
@@ -81,7 +81,7 @@ export default function Hero() {
 
             {/* Subtitle */}
             <ScrollReveal delay={0.2}>
-              <p className="text-lg sm:text-xl max-w-xl leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+              <p className="text-base sm:text-lg md:text-xl max-w-xl leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
                 Circuvent Technologies crafts intelligent systems at the intersection
                 of{" "}
                 <span style={{ color: "var(--accent-cyan)" }}>Artificial Intelligence</span>,{" "}
@@ -111,7 +111,7 @@ export default function Hero() {
 
             {/* Stats Bar */}
             <ScrollReveal delay={0.4}>
-              <div className="flex flex-wrap gap-8 pt-4">
+              <div className="flex flex-wrap gap-4 sm:gap-8 pt-4">
                 {[
                   { value: `${stats.totalProjects}+`, label: "Projects" },
                   { value: stats.linesOfCode, label: "Lines of Code" },
@@ -138,7 +138,7 @@ export default function Hero() {
           <div className="lg:col-span-5 flex justify-center">
             <ScrollReveal direction="right" delay={0.2}>
               <motion.div
-                className="relative w-80 h-80 sm:w-96 sm:h-96"
+                className="relative w-56 h-56 sm:w-80 sm:h-80 md:w-96 md:h-96"
                 animate={{
                   rotateX: mouse.normalizedY * 10,
                   rotateY: mouse.normalizedX * 10,

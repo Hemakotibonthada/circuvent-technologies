@@ -474,7 +474,7 @@ export default function Navigation() {
               <ThemeToggle />
               <motion.button
                 onClick={() => setIsMobileOpen(!isMobileOpen)}
-                className="relative p-2 rounded-xl"
+                className="relative p-2.5 rounded-xl"
                 style={{
                   background: isMobileOpen ? "var(--accent-cyan-muted)" : "transparent",
                   border: `1px solid ${isMobileOpen ? "var(--border-accent)" : "transparent"}`,
@@ -544,7 +544,7 @@ export default function Navigation() {
                 borderLeft: "1px solid var(--border-primary)",
               }}
             >
-              <div className="pt-24 pb-8 px-6">
+              <div className="pt-20 pb-8 px-6">
                 {/* Nav items */}
                 <div className="space-y-1">
                   {navItems.map((item, i) => (

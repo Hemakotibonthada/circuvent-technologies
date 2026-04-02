@@ -46,7 +46,7 @@ export default function PageHeader({
             </motion.span>
 
             <h1
-              className="text-5xl sm:text-6xl lg:text-7xl font-bold mt-1 mb-6 leading-[0.95]"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mt-1 mb-6 leading-[0.95]"
               style={{ color: "var(--text-primary)" }}
             >
               {title}{" "}
