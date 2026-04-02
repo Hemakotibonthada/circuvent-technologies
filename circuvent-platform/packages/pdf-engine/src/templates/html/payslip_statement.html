@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Payslip Statement</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        line-height: 1.75;
+        color: #0f172a;
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 90%);
+      }
+      .wrapper {
+        padding: 3.25rem 1.5rem;
+      }
+      .sheet {
+        max-width: 960px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 28px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        box-shadow: 0 36px 96px -32px rgba(15, 23, 42, 0.35);
+        padding: 3rem 3.25rem;
+      }
+      .letterhead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        margin-bottom: 2.5rem;
+      }
+      .company-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+      .company-name {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+      .company-info {
+        margin: 0;
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+        color: #475569;
+      }
+      .meta-block {
+        border-left: 3px solid rgba(37, 99, 235, 0.35);
+        padding-left: 1.1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-size: 0.72rem;
+        color: #64748b;
+      }
+      .meta-block span {
+        display: block;
+        color: #1d4ed8;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        margin-top: 0.35rem;
+      }
+      h1 {
+        font-size: 2rem;
+        margin: 0 0 1.75rem;
+        color: #1d4ed8;
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2.5rem;
+      }
+      .summary-card {
+        border-radius: 20px;
+        border: 1px solid rgba(37, 99, 235, 0.2);
+        background: rgba(37, 99, 235, 0.08);
+        padding: 1.25rem 1.4rem;
+      }
+      .summary-label {
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        font-size: 0.68rem;
+        color: #1d4ed8;
+        font-weight: 600;
+      }
+      .summary-value {
+        margin-top: 0.5rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #0f172a;
+      }
+      .section {
+        margin-top: 2.25rem;
+      }
+      .section-title {
+        text-transform: uppercase;
+        letter-spacing: 0.28em;
+        font-size: 0.74rem;
+        color: #1e3a8a;
+        font-weight: 700;
+        margin-bottom: 0.9rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.01);
+      }
+      thead tr {
+        background: rgba(226, 232, 240, 0.55);
+      }
+      th {
+        text-align: left;
+        padding: 0.85rem 1rem;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        color: #334155;
+      }
+      td {
+        padding: 0.85rem 1rem;
+        font-size: 0.95rem;
+        border-top: 1px solid rgba(148, 163, 184, 0.25);
+      }
+      td.amount {
+        text-align: right;
+        font-weight: 600;
+        color: #0f172a;
+      }
+      .totals-row td {
+        font-size: 1.05rem;
+        font-weight: 700;
+        background: rgba(37, 99, 235, 0.08);
+      }
+      .note {
+        margin-top: 2rem;
+        padding: 1.25rem 1.5rem;
+        border-left: 4px solid #2563eb;
+        border-radius: 18px;
+        background: rgba(59, 130, 246, 0.08);
+        font-size: 0.95rem;
+      }
+      .footer {
+        margin-top: 2.5rem;
+        font-size: 0.95rem;
+      }
+      .footer strong {
+        color: #0f172a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <article class="sheet">
+        <header class="letterhead">
+          <div class="company-meta">
+            <p class="company-name">{{company_name}}</p>
+            <p class="company-info">{{company_address}}</p>
+            <p class="company-info">{{company_contact}}</p>
+          </div>
+          <div class="meta-block">
+            <span>{{pay_period}}</span>
+            <span>generated {{issue_date}}</span>
+          </div>
+        </header>
+
+        <h1>Payslip statement</h1>
+
+        <section class="summary-grid">
+          <div class="summary-card">
+            <p class="summary-label">Employee</p>
+            <p class="summary-value">{{employee_name}}</p>
+            <p class="summary-value">{{employee_code}}</p>
+          </div>
+          <div class="summary-card">
+            <p class="summary-label">Designation</p>
+            <p class="summary-value">{{designation}}</p>
+            <p class="summary-value">{{department}}</p>
+          </div>
+          <div class="summary-card">
+            <p class="summary-label">Work location</p>
+            <p class="summary-value">{{work_location}}</p>
+            <p class="summary-value">{{manager_name}}</p>
+          </div>
+          <div class="summary-card">
+            <p class="summary-label">Net pay</p>
+            <p class="summary-value">{{net_pay}}</p>
+            <p class="summary-value">Credited on {{credit_date}}</p>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Earnings</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th class="amount">Amount (&rupee;)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Basic pay</td>
+                <td class="amount">{{basic_pay}}</td>
+              </tr>
+              <tr>
+                <td>House rent allowance</td>
+                <td class="amount">{{hra_allowance}}</td>
+              </tr>
+              <tr>
+                <td>Special allowance</td>
+                <td class="amount">{{special_allowance}}</td>
+              </tr>
+              <tr>
+                <td>Conveyance allowance</td>
+                <td class="amount">{{conveyance_allowance}}</td>
+              </tr>
+              <tr>
+                <td>Leave travel allowance</td>
+                <td class="amount">{{lta}}</td>
+              </tr>
+              <tr>
+                <td>Incentives / bonus</td>
+                <td class="amount">{{performance_incentive}}</td>
+              </tr>
+              <tr class="totals-row">
+                <td>Total earnings</td>
+                <td class="amount">{{gross_pay}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Deductions</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th class="amount">Amount (&rupee;)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Employee provident fund (12% of basic)</td>
+                <td class="amount">{{pf_contribution}}</td>
+              </tr>
+              <tr>
+                <td>Professional tax</td>
+                <td class="amount">{{professional_tax}}</td>
+              </tr>
+              <tr>
+                <td>Income tax / TDS</td>
+                <td class="amount">{{income_tax}}</td>
+              </tr>
+              <tr>
+                <td>ESI (Employee)</td>
+                <td class="amount">{{esi_employee}}</td>
+              </tr>
+              <tr>
+                <td>Other deductions</td>
+                <td class="amount">{{other_deductions}}</td>
+              </tr>
+              <tr class="totals-row">
+                <td>Total deductions</td>
+                <td class="amount">{{total_deductions}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Employer contributions</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th class="amount">Amount (&rupee;)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Employer PF contribution</td>
+                <td class="amount">{{employer_pf}}</td>
+              </tr>
+              <tr>
+                <td>Medical insurance (company share)</td>
+                <td class="amount">{{medical_insurance}}</td>
+              </tr>
+              <tr>
+                <td>Gratuity provision</td>
+                <td class="amount">{{gratuity_provision}}</td>
+              </tr>
+              <tr class="totals-row">
+                <td>Total employer contributions</td>
+                <td class="amount">{{total_employer_contributions}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Banking information</h2>
+          <div class="summary-grid" style="margin-top: 0;">
+            <div class="summary-card">
+              <p class="summary-label">Bank name</p>
+              <p class="summary-value">{{bank_name}}</p>
+            </div>
+            <div class="summary-card">
+              <p class="summary-label">Account number</p>
+              <p class="summary-value">{{account_number_masked}}</p>
+            </div>
+            <div class="summary-card">
+              <p class="summary-label">IFSC code</p>
+              <p class="summary-value">{{ifsc_code}}</p>
+            </div>
+            <div class="summary-card">
+              <p class="summary-label">Account holder</p>
+              <p class="summary-value">{{account_holder_name}}</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Leave &amp; attendance summary</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th class="amount">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Billable hours</td>
+                <td class="amount">{{billable_hours}}</td>
+              </tr>
+              <tr>
+                <td>Leave days approved</td>
+                <td class="amount">{{leave_days}}</td>
+              </tr>
+              <tr>
+                <td>Loss of pay days</td>
+                <td class="amount">{{lop_days}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Year-to-date contributions</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th class="amount">This period</th>
+                <th class="amount">FY to date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Provident fund</td>
+                <td class="amount">{{pf_this_period}}</td>
+                <td class="amount">{{pf_ytd}}</td>
+              </tr>
+              <tr>
+                <td>Tax deductions</td>
+                <td class="amount">{{tax_this_period}}</td>
+                <td class="amount">{{tax_ytd}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <div class="note">
+          This payslip is computer generated and does not require a physical signature.
+          Password format: {{payslip_password_hint}}.
+          For clarifications, reach out to {{payroll_contact_email}} within three business days.
+        </div>
+
+        <footer class="footer">
+          <p>
+            Regards,<br />
+            <strong>{{payroll_contact_name}}</strong><br />
+            Payroll &amp; Compliance Team
+          </p>
+        </footer>
+      </article>
+    </div>
+  </body>
+</html>

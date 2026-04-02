@@ -1,0 +1,38 @@
+# Multi-stage build for microservices
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
+
+ARG SERVICE_PATH
+
+# ── Install Dependencies ──
+FROM base AS deps
+WORKDIR /app
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/database/package.json ./packages/database/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/auth/package.json ./packages/auth/
+COPY packages/audit/package.json ./packages/audit/
+COPY ${SERVICE_PATH}/package.json ./${SERVICE_PATH}/
+RUN pnpm install --frozen-lockfile
+
+# ── Build ──
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN pnpm --filter @circuvent/database db:generate
+RUN pnpm --filter @circuvent/shared build
+RUN pnpm --filter @circuvent/auth build
+RUN pnpm --filter @circuvent/audit build
+
+# ── Production ──
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/${SERVICE_PATH} ./${SERVICE_PATH}
+
+WORKDIR /app/${SERVICE_PATH}
+CMD ["node", "dist/index.js"]

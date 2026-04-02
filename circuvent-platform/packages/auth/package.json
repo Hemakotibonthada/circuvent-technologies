@@ -1,0 +1,26 @@
+{
+  "name": "@circuvent/auth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Authentication & RBAC middleware for Circuvent Platform",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0",
+    "@circuvent/shared": "workspace:*",
+    "@prisma/client": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.5",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Payslip Cover Letter</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        line-height: 1.75;
+        color: #0f172a;
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 90%);
+      }
+      .wrapper {
+        padding: 3rem 1.25rem;
+      }
+      .card {
+        max-width: 640px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 20px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        box-shadow: 0 30px 64px -32px rgba(15, 23, 42, 0.35);
+        padding: 2.75rem 2.9rem;
+      }
+      .letterhead {
+        display: flex;
+        align-items: center;
+        gap: 1.4rem;
+        margin-bottom: 2rem;
+      }
+      .letterhead-logo img {
+        height: 58px;
+        display: block;
+      }
+      .letterhead-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+      .company-name {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+      .company-info {
+        margin: 0;
+        font-size: 0.76rem;
+        letter-spacing: 0.05em;
+        color: #475569;
+      }
+      .letterhead-rule {
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.6) 50%, rgba(37, 99, 235, 0.08) 100%);
+        margin-bottom: 1.65rem;
+      }
+      .issued-on {
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        font-size: 0.7rem;
+        color: #64748b;
+        margin: 0 0 1.25rem;
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        background: rgba(59, 130, 246, 0.12);
+        color: #1d4ed8;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+      h1 {
+        font-size: 1.85rem;
+        margin: 1.3rem 0 1rem;
+        color: #1d4ed8;
+      }
+      p {
+        margin: 1rem 0;
+        font-size: 1.02rem;
+      }
+      strong {
+        color: #0f172a;
+      }
+      .summary {
+        margin: 2rem 0;
+        padding: 1.75rem;
+        background: rgba(37, 99, 235, 0.06);
+        border-radius: 16px;
+        border: 1px solid rgba(37, 99, 235, 0.2);
+      }
+      .summary dt {
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-size: 0.72rem;
+        color: #1d4ed8;
+        font-weight: 600;
+        margin-top: 0.65rem;
+      }
+      .summary dd {
+        margin: 0.35rem 0 0;
+        font-size: 1.05rem;
+        font-weight: 600;
+      }
+      .callout {
+        margin-top: 2rem;
+        padding: 1.35rem 1.55rem;
+        border-left: 4px solid #1d4ed8;
+        border-radius: 16px;
+        background: rgba(29, 78, 216, 0.08);
+        font-size: 0.97rem;
+      }
+      .footer {
+        margin-top: 2.5rem;
+        font-size: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="letterhead">
+          <div class="letterhead-logo">
+              <img src="cid:company_logo@circuvent" alt="Company Logo" />
+          </div>
+          <div class="letterhead-meta">
+            <p class="company-name">{{company_name}}</p>
+            <p class="company-info">#42, Innovation Park, Hyderabad, Telangana 500049</p>
+            <p class="company-info">www.circuvent.tech &middot; payroll@circuvent.tech &middot; +91 765 999 3331</p>
+          </div>
+        </div>
+        <div class="letterhead-rule"></div>
+        <p class="issued-on">Issued on {{issue_date}}</p>
+        <span class="badge">Payroll update</span>
+        <h1>Hello {{full_name}},</h1>
+
+        <p>
+          Your payslip for <strong>{{pay_period}}</strong> is now available in the
+          portal. The net amount payable is <strong>{{net_pay}}</strong> with a
+          credit date of <strong>{{credit_date}}</strong>.
+        </p>
+
+        <div class="summary">
+          <dl>
+            <dt>Gross earnings</dt>
+            <dd>{{gross_pay}}</dd>
+            <dt>Total deductions</dt>
+            <dd>{{total_deductions}}</dd>
+          </dl>
+        </div>
+
+        <p>
+          The detailed statement is attached for your reference. If you notice any
+          discrepancy, please reach out to {{payroll_contact_email}} within three
+          business days.
+        </p>
+
+        <div class="callout">
+          For password-protected attachments, use the format shared in your onboarding guide. If you need the file
+          reissued or spot any variance, email {{payroll_contact_email}} with the subject &ldquo;Payslip query &ndash;
+          {{pay_period}}&rdquo;.
+        </div>
+
+        <div class="footer">
+          <p>
+            Thank you,<br />
+            <strong>{{payroll_contact_name}}</strong><br />
+            Payroll Team
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

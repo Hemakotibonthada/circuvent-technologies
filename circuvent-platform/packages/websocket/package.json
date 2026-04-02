@@ -1,0 +1,23 @@
+{
+  "name": "@circuvent/websocket",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebSocket infrastructure for real-time IoT telemetry, heartbeat, and notifications",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "@circuvent/shared": "workspace:*",
+    "@circuvent/auth": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.4.0"
+  }
+}
