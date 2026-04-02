@@ -109,17 +109,17 @@ export default function ContactForm() {
     setStatus("loading");
 
     try {
-      // Save to CV-365 Firestore (work.circuvent.com/admin/messages)
-      await saveContactMessage({
+      // Save to CV-365 Firestore (fire-and-forget, don't block form)
+      saveContactMessage({
         name: formData.name.trim(),
         email: formData.email.trim(),
         subject: `${formData.service || "General"} inquiry from ${formData.name}${formData.company ? ` (${formData.company})` : ""}`,
         category: formData.service || "general",
         message: `${formData.message.trim()}${formData.company ? `\n\nCompany: ${formData.company}` : ""}${formData.budget ? `\nBudget: ${formData.budget}` : ""}`,
         source: "circuvent.com",
-      });
+      }).catch((err) => console.error("Firestore save failed:", err));
 
-      // Also send email notification
+      // Send email notification
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
