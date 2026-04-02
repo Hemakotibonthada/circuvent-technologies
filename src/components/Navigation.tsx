@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -88,17 +88,10 @@ export default function Navigation() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const pathname = usePathname();
   const lastScrollY = useRef(0);
   const navRef = useRef<HTMLElement>(null);
   const dropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Magnetic cursor position for hover effects
-  const cursorX = useMotionValue(0);
-  const cursorY = useMotionValue(0);
-  const springX = useSpring(cursorX, { stiffness: 300, damping: 30 });
-  const springY = useSpring(cursorY, { stiffness: 300, damping: 30 });
 
   // Scroll handling with direction detection
   useEffect(() => {
@@ -146,13 +139,6 @@ export default function Navigation() {
     }, 150);
   }, []);
 
-  const handleNavMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!navRef.current) return;
-    const rect = navRef.current.getBoundingClientRect();
-    cursorX.set(e.clientX - rect.left);
-    cursorY.set(e.clientY - rect.top);
-  }, [cursorX, cursorY]);
-
   // Check if current path matches nav item or its children
   const isActive = (item: NavItem): boolean => {
     if (pathname === item.href) return true;
@@ -172,7 +158,6 @@ export default function Navigation() {
         }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         className="fixed top-0 left-0 right-0 z-50"
-        onMouseMove={handleNavMouseMove}
       >
         {/* Glassmorphism background */}
         <motion.div
@@ -196,19 +181,6 @@ export default function Navigation() {
         >
           <div className="h-full bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
         </motion.div>
-
-        {/* Spotlight effect following cursor */}
-        <motion.div
-          className="absolute pointer-events-none"
-          style={{
-            x: springX,
-            y: springY,
-            width: 300,
-            height: 80,
-            transform: "translate(-50%, -50%)",
-            background: "radial-gradient(circle, rgba(6,182,212,0.04) 0%, transparent 60%)",
-          }}
-        />
 
         <nav className="relative max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between h-[72px]">
