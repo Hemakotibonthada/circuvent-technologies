@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { saveContactMessage } from "@/lib/cv365-firebase";
+import { rateLimit } from "@/lib/rate-limit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -11,6 +12,16 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  */
 export async function POST(request: Request) {
   try {
+    // Rate limiting — 5 submissions per minute per IP
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const { ok, retryAfter } = rateLimit("contact", ip);
+    if (!ok) {
+      return NextResponse.json(
+        { success: false, message: "Too many requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      );
+    }
+
     if (!process.env.RESEND_API_KEY) {
       console.error("RESEND_API_KEY is not configured");
       return NextResponse.json(

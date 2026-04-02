@@ -205,6 +205,9 @@ export default function ContactForm() {
                   onChange={(e) => handleChange("name", e.target.value)}
                   error={errors.name}
                   leftIcon={<User className="w-4 h-4" />}
+                  aria-required="true"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? "name-error" : undefined}
                 />
                 <Input
                   label="Email *"
@@ -214,6 +217,9 @@ export default function ContactForm() {
                   onChange={(e) => handleChange("email", e.target.value)}
                   error={errors.email}
                   leftIcon={<Mail className="w-4 h-4" />}
+                  aria-required="true"
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? "email-error" : undefined}
                 />
               </div>
 
@@ -254,6 +260,9 @@ export default function ContactForm() {
                 charCount
                 maxChars={2000}
                 className="min-h-[160px]"
+                aria-required="true"
+                aria-invalid={!!errors.message}
+                aria-describedby={errors.message ? "message-error" : undefined}
               />
 
               {/* Submit */}
@@ -281,19 +290,22 @@ export default function ContactForm() {
                 </Button>
               </div>
 
-              {status === "error" && (
-                <div
-                  className="flex items-center gap-2 p-3 rounded-xl text-sm"
-                  style={{
-                    background: "rgba(239, 68, 68, 0.1)",
-                    border: "1px solid rgba(239, 68, 68, 0.2)",
-                    color: "rgb(239, 68, 68)",
-                  }}
-                >
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {errorMessage || "Something went wrong. Please try again."}
-                </div>
-              )}
+              <div aria-live="polite" aria-atomic="true">
+                {status === "error" && (
+                  <div
+                    role="alert"
+                    className="flex items-center gap-2 p-3 rounded-xl text-sm"
+                    style={{
+                      background: "rgba(239, 68, 68, 0.1)",
+                      border: "1px solid rgba(239, 68, 68, 0.2)",
+                      color: "rgb(239, 68, 68)",
+                    }}
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {errorMessage || "Something went wrong. Please try again."}
+                  </div>
+                )}
+              </div>
             </motion.form>
           )}
         </AnimatePresence>

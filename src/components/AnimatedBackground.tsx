@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { useMousePosition } from "@/hooks/useMousePosition";
+import { useMousePosition, useReducedMotion } from "@/hooks/useMousePosition";
 import { useTheme } from "@/components/ThemeProvider";
 
 interface Particle {
@@ -21,8 +21,11 @@ export default function AnimatedBackground() {
   const particlesRef = useRef<Particle[]>([]);
   const animationRef = useRef<number>(0);
   const { resolvedTheme } = useTheme();
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -107,7 +110,7 @@ export default function AnimatedBackground() {
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(animationRef.current);
     };
-  }, [resolvedTheme]);
+  }, [resolvedTheme, reducedMotion]);
 
   // React to mouse movement
   useEffect(() => {

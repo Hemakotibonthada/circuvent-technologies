@@ -58,6 +58,28 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
         <link rel="icon" type="image/svg+xml" href="/logo.svg" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "Circuvent Technologies",
+              url: "https://circuvent.tech",
+              logo: "https://circuvent.tech/logo.svg",
+              description: "Engineering intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering.",
+              sameAs: [
+                "https://github.com/Hemakotibonthada",
+                "https://linkedin.com/company/circuvent",
+              ],
+              contactPoint: {
+                "@type": "ContactPoint",
+                contactType: "customer service",
+                url: "https://circuvent.tech/contact",
+              },
+            }),
+          }}
+        />
         {/* Inline script to prevent flash of wrong theme */}
         <script
           dangerouslySetInnerHTML={{
@@ -85,9 +107,16 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <ServiceWorkerRegistration />
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-semibold"
+            style={{ background: "var(--accent-cyan)", color: "var(--text-inverted)" }}
+          >
+            Skip to main content
+          </a>
           <div className="noise-overlay" />
           <Navigation />
-          <main className="relative z-[1]">{children}</main>
+          <main id="main-content" className="relative z-[1]">{children}</main>
           <Footer />
         </ThemeProvider>
         <Analytics />

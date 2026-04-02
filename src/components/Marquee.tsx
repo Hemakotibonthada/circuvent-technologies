@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { motion, useAnimationFrame } from "framer-motion";
+import { motion, useAnimationFrame, useReducedMotion } from "framer-motion";
 
 interface MarqueeProps {
   children: React.ReactNode;
@@ -24,6 +24,7 @@ export default function Marquee({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const xRef = useRef(0);
   const isPausedRef = useRef(false);
+  const prefersReduced = useReducedMotion();
 
   useEffect(() => {
     if (!scrollerRef.current || !containerRef.current) return;
@@ -39,7 +40,7 @@ export default function Marquee({
   }, []);
 
   useAnimationFrame((_, delta) => {
-    if (!scrollerRef.current || isPausedRef.current) return;
+    if (!scrollerRef.current || isPausedRef.current || prefersReduced) return;
 
     const scrollWidth = scrollerRef.current.scrollWidth / 2;
     const dx = (speed * delta) / 1000;

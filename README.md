@@ -1,33 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Circuvent Technologies — Landing Page
+
+Premium portfolio and services website for Circuvent Technologies, showcasing 53+ projects across 6 technology domains (AI, IoT, FinTech, Full-Stack, Enterprise, HealthTech).
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router) |
+| UI | React 19, Tailwind CSS 4 |
+| Animation | Framer Motion 12 |
+| Language | TypeScript 5 (strict) |
+| Email | Resend |
+| Analytics | Vercel Analytics + Speed Insights |
+| Icons | Lucide React |
+| Fonts | Geist Sans / Mono (next/font) |
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+# Install dependencies
+npm install
+
+# Create environment file
+cp .env.example .env.local
+# Fill in: RESEND_API_KEY, GITHUB_TOKEN, BUTTONDOWN_API_KEY
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/                    # Next.js App Router pages (18 routes)
+│   ├── page.tsx            # Homepage (hero, stats, domains, projects, pricing)
+│   ├── layout.tsx          # Root layout (nav, footer, JSON-LD, skip link)
+│   ├── api/                # API routes (contact, newsletter, blog, projects)
+│   ├── projects/           # Project portfolio + detail pages
+│   ├── blog/               # Engineering blog
+│   ├── services/           # Service offerings
+│   ├── contact/            # Contact form page
+│   ├── careers/            # Job listings
+│   └── ...                 # about, team, case-studies, architecture, etc.
+├── components/             # 50+ React components
+│   ├── Hero.tsx            # Kinetic typography hero with mouse tracking
+│   ├── ScrollReveal.tsx    # Scroll-triggered animations
+│   ├── AnimatedBackground  # Canvas particle system
+│   ├── TiltCard.tsx        # 3D mouse-tracking tilt cards
+│   ├── Marquee.tsx         # Infinite scrolling tech ticker
+│   ├── ContactForm.tsx     # Validated contact form with ARIA
+│   └── ui/                 # Base UI components (Button, Badge, etc.)
+├── hooks/                  # Custom hooks (useMousePosition, useClickOutside)
+└── lib/                    # Data, utilities, SEO config, rate limiting
+```
 
-## Learn More
+## Key Features
 
-To learn more about Next.js, take a look at the following resources:
+- **12-section homepage** with parallax, 3D tilt cards, animated counters
+- **prefers-reduced-motion** support across all animated components
+- **Rate-limited API routes** (5 req/min per IP for contact & newsletter)
+- **Dynamic SEO** — sitemap, robots.txt, Open Graph, JSON-LD, Twitter cards
+- **PWA** — manifest, service worker, standalone mode
+- **Accessibility** — skip link, ARIA labels, keyboard navigation (Ctrl+K)
+- **Dark/light theme** with system detection
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Testing
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# E2E tests (Playwright — Chromium, Firefox, WebKit)
+npx playwright test
+
+# Unit tests (Jest)
+npm test
+```
+
+## Build & Deploy
+
+```bash
+npm run build    # Production build
+npm run start    # Start production server
+```
+
+Deploys to Vercel via Git push. Firebase Hosting also supported.
 
 ## Deploy on Vercel
 
