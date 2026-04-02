@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { db, collection, addDoc, serverTimestamp } from "@/lib/cv365-firebase";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -46,6 +47,22 @@ export async function POST(request: Request) {
         { success: false, errors },
         { status: 400 }
       );
+    }
+
+    // Save to CV-365 Firestore (work.circuvent.com/admin/messages)
+    try {
+      await addDoc(collection(db, "contactMessages"), {
+        name: name.trim(),
+        email: email.trim(),
+        subject: `${service || "General"} inquiry from ${name}${company ? ` (${company})` : ""}`,
+        category: service || "general",
+        message: `${message.trim()}${company ? `\n\nCompany: ${company}` : ""}${budget ? `\nBudget: ${budget}` : ""}`,
+        status: "new",
+        source: "circuvent.com",
+        createdAt: serverTimestamp(),
+      });
+    } catch (firestoreError) {
+      console.error("Failed to save to CV-365 Firestore:", firestoreError);
     }
 
     // Send email via Resend
