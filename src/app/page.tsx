@@ -24,6 +24,8 @@ import {
   ArrowRight, Brain, Cpu, Globe, Shield, Code2, Layers,
   Terminal, Rocket, Lock, Sparkles, Eye, Box,
   Database, Cloud, GitBranch,
+  Mail, Users, FileText, Briefcase, CheckCircle2,
+  BarChart3, Calendar, Search, Zap, Network,
 } from "lucide-react";
 import {
   faqItems,
@@ -66,6 +68,58 @@ const keyCapabilities = [
   { icon: Database, label: "Databases", value: "6", desc: "PostgreSQL, MongoDB, Firebase, DuckDB, Redis, ChromaDB" },
   { icon: Cloud, label: "Docker", value: "8", desc: "Production apps containerized" },
   { icon: GitBranch, label: "Open Source", value: "53+", desc: "All MIT licensed on GitHub" },
+];
+
+const officeSuiteApps = [
+  {
+    icon: FileText,
+    title: "CV-365",
+    tagline: "Your Entire Workspace in One Platform",
+    description: "30+ integrated productivity apps — Docs, Sheets, Slides, Chat, Meetings, Tasks, Calendar, Drive, Wiki, Whiteboard, and more — unified, real-time, and beautiful.",
+    gradient: "from-blue-500 to-indigo-600",
+    features: ["Real-time co-editing with TipTap", "30+ spreadsheet formulas & charts", "Video meetings with screen sharing", "Kanban, Gantt & timeline views"],
+    stats: { value: "30+", label: "Integrated Apps" },
+    href: "#",
+  },
+  {
+    icon: Users,
+    title: "HRMS",
+    tagline: "Modern HR Management Made Simple",
+    description: "Streamline your entire HR workflow from hiring to retiring — manage employees, attendance, payroll, performance, and more in one lightning-fast platform.",
+    gradient: "from-violet-500 to-purple-600",
+    features: ["50+ HR modules in one platform", "Automated payroll & attendance", "Performance reviews & OKRs", "Multi-tenant SaaS architecture"],
+    stats: { value: "50+", label: "HR Modules" },
+    href: "#",
+  },
+  {
+    icon: Search,
+    title: "ATS",
+    tagline: "Smart Applicant Tracking for Modern Teams",
+    description: "Automate your hiring pipeline from application to onboarding — auto-screen, smart-schedule interviews, and send intelligent notifications all in one place.",
+    gradient: "from-cyan-500 to-teal-600",
+    features: ["Auto-screening & candidate scoring", "Smart interview scheduling", "Multi-channel applications", "Ecosystem integration (HRMS, Mail, CV-365)"],
+    stats: { value: "100%", label: "Automated Pipeline" },
+    href: "#",
+  },
+  {
+    icon: Mail,
+    title: "Mail",
+    tagline: "Professional Email for Modern Teams",
+    description: "Enterprise-grade email with calendar, contacts, and admin dashboard — everything you need from Gmail, Outlook, and Apple Mail in one self-hosted platform.",
+    gradient: "from-pink-500 to-rose-600",
+    features: ["Full IMAP/SMTP with custom domains", "AI-powered smart inbox & categorization", "2FA, admin dashboard & 25+ analytics", "67% cheaper than Google Workspace"],
+    stats: { value: "22", label: "API Endpoints" },
+    href: "#",
+  },
+];
+
+const ecosystemConnections = [
+  { from: "ATS", to: "HRMS", label: "Hired candidates → Employee records" },
+  { from: "ATS", to: "Mail", label: "Auto-notifications & email provisioning" },
+  { from: "ATS", to: "CV-365", label: "Candidate profiles & work history sync" },
+  { from: "HRMS", to: "Mail", label: "Payslips, announcements & alerts" },
+  { from: "CV-365", to: "Mail", label: "Document sharing & notifications" },
+  { from: "HRMS", to: "CV-365", label: "Team directories & org charts" },
 ];
 
 export default function Home() {
@@ -250,6 +304,202 @@ export default function Home() {
               <ProjectCard key={project.id} project={project} index={i} />
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* CIRCUVENT OFFICE SUITE */}
+      <section className="relative z-10 py-24 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-6">
+              <motion.div
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-[0.2em] mb-4"
+                style={{ background: "var(--accent-violet-muted)", color: "var(--accent-violet)", border: "1px solid var(--border-accent)" }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                Enterprise Suite
+              </motion.div>
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold mt-3 mb-5" style={{ color: "var(--text-primary)" }}>
+                The Circuvent{" "}
+                <ShimmerText gradient="from-cyan-400 via-violet-400 to-pink-400">Office Suite</ShimmerText>
+              </h2>
+              <p className="max-w-3xl mx-auto text-lg leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+                Four powerful applications — one unified ecosystem. From productivity and HR to hiring and email,
+                every app is interconnected through a shared Firebase backbone for seamless data flow.
+              </p>
+            </div>
+          </ScrollReveal>
+
+          {/* Suite Stats Bar */}
+          <ScrollReveal delay={0.1}>
+            <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 my-12">
+              {[
+                { icon: Zap, value: "4", label: "Integrated Apps" },
+                { icon: Layers, value: "100+", label: "Features" },
+                { icon: Users, value: "50K+", label: "Users Managed" },
+                { icon: Network, value: "100%", label: "Cross-App Sync" },
+              ].map((stat, i) => (
+                <motion.div
+                  key={stat.label}
+                  className="flex items-center gap-3"
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.5 }}
+                >
+                  <div className="p-2 rounded-lg" style={{ background: "var(--accent-cyan-muted)" }}>
+                    <stat.icon className="w-4 h-4" style={{ color: "var(--accent-cyan)" }} />
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold bg-gradient-to-r from-cyan-500 to-violet-500 bg-clip-text text-transparent">{stat.value}</p>
+                    <p className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>{stat.label}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </ScrollReveal>
+
+          {/* App Cards Grid */}
+          <div className="grid md:grid-cols-2 gap-6 mb-16">
+            {officeSuiteApps.map((app, i) => (
+              <ScrollReveal key={app.title} delay={i * 0.12}>
+                <TiltCard tiltAmount={6}>
+                  <motion.div
+                    className="group relative overflow-hidden rounded-2xl transition-all duration-500 h-full"
+                    style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(24px)" }}
+                    whileHover={{ y: -4 }}
+                  >
+                    {/* Top gradient bar */}
+                    <div className={`h-1 bg-gradient-to-r ${app.gradient} opacity-60 group-hover:opacity-100 transition-opacity duration-500`} />
+
+                    <div className="p-6 sm:p-8">
+                      {/* Header */}
+                      <div className="flex items-start gap-4 mb-5">
+                        <motion.div
+                          className={`p-3.5 rounded-xl bg-gradient-to-br ${app.gradient} shadow-lg shrink-0`}
+                          whileHover={{ rotate: 10, scale: 1.1 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
+                          <app.icon className="w-6 h-6 text-white" />
+                        </motion.div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h3 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+                              Circuvent {app.title}
+                            </h3>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              Live
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>{app.tagline}</p>
+                        </div>
+                        {/* Stats badge */}
+                        <div className="text-right shrink-0 hidden sm:block">
+                          <p className={`text-2xl font-bold bg-gradient-to-r ${app.gradient} bg-clip-text text-transparent`}>{app.stats.value}</p>
+                          <p className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>{app.stats.label}</p>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-sm leading-relaxed mb-5" style={{ color: "var(--text-tertiary)" }}>
+                        {app.description}
+                      </p>
+
+                      {/* Features list */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
+                        {app.features.map((feature) => (
+                          <div key={feature} className="flex items-start gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-500" />
+                            <span className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Action */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          {["Next.js", "Firebase", "Zustand"].map((tech) => (
+                            <span key={tech} className="px-2 py-0.5 rounded-md text-[10px] font-mono" style={{ background: "var(--accent-cyan-muted)", color: "var(--text-muted)" }}>
+                              {tech}
+                            </span>
+                          ))}
+                        </div>
+                        <motion.div
+                          className="flex items-center gap-1 text-xs font-semibold cursor-pointer"
+                          style={{ color: "var(--accent-cyan)" }}
+                          whileHover={{ x: 4 }}
+                        >
+                          Explore <ArrowRight className="w-3.5 h-3.5" />
+                        </motion.div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </TiltCard>
+              </ScrollReveal>
+            ))}
+          </div>
+
+          {/* Ecosystem Integration Section */}
+          <ScrollReveal delay={0.2}>
+            <div className="relative overflow-hidden rounded-2xl p-8 sm:p-10" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(24px)" }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5" />
+              <div className="relative z-10">
+                <div className="text-center mb-8">
+                  <div className="inline-flex p-3 rounded-xl mb-4" style={{ background: "var(--accent-cyan-muted)" }}>
+                    <Network className="w-6 h-6" style={{ color: "var(--accent-cyan)" }} />
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: "var(--text-primary)" }}>
+                    Seamless <ShimmerText gradient="from-cyan-400 to-violet-400">Ecosystem Integration</ShimmerText>
+                  </h3>
+                  <p className="max-w-xl mx-auto text-sm" style={{ color: "var(--text-tertiary)" }}>
+                    Every app talks to every other app. Hire in ATS, onboard in HRMS, notify via Mail, collaborate in CV-365 — zero manual data entry.
+                  </p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {ecosystemConnections.map((conn, i) => (
+                    <motion.div
+                      key={`${conn.from}-${conn.to}`}
+                      className="flex items-center gap-3 p-3 rounded-xl transition-all duration-300"
+                      style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)" }}
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: i * 0.08, duration: 0.4 }}
+                      whileHover={{ scale: 1.02, borderColor: "var(--border-accent)" }}
+                    >
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gradient-to-r from-cyan-500/10 to-cyan-500/5" style={{ color: "var(--accent-cyan)" }}>{conn.from}</span>
+                        <ArrowRight className="w-3 h-3" style={{ color: "var(--text-muted)" }} />
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gradient-to-r from-violet-500/10 to-violet-500/5" style={{ color: "var(--accent-violet)" }}>{conn.to}</span>
+                      </div>
+                      <p className="text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{conn.label}</p>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Tech stack row */}
+                <div className="flex flex-wrap items-center justify-center gap-3 mt-8 pt-6" style={{ borderTop: "1px solid var(--border-primary)" }}>
+                  {[
+                    { label: "Next.js 16", icon: "▲" },
+                    { label: "React 19", icon: "⚛️" },
+                    { label: "Firebase", icon: "🔥" },
+                    { label: "TypeScript", icon: "🔷" },
+                    { label: "Zustand", icon: "🐻" },
+                    { label: "Tailwind CSS 4", icon: "🎨" },
+                    { label: "Framer Motion", icon: "🎬" },
+                  ].map((tech) => (
+                    <span key={tech.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>
+                      <span>{tech.icon}</span> {tech.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
 
