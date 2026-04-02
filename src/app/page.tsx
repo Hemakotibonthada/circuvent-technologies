@@ -79,7 +79,7 @@ const officeSuiteApps = [
     gradient: "from-blue-500 to-indigo-600",
     features: ["Real-time co-editing with TipTap", "30+ spreadsheet formulas & charts", "Video meetings with screen sharing", "Kanban, Gantt & timeline views"],
     stats: { value: "30+", label: "Integrated Apps" },
-    href: "#",
+    href: "https://work.circuvent.com",
   },
   {
     icon: Users,
@@ -89,7 +89,7 @@ const officeSuiteApps = [
     gradient: "from-violet-500 to-purple-600",
     features: ["50+ HR modules in one platform", "Automated payroll & attendance", "Performance reviews & OKRs", "Multi-tenant SaaS architecture"],
     stats: { value: "50+", label: "HR Modules" },
-    href: "#",
+    href: "https://hrms.circuvent.com",
   },
   {
     icon: Search,
@@ -99,7 +99,7 @@ const officeSuiteApps = [
     gradient: "from-cyan-500 to-teal-600",
     features: ["Auto-screening & candidate scoring", "Smart interview scheduling", "Multi-channel applications", "Ecosystem integration (HRMS, Mail, CV-365)"],
     stats: { value: "100%", label: "Automated Pipeline" },
-    href: "#",
+    href: "https://ats.circuvent.com",
   },
   {
     icon: Mail,
@@ -109,7 +109,7 @@ const officeSuiteApps = [
     gradient: "from-pink-500 to-rose-600",
     features: ["Full IMAP/SMTP with custom domains", "AI-powered smart inbox & categorization", "2FA, admin dashboard & 25+ analytics", "67% cheaper than Google Workspace"],
     stats: { value: "22", label: "API Endpoints" },
-    href: "#",
+    href: "https://mail.circuvent.com",
   },
 ];
 
@@ -427,13 +427,15 @@ export default function Home() {
                             </span>
                           ))}
                         </div>
-                        <motion.div
-                          className="flex items-center gap-1 text-xs font-semibold cursor-pointer"
+                        <a
+                          href={app.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs font-semibold cursor-pointer transition-transform hover:translate-x-1"
                           style={{ color: "var(--accent-cyan)" }}
-                          whileHover={{ x: 4 }}
                         >
                           Explore <ArrowRight className="w-3.5 h-3.5" />
-                        </motion.div>
+                        </a>
                       </div>
                     </div>
                   </motion.div>
