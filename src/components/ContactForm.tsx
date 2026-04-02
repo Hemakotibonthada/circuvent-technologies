@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { saveContactMessage } from "@/lib/cv365-firebase";
 import {
   Send,
   Loader2,
@@ -108,6 +109,17 @@ export default function ContactForm() {
     setStatus("loading");
 
     try {
+      // Save to CV-365 Firestore (work.circuvent.com/admin/messages)
+      await saveContactMessage({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        subject: `${formData.service || "General"} inquiry from ${formData.name}${formData.company ? ` (${formData.company})` : ""}`,
+        category: formData.service || "general",
+        message: `${formData.message.trim()}${formData.company ? `\n\nCompany: ${formData.company}` : ""}${formData.budget ? `\nBudget: ${formData.budget}` : ""}`,
+        source: "circuvent.com",
+      });
+
+      // Also send email notification
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
