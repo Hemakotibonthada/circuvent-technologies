@@ -24,11 +24,16 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "next.config.ts",
+    "eslint.config.mjs",
+    "jest.config.js",
+    "playwright.config.ts",
+    "postcss.config.mjs"
   ],
-  "exclude": ["node_modules", "jest.setup.tsx", "e2e"]
+  "exclude": ["node_modules", "jest.setup.tsx", "e2e", "circuvent-platform", "scripts"]
 }
