@@ -268,7 +268,7 @@ export default function Home() {
             {keyCapabilities.map((cap, i) => (
               <ScrollReveal key={cap.label} delay={i * 0.06}>
                 <TiltCard tiltAmount={6}>
-                  <motion.div className="group relative overflow-hidden rounded-2xl p-5 text-center transition-all duration-300" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(24px)" }}>
+                  <motion.div className="group relative overflow-hidden rounded-2xl p-5 text-center transition-all duration-300" style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}>
                     <motion.div className="inline-flex p-2.5 rounded-xl mb-3" style={{ background: "var(--accent-cyan-muted)" }} whileHover={{ rotate: 360 }} transition={{ duration: 0.5 }}>
                       <cap.icon className="w-5 h-5" style={{ color: "var(--accent-cyan)" }} />
                     </motion.div>
@@ -369,7 +369,7 @@ export default function Home() {
                 <TiltCard tiltAmount={6}>
                   <motion.div
                     className="group relative overflow-hidden rounded-2xl transition-all duration-500 h-full"
-                    style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(24px)" }}
+                    style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}
                     whileHover={{ y: -4 }}
                   >
                     {/* Top gradient bar */}
@@ -446,7 +446,7 @@ export default function Home() {
 
           {/* Ecosystem Integration Section */}
           <ScrollReveal delay={0.2}>
-            <div className="relative overflow-hidden rounded-2xl p-8 sm:p-10" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(24px)" }}>
+            <div className="relative overflow-hidden rounded-2xl p-8 sm:p-10" style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}>
               <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5" />
               <div className="relative z-10">
                 <div className="text-center mb-8">
@@ -520,7 +520,7 @@ export default function Home() {
             {processSteps.map((step, i) => (
               <ScrollReveal key={step.step} delay={i * 0.15}>
                 <TiltCard tiltAmount={10}>
-                  <motion.div className="group relative overflow-hidden rounded-2xl p-6 text-center transition-all duration-500 h-full" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", backdropFilter: "blur(24px)" }}>
+                  <motion.div className="group relative overflow-hidden rounded-2xl p-6 text-center transition-all duration-500 h-full" style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}>
                     <motion.div className={`text-4xl font-bold bg-gradient-to-r ${step.gradient} bg-clip-text text-transparent mb-4`} initial={{ opacity: 0, scale: 0.5 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.1 + 0.2, type: "spring" }}>
                       {step.step}
                     </motion.div>
