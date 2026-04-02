@@ -168,10 +168,10 @@ export default function Navigation() {
           }}
           style={{
             background: "var(--bg-overlay)",
-            backdropFilter: "blur(20px) saturate(1.5)",
-            WebkitBackdropFilter: "blur(20px) saturate(1.5)",
+            backdropFilter: "blur(24px) saturate(1.6)",
+            WebkitBackdropFilter: "blur(24px) saturate(1.6)",
             borderBottom: "1px solid var(--border-primary)",
-            boxShadow: isScrolled ? "var(--shadow-lg)" : "none",
+            boxShadow: isScrolled ? "var(--nav-shadow), inset 0 -1px 0 0 rgba(255,255,255,0.03)" : "none",
           }}
         />
 

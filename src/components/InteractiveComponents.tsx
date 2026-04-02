@@ -795,9 +795,11 @@ export function AnimatedPricingCards({
             tier.highlighted ? "md:scale-[1.04] md:-my-4 z-10" : ""
           }`}
           style={{
-            background: tier.highlighted ? "var(--bg-elevated)" : "var(--bg-glass)",
+            background: tier.highlighted ? "var(--bg-glass-strong)" : "var(--bg-glass)",
+            backdropFilter: "blur(24px) saturate(1.4)",
+            WebkitBackdropFilter: "blur(24px) saturate(1.4)",
             border: tier.highlighted ? "2px solid var(--accent-cyan)" : "1px solid var(--border-primary)",
-            boxShadow: tier.highlighted ? "0 20px 60px rgba(6, 182, 212, 0.12), 0 8px 24px rgba(0,0,0,0.08)" : "var(--shadow-sm)",
+            boxShadow: tier.highlighted ? "0 20px 60px rgba(6, 182, 212, 0.12), 0 8px 24px rgba(0,0,0,0.08), inset 0 1px 0 0 rgba(255,255,255,0.06)" : "var(--shadow-sm), inset 0 1px 0 0 rgba(255,255,255,0.04)",
           }}
         >
           {/* Badge */}

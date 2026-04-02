@@ -88,7 +88,9 @@ export default function Footer() {
       ref={footerRef}
       className="relative overflow-hidden"
       style={{
-        background: "var(--bg-secondary)",
+        background: "var(--bg-glass-strong)",
+        backdropFilter: "blur(24px) saturate(1.4)",
+        WebkitBackdropFilter: "blur(24px) saturate(1.4)",
       }}
     >
       {/* Top gradient border */}

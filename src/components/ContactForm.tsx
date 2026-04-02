@@ -165,9 +165,11 @@ export default function ContactForm() {
 
   return (
     <div
-      className="relative overflow-hidden rounded-3xl backdrop-blur-xl p-8 sm:p-10"
+      className="relative overflow-hidden rounded-3xl p-8 sm:p-10"
       style={{
         background: "var(--bg-glass)",
+        backdropFilter: "blur(24px) saturate(1.4)",
+        WebkitBackdropFilter: "blur(24px) saturate(1.4)",
         border: "1px solid var(--border-primary)",
         boxShadow: "var(--shadow-lg)",
       }}
