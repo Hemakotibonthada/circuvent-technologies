@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
 import ScrollReveal from "@/components/ScrollReveal";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 
 interface CTASectionProps {
   title: string;
@@ -38,7 +39,24 @@ export default function CTASection({
               boxShadow: "var(--shadow-lg)",
             }}
           >
+            {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5" />
+
+            {/* Floating sparkle */}
+            <motion.div
+              className="absolute top-6 right-8 pointer-events-none"
+              animate={{ y: [0, -8, 0], rotate: [0, 15, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <Sparkles className="w-5 h-5 opacity-20" style={{ color: "var(--accent-cyan)" }} />
+            </motion.div>
+            <motion.div
+              className="absolute bottom-8 left-10 pointer-events-none"
+              animate={{ y: [0, 6, 0], rotate: [0, -10, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            >
+              <Sparkles className="w-4 h-4 opacity-15" style={{ color: "var(--accent-violet)" }} />
+            </motion.div>
 
             <div className="relative z-10">
               <h2

@@ -102,27 +102,51 @@ export default function AboutPage() {
       <AnimatedBackground />
 
       {/* Hero */}
-      <section className="relative z-10 pt-32 pb-20">
+      <section className="relative z-10 pt-32 pb-20 overflow-hidden">
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-[0.07] blur-[120px] pointer-events-none"
+          style={{ background: "var(--gradient-primary)" }}
+        />
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="max-w-4xl">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>
+              <motion.span
+                className="inline-block text-xs font-semibold uppercase tracking-[0.2em] mb-4"
+                style={{ color: "var(--accent-cyan)" }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+              >
                 About Circuvent
-              </span>
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mt-3 mb-8 leading-[0.95]" style={{ color: "var(--text-primary)" }}>
+              </motion.span>
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mt-1 mb-8 leading-[0.95]" style={{ color: "var(--text-primary)" }}>
                 Circuventing the
                 <br />
                 <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
                   Status Quo
                 </span>
               </h1>
-              <p className="text-xl leading-relaxed max-w-2xl" style={{ color: "var(--text-tertiary)" }}>
+              <motion.p
+                className="text-xl leading-relaxed max-w-2xl"
+                style={{ color: "var(--text-tertiary)" }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.25 }}
+              >
                 We are a technology company that refuses to accept &ldquo;impossible.&rdquo;
                 From intelligent IoT ecosystems to AI agents that run without the
                 cloud — we build what others haven&apos;t imagined yet.
-              </p>
+              </motion.p>
             </div>
           </ScrollReveal>
+
+          <motion.div
+            className="mt-12 h-px w-full max-w-2xl"
+            style={{ background: "linear-gradient(90deg, transparent, var(--accent-cyan), var(--accent-violet), transparent)" }}
+            initial={{ scaleX: 0, opacity: 0 }}
+            animate={{ scaleX: 1, opacity: 0.4 }}
+            transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
+          />
         </div>
       </section>
 
@@ -140,7 +164,12 @@ export default function AboutPage() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5" />
               <div className="relative z-10 max-w-3xl mx-auto text-center">
-                <Target className="w-10 h-10 mx-auto mb-8" style={{ color: "var(--accent-cyan)" }} />
+                <motion.div
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Target className="w-10 h-10 mx-auto mb-8" style={{ color: "var(--accent-cyan)" }} />
+                </motion.div>
                 <blockquote className="text-2xl sm:text-3xl font-semibold leading-relaxed mb-6" style={{ color: "var(--text-primary)" }}>
                   &ldquo;We don&apos;t build software. We engineer intelligent systems that
                   sense, think, and act — bridging the physical and digital worlds

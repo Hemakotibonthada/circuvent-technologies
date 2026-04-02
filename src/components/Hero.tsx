@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useMousePosition } from "@/hooks/useMousePosition";
+import { useMousePosition, useReducedMotion } from "@/hooks/useMousePosition";
 import { stats } from "@/lib/projects-data";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Github } from "lucide-react";
@@ -10,6 +10,7 @@ import ScrollReveal from "./ScrollReveal";
 
 export default function Hero() {
   const mouse = useMousePosition();
+  const reducedMotion = useReducedMotion();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -63,14 +64,14 @@ export default function Hero() {
                 <motion.span
                   className="block"
                   style={{ color: "var(--text-primary)" }}
-                  animate={{ x: mouse.normalizedX * 5 }}
+                  animate={{ x: reducedMotion ? 0 : mouse.normalizedX * 5 }}
                   transition={{ type: "spring", stiffness: 100, damping: 30 }}
                 >
                   We Build
                 </motion.span>
                 <motion.span
                   className="block bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent mt-2"
-                  animate={{ x: mouse.normalizedX * -8 }}
+                  animate={{ x: reducedMotion ? 0 : mouse.normalizedX * -8 }}
                   transition={{ type: "spring", stiffness: 80, damping: 30 }}
                 >
                   What&apos;s Next.
