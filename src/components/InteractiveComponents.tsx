@@ -783,34 +783,44 @@ export function AnimatedPricingCards({
   }, []);
 
   return (
-    <div ref={ref} className={`grid md:grid-cols-3 gap-6 ${className}`}>
+    <div ref={ref} className={`grid md:grid-cols-3 gap-6 items-start ${className}`}>
       {tiers.map((tier, i) => (
         <motion.div
           key={tier.name}
           initial={{ opacity: 0, y: 30 }}
           animate={isVisible ? { opacity: 1, y: 0 } : {}}
-          transition={{ delay: i * 0.15, type: "spring" }}
-          className={`relative overflow-hidden rounded-2xl p-6 transition-all duration-300 ${
-            tier.highlighted ? "scale-[1.02] shadow-2xl" : ""
+          transition={{ delay: i * 0.15, type: "spring", stiffness: 120, damping: 20 }}
+          whileHover={{ y: -6, transition: { type: "spring", stiffness: 300, damping: 25 } }}
+          className={`group relative overflow-hidden rounded-2xl transition-all duration-300 ${
+            tier.highlighted ? "md:scale-[1.04] md:-my-4 z-10" : ""
           }`}
           style={{
             background: tier.highlighted ? "var(--bg-elevated)" : "var(--bg-glass)",
             border: tier.highlighted ? "2px solid var(--accent-cyan)" : "1px solid var(--border-primary)",
+            boxShadow: tier.highlighted ? "0 20px 60px rgba(6, 182, 212, 0.12), 0 8px 24px rgba(0,0,0,0.08)" : "var(--shadow-sm)",
           }}
         >
           {/* Badge */}
           {tier.badge && (
-            <div className="absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold bg-gradient-to-r from-cyan-500 to-violet-500 text-white">
+            <div className="absolute top-0 right-0 px-4 py-1.5 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-lg shadow-cyan-500/20">
               {tier.badge}
             </div>
           )}
 
           {/* Highlight glow */}
           {tier.highlighted && (
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5 pointer-events-none" />
+            <>
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5 pointer-events-none" />
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
+            </>
           )}
 
-          <div className="relative z-10">
+          {/* Hover glow for non-highlighted */}
+          {!tier.highlighted && (
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/0 to-transparent group-hover:via-cyan-400/30 transition-all duration-500" />
+          )}
+
+          <div className="relative z-10 p-7">
             <h3 className="text-xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>
               {tier.name}
             </h3>
@@ -818,9 +828,12 @@ export function AnimatedPricingCards({
               {tier.description}
             </p>
 
-            <div className="mb-6">
+            <div className="mb-8">
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold" style={{ color: "var(--text-primary)" }}>
+                <span
+                  className={`text-4xl font-bold ${tier.highlighted ? "bg-gradient-to-r from-cyan-500 to-violet-500 bg-clip-text text-transparent" : ""}`}
+                  style={!tier.highlighted ? { color: "var(--text-primary)" } : {}}
+                >
                   {tier.price}
                 </span>
                 {tier.period && (
@@ -838,32 +851,34 @@ export function AnimatedPricingCards({
                   initial={{ opacity: 0, x: -10 }}
                   animate={isVisible ? { opacity: 1, x: 0 } : {}}
                   transition={{ delay: i * 0.15 + fi * 0.05 + 0.3 }}
-                  className="flex items-center gap-2 text-sm"
+                  className="flex items-center gap-2.5 text-sm"
                 >
                   {feature.included ? (
                     <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                   ) : (
-                    <X className="w-4 h-4 text-red-400/50 shrink-0" />
+                    <X className="w-4 h-4 text-red-400/40 shrink-0" />
                   )}
-                  <span style={{ color: feature.included ? "var(--text-secondary)" : "var(--text-muted)" }}>
+                  <span style={{ color: feature.included ? "var(--text-secondary)" : "var(--text-muted)", opacity: feature.included ? 1 : 0.6 }}>
                     {feature.text}
                   </span>
                 </motion.li>
               ))}
             </ul>
 
-            <motion.button
-              className={`w-full py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
-                tier.highlighted
-                  ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white hover:shadow-lg hover:shadow-cyan-500/20"
-                  : "border text-current hover:bg-white/5"
-              }`}
-              style={!tier.highlighted ? { borderColor: "var(--border-primary)", color: "var(--text-primary)" } : {}}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {tier.cta}
-            </motion.button>
+            <a href="/contact" className="block">
+              <motion.button
+                className={`w-full py-3.5 px-4 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                  tier.highlighted
+                    ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-lg shadow-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/30 hover:brightness-110"
+                    : "border hover:border-[var(--border-accent)] hover:bg-[var(--accent-cyan-muted)]"
+                }`}
+                style={!tier.highlighted ? { borderColor: "var(--border-primary)", color: "var(--text-primary)" } : {}}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {tier.cta}
+              </motion.button>
+            </a>
           </div>
         </motion.div>
       ))}
