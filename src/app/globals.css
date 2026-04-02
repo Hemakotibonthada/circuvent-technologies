@@ -3,7 +3,7 @@
 /* ===== THEME TOKENS ===== */
 :root {
   /* Light theme (default) — refined, professional, warm accents */
-  --bg-primary: #fafbfd;
+  --bg-primary: oklch(0.985 0.002 250);
   --bg-secondary: #f0f4f8;
   --bg-surface: #ffffff;
   --bg-surface-hover: #f5f7fa;
@@ -46,7 +46,7 @@
 }
 
 .dark {
-  --bg-primary: #030712;
+  --bg-primary: oklch(0.13 0.01 250);
   --bg-secondary: #0a0f1a;
   --bg-surface: #0f1729;
   --bg-surface-hover: #151e33;
