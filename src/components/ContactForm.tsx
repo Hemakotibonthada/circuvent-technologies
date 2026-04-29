@@ -214,7 +214,7 @@ export default function ContactForm() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <Input
                   label="Full Name *"
-                  placeholder="John Doe"
+                  placeholder="Hema Koteswar Naidu"
                   value={formData.name}
                   onChange={(e) => handleChange("name", e.target.value)}
                   error={errors.name}
@@ -226,7 +226,7 @@ export default function ContactForm() {
                 <Input
                   label="Email *"
                   type="email"
-                  placeholder="john@company.com"
+                  placeholder="hello@circuvent.com"
                   value={formData.email}
                   onChange={(e) => handleChange("email", e.target.value)}
                   error={errors.email}
@@ -241,7 +241,7 @@ export default function ContactForm() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <Input
                   label="Company"
-                  placeholder="Your Company"
+                  placeholder="Circuvent Technologies"
                   value={formData.company}
                   onChange={(e) => handleChange("company", e.target.value)}
                   leftIcon={<Building2 className="w-4 h-4" />}

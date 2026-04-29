@@ -167,7 +167,7 @@ export default function Footer() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
+                    placeholder="hello@circuvent.com"
                     className="flex-1 sm:w-64 px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
                     style={{
                       background: "var(--bg-surface)",

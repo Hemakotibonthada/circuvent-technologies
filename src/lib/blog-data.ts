@@ -161,9 +161,9 @@ We're working on:
 
 NEXUS AI OS represents our belief that AI should be personal, private, and powerful — without compromise.
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2026-03-01",
     readTime: "12 min read",
     category: "AI & ML",
@@ -288,9 +288,9 @@ The SmartHome Flutter app is our most mature mobile product:
 - Solar panel monitoring and smart grid integration
 - Thread/Matter protocol support for ecosystem compatibility
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2026-02-15",
     readTime: "10 min read",
     category: "IoT",
@@ -429,9 +429,9 @@ This architecture has allowed us to:
 - Deploy with a single \`docker-compose up\` command
 - Onboard new developers in hours, not days
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2026-02-01",
     readTime: "8 min read",
     category: "Architecture",
@@ -564,9 +564,9 @@ async def find_nearest_donors(
 
 All patient data is encrypted at rest and in transit. We follow HIPAA guidelines for data handling, with role-based access control and complete audit logging.
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2026-01-20",
     readTime: "11 min read",
     category: "AI & ML",
@@ -713,9 +713,9 @@ find /backups -name "*.sql.gz" -mtime +30 -delete
 4. Logging configuration prevents disk space issues
 5. Automated backups are essential, test your restores regularly
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2026-01-10",
     readTime: "7 min read",
     category: "DevOps",
@@ -856,9 +856,9 @@ void configureCamera() {
 
 This achieves 15 FPS streaming over WiFi to the edge server — more than sufficient for most security and monitoring applications.
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-12-28",
     readTime: "9 min read",
     category: "AI & ML",
@@ -971,9 +971,9 @@ HT Connect now serves as the primary operational tool for a 50-person company:
 - 98.5% uptime over 12 months
 - $2,400/month saved in SaaS subscriptions
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-12-15",
     readTime: "8 min read",
     category: "Engineering",
@@ -1100,9 +1100,9 @@ Every trade passes through the Risk Guard:
 - Win Rate: 58%
 - Trade Execution: <50ms paper, <200ms live
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-12-01",
     readTime: "10 min read",
     category: "Engineering",
@@ -1189,9 +1189,9 @@ Our open source projects have been used by:
 
 We welcome contributions to any of our 53+ repositories. Check out our GitHub organization and pick a "good first issue" to get started!
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-11-15",
     readTime: "6 min read",
     category: "Open Source",
@@ -1308,9 +1308,9 @@ class OfflineFirstRepository {
 4. Test on cheap Android phones, not just flagships
 5. Firebase Cloud Functions are great for backend logic you don't want to maintain
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-11-01",
     readTime: "9 min read",
     category: "Engineering",
@@ -1434,9 +1434,9 @@ export async function downloadMapRegion(
 
 TravelMate proves that React Native in 2026 is truly production-ready for complex, feature-rich applications.
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-10-20",
     readTime: "8 min read",
     category: "Engineering",
@@ -1516,9 +1516,9 @@ Circuvent Technologies is just getting started. Our roadmap includes:
 
 The blinking LED was chapter one. We're writing chapter fifty-three right now, and the story is far from over.
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-10-01",
     readTime: "6 min read",
     category: "Company",

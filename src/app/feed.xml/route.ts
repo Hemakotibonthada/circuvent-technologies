@@ -41,8 +41,8 @@ export async function GET() {
     <link>${SITE_URL}/blog</link>
     <description>${escapeXml(SITE_DESCRIPTION)}</description>
     <language>en-us</language>
-    <managingEditor>contact@circuvent.com (Harsha Bonthada)</managingEditor>
-    <webMaster>contact@circuvent.com (Harsha Bonthada)</webMaster>
+    <managingEditor>contact@circuvent.com (Hema Koteswar Naidu)</managingEditor>
+    <webMaster>contact@circuvent.com (Hema Koteswar Naidu)</webMaster>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
     <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
     <image>

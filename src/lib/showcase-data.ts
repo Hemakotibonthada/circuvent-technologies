@@ -193,8 +193,8 @@ export const projectShowcases: ProjectShowcase[] = [
       ],
     },
     teamContributions: [
-      { role: "Lead Architect", contributor: "Harsha Bonthada", contribution: "Architecture design, agent framework, DevOps", linesOfCode: 28000 },
-      { role: "AI Engineer", contributor: "Harsha Bonthada", contribution: "Agent development, RAG pipeline, prompt engineering", linesOfCode: 7000 },
+      { role: "Lead Architect", contributor: "Hema Koteswar Naidu", contribution: "Architecture design, agent framework, DevOps", linesOfCode: 28000 },
+      { role: "AI Engineer", contributor: "Hema Koteswar Naidu", contribution: "Agent development, RAG pipeline, prompt engineering", linesOfCode: 7000 },
     ],
     performanceBenchmarks: [
       { metric: "Simple Query Latency", value: "1.2s", target: "<2s", unit: "seconds", status: "meets" },

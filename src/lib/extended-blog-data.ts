@@ -150,9 +150,9 @@ if (process.env.NODE_ENV !== 'production') {
 6. **Test migrations** on a copy of production data before deploying
 7. **Monitor query performance** with Prisma's query logging in development
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-09-15",
     readTime: "7 min read",
     category: "Engineering",
@@ -309,9 +309,9 @@ After 12 months of operation:
 4. **Do use retained messages** for status — new subscribers need current state
 5. **Do implement Last Will and Testament** — devices that disconnect unexpectedly should publish an offline status
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-08-20",
     readTime: "9 min read",
     category: "IoT",
@@ -454,9 +454,9 @@ For CITADEL specifically, Tauri was the clear winner. The Rust backend gives us 
 
 For simpler desktop apps (like JARVIS), Electron remains a great choice — the ecosystem maturity and developer experience are hard to beat.
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-08-01",
     readTime: "8 min read",
     category: "Engineering",
@@ -656,9 +656,9 @@ After 6 months of operation:
 5. **Regular re-indexing** when source documents change significantly
 6. **Metadata filtering** (date ranges, categories) reduces noise dramatically
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2025-07-10",
     readTime: "10 min read",
     category: "AI & ML",
@@ -754,9 +754,9 @@ After migrating all 8 projects:
 
 The migration took 2 weeks across 8 projects. Worth every minute.
     `,
-    author: "Harsha Bonthada",
+    author: "Hema Koteswar Naidu",
     authorAvatar: "🧑‍💻",
-    authorRole: "Founder & Lead Engineer",
+    authorRole: "Founder & CEO",
     date: "2026-02-20",
     readTime: "7 min read",
     category: "Engineering",

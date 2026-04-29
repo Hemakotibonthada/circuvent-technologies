@@ -60,20 +60,6 @@ const teamMembers: TeamMemberData[] = [
     quote: "Engineering intelligent systems that bypass limitations.",
   },
   {
-    name: "Tejasri Veeranki",
-    role: "Co-Founder & Head of Operations",
-    bio: "Tejasri ensures the smooth functioning of all lab operations. Her expertise in project management and resource allocation is critical to translating research concepts into viable products. She bridges the gap between technical innovation and operational excellence.",
-    image: "https://res.cloudinary.com/djucuoojo/image/upload/v1758718620/teju_k1da72.png",
-    gradient: "from-pink-500 to-rose-500",
-    skills: ["Operations", "Project Management", "Strategy", "Team Building"],
-    socials: {
-      linkedin: "#",
-      email: "#",
-    },
-    isFounder: true,
-    badgeLabel: "Co-Founder",
-  },
-  {
     name: "Chiru Kotcherla",
     role: "Co-Founder & Marketing Director",
     bio: "Marketing guru with a knack for storytelling and brand building. Chiru leads our marketing strategies, ensuring our innovations reach the right audience effectively. He crafts compelling narratives around complex technology products.",

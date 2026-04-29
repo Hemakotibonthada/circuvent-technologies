@@ -67,7 +67,7 @@ export default function Newsletter({
           <div className="flex-1">
             <Input
               type="email"
-              placeholder="your@email.com"
+              placeholder="hello@circuvent.com"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
@@ -157,7 +157,7 @@ export default function Newsletter({
               <div className="flex-1">
                 <Input
                   type="email"
-                  placeholder="your@email.com"
+                  placeholder="hello@circuvent.com"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);

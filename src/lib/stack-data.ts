@@ -495,7 +495,7 @@ export const codeMetrics = {
     { name: "Other", percentage: 3, lines: 6000 },
   ],
   topContributor: {
-    name: "Harsha Bonthada",
+    name: "Hema Koteswar Naidu",
     commits: 3800,
     linesAdded: 180000,
     linesDeleted: 45000,
