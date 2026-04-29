@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { projects, getProjectsByCategory, type ProjectCategory } from "@/lib/projects-data";
+import { appCache } from "@/lib/cache";
 
 /**
  * GET /api/projects
@@ -25,6 +26,12 @@ export async function GET(request: Request) {
     const limit = searchParams.get("limit")
       ? parseInt(searchParams.get("limit")!, 10)
       : undefined;
+
+    const cacheKey = `projects:${category}:${search}:${status}:${sort}:${featured}:${limit}`;
+    const cached = appCache.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
     let filteredProjects = getProjectsByCategory(category);
 
@@ -88,7 +95,7 @@ export async function GET(request: Request) {
       uniqueTechs: [...new Set(filteredProjects.flatMap((p) => p.techStack))].length,
     };
 
-    return NextResponse.json({
+    const result = {
       projects: filteredProjects,
       stats,
       meta: {
@@ -99,7 +106,12 @@ export async function GET(request: Request) {
         featured,
         limit: limit || "all",
       },
-    });
+    };
+
+    // Cache for 5 minutes
+    appCache.set(cacheKey, result, 300_000);
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Projects API error:", error);
     return NextResponse.json(

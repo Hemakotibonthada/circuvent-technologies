@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { blogPosts, getBlogPostsByCategory, type BlogCategory } from "@/lib/blog-data";
+import { appCache } from "@/lib/cache";
 
 /**
  * GET /api/blog
@@ -21,6 +22,12 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "10", 10);
     const featured = searchParams.get("featured") === "true";
+
+    const cacheKey = `blog:${category}:${search}:${page}:${limit}:${featured}`;
+    const cached = appCache.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
     let posts = getBlogPostsByCategory(category);
 
@@ -50,7 +57,7 @@ export async function GET(request: Request) {
     // Remove content field for listing (it's large)
     const postsWithoutContent = paginatedPosts.map(({ content, ...rest }) => rest);
 
-    return NextResponse.json({
+    const result = {
       posts: postsWithoutContent,
       pagination: {
         page,
@@ -65,7 +72,12 @@ export async function GET(request: Request) {
         search: search || null,
         featured,
       },
-    });
+    };
+
+    // Cache for 5 minutes
+    appCache.set(cacheKey, result, 300_000);
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Blog API error:", error);
     return NextResponse.json(

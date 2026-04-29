@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import VisitorTracker from "@/components/VisitorTracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -107,6 +108,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <ServiceWorkerRegistration />
+          <VisitorTracker />
           <a
             href="#main-content"
             className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-semibold"

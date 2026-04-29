@@ -6,6 +6,7 @@ import {
   type GitHubRepo,
 } from "@/lib/github-sync";
 import { projects } from "@/lib/projects-data";
+import { appCache } from "@/lib/cache";
 
 /**
  * GET /api/github
@@ -26,6 +27,12 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const language = searchParams.get("language");
     const topic = searchParams.get("topic");
+
+    const cacheKey = `github:${sort}:${limit}:${language}:${topic}`;
+    const cached = appCache.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
     // Check for GitHub token
     const hasToken = !!process.env.GITHUB_TOKEN;
@@ -120,7 +127,7 @@ export async function GET(request: Request) {
     // Limit
     const limitedRepos = enrichedRepos.slice(0, limit);
 
-    return NextResponse.json({
+    const result = {
       projects: limitedRepos,
       meta: {
         source: "github",
@@ -133,7 +140,12 @@ export async function GET(request: Request) {
         },
         lastUpdated: new Date().toISOString(),
       },
-    });
+    };
+
+    // Cache GitHub data for 1 hour
+    appCache.set(cacheKey, result, 3_600_000);
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("GitHub API error:", error);
 
