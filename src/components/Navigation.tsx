@@ -14,6 +14,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import CommandPalette from "./CommandPalette";
+import CartButton from "./shop/CartButton";
 
 // ============================================================================
 // NAV ITEMS WITH MEGA MENU DATA
@@ -74,6 +75,7 @@ const navItems: NavItem[] = [
     label: "Services",
     href: "/services",
   },
+  { label: "Shop", href: "/shop" },
   { label: "Blog", href: "/blog" },
   { label: "About Us", href: "/about" },
   { label: "Contact", href: "/contact" },
@@ -441,6 +443,7 @@ export default function Navigation() {
               {/* Keyboard shortcut hint */}
               <CommandPalette />
               <ThemeToggle />
+              <CartButton />
 
               {/* CTA Button */}
               <Link href="/projects">
@@ -471,6 +474,7 @@ export default function Navigation() {
 
             {/* ============ MOBILE BUTTONS ============ */}
             <div className="flex lg:hidden items-center gap-2">
+              <CartButton />
               <ThemeToggle />
               <motion.button
                 onClick={() => setIsMobileOpen(!isMobileOpen)}

@@ -5,6 +5,8 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import { CartProvider } from "@/components/shop/CartProvider";
+import CartDrawer from "@/components/shop/CartDrawer";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import VisitorTracker from "@/components/VisitorTracker";
@@ -107,19 +109,22 @@ export default function RootLayout({
         style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}
       >
         <ThemeProvider>
-          <ServiceWorkerRegistration />
-          <VisitorTracker />
-          <a
-            href="#main-content"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-semibold"
-            style={{ background: "var(--accent-cyan)", color: "var(--text-inverted)" }}
-          >
-            Skip to main content
-          </a>
-          <div className="noise-overlay" />
-          <Navigation />
-          <main id="main-content" className="relative z-[1]">{children}</main>
-          <Footer />
+          <CartProvider>
+            <ServiceWorkerRegistration />
+            <VisitorTracker />
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-semibold"
+              style={{ background: "var(--accent-cyan)", color: "var(--text-inverted)" }}
+            >
+              Skip to main content
+            </a>
+            <div className="noise-overlay" />
+            <Navigation />
+            <main id="main-content" className="relative z-[1]">{children}</main>
+            <Footer />
+            <CartDrawer />
+          </CartProvider>
         </ThemeProvider>
         <Analytics />
         <SpeedInsights />
