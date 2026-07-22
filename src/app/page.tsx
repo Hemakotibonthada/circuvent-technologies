@@ -8,6 +8,7 @@ import CodeShowcase from "@/components/CodeShowcase";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import TestimonialCarousel from "@/components/TestimonialCarousel";
 import TiltCard from "@/components/TiltCard";
+import { SplineSceneBasic } from "@/components/SplineSceneBasic";
 import Marquee, { MarqueeTechItem } from "@/components/Marquee";
 import { ShimmerText } from "@/components/AnimationEffects";
 import { TextReveal } from "@/components/AnimationEffects";
@@ -154,6 +155,15 @@ export default function Home() {
               <MarqueeTechItem key={tech.name} name={tech.name} icon={tech.icon} />
             ))}
           </Marquee>
+        </div>
+      </section>
+
+      {/* INTERACTIVE 3D */}
+      <section className="relative z-10 py-24 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <SplineSceneBasic />
+          </ScrollReveal>
         </div>
       </section>
 
