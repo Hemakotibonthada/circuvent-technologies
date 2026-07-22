@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Loader2, CheckCircle2, ArrowRight, Truck, MapPin, ShieldCheck, Wallet } from "lucide-react";
 import { useCart } from "@/components/shop/CartProvider";
+import { useAccount } from "@/components/shop/AccountProvider";
 import { formatINR } from "@/lib/shop-data";
 
 interface PlacedOrder {
@@ -66,6 +67,7 @@ function loadRazorpay(): Promise<boolean> {
 
 export default function CheckoutPage() {
   const { items, subtotal, shipping, total, clear } = useCart();
+  const { account, wallet, authHeaders, refreshWallet } = useAccount();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -81,6 +83,16 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<PlacedOrder | null>(null);
+
+  useEffect(() => {
+    if (account) {
+      setForm((f) => ({
+        ...f,
+        name: f.name || account.name,
+        email: f.email || account.email,
+      }));
+    }
+  }, [account]);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -101,12 +113,14 @@ export default function CheckoutPage() {
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ items: cartPayload(), customer: form }),
       });
       const data = await res.json();
-      if (data.success) finalize(data.order);
-      else {
+      if (data.success) {
+        if (form.paymentMethod === "wallet") refreshWallet();
+        finalize(data.order);
+      } else {
         setError(data.message || "");
         setErrors(data.errors || {});
       }
@@ -339,6 +353,9 @@ export default function CheckoutPage() {
             <div className="grid gap-2 sm:grid-cols-2">
               {[
                 { id: "razorpay", label: "Pay online — cards, UPI, netbanking" },
+                ...(account && wallet >= total
+                  ? [{ id: "wallet", label: `Circuvent Wallet — ${formatINR(wallet)} available` }]
+                  : []),
                 { id: "cod", label: "Cash on delivery" },
               ].map((opt) => (
                 <label
@@ -410,12 +427,14 @@ export default function CheckoutPage() {
           >
             {placing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             {placing
-              ? form.paymentMethod === "razorpay"
-                ? "Processing…"
-                : "Placing order…"
+              ? form.paymentMethod === "cod"
+                ? "Placing order…"
+                : "Processing…"
               : form.paymentMethod === "razorpay"
                 ? `Pay ${formatINR(total)}`
-                : "Place order"}
+                : form.paymentMethod === "wallet"
+                  ? `Pay ${formatINR(total)} with wallet`
+                  : "Place order"}
           </button>
           <div className="mt-4 flex items-center justify-center gap-4 text-[11px]" style={{ color: "var(--text-muted)" }}>
             <span className="flex items-center gap-1">

@@ -27,7 +27,7 @@ export default function ProductDetailClient({
   };
 
   return (
-    <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-32 lg:px-8">
+    <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-8 lg:px-8">
       <Link
         href="/shop"
         className="mb-6 inline-flex items-center gap-1.5 text-sm transition-opacity hover:opacity-70"

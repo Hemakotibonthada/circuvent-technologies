@@ -8,6 +8,7 @@ import {
   type IncomingItem,
   type CustomerInfo,
 } from "@/lib/order-core";
+import { recordOrder, adjustStock } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,34 @@ export async function POST(request: Request) {
 
     const orderNo = genOrderNo();
     const placedAt = new Date().toISOString();
+    const customer = {
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+      address: c.address,
+      city: c.city || "",
+      state: c.state || "",
+      pincode: c.pincode,
+    };
+
+    try {
+      recordOrder({
+        orderNo,
+        placedAt,
+        items: priced.lines,
+        subtotal: priced.subtotal,
+        shipping: priced.shipping,
+        total: priced.total,
+        customer,
+        paymentMethod: "razorpay",
+        paymentStatus: "paid",
+        paymentId: razorpay_payment_id,
+      });
+      adjustStock(items, -1);
+    } catch (e) {
+      console.error("Order persistence error:", e);
+    }
+
     const emailed = await sendOrderEmails({
       orderNo,
       lines: priced.lines,
@@ -72,15 +101,7 @@ export async function POST(request: Request) {
         subtotal: priced.subtotal,
         shipping: priced.shipping,
         total: priced.total,
-        customer: {
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-          address: c.address,
-          city: c.city || "",
-          state: c.state || "",
-          pincode: c.pincode,
-        },
+        customer,
         paymentMethod: "razorpay",
         paymentId: razorpay_payment_id,
         paymentStatus: "paid",

@@ -31,6 +31,7 @@ interface NavSubItem {
 interface NavItem {
   label: string;
   href: string;
+  newTab?: boolean;
   children?: NavSubItem[];
   featured?: { title: string; description: string; href: string; gradient: string; icon: string };
 }
@@ -71,7 +72,7 @@ const navItems: NavItem[] = [
       icon: "🏠",
     },
   },
-  { label: "Shop", href: "/shop" },
+  { label: "Shop", href: "/shop", newTab: true },
   { label: "Services", href: "/services" },
   {
     label: "We",
@@ -257,6 +258,8 @@ export default function Navigation() {
                   >
                     <Link
                       href={item.href}
+                      target={item.newTab ? "_blank" : undefined}
+                      rel={item.newTab ? "noopener noreferrer" : undefined}
                       className={cn(
                         "relative flex items-center gap-1 px-4 py-2 text-[13px] font-medium transition-all duration-300 rounded-xl group",
                         active
@@ -572,6 +575,8 @@ export default function Navigation() {
                     >
                       <Link
                         href={item.href}
+                        target={item.newTab ? "_blank" : undefined}
+                        rel={item.newTab ? "noopener noreferrer" : undefined}
                         onClick={() => setIsMobileOpen(false)}
                         className={cn(
                           "flex items-center justify-between px-4 py-4 rounded-xl text-lg font-semibold transition-all duration-300",

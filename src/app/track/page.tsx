@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, CheckCircle2, Circle, Package } from "lucide-react";
+import { Search, CheckCircle2, Circle, Package, Truck, Loader2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { formatINR } from "@/lib/shop-data";
 
@@ -11,6 +11,10 @@ interface TrackedOrder {
   items: { name: string; qty: number; lineTotal: number }[];
   total: number;
   status: string;
+  trackingNumber?: string | null;
+  carrier?: string | null;
+  paymentStatus?: string;
+  history?: { status: string; at: string; note?: string }[];
   customer: { email?: string };
 }
 
@@ -22,6 +26,11 @@ const STEPS: [string, string][] = [
   ["out_for_delivery", "Out for delivery"],
   ["delivered", "Delivered"],
 ];
+
+const STATUS_LABEL: Record<string, string> = {
+  ...Object.fromEntries(STEPS),
+  cancelled: "Cancelled",
+};
 
 function loadOrders(): TrackedOrder[] {
   try {
@@ -49,10 +58,29 @@ export default function TrackPage() {
   const [email, setEmail] = useState("");
   const [order, setOrder] = useState<TrackedOrder | null>(null);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const doLookup = (no: string, em: string) => {
+  const doLookup = async (no: string, em: string) => {
     setErr("");
     setOrder(null);
+    setLoading(true);
+    // 1) Server (cross-device) lookup
+    try {
+      const res = await fetch(
+        `/api/orders/track?order=${encodeURIComponent(no.trim())}&email=${encodeURIComponent(em.trim())}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.order) {
+          setOrder(data.order);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {
+      /* fall through to device-local */
+    }
+    // 2) Fallback: orders saved on this device
     const found = loadOrders().find(
       (o) =>
         o.orderNo?.toLowerCase() === no.trim().toLowerCase() &&
@@ -61,8 +89,9 @@ export default function TrackPage() {
     if (found) setOrder(found);
     else
       setErr(
-        "No order found on this device for that number and email. Orders are saved on the device used to place them; check your email confirmation too."
+        "No order found for that number and email. If you placed it on another device, use the tracking link in your confirmation email."
       );
+    setLoading(false);
   };
 
   const submit = (e: React.FormEvent) => {
@@ -80,6 +109,7 @@ export default function TrackPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const cancelled = order?.status === "cancelled";
   const currentIdx = order ? Math.max(0, STEPS.findIndex((s) => s[0] === order.status)) : 0;
   const inputStyle = { background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-primary)" };
 
@@ -113,9 +143,10 @@ export default function TrackPage() {
           />
           <button
             type="submit"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white"
+            disabled={loading}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
           >
-            <Search className="h-4 w-4" /> Track
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Track
           </button>
         </form>
 
@@ -131,7 +162,10 @@ export default function TrackPage() {
                   {order.orderNo}
                 </h2>
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  Placed {fmt(order.placedAt)}
+                  Placed {fmt(order.placedAt)} · Status:{" "}
+                  <span style={{ color: "var(--accent-cyan)" }}>
+                    {STATUS_LABEL[order.status] || order.status}
+                  </span>
                 </p>
               </div>
               <span className="text-lg font-extrabold" style={{ color: "var(--text-primary)" }}>
@@ -139,39 +173,68 @@ export default function TrackPage() {
               </span>
             </div>
 
-            <div
-              className="mt-6 rounded-2xl border p-6"
-              style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
-            >
-              <ol className="relative ml-3 border-l" style={{ borderColor: "var(--border-primary)" }}>
-                {STEPS.map(([key, label], i) => {
-                  const reached = i <= currentIdx;
-                  return (
-                    <li key={key} className="mb-6 ml-6 last:mb-0">
-                      <span
-                        className="absolute -left-3 grid h-6 w-6 place-items-center rounded-full"
-                        style={{ background: "var(--bg-surface)" }}
-                      >
-                        {reached ? (
-                          <CheckCircle2 className="h-[22px] w-[22px]" style={{ color: "var(--accent-cyan)" }} />
-                        ) : (
-                          <Circle className="h-5 w-5" style={{ color: "var(--text-muted)" }} />
-                        )}
-                      </span>
-                      <p
-                        className="font-medium"
-                        style={{ color: reached ? "var(--text-primary)" : "var(--text-muted)" }}
-                      >
-                        {label}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ol>
-              <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                We&apos;ll email you as your order moves through each stage.
-              </p>
-            </div>
+            {(order.trackingNumber || order.carrier) && (
+              <div
+                className="mt-4 flex items-center gap-3 rounded-xl border p-4"
+                style={{ background: "var(--accent-cyan-muted)", borderColor: "var(--border-accent)" }}
+              >
+                <Truck className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} />
+                <div className="text-sm">
+                  <span style={{ color: "var(--text-secondary)" }}>Shipment: </span>
+                  <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {order.carrier || "Courier"}
+                  </span>
+                  {order.trackingNumber && (
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      {" "}· AWB <span className="font-mono">{order.trackingNumber}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {cancelled ? (
+              <div
+                className="mt-6 rounded-2xl border p-6 text-sm"
+                style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+              >
+                This order was cancelled. If this is unexpected, reply to your confirmation email and we&apos;ll help.
+              </div>
+            ) : (
+              <div
+                className="mt-6 rounded-2xl border p-6"
+                style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+              >
+                <ol className="relative ml-3 border-l" style={{ borderColor: "var(--border-primary)" }}>
+                  {STEPS.map(([key, label], i) => {
+                    const reached = i <= currentIdx;
+                    return (
+                      <li key={key} className="mb-6 ml-6 last:mb-0">
+                        <span
+                          className="absolute -left-3 grid h-6 w-6 place-items-center rounded-full"
+                          style={{ background: "var(--bg-surface)" }}
+                        >
+                          {reached ? (
+                            <CheckCircle2 className="h-[22px] w-[22px]" style={{ color: "var(--accent-cyan)" }} />
+                          ) : (
+                            <Circle className="h-5 w-5" style={{ color: "var(--text-muted)" }} />
+                          )}
+                        </span>
+                        <p
+                          className="font-medium"
+                          style={{ color: reached ? "var(--text-primary)" : "var(--text-muted)" }}
+                        >
+                          {label}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                  We&apos;ll email you as your order moves through each stage.
+                </p>
+              </div>
+            )}
 
             <div
               className="mt-6 rounded-2xl border p-6"
@@ -195,6 +258,33 @@ export default function TrackPage() {
                 ))}
               </div>
             </div>
+
+            {order.history && order.history.length > 0 && (
+              <div
+                className="mt-6 rounded-2xl border p-6"
+                style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+              >
+                <h3 className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                  Updates
+                </h3>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {order.history
+                    .slice()
+                    .reverse()
+                    .map((h, idx) => (
+                      <li key={idx} className="flex justify-between gap-3">
+                        <span style={{ color: "var(--text-secondary)" }}>
+                          {STATUS_LABEL[h.status] || h.status}
+                          {h.note ? ` — ${h.note}` : ""}
+                        </span>
+                        <span className="shrink-0" style={{ color: "var(--text-muted)" }}>
+                          {fmt(h.at)}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </section>

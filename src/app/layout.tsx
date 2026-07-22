@@ -6,6 +6,7 @@ import Footer from "@/components/Footer";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { CartProvider } from "@/components/shop/CartProvider";
+import { AccountProvider } from "@/components/shop/AccountProvider";
 import CartDrawer from "@/components/shop/CartDrawer";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -108,6 +109,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <CartProvider>
+            <AccountProvider>
             <ServiceWorkerRegistration />
             <VisitorTracker />
             <a
@@ -122,6 +124,7 @@ export default function RootLayout({
             <main id="main-content" className="relative z-[1]">{children}</main>
             <Footer />
             <CartDrawer />
+            </AccountProvider>
           </CartProvider>
         </ThemeProvider>
         <Analytics />

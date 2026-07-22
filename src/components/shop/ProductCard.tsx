@@ -10,6 +10,8 @@ import ProductMedia from "./ProductMedia";
 export default function ProductCard({ product, index = 0 }: { product: Product; index?: number }) {
   const { add } = useCart();
   const saving = product.compareAt && product.compareAt > product.price ? product.compareAt - product.price : 0;
+  const soldOut = product.available === false || (typeof product.stock === "number" && product.stock <= 0);
+  const lowStock = !soldOut && typeof product.stock === "number" && product.stock <= 5;
 
   return (
     <motion.div
@@ -32,6 +34,11 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
         {saving > 0 && (
           <span className="absolute right-3 top-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 px-2.5 py-1 text-xs font-semibold text-white shadow">
             Save {formatINR(saving)}
+          </span>
+        )}
+        {soldOut && (
+          <span className="absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white shadow">
+            Out of stock
           </span>
         )}
       </Link>
@@ -74,12 +81,18 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
               </span>
             )}
           </div>
+          {lowStock && (
+            <p className="mt-1 text-xs font-medium" style={{ color: "#f59e0b" }}>
+              Only {product.stock} left
+            </p>
+          )}
           <div className="mt-3 flex gap-2">
             <button
-              onClick={() => add(product)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => !soldOut && add(product)}
+              disabled={soldOut}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
-              <ShoppingCart className="h-4 w-4" /> Add to cart
+              <ShoppingCart className="h-4 w-4" /> {soldOut ? "Out of stock" : "Add to cart"}
             </button>
             <Link
               href={`/shop/${product.slug}`}

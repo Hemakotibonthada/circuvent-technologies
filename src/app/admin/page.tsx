@@ -19,7 +19,11 @@ import {
   HardDrive,
   Lock,
   LogIn,
+  ShoppingBag,
+  Boxes,
 } from "lucide-react";
+import OrdersPanel from "./OrdersPanel";
+import InventoryPanel from "./InventoryPanel";
 
 interface PageStats {
   page: string;
@@ -96,6 +100,7 @@ export default function AdminDashboard() {
   const [sseConnected, setSSEConnected] = useState(false);
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [tab, setTab] = useState<"overview" | "orders" | "inventory">("overview");
 
   // Check existing session
   useEffect(() => {
@@ -292,6 +297,32 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div
+          className="mb-8 flex gap-1 rounded-xl p-1"
+          style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", width: "fit-content" }}
+        >
+          {[
+            { id: "overview", label: "Overview", icon: <BarChart3 className="w-4 h-4" /> },
+            { id: "orders", label: "Orders", icon: <ShoppingBag className="w-4 h-4" /> },
+            { id: "inventory", label: "Inventory", icon: <Boxes className="w-4 h-4" /> },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id as typeof tab)}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              style={tab === t.id ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" } : { color: "var(--text-tertiary)" }}
+            >
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "orders" && <OrdersPanel />}
+        {tab === "inventory" && <InventoryPanel />}
+
+        {tab === "overview" && (
+        <>
         {/* Top Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
@@ -423,6 +454,8 @@ export default function AdminDashboard() {
         <p className="text-xs text-center mt-8" style={{ color: "var(--text-tertiary)" }}>
           Last refreshed: {lastRefresh.toLocaleTimeString()} · Auto-refreshes every 10s · SSE for live visitor counts
         </p>
+        </>
+        )}
       </div>
     </div>
   );

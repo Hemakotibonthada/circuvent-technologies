@@ -15,6 +15,7 @@ export interface Product {
   icon: string; // emoji for gradient fallback
   specs: string[];
   stock: number;
+  available?: boolean;
   featured?: boolean;
   rating: number;
 }

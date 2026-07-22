@@ -1,8 +1,68 @@
+import nodemailer from "nodemailer";
+import type { Transporter } from "nodemailer";
 import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
+
+let transporter: Transporter | null = null;
+function getTransport(): Transporter | null {
+  if (transporter) return transporter;
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) return null;
+  transporter = nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: String(process.env.SMTP_SECURE) === "true",
+    auth: { user, pass },
+  });
+  return transporter;
+}
+
+/**
+ * Sends one email. Prefers SMTP (the store's own domain mailbox, which can
+ * deliver to any recipient) and falls back to Resend when SMTP isn't set up.
+ */
+export async function sendMail(
+  to: string,
+  subject: string,
+  html: string,
+  replyTo?: string
+): Promise<boolean> {
+  const t = getTransport();
+  if (t) {
+    try {
+      await t.sendMail({
+        from: process.env.EMAIL_FROM || `Circuvent Store <${process.env.SMTP_USER}>`,
+        to,
+        subject,
+        html,
+        replyTo: replyTo || process.env.EMAIL_REPLY_TO,
+      });
+      return true;
+    } catch (e) {
+      console.error("SMTP send error:", e);
+    }
+  }
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: "Circuvent Store <onboarding@resend.dev>",
+        to: [to],
+        subject,
+        html,
+        replyTo,
+      });
+      return true;
+    } catch (e) {
+      console.error("Resend send error:", e);
+    }
+  }
+  return false;
+}
 
 export interface IncomingItem {
   id?: string;
@@ -78,8 +138,6 @@ interface EmailArgs {
 
 /** Sends a customer confirmation + a store notification via Resend (best-effort). */
 export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
-  if (!process.env.RESEND_API_KEY) return false;
-
   const rows = a.lines
     .map(
       (l) =>
@@ -122,24 +180,55 @@ export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
       </div>
     </div>`;
 
-  try {
-    await resend.emails.send({
-      from: "Circuvent Store <onboarding@resend.dev>",
-      to: [a.customer.email as string],
-      replyTo: process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com",
-      subject: `Your Circuvent order ${a.orderNo}`,
-      html: customerHtml,
-    });
-    await resend.emails.send({
-      from: "Circuvent Store <onboarding@resend.dev>",
-      to: [process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com"],
-      replyTo: a.customer.email as string,
-      subject: `[Order] ${a.orderNo} — ${a.customer.name} — ${formatINR(a.total)}`,
-      html: adminHtml,
-    });
-    return true;
-  } catch (e) {
-    console.error("Order email error:", e);
-    return false;
-  }
+  const [toCustomer, toStore] = await Promise.all([
+    sendMail(
+      a.customer.email as string,
+      `Your Circuvent order ${a.orderNo}`,
+      customerHtml,
+      process.env.EMAIL_REPLY_TO || process.env.CONTACT_EMAIL || "hema@circuvent.com"
+    ),
+    sendMail(
+      process.env.CONTACT_EMAIL || process.env.EMAIL_REPLY_TO || "hemakotibonthada@gmail.com",
+      `[Order] ${a.orderNo} — ${a.customer.name} — ${formatINR(a.total)}`,
+      adminHtml,
+      a.customer.email as string
+    ),
+  ]);
+  return toCustomer || toStore;
+}
+
+/** Emails the customer when an order's status changes (called from admin). */
+export async function sendStatusEmail(args: {
+  orderNo: string;
+  email: string;
+  name?: string;
+  statusLabel: string;
+  trackingNumber?: string;
+  carrier?: string;
+}): Promise<boolean> {
+  if (!args.email) return false;
+  const trackUrl = `${SITE_URL}/track?order=${encodeURIComponent(args.orderNo)}&email=${encodeURIComponent(args.email)}`;
+  const tracking = args.trackingNumber
+    ? `<p style="font-size:13px;color:#536478;margin:6px 0 0">Tracking: <b>${args.trackingNumber}</b>${args.carrier ? ` · ${args.carrier}` : ""}</p>`
+    : "";
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto">
+      <div style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);padding:24px;border-radius:12px 12px 0 0">
+        <h1 style="color:#fff;margin:0;font-size:20px">Order update</h1>
+        <p style="color:#e0f2fe;margin:6px 0 0;font-size:13px">Order ${args.orderNo}</p>
+      </div>
+      <div style="background:#f8fafc;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px">
+        <p style="font-size:14px;color:#0c1222">Hi ${args.name || "there"}, your order status is now <b>${args.statusLabel}</b>.</p>
+        ${tracking}
+        <div style="text-align:center;margin:20px 0 8px">
+          <a href="${trackUrl}" style="display:inline-block;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;text-decoration:none;padding:12px 26px;border-radius:10px;font-size:14px;font-weight:600">Track your order</a>
+        </div>
+      </div>
+    </div>`;
+  return sendMail(
+    args.email,
+    `Your Circuvent order ${args.orderNo} — ${args.statusLabel}`,
+    html,
+    process.env.EMAIL_REPLY_TO
+  );
 }

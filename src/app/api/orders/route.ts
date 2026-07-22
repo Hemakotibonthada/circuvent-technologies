@@ -8,13 +8,23 @@ import {
   type IncomingItem,
   type CustomerInfo,
 } from "@/lib/order-core";
+import { recordOrder, adjustStock, debitWallet } from "@/lib/store";
+import { verifyToken, tokenFromRequest } from "@/lib/account";
 
 export const runtime = "nodejs";
 
+type Priced = {
+  lines: { name: string; price: number; qty: number; lineTotal: number }[];
+  subtotal: number;
+  shipping: number;
+  total: number;
+};
+
 /**
  * POST /api/orders
- * Places a Cash-on-Delivery / offline order: recomputes totals from the
- * catalog, emails a confirmation + store notification, returns the order.
+ * Places a Cash-on-Delivery / wallet order: recomputes totals from the
+ * catalog, persists the order, decrements stock, emails a confirmation +
+ * store notification, and returns the order.
  * Online card/UPI payments go through /api/payments/*.
  */
 export async function POST(request: Request) {
@@ -38,42 +48,36 @@ export async function POST(request: Request) {
     const errors = validateCustomer(c);
     if (Object.keys(errors).length > 0) return NextResponse.json({ success: false, errors }, { status: 400 });
 
-    const orderNo = genOrderNo();
-    const placedAt = new Date().toISOString();
-    const emailed = await sendOrderEmails({
-      orderNo,
-      lines: priced.lines,
-      subtotal: priced.subtotal,
-      shipping: priced.shipping,
-      total: priced.total,
-      customer: c,
-      paymentMethod: c.paymentMethod || "cod",
-      paymentStatus: "pending",
-    });
+    const method = c.paymentMethod || "cod";
 
-    return NextResponse.json({
-      success: true,
-      order: {
-        orderNo,
-        placedAt,
-        items: priced.lines,
-        subtotal: priced.subtotal,
-        shipping: priced.shipping,
-        total: priced.total,
-        customer: {
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-          address: c.address,
-          city: c.city || "",
-          state: c.state || "",
-          pincode: c.pincode,
-        },
-        paymentMethod: c.paymentMethod || "cod",
-        status: "placed",
-        emailed,
-      },
-    });
+    // Wallet (store credit) payment — needs a signed-in account whose email
+    // matches the checkout email, and enough balance.
+    if (method === "wallet") {
+      const tokenEmail = verifyToken(tokenFromRequest(request));
+      if (!tokenEmail) {
+        return NextResponse.json(
+          { success: false, message: "Please sign in to pay with your wallet." },
+          { status: 401 }
+        );
+      }
+      if (tokenEmail.toLowerCase() !== String(c.email || "").toLowerCase()) {
+        return NextResponse.json(
+          { success: false, message: "Use your signed-in account email to pay with wallet." },
+          { status: 400 }
+        );
+      }
+      const orderNo = genOrderNo();
+      const res = debitWallet(tokenEmail, priced.total, `Order ${orderNo}`, orderNo);
+      if (!res.ok) {
+        return NextResponse.json(
+          { success: false, message: "Insufficient wallet balance. Top up or choose another method." },
+          { status: 400 }
+        );
+      }
+      return await finalize(orderNo, priced, c, method, "paid", items);
+    }
+
+    return await finalize(genOrderNo(), priced, c, method, "pending", items);
   } catch (error) {
     console.error("Orders error:", error);
     return NextResponse.json(
@@ -81,4 +85,70 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+async function finalize(
+  orderNo: string,
+  priced: Priced,
+  c: CustomerInfo,
+  method: string,
+  paymentStatus: string,
+  items: IncomingItem[]
+) {
+  const placedAt = new Date().toISOString();
+  const customer = {
+    name: c.name,
+    email: c.email,
+    phone: c.phone,
+    address: c.address,
+    city: c.city || "",
+    state: c.state || "",
+    pincode: c.pincode,
+  };
+
+  // Persist + adjust stock (best-effort — never block the order on storage).
+  try {
+    recordOrder({
+      orderNo,
+      placedAt,
+      items: priced.lines,
+      subtotal: priced.subtotal,
+      shipping: priced.shipping,
+      total: priced.total,
+      customer,
+      paymentMethod: method,
+      paymentStatus,
+    });
+    adjustStock(items, -1);
+  } catch (e) {
+    console.error("Order persistence error:", e);
+  }
+
+  const emailed = await sendOrderEmails({
+    orderNo,
+    lines: priced.lines,
+    subtotal: priced.subtotal,
+    shipping: priced.shipping,
+    total: priced.total,
+    customer: c,
+    paymentMethod: method,
+    paymentStatus,
+  });
+
+  return NextResponse.json({
+    success: true,
+    order: {
+      orderNo,
+      placedAt,
+      items: priced.lines,
+      subtotal: priced.subtotal,
+      shipping: priced.shipping,
+      total: priced.total,
+      customer,
+      paymentMethod: method,
+      paymentStatus,
+      status: "placed",
+      emailed,
+    },
+  });
 }
