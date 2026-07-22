@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import {
   Menu, X, ArrowRight, ChevronDown, Sparkles,
   Brain, Cpu, Globe, Shield, Code2, Layers,
-  Terminal, GitBranch,
+  Terminal, GitBranch, Users, Briefcase, Mail, Newspaper, Info,
   Command as CommandIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -73,9 +73,24 @@ const navItems: NavItem[] = [
   },
   { label: "Shop", href: "/shop" },
   { label: "Services", href: "/services" },
-  { label: "Blog", href: "/blog" },
-  { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
+  {
+    label: "We",
+    href: "/about",
+    children: [
+      { label: "About", href: "/about", description: "Our story & mission", icon: <Info className="w-4 h-4" /> },
+      { label: "Team", href: "/team", description: "Meet the people behind Circuvent", icon: <Users className="w-4 h-4" /> },
+      { label: "Careers", href: "/careers", description: "Open roles — build with us", icon: <Briefcase className="w-4 h-4" /> },
+      { label: "Blog", href: "/blog", description: "Engineering notes & updates", icon: <Newspaper className="w-4 h-4" /> },
+      { label: "Contact", href: "/contact", description: "Talk to us", icon: <Mail className="w-4 h-4" /> },
+    ],
+    featured: {
+      title: "Join our team",
+      description: "We're hiring across AI, IoT & full-stack engineering.",
+      href: "/careers",
+      gradient: "from-emerald-600 to-teal-700",
+      icon: "🚀",
+    },
+  },
 ];
 
 // ============================================================================

@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
 
 export interface IncomingItem {
   id?: string;
@@ -93,6 +94,7 @@ export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
     </table>`;
   const addr = [a.customer.address, a.customer.city, a.customer.state, a.customer.pincode].filter(Boolean).join(", ");
   const payLabel = a.paymentMethod === "razorpay" ? `Paid online (Razorpay) — ${a.paymentStatus}` : a.paymentMethod.toUpperCase();
+  const trackUrl = `${SITE_URL}/track?order=${encodeURIComponent(a.orderNo)}&email=${encodeURIComponent(a.customer.email || "")}`;
 
   const customerHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto">
@@ -104,7 +106,10 @@ export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
         <p style="font-size:14px;color:#0c1222">Hi ${a.customer.name}, we've received your order and will confirm dispatch shortly.</p>
         ${summary}
         <p style="margin-top:16px;font-size:12px;color:#536478">Deliver to: ${addr}<br/>Payment: ${payLabel}</p>
-        <p style="margin-top:16px;font-size:12px;color:#94a3b8">Track your order anytime at circuvent.com/track using ${a.orderNo} and this email.</p>
+        <div style="text-align:center;margin:20px 0 8px">
+          <a href="${trackUrl}" style="display:inline-block;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;text-decoration:none;padding:12px 26px;border-radius:10px;font-size:14px;font-weight:600">Track your order</a>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;text-align:center">Or track anytime at ${SITE_URL}/track using order <b>${a.orderNo}</b> and this email.</p>
       </div>
     </div>`;
   const adminHtml = `
