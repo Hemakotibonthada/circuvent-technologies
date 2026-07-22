@@ -6,8 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Menu, X, ArrowRight, ChevronDown, Sparkles,
-  Brain, Cpu, Globe, Shield, Code2, Layers,
-  Terminal, Rocket, Zap, GitBranch, ExternalLink,
   Command as CommandIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -37,47 +35,11 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Home", href: "/" },
-  {
-    label: "Projects",
-    href: "/projects",
-    children: [
-      { label: "All Projects", href: "/projects", description: "Browse 53+ open-source projects", icon: <Layers className="w-4 h-4" /> },
-      { label: "Case Studies", href: "/case-studies", description: "In-depth project breakdowns", icon: <Code2 className="w-4 h-4" /> },
-      { label: "Open Source", href: "/open-source", description: "MIT-licensed GitHub repos", icon: <GitBranch className="w-4 h-4" />, badge: "53+" },
-      { label: "Architecture", href: "/architecture", description: "System design & patterns", icon: <Terminal className="w-4 h-4" /> },
-    ],
-    featured: {
-      title: "NEXUS AI OS",
-      description: "13-agent local-first AI operating system",
-      href: "/projects/nexus-ai-os",
-      gradient: "from-violet-600 to-purple-700",
-      icon: "🧠",
-    },
-  },
-  {
-    label: "Domains",
-    href: "/domains",
-    children: [
-      { label: "AI & Agents", href: "/domains/ai", description: "Multi-agent LLM systems", icon: <Brain className="w-4 h-4" />, badge: "8" },
-      { label: "IoT & Edge", href: "/domains/iot", description: "ESP32 sensor networks", icon: <Cpu className="w-4 h-4" />, badge: "9" },
-      { label: "Full-Stack", href: "/domains/education", description: "React, Next.js, Flutter", icon: <Globe className="w-4 h-4" />, badge: "13" },
-      { label: "FinTech", href: "/domains/fintech", description: "Trading & analytics", icon: <Shield className="w-4 h-4" />, badge: "4" },
-    ],
-    featured: {
-      title: "SmartHome IoT",
-      description: "9 ESP32 sensors, MQTT, Flutter dashboard",
-      href: "/projects/smarthome-ecosystem",
-      gradient: "from-cyan-600 to-teal-700",
-      icon: "🏠",
-    },
-  },
-  {
-    label: "Services",
-    href: "/services",
-  },
   { label: "Shop", href: "/shop" },
+  { label: "Projects", href: "/projects" },
+  { label: "Services", href: "/services" },
   { label: "Blog", href: "/blog" },
-  { label: "About Us", href: "/about" },
+  { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
 

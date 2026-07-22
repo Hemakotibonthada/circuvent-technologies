@@ -4,18 +4,10 @@ import Hero from "@/components/Hero";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import ProjectCard from "@/components/ProjectCard";
 import ScrollReveal from "@/components/ScrollReveal";
-import CodeShowcase from "@/components/CodeShowcase";
-import AnimatedCounter from "@/components/AnimatedCounter";
 import TestimonialCarousel from "@/components/TestimonialCarousel";
 import TiltCard from "@/components/TiltCard";
-import { SplineSceneBasic } from "@/components/SplineSceneBasic";
 import Marquee, { MarqueeTechItem } from "@/components/Marquee";
 import { ShimmerText } from "@/components/AnimationEffects";
-import { TextReveal } from "@/components/AnimationEffects";
-import {
-  AnimatedPricingCards,
-  AnimatedAccordion,
-} from "@/components/InteractiveComponents";
 import { getFeaturedProjects } from "@/lib/projects-data";
 import { testimonials } from "@/lib/services-data";
 import { Button } from "@/components/ui/button";
@@ -23,15 +15,10 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight, Brain, Cpu, Globe, Shield, Code2, Layers,
-  Terminal, Rocket, Lock, Sparkles, Eye, Box,
-  Database, Cloud, GitBranch,
+  Rocket, Sparkles, Eye, Box,
   Mail, Users, FileText, Briefcase, CheckCircle2,
-  BarChart3, Calendar, Search, Zap, Network,
+  Search, Zap, Network,
 } from "lucide-react";
-import {
-  faqItems,
-  pricingTiers,
-} from "@/lib/showcase-landing-data";
 
 const domains = [
   { icon: Brain, title: "AI & Agents", description: "Multi-agent orchestration, LLM integration, computer vision, and NLP.", count: 8, gradient: "from-violet-500 to-purple-500", href: "/domains/ai" },
@@ -62,14 +49,7 @@ const processSteps = [
   { step: "04", title: "Deploy", description: "Docker-composed deployment with monitoring, backups, and zero downtime.", icon: Rocket, gradient: "from-emerald-500 to-teal-500" },
 ];
 
-const keyCapabilities = [
-  { icon: Brain, label: "AI Agents", value: "13+", desc: "Specialized AI agents running locally" },
-  { icon: Cpu, label: "IoT Devices", value: "9+", desc: "Production IoT devices deployed" },
-  { icon: Lock, label: "Local-First", value: "100%", desc: "AI on-device, zero cloud dependency" },
-  { icon: Database, label: "Databases", value: "6", desc: "PostgreSQL, MongoDB, Firebase, DuckDB, Redis, ChromaDB" },
-  { icon: Cloud, label: "Docker", value: "8", desc: "Production apps containerized" },
-  { icon: GitBranch, label: "Open Source", value: "53+", desc: "All MIT licensed on GitHub" },
-];
+
 
 const officeSuiteApps = [
   {
@@ -158,26 +138,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* INTERACTIVE 3D */}
-      <section className="relative z-10 py-24 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <ScrollReveal>
-            <SplineSceneBasic />
-          </ScrollReveal>
-        </div>
-      </section>
+      {/* INTERACTIVE 3D — removed for a cleaner, faster homepage */}
 
-      {/* STATS */}
-      <section className="relative z-10 py-20">
-        <div className="max-w-6xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <AnimatedCounter value={53} suffix="+" label="Projects" delay={0} gradient="from-cyan-500 to-blue-500" icon={<Layers className="w-5 h-5" style={{ color: "var(--accent-cyan)" }} />} description="Across 6 technology domains" />
-            <AnimatedCounter value={200} suffix="K+" label="Lines of Code" delay={0.15} gradient="from-violet-500 to-purple-500" icon={<Code2 className="w-5 h-5" style={{ color: "var(--accent-violet)" }} />} description="Production-quality codebase" />
-            <AnimatedCounter value={15} suffix="+" label="Tech Stacks" delay={0.3} gradient="from-pink-500 to-rose-500" icon={<Terminal className="w-5 h-5 text-pink-500" />} description="Mastered across all domains" />
-            <AnimatedCounter value={8} label="In Production" delay={0.45} gradient="from-emerald-500 to-teal-500" icon={<Rocket className="w-5 h-5 text-emerald-500" />} description="Live apps with real users" />
-          </div>
-        </div>
-      </section>
+      {/* STATS — removed (already shown in the hero) */}
 
       {/* DOMAINS */}
       <section className="relative z-10 py-24">
@@ -221,77 +184,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CODE SHOWCASE */}
-      <section className="relative z-10 py-24">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <ScrollReveal>
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>Our Code</span>
-              <h2 className="text-4xl sm:text-5xl font-bold mt-3 mb-6" style={{ color: "var(--text-primary)" }}>
-                <TextReveal text="Real Code." className="block" />
-                <TextReveal text="Real Systems." className="block bg-gradient-to-r from-violet-500 to-pink-500 bg-clip-text text-transparent" delay={0.3} />
-              </h2>
-              <p className="text-lg leading-relaxed mb-8" style={{ color: "var(--text-tertiary)" }}>
-                From Python AI orchestrators to Flutter mobile apps to ESP32 firmware — we write every line. No templates. No shortcuts.
-              </p>
-              <div className="grid grid-cols-2 gap-3 mb-8">
-                {[
-                  { icon: Brain, label: "AI / ML", count: "35K+ lines" },
-                  { icon: Cpu, label: "Embedded C++", count: "16K+ lines" },
-                  { icon: Globe, label: "Web / Mobile", count: "90K+ lines" },
-                  { icon: Terminal, label: "DevOps", count: "10K+ lines" },
-                ].map((item) => (
-                  <motion.div key={item.label} whileHover={{ y: -3, scale: 1.02 }} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
-                    <item.icon className="w-4 h-4 shrink-0" style={{ color: "var(--accent-cyan)" }} />
-                    <div>
-                      <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{item.label}</p>
-                      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>{item.count}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-              <Link href="/architecture">
-                <Button variant="outline" className="group">
-                  View Architecture <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-            </ScrollReveal>
-            <ScrollReveal direction="right" delay={0.2}>
-              <CodeShowcase />
-            </ScrollReveal>
-          </div>
-        </div>
-      </section>
+      {/* CODE SHOWCASE — removed to reduce homepage density (see /architecture) */}
 
-      {/* CAPABILITIES */}
-      <section className="relative z-10 py-20">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <ScrollReveal>
-            <div className="text-center mb-16">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Capabilities</span>
-              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
-                Engineering <ShimmerText>Excellence</ShimmerText>
-              </h2>
-            </div>
-          </ScrollReveal>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {keyCapabilities.map((cap, i) => (
-              <ScrollReveal key={cap.label} delay={i * 0.06}>
-                <TiltCard tiltAmount={6}>
-                  <motion.div className="group relative overflow-hidden rounded-2xl p-5 text-center transition-all duration-300" style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}>
-                    <motion.div className="inline-flex p-2.5 rounded-xl mb-3" style={{ background: "var(--accent-cyan-muted)" }} whileHover={{ rotate: 360 }} transition={{ duration: 0.5 }}>
-                      <cap.icon className="w-5 h-5" style={{ color: "var(--accent-cyan)" }} />
-                    </motion.div>
-                    <div className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-violet-500 bg-clip-text text-transparent">{cap.value}</div>
-                    <p className="text-xs font-semibold mt-1" style={{ color: "var(--text-primary)" }}>{cap.label}</p>
-                    <p className="text-[10px] mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--text-muted)" }}>{cap.desc}</p>
-                  </motion.div>
-                </TiltCard>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* CAPABILITIES — removed to reduce homepage density */}
 
       {/* FEATURED PROJECTS */}
       <section className="relative z-10 py-24">
@@ -564,47 +459,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* PRICING */}
-      <section className="relative z-10 py-24">
-        <div className="max-w-5xl mx-auto px-6 lg:px-8">
-          <ScrollReveal>
-            <div className="text-center mb-16">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Pricing</span>
-              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
-                Simple, <ShimmerText>Transparent</ShimmerText> Pricing
-              </h2>
-              <p className="max-w-2xl mx-auto mt-4" style={{ color: "var(--text-tertiary)" }}>
-                Choose the plan that matches your project scope. Every plan includes a GitHub repo, documentation, and Docker deployment.
-              </p>
-            </div>
-          </ScrollReveal>
-          <ScrollReveal>
-            <AnimatedPricingCards tiers={pricingTiers} />
-          </ScrollReveal>
-        </div>
-      </section>
+      {/* PRICING — moved to /services for a cleaner homepage */}
 
-      {/* FAQ */}
-      <section className="relative z-10 py-24">
-        <div className="max-w-3xl mx-auto px-6 lg:px-8">
-          <ScrollReveal>
-            <div className="text-center mb-12">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-violet)" }}>FAQ</span>
-              <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
-                Frequently <ShimmerText gradient="from-violet-400 to-purple-400">Asked</ShimmerText>
-              </h2>
-            </div>
-          </ScrollReveal>
-          <ScrollReveal>
-            <AnimatedAccordion
-              items={faqItems.map((item) => ({
-                ...item,
-                icon: <Sparkles className="w-4 h-4" style={{ color: "var(--accent-cyan)" }} />,
-              }))}
-            />
-          </ScrollReveal>
-        </div>
-      </section>
+
+      {/* FAQ — moved to /contact for a cleaner homepage */}
 
       {/* FINAL CTA */}
       <section className="relative z-10 py-24">
@@ -626,6 +484,11 @@ export default function Home() {
                   <Link href="/projects">
                     <Button size="lg" className="group">
                       Explore the Portfolio <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                  </Link>
+                  <Link href="/shop">
+                    <Button variant="outline" size="lg">
+                      Shop Devices
                     </Button>
                   </Link>
                   <Link href="/contact">

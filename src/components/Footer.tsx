@@ -7,34 +7,22 @@ import { Github, Linkedin, Twitter, Mail, ArrowUpRight, Heart, Sparkles, Code2, 
 import Image from "next/image";
 
 const footerLinks = {
-  product: [
-    { label: "Projects", href: "/projects", description: "53+ open-source projects" },
-    { label: "Services", href: "/services", description: "Full-stack development" },
-    { label: "Tech Stack", href: "/stack", description: "15+ technologies" },
-    { label: "Open Source", href: "/open-source", description: "MIT licensed repos" },
-    { label: "Case Studies", href: "/case-studies", description: "Real-world implementations" },
-    { label: "Architecture", href: "/architecture", description: "System design patterns" },
+  shop: [
+    { label: "Shop", href: "/shop" },
+    { label: "Track Order", href: "/track" },
+    { label: "Services", href: "/services" },
   ],
-  domains: [
-    { label: "AI & Agents", href: "/domains/ai", description: "Multi-agent AI systems" },
-    { label: "IoT & Smart Home", href: "/domains/iot", description: "ESP32 sensor networks" },
-    { label: "FinTech", href: "/domains/fintech", description: "Trading & analytics" },
-    { label: "HealthTech", href: "/domains/healthtech", description: "AI-powered diagnostics" },
-    { label: "Enterprise", href: "/domains/enterprise", description: "HRMS & business tools" },
-    { label: "Full-Stack", href: "/domains/education", description: "Web & mobile apps" },
-  ],
-  resources: [
-    { label: "Documentation", href: "/docs", description: "Guides & API docs" },
-    { label: "Blog", href: "/blog", description: "Technical articles" },
-    { label: "Roadmap", href: "/roadmap", description: "Future plans" },
-    { label: "Changelog", href: "/docs#changelog", description: "Release notes" },
+  explore: [
+    { label: "Projects", href: "/projects" },
+    { label: "Open Source", href: "/open-source" },
+    { label: "Blog", href: "/blog" },
+    { label: "Docs", href: "/docs" },
   ],
   company: [
-    { label: "About", href: "/about", description: "Our story" },
-    { label: "Team", href: "/team", description: "Meet the agents" },
-    { label: "Careers", href: "/careers", description: "Join our team" },
-    { label: "Contact", href: "/contact", description: "Get in touch" },
-    { label: "Privacy Policy", href: "/privacy", description: "Data & privacy" },
+    { label: "About", href: "/about" },
+    { label: "Careers", href: "/careers" },
+    { label: "Contact", href: "/contact" },
+    { label: "Privacy", href: "/privacy" },
   ],
 };
 
@@ -195,7 +183,7 @@ export default function Footer() {
           variants={containerVariants}
           initial="hidden"
           animate={isInView ? "visible" : "hidden"}
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 sm:gap-8 lg:gap-10"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 sm:gap-8 lg:gap-10"
         >
           {/* Brand Column */}
           <motion.div variants={itemVariants} className="col-span-2 md:col-span-3 lg:col-span-2 space-y-6">
