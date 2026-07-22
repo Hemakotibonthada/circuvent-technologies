@@ -32,6 +32,38 @@ function saveOrder(order: PlacedOrder) {
 const field =
   "w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--accent-cyan)]/30";
 
+interface RazorpayResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  order_id: string;
+  name: string;
+  description?: string;
+  image?: string;
+  prefill?: { name?: string; email?: string; contact?: string };
+  theme?: { color?: string };
+  handler: (r: RazorpayResponse) => void;
+  modal?: { ondismiss?: () => void };
+}
+type RazorpayCtor = new (o: RazorpayOptions) => { open: () => void };
+
+function loadRazorpay(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") return resolve(false);
+    if ((window as unknown as { Razorpay?: unknown }).Razorpay) return resolve(true);
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
 export default function CheckoutPage() {
   const { items, subtotal, shipping, total, clear } = useCart();
   const [form, setForm] = useState({
@@ -42,7 +74,7 @@ export default function CheckoutPage() {
     city: "",
     state: "",
     pincode: "",
-    paymentMethod: "cod",
+    paymentMethod: "razorpay",
     notes: "",
   });
   const [placing, setPlacing] = useState(false);
@@ -53,8 +85,16 @@ export default function CheckoutPage() {
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const cartPayload = () => items.map((i) => ({ id: i.id, slug: i.slug, qty: i.qty }));
+
+  const finalize = (order: PlacedOrder) => {
+    saveOrder(order);
+    clear();
+    setDone(order);
+    window.scrollTo(0, 0);
+  };
+
+  const placeOffline = async () => {
     setPlacing(true);
     setError("");
     setErrors({});
@@ -62,18 +102,11 @@ export default function CheckoutPage() {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: items.map((i) => ({ id: i.id, slug: i.slug, qty: i.qty })),
-          customer: form,
-        }),
+        body: JSON.stringify({ items: cartPayload(), customer: form }),
       });
       const data = await res.json();
-      if (data.success) {
-        saveOrder(data.order);
-        clear();
-        setDone(data.order);
-        window.scrollTo(0, 0);
-      } else {
+      if (data.success) finalize(data.order);
+      else {
         setError(data.message || "");
         setErrors(data.errors || {});
       }
@@ -82,6 +115,70 @@ export default function CheckoutPage() {
     } finally {
       setPlacing(false);
     }
+  };
+
+  const payOnline = async () => {
+    setPlacing(true);
+    setError("");
+    setErrors({});
+    try {
+      const loaded = await loadRazorpay();
+      if (!loaded) {
+        setError("Could not load the payment gateway. Please try again.");
+        setPlacing(false);
+        return;
+      }
+      const res = await fetch("/api/payments/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cartPayload() }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.message || "Could not start the payment.");
+        setPlacing(false);
+        return;
+      }
+      const Razorpay = (window as unknown as { Razorpay: RazorpayCtor }).Razorpay;
+      const rzp = new Razorpay({
+        key: data.keyId,
+        amount: data.amount,
+        currency: data.currency,
+        order_id: data.orderId,
+        name: "Circuvent Store",
+        description: "Order payment",
+        image: "/logo-mark.png",
+        prefill: { name: form.name, email: form.email, contact: form.phone },
+        theme: { color: "#06b6d4" },
+        handler: async (resp: RazorpayResponse) => {
+          try {
+            const vr = await fetch("/api/payments/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...resp, items: cartPayload(), customer: form }),
+            });
+            const vd = await vr.json();
+            if (vd.success) finalize(vd.order);
+            else setError(vd.message || "Payment verification failed.");
+          } catch {
+            setError("Payment verification error. If money was debited, contact support with your payment id.");
+          } finally {
+            setPlacing(false);
+          }
+        },
+        modal: { ondismiss: () => setPlacing(false) },
+      });
+      rzp.open();
+    } catch {
+      setError("Something went wrong starting the payment.");
+      setPlacing(false);
+    }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.paymentMethod === "razorpay") payOnline();
+    else placeOffline();
   };
 
   const inputStyle = { background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-primary)" };
@@ -118,7 +215,11 @@ export default function CheckoutPage() {
             <div className="mt-1 flex justify-between">
               <span style={{ color: "var(--text-tertiary)" }}>Payment</span>
               <span style={{ color: "var(--text-secondary)" }}>
-                {done.paymentMethod === "cod" ? "Cash on delivery" : done.paymentMethod.toUpperCase()}
+                {done.paymentMethod === "cod"
+                  ? "Cash on delivery"
+                  : done.paymentMethod === "razorpay"
+                    ? "Paid online (Razorpay)"
+                    : done.paymentMethod.toUpperCase()}
               </span>
             </div>
           </div>
@@ -237,8 +338,8 @@ export default function CheckoutPage() {
             </label>
             <div className="grid gap-2 sm:grid-cols-2">
               {[
+                { id: "razorpay", label: "Pay online — cards, UPI, netbanking" },
                 { id: "cod", label: "Cash on delivery" },
-                { id: "upi", label: "UPI on confirmation" },
               ].map((opt) => (
                 <label
                   key={opt.id}
@@ -308,7 +409,13 @@ export default function CheckoutPage() {
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] disabled:opacity-60"
           >
             {placing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            {placing ? "Placing order…" : "Place order"}
+            {placing
+              ? form.paymentMethod === "razorpay"
+                ? "Processing…"
+                : "Placing order…"
+              : form.paymentMethod === "razorpay"
+                ? `Pay ${formatINR(total)}`
+                : "Place order"}
           </button>
           <div className="mt-4 flex items-center justify-center gap-4 text-[11px]" style={{ color: "var(--text-muted)" }}>
             <span className="flex items-center gap-1">
