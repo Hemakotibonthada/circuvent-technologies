@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw, Search, Save, ChevronDown } from "lucide-react";
+import { Loader2, RefreshCw, Search, Save, ChevronDown, Download } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
 
 const STATUSES = ["placed", "confirmed", "packed", "shipped", "out_for_delivery", "delivered", "cancelled"];
@@ -78,6 +78,26 @@ export default function OrdersPanel() {
     load();
   }, [load]);
 
+  const exportCsv = async () => {
+    const params = new URLSearchParams();
+    if (status !== "all") params.set("status", status);
+    if (q.trim()) params.set("q", q.trim());
+    params.set("format", "csv");
+    try {
+      const res = await fetch(`/api/admin/orders?${params.toString()}`, { headers: { "x-admin-token": tok() } });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "circuvent-orders.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-primary)" };
 
   return (
@@ -122,6 +142,13 @@ export default function OrdersPanel() {
           style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
         >
           <RefreshCw className="h-4 w-4" /> Refresh
+        </button>
+        <button
+          onClick={exportCsv}
+          className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium"
+          style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+        >
+          <Download className="h-4 w-4" /> Export CSV
         </button>
       </div>
 

@@ -25,6 +25,12 @@ export async function POST(request: Request) {
     if (!acc || !verifyPassword(String(password), acc.salt, acc.hash)) {
       return NextResponse.json({ success: false, message: "Invalid email or password." }, { status: 401 });
     }
+    if (acc.blocked) {
+      return NextResponse.json(
+        { success: false, message: "This account has been suspended. Please contact support." },
+        { status: 403 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

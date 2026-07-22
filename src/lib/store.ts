@@ -14,6 +14,8 @@ import { products as CATALOG } from "./shop-data";
 
 // ---------------------------------------------------------------- types ----
 export interface StoredOrderItem {
+  id?: string;
+  slug?: string;
   name: string;
   price: number;
   qty: number;
@@ -83,12 +85,63 @@ export interface Wallet {
   history: WalletTxn[];
 }
 
+export interface NotifyPrefs {
+  orderUpdates: boolean;
+  promotions: boolean;
+  whatsapp: boolean;
+  quietHoursStart?: string; // "22:00"
+  quietHoursEnd?: string; // "08:00"
+}
+
 export interface Account {
   email: string;
   name: string;
   hash: string;
   salt: string;
   createdAt: string;
+  blocked?: boolean;
+  phone?: string;
+  gender?: string;
+  dob?: string;
+  gstin?: string;
+  businessName?: string;
+  poRef?: string;
+  notifyPrefs?: NotifyPrefs;
+  tokenVersion?: number;
+  deletedAt?: string;
+}
+
+export interface Address {
+  id: string;
+  email: string;
+  label: string; // Home, Work, Other, ...
+  name: string;
+  phone: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  instructions?: string;
+  isCommercial?: boolean;
+  isDefaultShipping?: boolean;
+  isDefaultBilling?: boolean;
+  createdAt: string;
+}
+
+export interface NotifyRequest {
+  id: string;
+  productId: string;
+  email: string;
+  at: string;
+  notified?: boolean;
+}
+
+export interface LoginEvent {
+  at: string;
+  ip: string;
+  userAgent?: string;
+  blocked?: boolean;
 }
 
 export interface PendingRegistration {
@@ -111,6 +164,51 @@ export interface Review {
   at: string;
 }
 
+export interface StoreCoupon {
+  code: string;
+  type: "percent" | "flat" | "shipping";
+  value: number;
+  minSubtotal?: number;
+  label: string;
+  active: boolean;
+}
+
+export interface TicketReply {
+  at: string;
+  from: "customer" | "admin";
+  message: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  email: string;
+  name: string;
+  subject: string;
+  orderNo?: string;
+  status: "open" | "closed";
+  messages: TicketReply[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReturnRequest {
+  id: string;
+  orderNo: string;
+  email: string;
+  reason: string;
+  status: "requested" | "approved" | "rejected" | "refunded";
+  refundAmount?: number;
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditEntry {
+  at: string;
+  action: string;
+  detail: string;
+}
+
 interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
@@ -119,6 +217,13 @@ interface DB {
   pending: Record<string, PendingRegistration>;
   devices: Record<string, Device>;
   reviews: Review[];
+  addresses: Address[];
+  notifyRequests: NotifyRequest[];
+  logins: Record<string, LoginEvent[]>;
+  coupons: StoreCoupon[];
+  tickets: SupportTicket[];
+  returns: ReturnRequest[];
+  audit: AuditEntry[];
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -140,8 +245,31 @@ function seedProducts(): StoredProduct[] {
   }));
 }
 
+function seedCoupons(): StoreCoupon[] {
+  return [
+    { code: "WELCOME10", type: "percent", value: 10, label: "10% off (welcome)", active: true },
+    { code: "CIRCU200", type: "flat", value: 200, minSubtotal: 1500, label: "₹200 off orders over ₹1,500", active: true },
+    { code: "FREESHIP", type: "shipping", value: 0, label: "Free shipping", active: true },
+  ];
+}
+
 function emptyDB(): DB {
-  return { orders: [], products: seedProducts(), wallets: {}, accounts: {}, pending: {}, devices: {}, reviews: [] };
+  return {
+    orders: [],
+    products: seedProducts(),
+    wallets: {},
+    accounts: {},
+    pending: {},
+    devices: {},
+    reviews: [],
+    addresses: [],
+    notifyRequests: [],
+    logins: {},
+    coupons: seedCoupons(),
+    tickets: [],
+    returns: [],
+    audit: [],
+  };
 }
 
 /** Ensures every catalog product exists in the store (adds newly-shipped ones). */
@@ -177,6 +305,13 @@ function load(): DB {
         pending: parsed.pending ?? {},
         devices: parsed.devices ?? {},
         reviews: parsed.reviews ?? [],
+        addresses: parsed.addresses ?? [],
+        notifyRequests: parsed.notifyRequests ?? [],
+        logins: parsed.logins ?? {},
+        coupons: parsed.coupons && parsed.coupons.length ? parsed.coupons : seedCoupons(),
+        tickets: parsed.tickets ?? [],
+        returns: parsed.returns ?? [],
+        audit: parsed.audit ?? [],
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -585,4 +720,221 @@ export function unclaimDevice(id: string, ownerEmail: string): boolean {
   delete d.ownerEmail;
   save();
   return true;
+}
+
+// --------------------------------------------------------------- coupons ---
+export function listCoupons(): StoreCoupon[] {
+  return load().coupons;
+}
+export function getActiveCoupon(code: string): StoreCoupon | null {
+  const c = load().coupons.find((x) => x.code === String(code || "").trim().toUpperCase());
+  return c && c.active ? c : null;
+}
+export function upsertCoupon(c: StoreCoupon): StoreCoupon {
+  const db = load();
+  const code = c.code.trim().toUpperCase();
+  const ex = db.coupons.find((x) => x.code === code);
+  if (ex) {
+    Object.assign(ex, c, { code });
+    save();
+    return ex;
+  }
+  const created: StoreCoupon = { ...c, code };
+  db.coupons.push(created);
+  save();
+  return created;
+}
+export function deleteCoupon(code: string): boolean {
+  const db = load();
+  const before = db.coupons.length;
+  db.coupons = db.coupons.filter((x) => x.code !== String(code || "").trim().toUpperCase());
+  save();
+  return db.coupons.length < before;
+}
+
+// -------------------------------------------------------- support tickets --
+export function createTicket(t: {
+  email: string;
+  name: string;
+  subject: string;
+  orderNo?: string;
+  message: string;
+}): SupportTicket {
+  const db = load();
+  const now = new Date().toISOString();
+  const ticket: SupportTicket = {
+    id: Math.random().toString(36).slice(2, 10),
+    email: t.email.trim().toLowerCase(),
+    name: t.name,
+    subject: String(t.subject || "Support request").slice(0, 160),
+    orderNo: t.orderNo,
+    status: "open",
+    messages: [{ at: now, from: "customer", message: String(t.message || "").slice(0, 2000) }],
+    createdAt: now,
+    updatedAt: now,
+  };
+  db.tickets.unshift(ticket);
+  save();
+  return ticket;
+}
+export function listTickets(): SupportTicket[] {
+  return load().tickets;
+}
+export function listTicketsByEmail(email: string): SupportTicket[] {
+  const e = email.trim().toLowerCase();
+  return load().tickets.filter((t) => t.email === e);
+}
+export function addTicketMessage(id: string, from: "customer" | "admin", message: string): SupportTicket | null {
+  const db = load();
+  const t = db.tickets.find((x) => x.id === id);
+  if (!t) return null;
+  t.messages.push({ at: new Date().toISOString(), from, message: String(message || "").slice(0, 2000) });
+  t.status = "open";
+  t.updatedAt = new Date().toISOString();
+  save();
+  return t;
+}
+export function setTicketStatus(id: string, status: "open" | "closed"): SupportTicket | null {
+  const db = load();
+  const t = db.tickets.find((x) => x.id === id);
+  if (!t) return null;
+  t.status = status;
+  t.updatedAt = new Date().toISOString();
+  save();
+  return t;
+}
+
+// ---------------------------------------------------------- returns / RMA --
+export function createReturn(r: { orderNo: string; email: string; reason: string }): {
+  ok: boolean;
+  message?: string;
+  request?: ReturnRequest;
+} {
+  const db = load();
+  const email = r.email.trim().toLowerCase();
+  const order = db.orders.find((o) => o.orderNo === r.orderNo && (o.customer.email || "").toLowerCase() === email);
+  if (!order) return { ok: false, message: "Order not found for your account." };
+  const existing = db.returns.find((x) => x.orderNo === r.orderNo && x.status !== "rejected");
+  if (existing) return { ok: false, message: "A return for this order is already in progress." };
+  const now = new Date().toISOString();
+  const req: ReturnRequest = {
+    id: Math.random().toString(36).slice(2, 10),
+    orderNo: r.orderNo,
+    email,
+    reason: String(r.reason || "").slice(0, 500),
+    status: "requested",
+    createdAt: now,
+    updatedAt: now,
+  };
+  db.returns.unshift(req);
+  save();
+  return { ok: true, request: req };
+}
+export function listReturns(): ReturnRequest[] {
+  return load().returns;
+}
+export function listReturnsByEmail(email: string): ReturnRequest[] {
+  const e = email.trim().toLowerCase();
+  return load().returns.filter((r) => r.email === e);
+}
+export function getReturn(id: string): ReturnRequest | null {
+  return load().returns.find((r) => r.id === id) || null;
+}
+export function updateReturn(
+  id: string,
+  patch: Partial<Pick<ReturnRequest, "status" | "refundAmount" | "adminNote">>
+): ReturnRequest | null {
+  const db = load();
+  const r = db.returns.find((x) => x.id === id);
+  if (!r) return null;
+  if (patch.status) r.status = patch.status;
+  if (patch.refundAmount !== undefined) r.refundAmount = patch.refundAmount;
+  if (patch.adminNote !== undefined) r.adminNote = patch.adminNote;
+  r.updatedAt = new Date().toISOString();
+  save();
+  return r;
+}
+
+// ------------------------------------------------------------- customers ---
+export interface CustomerView {
+  email: string;
+  name: string;
+  blocked: boolean;
+  createdAt: string;
+  orders: number;
+  spend: number;
+  wallet: number;
+}
+export function listCustomers(): CustomerView[] {
+  const db = load();
+  return Object.values(db.accounts).map((a) => {
+    const orders = db.orders.filter((o) => (o.customer.email || "").toLowerCase() === a.email);
+    const spend = orders.filter((o) => o.paymentStatus === "paid").reduce((s, o) => s + o.total, 0);
+    return {
+      email: a.email,
+      name: a.name,
+      blocked: !!a.blocked,
+      createdAt: a.createdAt,
+      orders: orders.length,
+      spend,
+      wallet: db.wallets[a.email]?.balance || 0,
+    };
+  });
+}
+export function setAccountBlocked(email: string, blocked: boolean): boolean {
+  const db = load();
+  const a = db.accounts[email.trim().toLowerCase()];
+  if (!a) return false;
+  a.blocked = blocked;
+  save();
+  return true;
+}
+
+// ----------------------------------------------------------------- audit ---
+export function logAudit(action: string, detail: string): void {
+  const db = load();
+  db.audit.unshift({ at: new Date().toISOString(), action, detail });
+  if (db.audit.length > 500) db.audit = db.audit.slice(0, 500);
+  save();
+}
+export function listAudit(limit = 100): AuditEntry[] {
+  return load().audit.slice(0, limit);
+}
+
+// -------------------------------------------------------------- analytics --
+export function analytics() {
+  const db = load();
+  const orders = db.orders;
+  const paid = orders.filter((o) => o.paymentStatus === "paid");
+  const revenue = paid.reduce((s, o) => s + o.total, 0);
+  const gmv = orders.reduce((s, o) => s + o.total, 0);
+  const statusCounts: Record<string, number> = {};
+  for (const o of orders) statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
+  const prodQty: Record<string, { name: string; qty: number; revenue: number }> = {};
+  for (const o of orders) {
+    for (const it of o.items) {
+      if (!prodQty[it.name]) prodQty[it.name] = { name: it.name, qty: 0, revenue: 0 };
+      prodQty[it.name].qty += it.qty;
+      prodQty[it.name].revenue += it.lineTotal;
+    }
+  }
+  const topProducts = Object.values(prodQty).sort((a, b) => b.qty - a.qty).slice(0, 5);
+  const lowStock = db.products.filter((p) => p.available && p.stock <= 5).map((p) => ({ name: p.name, stock: p.stock }));
+  const walletLiability = Object.values(db.wallets).reduce((s, w) => s + w.balance, 0);
+  return {
+    gmv,
+    revenue,
+    orders: orders.length,
+    paidOrders: paid.length,
+    aov: paid.length ? Math.round(revenue / paid.length) : 0,
+    customers: Object.keys(db.accounts).length,
+    devices: Object.keys(db.devices).length,
+    walletLiability,
+    statusCounts,
+    topProducts,
+    lowStock,
+    openTickets: db.tickets.filter((t) => t.status === "open").length,
+    pendingReturns: db.returns.filter((r) => r.status === "requested").length,
+    reviews: db.reviews.length,
+  };
 }

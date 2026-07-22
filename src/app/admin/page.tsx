@@ -21,9 +21,18 @@ import {
   LogIn,
   ShoppingBag,
   Boxes,
+  Users2,
+  Tag,
+  RotateCcw,
+  LifeBuoy,
 } from "lucide-react";
 import OrdersPanel from "./OrdersPanel";
 import InventoryPanel from "./InventoryPanel";
+import CommerceStats from "./CommerceStats";
+import CustomersPanel from "./CustomersPanel";
+import CouponsPanel from "./CouponsPanel";
+import ReturnsPanel from "./ReturnsPanel";
+import SupportPanel from "./SupportPanel";
 
 interface PageStats {
   page: string;
@@ -100,7 +109,9 @@ export default function AdminDashboard() {
   const [sseConnected, setSSEConnected] = useState(false);
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [tab, setTab] = useState<"overview" | "orders" | "inventory">("overview");
+  const [tab, setTab] = useState<
+    "overview" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support"
+  >("overview");
 
   // Check existing session
   useEffect(() => {
@@ -299,13 +310,17 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <div
-          className="mb-8 flex gap-1 rounded-xl p-1"
-          style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", width: "fit-content" }}
+          className="mb-8 flex flex-wrap gap-1 rounded-xl p-1"
+          style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", width: "fit-content", maxWidth: "100%" }}
         >
           {[
             { id: "overview", label: "Overview", icon: <BarChart3 className="w-4 h-4" /> },
             { id: "orders", label: "Orders", icon: <ShoppingBag className="w-4 h-4" /> },
             { id: "inventory", label: "Inventory", icon: <Boxes className="w-4 h-4" /> },
+            { id: "customers", label: "Customers", icon: <Users2 className="w-4 h-4" /> },
+            { id: "coupons", label: "Coupons", icon: <Tag className="w-4 h-4" /> },
+            { id: "returns", label: "Returns", icon: <RotateCcw className="w-4 h-4" /> },
+            { id: "support", label: "Support", icon: <LifeBuoy className="w-4 h-4" /> },
           ].map((t) => (
             <button
               key={t.id}
@@ -320,9 +335,14 @@ export default function AdminDashboard() {
 
         {tab === "orders" && <OrdersPanel />}
         {tab === "inventory" && <InventoryPanel />}
+        {tab === "customers" && <CustomersPanel />}
+        {tab === "coupons" && <CouponsPanel />}
+        {tab === "returns" && <ReturnsPanel />}
+        {tab === "support" && <SupportPanel />}
 
         {tab === "overview" && (
         <>
+        <CommerceStats />
         {/* Top Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard

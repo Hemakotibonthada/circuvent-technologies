@@ -11,6 +11,9 @@ import {
   ArrowRight,
   ArrowDownCircle,
   ArrowUpCircle,
+  LifeBuoy,
+  Send,
+  RotateCcw,
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
 import AuthForm from "@/components/shop/AuthForm";
@@ -226,9 +229,26 @@ function SignedIn({
     }
   };
 
+  const requestReturn = async (orderNo: string) => {
+    const reason = window.prompt("What's the reason for returning this order?");
+    if (!reason || reason.trim().length < 3) return;
+    try {
+      const res = await fetch("/api/returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ orderNo, reason }),
+      });
+      const d = await res.json();
+      alert(d.success ? "Return requested — we'll review it and refund to your wallet." : d.message || "Could not request the return.");
+    } catch {
+      alert("Network error. Please try again.");
+    }
+  };
+
   const card = { background: "var(--bg-surface)", borderColor: "var(--border-primary)" };
 
   return (
+    <>
     <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
       {/* Left column: profile + wallet */}
       <div className="space-y-6">
@@ -376,14 +396,155 @@ function SignedIn({
                   <span className="text-xs capitalize" style={{ color: "var(--text-tertiary)" }}>
                     {o.paymentMethod === "razorpay" ? "Paid online" : o.paymentMethod}
                   </span>
-                  <Link
-                    href={`/track?order=${encodeURIComponent(o.orderNo)}&email=${encodeURIComponent(email)}`}
-                    className="text-xs font-semibold"
-                    style={{ color: "var(--accent-cyan)" }}
-                  >
-                    Track →
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => requestReturn(o.orderNo)}
+                      className="flex items-center gap-1 text-xs font-medium"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      <RotateCcw className="h-3 w-3" /> Return
+                    </button>
+                    <Link
+                      href={`/track?order=${encodeURIComponent(o.orderNo)}&email=${encodeURIComponent(email)}`}
+                      className="text-xs font-semibold"
+                      style={{ color: "var(--accent-cyan)" }}
+                    >
+                      Track →
+                    </Link>
+                  </div>
                 </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+    <SupportSection authHeaders={authHeaders} />
+    </>
+  );
+}
+
+interface TicketLite {
+  id: string;
+  subject: string;
+  status: string;
+  messages: { from: string; message: string; at: string }[];
+  updatedAt: string;
+}
+interface ReturnLite {
+  id: string;
+  orderNo: string;
+  status: string;
+  refundAmount?: number;
+}
+
+function SupportSection({ authHeaders }: { authHeaders: () => Record<string, string> }) {
+  const [tickets, setTickets] = useState<TicketLite[]>([]);
+  const [returns, setReturns] = useState<ReturnLite[]>([]);
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const [t, r] = await Promise.all([
+        fetch("/api/support", { headers: authHeaders() }),
+        fetch("/api/returns", { headers: authHeaders() }),
+      ]);
+      if (t.ok) setTickets((await t.json()).tickets || []);
+      if (r.ok) setReturns((await r.json()).returns || []);
+    } catch {
+      /* ignore */
+    }
+  }, [authHeaders]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (message.trim().length < 5) {
+      setMsg("Please describe your issue.");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ subject, message }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setSubject("");
+        setMessage("");
+        setMsg("Sent! We'll reply by email.");
+        load();
+      } else setMsg(d.message || "Could not send.");
+    } catch {
+      setMsg("Network error.");
+    }
+    setBusy(false);
+  };
+
+  const card = { background: "var(--bg-surface)", borderColor: "var(--border-primary)" };
+  const field = "w-full rounded-xl border px-4 py-2.5 text-sm outline-none";
+  const inputStyle = { background: "var(--bg-glass)", borderColor: "var(--border-primary)", color: "var(--text-primary)" };
+
+  return (
+    <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="rounded-2xl border p-6" style={card}>
+        <h2 className="flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
+          <LifeBuoy className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Support
+        </h2>
+        <form onSubmit={submit} className="mt-3 space-y-2">
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" className={field} style={inputStyle} />
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="How can we help?" className={field + " min-h-[80px]"} style={inputStyle} />
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={busy} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
+            </button>
+            {msg && <span className="text-xs" style={{ color: "var(--accent-cyan)" }}>{msg}</span>}
+          </div>
+        </form>
+        {tickets.length > 0 && (
+          <ul className="mt-4 space-y-2">
+            {tickets.map((t) => (
+              <li key={t.id} className="rounded-lg border p-3 text-sm" style={{ borderColor: "var(--border-primary)" }}>
+                <div className="flex items-center justify-between">
+                  <span style={{ color: "var(--text-primary)" }}>{t.subject}</span>
+                  <span className="text-xs" style={{ color: t.status === "open" ? "#f59e0b" : "#10b981" }}>{t.status}</span>
+                </div>
+                {t.messages.length > 0 && (
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                    {t.messages[t.messages.length - 1].from}: {t.messages[t.messages.length - 1].message}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-2xl border p-6" style={card}>
+        <h2 className="flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
+          <RotateCcw className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Returns
+        </h2>
+        {returns.length === 0 ? (
+          <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>
+            No returns yet. Use the &ldquo;Return&rdquo; link on an order to request one.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {returns.map((r) => (
+              <li key={r.id} className="flex items-center justify-between rounded-lg border p-3 text-sm" style={{ borderColor: "var(--border-primary)" }}>
+                <span className="font-mono" style={{ color: "var(--text-primary)" }}>{r.orderNo}</span>
+                <span className="text-xs" style={{ color: r.status === "refunded" ? "#10b981" : r.status === "rejected" ? "#ef4444" : "#f59e0b" }}>
+                  {r.status}{r.refundAmount ? ` · ${formatINR(r.refundAmount)}` : ""}
+                </span>
               </li>
             ))}
           </ul>
