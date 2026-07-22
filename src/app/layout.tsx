@@ -58,9 +58,7 @@ export default function RootLayout({
           title="Circuvent Technologies Blog"
           href="/feed.xml"
         />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
-        <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico" />
+        {/* Favicons & app icons are provided via src/app/{icon,apple-icon,favicon}.* */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -69,7 +67,7 @@ export default function RootLayout({
               "@type": "Organization",
               name: "Circuvent Technologies",
               url: "https://circuvent.tech",
-              logo: "https://circuvent.tech/logo.svg",
+              logo: "https://circuvent.tech/logo.png",
               description: "Engineering intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering.",
               sameAs: [
                 "https://github.com/Hemakotibonthada",

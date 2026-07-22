@@ -157,7 +157,7 @@ export default function Navigation() {
                 transition={{ type: "spring", stiffness: 400, damping: 15 }}
               >
                 <Image
-                  src="/logo.svg"
+                  src="/logo-mark.png"
                   alt="Circuvent Technologies logo"
                   width={34}
                   height={34}
