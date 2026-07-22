@@ -938,3 +938,31 @@ export function analytics() {
     reviews: db.reviews.length,
   };
 }
+
+/**
+ * Self-service cancellation by the customer — only allowed before the order is
+ * packed/shipped. Refunds a paid order to the wallet.
+ */
+export function cancelOrderByCustomer(
+  orderNo: string,
+  email: string
+): { ok: boolean; message?: string; refunded?: number } {
+  const db = load();
+  const em = email.trim().toLowerCase();
+  const o = db.orders.find((x) => x.orderNo === orderNo && (x.customer.email || "").toLowerCase() === em);
+  if (!o) return { ok: false, message: "Order not found for your account." };
+  if (!["placed", "confirmed"].includes(o.status)) {
+    return { ok: false, message: "This order has already been processed — please request a return instead." };
+  }
+  o.status = "cancelled";
+  o.history.push({ status: "cancelled", at: new Date().toISOString(), note: "Cancelled by customer" });
+  let refunded = 0;
+  if (o.paymentStatus === "paid" && o.customer.email) {
+    creditWallet(o.customer.email, o.total, `Refund — cancelled order ${o.orderNo}`, o.orderNo);
+    o.paymentStatus = "refunded";
+    refunded = o.total;
+  }
+  o.updatedAt = new Date().toISOString();
+  save();
+  return { ok: true, refunded };
+}

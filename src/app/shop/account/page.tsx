@@ -245,6 +245,25 @@ function SignedIn({
     }
   };
 
+  const cancelOrder = async (orderNo: string) => {
+    if (!confirm("Cancel this order? Any payment will be refunded to your wallet.")) return;
+    try {
+      const res = await fetch("/api/orders/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ orderNo }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        alert(d.refunded ? `Order cancelled — ${formatINR(d.refunded)} refunded to your wallet.` : "Order cancelled.");
+        refreshWallet();
+        loadOrders();
+      } else alert(d.message || "Could not cancel the order.");
+    } catch {
+      alert("Network error. Please try again.");
+    }
+  };
+
   const card = { background: "var(--bg-surface)", borderColor: "var(--border-primary)" };
 
   return (
@@ -397,6 +416,11 @@ function SignedIn({
                     {o.paymentMethod === "razorpay" ? "Paid online" : o.paymentMethod}
                   </span>
                   <div className="flex items-center gap-3">
+                    {["placed", "confirmed"].includes(o.status) && (
+                      <button onClick={() => cancelOrder(o.orderNo)} className="text-xs font-medium" style={{ color: "#ef4444" }}>
+                        Cancel
+                      </button>
+                    )}
                     <button
                       onClick={() => requestReturn(o.orderNo)}
                       className="flex items-center gap-1 text-xs font-medium"
