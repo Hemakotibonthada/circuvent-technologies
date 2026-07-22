@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, CheckCircle2, Circle, Package, Truck, Loader2 } from "lucide-react";
+import { Search, CheckCircle2, Circle, Package, Truck, Loader2, ExternalLink } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { formatINR } from "@/lib/shop-data";
 
@@ -51,6 +51,22 @@ function fmt(iso: string) {
   } catch {
     return "";
   }
+}
+
+/** Best-effort deep link to a courier's own tracking page for common Indian carriers. */
+function courierTrackUrl(carrier?: string | null, awb?: string | null): string | null {
+  if (!awb) return null;
+  const c = (carrier || "").toLowerCase();
+  const a = encodeURIComponent(awb);
+  if (c.includes("delhivery")) return `https://www.delhivery.com/track/package/${a}`;
+  if (c.includes("blue")) return `https://www.bluedart.com/tracking?trackFor=0&trackNo=${a}`;
+  if (c.includes("dtdc")) return `https://www.dtdc.in/tracking/tracking.asp?strCnno=${a}`;
+  if (c.includes("xpress")) return `https://www.xpressbees.com/track?awb=${a}`;
+  if (c.includes("ecom")) return `https://ecomexpress.in/tracking/?awb_field=${a}`;
+  if (c.includes("ekart")) return `https://ekartlogistics.com/shipmenttrack/${a}`;
+  if (c.includes("post")) return `https://www.indiapost.gov.in/`;
+  if (c.includes("ship")) return `https://www.shiprocket.in/shipment-tracking/${a}`;
+  return `https://www.google.com/search?q=${encodeURIComponent((carrier || "courier") + " tracking " + awb)}`;
 }
 
 export default function TrackPage() {
@@ -175,21 +191,34 @@ export default function TrackPage() {
 
             {(order.trackingNumber || order.carrier) && (
               <div
-                className="mt-4 flex items-center gap-3 rounded-xl border p-4"
+                className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
                 style={{ background: "var(--accent-cyan-muted)", borderColor: "var(--border-accent)" }}
               >
-                <Truck className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} />
-                <div className="text-sm">
-                  <span style={{ color: "var(--text-secondary)" }}>Shipment: </span>
-                  <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                    {order.carrier || "Courier"}
-                  </span>
-                  {order.trackingNumber && (
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      {" "}· AWB <span className="font-mono">{order.trackingNumber}</span>
+                <div className="flex items-center gap-3">
+                  <Truck className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} />
+                  <div className="text-sm">
+                    <span style={{ color: "var(--text-secondary)" }}>Shipment: </span>
+                    <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {order.carrier || "Courier"}
                     </span>
-                  )}
+                    {order.trackingNumber && (
+                      <span style={{ color: "var(--text-secondary)" }}>
+                        {" "}· AWB <span className="font-mono">{order.trackingNumber}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {courierTrackUrl(order.carrier, order.trackingNumber) && (
+                  <a
+                    href={courierTrackUrl(order.carrier, order.trackingNumber)!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                    style={{ borderColor: "var(--border-accent)", color: "var(--accent-cyan)", background: "var(--bg-surface)" }}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Track on courier
+                  </a>
+                )}
               </div>
             )}
 

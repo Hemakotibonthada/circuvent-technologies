@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Loader2, CheckCircle2, ArrowRight, Truck, MapPin, ShieldCheck, Wallet } from "lucide-react";
 import { useCart } from "@/components/shop/CartProvider";
 import { useAccount } from "@/components/shop/AccountProvider";
+import AuthForm from "@/components/shop/AuthForm";
 import { formatINR } from "@/lib/shop-data";
 
 interface PlacedOrder {
@@ -67,7 +68,7 @@ function loadRazorpay(): Promise<boolean> {
 
 export default function CheckoutPage() {
   const { items, subtotal, shipping, total, clear } = useCart();
-  const { account, wallet, authHeaders, refreshWallet } = useAccount();
+  const { account, wallet, ready, authHeaders, refreshWallet } = useAccount();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -85,13 +86,26 @@ export default function CheckoutPage() {
   const [done, setDone] = useState<PlacedOrder | null>(null);
 
   useEffect(() => {
-    if (account) {
-      setForm((f) => ({
-        ...f,
-        name: f.name || account.name,
-        email: f.email || account.email,
-      }));
-    }
+    if (!account) return;
+    setForm((f) => ({ ...f, name: f.name || account.name, email: f.email || account.email }));
+    // Auto-fill the delivery address from the customer's most recent order.
+    fetch("/api/account/orders", { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const last = d?.orders?.[0]?.customer;
+        if (last) {
+          setForm((f) => ({
+            ...f,
+            phone: f.phone || last.phone || "",
+            address: f.address || last.address || "",
+            city: f.city || last.city || "",
+            state: f.state || last.state || "",
+            pincode: f.pincode || last.pincode || "",
+          }));
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -269,6 +283,25 @@ export default function CheckoutPage() {
         >
           Browse the shop <ArrowRight className="h-4 w-4" />
         </Link>
+      </section>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <section className="relative z-10 mx-auto flex max-w-xl justify-center px-6 pb-24 pt-40 lg:px-8">
+        <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--accent-cyan)" }} />
+      </section>
+    );
+  }
+
+  if (!account) {
+    return (
+      <section className="relative z-10 mx-auto max-w-xl px-6 pb-24 pt-32 lg:px-8">
+        <AuthForm
+          heading="Sign in to check out"
+          sub="Please sign in or create an account to place your order, pay with wallet and track it. Your cart is saved."
+        />
       </section>
     );
   }

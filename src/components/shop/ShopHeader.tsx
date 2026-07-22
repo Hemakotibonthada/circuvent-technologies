@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Store, PackageSearch, Truck, Wallet, UserCircle2 } from "lucide-react";
+import { Store, PackageSearch, Truck, Wallet, UserCircle2, Home } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 import { formatINR } from "@/lib/shop-data";
 import CartButton from "./CartButton";
@@ -19,7 +19,7 @@ export default function ShopHeader() {
 
   return (
     <div
-      className="sticky top-[64px] z-30 border-b backdrop-blur-xl lg:top-[72px]"
+      className="sticky top-0 z-40 border-b backdrop-blur-xl"
       style={{ background: "var(--bg-glass)", borderColor: "var(--border-primary)" }}
     >
       <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 lg:px-8">
@@ -54,6 +54,14 @@ export default function ShopHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <Link
+            href="/"
+            className="hidden items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-medium sm:flex"
+            style={{ color: "var(--text-tertiary)" }}
+            title="Back to main site"
+          >
+            <Home className="h-4 w-4" /> <span className="hidden lg:inline">Main site</span>
+          </Link>
           {ready && account && (
             <Link
               href="/shop/account"

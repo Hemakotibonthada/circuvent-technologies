@@ -21,6 +21,7 @@ export async function GET(request: Request) {
     carrier: o.carrier || null,
     paymentMethod: o.paymentMethod,
     paymentStatus: o.paymentStatus,
+    customer: o.customer,
   }));
   return NextResponse.json({ success: true, orders });
 }

@@ -119,6 +119,26 @@ function emptyDB(): DB {
   return { orders: [], products: seedProducts(), wallets: {}, accounts: {} };
 }
 
+/** Ensures every catalog product exists in the store (adds newly-shipped ones). */
+function reconcileProducts(db: DB): boolean {
+  let changed = false;
+  for (const c of CATALOG) {
+    if (!db.products.find((p) => p.id === c.id)) {
+      db.products.push({
+        id: c.id,
+        slug: c.slug,
+        name: c.name,
+        price: c.price,
+        stock: c.stock,
+        available: true,
+        category: c.category,
+      });
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function load(): DB {
   if (mem) return mem;
   try {
@@ -130,6 +150,7 @@ function load(): DB {
         wallets: parsed.wallets ?? {},
         accounts: parsed.accounts ?? {},
       };
+      if (reconcileProducts(mem)) save();
       return mem;
     }
   } catch (e) {
