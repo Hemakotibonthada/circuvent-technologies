@@ -22,8 +22,24 @@ export default function ScrollReveal({
   const isInView = useInView(ref, { once: true, margin: "-80px" });
   const prefersReduced = useReducedMotion();
   const [mounted, setMounted] = useState(false);
+  const [reveal, setReveal] = useState(false);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    // Reveal immediately if the element is already on screen at mount. This
+    // fixes a blank gap on client-side navigation, where useInView's observer
+    // can miss elements that are already in view (a full refresh masks it).
+    const el = ref.current;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const vh = typeof window !== "undefined" ? window.innerHeight : 0;
+      if (r.top < vh && r.bottom > 0) setReveal(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isInView) setReveal(true);
+  }, [isInView]);
 
   const directionMap = {
     up: { y: 40, x: 0 },
@@ -53,7 +69,7 @@ export default function ScrollReveal({
       ref={ref}
       initial={{ opacity: 0, y: offset.y, x: offset.x }}
       animate={
-        isInView
+        reveal
           ? { opacity: 1, y: 0, x: 0 }
           : { opacity: 0, y: offset.y, x: offset.x }
       }

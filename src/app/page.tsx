@@ -1,10 +1,9 @@
 "use client";
 
 import Hero from "@/components/Hero";
-import AnimatedBackground from "@/components/AnimatedBackground";
+import dynamic from "next/dynamic";
 import ProjectCard from "@/components/ProjectCard";
 import ScrollReveal from "@/components/ScrollReveal";
-import TestimonialCarousel from "@/components/TestimonialCarousel";
 import TiltCard from "@/components/TiltCard";
 import Marquee, { MarqueeTechItem } from "@/components/Marquee";
 import { ShimmerText } from "@/components/AnimationEffects";
@@ -19,6 +18,14 @@ import {
   Mail, Users, FileText, Briefcase, CheckCircle2,
   Search, Zap, Network,
 } from "lucide-react";
+
+// Decorative background + below-the-fold carousel are loaded lazily (client-only)
+// so they don't block the homepage's first paint / hydration.
+const AnimatedBackground = dynamic(() => import("@/components/AnimatedBackground"), { ssr: false });
+const TestimonialCarousel = dynamic(() => import("@/components/TestimonialCarousel"), {
+  ssr: false,
+  loading: () => <div className="min-h-[280px]" />,
+});
 
 const domains = [
   { icon: Brain, title: "AI & Agents", description: "Multi-agent orchestration, LLM integration, computer vision, and NLP.", count: 8, gradient: "from-violet-500 to-purple-500", href: "/domains/ai" },

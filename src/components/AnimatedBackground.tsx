@@ -56,7 +56,7 @@ export default function AnimatedBackground() {
 
     const lineColor = isDark ? "rgba(6, 182, 212," : "rgba(8, 145, 178,";
 
-    particlesRef.current = Array.from({ length: 50 }, () => ({
+    particlesRef.current = Array.from({ length: 32 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
       vx: (Math.random() - 0.5) * 0.25,
@@ -104,11 +104,21 @@ export default function AnimatedBackground() {
       animationRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    // Defer starting the loop until the browser is idle so the canvas doesn't
+    // compete with the page's initial render / hydration (faster first paint).
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (h: number) => void;
+    };
+    let startHandle: number;
+    if (w.requestIdleCallback) startHandle = w.requestIdleCallback(() => animate());
+    else startHandle = window.setTimeout(() => animate(), 200) as unknown as number;
 
     return () => {
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(animationRef.current);
+      if (w.cancelIdleCallback) w.cancelIdleCallback(startHandle);
+      else clearTimeout(startHandle);
     };
   }, [resolvedTheme, reducedMotion]);
 
