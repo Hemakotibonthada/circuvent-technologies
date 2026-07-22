@@ -89,11 +89,23 @@ export interface Account {
   createdAt: string;
 }
 
+export interface PendingRegistration {
+  email: string;
+  name: string;
+  hash: string;
+  salt: string;
+  otp: string;
+  expires: number;
+  attempts: number;
+}
+
 interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
   wallets: Record<string, Wallet>;
   accounts: Record<string, Account>;
+  pending: Record<string, PendingRegistration>;
+  devices: Record<string, Device>;
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -116,7 +128,7 @@ function seedProducts(): StoredProduct[] {
 }
 
 function emptyDB(): DB {
-  return { orders: [], products: seedProducts(), wallets: {}, accounts: {} };
+  return { orders: [], products: seedProducts(), wallets: {}, accounts: {}, pending: {}, devices: {} };
 }
 
 /** Ensures every catalog product exists in the store (adds newly-shipped ones). */
@@ -149,6 +161,8 @@ function load(): DB {
         products: parsed.products && parsed.products.length ? parsed.products : seedProducts(),
         wallets: parsed.wallets ?? {},
         accounts: parsed.accounts ?? {},
+        pending: parsed.pending ?? {},
+        devices: parsed.devices ?? {},
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -358,4 +372,152 @@ export function createAccount(a: Account): void {
   const db = load();
   db.accounts[a.email.trim().toLowerCase()] = a;
   save();
+}
+
+// ----------------------------------------------- pending registrations ----
+export function setPendingRegistration(p: PendingRegistration): void {
+  const db = load();
+  db.pending[p.email.trim().toLowerCase()] = p;
+  save();
+}
+
+export function getPendingRegistration(email: string): PendingRegistration | null {
+  return load().pending[email.trim().toLowerCase()] || null;
+}
+
+export function clearPendingRegistration(email: string): void {
+  const db = load();
+  delete db.pending[email.trim().toLowerCase()];
+  save();
+}
+
+// --------------------------------------------------------------- devices ---
+const ONLINE_WINDOW_MS = 90_000;
+
+export interface DeviceCommand {
+  id: string;
+  action: string;
+  params?: Record<string, unknown>;
+  at: string;
+}
+
+export interface Device {
+  id: string;
+  key: string; // device secret — proof of possession for claiming + auth
+  type: string; // product id: smart-plug, aquaguard, guardian, ...
+  name: string;
+  ownerEmail?: string;
+  lastSeen?: string;
+  state: Record<string, unknown>;
+  commands: DeviceCommand[];
+  createdAt: string;
+}
+
+export interface DeviceView {
+  id: string;
+  type: string;
+  name: string;
+  online: boolean;
+  lastSeen?: string;
+  state: Record<string, unknown>;
+}
+
+function toView(d: Device): DeviceView {
+  const online = !!d.lastSeen && Date.now() - new Date(d.lastSeen).getTime() < ONLINE_WINDOW_MS;
+  return { id: d.id, type: d.type, name: d.name, online, lastSeen: d.lastSeen, state: d.state };
+}
+
+/**
+ * Device heartbeat/telemetry + command fetch in one call. Auto-provisions an
+ * unclaimed device on first contact. Returns null if the key doesn't match.
+ */
+export function deviceSync(
+  id: string,
+  key: string,
+  type: string | undefined,
+  telemetry: Record<string, unknown> | undefined
+): { commands: DeviceCommand[]; claimed: boolean } | null {
+  const db = load();
+  let d = db.devices[id];
+  if (!d) {
+    d = {
+      id,
+      key,
+      type: type || "generic",
+      name: type ? `Circuvent ${type}` : id,
+      state: {},
+      commands: [],
+      createdAt: new Date().toISOString(),
+    };
+    db.devices[id] = d;
+  }
+  if (d.key !== key) return null;
+  if (type && d.type === "generic") d.type = type;
+  if (telemetry && typeof telemetry === "object") d.state = { ...d.state, ...telemetry };
+  d.lastSeen = new Date().toISOString();
+  const commands = d.commands;
+  d.commands = [];
+  save();
+  return { commands, claimed: !!d.ownerEmail };
+}
+
+export function claimDevice(
+  id: string,
+  key: string,
+  ownerEmail: string,
+  name?: string
+): { ok: boolean; message?: string; device?: DeviceView } {
+  const db = load();
+  const d = db.devices[id];
+  if (!d || d.key !== key) return { ok: false, message: "Device ID or key is incorrect." };
+  if (d.ownerEmail && d.ownerEmail !== ownerEmail.toLowerCase()) {
+    return { ok: false, message: "This device is already linked to another account." };
+  }
+  d.ownerEmail = ownerEmail.trim().toLowerCase();
+  if (name) d.name = name;
+  save();
+  return { ok: true, device: toView(d) };
+}
+
+export function listDevicesByOwner(email: string): DeviceView[] {
+  const e = email.trim().toLowerCase();
+  return Object.values(load().devices)
+    .filter((d) => d.ownerEmail === e)
+    .map(toView);
+}
+
+export function enqueueCommand(
+  id: string,
+  ownerEmail: string,
+  action: string,
+  params?: Record<string, unknown>
+): { ok: boolean; message?: string } {
+  const db = load();
+  const d = db.devices[id];
+  if (!d || d.ownerEmail !== ownerEmail.trim().toLowerCase()) {
+    return { ok: false, message: "Device not found." };
+  }
+  d.commands.push({ id: Math.random().toString(36).slice(2, 10), action, params, at: new Date().toISOString() });
+  // Optimistically reflect obvious state so the UI feels instant.
+  if (action === "set" && params && typeof params === "object") d.state = { ...d.state, ...params };
+  save();
+  return { ok: true };
+}
+
+export function renameDevice(id: string, ownerEmail: string, name: string): boolean {
+  const db = load();
+  const d = db.devices[id];
+  if (!d || d.ownerEmail !== ownerEmail.trim().toLowerCase()) return false;
+  d.name = name;
+  save();
+  return true;
+}
+
+export function unclaimDevice(id: string, ownerEmail: string): boolean {
+  const db = load();
+  const d = db.devices[id];
+  if (!d || d.ownerEmail !== ownerEmail.trim().toLowerCase()) return false;
+  delete d.ownerEmail;
+  save();
+  return true;
 }

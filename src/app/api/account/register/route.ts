@@ -1,10 +1,21 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
-import { getAccount, createAccount } from "@/lib/store";
-import { hashPassword, signToken } from "@/lib/account";
+import { getAccount, setPendingRegistration } from "@/lib/store";
+import { hashPassword } from "@/lib/account";
+import { sendOtpEmail } from "@/lib/order-core";
 
 export const runtime = "nodejs";
 
+function genOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+/**
+ * POST /api/account/register — step 1 of sign-up.
+ * Validates, stashes a pending registration with a 6-digit OTP, and emails
+ * the code (in the background so the response returns instantly). The account
+ * is only created once the code is confirmed at /api/account/verify-otp.
+ */
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -23,7 +34,8 @@ export async function POST(request: Request) {
     if (!password || String(password).length < 6) errors.password = "Use at least 6 characters.";
     if (Object.keys(errors).length) return NextResponse.json({ success: false, errors }, { status: 400 });
 
-    if (getAccount(email)) {
+    const clean = String(email).trim().toLowerCase();
+    if (getAccount(clean)) {
       return NextResponse.json(
         { success: false, message: "An account with this email already exists. Please sign in." },
         { status: 409 }
@@ -31,15 +43,30 @@ export async function POST(request: Request) {
     }
 
     const { salt, hash } = hashPassword(String(password));
-    const clean = String(email).trim().toLowerCase();
-    createAccount({ email: clean, name: String(name).trim(), hash, salt, createdAt: new Date().toISOString() });
+    const cleanName = String(name).trim();
+    const otp = genOtp();
+    setPendingRegistration({
+      email: clean,
+      name: cleanName,
+      hash,
+      salt,
+      otp,
+      expires: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+    });
+
+    // Send the code after the response so sign-up feels instant.
+    after(async () => {
+      await sendOtpEmail(clean, cleanName, otp);
+    });
 
     return NextResponse.json({
       success: true,
-      token: signToken(clean),
-      account: { email: clean, name: String(name).trim() },
+      pending: true,
+      email: clean,
+      message: `We've emailed a 6-digit code to ${clean}.`,
     });
   } catch {
-    return NextResponse.json({ success: false, message: "Could not create the account." }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Could not start sign-up." }, { status: 500 });
   }
 }

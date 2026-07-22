@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Store, PackageSearch, Truck, Wallet, UserCircle2, Home } from "lucide-react";
+import { Store, PackageSearch, Truck, Wallet, UserCircle2, Home, Cpu } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 import { formatINR } from "@/lib/shop-data";
 import CartButton from "./CartButton";
 
 const links = [
   { href: "/shop", label: "Products", icon: Store },
+  { href: "/shop/devices", label: "Devices", icon: Cpu },
   { href: "/shop/account", label: "My orders", icon: PackageSearch },
   { href: "/track", label: "Track", icon: Truck },
 ];

@@ -11,10 +11,9 @@ import {
   ArrowRight,
   ArrowDownCircle,
   ArrowUpCircle,
-  UserPlus,
-  LogIn,
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
+import AuthForm from "@/components/shop/AuthForm";
 import { formatINR } from "@/lib/shop-data";
 
 interface WalletTxn {
@@ -71,7 +70,7 @@ function fmt(iso: string) {
 }
 
 export default function AccountPage() {
-  const { account, token, wallet, ready, login, register, logout, refreshWallet, authHeaders } = useAccount();
+  const { account, token, wallet, ready, logout, refreshWallet, authHeaders } = useAccount();
 
   return (
     <section className="relative z-10 mx-auto max-w-5xl px-6 pb-24 pt-8 lg:px-8">
@@ -97,92 +96,13 @@ export default function AccountPage() {
             onLogout={logout}
           />
         ) : (
-          <AuthCard login={login} register={register} />
+          <AuthForm
+            heading="Sign in to your account"
+            sub="Create an account or sign in to use your Circuvent Wallet, see order history and track deliveries."
+          />
         )}
       </div>
     </section>
-  );
-}
-
-function AuthCard({
-  login,
-  register,
-}: {
-  login: (e: string, p: string) => Promise<{ ok: boolean; message?: string }>;
-  register: (n: string, e: string, p: string) => Promise<{ ok: boolean; message?: string; errors?: Record<string, string> }>;
-}) {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr("");
-    setBusy(true);
-    const res = mode === "login" ? await login(email, password) : await register(name, email, password);
-    if (!res.ok) setErr(res.message || "Something went wrong.");
-    setBusy(false);
-  };
-
-  const field = "w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--accent-cyan)]/30";
-  const inputStyle = { background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-primary)" };
-
-  return (
-    <div
-      className="mx-auto max-w-md rounded-2xl border p-8"
-      style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", boxShadow: "var(--shadow-lg)" }}
-    >
-      <div className="mb-6 flex rounded-xl p-1" style={{ background: "var(--bg-glass)" }}>
-        {(["login", "register"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => {
-              setMode(m);
-              setErr("");
-            }}
-            className="flex-1 rounded-lg py-2 text-sm font-semibold capitalize transition-colors"
-            style={
-              mode === m
-                ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" }
-                : { color: "var(--text-tertiary)" }
-            }
-          >
-            {m === "login" ? "Sign in" : "Create account"}
-          </button>
-        ))}
-      </div>
-
-      <form onSubmit={submit} className="space-y-3">
-        {mode === "register" && (
-          <input className={field} style={inputStyle} placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
-        )}
-        <input type="email" className={field} style={inputStyle} placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input
-          type="password"
-          className={field}
-          style={inputStyle}
-          placeholder="Password (min 6 characters)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {err && <p className="text-sm text-rose-500">{err}</p>}
-        <button
-          type="submit"
-          disabled={busy}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "login" ? <LogIn className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
-          {mode === "login" ? "Sign in" : "Create account"}
-        </button>
-      </form>
-      <p className="mt-4 text-center text-xs" style={{ color: "var(--text-muted)" }}>
-        Your account lets you pay with wallet, reorder faster and track every delivery.
-      </p>
-    </div>
   );
 }
 

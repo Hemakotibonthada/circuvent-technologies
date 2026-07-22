@@ -23,7 +23,8 @@ interface AccountContextValue {
     name: string,
     email: string,
     password: string
-  ) => Promise<{ ok: boolean; message?: string; errors?: Record<string, string> }>;
+  ) => Promise<{ ok: boolean; pending?: boolean; email?: string; message?: string; errors?: Record<string, string> }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
   refreshWallet: () => Promise<void>;
   authHeaders: () => Record<string, string>;
@@ -115,10 +116,30 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         });
         const d = await res.json();
         if (d.success) {
+          return { ok: true, pending: true, email: d.email };
+        }
+        return { ok: false, message: d.message, errors: d.errors };
+      } catch {
+        return { ok: false, message: "Network error. Please try again." };
+      }
+    },
+    []
+  );
+
+  const verifyOtp = useCallback<AccountContextValue["verifyOtp"]>(
+    async (email, otp) => {
+      try {
+        const res = await fetch("/api/account/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp }),
+        });
+        const d = await res.json();
+        if (d.success) {
           persist(d.account, d.token);
           return { ok: true };
         }
-        return { ok: false, message: d.message, errors: d.errors };
+        return { ok: false, message: d.message || "Verification failed." };
       } catch {
         return { ok: false, message: "Network error. Please try again." };
       }
@@ -144,7 +165,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AccountContext.Provider
-      value={{ account, token, wallet, ready, login, register, logout, refreshWallet, authHeaders }}
+      value={{ account, token, wallet, ready, login, register, verifyOtp, logout, refreshWallet, authHeaders }}
     >
       {children}
     </AccountContext.Provider>

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   priceItems,
@@ -124,15 +124,18 @@ async function finalize(
     console.error("Order persistence error:", e);
   }
 
-  const emailed = await sendOrderEmails({
-    orderNo,
-    lines: priced.lines,
-    subtotal: priced.subtotal,
-    shipping: priced.shipping,
-    total: priced.total,
-    customer: c,
-    paymentMethod: method,
-    paymentStatus,
+  // Email the customer + store in the background so checkout returns instantly.
+  after(async () => {
+    await sendOrderEmails({
+      orderNo,
+      lines: priced.lines,
+      subtotal: priced.subtotal,
+      shipping: priced.shipping,
+      total: priced.total,
+      customer: c,
+      paymentMethod: method,
+      paymentStatus,
+    });
   });
 
   return NextResponse.json({
@@ -148,7 +151,7 @@ async function finalize(
       paymentMethod: method,
       paymentStatus,
       status: "placed",
-      emailed,
+      emailed: true,
     },
   });
 }

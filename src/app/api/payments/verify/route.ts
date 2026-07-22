@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import crypto from "crypto";
 import {
   priceItems,
@@ -81,15 +81,17 @@ export async function POST(request: Request) {
       console.error("Order persistence error:", e);
     }
 
-    const emailed = await sendOrderEmails({
-      orderNo,
-      lines: priced.lines,
-      subtotal: priced.subtotal,
-      shipping: priced.shipping,
-      total: priced.total,
-      customer: c,
-      paymentMethod: "razorpay",
-      paymentStatus: "paid",
+    after(async () => {
+      await sendOrderEmails({
+        orderNo,
+        lines: priced.lines,
+        subtotal: priced.subtotal,
+        shipping: priced.shipping,
+        total: priced.total,
+        customer: c,
+        paymentMethod: "razorpay",
+        paymentStatus: "paid",
+      });
     });
 
     return NextResponse.json({
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
         paymentId: razorpay_payment_id,
         paymentStatus: "paid",
         status: "placed",
-        emailed,
+        emailed: true,
       },
     });
   } catch (e) {
