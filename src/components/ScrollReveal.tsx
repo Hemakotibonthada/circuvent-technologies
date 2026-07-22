@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 
 interface ScrollRevealProps {
@@ -21,6 +21,9 @@ export default function ScrollReveal({
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-80px" });
   const prefersReduced = useReducedMotion();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const directionMap = {
     up: { y: 40, x: 0 },
@@ -31,6 +34,19 @@ export default function ScrollReveal({
   };
 
   const offset = prefersReduced ? { y: 0, x: 0 } : directionMap[direction];
+
+  // Render a plain, visible wrapper on the server and the first client paint.
+  // framer-motion injects inline transform/opacity styles that differ between
+  // SSR and hydration (opacity "0" vs 0, translateY(40px) vs none), which throws
+  // a React hydration mismatch. Enabling motion only after mount avoids that and
+  // keeps content visible without JS.
+  if (!mounted) {
+    return (
+      <div ref={ref} className={className}>
+        {children}
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -52,3 +68,4 @@ export default function ScrollReveal({
     </motion.div>
   );
 }
+
