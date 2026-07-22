@@ -49,7 +49,7 @@ const teamMembers: TeamMemberData[] = [
     socials: {
       linkedin: "https://linkedin.com/in/hemakoti",
       email: "mailto:hema@htresearchlab.com",
-      instagram: "https://instagram.com/hemakoti.bonthada",
+      instagram: "https://instagram.com/the.vema",
       whatsapp: "https://wa.me/919966123105",
       twitter: "https://twitter.com/hemakoti",
       youtube: "https://youtube.com/@hemakotibonthada",

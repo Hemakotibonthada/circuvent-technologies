@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const items: IncomingItem[] = body?.items;
-    const priced = priceItems(items);
+    const priced = priceItems(items, body?.coupon);
     if (!priced.ok) return NextResponse.json({ success: false, message: priced.error }, { status: 400 });
 
     const amount = Math.round(priced.total * 100); // paise

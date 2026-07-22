@@ -17,6 +17,9 @@ type Priced = {
   lines: { name: string; price: number; qty: number; lineTotal: number }[];
   subtotal: number;
   shipping: number;
+  discount: number;
+  couponCode: string;
+  couponLabel: string;
   total: number;
 };
 
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
     const items: IncomingItem[] = body?.items;
     const c: CustomerInfo = body?.customer ?? {};
 
-    const priced = priceItems(items);
+    const priced = priceItems(items, body?.coupon);
     if (!priced.ok) return NextResponse.json({ success: false, message: priced.error }, { status: 400 });
 
     const errors = validateCustomer(c);
@@ -114,6 +117,8 @@ async function finalize(
       items: priced.lines,
       subtotal: priced.subtotal,
       shipping: priced.shipping,
+      discount: priced.discount,
+      couponCode: priced.couponCode,
       total: priced.total,
       customer,
       paymentMethod: method,
@@ -131,6 +136,8 @@ async function finalize(
       lines: priced.lines,
       subtotal: priced.subtotal,
       shipping: priced.shipping,
+      discount: priced.discount,
+      couponLabel: priced.couponLabel,
       total: priced.total,
       customer: c,
       paymentMethod: method,
@@ -146,6 +153,8 @@ async function finalize(
       items: priced.lines,
       subtotal: priced.subtotal,
       shipping: priced.shipping,
+      discount: priced.discount,
+      couponCode: priced.couponCode,
       total: priced.total,
       customer,
       paymentMethod: method,

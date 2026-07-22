@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
+import { validateCoupon } from "./coupons";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
 
@@ -96,11 +97,20 @@ export function genOrderNo(): string {
 }
 
 type PriceResult =
-  | { ok: true; lines: OrderLine[]; subtotal: number; shipping: number; total: number }
+  | {
+      ok: true;
+      lines: OrderLine[];
+      subtotal: number;
+      shipping: number;
+      discount: number;
+      couponCode: string;
+      couponLabel: string;
+      total: number;
+    }
   | { ok: false; error: string };
 
 /** Recompute every line from the catalog — never trust client-supplied prices. */
-export function priceItems(items: IncomingItem[]): PriceResult {
+export function priceItems(items: IncomingItem[], couponCode?: string): PriceResult {
   if (!Array.isArray(items) || items.length === 0) {
     return { ok: false, error: "Your cart is empty." };
   }
@@ -111,8 +121,20 @@ export function priceItems(items: IncomingItem[]): PriceResult {
     const qty = Math.max(1, Math.min(99, Number(it.qty) || 1));
     lines.push({ name: p.name, price: p.price, qty, lineTotal: p.price * qty });
   }
-  const { subtotal, shipping, total } = computeTotals(lines);
-  return { ok: true, lines, subtotal, shipping, total };
+  const { subtotal, shipping } = computeTotals(lines);
+  let discount = 0;
+  let code = "";
+  let label = "";
+  if (couponCode) {
+    const r = validateCoupon(couponCode, subtotal, shipping);
+    if (r.valid) {
+      discount = r.discount;
+      code = r.code;
+      label = r.label;
+    }
+  }
+  const total = Math.max(0, subtotal + shipping - discount);
+  return { ok: true, lines, subtotal, shipping, discount, couponCode: code, couponLabel: label, total };
 }
 
 export function validateCustomer(c: CustomerInfo): Record<string, string> {
@@ -130,6 +152,8 @@ interface EmailArgs {
   lines: OrderLine[];
   subtotal: number;
   shipping: number;
+  discount?: number;
+  couponLabel?: string;
   total: number;
   customer: CustomerInfo;
   paymentMethod: string;
@@ -148,6 +172,7 @@ export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
     <table style="width:100%;border-collapse:collapse;margin-top:8px">${rows}
       <tr><td style="padding:6px 0;border-top:1px solid #e2e8f0;color:#536478">Subtotal</td><td style="padding:6px 0;border-top:1px solid #e2e8f0;text-align:right;color:#0c1222">${formatINR(a.subtotal)}</td></tr>
       <tr><td style="padding:4px 0;color:#536478">Shipping</td><td style="padding:4px 0;text-align:right;color:#0c1222">${a.shipping === 0 ? "Free" : formatINR(a.shipping)}</td></tr>
+      ${a.discount && a.discount > 0 ? `<tr><td style="padding:4px 0;color:#536478">Discount${a.couponLabel ? ` (${a.couponLabel})` : ""}</td><td style="padding:4px 0;text-align:right;color:#10b981">- ${formatINR(a.discount)}</td></tr>` : ""}
       <tr><td style="padding:6px 0;font-weight:700;color:#0c1222">Total</td><td style="padding:6px 0;text-align:right;font-weight:800;color:#0c1222">${formatINR(a.total)}</td></tr>
     </table>`;
   const addr = [a.customer.address, a.customer.city, a.customer.state, a.customer.pincode].filter(Boolean).join(", ");

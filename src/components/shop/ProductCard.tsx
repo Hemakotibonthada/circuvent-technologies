@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Check, ShoppingCart, ArrowRight, Star } from "lucide-react";
+import { Check, ShoppingCart, ArrowRight, Star, Heart } from "lucide-react";
 import { type Product, formatINR } from "@/lib/shop-data";
 import { useCart } from "./CartProvider";
+import { useWishlist } from "./WishlistProvider";
 import ProductMedia from "./ProductMedia";
 
 export default function ProductCard({ product, index = 0 }: { product: Product; index?: number }) {
   const { add } = useCart();
+  const { has, toggle } = useWishlist();
+  const saved = has(product.id);
   const saving = product.compareAt && product.compareAt > product.price ? product.compareAt - product.price : 0;
   const soldOut = product.available === false || (typeof product.stock === "number" && product.stock <= 0);
   const lowStock = !soldOut && typeof product.stock === "number" && product.stock <= 5;
@@ -20,9 +23,21 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
       viewport={{ once: true }}
       transition={{ duration: 0.35, delay: (index % 3) * 0.05 }}
       whileHover={{ y: -4 }}
-      className="group flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300"
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300"
       style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", boxShadow: "var(--shadow-sm)" }}
     >
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          toggle(product.id);
+        }}
+        aria-label={saved ? "Remove from wishlist" : "Save to wishlist"}
+        className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full backdrop-blur transition-transform hover:scale-110"
+        style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}
+      >
+        <Heart className="h-4 w-4" style={{ color: saved ? "#ef4444" : "var(--text-tertiary)", fill: saved ? "#ef4444" : "none" }} />
+      </button>
+
       <Link href={`/shop/${product.slug}`} className="relative block">
         <ProductMedia
           image={product.image}
@@ -32,7 +47,7 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
           className="h-44 w-full"
         />
         {saving > 0 && (
-          <span className="absolute right-3 top-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 px-2.5 py-1 text-xs font-semibold text-white shadow">
+          <span className="absolute bottom-3 left-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 px-2.5 py-1 text-xs font-semibold text-white shadow">
             Save {formatINR(saving)}
           </span>
         )}
@@ -50,6 +65,7 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
           </span>
           <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
             <Star className="h-3 w-3 fill-current" style={{ color: "#f59e0b" }} /> {product.rating}
+            {product.reviewCount ? ` (${product.reviewCount})` : ""}
           </span>
         </div>
 

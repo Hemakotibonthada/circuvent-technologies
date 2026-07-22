@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     const items: IncomingItem[] = body?.items;
     const c: CustomerInfo = body?.customer ?? {};
-    const priced = priceItems(items);
+    const priced = priceItems(items, body?.coupon);
     if (!priced.ok) return NextResponse.json({ success: false, message: priced.error }, { status: 400 });
     const errors = validateCustomer(c);
     if (Object.keys(errors).length) return NextResponse.json({ success: false, errors }, { status: 400 });
@@ -70,6 +70,8 @@ export async function POST(request: Request) {
         items: priced.lines,
         subtotal: priced.subtotal,
         shipping: priced.shipping,
+        discount: priced.discount,
+        couponCode: priced.couponCode,
         total: priced.total,
         customer,
         paymentMethod: "razorpay",
@@ -87,6 +89,8 @@ export async function POST(request: Request) {
         lines: priced.lines,
         subtotal: priced.subtotal,
         shipping: priced.shipping,
+        discount: priced.discount,
+        couponLabel: priced.couponLabel,
         total: priced.total,
         customer: c,
         paymentMethod: "razorpay",
@@ -102,6 +106,8 @@ export async function POST(request: Request) {
         items: priced.lines,
         subtotal: priced.subtotal,
         shipping: priced.shipping,
+        discount: priced.discount,
+        couponCode: priced.couponCode,
         total: priced.total,
         customer,
         paymentMethod: "razorpay",

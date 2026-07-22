@@ -42,6 +42,8 @@ export interface StoredOrder {
   items: StoredOrderItem[];
   subtotal: number;
   shipping: number;
+  discount?: number;
+  couponCode?: string;
   total: number;
   customer: StoredCustomer;
   paymentMethod: string;
@@ -99,6 +101,16 @@ export interface PendingRegistration {
   attempts: number;
 }
 
+export interface Review {
+  id: string;
+  productId: string;
+  email: string;
+  name: string;
+  rating: number;
+  comment: string;
+  at: string;
+}
+
 interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
@@ -106,6 +118,7 @@ interface DB {
   accounts: Record<string, Account>;
   pending: Record<string, PendingRegistration>;
   devices: Record<string, Device>;
+  reviews: Review[];
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -128,7 +141,7 @@ function seedProducts(): StoredProduct[] {
 }
 
 function emptyDB(): DB {
-  return { orders: [], products: seedProducts(), wallets: {}, accounts: {}, pending: {}, devices: {} };
+  return { orders: [], products: seedProducts(), wallets: {}, accounts: {}, pending: {}, devices: {}, reviews: [] };
 }
 
 /** Ensures every catalog product exists in the store (adds newly-shipped ones). */
@@ -163,6 +176,7 @@ function load(): DB {
         accounts: parsed.accounts ?? {},
         pending: parsed.pending ?? {},
         devices: parsed.devices ?? {},
+        reviews: parsed.reviews ?? [],
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -372,6 +386,57 @@ export function createAccount(a: Account): void {
   const db = load();
   db.accounts[a.email.trim().toLowerCase()] = a;
   save();
+}
+
+// --------------------------------------------------------------- reviews ---
+export function addReview(r: { productId: string; email: string; name: string; rating: number; comment: string }): Review {
+  const db = load();
+  const email = r.email.trim().toLowerCase();
+  const rating = Math.max(1, Math.min(5, Math.round(r.rating)));
+  const comment = String(r.comment || "").slice(0, 1000);
+  const existing = db.reviews.find((x) => x.productId === r.productId && x.email === email);
+  if (existing) {
+    existing.rating = rating;
+    existing.comment = comment;
+    existing.name = r.name;
+    existing.at = new Date().toISOString();
+    save();
+    return existing;
+  }
+  const review: Review = {
+    id: Math.random().toString(36).slice(2, 10),
+    productId: r.productId,
+    email,
+    name: r.name,
+    rating,
+    comment,
+    at: new Date().toISOString(),
+  };
+  db.reviews.unshift(review);
+  save();
+  return review;
+}
+
+export function listReviews(productId: string): Review[] {
+  return load().reviews.filter((r) => r.productId === productId);
+}
+
+export function reviewSummary(productId: string): { count: number; average: number } {
+  const rs = listReviews(productId);
+  if (!rs.length) return { count: 0, average: 0 };
+  return { count: rs.length, average: Math.round((rs.reduce((s, r) => s + r.rating, 0) / rs.length) * 10) / 10 };
+}
+
+export function reviewSummaries(): Record<string, { count: number; average: number }> {
+  const acc: Record<string, { count: number; sum: number }> = {};
+  for (const r of load().reviews) {
+    if (!acc[r.productId]) acc[r.productId] = { count: 0, sum: 0 };
+    acc[r.productId].count += 1;
+    acc[r.productId].sum += r.rating;
+  }
+  const out: Record<string, { count: number; average: number }> = {};
+  for (const k in acc) out[k] = { count: acc[k].count, average: Math.round((acc[k].sum / acc[k].count) * 10) / 10 };
+  return out;
 }
 
 // ----------------------------------------------- pending registrations ----

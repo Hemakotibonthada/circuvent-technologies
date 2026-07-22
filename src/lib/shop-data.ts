@@ -18,6 +18,7 @@ export interface Product {
   available?: boolean;
   featured?: boolean;
   rating: number;
+  reviewCount?: number;
 }
 
 export const SHIPPING = { freeOver: 999, flat: 49, currency: "INR", symbol: "₹" };

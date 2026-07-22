@@ -1,33 +1,37 @@
 import { NextResponse } from "next/server";
 import { products as CATALOG } from "@/lib/shop-data";
-import { listProducts } from "@/lib/store";
+import { listProducts, reviewSummaries } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/shop/products
- * Public catalog with live stock / availability / price merged from the store.
- * Rich display fields (image, specs, ratings) come from the static catalog;
- * admin-managed fields (stock, availability, price) come from the store.
+ * Public catalog with live stock / availability / price merged from the store,
+ * plus real average rating + review count from customer reviews.
  */
 export async function GET() {
   const stored = listProducts();
   const byId = new Map(stored.map((p) => [p.id, p]));
+  const summaries = reviewSummaries();
 
   const merged = CATALOG.map((c) => {
     const s = byId.get(c.id);
+    const rv = summaries[c.id];
     return {
       ...c,
       price: s?.price ?? c.price,
       stock: s?.stock ?? c.stock,
       available: s?.available ?? true,
+      rating: rv && rv.count ? rv.average : c.rating,
+      reviewCount: rv?.count ?? 0,
     };
   });
 
   // Admin-added products that aren't in the static catalog.
   for (const s of stored) {
     if (!CATALOG.find((c) => c.id === s.id)) {
+      const rv = summaries[s.id];
       merged.push({
         id: s.id,
         slug: s.slug,
@@ -40,7 +44,8 @@ export async function GET() {
         icon: "📦",
         specs: [],
         stock: s.stock,
-        rating: 0,
+        rating: rv && rv.count ? rv.average : 0,
+        reviewCount: rv?.count ?? 0,
         available: s.available,
       });
     }

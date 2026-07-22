@@ -67,7 +67,7 @@ function loadRazorpay(): Promise<boolean> {
 }
 
 export default function CheckoutPage() {
-  const { items, subtotal, shipping, total, clear } = useCart();
+  const { items, subtotal, shipping, clear } = useCart();
   const { account, wallet, ready, authHeaders, refreshWallet } = useAccount();
   const [form, setForm] = useState({
     name: "",
@@ -84,6 +84,10 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<PlacedOrder | null>(null);
+  const [coupon, setCoupon] = useState<{ code: string; discount: number; label: string } | null>(null);
+  const [couponInput, setCouponInput] = useState("");
+  const [couponMsg, setCouponMsg] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
 
   useEffect(() => {
     if (!account) return;
@@ -113,6 +117,39 @@ export default function CheckoutPage() {
 
   const cartPayload = () => items.map((i) => ({ id: i.id, slug: i.slug, qty: i.qty }));
 
+  const discount = coupon?.discount || 0;
+  const payTotal = Math.max(0, subtotal + shipping - discount);
+
+  const applyCoupon = async () => {
+    if (!couponInput.trim()) return;
+    setCouponBusy(true);
+    setCouponMsg("");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cartPayload(), code: couponInput.trim() }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setCoupon({ code: d.code, discount: d.discount, label: d.label });
+        setCouponMsg("");
+      } else {
+        setCoupon(null);
+        setCouponMsg(d.message || "That coupon isn't valid.");
+      }
+    } catch {
+      setCouponMsg("Network error. Please try again.");
+    }
+    setCouponBusy(false);
+  };
+
+  const removeCoupon = () => {
+    setCoupon(null);
+    setCouponInput("");
+    setCouponMsg("");
+  };
+
   const finalize = (order: PlacedOrder) => {
     saveOrder(order);
     clear();
@@ -128,7 +165,7 @@ export default function CheckoutPage() {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ items: cartPayload(), customer: form }),
+        body: JSON.stringify({ items: cartPayload(), customer: form, coupon: coupon?.code }),
       });
       const data = await res.json();
       if (data.success) {
@@ -159,7 +196,7 @@ export default function CheckoutPage() {
       const res = await fetch("/api/payments/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cartPayload() }),
+        body: JSON.stringify({ items: cartPayload(), coupon: coupon?.code }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -183,7 +220,7 @@ export default function CheckoutPage() {
             const vr = await fetch("/api/payments/verify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...resp, items: cartPayload(), customer: form }),
+              body: JSON.stringify({ ...resp, items: cartPayload(), customer: form, coupon: coupon?.code }),
             });
             const vd = await vr.json();
             if (vd.success) finalize(vd.order);
@@ -386,7 +423,7 @@ export default function CheckoutPage() {
             <div className="grid gap-2 sm:grid-cols-2">
               {[
                 { id: "razorpay", label: "Pay online — cards, UPI, netbanking" },
-                ...(account && wallet >= total
+                ...(account && wallet >= payTotal
                   ? [{ id: "wallet", label: `Circuvent Wallet — ${formatINR(wallet)} available` }]
                   : []),
                 { id: "cod", label: "Cash on delivery" },
@@ -435,11 +472,56 @@ export default function CheckoutPage() {
               </div>
             ))}
           </div>
-          <dl className="mt-4 space-y-2 pt-4 text-sm" style={{ borderTop: "1px solid var(--border-primary)" }}>
+          {/* Coupon */}
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border-primary)" }}>
+            {coupon ? (
+              <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm" style={{ background: "var(--accent-cyan-muted)" }}>
+                <span style={{ color: "var(--accent-cyan)" }}>
+                  <b>{coupon.code}</b> — {coupon.label}
+                </span>
+                <button type="button" onClick={removeCoupon} className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  placeholder="Coupon code"
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={applyCoupon}
+                  disabled={couponBusy || !couponInput.trim()}
+                  className="shrink-0 rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+                >
+                  {couponBusy ? "…" : "Apply"}
+                </button>
+              </div>
+            )}
+            {couponMsg && <p className="mt-1.5 text-xs text-rose-500">{couponMsg}</p>}
+            {!coupon && (
+              <p className="mt-1.5 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                Try <b>WELCOME10</b> or <b>FREESHIP</b>.
+              </p>
+            )}
+          </div>
+
+          <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between">
               <dt style={{ color: "var(--text-tertiary)" }}>Subtotal</dt>
               <dd style={{ color: "var(--text-secondary)" }}>{formatINR(subtotal)}</dd>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between">
+                <dt style={{ color: "var(--text-tertiary)" }}>Discount</dt>
+                <dd className="font-medium text-emerald-500">- {formatINR(discount)}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt style={{ color: "var(--text-tertiary)" }}>Shipping</dt>
               <dd style={{ color: "var(--text-secondary)" }}>{shipping === 0 ? "Free" : formatINR(shipping)}</dd>
@@ -449,7 +531,7 @@ export default function CheckoutPage() {
                 Total
               </dt>
               <dd className="font-extrabold" style={{ color: "var(--text-primary)" }}>
-                {formatINR(total)}
+                {formatINR(payTotal)}
               </dd>
             </div>
           </dl>
@@ -464,9 +546,9 @@ export default function CheckoutPage() {
                 ? "Placing order…"
                 : "Processing…"
               : form.paymentMethod === "razorpay"
-                ? `Pay ${formatINR(total)}`
+                ? `Pay ${formatINR(payTotal)}`
                 : form.paymentMethod === "wallet"
-                  ? `Pay ${formatINR(total)} with wallet`
+                  ? `Pay ${formatINR(payTotal)} with wallet`
                   : "Place order"}
           </button>
           <div className="mt-4 flex items-center justify-center gap-4 text-[11px]" style={{ color: "var(--text-muted)" }}>

@@ -8,6 +8,7 @@ import { ArrowLeft, Check, Minus, Plus, ShoppingCart, Zap, ShieldCheck, Star } f
 import { type Product, formatINR } from "@/lib/shop-data";
 import { useCart } from "./CartProvider";
 import ProductMedia from "./ProductMedia";
+import ProductReviews from "./ProductReviews";
 
 export default function ProductDetailClient({
   product,
@@ -143,6 +144,8 @@ export default function ProductDetailClient({
           </p>
         </motion.div>
       </div>
+
+      <ProductReviews productId={product.id} />
 
       {related.length > 0 && (
         <div className="mt-16">

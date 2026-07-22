@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Truck, ShieldCheck, Wallet, MapPin, Search, PackageX } from "lucide-react";
+import { Truck, ShieldCheck, Wallet, MapPin, Search, PackageX, Heart } from "lucide-react";
 import { products as STATIC, formatINR, SHIPPING, type Product } from "@/lib/shop-data";
+import { useWishlist } from "./WishlistProvider";
 import ProductCard from "./ProductCard";
 
 const BENEFITS = [
@@ -12,12 +13,23 @@ const BENEFITS = [
   { icon: MapPin, title: "Made in India", sub: "By our R&D lab" },
 ];
 
+const SORTS: { id: string; label: string }[] = [
+  { id: "featured", label: "Featured" },
+  { id: "price-asc", label: "Price: Low to High" },
+  { id: "price-desc", label: "Price: High to Low" },
+  { id: "rating", label: "Top rated" },
+  { id: "name", label: "Name (A–Z)" },
+];
+
 export default function ShopGrid() {
+  const { has, count } = useWishlist();
   const [list, setList] = useState<Product[]>(STATIC);
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
+  const [sort, setSort] = useState("featured");
+  const [inStock, setInStock] = useState(false);
+  const [savedOnly, setSavedOnly] = useState(false);
 
-  // Load live catalog (stock / availability / price) — fall back to static.
   useEffect(() => {
     let alive = true;
     fetch("/api/shop/products")
@@ -37,16 +49,30 @@ export default function ShopGrid() {
 
   const shown = useMemo(() => {
     const ql = q.trim().toLowerCase();
-    return list.filter((p) => {
+    let out = list.filter((p) => {
       const catOk = cat === "All" || p.category === cat;
       const qOk =
         !ql ||
         p.name.toLowerCase().includes(ql) ||
         (p.tagline || "").toLowerCase().includes(ql) ||
         p.category.toLowerCase().includes(ql);
-      return catOk && qOk;
+      const stockOk = !inStock || (p.available !== false && (typeof p.stock !== "number" || p.stock > 0));
+      const savedOk = !savedOnly || has(p.id);
+      return catOk && qOk && stockOk && savedOk;
     });
-  }, [list, cat, q]);
+    out = [...out];
+    if (sort === "price-asc") out.sort((a, b) => a.price - b.price);
+    else if (sort === "price-desc") out.sort((a, b) => b.price - a.price);
+    else if (sort === "rating") out.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    else if (sort === "name") out.sort((a, b) => a.name.localeCompare(b.name));
+    else out.sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || (b.rating || 0) - (a.rating || 0));
+    return out;
+  }, [list, cat, q, sort, inStock, savedOnly, has]);
+
+  const chip = (active: boolean) =>
+    active
+      ? { borderColor: "var(--accent-cyan)", color: "var(--accent-cyan)", background: "var(--accent-cyan-muted)" }
+      : { borderColor: "var(--border-primary)", color: "var(--text-tertiary)" };
 
   return (
     <div>
@@ -76,38 +102,55 @@ export default function ShopGrid() {
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-5">
-        <Search
-          className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
-          style={{ color: "var(--text-muted)" }}
-        />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search devices — smart plug, water, safety…"
-          className="w-full rounded-xl border py-3 pl-11 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--accent-cyan)]/30"
+      {/* Search + sort */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search devices — smart plug, water, safety…"
+            className="w-full rounded-xl border py-3 pl-11 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-[var(--accent-cyan)]/30"
+            style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-primary)" }}
+          />
+        </div>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          className="rounded-xl border px-4 py-3 text-sm outline-none"
           style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-primary)" }}
-        />
+        >
+          {SORTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Category filter */}
-      <div className="mb-8 flex flex-wrap gap-2">
+      {/* Category + toggles */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         {cats.map((c) => (
-          <button
-            key={c}
-            onClick={() => setCat(c)}
-            className="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
-            style={
-              cat === c
-                ? { borderColor: "var(--accent-cyan)", color: "var(--accent-cyan)", background: "var(--accent-cyan-muted)" }
-                : { borderColor: "var(--border-primary)", color: "var(--text-tertiary)" }
-            }
-          >
+          <button key={c} onClick={() => setCat(c)} className="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors" style={chip(cat === c)}>
             {c}
           </button>
         ))}
+        <span className="mx-1 hidden h-5 w-px sm:block" style={{ background: "var(--border-primary)" }} />
+        <button onClick={() => setInStock((v) => !v)} className="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors" style={chip(inStock)}>
+          In stock
+        </button>
+        <button
+          onClick={() => setSavedOnly((v) => !v)}
+          className="flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+          style={chip(savedOnly)}
+        >
+          <Heart className="h-3.5 w-3.5" style={{ fill: savedOnly ? "currentColor" : "none" }} /> Saved{count ? ` (${count})` : ""}
+        </button>
       </div>
+
+      <p className="mb-6 text-xs" style={{ color: "var(--text-muted)" }}>
+        {shown.length} product{shown.length === 1 ? "" : "s"}
+      </p>
 
       {/* Grid */}
       {shown.length > 0 ? (
@@ -123,7 +166,7 @@ export default function ShopGrid() {
         >
           <PackageX className="h-8 w-8" style={{ color: "var(--text-muted)" }} />
           <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
-            No products match “{q}”. Try a different search or category.
+            {savedOnly ? "No saved products yet — tap the heart on a product to save it." : `No products match your filters.`}
           </p>
         </div>
       )}

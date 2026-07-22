@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { CartProvider } from "@/components/shop/CartProvider";
 import { AccountProvider } from "@/components/shop/AccountProvider";
+import { WishlistProvider } from "@/components/shop/WishlistProvider";
 import CartDrawer from "@/components/shop/CartDrawer";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -111,6 +112,7 @@ export default function RootLayout({
         <ThemeProvider>
           <CartProvider>
             <AccountProvider>
+            <WishlistProvider>
             <ServiceWorkerRegistration />
             <VisitorTracker />
             <a
@@ -125,6 +127,7 @@ export default function RootLayout({
               {children}
             </SiteChrome>
             <CartDrawer />
+            </WishlistProvider>
             </AccountProvider>
           </CartProvider>
         </ThemeProvider>
