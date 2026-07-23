@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listOrders, updateOrder, creditWallet, logAudit, type StoredOrder } from "@/lib/store";
+import { listOrders, updateOrder, creditWallet, logAudit, addOrderNote, type StoredOrder } from "@/lib/store";
 import { sendStatusEmail } from "@/lib/order-core";
 import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 
@@ -94,8 +94,18 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { orderNo, status, trackingNumber, carrier, note, notify } = body || {};
+    const { orderNo, status, trackingNumber, carrier, note, notify, internalNote } = body || {};
     if (!orderNo) return NextResponse.json({ success: false, message: "orderNo is required." }, { status: 400 });
+
+    // Standalone internal staff note (no customer-visible change).
+    if (typeof internalNote === "string" && internalNote.trim()) {
+      const me = adminFromRequest(request);
+      const o = addOrderNote(String(orderNo), me?.email || "staff", internalNote.trim());
+      if (!o) return NextResponse.json({ success: false, message: "Order not found." }, { status: 404 });
+      if (!status && !trackingNumber && !carrier && !note) {
+        return NextResponse.json({ success: true, order: o });
+      }
+    }
 
     const patch: Record<string, string> = {};
     if (typeof status === "string") patch.status = status;

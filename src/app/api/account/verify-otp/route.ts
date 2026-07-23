@@ -6,6 +6,8 @@ import {
   clearPendingRegistration,
   createAccount,
   getAccount,
+  getOrCreateReferral,
+  linkReferral,
 } from "@/lib/store";
 import { signToken } from "@/lib/account";
 
@@ -61,6 +63,8 @@ export async function POST(request: Request) {
 
     if (!getAccount(clean)) {
       createAccount({ email: p.email, name: p.name, hash: p.hash, salt: p.salt, createdAt: new Date().toISOString() });
+      getOrCreateReferral(p.email);
+      if (p.ref) linkReferral(p.email, p.ref);
     }
     clearPendingRegistration(clean);
 

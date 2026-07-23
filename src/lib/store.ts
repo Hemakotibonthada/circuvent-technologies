@@ -10,6 +10,7 @@
 
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { products as CATALOG } from "./shop-data";
 
 // ---------------------------------------------------------------- types ----
@@ -55,6 +56,7 @@ export interface StoredOrder {
   trackingNumber?: string;
   carrier?: string;
   adminNotes?: string;
+  internalNotes?: OrderNote[];
   history: OrderEvent[];
   updatedAt: string;
 }
@@ -152,6 +154,7 @@ export interface PendingRegistration {
   otp: string;
   expires: number;
   attempts: number;
+  ref?: string;
 }
 
 export interface Review {
@@ -239,6 +242,63 @@ export interface AdminUser {
   lastLoginAt?: string;
 }
 
+export interface OrderNote {
+  at: string;
+  by: string;
+  text: string;
+}
+
+export interface Referral {
+  email: string;
+  code: string;
+  referredBy?: string;
+  referredEmails: string[];
+  rewarded: boolean;
+  createdAt: string;
+}
+
+export interface GiftCardRedemption {
+  email: string;
+  at: string;
+  amount: number;
+}
+
+export interface GiftCard {
+  code: string;
+  amount: number;
+  balance: number;
+  active: boolean;
+  issuedBy: string;
+  issuedTo?: string;
+  note?: string;
+  createdAt: string;
+  redemptions: GiftCardRedemption[];
+}
+
+export interface ProductQuestion {
+  id: string;
+  productId: string;
+  name: string;
+  email: string;
+  question: string;
+  answer?: string;
+  answeredBy?: string;
+  at: string;
+  answeredAt?: string;
+  published: boolean;
+  helpful: number;
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  href?: string;
+  read: boolean;
+  at: string;
+}
+
 interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
@@ -256,6 +316,11 @@ interface DB {
   audit: AuditEntry[];
   loyalty: Record<string, LoyaltyAccount>;
   adminUsers: Record<string, AdminUser>;
+  referrals: Record<string, Referral>;
+  referralCodes: Record<string, string>;
+  giftCards: Record<string, GiftCard>;
+  questions: ProductQuestion[];
+  notifications: Record<string, Notification[]>;
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -303,6 +368,11 @@ function emptyDB(): DB {
     audit: [],
     loyalty: {},
     adminUsers: {},
+    referrals: {},
+    referralCodes: {},
+    giftCards: {},
+    questions: [],
+    notifications: {},
   };
 }
 
@@ -348,6 +418,11 @@ function load(): DB {
         audit: parsed.audit ?? [],
         loyalty: parsed.loyalty ?? {},
         adminUsers: parsed.adminUsers ?? {},
+        referrals: parsed.referrals ?? {},
+        referralCodes: parsed.referralCodes ?? {},
+        giftCards: parsed.giftCards ?? {},
+        questions: parsed.questions ?? [],
+        notifications: parsed.notifications ?? {},
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -1189,4 +1264,269 @@ export function redeemPointsToWallet(email: string, points: number): { ok: boole
   const w = creditWallet(email, p, `Loyalty redemption (${p} pts)`);
   save();
   return { ok: true, points: l.points, wallet: w.balance };
+}
+
+// ============================================================ order notes ===
+export function getOrderByNo(orderNo: string): StoredOrder | null {
+  return load().orders.find((x) => x.orderNo === orderNo) || null;
+}
+
+export function addOrderNote(orderNo: string, by: string, text: string): StoredOrder | null {
+  const db = load();
+  const o = db.orders.find((x) => x.orderNo === orderNo);
+  if (!o) return null;
+  if (!o.internalNotes) o.internalNotes = [];
+  o.internalNotes.push({ at: new Date().toISOString(), by, text: String(text).slice(0, 1000) });
+  o.updatedAt = new Date().toISOString();
+  save();
+  return o;
+}
+
+// ============================================================== referrals ===
+const REFERRAL_REWARD = Number(process.env.REFERRAL_REWARD || 200);
+export const REFERRAL_REWARD_AMOUNT = REFERRAL_REWARD;
+
+function genCode(prefix: string, len = 6): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars
+  const bytes = crypto.randomBytes(len);
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return prefix + out;
+}
+
+export function getOrCreateReferral(email: string): Referral {
+  const db = load();
+  const key = email.trim().toLowerCase();
+  if (db.referrals[key]) return db.referrals[key];
+  let code = genCode("CV");
+  while (db.referralCodes[code]) code = genCode("CV");
+  const ref: Referral = { email: key, code, referredEmails: [], rewarded: false, createdAt: new Date().toISOString() };
+  db.referrals[key] = ref;
+  db.referralCodes[code] = key;
+  save();
+  return ref;
+}
+
+export function getReferralByCode(code: string): Referral | null {
+  const db = load();
+  const email = db.referralCodes[(code || "").trim().toUpperCase()];
+  return email ? db.referrals[email] ?? null : null;
+}
+
+/** Links a newly-registered user to the referrer identified by code. */
+export function linkReferral(newEmail: string, code: string): boolean {
+  const db = load();
+  const key = newEmail.trim().toLowerCase();
+  const referrer = getReferralByCode(code);
+  if (!referrer || referrer.email === key) return false;
+  const mine = getOrCreateReferral(key);
+  if (mine.referredBy) return false; // already linked
+  mine.referredBy = referrer.email;
+  if (!referrer.referredEmails.includes(key)) referrer.referredEmails.push(key);
+  save();
+  return true;
+}
+
+/** On a user's first paid order, credit both the user and their referrer once. */
+export function rewardReferralOnPaidOrder(email: string, orderNo: string): { rewarded: boolean } {
+  const db = load();
+  const key = email.trim().toLowerCase();
+  const mine = db.referrals[key];
+  if (!mine || !mine.referredBy || mine.rewarded) return { rewarded: false };
+  mine.rewarded = true;
+  save();
+  creditWallet(key, REFERRAL_REWARD, "Referral welcome bonus", orderNo);
+  creditWallet(mine.referredBy, REFERRAL_REWARD, `Referral reward (${key})`, orderNo);
+  pushNotification(key, { type: "referral", title: "Referral bonus credited", body: `₹${REFERRAL_REWARD} added to your wallet for joining via a referral.`, href: "/shop/account" });
+  pushNotification(mine.referredBy, { type: "referral", title: "You earned a referral reward!", body: `₹${REFERRAL_REWARD} added to your wallet — a friend placed their first order.`, href: "/shop/account" });
+  return { rewarded: true };
+}
+
+// ============================================================= gift cards ===
+export function listGiftCards(): GiftCard[] {
+  return Object.values(load().giftCards).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function issueGiftCard(amount: number, issuedBy: string, issuedTo?: string, note?: string): GiftCard {
+  const db = load();
+  const amt = Math.max(1, Math.round(Number(amount) || 0));
+  let code = genCode("GIFT-", 8);
+  while (db.giftCards[code]) code = genCode("GIFT-", 8);
+  const card: GiftCard = { code, amount: amt, balance: amt, active: true, issuedBy, issuedTo, note, createdAt: new Date().toISOString(), redemptions: [] };
+  db.giftCards[code] = card;
+  save();
+  return card;
+}
+
+export function redeemGiftCard(code: string, email: string): { ok: boolean; error?: string; credited?: number; balance?: number } {
+  const db = load();
+  const card = db.giftCards[(code || "").trim().toUpperCase()];
+  if (!card || !card.active) return { ok: false, error: "Invalid or inactive gift card." };
+  if (card.balance <= 0) return { ok: false, error: "This gift card has already been fully redeemed." };
+  const credited = card.balance;
+  card.balance = 0;
+  card.redemptions.push({ email: email.trim().toLowerCase(), at: new Date().toISOString(), amount: credited });
+  save();
+  const w = creditWallet(email, credited, `Gift card ${card.code}`);
+  pushNotification(email, { type: "giftcard", title: "Gift card redeemed", body: `₹${credited} added to your wallet.`, href: "/shop/account" });
+  return { ok: true, credited, balance: w.balance };
+}
+
+export function setGiftCardActive(code: string, active: boolean): boolean {
+  const db = load();
+  const card = db.giftCards[(code || "").trim().toUpperCase()];
+  if (!card) return false;
+  card.active = active;
+  save();
+  return true;
+}
+
+// ============================================================ product Q&A ===
+export function listQuestions(productId?: string, includeUnpublished = false): ProductQuestion[] {
+  return load()
+    .questions.filter((q) => (productId ? q.productId === productId : true) && (includeUnpublished || q.published))
+    .sort((a, b) => b.at.localeCompare(a.at));
+}
+
+export function addQuestion(input: { productId: string; name: string; email: string; question: string }): ProductQuestion {
+  const db = load();
+  const q: ProductQuestion = {
+    id: "q_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    productId: input.productId,
+    name: input.name || "Customer",
+    email: (input.email || "").trim().toLowerCase(),
+    question: input.question.trim().slice(0, 500),
+    at: new Date().toISOString(),
+    published: true,
+    helpful: 0,
+  };
+  db.questions.unshift(q);
+  save();
+  return q;
+}
+
+export function answerQuestion(id: string, answer: string, answeredBy: string): ProductQuestion | null {
+  const db = load();
+  const q = db.questions.find((x) => x.id === id);
+  if (!q) return null;
+  q.answer = answer.trim().slice(0, 1000);
+  q.answeredBy = answeredBy;
+  q.answeredAt = new Date().toISOString();
+  q.published = true;
+  save();
+  if (q.email) pushNotification(q.email, { type: "qa", title: "Your question was answered", body: q.answer.slice(0, 120), href: "/shop" });
+  return q;
+}
+
+export function setQuestionPublished(id: string, published: boolean): boolean {
+  const db = load();
+  const q = db.questions.find((x) => x.id === id);
+  if (!q) return false;
+  q.published = published;
+  save();
+  return true;
+}
+
+export function markQuestionHelpful(id: string): number {
+  const db = load();
+  const q = db.questions.find((x) => x.id === id);
+  if (!q) return 0;
+  q.helpful += 1;
+  save();
+  return q.helpful;
+}
+
+export function deleteQuestion(id: string): boolean {
+  const db = load();
+  const before = db.questions.length;
+  db.questions = db.questions.filter((x) => x.id !== id);
+  const changed = db.questions.length !== before;
+  if (changed) save();
+  return changed;
+}
+
+// ========================================================= notifications ====
+export function pushNotification(email: string, n: { type: string; title: string; body: string; href?: string }): Notification {
+  const db = load();
+  const key = email.trim().toLowerCase();
+  if (!db.notifications[key]) db.notifications[key] = [];
+  const notif: Notification = {
+    id: "n_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    href: n.href,
+    read: false,
+    at: new Date().toISOString(),
+  };
+  db.notifications[key].unshift(notif);
+  if (db.notifications[key].length > 100) db.notifications[key] = db.notifications[key].slice(0, 100);
+  save();
+  return notif;
+}
+
+export function listNotifications(email: string): Notification[] {
+  return load().notifications[email.trim().toLowerCase()] ?? [];
+}
+
+export function markNotificationsRead(email: string, ids?: string[]): void {
+  const db = load();
+  const list = db.notifications[email.trim().toLowerCase()];
+  if (!list) return;
+  for (const n of list) if (!ids || ids.includes(n.id)) n.read = true;
+  save();
+}
+
+export function clearNotifications(email: string): void {
+  const db = load();
+  db.notifications[email.trim().toLowerCase()] = [];
+  save();
+}
+
+// ========================================================= restock notify ===
+export function addNotifyRequest(productId: string, email: string): NotifyRequest {
+  const db = load();
+  const key = email.trim().toLowerCase();
+  const existing = db.notifyRequests.find((r) => r.productId === productId && r.email === key && !r.notified);
+  if (existing) return existing;
+  const req: NotifyRequest = { id: "nr_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), productId, email: key, at: new Date().toISOString() };
+  db.notifyRequests.push(req);
+  save();
+  return req;
+}
+
+export function listNotifyRequests(productId?: string, pendingOnly = true): NotifyRequest[] {
+  return load().notifyRequests.filter((r) => (productId ? r.productId === productId : true) && (pendingOnly ? !r.notified : true));
+}
+
+/** Marks pending subscribers for a product as notified and returns their emails. */
+export function takeRestockSubscribers(productId: string): string[] {
+  const db = load();
+  const pending = db.notifyRequests.filter((r) => r.productId === productId && !r.notified);
+  for (const r of pending) r.notified = true;
+  if (pending.length) save();
+  return [...new Set(pending.map((r) => r.email))];
+}
+
+// ============================================================ ops helpers ===
+export function lowStockProducts(threshold = 5): StoredProduct[] {
+  return load()
+    .products.filter((p) => p.available && p.stock <= threshold)
+    .sort((a, b) => a.stock - b.stock);
+}
+
+/** Daily orders + revenue for the last `days` days (oldest → newest). */
+export function salesSeries(days = 14): { date: string; orders: number; revenue: number }[] {
+  const db = load();
+  const out: { date: string; orders: number; revenue: number }[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const dayOrders = db.orders.filter((o) => (o.placedAt || "").slice(0, 10) === key);
+    const revenue = dayOrders.filter((o) => o.paymentStatus === "paid").reduce((s, o) => s + (o.total || 0), 0);
+    out.push({ date: key, orders: dayOrders.length, revenue });
+  }
+  return out;
 }

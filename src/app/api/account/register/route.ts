@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, password } = await request.json();
+    const { name, email, password, ref } = await request.json();
     const errors: Record<string, string> = {};
     if (!name || String(name).trim().length < 2) errors.name = "Please enter your name.";
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Enter a valid email.";
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       otp,
       expires: Date.now() + 10 * 60 * 1000,
       attempts: 0,
+      ref: typeof ref === "string" ? ref.trim().toUpperCase().slice(0, 12) : undefined,
     });
 
     // Send the code after the response so sign-up feels instant.

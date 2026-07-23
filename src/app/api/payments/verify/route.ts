@@ -8,7 +8,7 @@ import {
   type IncomingItem,
   type CustomerInfo,
 } from "@/lib/order-core";
-import { recordOrder, adjustStock, earnPoints } from "@/lib/store";
+import { recordOrder, adjustStock, earnPoints, rewardReferralOnPaidOrder } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -79,7 +79,10 @@ export async function POST(request: Request) {
         paymentId: razorpay_payment_id,
       });
       adjustStock(items, -1);
-      if (c.email) earnPoints(c.email, priced.total, orderNo);
+      if (c.email) {
+        earnPoints(c.email, priced.total, orderNo);
+        rewardReferralOnPaidOrder(c.email, orderNo);
+      }
     } catch (e) {
       console.error("Order persistence error:", e);
     }
