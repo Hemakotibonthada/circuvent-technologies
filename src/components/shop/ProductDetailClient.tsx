@@ -9,6 +9,8 @@ import { type Product, formatINR } from "@/lib/shop-data";
 import { useCart } from "./CartProvider";
 import ProductMedia from "./ProductMedia";
 import ProductReviews from "./ProductReviews";
+import ProductQA from "./ProductQA";
+import RestockNotify from "./RestockNotify";
 
 export default function ProductDetailClient({
   product,
@@ -142,10 +144,13 @@ export default function ProductDetailClient({
             <ShieldCheck className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> 6-month warranty · Cash on
             delivery · Ships across India
           </p>
+
+          {product.stock <= 0 && <RestockNotify productId={product.id} />}
         </motion.div>
       </div>
 
       <ProductReviews productId={product.id} />
+      <ProductQA productId={product.id} />
 
       {related.length > 0 && (
         <div className="mt-16">

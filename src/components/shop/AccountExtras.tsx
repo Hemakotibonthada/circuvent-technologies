@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Gift, User, MapPin, Plus, Trash2, Save, Star } from "lucide-react";
+import { Loader2, Gift, User, MapPin, Plus, Trash2, Save, Star, Share2, Copy, Check, Ticket, Bell, CheckCheck } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
 
 type Headers = () => Record<string, string>;
@@ -10,7 +10,12 @@ export default function AccountExtras({ authHeaders, onWalletChange }: { authHea
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-2">
       <LoyaltyCard authHeaders={authHeaders} onWalletChange={onWalletChange} />
+      <ReferralCard authHeaders={authHeaders} />
+      <GiftCardCard authHeaders={authHeaders} onWalletChange={onWalletChange} />
       <ProfileCard authHeaders={authHeaders} />
+      <div className="lg:col-span-2">
+        <NotificationsCard authHeaders={authHeaders} />
+      </div>
       <div className="lg:col-span-2">
         <AddressBook authHeaders={authHeaders} />
       </div>
@@ -177,6 +182,194 @@ function ProfileCard({ authHeaders }: { authHeaders: Headers }) {
         </button>
         {msg && <span className="text-xs" style={{ color: "var(--accent-cyan)" }}>{msg}</span>}
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ referral ----
+function ReferralCard({ authHeaders }: { authHeaders: Headers }) {
+  const [data, setData] = useState<{ code: string; link: string; referredCount: number; reward: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/referral", { headers: authHeaders() });
+        if (r.ok) {
+          const d = await r.json();
+          setData({ code: d.code, link: d.link, referredCount: d.referredCount, reward: d.reward });
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [authHeaders]);
+
+  const copy = () => {
+    if (!data) return;
+    navigator.clipboard?.writeText(data.link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="overflow-hidden rounded-2xl border" style={card}>
+      <div className="p-6" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <div className="flex items-center gap-2 text-white/90">
+          <Share2 className="h-4 w-4" /> <span className="text-xs font-semibold uppercase tracking-wider">Refer &amp; Earn</span>
+        </div>
+        <p className="mt-2 text-2xl font-extrabold tracking-widest text-white">{data?.code || "—"}</p>
+        <p className="mt-1 text-xs text-white/80">
+          Give {data ? formatINR(data.reward) : "₹200"}, get {data ? formatINR(data.reward) : "₹200"} — credited when your friend&rsquo;s first order is paid.
+        </p>
+      </div>
+      <div className="p-5">
+        <div className="flex gap-2">
+          <input readOnly value={data?.link || ""} className={field} style={inputStyle} />
+          <button onClick={copy} className="shrink-0 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white">
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          </button>
+        </div>
+        <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+          {data ? `${data.referredCount} friend${data.referredCount === 1 ? "" : "s"} joined with your link.` : "Loading…"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------- gift card ----
+function GiftCardCard({ authHeaders, onWalletChange }: { authHeaders: Headers; onWalletChange?: () => void }) {
+  const [code, setCode] = useState("");
+  const [msg, setMsg] = useState("");
+  const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const redeem = async () => {
+    if (!code.trim()) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const r = await fetch("/api/giftcards/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      const d = await r.json();
+      setOk(!!d.success);
+      setMsg(d.message || d.error || (d.success ? "Redeemed!" : "Could not redeem."));
+      if (d.success) {
+        setCode("");
+        onWalletChange?.();
+      }
+    } catch {
+      setMsg("Network error.");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="rounded-2xl border p-6" style={card}>
+      <h2 className="flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
+        <Ticket className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Redeem a gift card
+      </h2>
+      <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+        Have a Circuvent gift card? Add its value to your wallet instantly.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="GIFT-XXXXXXXX"
+          className={field}
+          style={inputStyle}
+        />
+        <button onClick={redeem} disabled={busy} className="shrink-0 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Redeem"}
+        </button>
+      </div>
+      {msg && <p className="mt-2 text-xs" style={{ color: ok ? "#10b981" : "#ef4444" }}>{msg}</p>}
+    </div>
+  );
+}
+
+// -------------------------------------------------------- notifications ----
+interface Notif {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  href?: string;
+  read: boolean;
+  at: string;
+}
+function NotificationsCard({ authHeaders }: { authHeaders: Headers }) {
+  const [items, setItems] = useState<Notif[]>([]);
+  const [unread, setUnread] = useState(0);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/account/notifications", { headers: authHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        setItems(d.notifications || []);
+        setUnread(d.unread || 0);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [authHeaders]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const markAll = async () => {
+    await fetch("/api/account/notifications", { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({}) });
+    load();
+  };
+  const clearAll = async () => {
+    await fetch("/api/account/notifications", { method: "DELETE", headers: authHeaders() });
+    load();
+  };
+
+  return (
+    <div className="rounded-2xl border p-6" style={card}>
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
+          <Bell className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Notifications
+          {unread > 0 && (
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: "#ef4444" }}>{unread}</span>
+          )}
+        </h2>
+        {items.length > 0 && (
+          <div className="flex items-center gap-3 text-xs">
+            <button onClick={markAll} className="flex items-center gap-1" style={{ color: "var(--accent-cyan)" }}>
+              <CheckCheck className="h-3.5 w-3.5" /> Mark all read
+            </button>
+            <button onClick={clearAll} style={{ color: "var(--text-muted)" }}>Clear</button>
+          </div>
+        )}
+      </div>
+      {items.length === 0 ? (
+        <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>You&rsquo;re all caught up.</p>
+      ) : (
+        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+          {items.map((n) => (
+            <a
+              key={n.id}
+              href={n.href || "#"}
+              className="block rounded-xl border p-3"
+              style={{ borderColor: "var(--border-primary)", background: n.read ? "transparent" : "var(--accent-cyan-muted)" }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{n.title}</span>
+                <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{new Date(n.at).toLocaleDateString()}</span>
+              </div>
+              <p className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>{n.body}</p>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

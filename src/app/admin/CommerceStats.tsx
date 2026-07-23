@@ -31,12 +31,16 @@ interface Stats {
 
 export default function CommerceStats() {
   const [s, setS] = useState<Stats | null>(null);
+  const [sales, setSales] = useState<{ date: string; orders: number; revenue: number }[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/analytics", { headers: { "x-admin-token": tok() } })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d?.success) setS(d.stats);
+        if (d?.success) {
+          setS(d.stats);
+          setSales(d.sales || []);
+        }
       })
       .catch(() => {});
   }, []);
@@ -110,6 +114,45 @@ export default function CommerceStats() {
           )}
         </div>
       </div>
+
+      {sales.length > 0 && (
+        <div className="mt-4 rounded-2xl p-5" style={card}>
+          <h3 className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <TrendingUp className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Last 14 days · revenue
+          </h3>
+          <SalesChart sales={sales} />
+        </div>
+      )}
     </div>
+  );
+}
+
+function SalesChart({ sales }: { sales: { date: string; orders: number; revenue: number }[] }) {
+  const max = Math.max(1, ...sales.map((d) => d.revenue));
+  const total = sales.reduce((s, d) => s + d.revenue, 0);
+  return (
+    <>
+      <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+        {formatINR(total)} across {sales.reduce((s, d) => s + d.orders, 0)} orders
+      </p>
+      <div className="mt-4 flex h-32 items-end gap-1">
+        {sales.map((d) => (
+          <div key={d.date} className="group relative flex flex-1 flex-col items-center justify-end">
+            <div
+              className="w-full rounded-t"
+              style={{
+                height: `${Math.max(2, (d.revenue / max) * 100)}%`,
+                background: "linear-gradient(180deg,#06b6d4,#8b5cf6)",
+                minHeight: 2,
+              }}
+              title={`${d.date}: ${formatINR(d.revenue)} · ${d.orders} orders`}
+            />
+            <span className="mt-1 text-[9px]" style={{ color: "var(--text-muted)" }}>
+              {d.date.slice(8, 10)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

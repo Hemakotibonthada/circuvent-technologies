@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw, Save, Plus, Trash2, PackageCheck, PackageX } from "lucide-react";
+import { Loader2, RefreshCw, Save, Plus, Trash2, PackageCheck, PackageX, Upload } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
 
 interface P {
@@ -61,6 +61,7 @@ export default function InventoryPanel() {
       </div>
 
       <AddProduct onAdded={load} />
+      <CsvImport onDone={load} />
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -71,6 +72,87 @@ export default function InventoryPanel() {
           {products.map((p) => (
             <ProductRow key={p.id} product={p} onChanged={load} />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CsvImport({ onDone }: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const parse = (csv: string) => {
+    const lines = csv.trim().split(/\r?\n/).filter(Boolean);
+    if (!lines.length) return [] as { name: string; price: number; stock: number; category: string }[];
+    const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const idx = (k: string) => header.indexOf(k);
+    const rows: { name: string; price: number; stock: number; category: string }[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",");
+      const get = (k: string) => {
+        const j = idx(k);
+        return j >= 0 ? (cols[j] || "").trim() : "";
+      };
+      const name = get("name");
+      if (!name) continue;
+      rows.push({ name, price: Number(get("price")) || 0, stock: Number(get("stock")) || 0, category: get("category") || "General" });
+    }
+    return rows;
+  };
+
+  const doImport = async () => {
+    const products = parse(text);
+    if (!products.length) {
+      setMsg("No valid rows. First line must be a header: name,price,stock,category");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify({ products }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setMsg(`Imported ${d.imported} product(s).`);
+        setText("");
+        onDone();
+      } else setMsg(d.message || "Import failed.");
+    } catch {
+      setMsg("Network error.");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="mt-3 rounded-xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)" }}>
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--accent-cyan)" }}>
+        <Upload className="h-4 w-4" /> Bulk import from CSV
+      </button>
+      {open && (
+        <div className="mt-3">
+          <p className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+            Paste CSV with a header row: <code>name,price,stock,category</code>
+          </p>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={5}
+            placeholder={"name,price,stock,category\nSmart Bulb,899,50,Lighting\nMotion Sensor,1299,30,Security"}
+            className="w-full rounded-lg border px-3 py-2 font-mono text-xs outline-none"
+            style={{ background: "var(--bg-glass)", borderColor: "var(--border-primary)", color: "var(--text-primary)" }}
+          />
+          <div className="mt-2 flex items-center gap-3">
+            <button onClick={doImport} disabled={busy} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Import
+            </button>
+            {msg && <span className="text-xs" style={{ color: "var(--accent-cyan)" }}>{msg}</span>}
+          </div>
         </div>
       )}
     </div>

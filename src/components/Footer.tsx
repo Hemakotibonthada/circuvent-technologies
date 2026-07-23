@@ -24,6 +24,13 @@ const footerLinks = {
     { label: "Contact", href: "/contact" },
     { label: "Privacy", href: "/privacy" },
   ],
+  support: [
+    { label: "FAQ", href: "/faq" },
+    { label: "Shipping", href: "/shipping" },
+    { label: "Returns", href: "/returns-policy" },
+    { label: "Warranty", href: "/warranty" },
+    { label: "Terms", href: "/terms" },
+  ],
 };
 
 const socials = [
@@ -183,7 +190,7 @@ export default function Footer() {
           variants={containerVariants}
           initial="hidden"
           animate={isInView ? "visible" : "hidden"}
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 sm:gap-8 lg:gap-10"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 sm:gap-8 lg:gap-10"
         >
           {/* Brand Column */}
           <motion.div variants={itemVariants} className="col-span-2 md:col-span-3 lg:col-span-2 space-y-6">

@@ -16,9 +16,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
+import { useCart } from "@/components/shop/CartProvider";
+import { useRouter } from "next/navigation";
 import AuthForm from "@/components/shop/AuthForm";
 import AccountExtras from "@/components/shop/AccountExtras";
-import { formatINR } from "@/lib/shop-data";
+import { formatINR, products as CATALOG } from "@/lib/shop-data";
 
 interface WalletTxn {
   at: string;
@@ -126,6 +128,8 @@ function SignedIn({
   onLogout: () => void;
 }) {
   const [history, setHistory] = useState<WalletTxn[]>([]);
+  const { add } = useCart();
+  const router = useRouter();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [amount, setAmount] = useState("500");
@@ -241,6 +245,34 @@ function SignedIn({
       });
       const d = await res.json();
       alert(d.success ? "Return requested — we'll review it and refund to your wallet." : d.message || "Could not request the return.");
+    } catch {
+      alert("Network error. Please try again.");
+    }
+  };
+
+  const reorder = async (orderNo: string) => {
+    try {
+      const res = await fetch("/api/orders/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ orderNo }),
+      });
+      const d = await res.json();
+      if (!d.success) {
+        alert(d.message || "Could not reorder.");
+        return;
+      }
+      let added = 0;
+      for (const it of d.items || []) {
+        if (!it.available) continue;
+        const p = CATALOG.find((c) => c.id === it.id || c.slug === it.slug);
+        if (p) {
+          add(p, it.qty, { silent: true });
+          added++;
+        }
+      }
+      if (added) router.push("/cart");
+      else alert("Those items are currently unavailable.");
     } catch {
       alert("Network error. Please try again.");
     }
@@ -428,6 +460,13 @@ function SignedIn({
                       style={{ color: "var(--text-tertiary)" }}
                     >
                       <RotateCcw className="h-3 w-3" /> Return
+                    </button>
+                    <button
+                      onClick={() => reorder(o.orderNo)}
+                      className="flex items-center gap-1 text-xs font-medium"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      <RotateCcw className="h-3 w-3" /> Reorder
                     </button>
                     <Link
                       href={`/track?order=${encodeURIComponent(o.orderNo)}&email=${encodeURIComponent(email)}`}

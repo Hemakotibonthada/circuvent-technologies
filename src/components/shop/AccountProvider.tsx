@@ -49,6 +49,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           setToken(p.token);
         }
       }
+      // Capture a referral code from the URL (?ref=CODE) for use at sign-up.
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref) localStorage.setItem("circuvent-ref", ref.trim().toUpperCase().slice(0, 12));
     } catch {
       /* ignore */
     }
@@ -109,10 +112,16 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback<AccountContextValue["register"]>(
     async (name, email, password) => {
       try {
+        let ref: string | null = null;
+        try {
+          ref = localStorage.getItem("circuvent-ref");
+        } catch {
+          /* ignore */
+        }
         const res = await fetch("/api/account/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
+          body: JSON.stringify({ name, email, password, ref: ref || undefined }),
         });
         const d = await res.json();
         if (d.success) {
