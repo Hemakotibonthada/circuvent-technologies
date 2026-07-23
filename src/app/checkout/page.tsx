@@ -95,6 +95,11 @@ export default function CheckoutPage() {
     total: number;
     lines: { name: string; price: number; qty: number; lineTotal: number }[];
   } | null>(null);
+  const [savedAddresses, setSavedAddresses] = useState<
+    Array<{ id: string; label: string; name: string; phone: string; line1: string; line2?: string; city: string; state: string; pincode: string; isDefaultShipping?: boolean }>
+  >([]);
+  const [selectedAddrId, setSelectedAddrId] = useState<string | null>(null);
+  const [saveAddr, setSaveAddr] = useState(true);
 
   useEffect(() => {
     if (!account) return;
@@ -112,6 +117,35 @@ export default function CheckoutPage() {
             city: f.city || last.city || "",
             state: f.state || last.state || "",
             pincode: f.pincode || last.pincode || "",
+          }));
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account]);
+
+  // Load the customer's saved addresses and prefill the default shipping one.
+  useEffect(() => {
+    if (!account) {
+      setSavedAddresses([]);
+      return;
+    }
+    fetch("/api/account/addresses", { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const list = d?.addresses || [];
+        setSavedAddresses(list);
+        const def = list.find((a: { isDefaultShipping?: boolean }) => a.isDefaultShipping) || list[0];
+        if (def) {
+          setSelectedAddrId(def.id);
+          setForm((f) => ({
+            ...f,
+            name: f.name || def.name || "",
+            phone: f.phone || def.phone || "",
+            address: f.address || [def.line1, def.line2].filter(Boolean).join(", "),
+            city: f.city || def.city || "",
+            state: f.state || def.state || "",
+            pincode: f.pincode || def.pincode || "",
           }));
         }
       })
@@ -147,6 +181,20 @@ export default function CheckoutPage() {
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const cartPayload = () => items.map((i) => ({ id: i.id, slug: i.slug, qty: i.qty }));
+
+  // Fill the delivery form from a chosen saved address.
+  const applyAddress = (a: (typeof savedAddresses)[number]) => {
+    setSelectedAddrId(a.id);
+    setForm((f) => ({
+      ...f,
+      name: a.name || f.name,
+      phone: a.phone || f.phone,
+      address: [a.line1, a.line2].filter(Boolean).join(", "),
+      city: a.city || f.city,
+      state: a.state || f.state,
+      pincode: a.pincode || f.pincode,
+    }));
+  };
 
   const dispSubtotal = quote?.subtotal ?? subtotal;
   const dispShipping = quote?.shipping ?? shipping;
@@ -184,6 +232,29 @@ export default function CheckoutPage() {
   };
 
   const finalize = (order: PlacedOrder) => {
+    // Save this delivery address to the address book for next time (signed-in only).
+    if (account && saveAddr && form.address.trim() && form.pincode.trim()) {
+      const norm = (s: string) => s.trim().toLowerCase();
+      const dup = savedAddresses.some(
+        (a) => a.pincode === form.pincode.trim() && norm([a.line1, a.line2].filter(Boolean).join(", ")) === norm(form.address)
+      );
+      if (!dup) {
+        fetch("/api/account/addresses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            label: "Home",
+            name: form.name,
+            phone: form.phone,
+            line1: form.address,
+            city: form.city,
+            state: form.state,
+            pincode: form.pincode,
+            isDefaultShipping: savedAddresses.length === 0,
+          }),
+        }).catch(() => {});
+      }
+    }
     saveOrder(order);
     clear();
     setDone(order);
@@ -390,6 +461,38 @@ export default function CheckoutPage() {
           <h3 className="flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
             <MapPin className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Delivery details
           </h3>
+
+          {account && savedAddresses.length > 0 && (
+            <div className="rounded-xl border p-3" style={{ borderColor: "var(--border-primary)", background: "var(--bg-glass)" }}>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                Deliver to a saved address
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {savedAddresses.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => applyAddress(a)}
+                    className="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
+                    style={
+                      selectedAddrId === a.id
+                        ? { borderColor: "var(--accent-cyan)", background: "var(--accent-cyan-muted)", color: "var(--accent-cyan)" }
+                        : { borderColor: "var(--border-primary)", color: "var(--text-secondary)" }
+                    }
+                  >
+                    <span className="font-semibold">
+                      {a.label}
+                      {a.isDefaultShipping ? " • default" : ""}
+                    </span>
+                    <br />
+                    <span style={{ color: "var(--text-muted)" }}>
+                      {[a.line1, a.city, a.pincode].filter(Boolean).join(", ")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className={labelCls} style={{ color: "var(--text-tertiary)" }}>
@@ -448,6 +551,13 @@ export default function CheckoutPage() {
               {errors.pincode && <p className="mt-1 text-xs text-rose-500">{errors.pincode}</p>}
             </div>
           </div>
+
+          {account && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+              <input type="checkbox" className="accent-cyan-500" checked={saveAddr} onChange={(e) => setSaveAddr(e.target.checked)} />
+              Save this address to my address book for future orders
+            </label>
+          )}
 
           <div>
             <label className={labelCls} style={{ color: "var(--text-tertiary)" }}>
