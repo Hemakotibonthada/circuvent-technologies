@@ -209,6 +209,21 @@ export interface AuditEntry {
   detail: string;
 }
 
+export interface LoyaltyTxn {
+  at: string;
+  type: "earn" | "redeem";
+  points: number;
+  reason: string;
+  ref?: string;
+  balanceAfter: number;
+}
+
+export interface LoyaltyAccount {
+  email: string;
+  points: number;
+  history: LoyaltyTxn[];
+}
+
 interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
@@ -224,6 +239,7 @@ interface DB {
   tickets: SupportTicket[];
   returns: ReturnRequest[];
   audit: AuditEntry[];
+  loyalty: Record<string, LoyaltyAccount>;
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -269,6 +285,7 @@ function emptyDB(): DB {
     tickets: [],
     returns: [],
     audit: [],
+    loyalty: {},
   };
 }
 
@@ -312,6 +329,7 @@ function load(): DB {
         tickets: parsed.tickets ?? [],
         returns: parsed.returns ?? [],
         audit: parsed.audit ?? [],
+        loyalty: parsed.loyalty ?? {},
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -965,4 +983,136 @@ export function cancelOrderByCustomer(
   o.updatedAt = new Date().toISOString();
   save();
   return { ok: true, refunded };
+}
+
+// ---------------------------------------------------- profile / settings --
+export interface PublicAccount {
+  email: string;
+  name: string;
+  phone?: string;
+  gender?: string;
+  dob?: string;
+  gstin?: string;
+  businessName?: string;
+  notifyPrefs?: NotifyPrefs;
+}
+export function publicAccount(email: string): PublicAccount | null {
+  const a = getAccount(email);
+  if (!a) return null;
+  return {
+    email: a.email,
+    name: a.name,
+    phone: a.phone,
+    gender: a.gender,
+    dob: a.dob,
+    gstin: a.gstin,
+    businessName: a.businessName,
+    notifyPrefs: a.notifyPrefs,
+  };
+}
+export function updateAccountProfile(
+  email: string,
+  patch: Partial<Pick<Account, "name" | "phone" | "gender" | "dob" | "gstin" | "businessName" | "notifyPrefs">>
+): PublicAccount | null {
+  const db = load();
+  const a = db.accounts[email.trim().toLowerCase()];
+  if (!a) return null;
+  if (patch.name !== undefined && String(patch.name).trim().length >= 2) a.name = String(patch.name).trim();
+  if (patch.phone !== undefined) a.phone = String(patch.phone).slice(0, 20);
+  if (patch.gender !== undefined) a.gender = String(patch.gender).slice(0, 20);
+  if (patch.dob !== undefined) a.dob = String(patch.dob).slice(0, 20);
+  if (patch.gstin !== undefined) a.gstin = String(patch.gstin).slice(0, 20).toUpperCase();
+  if (patch.businessName !== undefined) a.businessName = String(patch.businessName).slice(0, 120);
+  if (patch.notifyPrefs !== undefined) a.notifyPrefs = { ...a.notifyPrefs, ...patch.notifyPrefs } as NotifyPrefs;
+  save();
+  return publicAccount(email);
+}
+
+// ------------------------------------------------------------- addresses ---
+export function listAddresses(email: string): Address[] {
+  const e = email.trim().toLowerCase();
+  return load().addresses.filter((a) => a.email === e);
+}
+export function addAddress(email: string, data: Partial<Address>): Address {
+  const db = load();
+  const e = email.trim().toLowerCase();
+  const mine = db.addresses.filter((a) => a.email === e);
+  const addr: Address = {
+    id: Math.random().toString(36).slice(2, 10),
+    email: e,
+    label: String(data.label || "Home").slice(0, 30),
+    name: String(data.name || "").slice(0, 80),
+    phone: String(data.phone || "").slice(0, 20),
+    line1: String(data.line1 || "").slice(0, 160),
+    line2: data.line2 ? String(data.line2).slice(0, 160) : undefined,
+    city: String(data.city || "").slice(0, 60),
+    state: String(data.state || "").slice(0, 60),
+    pincode: String(data.pincode || "").slice(0, 12),
+    instructions: data.instructions ? String(data.instructions).slice(0, 200) : undefined,
+    isCommercial: !!data.isCommercial,
+    isDefaultShipping: mine.length === 0 ? true : !!data.isDefaultShipping,
+    isDefaultBilling: mine.length === 0 ? true : !!data.isDefaultBilling,
+    createdAt: new Date().toISOString(),
+  };
+  if (addr.isDefaultShipping) mine.forEach((a) => (a.isDefaultShipping = false));
+  if (addr.isDefaultBilling) mine.forEach((a) => (a.isDefaultBilling = false));
+  db.addresses.push(addr);
+  save();
+  return addr;
+}
+export function updateAddress(email: string, id: string, patch: Partial<Address>): Address | null {
+  const db = load();
+  const e = email.trim().toLowerCase();
+  const a = db.addresses.find((x) => x.id === id && x.email === e);
+  if (!a) return null;
+  const fields: (keyof Address)[] = ["label", "name", "phone", "line1", "line2", "city", "state", "pincode", "instructions", "isCommercial"];
+  for (const f of fields) if (patch[f] !== undefined) (a as unknown as Record<string, unknown>)[f] = patch[f];
+  if (patch.isDefaultShipping) {
+    db.addresses.filter((x) => x.email === e).forEach((x) => (x.isDefaultShipping = false));
+    a.isDefaultShipping = true;
+  }
+  if (patch.isDefaultBilling) {
+    db.addresses.filter((x) => x.email === e).forEach((x) => (x.isDefaultBilling = false));
+    a.isDefaultBilling = true;
+  }
+  save();
+  return a;
+}
+export function deleteAddress(email: string, id: string): boolean {
+  const db = load();
+  const e = email.trim().toLowerCase();
+  const before = db.addresses.length;
+  db.addresses = db.addresses.filter((x) => !(x.id === id && x.email === e));
+  save();
+  return db.addresses.length < before;
+}
+
+// -------------------------------------------------------------- loyalty ----
+const POINTS_EARN_RATE = 0.02; // 2% of paid order value, as points (1 point = ₹1)
+export function getLoyalty(email: string): LoyaltyAccount {
+  const db = load();
+  const key = email.trim().toLowerCase();
+  if (!db.loyalty[key]) db.loyalty[key] = { email: key, points: 0, history: [] };
+  return db.loyalty[key];
+}
+export function earnPoints(email: string, orderTotal: number, ref?: string): number {
+  if (!email) return 0;
+  const pts = Math.floor((Number(orderTotal) || 0) * POINTS_EARN_RATE);
+  if (pts <= 0) return 0;
+  const l = getLoyalty(email);
+  l.points += pts;
+  l.history.unshift({ at: new Date().toISOString(), type: "earn", points: pts, reason: "Order reward", ref, balanceAfter: l.points });
+  save();
+  return pts;
+}
+export function redeemPointsToWallet(email: string, points: number): { ok: boolean; message?: string; points?: number; wallet?: number } {
+  const l = getLoyalty(email);
+  const p = Math.floor(Number(points) || 0);
+  if (p < 100) return { ok: false, message: "Redeem at least 100 points." };
+  if (l.points < p) return { ok: false, message: "Not enough points." };
+  l.points -= p;
+  l.history.unshift({ at: new Date().toISOString(), type: "redeem", points: p, reason: "Redeemed to wallet", balanceAfter: l.points });
+  const w = creditWallet(email, p, `Loyalty redemption (${p} pts)`);
+  save();
+  return { ok: true, points: l.points, wallet: w.balance };
 }

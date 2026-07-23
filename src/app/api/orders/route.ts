@@ -8,7 +8,7 @@ import {
   type IncomingItem,
   type CustomerInfo,
 } from "@/lib/order-core";
-import { recordOrder, adjustStock, debitWallet } from "@/lib/store";
+import { recordOrder, adjustStock, debitWallet, earnPoints } from "@/lib/store";
 import { verifyToken, tokenFromRequest } from "@/lib/account";
 
 export const runtime = "nodejs";
@@ -125,6 +125,7 @@ async function finalize(
       paymentStatus,
     });
     adjustStock(items, -1);
+    if (paymentStatus === "paid" && c.email) earnPoints(c.email, priced.total, orderNo);
   } catch (e) {
     console.error("Order persistence error:", e);
   }

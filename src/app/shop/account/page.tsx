@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
 import AuthForm from "@/components/shop/AuthForm";
+import AccountExtras from "@/components/shop/AccountExtras";
 import { formatINR } from "@/lib/shop-data";
 
 interface WalletTxn {
@@ -435,6 +436,13 @@ function SignedIn({
                     >
                       Track →
                     </Link>
+                    <Link
+                      href={`/shop/invoice/${encodeURIComponent(o.orderNo)}?email=${encodeURIComponent(email)}`}
+                      className="text-xs font-medium"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Invoice
+                    </Link>
                   </div>
                 </div>
               </li>
@@ -444,6 +452,7 @@ function SignedIn({
       </div>
     </div>
     <SupportSection authHeaders={authHeaders} />
+    <AccountExtras authHeaders={authHeaders} onWalletChange={refreshWallet} />
     </>
   );
 }

@@ -234,6 +234,24 @@ function OrderEditor({ order, onSaved }: { order: Order; onSaved: () => void }) 
 
   return (
     <div className="border-t p-4" style={{ borderColor: "var(--border-primary)" }}>
+      <div className="mb-3 flex flex-wrap gap-4 text-xs">
+        <a
+          href={`/shop/invoice/${encodeURIComponent(order.orderNo)}?email=${encodeURIComponent(order.customer.email || "")}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--accent-cyan)" }}
+        >
+          Invoice ↗
+        </a>
+        <a
+          href={`/shop/invoice/${encodeURIComponent(order.orderNo)}?email=${encodeURIComponent(order.customer.email || "")}&type=packing`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--accent-cyan)" }}
+        >
+          Packing slip ↗
+        </a>
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
           <p className="mb-1 font-semibold" style={{ color: "var(--text-primary)" }}>
