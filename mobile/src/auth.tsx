@@ -1,0 +1,67 @@
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { api, getToken, setToken } from "./api";
+
+interface Account { email: string; name: string }
+interface AuthValue {
+  account: Account | null;
+  ready: boolean;
+  login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; pending?: boolean; email?: string; message?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; message?: string }>;
+  logout: () => void;
+}
+
+const Ctx = createContext<AuthValue | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [account, setAccount] = useState<Account | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const t = await getToken();
+      if (t) {
+        const r = await api.devices(); // token still valid if this succeeds
+        if (r.ok) setAccount({ email: "", name: "" });
+        else await setToken(null);
+      }
+      setReady(true);
+    })();
+  }, []);
+
+  const login: AuthValue["login"] = async (email, password) => {
+    const r = await api.login(email, password);
+    if (r.ok && r.data?.success) {
+      await setToken(r.data.token);
+      setAccount(r.data.account);
+      return { ok: true };
+    }
+    return { ok: false, message: r.data?.message || "Sign in failed." };
+  };
+
+  const register: AuthValue["register"] = async (name, email, password) => {
+    const r = await api.register(name, email, password);
+    if (r.ok && r.data?.success) return { ok: true, pending: true, email: r.data.email };
+    return { ok: false, message: r.data?.message || "Sign up failed." };
+  };
+
+  const verifyOtp: AuthValue["verifyOtp"] = async (email, otp) => {
+    const r = await api.verifyOtp(email, otp);
+    if (r.ok && r.data?.success) {
+      await setToken(r.data.token);
+      setAccount(r.data.account);
+      return { ok: true };
+    }
+    return { ok: false, message: r.data?.message || "Verification failed." };
+  };
+
+  const logout = () => { setToken(null); setAccount(null); };
+
+  return <Ctx.Provider value={{ account, ready, login, register, verifyOtp, logout }}>{children}</Ctx.Provider>;
+}
+
+export function useAuth() {
+  const c = useContext(Ctx);
+  if (!c) throw new Error("useAuth outside provider");
+  return c;
+}

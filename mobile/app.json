@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Circuvent",
+    "slug": "circuvent",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "circuvent",
+    "userInterfaceStyle": "automatic",
+    "splash": { "backgroundColor": "#0b1020" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.circuvent.app" },
+    "android": {
+      "package": "com.circuvent.app",
+      "adaptiveIcon": { "backgroundColor": "#0b1020" }
+    },
+    "extra": {
+      "apiBase": "https://circuvent.com"
+    }
+  }
+}
