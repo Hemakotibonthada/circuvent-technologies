@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -22,10 +22,29 @@ export default function ProductDetailClient({
   const { add } = useCart();
   const router = useRouter();
   const [qty, setQty] = useState(1);
-  const saving = product.compareAt && product.compareAt > product.price ? product.compareAt - product.price : 0;
+  const [live, setLive] = useState<Product>(product);
+
+  // Hydrate live price / stock / availability from the store (admin-editable),
+  // so the product page always matches what checkout will charge.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/shop/products")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d?.success || !Array.isArray(d.products)) return;
+        const m = (d.products as Product[]).find((p) => p.id === product.id || p.slug === product.slug);
+        if (m) setLive((prev) => ({ ...prev, ...m }));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [product.id, product.slug]);
+
+  const saving = live.compareAt && live.compareAt > live.price ? live.compareAt - live.price : 0;
 
   const buyNow = () => {
-    add(product, qty, { silent: true });
+    add(live, qty, { silent: true });
     router.push("/checkout");
   };
 
@@ -60,7 +79,7 @@ export default function ProductDetailClient({
               {product.category}
             </span>
             <span className="flex items-center gap-1 text-sm" style={{ color: "var(--text-tertiary)" }}>
-              <Star className="h-3.5 w-3.5 fill-current" style={{ color: "#f59e0b" }} /> {product.rating}
+              <Star className="h-3.5 w-3.5 fill-current" style={{ color: "#f59e0b" }} /> {live.rating}
             </span>
           </div>
 
@@ -73,12 +92,12 @@ export default function ProductDetailClient({
 
           <div className="mt-4 flex flex-wrap items-baseline gap-3">
             <span className="text-3xl font-extrabold" style={{ color: "var(--text-primary)" }}>
-              {formatINR(product.price)}
+              {formatINR(live.price)}
             </span>
             {saving > 0 && (
               <>
                 <span className="text-lg line-through" style={{ color: "var(--text-muted)" }}>
-                  {formatINR(product.compareAt!)}
+                  {formatINR(live.compareAt!)}
                 </span>
                 <span className="text-sm font-semibold text-emerald-500">Save {formatINR(saving)}</span>
               </>
@@ -120,13 +139,13 @@ export default function ProductDetailClient({
               </button>
             </div>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {product.stock > 0 ? `${product.stock} in stock` : "Made to order"}
+              {live.stock > 0 ? `${live.stock} in stock` : "Made to order"}
             </span>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
             <button
-              onClick={() => add(product, qty)}
+              onClick={() => add(live, qty)}
               className="inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold transition-colors"
               style={{ borderColor: "var(--border-hover)", color: "var(--text-primary)", background: "var(--bg-surface)" }}
             >
@@ -145,7 +164,7 @@ export default function ProductDetailClient({
             delivery · Ships across India
           </p>
 
-          {product.stock <= 0 && <RestockNotify productId={product.id} />}
+          {live.stock <= 0 && <RestockNotify productId={product.id} />}
         </motion.div>
       </div>
 

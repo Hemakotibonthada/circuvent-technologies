@@ -19,7 +19,7 @@ export default function ScrollReveal({
   duration = 0.6,
 }: ScrollRevealProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
+  const isInView = useInView(ref, { once: true });
   const prefersReduced = useReducedMotion();
   const [mounted, setMounted] = useState(false);
   const [reveal, setReveal] = useState(false);
@@ -33,8 +33,15 @@ export default function ScrollReveal({
     if (el) {
       const r = el.getBoundingClientRect();
       const vh = typeof window !== "undefined" ? window.innerHeight : 0;
-      if (r.top < vh && r.bottom > 0) setReveal(true);
+      if (r.top < vh && r.bottom > 0) {
+        setReveal(true);
+        return;
+      }
     }
+    // Safety net: never leave content permanently invisible if the observer
+    // fails to fire (the root cause of the large blank white gaps on the page).
+    const t = setTimeout(() => setReveal(true), 1000);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
