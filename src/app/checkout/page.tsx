@@ -88,6 +88,13 @@ export default function CheckoutPage() {
   const [couponInput, setCouponInput] = useState("");
   const [couponMsg, setCouponMsg] = useState("");
   const [couponBusy, setCouponBusy] = useState(false);
+  const [quote, setQuote] = useState<{
+    subtotal: number;
+    shipping: number;
+    discount: number;
+    total: number;
+    lines: { name: string; price: number; qty: number; lineTotal: number }[];
+  } | null>(null);
 
   useEffect(() => {
     if (!account) return;
@@ -112,13 +119,39 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account]);
 
+  // Live, server-authoritative price quote (reflects admin price edits + coupon).
+  useEffect(() => {
+    if (items.length === 0) {
+      setQuote(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/shop/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: items.map((i) => ({ id: i.id, slug: i.slug, qty: i.qty })), coupon: coupon?.code }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.success) {
+          setQuote({ subtotal: d.subtotal, shipping: d.shipping, discount: d.discount, total: d.total, lines: d.lines });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [items, coupon]);
+
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const cartPayload = () => items.map((i) => ({ id: i.id, slug: i.slug, qty: i.qty }));
 
-  const discount = coupon?.discount || 0;
-  const payTotal = Math.max(0, subtotal + shipping - discount);
+  const dispSubtotal = quote?.subtotal ?? subtotal;
+  const dispShipping = quote?.shipping ?? shipping;
+  const discount = quote?.discount ?? (coupon?.discount || 0);
+  const payTotal = quote?.total ?? Math.max(0, subtotal + shipping - discount);
 
   const applyCoupon = async () => {
     if (!couponInput.trim()) return;
@@ -463,12 +496,12 @@ export default function CheckoutPage() {
             Your order
           </h3>
           <div className="mt-4 space-y-3">
-            {items.map((it) => (
+            {items.map((it, idx) => (
               <div key={it.id} className="flex justify-between text-sm">
                 <span style={{ color: "var(--text-secondary)" }}>
                   {it.name} <span style={{ color: "var(--text-muted)" }}>× {it.qty}</span>
                 </span>
-                <span style={{ color: "var(--text-secondary)" }}>{formatINR(it.price * it.qty)}</span>
+                <span style={{ color: "var(--text-secondary)" }}>{formatINR(quote?.lines?.[idx]?.lineTotal ?? it.price * it.qty)}</span>
               </div>
             ))}
           </div>
@@ -514,7 +547,7 @@ export default function CheckoutPage() {
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between">
               <dt style={{ color: "var(--text-tertiary)" }}>Subtotal</dt>
-              <dd style={{ color: "var(--text-secondary)" }}>{formatINR(subtotal)}</dd>
+              <dd style={{ color: "var(--text-secondary)" }}>{formatINR(dispSubtotal)}</dd>
             </div>
             {discount > 0 && (
               <div className="flex justify-between">
@@ -524,7 +557,7 @@ export default function CheckoutPage() {
             )}
             <div className="flex justify-between">
               <dt style={{ color: "var(--text-tertiary)" }}>Shipping</dt>
-              <dd style={{ color: "var(--text-secondary)" }}>{shipping === 0 ? "Free" : formatINR(shipping)}</dd>
+              <dd style={{ color: "var(--text-secondary)" }}>{dispShipping === 0 ? "Free" : formatINR(dispShipping)}</dd>
             </div>
             <div className="flex justify-between pt-3 text-base" style={{ borderTop: "1px solid var(--border-primary)" }}>
               <dt className="font-semibold" style={{ color: "var(--text-primary)" }}>

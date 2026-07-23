@@ -25,6 +25,7 @@ interface Order {
   carrier?: string;
   paymentMethod: string;
   paymentStatus: string;
+  internalNotes?: { at: string; by: string; text: string }[];
   customer: { name?: string; email?: string; phone?: string; address?: string; city?: string; state?: string; pincode?: string };
 }
 
@@ -205,6 +206,25 @@ function OrderEditor({ order, onSaved }: { order: Order; onSaved: () => void }) 
   const [notify, setNotify] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [internalNote, setInternalNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+
+  const addInternalNote = async () => {
+    if (!internalNote.trim()) return;
+    setSavingNote(true);
+    try {
+      await fetch("/api/admin/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify({ orderNo: order.orderNo, internalNote }),
+      });
+      setInternalNote("");
+      onSaved();
+    } catch {
+      /* ignore */
+    }
+    setSavingNote(false);
+  };
 
   const save = async () => {
     setBusy(true);
@@ -270,6 +290,37 @@ function OrderEditor({ order, onSaved }: { order: Order; onSaved: () => void }) 
               {it.name} × {it.qty} — {formatINR(it.lineTotal)}
             </p>
           ))}
+
+          <p className="mt-3 font-semibold" style={{ color: "var(--text-primary)" }}>
+            Staff notes (internal)
+          </p>
+          {(order.internalNotes || []).length === 0 ? (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>No internal notes yet.</p>
+          ) : (
+            (order.internalNotes || []).map((n, i) => (
+              <p key={i} className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {fmt(n.at)} · {n.by}: {n.text}
+              </p>
+            ))
+          )}
+          <div className="mt-2 flex gap-2">
+            <input
+              value={internalNote}
+              onChange={(e) => setInternalNote(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addInternalNote()}
+              placeholder="Add a private note (not emailed)"
+              className={inp}
+              style={inpStyle}
+            />
+            <button
+              onClick={addInternalNote}
+              disabled={savingNote}
+              className="shrink-0 rounded-lg border px-3 py-2 text-xs font-medium disabled:opacity-60"
+              style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+            >
+              {savingNote ? "…" : "Add"}
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3">

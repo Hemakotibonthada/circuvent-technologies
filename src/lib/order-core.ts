@@ -3,6 +3,7 @@ import type { Transporter } from "nodemailer";
 import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
 import { validateCoupon } from "./coupons";
+import { listProducts } from "./store";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
 
@@ -115,11 +116,16 @@ export function priceItems(items: IncomingItem[], couponCode?: string): PriceRes
     return { ok: false, error: "Your cart is empty." };
   }
   const lines: OrderLine[] = [];
+  const live = listProducts(); // authoritative prices/availability (admin-editable)
   for (const it of items) {
-    const p = products.find((pr) => pr.id === it.id || pr.slug === it.slug);
-    if (!p) return { ok: false, error: "A product in your cart is no longer available." };
+    const cat = products.find((pr) => pr.id === it.id || pr.slug === it.slug);
+    const lp = live.find((pr) => pr.id === it.id || pr.slug === it.slug);
+    if (!cat && !lp) return { ok: false, error: "A product in your cart is no longer available." };
+    if (lp && lp.available === false) return { ok: false, error: `${lp.name} is currently unavailable.` };
+    const name = cat?.name || lp?.name || "Item";
+    const price = lp?.price ?? cat?.price ?? 0; // live store price wins over the static catalog
     const qty = Math.max(1, Math.min(99, Number(it.qty) || 1));
-    lines.push({ name: p.name, price: p.price, qty, lineTotal: p.price * qty });
+    lines.push({ name, price, qty, lineTotal: price * qty });
   }
   const { subtotal, shipping } = computeTotals(lines);
   let discount = 0;
