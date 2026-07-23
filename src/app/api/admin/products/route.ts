@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { listProducts, upsertProduct, deleteProduct } from "@/lib/store";
+import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function verifyAdmin(request: Request): boolean {
-  const token = request.headers.get("x-admin-token");
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword || !token) return false;
-  const expected = Buffer.from(`${adminPassword}:${new Date().toDateString()}`).toString("base64");
-  return token === expected;
+  return requireArea(adminFromRequest(request), "inventory");
 }
 
 function slugify(s: string): string {

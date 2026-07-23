@@ -25,6 +25,8 @@ import {
   Tag,
   RotateCcw,
   LifeBuoy,
+  UserCog,
+  LogOut,
 } from "lucide-react";
 import OrdersPanel from "./OrdersPanel";
 import InventoryPanel from "./InventoryPanel";
@@ -33,6 +35,7 @@ import CustomersPanel from "./CustomersPanel";
 import CouponsPanel from "./CouponsPanel";
 import ReturnsPanel from "./ReturnsPanel";
 import SupportPanel from "./SupportPanel";
+import StaffPanel from "./StaffPanel";
 
 interface PageStats {
   page: string;
@@ -100,26 +103,56 @@ function getPageName(path: string): string {
   return slug ? `${baseName}: ${slug}` : baseName;
 }
 
+// Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
+const ROLE_AREAS: Record<string, string[]> = {
+  superadmin: ["overview", "orders", "inventory", "customers", "coupons", "returns", "support", "staff"],
+  manager: ["overview", "orders", "inventory", "customers", "coupons", "returns", "support"],
+  inventory: ["inventory"],
+  orders: ["orders", "returns", "customers"],
+  support: ["support", "returns", "customers"],
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  superadmin: "Super Admin",
+  manager: "Manager",
+  inventory: "Inventory Staff",
+  orders: "Orders Staff",
+  support: "Support Staff",
+};
+
 export default function AdminDashboard() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [email, setEmail] = useState("admin@circuvent.com");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [role, setRole] = useState<string>("superadmin");
+  const [adminName, setAdminName] = useState<string>("");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [sseConnected, setSSEConnected] = useState(false);
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [tab, setTab] = useState<
-    "overview" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support"
+    "overview" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "staff"
   >("overview");
+
+  const canSee = useCallback(
+    (area: string) => (ROLE_AREAS[role] ?? []).includes(area),
+    [role]
+  );
 
   // Check existing session
   useEffect(() => {
     const token = sessionStorage.getItem("admin-token");
     if (token) {
       fetch("/api/admin/auth", { headers: { "x-admin-token": token } })
-        .then((res) => {
-          if (res.ok) setAuthenticated(true);
+        .then(async (res) => {
+          if (res.ok) {
+            const d = await res.json();
+            setRole(d.role || "superadmin");
+            setAdminName(d.name || "");
+            setAuthenticated(true);
+          }
           setChecking(false);
         })
         .catch(() => setChecking(false));
@@ -135,18 +168,27 @@ export default function AdminDashboard() {
       const res = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
       if (res.ok) {
-        const { token } = await res.json();
-        sessionStorage.setItem("admin-token", token);
+        const d = await res.json();
+        sessionStorage.setItem("admin-token", d.token);
+        setRole(d.role || "superadmin");
+        setAdminName(d.name || "");
         setAuthenticated(true);
       } else {
-        setAuthError("Invalid password");
+        const d = await res.json().catch(() => ({}));
+        setAuthError(d.error || "Invalid email or password");
       }
     } catch {
       setAuthError("Connection error");
     }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("admin-token");
+    setAuthenticated(false);
+    setPassword("");
   };
 
   // Fetch full admin stats (with auth token)
@@ -167,17 +209,17 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // Initial fetch + polling every 10s (only when authenticated)
+  // Initial fetch + polling every 10s (only when authenticated + allowed)
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated || !canSee("overview")) return;
     fetchStats();
     const interval = setInterval(fetchStats, 10_000);
     return () => clearInterval(interval);
-  }, [fetchStats, authenticated]);
+  }, [fetchStats, authenticated, canSee]);
 
-  // SSE for real-time visitor updates (only when authenticated)
+  // SSE for real-time visitor updates (only when authenticated + allowed)
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated || !canSee("overview")) return;
     const evtSource = new EventSource("/api/visitors/stream");
 
     evtSource.onopen = () => setSSEConnected(true);
@@ -201,9 +243,17 @@ export default function AdminDashboard() {
     };
 
     return () => evtSource.close();
-  }, [authenticated]);
+  }, [authenticated, canSee]);
 
   const visitors = liveVisitors ?? stats?.visitors;
+
+  // Reset to a permitted tab when the role can't see the current one.
+  useEffect(() => {
+    const visible = ROLE_AREAS[role] ?? [];
+    if (visible.length && !visible.includes(tab)) {
+      setTab(visible[0] as typeof tab);
+    }
+  }, [role, tab]);
 
   // Loading state
   if (checking) {
@@ -234,18 +284,32 @@ export default function AdminDashboard() {
             </div>
           </div>
           <h1 className="text-xl font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>
-            Admin Access
+            Circuvent Control Center
           </h1>
           <p className="text-sm text-center mb-6" style={{ color: "var(--text-tertiary)" }}>
-            Enter the admin password to continue
+            Sign in with your staff email and password
           </p>
           <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              autoFocus
+              autoComplete="username"
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
+              style={{
+                background: "var(--bg-glass)",
+                border: "1px solid var(--border-primary)",
+                color: "var(--text-primary)",
+              }}
+            />
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
-              autoFocus
+              autoComplete="current-password"
               className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
               style={{
                 background: "var(--bg-glass)",
@@ -285,17 +349,44 @@ export default function AdminDashboard() {
               Real-time website analytics and server monitoring
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            {/* SSE Status */}
-            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-              {sseConnected ? (
-                <><Wifi className="w-4 h-4 text-emerald-500" /> <span className="text-emerald-500">Live</span></>
-              ) : (
-                <><WifiOff className="w-4 h-4 text-red-400" /> <span className="text-red-400">Disconnected</span></>
-              )}
+          <div className="flex items-center gap-3">
+            {canSee("overview") && (
+              <>
+                {/* SSE Status */}
+                <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {sseConnected ? (
+                    <><Wifi className="w-4 h-4 text-emerald-500" /> <span className="text-emerald-500">Live</span></>
+                  ) : (
+                    <><WifiOff className="w-4 h-4 text-red-400" /> <span className="text-red-400">Disconnected</span></>
+                  )}
+                </div>
+                <button
+                  onClick={fetchStats}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:scale-105"
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border-primary)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4" /> Refresh
+                </button>
+              </>
+            )}
+            {/* Identity */}
+            <div className="hidden sm:flex flex-col items-end leading-tight">
+              <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                {adminName || "Staff"}
+              </span>
+              <span
+                className="text-xs px-2 py-0.5 rounded-full mt-0.5"
+                style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}
+              >
+                {ROLE_LABELS[role] ?? role}
+              </span>
             </div>
             <button
-              onClick={fetchStats}
+              onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:scale-105"
               style={{
                 background: "var(--bg-surface)",
@@ -303,7 +394,7 @@ export default function AdminDashboard() {
                 color: "var(--text-secondary)",
               }}
             >
-              <RefreshCw className="w-4 h-4" /> Refresh
+              <LogOut className="w-4 h-4" /> Logout
             </button>
           </div>
         </div>
@@ -321,7 +412,10 @@ export default function AdminDashboard() {
             { id: "coupons", label: "Coupons", icon: <Tag className="w-4 h-4" /> },
             { id: "returns", label: "Returns", icon: <RotateCcw className="w-4 h-4" /> },
             { id: "support", label: "Support", icon: <LifeBuoy className="w-4 h-4" /> },
-          ].map((t) => (
+            { id: "staff", label: "Staff", icon: <UserCog className="w-4 h-4" /> },
+          ]
+            .filter((t) => canSee(t.id))
+            .map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id as typeof tab)}
@@ -339,6 +433,7 @@ export default function AdminDashboard() {
         {tab === "coupons" && <CouponsPanel />}
         {tab === "returns" && <ReturnsPanel />}
         {tab === "support" && <SupportPanel />}
+        {tab === "staff" && <StaffPanel />}
 
         {tab === "overview" && (
         <>

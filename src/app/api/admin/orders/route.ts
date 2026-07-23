@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listOrders, updateOrder, creditWallet, logAudit, type StoredOrder } from "@/lib/store";
 import { sendStatusEmail } from "@/lib/order-core";
+import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,11 +17,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function verifyAdmin(request: Request): boolean {
-  const token = request.headers.get("x-admin-token");
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword || !token) return false;
-  const expected = Buffer.from(`${adminPassword}:${new Date().toDateString()}`).toString("base64");
-  return token === expected;
+  return requireArea(adminFromRequest(request), "orders");
 }
 
 // GET /api/admin/orders?status=&q= — list orders + summary

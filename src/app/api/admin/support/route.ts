@@ -1,15 +1,13 @@
 import { NextResponse, after } from "next/server";
 import { listTickets, addTicketMessage, setTicketStatus } from "@/lib/store";
 import { sendMail } from "@/lib/order-core";
+import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function verifyAdmin(request: Request): boolean {
-  const token = request.headers.get("x-admin-token");
-  const pw = process.env.ADMIN_PASSWORD;
-  if (!pw || !token) return false;
-  return token === Buffer.from(`${pw}:${new Date().toDateString()}`).toString("base64");
+  return requireArea(adminFromRequest(request), "support");
 }
 
 export async function GET(request: Request) {

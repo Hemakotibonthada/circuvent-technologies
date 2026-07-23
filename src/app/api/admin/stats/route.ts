@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appCache } from "@/lib/cache";
 import { visitorTracker } from "@/lib/visitor-tracker";
+import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 
 function verifyToken(request: NextRequest): boolean {
-  const token = request.headers.get("x-admin-token");
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword || !token) return false;
-  const expected = Buffer.from(`${adminPassword}:${new Date().toDateString()}`).toString("base64");
-  return token === expected;
+  return requireArea(adminFromRequest(request), "analytics");
 }
 
 // GET — Admin stats: visitors + cache (protected)

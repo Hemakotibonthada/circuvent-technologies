@@ -224,6 +224,21 @@ export interface LoyaltyAccount {
   history: LoyaltyTxn[];
 }
 
+/** Staff role for the admin control center. superadmin has every capability. */
+export type AdminRole = "superadmin" | "manager" | "inventory" | "orders" | "support";
+
+export interface AdminUser {
+  email: string;
+  name: string;
+  hash: string;
+  salt: string;
+  role: AdminRole;
+  active: boolean;
+  createdAt: string;
+  createdBy?: string;
+  lastLoginAt?: string;
+}
+
 interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
@@ -240,6 +255,7 @@ interface DB {
   returns: ReturnRequest[];
   audit: AuditEntry[];
   loyalty: Record<string, LoyaltyAccount>;
+  adminUsers: Record<string, AdminUser>;
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -286,6 +302,7 @@ function emptyDB(): DB {
     returns: [],
     audit: [],
     loyalty: {},
+    adminUsers: {},
   };
 }
 
@@ -330,6 +347,7 @@ function load(): DB {
         returns: parsed.returns ?? [],
         audit: parsed.audit ?? [],
         loyalty: parsed.loyalty ?? {},
+        adminUsers: parsed.adminUsers ?? {},
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -351,6 +369,62 @@ function save() {
     canWrite = false; // read-only FS (serverless) — degrade to in-memory
     console.warn("[store] disk not writable; using in-memory store for this instance");
   }
+}
+
+// ---------------------------------------------------------- admin users ----
+function normEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** All staff accounts (includes hash/salt — callers must strip before returning). */
+export function listAdminUsers(): AdminUser[] {
+  const db = load();
+  return Object.values(db.adminUsers).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export function countAdminUsers(): number {
+  return Object.keys(load().adminUsers).length;
+}
+
+export function countSuperadmins(): number {
+  return Object.values(load().adminUsers).filter((u) => u.role === "superadmin" && u.active).length;
+}
+
+export function getAdminUser(email: string): AdminUser | null {
+  const db = load();
+  return db.adminUsers[normEmail(email)] ?? null;
+}
+
+/** Creates or replaces a staff account. */
+export function upsertAdminUser(u: AdminUser): AdminUser {
+  const db = load();
+  const email = normEmail(u.email);
+  db.adminUsers[email] = { ...u, email };
+  save();
+  return db.adminUsers[email];
+}
+
+/** Patches an existing staff account's mutable fields. */
+export function patchAdminUser(
+  email: string,
+  patch: Partial<Pick<AdminUser, "name" | "role" | "active" | "hash" | "salt" | "lastLoginAt">>
+): AdminUser | null {
+  const db = load();
+  const key = normEmail(email);
+  const existing = db.adminUsers[key];
+  if (!existing) return null;
+  db.adminUsers[key] = { ...existing, ...patch };
+  save();
+  return db.adminUsers[key];
+}
+
+export function deleteAdminUser(email: string): boolean {
+  const db = load();
+  const key = normEmail(email);
+  if (!db.adminUsers[key]) return false;
+  delete db.adminUsers[key];
+  save();
+  return true;
 }
 
 // --------------------------------------------------------------- orders ----

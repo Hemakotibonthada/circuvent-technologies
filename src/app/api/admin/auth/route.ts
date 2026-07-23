@@ -1,43 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  authenticate,
+  adminFromRequest,
+  signAdminToken,
+  ensureSeeded,
+  DEFAULT_ADMIN_EMAIL,
+} from "@/lib/admin-auth";
 
-// POST — Verify admin password
+// POST — Sign in with email + password
 export async function POST(request: NextRequest) {
   try {
-    const { password } = await request.json();
-    const adminPassword = process.env.ADMIN_PASSWORD;
+    ensureSeeded();
+    const body = await request.json().catch(() => ({}));
+    // Backwards-compatible: an old client that sends only { password } is treated
+    // as the default owner account.
+    const email = (body.email || DEFAULT_ADMIN_EMAIL).toString().trim().toLowerCase();
+    const password = (body.password || "").toString();
 
-    if (!adminPassword) {
-      return NextResponse.json(
-        { error: "Admin password not configured on server" },
-        { status: 503 }
-      );
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    if (password === adminPassword) {
-      // Return a simple token (hash of password + date for session)
-      const token = Buffer.from(`${adminPassword}:${new Date().toDateString()}`).toString("base64");
-      return NextResponse.json({ ok: true, token });
+    const user = authenticate(email, password);
+    if (!user) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    return NextResponse.json({
+      ok: true,
+      token: signAdminToken(user.email),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 }
 
-// GET — Verify existing token
+// GET — Verify an existing token and return the current identity + role
 export async function GET(request: NextRequest) {
-  const token = request.headers.get("x-admin-token");
-  const adminPassword = process.env.ADMIN_PASSWORD;
-
-  if (!adminPassword || !token) {
+  const user = adminFromRequest(request);
+  if (!user) {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
-
-  const expected = Buffer.from(`${adminPassword}:${new Date().toDateString()}`).toString("base64");
-  if (token === expected) {
-    return NextResponse.json({ authenticated: true });
-  }
-
-  return NextResponse.json({ authenticated: false }, { status: 401 });
+  return NextResponse.json({
+    authenticated: true,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+  });
 }

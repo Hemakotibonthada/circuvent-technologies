@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { listCoupons, upsertCoupon, deleteCoupon, logAudit, type StoreCoupon } from "@/lib/store";
+import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function verifyAdmin(request: Request): boolean {
-  const token = request.headers.get("x-admin-token");
-  const pw = process.env.ADMIN_PASSWORD;
-  if (!pw || !token) return false;
-  return token === Buffer.from(`${pw}:${new Date().toDateString()}`).toString("base64");
+  return requireArea(adminFromRequest(request), "coupons");
 }
 
 export async function GET(request: Request) {
