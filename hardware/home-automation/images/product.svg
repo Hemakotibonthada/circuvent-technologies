@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" font-family="Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ede9fe"/><stop offset="1" stop-color="#e0f2fe"/></linearGradient>
+    <linearGradient id="case" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e2e8f0"/></linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#bg)"/>
+
+  <rect x="150" y="110" width="300" height="380" rx="24" fill="url(#case)" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="150" y="110" width="300" height="66" rx="24" fill="#0b1020"/>
+  <rect x="150" y="150" width="300" height="26" fill="#0b1020"/>
+  <circle cx="190" cy="145" r="12" fill="none" stroke="#8b5cf6" stroke-width="3"/>
+  <text x="212" y="152" fill="#ffffff" font-size="21" font-weight="bold">Circu<tspan fill="#8b5cf6">vent</tspan></text>
+
+  <!-- 4 channel rockers -->
+  <g>
+    <g transform="translate(180,210)">
+      <rect width="240" height="54" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+      <rect x="8" y="8" width="70" height="38" rx="7" fill="#22c55e"/><text x="20" y="33" fill="#fff" font-size="13">ON</text>
+      <text x="150" y="33" fill="#334155" font-size="14">Ch 1 . Light</text>
+      <circle cx="228" cy="27" r="6" fill="#3b82f6"/>
+    </g>
+    <g transform="translate(180,274)">
+      <rect width="240" height="54" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+      <rect x="8" y="8" width="70" height="38" rx="7" fill="#e2e8f0"/><text x="18" y="33" fill="#64748b" font-size="13">OFF</text>
+      <text x="150" y="33" fill="#334155" font-size="14">Ch 2 . Fan</text>
+      <circle cx="228" cy="27" r="6" fill="#cbd5e1"/>
+    </g>
+    <g transform="translate(180,338)">
+      <rect width="240" height="54" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+      <rect x="8" y="8" width="70" height="38" rx="7" fill="#22c55e"/><text x="20" y="33" fill="#fff" font-size="13">ON</text>
+      <text x="150" y="33" fill="#334155" font-size="14">Ch 3 . TV/AV</text>
+      <circle cx="228" cy="27" r="6" fill="#3b82f6"/>
+    </g>
+    <g transform="translate(180,402)">
+      <rect width="240" height="54" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+      <rect x="8" y="8" width="70" height="38" rx="7" fill="#e2e8f0"/><text x="18" y="33" fill="#64748b" font-size="13">OFF</text>
+      <text x="150" y="33" fill="#334155" font-size="14">Ch 4 . Geyser</text>
+      <circle cx="228" cy="27" r="6" fill="#cbd5e1"/>
+    </g>
+  </g>
+
+  <circle cx="300" cy="470" r="7" fill="#22c55e"/><text x="314" y="475" font-size="11" fill="#475569">POWER / ONLINE</text>
+
+  <text x="300" y="540" text-anchor="middle" fill="#0f172a" font-size="22" font-weight="bold">Automation Hub</text>
+  <text x="300" y="562" text-anchor="middle" fill="#94a3b8" font-size="11">Render mockup - replace with studio photography before listing.</text>
+</svg>

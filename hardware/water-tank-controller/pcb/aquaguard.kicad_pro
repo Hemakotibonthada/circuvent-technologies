@@ -1,0 +1,15 @@
+{
+  "board": { "design_settings": { "defaults": {} } },
+  "meta": { "filename": "aquaguard.kicad_pro", "version": 1 },
+  "project": {
+    "name": "AquaGuard Water Tank Controller",
+    "description": "Circuvent AquaGuard - ESP32 mains pump controller. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-AQUA",
+    "REV": "A",
+    "MAINS_CREEPAGE_MM": "8"
+  }
+}

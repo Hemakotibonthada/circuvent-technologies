@@ -1,0 +1,16 @@
+{
+  "board": { "design_settings": { "defaults": {} } },
+  "meta": { "filename": "homehub.kicad_pro", "version": 1 },
+  "project": {
+    "name": "Circuvent Home Automation Hub",
+    "description": "4-channel ESP32 mains relay controller. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-HUB",
+    "REV": "A",
+    "CHANNELS": "4",
+    "MAINS_CREEPAGE_MM": "8"
+  }
+}
