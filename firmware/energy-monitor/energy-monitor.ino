@@ -6,17 +6,14 @@
  */
 #include <CircuventDevice.h>
 
-const char *WIFI_SSID = "YOUR_WIFI";
-const char *WIFI_PASS = "YOUR_PASS";
-const char *DEVICE_ID = "CV-ENERGY-000001";
-const char *DEVICE_KEY = "REPLACE_DEVICE_KEY";
+// Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
 #define CT_PIN 34
 const float MAINS_VOLTAGE = 230.0f;  // grid voltage (India)
 const float CT_CAL = 30.0f;          // amps per volt at the ADC — calibrate per burden resistor
 const float PF = 0.95f;              // assumed power factor
 
-CircuventDevice cv(DEVICE_ID, DEVICE_KEY, "energy-monitor");
+CircuventDevice cv("energy-monitor");
 double kwh = 0;
 unsigned long lastCalc = 0;
 
@@ -39,7 +36,7 @@ void setup() {
   Serial.begin(115200);
   analogReadResolution(12);
   cv.setInterval(10000);
-  cv.begin(WIFI_SSID, WIFI_PASS);
+  cv.begin();
   lastCalc = millis();
 }
 

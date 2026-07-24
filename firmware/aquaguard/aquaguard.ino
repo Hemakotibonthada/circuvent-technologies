@@ -18,8 +18,7 @@
 #include <Preferences.h>
 
 // ---- factory identity (a provisioning station overwrites these in NVS) ----
-const char *DEVICE_ID  = "CV-AQUA-000001";
-const char *DEVICE_KEY = "REPLACE_DEVICE_KEY";
+// Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
 // ---- pins ----
 #define MOTOR_RELAY 26   // -> contactor coil
@@ -42,7 +41,7 @@ uint32_t maxRuntimeMs   = 20UL * 60UL * 1000UL;  // hard cutoff
 uint32_t restartDelayMs = 3UL  * 60UL * 1000UL;  // motor cool-down between runs
 uint32_t dryRunWindowMs = 90UL * 1000UL;         // must see level rise within this
 
-CircuventDevice cv(DEVICE_ID, DEVICE_KEY, "aquaguard");
+CircuventDevice cv("aquaguard");
 Preferences store;
 
 bool pump = false, autoMode = true, dryRun = false, overflow = false, sensorFault = false;

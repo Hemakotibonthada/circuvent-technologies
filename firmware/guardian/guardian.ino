@@ -8,10 +8,7 @@
 #include <CircuventDevice.h>
 #include <TinyGPSPlus.h>
 
-const char *WIFI_SSID = "YOUR_WIFI";
-const char *WIFI_PASS = "YOUR_PASS";
-const char *DEVICE_ID = "CV-GUARD-000001";
-const char *DEVICE_KEY = "REPLACE_DEVICE_KEY";
+// Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 const char *TRUSTED_NUMBER = "+9199XXXXXXXX";  // trusted contact
 
 #define SOS_BTN 0
@@ -25,7 +22,7 @@ const char *TRUSTED_NUMBER = "+9199XXXXXXXX";  // trusted contact
 HardwareSerial sim(2);
 HardwareSerial gpsSerial(1);
 TinyGPSPlus gps;
-CircuventDevice cv(DEVICE_ID, DEVICE_KEY, "guardian");
+CircuventDevice cv("guardian");
 
 bool armed = true, sos = false;
 double lat = 0, lng = 0;
@@ -73,7 +70,7 @@ void setup() {
   gpsSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
   cv.onCommand(onCommand);
   cv.setInterval(15000);
-  cv.begin(WIFI_SSID, WIFI_PASS);
+  cv.begin();
 }
 
 void loop() {

@@ -17,8 +17,7 @@
 #include <Preferences.h>
 #include <time.h>
 
-const char *DEVICE_ID  = "CV-HUB-000001";
-const char *DEVICE_KEY = "REPLACE_DEVICE_KEY";
+// Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
 #define NUM_CH 4
 const uint8_t RELAY[NUM_CH] = {26, 27, 32, 33};
@@ -28,7 +27,7 @@ const uint8_t BTN[NUM_CH]   = {13, 14, 16, 17};
 struct Rule { int8_t ch; int16_t onMin; int16_t offMin; bool en; };  // minutes of day, -1 = unused
 #define MAX_RULES 8
 
-CircuventDevice cv(DEVICE_ID, DEVICE_KEY, "home-hub");
+CircuventDevice cv("home-hub");
 Preferences store;
 
 bool relayOn[NUM_CH] = {false, false, false, false};

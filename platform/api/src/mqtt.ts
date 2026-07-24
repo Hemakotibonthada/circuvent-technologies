@@ -19,6 +19,11 @@ export interface DeviceUpdate {
 
 let client: MqttClient | null = null;
 
+// Dynamic Security control channel. The control-plane is the dynsec admin; it
+// manages broker clients (one per device) and their topic permissions here.
+const DYNSEC_CMD = "$CONTROL/dynamic-security/v1";
+const DYNSEC_RES = "$CONTROL/dynamic-security/v1/response";
+
 export function getMqtt(): MqttClient {
   if (!client) throw new Error("MQTT not connected");
   return client;
@@ -36,16 +41,79 @@ export function connectMqtt(): Promise<void> {
 
     client.on("connect", () => {
       logger.info("MQTT connected");
-      client!.subscribe([topics.allState, topics.allTelemetry, topics.allStatus], { qos: 1 }, (err) => {
-        if (err) logger.error({ err }, "MQTT subscribe failed");
-      });
+      client!.subscribe(DYNSEC_RES, { qos: 1 });
+      // Ensure the control-plane + device roles exist and the control-plane can
+      // reach cv/#. Roles/ACLs applied here; subscribe to device topics just
+      // after so the freshly-granted permission is in effect.
+      bootstrapDynsec();
+      setTimeout(() => {
+        client!.subscribe([topics.allState, topics.allTelemetry, topics.allStatus], { qos: 1 }, (err) => {
+          if (err) logger.error({ err }, "MQTT subscribe failed");
+        });
+      }, 1500);
       resolve();
     });
 
     client.on("reconnect", () => logger.warn("MQTT reconnecting"));
     client.on("error", (err) => logger.error({ err }, "MQTT error"));
-    client.on("message", (topic, buf) => void handleMessage(topic, buf));
+    client.on("message", (topic, buf) => {
+      if (topic === DYNSEC_RES) {
+        logDynsecResponse(buf);
+        return;
+      }
+      void handleMessage(topic, buf);
+    });
   });
+}
+
+/** Publish a Dynamic Security command batch on the $CONTROL channel. */
+function dynsec(commands: Array<Record<string, unknown>>): void {
+  try {
+    getMqtt().publish(DYNSEC_CMD, JSON.stringify({ commands }));
+  } catch (err) {
+    logger.error({ err }, "dynsec publish failed");
+  }
+}
+
+/** Idempotently create the control-plane + device roles (safe on every boot). */
+function bootstrapDynsec(): void {
+  dynsec([
+    { command: "createRole", rolename: "controlplane" },
+    { command: "addRoleACL", rolename: "controlplane", acltype: "publishClientSend", topic: "cv/#", priority: 0, allow: true },
+    { command: "addRoleACL", rolename: "controlplane", acltype: "publishClientReceive", topic: "cv/#", priority: 0, allow: true },
+    { command: "addRoleACL", rolename: "controlplane", acltype: "subscribePattern", topic: "cv/#", priority: 0, allow: true },
+    { command: "addClientRole", username: config.MQTT_USERNAME, rolename: "controlplane" },
+    { command: "createRole", rolename: "device" },
+    { command: "addRoleACL", rolename: "device", acltype: "publishClientSend", topic: "cv/%u/#", priority: 0, allow: true },
+    { command: "addRoleACL", rolename: "device", acltype: "publishClientReceive", topic: "cv/%u/#", priority: 0, allow: true },
+    { command: "addRoleACL", rolename: "device", acltype: "subscribePattern", topic: "cv/%u/#", priority: 0, allow: true },
+  ]);
+}
+
+/** Create a broker client for a freshly-provisioned device (username=id, password=key). */
+export function provisionBrokerClient(id: string, key: string): void {
+  dynsec([
+    { command: "createClient", username: id, password: key },
+    { command: "addClientRole", username: id, rolename: "device" },
+  ]);
+}
+
+/** Remove a device's broker client (on unclaim/delete). */
+export function deprovisionBrokerClient(id: string): void {
+  dynsec([{ command: "deleteClient", username: id }]);
+}
+
+function logDynsecResponse(buf: Buffer): void {
+  try {
+    const doc = JSON.parse(buf.toString("utf8")) as { responses?: Array<{ command: string; error?: string }> };
+    for (const r of doc.responses ?? []) {
+      if (r.error && !/already exists/i.test(r.error)) {
+        logger.warn({ command: r.command, error: r.error }, "dynsec command error");
+      }
+    }
+  } catch {
+    /* ignore malformed dynsec response */
+  }
 }
 
 async function handleMessage(topic: string, buf: Buffer): Promise<void> {

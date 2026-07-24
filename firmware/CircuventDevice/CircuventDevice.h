@@ -100,6 +100,14 @@ class CircuventDevice {
     _api = apiBase;
   }
 
+  // Identical-firmware constructor: NO baked id/key. Identity is assigned by the
+  // Circuvent app during setup (pushed to the portal) and stored in NVS, or
+  // loaded from NVS on later boots. Flash the same binary to every device.
+  explicit CircuventDevice(const char *type, const char *apiBase = "https://circuvent.com")
+      : _type(type) {
+    _api = apiBase;
+  }
+
   // ---- configuration ----------------------------------------------------
   void onCommand(CvCommandHandler h) { _handler = h; }
   void setInterval(uint32_t ms) { _interval = ms; }          // state publish cadence
@@ -131,14 +139,18 @@ class CircuventDevice {
     _prefsBegin();
     _loadCreds();
 
-    if (ssid && pass && strlen(ssid) && !_isPlaceholder(ssid)) { _ssid = ssid; _pass = pass; _saveWifi(); }
-    if (_id.length() == 0 || _isPlaceholder(_id.c_str())) _loadOrMakeIdentity();
+    if (ssid && strlen(ssid) && !_isPlaceholder(ssid)) { _ssid = ssid; _pass = pass ? pass : ""; _saveWifi(); }
+
+    const bool haveWifi = _ssid.length() > 0;
+    const bool haveIdentity = !_isPlaceholder(_id.c_str()) && !_isPlaceholder(_key.c_str());
 
     WiFi.mode(WIFI_STA);
     WiFi.persistent(false);
-    if (_ssid.length()) _connect();
+    if (haveWifi && haveIdentity) _connect();
 
-    if (WiFi.status() != WL_CONNECTED && _provisioningEnabled) { startPortal(); return; }
+    // No Wi-Fi, or not yet provisioned with an id/key -> open the setup portal
+    // so the Circuvent app (or a browser) can push Wi-Fi + the assigned identity.
+    if ((WiFi.status() != WL_CONNECTED || !haveIdentity) && _provisioningEnabled) { startPortal(); return; }
 
     _ntpSync();      // TLS cert validity needs a real clock
     _tlsSetup();
@@ -228,6 +240,10 @@ class CircuventDevice {
     WiFi.softAP(ap.c_str());
     _dns.start(53, "*", WiFi.softAPIP());
     _server.on("/", [this]() { _server.send(200, "text/html", _portalPage()); });
+    _server.on("/info", [this]() {
+      _server.sendHeader("Access-Control-Allow-Origin", "*");
+      _server.send(200, "application/json", _infoJson());
+    });
     _server.on("/save", [this]() { _portalSave(); });
     _server.onNotFound([this]() { _server.send(200, "text/html", _portalPage()); });
     _server.begin();
@@ -388,14 +404,36 @@ class CircuventDevice {
     p += F("</p>");
     return p;
   }
+  // Hardware/identity info for the app's setup flow (GET /info on the portal).
+  String _infoJson() {
+    JsonDocument d;
+    d["hwid"] = _shortId();
+    d["type"] = _type;
+    d["id"] = _id;
+    d["claimed"] = (!_isPlaceholder(_id.c_str()) && !_isPlaceholder(_key.c_str()));
+    d["fw"] = CV_FW_VERSION;
+    String s; serializeJson(d, s); return s;
+  }
+  void _saveAll() {
+#if defined(ESP32)
+    _prefs.putString("ssid", _ssid);
+    _prefs.putString("pass", _pass);
+    if (_id.length()) _prefs.putString("id", _id);
+    if (_key.length()) _prefs.putString("key", _key);
+    _prefs.putString("broker", _brokerHost);
+#endif
+  }
   void _portalSave() {
-    _ssid = _server.arg("ssid");
-    _pass = _server.arg("pass");
-    _saveWifi();
-    _server.send(200, "text/html",
-                 "<meta http-equiv='refresh' content='4;url=/'><body style='font-family:system-ui;background:#0b1020;color:#e5e7eb;padding:24px'>"
-                 "Saved. The device will restart and connect to your Wi-Fi.</body>");
-    delay(800);
+    if (_server.hasArg("ssid")) _ssid = _server.arg("ssid");
+    if (_server.hasArg("pass")) _pass = _server.arg("pass");
+    // The app pushes the provisioned identity alongside Wi-Fi.
+    if (_server.hasArg("id") && _server.arg("id").length()) _id = _server.arg("id");
+    if (_server.hasArg("key") && _server.arg("key").length()) _key = _server.arg("key");
+    if (_server.hasArg("broker") && _server.arg("broker").length()) _brokerHost = _server.arg("broker");
+    _saveAll();
+    _server.sendHeader("Access-Control-Allow-Origin", "*");
+    _server.send(200, "application/json", "{\"ok\":true}");
+    delay(600);
     ESP.restart();
   }
 };

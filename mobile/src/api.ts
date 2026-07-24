@@ -91,6 +91,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ id, key, name }),
     }),
+  // Mint a brand-new device identity (owned by the caller) + broker access.
+  provision: (id: string, type: string, name: string) =>
+    req<{ id: string; key: string; type: string; name: string; error?: string }>("/devices/provision", {
+      method: "POST",
+      body: JSON.stringify({ id, type, name }),
+    }),
   // cmd is the raw command object, e.g. { action: "set", scene: "night" }.
   command: (id: string, cmd: Record<string, any>) =>
     req("/devices/" + encodeURIComponent(id) + "/command", { method: "POST", body: JSON.stringify(cmd) }),

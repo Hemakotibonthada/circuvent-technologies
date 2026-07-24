@@ -6,16 +6,13 @@
 #include <CircuventDevice.h>
 #include <fauxmoESP.h>
 
-const char *WIFI_SSID = "YOUR_WIFI";
-const char *WIFI_PASS = "YOUR_PASS";
-const char *DEVICE_ID = "CV-PLUG-000001";      // printed on the device sticker
-const char *DEVICE_KEY = "REPLACE_DEVICE_KEY"; // printed on the device sticker
+// Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
 #define RELAY_PIN 26
 #define LED_PIN 2
 #define BTN_PIN 0
 
-CircuventDevice cv(DEVICE_ID, DEVICE_KEY, "smart-plug");
+CircuventDevice cv("smart-plug");
 fauxmoESP fauxmo;
 bool power = false;
 
@@ -39,7 +36,7 @@ void setup() {
 
   cv.onCommand(onCommand);
   cv.setInterval(8000);
-  cv.begin(WIFI_SSID, WIFI_PASS);
+  cv.begin();
 
   // Local Alexa / Google Home voice control
   fauxmo.createServer(true);

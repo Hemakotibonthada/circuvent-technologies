@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../db";
 import { requireAuth, type AuthedRequest, verifyDeviceKey, generateDeviceKey, hashDeviceKey } from "../auth";
-import { publishCommand } from "../mqtt";
+import { publishCommand, provisionBrokerClient, deprovisionBrokerClient } from "../mqtt";
 import { logger } from "../logger";
 
 export const deviceRouter = Router();
@@ -36,6 +36,8 @@ deviceRouter.post("/provision", requireAuth, async (req: AuthedRequest, res) => 
       `INSERT INTO devices (id, key_hash, owner_id, name, type) VALUES ($1, $2, $3, $4, $5)`,
       [id, keyHash, req.user!.uid, name, type]
     );
+    // Grant broker access immediately so the device can connect with no manual step.
+    provisionBrokerClient(id, key);
     // key is shown once — the caller must save it into firmware + broker creds.
     res.json({ id, key, type, name, mqttUsername: id, mqttPassword: key });
   } catch {
@@ -73,6 +75,8 @@ deviceRouter.post("/claim", requireAuth, async (req: AuthedRequest, res) => {
       `UPDATE devices SET owner_id = $2, name = COALESCE(NULLIF($3,''), name), room = COALESCE(NULLIF($4,''), room) WHERE id = $1`,
       [id, req.user!.uid, name ?? "", room ?? ""]
     );
+    // Ensure the device has broker access (idempotent — no-op if it already exists).
+    provisionBrokerClient(id, key);
     res.json({ success: true, id });
   } catch {
     res.status(500).json({ error: "Could not claim device." });
@@ -175,5 +179,6 @@ deviceRouter.delete("/:id", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
   await pool.query(`UPDATE devices SET owner_id = NULL WHERE id = $1`, [req.params.id]);
+  deprovisionBrokerClient(req.params.id);
   res.json({ success: true });
 });

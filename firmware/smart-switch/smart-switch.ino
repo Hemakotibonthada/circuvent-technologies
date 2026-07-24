@@ -6,17 +6,14 @@
 #include <CircuventDevice.h>
 #include <fauxmoESP.h>
 
-const char *WIFI_SSID = "YOUR_WIFI";
-const char *WIFI_PASS = "YOUR_PASS";
-const char *DEVICE_ID = "CV-SW-000001";
-const char *DEVICE_KEY = "REPLACE_DEVICE_KEY";
+// Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
 #define RELAY1 26
 #define RELAY2 27
 #define TOUCH1 T0  // GPIO4
 #define TOUCH2 T3  // GPIO15
 
-CircuventDevice cv(DEVICE_ID, DEVICE_KEY, "smart-switch");
+CircuventDevice cv("smart-switch");
 fauxmoESP fauxmo;
 bool p1 = false, p2 = false;
 
@@ -42,7 +39,7 @@ void setup() {
 
   cv.onCommand(onCommand);
   cv.setInterval(8000);
-  cv.begin(WIFI_SSID, WIFI_PASS);
+  cv.begin();
 
   fauxmo.createServer(true);
   fauxmo.setPort(80);

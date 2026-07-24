@@ -5,15 +5,12 @@
  */
 #include <CircuventDevice.h>
 
-const char *WIFI_SSID = "YOUR_WIFI";
-const char *WIFI_PASS = "YOUR_PASS";
-const char *DEVICE_ID = "CV-PIR-000001";
-const char *DEVICE_KEY = "REPLACE_DEVICE_KEY";
+// Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
 #define PIR_PIN 27
 #define LED_PIN 2
 
-CircuventDevice cv(DEVICE_ID, DEVICE_KEY, "motion-sensor");
+CircuventDevice cv("motion-sensor");
 bool armed = true, lastMotion = false;
 
 void onCommand(const String &action, JsonObjectConst p) {
@@ -26,7 +23,7 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   cv.onCommand(onCommand);
   cv.setInterval(6000);
-  cv.begin(WIFI_SSID, WIFI_PASS);
+  cv.begin();
 }
 
 void loop() {
