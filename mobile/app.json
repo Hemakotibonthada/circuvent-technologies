@@ -38,6 +38,12 @@
             "usesCleartextTraffic": true
           }
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Circuvent uses the camera to scan the QR label on your device during setup."
+        }
       ]
     ]
   }

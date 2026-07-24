@@ -11,8 +11,10 @@ import {
   Linking,
 } from "react-native";
 import * as IntentLauncher from "expo-intent-launcher";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { api } from "../api";
 import { sealToDevice } from "../crypto";
+import { parseSetupQr } from "../qr";
 
 /**
  * Secure zero-touch onboarding (A + B).
@@ -38,7 +40,7 @@ const TYPES = [
   { id: "agri-starter", label: "Agri Starter", emoji: "🌱" },
 ];
 
-type Step = "mode" | "details" | "prep" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
+type Step = "mode" | "qr" | "details" | "prep" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
 type LogState = "run" | "ok" | "err";
 interface LogItem { msg: string; state: LogState }
 interface Net { ssid: string; rssi: number; lock: boolean }
@@ -74,6 +76,9 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
   const [mid, setMid] = useState("");
   const [mkey, setMkey] = useState("");
   const [busy, setBusy] = useState(false);
+  const [targetSsid, setTargetSsid] = useState("");
+  const [scanLock, setScanLock] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
 
   const setLast = (state: LogState, msg?: string) =>
     setLog((l) => l.map((it, i) => (i === l.length - 1 ? { msg: msg ?? it.msg, state } : it)));
@@ -86,6 +91,29 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
     } catch {
       /* ignore */
     }
+  };
+
+  const openScanner = async () => {
+    setError("");
+    const p = permission?.granted ? permission : await requestPermission();
+    if (!p?.granted) {
+      setError("Camera access is needed to scan the device QR. You can also set up manually.");
+      return;
+    }
+    setScanLock(false);
+    setStep("qr");
+  };
+
+  const onScanned = ({ data }: { data: string }) => {
+    if (scanLock) return;
+    const hint = parseSetupQr(data);
+    if (!hint) return; // not a Circuvent code — keep scanning
+    setScanLock(true);
+    if (hint.type) setType(hint.type);
+    if (hint.ssid) setTargetSsid(hint.ssid);
+    if (hint.name && !name.trim()) setName(hint.name);
+    setError("");
+    setStep("details");
   };
 
   // Step 1 — prepare: snapshot existing devices + mint a provisioning token (internet).
@@ -227,10 +255,37 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
               <View style={{ flex: 1 }}><Text style={s.optTitle}>Set up a new device</Text><Text style={s.optSub}>Encrypted Wi-Fi setup — no codes to type</Text></View>
               <Text style={s.chev}>›</Text>
             </Pressable>
+            <Pressable style={s.optCard} onPress={openScanner}>
+              <Text style={s.optEmoji}>📷</Text>
+              <View style={{ flex: 1 }}><Text style={s.optTitle}>Scan device QR</Text><Text style={s.optSub}>Point at the QR on the box or device</Text></View>
+              <Text style={s.chev}>›</Text>
+            </Pressable>
             <Pressable style={s.optCard} onPress={() => setStep("manual")}>
               <Text style={s.optEmoji}>🔗</Text>
               <View style={{ flex: 1 }}><Text style={s.optTitle}>Add by ID &amp; key</Text><Text style={s.optSub}>The device is already online</Text></View>
               <Text style={s.chev}>›</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {step === "qr" && (
+          <View>
+            <StepTag>Scan the QR on your device</StepTag>
+            <View style={s.scanBox}>
+              <CameraView
+                style={{ flex: 1 }}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                onBarcodeScanned={onScanned}
+              />
+              <View style={s.scanFrame} pointerEvents="none" />
+            </View>
+            <Text style={[s.lead, { marginTop: 12 }]}>
+              Center the QR label inside the frame. We'll pick the device type for you.
+            </Text>
+            {!!error && <Text style={s.err}>{error}</Text>}
+            <Pressable style={s.secondary} onPress={() => { setError(""); setStep("details"); }}>
+              <Text style={s.secondaryT}>Enter manually instead</Text>
             </Pressable>
           </View>
         )}
@@ -277,7 +332,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             <ProgressLog items={[{ msg: "Account prepared ✓", state: "ok" }]} />
             <Text style={[s.lead, { marginTop: 14 }]}>
               1. Power on the device, wait ~15s.{"\n"}
-              2. Tap below, join <Text style={s.b}>Circuvent-Setup-…</Text> (no password).{"\n"}
+              2. Tap below, join <Text style={s.b}>{targetSsid || "Circuvent-Setup-…"}</Text> (no password).{"\n"}
               3. Turn <Text style={s.b}>mobile data OFF</Text> so the phone can talk to the device.{"\n"}
               4. Come back and tap <Text style={s.b}>Continue</Text>.
             </Text>
@@ -394,6 +449,8 @@ const s = StyleSheet.create({
   b: { color: "#e5e7eb", fontWeight: "700" },
   stepTag: { color: "#06b6d4", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 },
   optCard: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
+  scanBox: { height: 300, borderRadius: 18, overflow: "hidden", backgroundColor: "#000", borderWidth: 1, borderColor: "#334155", alignItems: "center", justifyContent: "center" },
+  scanFrame: { position: "absolute", width: 190, height: 190, borderRadius: 16, borderWidth: 3, borderColor: "#06b6d4", opacity: 0.9 },
   optEmoji: { fontSize: 26 },
   optTitle: { color: "#e5e7eb", fontSize: 16, fontWeight: "700" },
   optSub: { color: "#64748b", fontSize: 13, marginTop: 2 },
