@@ -1,14 +1,31 @@
 import type { Metadata } from "next";
 import ContentPage from "@/components/ContentPage";
+import JsonLd from "@/components/JsonLd";
+import { getFAQJsonLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "FAQ — Circuvent",
   description: "Answers to common questions about Circuvent smart devices, orders, payments, shipping, returns and warranty.",
 };
 
+const FAQ_JSONLD = [
+  { question: "Do I need an account to order?", answer: "You can browse freely, but placing an order requires a quick sign-up so we can email your invoice and let you track delivery. Sign-up is verified with a one-time code sent to your email." },
+  { question: "Can I edit or cancel my order?", answer: "Yes — from your account's Orders section you can cancel an order before it ships. Paid orders are refunded to your Circuvent wallet instantly on cancellation." },
+  { question: "What payment methods do you accept?", answer: "UPI, credit/debit cards and net banking via Razorpay (India), Cash on Delivery on eligible orders, and your Circuvent wallet balance." },
+  { question: "Is online payment secure?", answer: "Payments are processed by Razorpay over an encrypted connection. We never see or store your full card details." },
+  { question: "Where do you ship and how long does delivery take?", answer: "We ship across India. Metros typically take 2–4 business days and other regions 4–7 business days. You'll get a tracking link by email as soon as your order ships." },
+  { question: "What is your return window?", answer: "7 days from delivery for unused items in original packaging. Start a return from your account's Orders section." },
+  { question: "How are refunds issued?", answer: "To your Circuvent wallet by default (instant once approved), or to your original payment method on request." },
+  { question: "Is there a warranty?", answer: "Yes — every device includes a 6-month limited hardware warranty covering manufacturing defects." },
+  { question: "Do the devices work on 5GHz WiFi?", answer: "Our devices connect over 2.4GHz WiFi, which offers better range for IoT. Dual-band routers are fully supported." },
+  { question: "How do loyalty points and referrals work?", answer: "Earn loyalty points on every paid order and redeem them for wallet credit. Share your referral link and you both get wallet credit when a friend places their first paid order." },
+];
+
 export default function FAQPage() {
   return (
-    <ContentPage
+    <>
+      <JsonLd data={getFAQJsonLd(FAQ_JSONLD)} />
+      <ContentPage
       eyebrow="Help Center"
       title="Frequently Asked"
       titleHighlight="Questions"
@@ -83,6 +100,7 @@ export default function FAQPage() {
           ],
         },
       ]}
-    />
+      />
+    </>
   );
 }

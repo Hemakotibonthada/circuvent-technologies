@@ -1,11 +1,7 @@
-import type { Metadata } from "next";
 import ShopGrid from "@/components/shop/ShopGrid";
+import { generatePageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Shop — Circuvent Technologies",
-  description:
-    "Buy Circuvent smart devices — Wi-Fi smart plug, automatic water-tank controller, personal safety SOS beacon and more. Made in India, cash on delivery, 6-month warranty.",
-};
+export const metadata = generatePageMetadata("shop");
 
 export default function ShopPage() {
   return (

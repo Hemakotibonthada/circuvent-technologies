@@ -131,6 +131,40 @@ export const pageMetadata: Record<string, PageMeta> = {
     keywords: ["Domains", "AI", "IoT", "FinTech", "HealthTech", "Enterprise"],
     path: "/domains",
   },
+  shop: {
+    title: "Store — Made-in-India Smart Devices",
+    description: "Shop Circuvent's own smart plugs, water-tank controllers, safety beacons and IoT hubs. Designed, flashed and shipped by our R&D lab. Free shipping over ₹999, 6-month warranty.",
+    keywords: ["Shop", "Smart Home", "IoT Devices", "Smart Plug", "Water Controller", "Made in India", "Buy"],
+    path: "/shop",
+    ogType: "website",
+  },
+  track: {
+    title: "Track Your Order",
+    description: "Track your Circuvent order in real time — enter your order number and email, or sign in to see all your orders and delivery status.",
+    keywords: ["Track Order", "Order Status", "Delivery", "Shipment"],
+    path: "/track",
+  },
+  cart: {
+    title: "Your Cart",
+    description: "Review the smart devices in your Circuvent cart before checkout.",
+    keywords: ["Cart", "Checkout"],
+    path: "/cart",
+    noIndex: true,
+  },
+  checkout: {
+    title: "Checkout",
+    description: "Securely complete your Circuvent order.",
+    keywords: ["Checkout", "Payment"],
+    path: "/checkout",
+    noIndex: true,
+  },
+  account: {
+    title: "My Account",
+    description: "Manage your Circuvent account, orders, wallet and wishlist.",
+    keywords: ["Account", "Orders", "Wallet"],
+    path: "/shop/account",
+    noIndex: true,
+  },
 };
 
 // ============================================================
@@ -150,7 +184,7 @@ export function generatePageMetadata(pageKey: string): Metadata {
   }
 
   return {
-    title: `${page.title} | ${SITE_NAME}`,
+    title: { absolute: `${page.title} | ${SITE_NAME}` },
     description: page.description,
     keywords: page.keywords,
     openGraph: {
@@ -197,7 +231,7 @@ export function generateBlogPostMetadata(post: {
   category: string;
 }): Metadata {
   return {
-    title: `${post.title} | ${SITE_NAME} Blog`,
+    title: { absolute: `${post.title} | ${SITE_NAME} Blog` },
     description: post.excerpt,
     keywords: post.tags,
     authors: [{ name: post.author }],
@@ -233,7 +267,7 @@ export function generateProjectMetadata(project: {
   techStack: string[];
 }): Metadata {
   return {
-    title: `${project.name} - ${project.tagline} | ${SITE_NAME}`,
+    title: { absolute: `${project.name} - ${project.tagline} | ${SITE_NAME}` },
     description: project.description.slice(0, 160),
     keywords: [...project.techStack, project.category, project.name],
     openGraph: {
@@ -257,7 +291,7 @@ export function generateDomainMetadata(domain: {
   technologies: string[];
 }): Metadata {
   return {
-    title: `${domain.name} - ${domain.tagline} | ${SITE_NAME}`,
+    title: { absolute: `${domain.name} - ${domain.tagline} | ${SITE_NAME}` },
     description: domain.description,
     keywords: [...domain.technologies, domain.name, "Circuvent"],
     openGraph: {
@@ -281,7 +315,7 @@ export function generateCareerMetadata(role: {
   id: string;
 }): Metadata {
   return {
-    title: `${role.title} - ${role.department} | Careers at ${SITE_NAME}`,
+    title: { absolute: `${role.title} - ${role.department} | Careers at ${SITE_NAME}` },
     description: role.description,
     keywords: [role.title, role.department, "Jobs", "Careers", "Hiring", role.location],
     openGraph: {
@@ -297,6 +331,54 @@ export function generateCareerMetadata(role: {
 // ============================================================
 // STRUCTURED DATA (JSON-LD)
 // ============================================================
+
+/**
+ * Product structured data (schema.org/Product) for shop pages — enables rich
+ * results (price, availability, ratings) in Google Shopping / search.
+ */
+export function getProductJsonLd(p: {
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  image?: string;
+  rating?: number;
+  reviewCount?: number;
+  stock?: number;
+  available?: boolean;
+}) {
+  const inStock = (p.available ?? true) && (p.stock ?? 1) > 0;
+  // Data-URL images (admin-uploaded) are invalid in JSON-LD — fall back to OG.
+  const img = p.image && !p.image.startsWith("data:") ? p.image : DEFAULT_OG_IMAGE;
+  const absImg = img.startsWith("http") ? img : `${SITE_URL}${img}`;
+  const url = `${SITE_URL}/shop/${p.slug}`;
+
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: p.name,
+    description: p.description,
+    image: [absImg],
+    brand: { "@type": "Brand", name: SITE_NAME },
+    url,
+    offers: {
+      "@type": "Offer",
+      price: String(Math.round(p.price)),
+      priceCurrency: "INR",
+      availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      url,
+      seller: { "@type": "Organization", name: SITE_NAME },
+    },
+  };
+  if (p.reviewCount && p.reviewCount > 0 && p.rating) {
+    data.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: Number(p.rating.toFixed(1)),
+      reviewCount: p.reviewCount,
+    };
+  }
+  return data;
+}
 
 /**
  * Organization structured data

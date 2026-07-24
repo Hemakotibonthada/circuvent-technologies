@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { products } from "@/lib/shop-data";
 import { getMergedProduct, getMergedProducts } from "@/lib/shop-catalog";
+import { getProductJsonLd, getBreadcrumbJsonLd } from "@/lib/seo";
+import JsonLd from "@/components/JsonLd";
 import ProductDetailClient from "@/components/shop/ProductDetailClient";
 
 export function generateStaticParams() {
@@ -34,5 +36,29 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = all.find((p) => p.slug === slug);
   if (!product) notFound();
   const related = all.filter((p) => p.slug !== slug).slice(0, 3);
-  return <ProductDetailClient product={product} related={related} />;
+  return (
+    <>
+      <JsonLd
+        data={[
+          getProductJsonLd({
+            name: product.name,
+            slug: product.slug,
+            description: product.description,
+            price: product.price,
+            image: product.image,
+            rating: product.rating,
+            reviewCount: product.reviewCount,
+            stock: product.stock,
+            available: product.available,
+          }),
+          getBreadcrumbJsonLd([
+            { name: "Home", url: "/" },
+            { name: "Store", url: "/shop" },
+            { name: product.name, url: `/shop/${product.slug}` },
+          ]),
+        ]}
+      />
+      <ProductDetailClient product={product} related={related} />
+    </>
+  );
 }

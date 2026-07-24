@@ -3,6 +3,7 @@ import { blogPosts } from "@/lib/blog-data";
 import { projects } from "@/lib/projects-data";
 import { domains } from "@/lib/domains-data";
 import { careerRoles } from "@/lib/services-data";
+import { products as shopProducts } from "@/lib/shop-data";
 import { SITE_URL } from "@/lib/config";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -11,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [
     { url: SITE_URL, lastModified: now, changeFrequency: "daily", priority: 1.0 },
+    { url: `${SITE_URL}/shop`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${SITE_URL}/projects`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE_URL}/services`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/blog`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
@@ -25,8 +27,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/roadmap`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/docs`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${SITE_URL}/domains`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE_URL}/shipping`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/returns-policy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/warranty`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
     { url: `${SITE_URL}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];
+
+  // Shop product detail pages
+  const shopPages: MetadataRoute.Sitemap = shopProducts.map((p) => ({
+    url: `${SITE_URL}/shop/${p.slug}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: p.featured ? 0.8 : 0.6,
+  }));
 
   // Blog posts
   const blogPages: MetadataRoute.Sitemap = blogPosts.map((post) => ({
@@ -62,6 +77,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     ...staticPages,
+    ...shopPages,
     ...blogPages,
     ...projectPages,
     ...domainPages,

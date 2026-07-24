@@ -163,6 +163,7 @@ export default function Footer() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="hello@circuvent.com"
+                    aria-label="Email address for newsletter"
                     className="flex-1 sm:w-64 px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
                     style={{
                       background: "var(--bg-surface)",
@@ -172,6 +173,7 @@ export default function Footer() {
                   />
                   <motion.button
                     type="submit"
+                    aria-label="Subscribe to newsletter"
                     className="px-5 py-2.5 rounded-xl text-sm font-medium text-white shrink-0"
                     style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)" }}
                     whileHover={{ scale: 1.02, boxShadow: "0 4px 20px rgba(6,182,212,0.3)" }}
