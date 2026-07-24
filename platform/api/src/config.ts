@@ -25,7 +25,7 @@ const schema = z.object({
   RESEND_API_KEY: z.string().default(""),
   EMAIL_FROM: z.string().default("Circuvent <onboarding@resend.dev>"),
   OTP_TTL_MIN: z.coerce.number().default(10),
-  OTP_DEBUG: z.coerce.boolean().default(false),
+  OTP_DEBUG: z.string().default("false"),
   // Comma-separated emails auto-granted the admin role on login/verify.
   ADMIN_EMAILS: z.string().default(""),
 });

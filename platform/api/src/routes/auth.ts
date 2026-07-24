@@ -49,7 +49,7 @@ authRouter.post("/register", async (req, res) => {
       [email, name ?? "", pwHash, otpHash, expires]
     );
     const sent = await sendOtpEmail(email, name ?? "", otp);
-    if (!sent && (config.NODE_ENV !== "production" || config.OTP_DEBUG)) logger.warn({ email, otp }, "DEV OTP (no email provider configured)");
+    if (!sent && (config.NODE_ENV !== "production" || config.OTP_DEBUG === "true")) logger.warn({ email, otp }, "DEV OTP (no email provider configured)");
     res.json({ pending: true, email, otpSent: sent, expiresInMin: config.OTP_TTL_MIN });
   } catch (err) {
     logger.error({ err }, "register failed");
@@ -132,7 +132,7 @@ authRouter.post("/resend-otp", async (req, res) => {
     const expires = new Date(Date.now() + config.OTP_TTL_MIN * 60_000);
     await pool.query(`UPDATE pending_registrations SET otp_hash = $2, attempts = 0, expires_at = $3 WHERE email = $1`, [email, otpHash, expires]);
     const sent = await sendOtpEmail(email, rows[0].name, otp);
-    if (!sent && (config.NODE_ENV !== "production" || config.OTP_DEBUG)) logger.warn({ email, otp }, "DEV OTP (resend)");
+    if (!sent && (config.NODE_ENV !== "production" || config.OTP_DEBUG === "true")) logger.warn({ email, otp }, "DEV OTP (resend)");
     res.json({ pending: true, email, otpSent: sent, expiresInMin: config.OTP_TTL_MIN });
   } catch (err) {
     logger.error({ err }, "resend-otp failed");

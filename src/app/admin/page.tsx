@@ -44,7 +44,8 @@ import AuditLogPanel from "./AuditLogPanel";
 import MessagesPanel from "./MessagesPanel";
 import AdminAlerts from "./AdminAlerts";
 import Admin2fa from "./Admin2fa";
-import { FileBarChart, Inbox } from "lucide-react";
+import { FileBarChart, Inbox, Cpu } from "lucide-react";
+import DevicesPanel from "./DevicesPanel";
 
 interface PageStats {
   page: string;
@@ -114,8 +115,8 @@ function getPageName(path: string): string {
 
 // Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
 const ROLE_AREAS: Record<string, string[]> = {
-  superadmin: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff"],
-  manager: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages"],
+  superadmin: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices"],
+  manager: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices"],
   inventory: ["inventory"],
   orders: ["orders", "returns", "customers"],
   support: ["support", "messages", "returns", "customers"],
@@ -144,7 +145,7 @@ export default function AdminDashboard() {
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [tab, setTab] = useState<
-    "overview" | "analytics" | "monitoring" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff"
+    "overview" | "analytics" | "monitoring" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff" | "devices"
   >("overview");
 
   const canSee = useCallback(
@@ -500,6 +501,7 @@ export default function AdminDashboard() {
             { id: "support", label: "Support", icon: <LifeBuoy className="w-4 h-4" /> },
             { id: "messages", label: "Messages", icon: <Inbox className="w-4 h-4" /> },
             { id: "staff", label: "Staff", icon: <UserCog className="w-4 h-4" /> },
+            { id: "devices", label: "Devices", icon: <Cpu className="w-4 h-4" /> },
           ]
             .filter((t) => canSee(t.id))
             .map((t) => (
@@ -531,6 +533,7 @@ export default function AdminDashboard() {
         {tab === "returns" && <ReturnsPanel />}
         {tab === "support" && <SupportPanel />}
         {tab === "staff" && <StaffPanel />}
+        {tab === "devices" && <DevicesPanel />}
 
         {tab === "overview" && (
         <>
