@@ -64,7 +64,7 @@ deviceRouter.post("/claim", requireAuth, async (req: AuthedRequest, res) => {
       res.status(404).json({ error: "No device found for that id + key." });
       return;
     }
-    if (device.owner_id && device.owner_id !== req.user!.uid) {
+    if (device.owner_id && Number(device.owner_id) !== req.user!.uid) {
       res.status(409).json({ error: "This device is already claimed by another account." });
       return;
     }
