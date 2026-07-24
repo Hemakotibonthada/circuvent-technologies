@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, FlatList, Pressable, TextInput, StyleSheet, RefreshControl } from "react-native";
 import { api, Device } from "../api";
 import { useAuth } from "../auth";
+import { useLive } from "../live";
 
 const TYPE_LABEL: Record<string, string> = {
   "aquaguard": "Water Tank Controller",
@@ -20,21 +21,33 @@ export default function Devices({ onOpen }: { onOpen: (d: Device) => void }) {
 
   const load = useCallback(async () => {
     const r = await api.devices();
-    if (r.ok && r.data?.success) setDevices(r.data.devices || []);
+    if (r.ok) setDevices(r.data.devices || []);
   }, []);
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 5000);
+    const t = setInterval(load, 15000); // slow fallback; live updates arrive via WS
     return () => clearInterval(t);
   }, [load]);
+
+  // Real-time device pushes (online/state) merged into the list.
+  useLive((u) => {
+    setDevices((prev) =>
+      prev.map((d) => {
+        if (d.id !== u.deviceId) return d;
+        if (u.kind === "status") return { ...d, online: !!u.payload?.online };
+        if (u.kind === "state") return { ...d, online: true, state: { ...d.state, ...u.payload } };
+        return { ...d, online: true };
+      })
+    );
+  });
 
   const claim = async () => {
     setMsg("");
     const r = await api.claim(cid.trim(), ckey.trim(), cname.trim() || cid.trim());
     if (r.ok && r.data?.success) {
       setShowClaim(false); setCid(""); setCkey(""); setCname(""); load();
-    } else setMsg(r.data?.message || "Could not add device.");
+    } else setMsg(r.data?.error || "Could not add device.");
   };
 
   return (

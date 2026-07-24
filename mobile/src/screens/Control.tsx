@@ -1,29 +1,38 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, Switch, StyleSheet, ScrollView } from "react-native";
 import { api, Device } from "../api";
+import { useLive } from "../live";
 
 export default function Control({ device, onBack }: { device: Device; onBack: () => void }) {
   const [d, setD] = useState<Device>(device);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await api.devices();
-    if (r.ok && r.data?.success) {
-      const found = (r.data.devices || []).find((x: Device) => x.id === device.id);
-      if (found) setD(found);
-    }
+    const r = await api.device(device.id);
+    if (r.ok && r.data?.device) setD(r.data.device);
   }, [device.id]);
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 4000);
+    const t = setInterval(load, 15000); // slow fallback; live updates arrive via WS
     return () => clearInterval(t);
   }, [load]);
 
+  // Real-time state/status for this device.
+  useLive((u) => {
+    if (u.deviceId !== device.id) return;
+    setD((prev) => {
+      if (u.kind === "status") return { ...prev, online: !!u.payload?.online };
+      if (u.kind === "state") return { ...prev, online: true, state: { ...prev.state, ...u.payload } };
+      return { ...prev, online: true };
+    });
+  });
+
   const send = async (params: Record<string, any>) => {
     setBusy(true);
-    await api.command(d.id, "set", params);
-    setTimeout(load, 600);
+    // Optimistic update for a snappy UI; the device echoes true state via WS.
+    setD((prev) => ({ ...prev, state: { ...prev.state, ...params } }));
+    await api.command(d.id, { action: "set", ...params });
     setBusy(false);
   };
 

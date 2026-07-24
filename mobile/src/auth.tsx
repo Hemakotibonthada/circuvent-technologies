@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api, getToken, setToken } from "./api";
 
-interface Account { email: string; name: string }
+interface Account {
+  email: string;
+  name: string;
+}
 interface AuthValue {
   account: Account | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; pending?: boolean; email?: string; message?: string }>;
-  verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; message?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
 }
 
@@ -21,9 +23,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const t = await getToken();
       if (t) {
-        const r = await api.devices(); // token still valid if this succeeds
+        const r = await api.devices(); // token still valid if this succeeds (200)
         if (r.ok) setAccount({ email: "", name: "" });
-        else await setToken(null);
+        else if (r.status === 401) await setToken(null);
+        else setAccount({ email: "", name: "" }); // network hiccup: stay signed in
       }
       setReady(true);
     })();
@@ -31,33 +34,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login: AuthValue["login"] = async (email, password) => {
     const r = await api.login(email, password);
-    if (r.ok && r.data?.success) {
+    if (r.ok && r.data?.token) {
       await setToken(r.data.token);
-      setAccount(r.data.account);
+      setAccount({ email: r.data.user.email, name: r.data.user.name });
       return { ok: true };
     }
-    return { ok: false, message: r.data?.message || "Sign in failed." };
+    return { ok: false, message: (r.data as any)?.error || "Sign in failed." };
   };
 
   const register: AuthValue["register"] = async (name, email, password) => {
     const r = await api.register(name, email, password);
-    if (r.ok && r.data?.success) return { ok: true, pending: true, email: r.data.email };
-    return { ok: false, message: r.data?.message || "Sign up failed." };
-  };
-
-  const verifyOtp: AuthValue["verifyOtp"] = async (email, otp) => {
-    const r = await api.verifyOtp(email, otp);
-    if (r.ok && r.data?.success) {
+    if (r.ok && r.data?.token) {
       await setToken(r.data.token);
-      setAccount(r.data.account);
+      setAccount({ email: r.data.user.email, name: r.data.user.name });
       return { ok: true };
     }
-    return { ok: false, message: r.data?.message || "Verification failed." };
+    return { ok: false, message: (r.data as any)?.error || "Sign up failed." };
   };
 
-  const logout = () => { setToken(null); setAccount(null); };
+  const logout = () => {
+    setToken(null);
+    setAccount(null);
+  };
 
-  return <Ctx.Provider value={{ account, ready, login, register, verifyOtp, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ account, ready, login, register, logout }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {
