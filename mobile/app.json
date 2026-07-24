@@ -12,7 +12,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.circuvent.app"
+      "bundleIdentifier": "com.circuvent.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Circuvent connects to your device's setup hotspot to send Wi-Fi credentials during onboarding.",
+        "NSCameraUsageDescription": "Circuvent uses the camera to scan the QR label on your device during setup.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "package": "com.circuvent.app",
