@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Search, CheckCircle2, Circle, Package, Truck, Loader2, ExternalLink } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Search, CheckCircle2, Circle, Package, Truck, Loader2, ExternalLink, ChevronRight, LogIn } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
+import { useAccount } from "@/components/shop/AccountProvider";
 
 interface TrackedOrder {
   orderNo: string;
@@ -12,6 +14,7 @@ interface TrackedOrder {
   status: string;
   trackingNumber?: string | null;
   carrier?: string | null;
+  paymentMethod?: string;
   paymentStatus?: string;
   history?: { status: string; at: string; note?: string }[];
   customer: { email?: string };
@@ -69,11 +72,15 @@ function courierTrackUrl(carrier?: string | null, awb?: string | null): string |
 }
 
 export default function TrackPage() {
+  const { account, ready, authHeaders } = useAccount();
   const [orderNo, setOrderNo] = useState("");
   const [email, setEmail] = useState("");
   const [order, setOrder] = useState<TrackedOrder | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [myOrders, setMyOrders] = useState<TrackedOrder[]>([]);
+  const [loadingMine, setLoadingMine] = useState(false);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const doLookup = async (no: string, em: string) => {
     setErr("");
@@ -114,6 +121,40 @@ export default function TrackPage() {
     if (orderNo && email) doLookup(orderNo, email);
   };
 
+  // Track one of the signed-in customer's own orders (no need to type anything).
+  const trackMine = (o: TrackedOrder) => {
+    const em = o.customer?.email || account?.email || "";
+    setOrderNo(o.orderNo);
+    setEmail(em);
+    doLookup(o.orderNo, em);
+    setTimeout(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+  };
+
+  // Load the signed-in customer's order history so they can track without typing.
+  useEffect(() => {
+    if (!ready || !account) {
+      setMyOrders([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingMine(true);
+      try {
+        const res = await fetch("/api/account/orders", { headers: authHeaders() });
+        if (res.ok) {
+          const d = await res.json();
+          if (!cancelled) setMyOrders(d.orders || []);
+        }
+      } catch {
+        /* ignore */
+      }
+      if (!cancelled) setLoadingMine(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, account, authHeaders]);
+
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const o = sp.get("order") || "";
@@ -142,6 +183,93 @@ export default function TrackPage() {
           Enter your order number and the email you used at checkout to see live status.
         </p>
       </div>
+
+      {/* Signed-in customers: their orders, one tap to track (no typing needed). */}
+      {ready && account && (
+        <div className="mb-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+              <Package className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} /> Your orders
+            </h2>
+            <Link href="/shop/account" className="text-xs font-semibold" style={{ color: "var(--accent-cyan)" }}>
+              Manage in account →
+            </Link>
+          </div>
+
+          {loadingMine ? (
+            <div
+              className="flex justify-center rounded-2xl border py-12"
+              style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+            >
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
+            </div>
+          ) : myOrders.length === 0 ? (
+            <div
+              className="rounded-2xl border p-6 text-center text-sm"
+              style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-tertiary)" }}
+            >
+              You haven&apos;t placed any orders yet.{" "}
+              <Link href="/shop" className="font-semibold" style={{ color: "var(--accent-cyan)" }}>
+                Start shopping →
+              </Link>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {myOrders.map((o) => {
+                const active = order?.orderNo === o.orderNo;
+                return (
+                  <li key={o.orderNo}>
+                    <button
+                      onClick={() => trackMine(o)}
+                      className="group flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors hover:border-[var(--border-accent)]"
+                      style={{ background: "var(--bg-surface)", borderColor: active ? "var(--border-accent)" : "var(--border-primary)" }}
+                    >
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+                        <Package className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                            {o.orderNo}
+                          </span>
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                            style={{ background: "var(--accent-cyan-muted)", color: "var(--accent-cyan)" }}
+                          >
+                            {STATUS_LABEL[o.status] || o.status}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                          {fmt(o.placedAt)} · {o.items.reduce((s, it) => s + it.qty, 0)} item(s) · {formatINR(o.total)}
+                        </p>
+                      </div>
+                      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-cyan)" }}>
+                        Track <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Guests: nudge to sign in for one-tap tracking. */}
+      {ready && !account && (
+        <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+          <Link href="/shop/account" className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--accent-cyan)" }}>
+            <LogIn className="h-3.5 w-3.5" /> Sign in
+          </Link>{" "}
+          to see all your orders and track them in one tap.
+        </p>
+      )}
+
+      {ready && account && (
+        <p className="mb-2 text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+          Track another order
+        </p>
+      )}
       <form
         onSubmit={submit}
         className="flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row"
@@ -175,7 +303,7 @@ export default function TrackPage() {
         )}
 
         {order && (
-          <div className="mt-8">
+          <div className="mt-8" ref={detailRef}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>

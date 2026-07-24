@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listOrdersByEmail } from "@/lib/store";
+import { listOrdersByEmail, revalidate } from "@/lib/store";
 import { verifyToken, tokenFromRequest } from "@/lib/account";
 
 export const runtime = "nodejs";
@@ -11,6 +11,8 @@ export async function GET(request: Request) {
   if (!email) {
     return NextResponse.json({ success: false, message: "Please sign in." }, { status: 401 });
   }
+  // Reflect orders placed / updated on other serverless instances.
+  await revalidate(["orders"]);
   const orders = listOrdersByEmail(email).map((o) => ({
     orderNo: o.orderNo,
     placedAt: o.placedAt,
