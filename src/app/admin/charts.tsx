@@ -287,3 +287,47 @@ export function KpiCard({ label, value, delta, spark, color = PALETTE[0], prefix
     </div>
   );
 }
+
+/** Semicircular gauge — value against a max, with a color band and center label. */
+export function GaugeChart({
+  value,
+  max = 100,
+  label,
+  size = 160,
+  color = PALETTE[0],
+  suffix = "",
+}: {
+  value: number;
+  max?: number;
+  label?: string;
+  size?: number;
+  color?: string;
+  suffix?: string;
+}) {
+  const pct = Math.max(0, Math.min(1, max === 0 ? 0 : value / max));
+  const r = size / 2 - 12;
+  const cx = size / 2;
+  const cy = size / 2;
+  // Semicircle from 180° (left) to 0° (right).
+  const pt = (frac: number) => {
+    const ang = Math.PI * (1 - frac);
+    return [cx + r * Math.cos(ang), cy - r * Math.sin(ang)];
+  };
+  const [sx, sy] = pt(0);
+  const [ex, ey] = pt(1);
+  const [vx, vy] = pt(pct);
+  const arc = (x1: number, y1: number, x2: number, y2: number, large = 0) =>
+    `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+  return (
+    <div className="flex flex-col items-center">
+      <svg width={size} height={size / 2 + 24} viewBox={`0 0 ${size} ${size / 2 + 24}`}>
+        <path d={arc(sx, sy, ex, ey)} fill="none" stroke="var(--border-primary)" strokeWidth={12} strokeLinecap="round" />
+        <path d={arc(sx, sy, vx, vy, pct > 0.5 ? 1 : 0)} fill="none" stroke={color} strokeWidth={12} strokeLinecap="round" />
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize={size * 0.16} fontWeight={800} fill="var(--text-primary)">
+          {Math.round(value).toLocaleString("en-IN")}{suffix}
+        </text>
+      </svg>
+      {label && <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{label}</p>}
+    </div>
+  );
+}

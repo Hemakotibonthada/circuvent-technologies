@@ -316,6 +316,20 @@ export interface Notification {
   at: string;
 }
 
+export interface AlertSettings {
+  notifyEmail?: string;
+  lowStockThreshold: number;
+  onNewOrder: boolean;
+  onLowStock: boolean;
+  onPendingReturn: boolean;
+  onOpenTicket: boolean;
+  onExpiringBatch: boolean;
+  dailyReport: boolean;
+  reportRangeDays: number;
+  lastDigestAt?: string;
+  lastReportAt?: string;
+}
+
 export interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
@@ -339,6 +353,7 @@ export interface DB {
   giftCards: Record<string, GiftCard>;
   questions: ProductQuestion[];
   notifications: Record<string, Notification[]>;
+  alertSettings: AlertSettings;
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -391,6 +406,20 @@ function seedCoupons(): StoreCoupon[] {
   ];
 }
 
+function defaultAlertSettings(): AlertSettings {
+  return {
+    notifyEmail: undefined,
+    lowStockThreshold: 5,
+    onNewOrder: true,
+    onLowStock: true,
+    onPendingReturn: true,
+    onOpenTicket: true,
+    onExpiringBatch: true,
+    dailyReport: false,
+    reportRangeDays: 30,
+  };
+}
+
 function emptyDB(): DB {
   return {
     orders: [],
@@ -415,6 +444,7 @@ function emptyDB(): DB {
     giftCards: {},
     questions: [],
     notifications: {},
+    alertSettings: defaultAlertSettings(),
   };
 }
 
@@ -468,6 +498,7 @@ function load(): DB {
         giftCards: parsed.giftCards ?? {},
         questions: parsed.questions ?? [],
         notifications: parsed.notifications ?? {},
+        alertSettings: { ...defaultAlertSettings(), ...(parsed.alertSettings ?? {}) },
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -1002,6 +1033,20 @@ export function setAccountPassword(email: string, hash: string, salt: string): b
   a.tokenVersion = (a.tokenVersion || 0) + 1;
   save();
   return true;
+}
+
+// -------------------------------------------------------- alert settings ---
+export function getAlertSettings(): AlertSettings {
+  const db = load();
+  if (!db.alertSettings) db.alertSettings = defaultAlertSettings();
+  return { ...defaultAlertSettings(), ...db.alertSettings };
+}
+
+export function updateAlertSettings(patch: Partial<AlertSettings>): AlertSettings {
+  const db = load();
+  db.alertSettings = { ...defaultAlertSettings(), ...db.alertSettings, ...patch };
+  save();
+  return db.alertSettings;
 }
 
 // --------------------------------------------------------------- devices ---

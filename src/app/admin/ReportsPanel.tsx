@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileBarChart, Download, RefreshCw } from "lucide-react";
+import { FileBarChart, Download, RefreshCw, Printer } from "lucide-react";
 import { LineChart, HBar, DonutChart, PALETTE } from "./charts";
 
 function tok() { try { return sessionStorage.getItem("admin-token") || ""; } catch { return ""; } }
@@ -35,6 +35,24 @@ export default function ReportsPanel() {
   }, [range]);
   useEffect(() => { load(); }, [load]);
 
+  const downloadCsv = async () => {
+    try {
+      const r = await fetch(`/api/admin/insights/export?type=${rep}&range=${range}`, { headers: { "x-admin-token": tok() } });
+      if (!r.ok) return;
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `circuvent-${rep}-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const s = d?.series || [];
 
   return (
@@ -65,7 +83,10 @@ export default function ReportsPanel() {
               ))}
             </div>
             <button onClick={load} className="rounded-lg border p-2" style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}><RefreshCw className="h-4 w-4" /></button>
-            <a href={`/api/admin/insights/export?type=${rep}&range=${range}`} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-semibold text-white">
+            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}>
+              <Printer className="h-4 w-4" /> PDF
+            </button>
+            <a href={`/api/admin/insights/export?type=${rep}&range=${range}`} onClick={(e) => { e.preventDefault(); downloadCsv(); }} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-semibold text-white">
               <Download className="h-4 w-4" /> CSV
             </a>
           </div>

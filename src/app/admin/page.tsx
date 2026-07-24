@@ -39,6 +39,7 @@ import StaffPanel from "./StaffPanel";
 import AnalyticsPanel from "./AnalyticsPanel";
 import MonitoringPanel from "./MonitoringPanel";
 import ReportsPanel from "./ReportsPanel";
+import AlertRulesPanel from "./AlertRulesPanel";
 import AdminAlerts from "./AdminAlerts";
 import { FileBarChart } from "lucide-react";
 
@@ -439,7 +440,12 @@ export default function AdminDashboard() {
 
         {tab === "orders" && <OrdersPanel />}
         {tab === "analytics" && <AnalyticsPanel />}
-        {tab === "monitoring" && <MonitoringPanel />}
+        {tab === "monitoring" && (
+          <>
+            <MonitoringPanel />
+            <AlertRulesPanel />
+          </>
+        )}
         {tab === "reports" && <ReportsPanel />}
         {tab === "inventory" && <InventoryPanel />}
         {tab === "customers" && <CustomersPanel />}

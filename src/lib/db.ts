@@ -47,6 +47,7 @@ export const KV_COLLECTIONS: (keyof DB)[] = [
   "questions",
   "notifications",
   "passwordResets",
+  "alertSettings",
 ];
 
 /** Collections with dedicated typed tables (the login/identity core). */

@@ -357,6 +357,17 @@ body {
   }
 }
 
+/* Print / Save-as-PDF — hide site chrome and decoration, print on white. */
+@media print {
+  nav, footer, .noise-overlay, .print\:hidden {
+    display: none !important;
+  }
+  html, body {
+    background: #ffffff !important;
+    color: #0c1222 !important;
+  }
+}
+
 /* ===== SMOOTH THEME TRANSITION ===== */
 .theme-transition,
 .theme-transition * {
