@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Cpu, Home, LayoutGrid, Zap, LogOut, Bell, BellOff, Loader2, Radio, Sofa, Clapperboard, BatteryCharging, Settings } from "lucide-react";
+import { Cpu, Home, LayoutGrid, Zap, LogOut, Bell, BellOff, Loader2, Radio, Sofa, Clapperboard, BatteryCharging, Settings, ShieldCheck } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import { useConsole } from "./ConsoleProvider";
 import Login from "./Login";
@@ -19,10 +19,13 @@ const NAV = [
   { href: "/console/settings", label: "Settings", icon: Settings, exact: false },
 ];
 
+let adminCache: { uid: number; admin: boolean } | null = null;
+
 export default function ConsoleChrome({ children }: { children: React.ReactNode }) {
   const { ready, user, liveStatus, logout, notifyPermission, enableNotifications } = useConsole();
   const pathname = usePathname();
   const [unread, setUnread] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const loadUnread = useCallback(async () => {
     const r = await controlPlane.unreadCount();
@@ -36,6 +39,26 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
     return () => clearInterval(t);
   }, [user, loadUnread, pathname]);
 
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    if (adminCache?.uid === user.id) {
+      setIsAdmin(adminCache.admin);
+      return;
+    }
+    let alive = true;
+    controlPlane.adminMe().then((r) => {
+      const admin = !!(r.ok && r.data?.admin);
+      adminCache = { uid: user.id, admin };
+      if (alive) setIsAdmin(admin);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#0b1020" }}>
@@ -48,6 +71,7 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
 
   const isActive = (href: string, exact: boolean) =>
     exact ? pathname === href : pathname === href || pathname?.startsWith(href + "/");
+  const navItems = isAdmin ? [...NAV, { href: "/console/admin", label: "Admin", icon: ShieldCheck, exact: false }] : NAV;
 
   return (
     <div className="min-h-screen text-slate-100">
@@ -67,12 +91,12 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
         </div>
 
         <nav className="space-y-1 flex-1">
-          {NAV.map((n) => {
+          {navItems.map((n) => {
             const active = isActive(n.href, n.exact);
             const Icon = n.icon;
             return (
               <Link
-                key={n.href}
+                key={`${n.href}-${n.label}`}
                 href={n.href}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                   active ? "text-white bg-white/10" : "text-slate-400 hover:text-slate-100 hover:bg-white/5"
@@ -141,12 +165,12 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
 
         {/* Mobile nav */}
         <nav className="md:hidden flex gap-2 border-b border-white/10 px-4 py-2 bg-black/20 overflow-x-auto">
-          {NAV.map((n) => {
+          {navItems.map((n) => {
             const active = isActive(n.href, n.exact);
             const Icon = n.icon;
             return (
               <Link
-                key={n.href}
+                key={`${n.href}-${n.label}`}
                 href={n.href}
                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
                   active ? "text-white bg-white/10" : "text-slate-400"

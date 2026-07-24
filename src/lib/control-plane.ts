@@ -126,6 +126,45 @@ export interface EnergySeries {
   kwh: number;
 }
 
+export interface AdminStats {
+  users: number;
+  devices: number;
+  online: number;
+  events7d: number;
+  pendingSignups: number;
+  byType: { type: string; count: number }[];
+}
+export interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  is_admin: boolean;
+  created_at: string;
+  devices: number;
+}
+export interface AdminDevice {
+  id: string;
+  name: string;
+  type: string;
+  room: string;
+  online: boolean;
+  last_seen: string | null;
+  fw_version: string;
+  state: Record<string, unknown>;
+  owner_email: string | null;
+  owner_id: number | null;
+}
+export interface AdminEvent {
+  id: number;
+  owner_id: number | null;
+  device_id: string | null;
+  kind: string;
+  title: string;
+  body: string;
+  ts: string;
+  owner_email: string | null;
+}
+
 interface AuthResp {
   token: string;
   user: ControlUser;
@@ -261,6 +300,22 @@ export const controlPlane = {
   energySummary: () => req<EnergySummary>("/energy/summary"),
   deviceEnergy: (id: string, hours = 24, metric = "watts") =>
     req<EnergySeries>("/devices/" + encodeURIComponent(id) + "/energy?hours=" + hours + "&metric=" + metric),
+
+  // ---- admin (control-plane, requires is_admin) --------------------------
+  adminMe: () => req<{ admin: boolean; uid: number; email: string }>("/admin/me"),
+  adminStats: () => req<AdminStats>("/admin/stats"),
+  adminUsers: () => req<{ users: AdminUser[] }>("/admin/users"),
+  adminSetRole: (id: number, is_admin: boolean) =>
+    req<{ success: boolean }>("/admin/users/" + id, { method: "PATCH", body: JSON.stringify({ is_admin }) }),
+  adminDeleteUser: (id: number) => req<{ success: boolean }>("/admin/users/" + id, { method: "DELETE" }),
+  adminDevices: () => req<{ devices: AdminDevice[] }>("/admin/devices"),
+  adminCommand: (id: string, cmd: Record<string, unknown>) =>
+    req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id) + "/command", { method: "POST", body: JSON.stringify(cmd) }),
+  adminOta: (id: string, url: string, version?: string) =>
+    req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id) + "/ota", { method: "POST", body: JSON.stringify({ url, version }) }),
+  adminDeleteDevice: (id: string) =>
+    req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id), { method: "DELETE" }),
+  adminEvents: (limit = 100) => req<{ events: AdminEvent[] }>("/admin/events?limit=" + limit),
 };
 
 export type { AuthResp };

@@ -1,157 +1,126 @@
-# Circuvent — Alexa & Google Home Integration Runbook
+# Circuvent × Google Home & Alexa — Production (multi-tenant) integration
 
-Your control plane now speaks both **Google Home** and **Amazon Alexa** Smart Home
-protocols. This document is the step‑by‑step setup for the Amazon and Google
-developer consoles. Nothing here needs a code change — it is pure console config.
+**This is NOT per-device and NOT per-customer setup.** You (Circuvent) build and
+**publish ONE Google Home Action and ONE Alexa Smart Home skill**. After that,
+**any** of your customers just opens their Google Home / Alexa app, searches for
+**“Circuvent”**, taps *Link account*, signs in with **their own** Circuvent
+account, and their devices appear. You never touch a console again per user.
+
+```
+                    ┌─────────────────────────────────────────┐
+   Millions of      │  ONE published Google Action             │
+   end users  ─────▶│  ONE published Alexa skill               │
+   (each links      │            │  OAuth2 account linking      │
+    their own       │            ▼                              │
+    account)        │  api.circuvent.com/oauth/authorize|token  │
+                    │            │                              │
+                    │            ▼  Bearer = that user's identity│
+                    │  /smarthome/google  &  /smarthome/alexa    │
+                    │            │  → only that user's devices   │
+                    └────────────┼──────────────────────────────┘
+                                 ▼
+                         MQTT broker → each user's ESP32 devices
+```
+
+Why it already works for everyone: the fulfillment endpoints resolve the
+**OAuth access token → a specific Circuvent user id** and return/act on only
+**that** user's devices (see `routes/smarthome.ts` → `ownerDevices(uid)`). The
+same published integration therefore serves every customer, each scoped to
+their own account. Nothing is hard-coded to one device or one person.
 
 ---
 
-## 0. What is already live on the server
+## 0. One-time server facts (already live)
 
-| Purpose | URL |
+| Purpose | Value |
 | --- | --- |
-| OAuth login / account‑linking page | `https://api.circuvent.com/oauth/authorize` |
-| OAuth token endpoint | `https://api.circuvent.com/oauth/token` |
-| Google Home fulfillment | `https://api.circuvent.com/smarthome/google` |
-| Alexa fulfillment (behind a Lambda, see §2) | `https://api.circuvent.com/smarthome/alexa` |
+| Authorization URL | `https://api.circuvent.com/oauth/authorize` |
+| Token URL | `https://api.circuvent.com/oauth/token` |
+| Google fulfillment | `https://api.circuvent.com/smarthome/google` |
+| Alexa fulfillment | Lambda → `https://api.circuvent.com/smarthome/alexa` |
+| OAuth Client ID | `circuvent-smarthome` |
+| OAuth Client Secret | `SMARTHOME_CLIENT_SECRET` in the VM `~/circuvent-platform/.env` |
+| Privacy policy (required to publish) | `https://circuvent.com/privacy` |
 
-**OAuth client credentials** (set in the VM `.env`, injected into the API container):
+Read the secret: `ssh ubuntu@140.245.238.154 "grep SMARTHOME_CLIENT ~/circuvent-platform/.env"`
 
-```
-Client ID     : circuvent-smarthome
-Client Secret : <value of SMARTHOME_CLIENT_SECRET in ~/circuvent-platform/.env>
-```
-
-> Read the secret any time with:
-> `ssh ubuntu@140.245.238.154 "grep SMARTHOME_CLIENT ~/circuvent-platform/.env"`
-
-Scopes: leave empty / `control`. Grant type: **authorization_code** (+ refresh).
-Tokens: access token = 1 h, refresh token = 10 y. The same Circuvent app
-email + password logs the user in on the linking page.
-
-Which devices show up: any device whose `type` is switchable —
-`smart-plug`, `smart-switch`, `agri-starter`, `aquaguard`, `home-hub`.
-Others are intentionally not exposed as On/Off endpoints.
+Prerequisites to publish (both platforms require these):
+- A **public privacy policy URL** and **terms** (host at circuvent.com/privacy).
+- **Brand assets**: app name “Circuvent”, a square logo (≥ 512px), short/long
+  description, support email.
+- **Reviewer test account**: create a Circuvent account with one or two
+  provisioned (or simulated) devices and give the credentials to the reviewer.
 
 ---
 
-## 1. Google Home (direct HTTPS — no Lambda needed)
+## 1. Google Home — publish the Action (any user can then link)
 
-1. Go to <https://console.actions.google.com> → **New project** (e.g. `Circuvent`).
-2. Choose **Smart Home** → **Smart Home**.
-3. **Develop → Actions → Build your Action → Smart home** — set the
-   **Fulfillment URL** to:
-   `https://api.circuvent.com/smarthome/google`
-4. **Develop → Account linking**:
-   - Account creation: **No, I only want to allow account creation on my website**
-   - Linking type: **OAuth → Authorization code**
-   - Client ID: `circuvent-smarthome`
-   - Client secret: *(the secret above)*
-   - Authorization URL: `https://api.circuvent.com/oauth/authorize`
-   - Token URL: `https://api.circuvent.com/oauth/token`
-   - Scopes: `control` (or leave one placeholder scope)
-5. **Test** (top bar) to push a draft to your Google account.
-6. In the **Google Home app** on your phone → **+ Add → Works with Google** →
-   search for **[test] Circuvent** → sign in with your Circuvent account →
-   devices sync. Say *“Hey Google, turn on Living Room Plug.”*
+1. <https://console.actions.google.com> → your **Circuvent** Smart Home project.
+2. **Develop → Account linking** (OAuth / Authorization code): Client ID
+   `circuvent-smarthome`, the secret, the Authorization + Token URLs above,
+   scope `control`.
+3. **Develop → Actions**: Fulfillment URL `https://api.circuvent.com/smarthome/google`.
+4. **Deploy → Directory information**: fill display name, descriptions, logos,
+   privacy policy, support email, and the **test account** credentials.
+5. **Deploy → Release**: submit for **Production** review. Google verifies
+   account-linking + brand. Once approved, **every** user sees *Works with
+   Google → Circuvent* and links their own account. (Before approval, add
+   testers under **Test** to trial it.)
 
-Google calls SYNC/QUERY/EXECUTE directly against the HTTPS fulfillment URL —
-no AWS account required.
+Google calls your HTTPS fulfillment directly — **no AWS needed** for Google.
 
 ---
 
-## 2. Amazon Alexa (needs a tiny Lambda proxy)
+## 2. Alexa — certify & publish the Smart Home skill
 
-Alexa Smart Home **requires an AWS Lambda ARN** as the skill endpoint (it does
-not call a raw HTTPS URL like Google does). The Lambda is a 15‑line pass‑through
-that forwards the directive JSON to `https://api.circuvent.com/smarthome/alexa`
-and returns the response verbatim.
+Alexa **requires an AWS Lambda** as the skill endpoint (it does not call a raw
+HTTPS URL). The Lambda is a ~15-line pass-through to our fulfillment.
 
-### 2a. Create the skill
-1. <https://developer.amazon.com/alexa/console/ask> → **Create Skill**.
-2. Name `Circuvent`, model **Smart Home**, hosting **Provision your own**.
-3. Note the **Skill ID** (`amzn1.ask.skill.…`) — you need it for the Lambda trigger.
-
-### 2b. Create the Lambda (Node.js 20, region **us‑east‑1** for English/US, **eu‑west‑1** for EU/IN)
-Create a function, add an **Alexa Smart Home** trigger with the Skill ID above,
-and paste:
-
-```js
-// index.mjs  — Alexa Smart Home -> Circuvent proxy
-export const handler = async (event) => {
-  const r = await fetch("https://api.circuvent.com/smarthome/alexa", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(event),
-  });
-  return await r.json();
-};
-```
-
-Copy the Lambda **ARN** (`arn:aws:lambda:…:function:…`).
-
-### 2c. Point the skill at the Lambda
-Back in the Alexa skill → **Smart Home → Default endpoint** = the Lambda ARN.
-
-### 2d. Account linking (Alexa skill → Account Linking)
-- Auth URI: `https://api.circuvent.com/oauth/authorize`
-- Access Token URI: `https://api.circuvent.com/oauth/token`
-- Client ID: `circuvent-smarthome`
-- Client Secret: *(the secret above)*
-- Scheme: **HTTP Basic** (Alexa sends client creds in the Authorization header —
-  our token endpoint accepts both Basic and body params) or **Credentials in
-  request body**; either works.
-- Scope: `control`
-
-### 2e. Test
-Alexa app → **More → Skills & Games → Your Skills → Dev** → **Circuvent** →
-**Enable → Link Account** → sign in with your Circuvent account → **Discover
-Devices**. Say *“Alexa, turn on Living Room Plug.”*
+1. **Lambda** (Node 20, region us-east-1 for EN-US, eu-west-1 for EU/IN):
+   ```js
+   // index.mjs — Alexa Smart Home → Circuvent proxy
+   export const handler = async (event) => {
+     const r = await fetch("https://api.circuvent.com/smarthome/alexa", {
+       method: "POST",
+       headers: { "content-type": "application/json" },
+       body: JSON.stringify(event),
+     });
+     return await r.json();
+   };
+   ```
+   Add an **Alexa Smart Home** trigger with your Skill ID; copy the Lambda ARN.
+2. <https://developer.amazon.com/alexa/console/ask> → **Circuvent** (Smart Home).
+   - **Smart Home → Default endpoint** = the Lambda ARN.
+   - **Account Linking**: Auth URI + Access Token URI above, Client ID
+     `circuvent-smarthome`, the secret, scope `control` (HTTP Basic or body creds
+     — our `/oauth/token` accepts both).
+3. **Distribution**: publishing name “Circuvent”, descriptions, icons (108 & 512),
+   category *Smart Home*, privacy policy, testing instructions + the reviewer
+   **test account**.
+4. **Certification → Submit**. After Amazon certifies, the **Circuvent** skill is
+   public — any user enables it and links their own account.
 
 ---
 
-## 3. How a voice command flows
+## 3. What each customer does (zero console work)
 
-```
-"Alexa/Hey Google, turn on Living Room Plug"
-      |
-      v
-Google  --HTTPS-->  /smarthome/google    \
-Alexa   --Lambda->  /smarthome/alexa     /   verify OAuth Bearer -> find device
-                                         |    -> publishCommand(id,{action:set,power:true})
-                                         v
-                             MQTT broker (mqtt.circuvent.com:8883, TLS)
-                                         |
-                                         v
-                                   ESP32 device toggles relay
-```
+1. Buy + set up a Circuvent device in the Circuvent app (creates their account).
+2. Google Home app → **+ → Works with Google → Circuvent** → sign in → done.
+   Alexa app → **Skills → Circuvent → Enable → Link account → Discover devices**.
+3. “Hey Google/Alexa, turn on the Living Room Plug.”
 
-Latency: assistant → cloud → MQTT publish is typically **200–500 ms**; the relay
-click follows within one broker round‑trip of the device.
+Their token maps to their account, so they only ever see and control their own
+devices. Adding a new device later just needs a re-*Discover* (Alexa) / auto-sync
+(Google via Request Sync — optional enhancement).
 
 ---
 
-## 4. Troubleshooting
+## 4. Scaling / hardening notes
 
-| Symptom | Cause / Fix |
-| --- | --- |
-| Linking page shows “Invalid client_id” | The console `client_id` ≠ `circuvent-smarthome`. |
-| Token exchange returns `invalid_client` | `SMARTHOME_CLIENT_SECRET` in the console ≠ the VM `.env` value, or the secret is empty on the server. |
-| SYNC/Discovery returns no devices | The account owns no **switchable** device, or the device `type` is not in the exposed list (§0). |
-| Command says success but relay doesn’t move | Device offline (check `online` in the app / `mqtt.ts` logs); the command still publishes and the device applies it on reconnect if retained. |
-| Alexa “I couldn’t find a device” | Re‑run **Discover Devices** after adding the device in the Circuvent app. |
-
----
-
-## 5. Rotating the client secret
-
-```bash
-ssh ubuntu@140.245.238.154
-cd ~/circuvent-platform
-sed -i "s/^SMARTHOME_CLIENT_SECRET=.*/SMARTHOME_CLIENT_SECRET=$(openssl rand -hex 32)/" .env
-docker compose up -d api        # restart with the new secret
-grep SMARTHOME_CLIENT_SECRET .env   # copy into both consoles
-```
-
-After rotating, update the secret in **both** the Google Account‑linking and the
-Alexa Account‑linking screens, then re‑link the account in each app.
+- **Request Sync (Google)** and **ProactiveState / ChangeReport (Alexa)** are
+  optional next steps to push device-state changes to the assistants in real
+  time (we already have the live MQTT→state pipeline to feed them).
+- Rotate `SMARTHOME_CLIENT_SECRET` in the VM `.env` + both consoles together.
+- The fulfillment is stateless and horizontal-scalable; OAuth tokens are JWTs
+  (no server session), so multiple API replicas work without sticky sessions.
+- Rate limiting + helmet are already enabled on the control plane.
