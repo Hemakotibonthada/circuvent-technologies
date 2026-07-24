@@ -8,7 +8,7 @@ type StateOp = NonNullable<AutomationTrigger["op"]>;
 
 const OPS: StateOp[] = ["==", "!=", ">", ">=", "<", "<=", "truthy", "falsy"];
 
-export default function Automations({ onBack }: { onBack: () => void }) {
+export default function Automations({ onBack, embedded }: { onBack: () => void; embedded?: boolean }) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,8 +165,8 @@ export default function Automations({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16 }}>
-      <Pressable onPress={onBack}><Text style={s.back}>‹ Devices</Text></Pressable>
+    <ScrollView style={[s.wrap, embedded && { backgroundColor: "transparent" }]} contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
+      {!embedded && <Pressable onPress={onBack}><Text style={s.back}>‹ Devices</Text></Pressable>}
       <View style={s.top}>
         <View>
           <Text style={s.h1}>Automations</Text>

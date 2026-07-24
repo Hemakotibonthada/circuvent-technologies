@@ -1,40 +1,47 @@
-import React, { useState } from "react";
+import React from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth";
+import { ThemeProvider, useTheme } from "./src/ui";
+import { DevicesProvider } from "./src/store";
 import Login from "./src/screens/Login";
-import Devices from "./src/screens/Devices";
-import Control from "./src/screens/Control";
-import Automations from "./src/screens/Automations";
-import { Device } from "./src/api";
+import Shell from "./src/screens/Shell";
 
 function Root() {
   const { account, ready } = useAuth();
-  const [selected, setSelected] = useState<Device | null>(null);
-  const [showAutomations, setShowAutomations] = useState(false);
+  const { c, scheme } = useTheme();
 
   if (!ready) {
     return (
-      <View style={s.center}>
-        <ActivityIndicator color="#06b6d4" size="large" />
+      <View style={[s.center, { backgroundColor: c.bg }]}>
+        <ActivityIndicator color={c.accentHi} size="large" />
       </View>
     );
   }
-  if (!account) return <Login />;
-  if (showAutomations) return <Automations onBack={() => setShowAutomations(false)} />;
-  if (selected) return <Control device={selected} onBack={() => setSelected(null)} />;
-  return <Devices onOpen={setSelected} onAutomations={() => setShowAutomations(true)} />;
+  return (
+    <>
+      <StatusBar style={scheme === "light" ? "dark" : "light"} />
+      {account ? (
+        <DevicesProvider>
+          <Shell />
+        </DevicesProvider>
+      ) : (
+        <Login />
+      )}
+    </>
+  );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
-      <Root />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
 const s = StyleSheet.create({
-  center: { flex: 1, backgroundColor: "#0b1020", alignItems: "center", justifyContent: "center" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

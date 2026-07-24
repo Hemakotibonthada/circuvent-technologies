@@ -1,109 +1,194 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, Switch, StyleSheet, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { View, Text, Pressable, Switch, StyleSheet, ScrollView, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { api, Device } from "../api";
-import { useLive } from "../live";
-import { C, GRAD, deviceMeta } from "../theme";
+import Slider from "@react-native-community/slider";
+import { Device } from "../api";
+import { useDevices, capabilities } from "../store";
+import { Screen, Card, useTheme } from "../ui";
+import { deviceMeta, type Palette } from "../theme";
+
+const COLORS = ["#ffffff", "#ffd27f", "#ff7f7f", "#7fd0ff", "#7fff9e", "#c79bff", "#ff9be0"];
 
 export default function Control({ device, onBack }: { device: Device; onBack: () => void }) {
-  const [d, setD] = useState<Device>(device);
-  const [busy, setBusy] = useState(false);
+  const { c } = useTheme();
+  const { byId, command, patch } = useDevices();
+  const d = byId(device.id) ?? device;
 
-  const load = useCallback(async () => {
-    const r = await api.device(device.id);
-    if (r.ok && r.data?.device) setD(r.data.device);
-  }, [device.id]);
+  const send = (params: Record<string, unknown>) => command(d.id, { action: "set", ...params });
 
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 15000); // slow fallback; live updates arrive via WS
-    return () => clearInterval(t);
-  }, [load]);
-
-  // Real-time state/status for this device.
-  useLive((u) => {
-    if (u.deviceId !== device.id) return;
-    setD((prev) => {
-      if (u.kind === "status") return { ...prev, online: !!u.payload?.online };
-      if (u.kind === "state") return { ...prev, online: true, state: { ...prev.state, ...u.payload } };
-      return { ...prev, online: true };
-    });
-  });
-
-  const send = async (params: Record<string, any>) => {
-    setBusy(true);
-    // Optimistic update for a snappy UI; the device echoes true state via WS.
-    setD((prev) => ({ ...prev, state: { ...prev.state, ...params } }));
-    await api.command(d.id, { action: "set", ...params });
-    setBusy(false);
+  const rename = () => {
+    Alert.prompt?.("Rename device", undefined, (text) => { if (text?.trim()) patch(d.id, { name: text.trim() }); }, "plain-text", d.name || "");
   };
 
   const meta = deviceMeta(d.type);
+  const cap = capabilities(d.type);
+
   return (
-    <LinearGradient colors={GRAD.screen} style={{ flex: 1 }}>
-    <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-      <Pressable onPress={onBack} hitSlop={8}><Text style={s.back}>‹ Devices</Text></Pressable>
-      <View style={s.hero}>
-        <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.heroPill}>
-          <Text style={s.heroGlyph}>{meta.glyph}</Text>
-        </LinearGradient>
-        <View style={{ flex: 1 }}>
-          <Text style={s.h1} numberOfLines={1}>{d.name || d.id}</Text>
-          <View style={s.heroMeta}>
-            <Text style={s.heroType}>{meta.label}</Text>
-            <View style={[s.onlineDot, { backgroundColor: d.online ? C.green : C.faint }]} />
-            <Text style={[s.status, { color: d.online ? C.green : C.faint }]}>{d.online ? "Online" : "Offline"}</Text>
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 52, paddingBottom: 40 }}>
+        <View style={s.topBar}>
+          <Pressable onPress={onBack} hitSlop={8}><Text style={{ color: c.textDim, fontSize: 16 }}>‹ Devices</Text></Pressable>
+          <View style={{ flexDirection: "row", gap: 14 }}>
+            <Pressable onPress={() => patch(d.id, { favorite: !d.favorite })} hitSlop={8}><Text style={{ fontSize: 18 }}>{d.favorite ? "⭐" : "☆"}</Text></Pressable>
+            <Pressable onPress={rename} hitSlop={8}><Text style={{ color: c.textDim, fontSize: 16 }}>✎</Text></Pressable>
           </View>
         </View>
-      </View>
 
-      {d.type === "aquaguard" && <AquaGuard d={d} send={send} busy={busy} />}
-      {d.type === "home-hub" && <HomeHub d={d} send={send} busy={busy} />}
-      {d.type === "smart-plug" && <SmartPlug d={d} send={send} busy={busy} />}
-      {d.type === "smart-switch" && <SmartSwitch d={d} send={send} busy={busy} />}
-      {d.type === "energy-monitor" && <EnergyMonitor d={d} />}
-      {d.type === "guardian" && <Guardian d={d} send={send} busy={busy} />}
-      {d.type === "motion-sensor" && <MotionSensor d={d} send={send} busy={busy} />}
-      {d.type === "agri-starter" && <AgriStarter d={d} send={send} busy={busy} />}
-      {!KNOWN.includes(d.type) && (
-        <>
-          <Text style={s.section}>Raw state</Text>
-          <Text style={{ color: "#94a3b8", fontFamily: "monospace" }}>{JSON.stringify(d.state, null, 2)}</Text>
-        </>
-      )}
-    </ScrollView>
-    </LinearGradient>
+        <View style={s.hero}>
+          <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.heroPill}><Text style={{ fontSize: 28 }}>{meta.glyph}</Text></LinearGradient>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontSize: 24, fontWeight: "800" }} numberOfLines={1}>{d.name || d.id}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <Text style={{ color: c.textDim, fontSize: 13 }}>{d.room || meta.label}</Text>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: d.online ? c.green : c.faint }} />
+              <Text style={{ color: d.online ? c.green : c.faint, fontSize: 13, fontWeight: "600" }}>{d.online ? "Online" : "Offline"}</Text>
+            </View>
+          </View>
+        </View>
+
+        {d.type === "aquaguard" && <AquaGuard d={d} send={send} c={c} />}
+        {d.type === "home-hub" && <HomeHub d={d} send={send} c={c} />}
+        {d.type === "smart-plug" && <SmartPlug d={d} send={send} c={c} />}
+        {d.type === "smart-switch" && <SmartSwitch d={d} send={send} c={c} />}
+        {d.type === "energy-monitor" && <EnergyMonitor d={d} c={c} />}
+        {d.type === "guardian" && <Guardian d={d} send={send} c={c} />}
+        {d.type === "motion-sensor" && <MotionSensor d={d} send={send} c={c} />}
+        {d.type === "agri-starter" && <AgriStarter d={d} send={send} c={c} />}
+
+        {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
+        <GenericControls d={d} send={send} c={c} />
+
+        {!KNOWN.includes(d.type) && !cap.dimmer && !cap.fan && !cap.thermostat && (
+          <Card padded>
+            <Text style={{ color: c.textDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Raw state</Text>
+            <Text style={{ color: c.faint, fontFamily: "monospace", fontSize: 12 }}>{JSON.stringify(d.state, null, 2)}</Text>
+          </Card>
+        )}
+      </ScrollView>
+    </Screen>
   );
 }
 
 const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter"];
 
-function AquaGuard({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+// ------------------------------------------------------------ shared bits ---
+
+function Row({ label, c, children }: { label: string; c: Palette; children: React.ReactNode }) {
+  return (
+    <Card padded style={{ marginBottom: 10 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Text style={{ color: c.text, fontSize: 16 }}>{label}</Text>
+        {children}
+      </View>
+    </Card>
+  );
+}
+function Section({ children, c }: { children: React.ReactNode; c: Palette }) {
+  return <Text style={{ color: c.faint, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginTop: 14, marginBottom: 8 }}>{children}</Text>;
+}
+function Big({ value, unit, caption, c }: { value: string; unit?: string; caption: string; c: Palette }) {
+  return (
+    <Card padded style={{ alignItems: "center", marginBottom: 14 }}>
+      <Text style={{ color: c.text, fontSize: 52, fontWeight: "800" }}>{value}{unit ? <Text style={{ fontSize: 22, color: c.textDim }}>{unit}</Text> : null}</Text>
+      <Text style={{ color: c.faint, marginTop: 6 }}>{caption}</Text>
+    </Card>
+  );
+}
+function Sw({ v, on, c }: { v: boolean; on: (b: boolean) => void; c: Palette }) {
+  return <Switch value={v} onValueChange={on} trackColor={{ true: c.accent, false: "#334155" }} thumbColor="#fff" />;
+}
+
+function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const cap = capabilities(d.type);
+  if (!cap.dimmer && !cap.fan && !cap.color && !cap.thermostat) return null;
+  return (
+    <View>
+      {cap.dimmer && (
+        <Card padded style={{ marginBottom: 10 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <Text style={{ color: c.text, fontSize: 16 }}>{cap.dimmer.label}</Text>
+            <Text style={{ color: c.accent, fontWeight: "800" }}>{Number(d.state[cap.dimmer.field] ?? 0)}%</Text>
+          </View>
+          <Slider
+            minimumValue={cap.dimmer.min} maximumValue={cap.dimmer.max} step={1}
+            value={Number(d.state[cap.dimmer.field] ?? 0)}
+            onSlidingComplete={(v) => send({ [cap.dimmer!.field]: Math.round(v) })}
+            minimumTrackTintColor={c.accent} maximumTrackTintColor={c.border} thumbTintColor={c.accentHi}
+          />
+        </Card>
+      )}
+      {cap.fan && (
+        <Card padded style={{ marginBottom: 10 }}>
+          <Text style={{ color: c.text, fontSize: 16, marginBottom: 10 }}>{cap.fan.label}</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {Array.from({ length: cap.fan.steps + 1 }).map((_, i) => {
+              const active = Number(d.state[cap.fan!.field] ?? 0) === i;
+              return (
+                <Pressable key={i} onPress={() => send({ [cap.fan!.field]: i })} style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}>
+                  <Text style={{ color: active ? c.onAccent : c.textDim, fontWeight: "700" }}>{i === 0 ? "Off" : i}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Card>
+      )}
+      {cap.thermostat && (
+        <Card padded style={{ marginBottom: 10 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <Text style={{ color: c.text, fontSize: 16 }}>{cap.thermostat.label}</Text>
+            <Text style={{ color: c.accent, fontWeight: "800" }}>{Number(d.state[cap.thermostat.field] ?? cap.thermostat.min)}°</Text>
+          </View>
+          <Slider
+            minimumValue={cap.thermostat.min} maximumValue={cap.thermostat.max} step={1}
+            value={Number(d.state[cap.thermostat.field] ?? cap.thermostat.min)}
+            onSlidingComplete={(v) => send({ [cap.thermostat!.field]: Math.round(v) })}
+            minimumTrackTintColor={c.accent} maximumTrackTintColor={c.border} thumbTintColor={c.accentHi}
+          />
+        </Card>
+      )}
+      {cap.color && (
+        <Card padded style={{ marginBottom: 10 }}>
+          <Text style={{ color: c.text, fontSize: 16, marginBottom: 10 }}>Colour</Text>
+          <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+            {COLORS.map((col) => (
+              <Pressable key={col} onPress={() => send({ [cap.color!.field]: col })} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: col, borderWidth: d.state[cap.color!.field] === col ? 3 : 1, borderColor: d.state[cap.color!.field] === col ? c.text : c.border }} />
+            ))}
+          </View>
+        </Card>
+      )}
+    </View>
+  );
+}
+
+// --------------------------------------------------------- device sections --
+
+function AquaGuard({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const level = Number(d.state.level ?? 0);
   const startPct = Number(d.state.startPct ?? 25);
   const stopPct = Number(d.state.stopPct ?? 95);
   return (
     <View>
-      <View style={s.gauge}>
-        <Text style={s.level}>{level}<Text style={s.pct}>%</Text></Text>
-        <View style={s.barBg}><View style={[s.barFill, { width: `${Math.min(100, level)}%` }]} /></View>
-        <Text style={s.tank}>Tank level</Text>
-      </View>
-
-      {!!d.state.dryRun && <Text style={s.alert}>⚠ Dry-run detected — pump stopped</Text>}
-      {!!d.state.overflow && <Text style={s.alert}>⚠ Overflow — pump stopped</Text>}
-
-      <Row label="Auto mode"><Switch value={!!d.state.auto} onValueChange={(v) => send({ auto: v })} /></Row>
-      <Row label="Pump"><Switch value={!!d.state.pump} onValueChange={(v) => send({ pump: v })} /></Row>
-
-      <Text style={s.section}>Auto thresholds</Text>
-      <Stepper label={`Start at ${startPct}%`} onDown={() => send({ startPct: Math.max(5, startPct - 5) })} onUp={() => send({ startPct: startPct + 5 })} />
-      <Stepper label={`Stop at ${stopPct}%`} onDown={() => send({ stopPct: stopPct - 5 })} onUp={() => send({ stopPct: Math.min(100, stopPct + 5) })} />
+      <Card padded style={{ marginBottom: 14 }}>
+        <View style={{ alignItems: "center" }}>
+          <Text style={{ color: c.text, fontSize: 52, fontWeight: "800" }}>{level}<Text style={{ fontSize: 22, color: c.textDim }}>%</Text></Text>
+          <View style={{ width: "100%", height: 14, borderRadius: 7, backgroundColor: c.border, marginTop: 10, overflow: "hidden" }}>
+            <View style={{ height: 14, borderRadius: 7, width: `${Math.min(100, level)}%`, backgroundColor: c.accent }} />
+          </View>
+          <Text style={{ color: c.faint, marginTop: 8 }}>Tank level</Text>
+        </View>
+      </Card>
+      {!!d.state.dryRun && <Alertline c={c} text="⚠ Dry-run detected — pump stopped" />}
+      {!!d.state.overflow && <Alertline c={c} text="⚠ Overflow — pump stopped" />}
+      <Row label="Auto mode" c={c}><Sw v={!!d.state.auto} on={(v) => send({ auto: v })} c={c} /></Row>
+      <Row label="Pump" c={c}><Sw v={!!d.state.pump} on={(v) => send({ pump: v })} c={c} /></Row>
+      <Section c={c}>Auto thresholds</Section>
+      <Stepper label={`Start at ${startPct}%`} c={c} onDown={() => send({ startPct: Math.max(5, startPct - 5) })} onUp={() => send({ startPct: startPct + 5 })} />
+      <Stepper label={`Stop at ${stopPct}%`} c={c} onDown={() => send({ stopPct: stopPct - 5 })} onUp={() => send({ stopPct: Math.min(100, stopPct + 5) })} />
     </View>
   );
 }
 
-function HomeHub({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+function HomeHub({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const channels = [
     { key: "power", ch: 0, label: "Channel 1" },
     { key: "power2", ch: 1, label: "Channel 2" },
@@ -113,175 +198,127 @@ function HomeHub({ d, send }: { d: Device; send: (p: any) => void; busy: boolean
   const scenes = ["home", "away", "night", "movie"];
   return (
     <View>
-      {channels.map((c) => (
-        <Row key={c.key} label={c.label}>
-          <Switch value={!!d.state[c.key]} onValueChange={(v) => send({ ch: c.ch, on: v })} />
-        </Row>
+      {channels.map((ch) => (
+        <Row key={ch.key} label={ch.label} c={c}><Sw v={!!d.state[ch.key]} on={(v) => send({ ch: ch.ch, on: v })} c={c} /></Row>
       ))}
-      <Text style={s.section}>Scenes</Text>
-      <View style={s.scenes}>
-        {scenes.map((sc) => (
-          <Pressable key={sc} style={[s.scene, d.state.scene === sc && s.sceneOn]} onPress={() => send({ scene: sc })}>
-            <Text style={[s.sceneT, d.state.scene === sc && { color: "#fff" }]}>{sc}</Text>
-          </Pressable>
-        ))}
+      <Section c={c}>Scenes</Section>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        {scenes.map((sc) => {
+          const on = d.state.scene === sc;
+          return (
+            <Pressable key={sc} onPress={() => send({ scene: sc })} style={{ paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, backgroundColor: on ? c.accent : c.card, borderColor: on ? c.accent : c.border, borderWidth: 1 }}>
+              <Text style={{ color: on ? c.onAccent : c.textDim, textTransform: "capitalize", fontWeight: "700" }}>{sc}</Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
 }
 
-function SmartPlug({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
-  const watts = Number(d.state.watts ?? 0);
+function SmartPlug({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   return (
     <View>
-      <View style={s.gauge}>
-        <Text style={s.level}>{watts.toFixed(1)}<Text style={s.pct}> W</Text></Text>
-        <Text style={s.tank}>Live power draw</Text>
-      </View>
-      <Row label="Power"><Switch value={!!d.state.power} onValueChange={(v) => send({ power: v })} /></Row>
+      <Big value={Number(d.state.watts ?? 0).toFixed(1)} unit=" W" caption="Live power draw" c={c} />
+      <Row label="Power" c={c}><Sw v={!!d.state.power} on={(v) => send({ power: v })} c={c} /></Row>
     </View>
   );
 }
 
-function SmartSwitch({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+function SmartSwitch({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   return (
     <View>
-      <Row label="Gang 1"><Switch value={!!d.state.power} onValueChange={(v) => send({ power: v })} /></Row>
-      <Row label="Gang 2"><Switch value={!!d.state.power2} onValueChange={(v) => send({ power2: v })} /></Row>
+      <Row label="Gang 1" c={c}><Sw v={!!d.state.power} on={(v) => send({ power: v })} c={c} /></Row>
+      <Row label="Gang 2" c={c}><Sw v={!!d.state.power2} on={(v) => send({ power2: v })} c={c} /></Row>
     </View>
   );
 }
 
-function EnergyMonitor({ d }: { d: Device }) {
-  const watts = Number(d.state.watts ?? 0);
-  const amps = Number(d.state.amps ?? 0);
-  const kwh = Number(d.state.kwh ?? 0);
+function EnergyMonitor({ d, c }: { d: Device; c: Palette }) {
   return (
     <View>
-      <View style={s.gauge}>
-        <Text style={s.level}>{watts.toFixed(0)}<Text style={s.pct}> W</Text></Text>
-        <Text style={s.tank}>Instantaneous load</Text>
+      <Big value={Number(d.state.watts ?? 0).toFixed(0)} unit=" W" caption="Instantaneous load" c={c} />
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <MiniStat label="Current" value={`${Number(d.state.amps ?? 0).toFixed(2)} A`} c={c} />
+        <MiniStat label="Energy" value={`${Number(d.state.kwh ?? 0).toFixed(2)} kWh`} c={c} />
       </View>
-      <View style={s.statsRow}>
-        <Stat label="Current" value={`${amps.toFixed(2)} A`} />
-        <Stat label="Energy" value={`${kwh.toFixed(2)} kWh`} />
-      </View>
-      <Text style={s.note}>Read-only meter — no controls.</Text>
     </View>
   );
 }
 
-function Guardian({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
-  const battery = Number(d.state.battery ?? 0);
+function Guardian({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const lat = d.state.lat != null ? Number(d.state.lat) : null;
   const lng = d.state.lng != null ? Number(d.state.lng) : null;
   return (
     <View>
       {!!d.state.sos && (
-        <View style={s.sosBanner}>
-          <Text style={s.sosT}>🆘 SOS TRIGGERED</Text>
-          <Pressable style={s.sosClear} onPress={() => send({ sos: false })}><Text style={s.sosClearT}>Clear alert</Text></Pressable>
-        </View>
+        <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1, alignItems: "center" }}>
+          <Text style={{ color: c.red, fontSize: 18, fontWeight: "800", marginBottom: 10 }}>🆘 SOS TRIGGERED</Text>
+          <Pressable onPress={() => send({ sos: false })} style={{ backgroundColor: c.red, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}><Text style={{ color: "#fff", fontWeight: "700" }}>Clear alert</Text></Pressable>
+        </Card>
       )}
-      <Row label="Armed"><Switch value={!!d.state.armed} onValueChange={(v) => send({ armed: v })} /></Row>
-      <View style={s.statsRow}>
-        <Stat label="Battery" value={`${battery}%`} />
-        <Stat label="Location" value={lat != null && lng != null ? `${lat.toFixed(3)}, ${lng.toFixed(3)}` : "—"} />
+      <Row label="Armed" c={c}><Sw v={!!d.state.armed} on={(v) => send({ armed: v })} c={c} /></Row>
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <MiniStat label="Battery" value={`${Number(d.state.battery ?? 0)}%`} c={c} />
+        <MiniStat label="Location" value={lat != null && lng != null ? `${lat.toFixed(2)}, ${lng.toFixed(2)}` : "—"} c={c} />
       </View>
     </View>
   );
 }
 
-function MotionSensor({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+function MotionSensor({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const motion = !!d.state.motion;
   return (
     <View>
-      <View style={[s.gauge, { backgroundColor: motion ? "rgba(239,68,68,0.15)" : "#111827" }]}>
-        <Text style={[s.level, { fontSize: 30, color: motion ? "#ef4444" : "#22c55e" }]}>{motion ? "MOTION" : "CLEAR"}</Text>
-        <Text style={s.tank}>{d.state.armed ? "Armed" : "Disarmed"}</Text>
-      </View>
-      <Row label="Armed"><Switch value={!!d.state.armed} onValueChange={(v) => send({ armed: v })} /></Row>
+      <Card padded style={{ alignItems: "center", marginBottom: 14 }}>
+        <Text style={{ fontSize: 30, fontWeight: "800", color: motion ? c.red : c.green }}>{motion ? "MOTION" : "CLEAR"}</Text>
+        <Text style={{ color: c.faint, marginTop: 6 }}>{d.state.armed ? "Armed" : "Disarmed"}</Text>
+      </Card>
+      <Row label="Armed" c={c}><Sw v={!!d.state.armed} on={(v) => send({ armed: v })} c={c} /></Row>
     </View>
   );
 }
 
-function AgriStarter({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+function AgriStarter({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const power = !!d.state.power_available;
   return (
     <View>
-      <Row label="Pump"><Switch value={!!d.state.pump} onValueChange={(v) => send({ pump: v })} /></Row>
-      <View style={[s.row, { justifyContent: "flex-start" }]}>
-        <Text style={s.rowT}>Mains power </Text>
-        <Text style={{ color: power ? "#22c55e" : "#ef4444", fontWeight: "700" }}>{power ? "Available" : "Unavailable"}</Text>
-      </View>
-      {!power && <Text style={s.alert}>⚠ No mains power — pump cannot start</Text>}
+      <Row label="Pump" c={c}><Sw v={!!d.state.pump} on={(v) => send({ pump: v })} c={c} /></Row>
+      <Card padded style={{ marginBottom: 10 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Text style={{ color: c.textDim }}>Mains power</Text>
+          <Text style={{ color: power ? c.green : c.red, fontWeight: "700" }}>{power ? "Available" : "Unavailable"}</Text>
+        </View>
+      </Card>
+      {!power && <Alertline c={c} text="⚠ No mains power — pump cannot start" />}
     </View>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, c }: { label: string; value: string; c: Palette }) {
   return (
-    <View style={s.stat}>
-      <Text style={s.statV}>{value}</Text>
-      <Text style={s.statL}>{label}</Text>
-    </View>
+    <Card padded style={{ flex: 1, alignItems: "center" }}>
+      <Text style={{ color: c.text, fontSize: 20, fontWeight: "800" }}>{value}</Text>
+      <Text style={{ color: c.faint, fontSize: 12, marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>{label}</Text>
+    </Card>
   );
 }
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={s.row}>
-      <Text style={s.rowT}>{label}</Text>
-      {children}
-    </View>
-  );
+function Alertline({ text, c }: { text: string; c: Palette }) {
+  return <Text style={{ color: c.amber, backgroundColor: "rgba(245,158,11,0.12)", padding: 10, borderRadius: 10, marginBottom: 10 }}>{text}</Text>;
 }
-function Stepper({ label, onUp, onDown }: { label: string; onUp: () => void; onDown: () => void }) {
+function Stepper({ label, onUp, onDown, c }: { label: string; onUp: () => void; onDown: () => void; c: Palette }) {
   return (
-    <View style={s.row}>
-      <Text style={s.rowT}>{label}</Text>
+    <Row label={label} c={c}>
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <Pressable style={s.step} onPress={onDown}><Text style={s.stepT}>−</Text></Pressable>
-        <Pressable style={s.step} onPress={onUp}><Text style={s.stepT}>+</Text></Pressable>
+        <Pressable onPress={onDown} style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}><Text style={{ color: c.text, fontSize: 22 }}>−</Text></Pressable>
+        <Pressable onPress={onUp} style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}><Text style={{ color: c.text, fontSize: 22 }}>+</Text></Pressable>
       </View>
-    </View>
+    </Row>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1 },
-  back: { color: "#8b5cf6", marginTop: 8, marginBottom: 12 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   hero: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 20 },
   heroPill: { width: 56, height: 56, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  heroGlyph: { fontSize: 28 },
-  h1: { color: "#fff", fontSize: 24, fontWeight: "800" },
-  heroMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  heroType: { color: "#94a3b8", fontSize: 13 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4 },
-  status: { fontSize: 13, fontWeight: "600" },
-  gauge: { backgroundColor: "#111827", borderRadius: 16, padding: 20, alignItems: "center", marginBottom: 16 },
-  level: { color: "#fff", fontSize: 56, fontWeight: "800" },
-  pct: { fontSize: 24, color: "#94a3b8" },
-  barBg: { width: "100%", height: 14, borderRadius: 7, backgroundColor: "#1f2937", marginTop: 8, overflow: "hidden" },
-  barFill: { height: 14, borderRadius: 7, backgroundColor: "#06b6d4" },
-  tank: { color: "#64748b", marginTop: 8 },
-  alert: { color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)", padding: 10, borderRadius: 10, marginBottom: 10 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#111827", borderRadius: 12, padding: 16, marginBottom: 10 },
-  rowT: { color: "#e5e7eb", fontSize: 16 },
-  section: { color: "#94a3b8", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginTop: 14, marginBottom: 8 },
-  step: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#1f2937", alignItems: "center", justifyContent: "center" },
-  stepT: { color: "#fff", fontSize: 22 },
-  scenes: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  scene: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, backgroundColor: "#111827", borderColor: "#334155", borderWidth: 1 },
-  sceneOn: { backgroundColor: "#8b5cf6", borderColor: "#8b5cf6" },
-  sceneT: { color: "#94a3b8", textTransform: "capitalize" },
-  statsRow: { flexDirection: "row", gap: 10 },
-  stat: { flex: 1, backgroundColor: "#111827", borderRadius: 12, padding: 16, alignItems: "center" },
-  statV: { color: "#fff", fontSize: 20, fontWeight: "800" },
-  statL: { color: "#64748b", fontSize: 12, marginTop: 4, textTransform: "uppercase", letterSpacing: 1 },
-  note: { color: "#64748b", marginTop: 12, fontStyle: "italic" },
-  sosBanner: { backgroundColor: "rgba(239,68,68,0.15)", borderColor: "#ef4444", borderWidth: 1, borderRadius: 12, padding: 16, marginBottom: 12, alignItems: "center" },
-  sosT: { color: "#ef4444", fontSize: 18, fontWeight: "800", marginBottom: 10 },
-  sosClear: { backgroundColor: "#ef4444", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 },
-  sosClearT: { color: "#fff", fontWeight: "700" },
 });

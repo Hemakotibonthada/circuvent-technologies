@@ -33,6 +33,7 @@ export interface Device {
   type: string;
   name: string;
   room?: string;
+  favorite?: boolean;
   online: boolean;
   last_seen?: string | null;
   state: Record<string, any>;
@@ -70,6 +71,67 @@ export interface AutomationBody {
   enabled?: boolean;
   trigger?: AutomationTrigger;
   action?: AutomationAction;
+}
+
+export interface Room {
+  id: number | null;
+  name: string;
+  icon: string;
+  sort: number;
+  count: number;
+}
+
+export interface SceneAction {
+  deviceId: string;
+  command: Record<string, unknown>;
+}
+export interface Scene {
+  id: number;
+  name: string;
+  icon: string;
+  actions: SceneAction[];
+  favorite: boolean;
+  created_at?: string;
+}
+export interface SceneBody {
+  name?: string;
+  icon?: string;
+  favorite?: boolean;
+  actions?: SceneAction[];
+}
+
+export interface AppEvent {
+  id: number;
+  device_id: string | null;
+  kind: string;
+  title: string;
+  body: string;
+  read: boolean;
+  ts: string;
+}
+
+export interface EnergyByDevice {
+  id: string;
+  name: string;
+  type: string;
+  online: boolean;
+  watts: number;
+}
+export interface EnergySummary {
+  liveWatts: number;
+  todayKwh: number;
+  byDevice: EnergyByDevice[];
+}
+export interface EnergyPoint {
+  t: string;
+  avg: number;
+  max: number;
+}
+export interface EnergySeries {
+  metric: string;
+  gran: string;
+  series: EnergyPoint[];
+  kwh: number;
 }
 
 interface AuthResp {
@@ -128,4 +190,37 @@ export const api = {
     }),
   removePushToken: (token: string) =>
     req<{ success: boolean }>("/account/push-token", { method: "DELETE", body: JSON.stringify({ token }) }),
+
+  // ---- device metadata (name / room / favorite) --------------------------
+  patchDevice: (id: string, body: { name?: string; room?: string; favorite?: boolean }) =>
+    req<{ success: boolean }>("/devices/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(body) }),
+
+  // ---- rooms --------------------------------------------------------------
+  rooms: () => req<{ rooms: Room[] }>("/rooms"),
+  createRoom: (name: string, icon?: string) =>
+    req<{ room: Room }>("/rooms", { method: "POST", body: JSON.stringify({ name, icon }) }),
+  updateRoom: (id: number, body: { name?: string; icon?: string; sort?: number }) =>
+    req<{ success: boolean }>("/rooms/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteRoom: (id: number) => req<{ success: boolean }>("/rooms/" + id, { method: "DELETE" }),
+
+  // ---- scenes -------------------------------------------------------------
+  scenes: () => req<{ scenes: Scene[] }>("/scenes"),
+  createScene: (body: SceneBody) => req<{ scene: Scene }>("/scenes", { method: "POST", body: JSON.stringify(body) }),
+  updateScene: (id: number, body: SceneBody) =>
+    req<{ scene: Scene }>("/scenes/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteScene: (id: number) => req<{ success: boolean }>("/scenes/" + id, { method: "DELETE" }),
+  activateScene: (id: number) => req<{ success: boolean; sent: number }>("/scenes/" + id + "/activate", { method: "POST" }),
+
+  // ---- events / notifications --------------------------------------------
+  events: (limit = 100, unread = false) =>
+    req<{ events: AppEvent[] }>("/events?limit=" + limit + (unread ? "&unread=1" : "")),
+  unreadCount: () => req<{ count: number }>("/events/unread-count"),
+  markEventsRead: (ids?: number[]) => req<{ success: boolean }>("/events/read", { method: "POST", body: JSON.stringify({ ids }) }),
+  deleteEvent: (id: number) => req<{ success: boolean }>("/events/" + id, { method: "DELETE" }),
+  clearEvents: () => req<{ success: boolean }>("/events", { method: "DELETE" }),
+
+  // ---- energy -------------------------------------------------------------
+  energySummary: () => req<EnergySummary>("/energy/summary"),
+  deviceEnergy: (id: string, hours = 24, metric = "watts") =>
+    req<EnergySeries>("/devices/" + encodeURIComponent(id) + "/energy?hours=" + hours + "&metric=" + metric),
 };
