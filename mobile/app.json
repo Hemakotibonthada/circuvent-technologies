@@ -6,14 +6,37 @@
     "orientation": "portrait",
     "scheme": "circuvent",
     "userInterfaceStyle": "automatic",
-    "splash": { "backgroundColor": "#0b1020" },
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.circuvent.app" },
+    "splash": {
+      "backgroundColor": "#0b1020"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.circuvent.app"
+    },
     "android": {
       "package": "com.circuvent.app",
-      "adaptiveIcon": { "backgroundColor": "#0b1020" }
+      "adaptiveIcon": {
+        "backgroundColor": "#0b1020"
+      },
+      "permissions": [
+        "ACCESS_NETWORK_STATE",
+        "CHANGE_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE"
+      ]
     },
     "extra": {
       "apiBase": "https://circuvent.com"
-    }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
   }
 }

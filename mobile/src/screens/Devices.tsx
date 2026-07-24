@@ -1,23 +1,26 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, FlatList, Pressable, TextInput, StyleSheet, RefreshControl } from "react-native";
+import { View, Text, FlatList, Pressable, StyleSheet, RefreshControl } from "react-native";
 import { api, Device } from "../api";
 import { useAuth } from "../auth";
 import { useLive } from "../live";
+import AddDevice from "./AddDevice";
 
 const TYPE_LABEL: Record<string, string> = {
   "aquaguard": "Water Tank Controller",
   "home-hub": "Automation Hub",
+  "smart-plug": "Smart Plug",
+  "smart-switch": "Smart Switch",
+  "energy-monitor": "Energy Monitor",
+  "guardian": "Safety Beacon",
+  "motion-sensor": "Motion Sensor",
+  "agri-starter": "Agri Pump Starter",
 };
 
 export default function Devices({ onOpen, onAutomations }: { onOpen: (d: Device) => void; onAutomations: () => void }) {
   const { logout } = useAuth();
   const [devices, setDevices] = useState<Device[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [showClaim, setShowClaim] = useState(false);
-  const [cid, setCid] = useState("");
-  const [ckey, setCkey] = useState("");
-  const [cname, setCname] = useState("");
-  const [msg, setMsg] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     const r = await api.devices();
@@ -42,13 +45,9 @@ export default function Devices({ onOpen, onAutomations }: { onOpen: (d: Device)
     );
   });
 
-  const claim = async () => {
-    setMsg("");
-    const r = await api.claim(cid.trim(), ckey.trim(), cname.trim() || cid.trim());
-    if (r.ok && r.data?.success) {
-      setShowClaim(false); setCid(""); setCkey(""); setCname(""); load();
-    } else setMsg(r.data?.error || "Could not add device.");
-  };
+  if (adding) {
+    return <AddDevice onClose={(added) => { setAdding(false); if (added) load(); }} />;
+  }
 
   return (
     <View style={s.wrap}>
@@ -77,20 +76,7 @@ export default function Devices({ onOpen, onAutomations }: { onOpen: (d: Device)
         )}
       />
 
-      {showClaim ? (
-        <View style={s.claim}>
-          <TextInput style={s.input} placeholder="Device ID" placeholderTextColor="#64748b" value={cid} onChangeText={setCid} autoCapitalize="characters" />
-          <TextInput style={s.input} placeholder="Device Key" placeholderTextColor="#64748b" value={ckey} onChangeText={setCkey} />
-          <TextInput style={s.input} placeholder="Name (e.g. Overhead tank)" placeholderTextColor="#64748b" value={cname} onChangeText={setCname} />
-          {!!msg && <Text style={s.msg}>{msg}</Text>}
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={[s.btn, { flex: 1, backgroundColor: "#334155" }]} onPress={() => setShowClaim(false)}><Text style={s.btnT}>Cancel</Text></Pressable>
-            <Pressable style={[s.btn, { flex: 1 }]} onPress={claim}><Text style={s.btnT}>Link device</Text></Pressable>
-          </View>
-        </View>
-      ) : (
-        <Pressable style={s.btn} onPress={() => setShowClaim(true)}><Text style={s.btnT}>+ Add a device</Text></Pressable>
-      )}
+      <Pressable style={s.btn} onPress={() => setAdding(true)}><Text style={s.btnT}>+ Add a device</Text></Pressable>
     </View>
   );
 }
