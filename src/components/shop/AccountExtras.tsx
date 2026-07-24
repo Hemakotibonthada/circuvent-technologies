@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Gift, User, MapPin, Plus, Trash2, Save, Star, Share2, Copy, Check, Ticket, Bell, CheckCheck } from "lucide-react";
+import { Loader2, Gift, User, MapPin, Plus, Trash2, Save, Star, Share2, Copy, Check, Ticket, Bell, CheckCheck, KeyRound } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
 
 type Headers = () => Record<string, string>;
@@ -13,6 +13,7 @@ export default function AccountExtras({ authHeaders, onWalletChange }: { authHea
       <ReferralCard authHeaders={authHeaders} />
       <GiftCardCard authHeaders={authHeaders} onWalletChange={onWalletChange} />
       <ProfileCard authHeaders={authHeaders} />
+      <SecurityCard authHeaders={authHeaders} />
       <div className="lg:col-span-2">
         <NotificationsCard authHeaders={authHeaders} />
       </div>
@@ -181,6 +182,69 @@ function ProfileCard({ authHeaders }: { authHeaders: Headers }) {
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
         </button>
         {msg && <span className="text-xs" style={{ color: "var(--accent-cyan)" }}>{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ security ----
+function SecurityCard({ authHeaders }: { authHeaders: Headers }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const save = async () => {
+    setMsg("");
+    setErr("");
+    if (next.length < 6) {
+      setErr("New password must be at least 6 characters.");
+      return;
+    }
+    if (next !== confirm) {
+      setErr("New passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await fetch("/api/account/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setMsg("Password updated.");
+        setCurrent("");
+        setNext("");
+        setConfirm("");
+      } else {
+        setErr(d.message || "Could not change your password.");
+      }
+    } catch {
+      setErr("Network error. Please try again.");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="rounded-2xl border p-6" style={card}>
+      <h2 className="flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
+        <KeyRound className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Password &amp; security
+      </h2>
+      <div className="mt-3 space-y-2">
+        <input type="password" autoComplete="current-password" className={field} style={inputStyle} placeholder="Current password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+        <input type="password" autoComplete="new-password" className={field} style={inputStyle} placeholder="New password (min 6 characters)" value={next} onChange={(e) => setNext(e.target.value)} />
+        <input type="password" autoComplete="new-password" className={field} style={inputStyle} placeholder="Confirm new password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button onClick={save} disabled={busy || !current || !next} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} Update password
+        </button>
+        {msg && <span className="text-xs" style={{ color: "var(--accent-cyan)" }}>{msg}</span>}
+        {err && <span className="text-xs text-rose-500">{err}</span>}
       </div>
     </div>
   );

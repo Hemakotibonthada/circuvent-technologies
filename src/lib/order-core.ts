@@ -279,3 +279,18 @@ export async function sendOtpEmail(email: string, name: string, otp: string): Pr
     </div>`;
   return sendMail(email, `${otp} is your Circuvent verification code`, html, process.env.EMAIL_REPLY_TO);
 }
+
+export async function sendPasswordResetEmail(email: string, name: string, otp: string): Promise<boolean> {
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto">
+      <div style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);padding:24px;border-radius:12px 12px 0 0">
+        <h1 style="color:#fff;margin:0;font-size:20px">Reset your password</h1>
+      </div>
+      <div style="background:#f8fafc;padding:28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;text-align:center">
+        <p style="font-size:14px;color:#0c1222;margin:0 0 14px">Hi ${name || "there"}, use this code to reset your Circuvent account password:</p>
+        <div style="font-size:34px;font-weight:800;letter-spacing:10px;color:#0c1222;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 0">${otp}</div>
+        <p style="font-size:12px;color:#94a3b8;margin:16px 0 0">This code expires in 15 minutes. If you didn't request a password reset, you can safely ignore this email — your password won't change.</p>
+      </div>
+    </div>`;
+  return sendMail(email, `${otp} is your Circuvent password reset code`, html, process.env.EMAIL_REPLY_TO);
+}

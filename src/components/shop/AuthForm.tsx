@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, LogIn, UserPlus, ShieldCheck, MailCheck, ArrowLeft } from "lucide-react";
+import { Loader2, LogIn, UserPlus, ShieldCheck, MailCheck, ArrowLeft, KeyRound } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 
 /** Reusable sign-in / register form with email OTP verification on sign-up. */
 export default function AuthForm({ heading, sub }: { heading?: string; sub?: string }) {
   const { login, register, verifyOtp } = useAccount();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [step, setStep] = useState<"form" | "otp">("form");
+  const [step, setStep] = useState<"form" | "otp" | "forgot-request" | "forgot-reset">("form");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
@@ -56,6 +57,60 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
     const res = await register(name, email, password);
     if (res.ok) setInfo("A new code has been sent.");
     else setErr(res.message || "Could not resend the code.");
+    setBusy(false);
+  };
+
+  const forgotRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr("");
+    setInfo("");
+    setBusy(true);
+    try {
+      const r = await fetch("/api/account/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setStep("forgot-reset");
+        setInfo(`If an account exists for ${email}, we've emailed a 6-digit reset code.`);
+        setOtp("");
+        setNewPassword("");
+      } else {
+        setErr(d.message || "Could not start password reset.");
+      }
+    } catch {
+      setErr("Network error. Please try again.");
+    }
+    setBusy(false);
+  };
+
+  const doReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr("");
+    setBusy(true);
+    try {
+      const r = await fetch("/api/account/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp: otp.trim(), password: newPassword }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        // Sign in with the new password so the provider establishes the session.
+        const res = await login(email, newPassword);
+        if (!res.ok) {
+          setStep("form");
+          setMode("login");
+          setInfo("Password reset — please sign in with your new password.");
+        }
+      } else {
+        setErr(d.message || "Could not reset your password.");
+      }
+    } catch {
+      setErr("Network error. Please try again.");
+    }
     setBusy(false);
   };
 
@@ -112,6 +167,111 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
             <ArrowLeft className="h-3.5 w-3.5" /> Change email
           </button>
           <button onClick={resend} disabled={busy} style={{ color: "var(--accent-cyan)" }}>
+            Resend code
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Forgot password: request code ----
+  if (step === "forgot-request") {
+    return (
+      <div className={shell} style={shellStyle}>
+        <div className="mb-4 flex items-center justify-center">
+          <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+            <KeyRound className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
+          </span>
+        </div>
+        <h2 className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+          Reset your password
+        </h2>
+        <p className="mt-1 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
+          Enter your account email and we&apos;ll send a 6-digit reset code.
+        </p>
+        <form onSubmit={forgotRequest} className="mt-5 space-y-3">
+          <input type="email" className={field} style={inputStyle} placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus required />
+          {err && <p className="text-sm text-rose-500">{err}</p>}
+          <button
+            type="submit"
+            disabled={busy || !email}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />} Send reset code
+          </button>
+        </form>
+        <button
+          onClick={() => {
+            setStep("form");
+            setErr("");
+            setInfo("");
+          }}
+          className="mt-4 flex items-center gap-1 text-xs"
+          style={{ color: "var(--text-tertiary)" }}
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
+        </button>
+      </div>
+    );
+  }
+
+  // ---- Forgot password: enter code + new password ----
+  if (step === "forgot-reset") {
+    return (
+      <div className={shell} style={shellStyle}>
+        <div className="mb-4 flex items-center justify-center">
+          <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+            <KeyRound className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
+          </span>
+        </div>
+        <h2 className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+          Enter code &amp; new password
+        </h2>
+        <p className="mt-1 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
+          {info || `We've emailed a reset code to ${email}.`}
+        </p>
+        <form onSubmit={doReset} className="mt-5 space-y-3">
+          <input
+            inputMode="numeric"
+            maxLength={6}
+            className={field + " text-center text-2xl font-bold tracking-[0.5em]"}
+            style={inputStyle}
+            placeholder="000000"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+            autoFocus
+            required
+          />
+          <input
+            type="password"
+            className={field}
+            style={inputStyle}
+            placeholder="New password (min 6 characters)"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+          />
+          {err && <p className="text-sm text-rose-500">{err}</p>}
+          <button
+            type="submit"
+            disabled={busy || otp.length < 6 || newPassword.length < 6}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Reset password &amp; sign in
+          </button>
+        </form>
+        <div className="mt-4 flex items-center justify-between text-xs">
+          <button
+            onClick={() => {
+              setStep("forgot-request");
+              setErr("");
+            }}
+            className="flex items-center gap-1"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Change email
+          </button>
+          <button onClick={() => forgotRequest(new Event("submit") as unknown as React.FormEvent)} disabled={busy} style={{ color: "var(--accent-cyan)" }}>
             Resend code
           </button>
         </div>
@@ -176,6 +336,19 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
           {mode === "login" ? "Sign in & continue" : "Send code & continue"}
         </button>
       </form>
+      {mode === "login" && (
+        <button
+          onClick={() => {
+            setStep("forgot-request");
+            setErr("");
+            setInfo("");
+          }}
+          className="mt-3 w-full text-center text-xs font-medium"
+          style={{ color: "var(--accent-cyan)" }}
+        >
+          Forgot your password?
+        </button>
+      )}
       {mode === "register" && (
         <p className="mt-3 text-center text-xs" style={{ color: "var(--text-muted)" }}>
           We&apos;ll email you a 6-digit code to verify your address.

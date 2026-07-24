@@ -165,6 +165,13 @@ export interface PendingRegistration {
   ref?: string;
 }
 
+export interface PendingReset {
+  email: string;
+  otp: string;
+  expires: number;
+  attempts: number;
+}
+
 export interface Review {
   id: string;
   productId: string;
@@ -315,6 +322,7 @@ export interface DB {
   wallets: Record<string, Wallet>;
   accounts: Record<string, Account>;
   pending: Record<string, PendingRegistration>;
+  passwordResets: Record<string, PendingReset>;
   devices: Record<string, Device>;
   reviews: Review[];
   addresses: Address[];
@@ -390,6 +398,7 @@ function emptyDB(): DB {
     wallets: {},
     accounts: {},
     pending: {},
+    passwordResets: {},
     devices: {},
     reviews: [],
     addresses: [],
@@ -442,6 +451,7 @@ function load(): DB {
         wallets: parsed.wallets ?? {},
         accounts: parsed.accounts ?? {},
         pending: parsed.pending ?? {},
+        passwordResets: parsed.passwordResets ?? {},
         devices: parsed.devices ?? {},
         reviews: parsed.reviews ?? [],
         addresses: parsed.addresses ?? [],
@@ -959,6 +969,39 @@ export function clearPendingRegistration(email: string): void {
   const db = load();
   delete db.pending[email.trim().toLowerCase()];
   save();
+}
+
+// ----------------------------------------------------- password resets -----
+export function setPasswordReset(p: PendingReset): void {
+  const db = load();
+  db.passwordResets[p.email.trim().toLowerCase()] = p;
+  save();
+}
+
+export function getPasswordReset(email: string): PendingReset | null {
+  return load().passwordResets[email.trim().toLowerCase()] || null;
+}
+
+export function clearPasswordReset(email: string): void {
+  const db = load();
+  delete db.passwordResets[email.trim().toLowerCase()];
+  save();
+}
+
+/**
+ * Replaces an account's password credentials. Bumps tokenVersion so any code
+ * that later enforces it can invalidate older sessions. Returns false if the
+ * account doesn't exist.
+ */
+export function setAccountPassword(email: string, hash: string, salt: string): boolean {
+  const db = load();
+  const a = db.accounts[email.trim().toLowerCase()];
+  if (!a) return false;
+  a.hash = hash;
+  a.salt = salt;
+  a.tokenVersion = (a.tokenVersion || 0) + 1;
+  save();
+  return true;
 }
 
 // --------------------------------------------------------------- devices ---

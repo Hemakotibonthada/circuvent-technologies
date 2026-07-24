@@ -46,6 +46,7 @@ export const KV_COLLECTIONS: (keyof DB)[] = [
   "giftCards",
   "questions",
   "notifications",
+  "passwordResets",
 ];
 
 /** Collections with dedicated typed tables (the login/identity core). */
@@ -53,9 +54,7 @@ const TYPED_TABLES: Record<string, "accounts" | "adminUsers" | "pending"> = {
   accounts: "accounts",
   admin_users: "adminUsers",
   pending_registrations: "pending",
-};
-
-let _query: QueryFn | null = null;
+};let _query: QueryFn | null = null;
 
 /** True when a database is configured (production / any host with DATABASE_URL). */
 export function dbEnabled(): boolean {
