@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { listProducts, upsertProduct, deleteProduct, getStoredProduct, takeRestockSubscribers } from "@/lib/store";
+import { listProducts, upsertProduct, deleteProduct, getStoredProduct, takeRestockSubscribers, revalidate, flushNow } from "@/lib/store";
 import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 import { sendMail } from "@/lib/order-core";
 
@@ -17,9 +17,30 @@ function slugify(s: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/** Extracts optional rich presentation fields from a request body. */
+function richFields(body: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  if (typeof body.image === "string") out.image = body.image.slice(0, 600000);
+  if (Array.isArray(body.images)) out.images = (body.images as unknown[]).filter((s) => typeof s === "string").slice(0, 6);
+  if (typeof body.description === "string") out.description = body.description.slice(0, 5000);
+  if (typeof body.tagline === "string") out.tagline = body.tagline.slice(0, 200);
+  if (Array.isArray(body.specs)) out.specs = (body.specs as unknown[]).filter((s) => typeof s === "string").slice(0, 24);
+  if (body.compareAt !== undefined) {
+    const c = Math.max(0, Math.round(Number(body.compareAt) || 0));
+    out.compareAt = c || undefined;
+  }
+  if (typeof body.badge === "string") out.badge = body.badge.slice(0, 40);
+  if (body.featured !== undefined) out.featured = !!body.featured;
+  if (typeof body.accent === "string") out.accent = body.accent.slice(0, 40);
+  return out;
+}
+
 // GET /api/admin/products — full inventory
 export async function GET(request: Request) {
   if (!verifyAdmin(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Re-read from the durable store so edits made on other serverless instances
+  // are always reflected (fixes stock appearing to "revert" across refreshes).
+  await revalidate(["products"]);
   return NextResponse.json({ success: true, products: listProducts() });
 }
 
@@ -50,6 +71,7 @@ export async function POST(request: Request) {
         });
         imported++;
       }
+      await flushNow();
       return NextResponse.json({ success: true, imported, errors });
     }
 
@@ -65,7 +87,9 @@ export async function POST(request: Request) {
       stock: Math.max(0, Math.round(Number(body?.stock) || 0)),
       available: body?.available !== false,
       category: String(body?.category || "General"),
+      ...richFields(body),
     });
+    await flushNow();
     return NextResponse.json({ success: true, product });
   } catch {
     return NextResponse.json({ success: false, message: "Could not save the product." }, { status: 500 });
@@ -83,12 +107,16 @@ export async function PATCH(request: Request) {
     const before = getStoredProduct(id);
     const oldStock = before?.stock ?? 0;
 
-    const patch: { id: string; stock?: number; available?: boolean; price?: number } = { id };
+    const patch: { id: string; stock?: number; available?: boolean; price?: number } & Record<string, unknown> = { id };
     if (body?.stock !== undefined) patch.stock = Math.max(0, Math.round(Number(body.stock) || 0));
     if (body?.available !== undefined) patch.available = !!body.available;
     if (body?.price !== undefined) patch.price = Math.max(0, Math.round(Number(body.price) || 0));
+    if (body?.name !== undefined && String(body.name).trim()) patch.name = String(body.name).trim();
+    if (body?.category !== undefined) patch.category = String(body.category);
+    Object.assign(patch, richFields(body));
 
     const product = upsertProduct(patch);
+    await flushNow();
 
     // Back-in-stock: email everyone who subscribed while it was sold out.
     let notified = 0;
@@ -128,5 +156,6 @@ export async function DELETE(request: Request) {
       { status: 400 }
     );
   }
+  await flushNow();
   return NextResponse.json({ success: true });
 }

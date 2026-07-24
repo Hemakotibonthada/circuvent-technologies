@@ -11,12 +11,14 @@ export interface Product {
   compareAt?: number;
   category: string;
   image?: string; // /img/*.webp — falls back to a gradient panel when absent
+  images?: string[]; // optional gallery (admin-added products)
   accent: string; // hex for gradient fallback + accents
   icon: string; // emoji for gradient fallback
   specs: string[];
   stock: number;
   available?: boolean;
   featured?: boolean;
+  badge?: string; // e.g. "New", "Best seller" — shown as an offer/label chip
   rating: number;
   reviewCount?: number;
 }

@@ -27,6 +27,7 @@ export default function ProductsTab() {
   const [cats, setCats] = useState<Cat[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [locs, setLocs] = useState<Loc[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +111,7 @@ export default function ProductsTab() {
         ))}
         <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>{shown.length} of {rows.length}</span>
         <div className="ml-auto flex items-center gap-2">
+          <Btn onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" /> Add product</Btn>
           <a href="/api/admin/inventory/export" className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}>
             <Download className="h-4 w-4" /> Export CSV
           </a>
@@ -176,7 +178,166 @@ export default function ProductsTab() {
       {edit && <EditDrawer row={edit} suppliers={suppliers} cats={cats} brands={brands} locs={locs} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
       {adjust && <AdjustModal row={adjust} onClose={() => setAdjust(null)} onDone={() => { setAdjust(null); load(); }} />}
       {hist && <HistoryModal row={hist} onClose={() => setHist(null)} />}
+      {showAdd && <AddProductModal categories={cats} onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
     </div>
+  );
+}
+
+// -------------------------------------------------------------- add ----
+function AddProductModal({ categories, onClose, onSaved }: { categories: Cat[]; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({
+    name: "", tagline: "", category: "", price: "", compareAt: "", stock: "0",
+    description: "", specs: "", badge: "", featured: false,
+  });
+  const [image, setImage] = useState<string>("");
+  const [gallery, setGallery] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setF((s) => ({ ...s, [k]: e.target.value }));
+
+  const downscale = (file: File, max = 1000, quality = 0.72): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new window.Image();
+        img.onload = () => {
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("no ctx"));
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const pickMain = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) { try { setImage(await downscale(file)); } catch { /* ignore */ } }
+    e.target.value = "";
+  };
+  const pickGallery = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter((x) => x.type.startsWith("image/"));
+    const room = Math.max(0, 5 - gallery.length);
+    const next: string[] = [];
+    for (const file of files.slice(0, room)) { try { next.push(await downscale(file)); } catch { /* ignore */ } }
+    setGallery((g) => [...g, ...next].slice(0, 5));
+    e.target.value = "";
+  };
+
+  const save = async () => {
+    setErr("");
+    if (f.name.trim().length < 2) { setErr("Please enter a product name."); return; }
+    if (!Number(f.price)) { setErr("Please enter a selling price."); return; }
+    setBusy(true);
+    try {
+      const r = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify({
+          name: f.name.trim(),
+          tagline: f.tagline.trim(),
+          category: f.category.trim() || "General",
+          price: Number(f.price),
+          compareAt: Number(f.compareAt) || undefined,
+          stock: Number(f.stock) || 0,
+          description: f.description.trim(),
+          specs: f.specs.split("\n").map((s) => s.trim()).filter(Boolean),
+          badge: f.badge.trim() || undefined,
+          featured: f.featured,
+          image: image || undefined,
+          images: gallery.length ? gallery : undefined,
+          available: true,
+        }),
+      });
+      const d = await r.json();
+      if (d.success) onSaved();
+      else setErr(d.message || "Could not add the product.");
+    } catch { setErr("Network error. Please try again."); }
+    setBusy(false);
+  };
+
+  const discount = Number(f.compareAt) > Number(f.price) && Number(f.price) > 0
+    ? Math.round((1 - Number(f.price) / Number(f.compareAt)) * 100) : 0;
+
+  return (
+    <Modal title="Add product" onClose={onClose} wide>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Product name *"><input className={inputCls + " w-full"} style={inputStyle} value={f.name} onChange={set("name")} placeholder="Circuvent Smart Bulb" /></Field>
+        <Field label="Category">
+          <input className={inputCls + " w-full"} style={inputStyle} value={f.category} onChange={set("category")} list="cat-list" placeholder="Home Automation" />
+          <datalist id="cat-list">{categories.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+        </Field>
+        <Field label="Tagline"><input className={inputCls + " w-full"} style={inputStyle} value={f.tagline} onChange={set("tagline")} placeholder="One-line pitch shown on cards" /></Field>
+        <Field label="Badge (offer/label)"><input className={inputCls + " w-full"} style={inputStyle} value={f.badge} onChange={set("badge")} placeholder="New · Best seller · Limited" /></Field>
+        <Field label="Selling price (₹) *"><input type="number" min={0} className={inputCls + " w-full"} style={inputStyle} value={f.price} onChange={set("price")} /></Field>
+        <Field label="Compare-at / MRP (₹)"><input type="number" min={0} className={inputCls + " w-full"} style={inputStyle} value={f.compareAt} onChange={set("compareAt")} placeholder="Shows a strikethrough + % off" /></Field>
+        <Field label="Opening stock"><input type="number" min={0} className={inputCls + " w-full"} style={inputStyle} value={f.stock} onChange={set("stock")} /></Field>
+        <Field label="Featured">
+          <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+            <input type="checkbox" checked={f.featured} onChange={(e) => setF((s) => ({ ...s, featured: e.target.checked }))} /> Show in featured
+          </label>
+        </Field>
+      </div>
+      {discount > 0 && <p className="mt-2 text-xs" style={{ color: "#10b981" }}>Customers will see {discount}% off.</p>}
+
+      <div className="mt-3">
+        <Field label="Description">
+          <textarea className={inputCls + " min-h-[70px] w-full"} style={inputStyle} value={f.description} onChange={set("description")} placeholder="What is it, who is it for, key benefits…" />
+        </Field>
+      </div>
+      <div className="mt-3">
+        <Field label="Specifications (one per line)">
+          <textarea className={inputCls + " min-h-[70px] w-full"} style={inputStyle} value={f.specs} onChange={set("specs")} placeholder={"Wi-Fi 2.4GHz\n16A rated\nWorks with Alexa"} />
+        </Field>
+      </div>
+
+      {/* Images */}
+      <div className="mt-3">
+        <p className="mb-1 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>Images</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {image ? (
+            <div className="relative h-20 w-20 overflow-hidden rounded-lg border" style={{ borderColor: "var(--accent-cyan)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={image} alt="main" className="h-full w-full object-cover" />
+              <button onClick={() => setImage("")} className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full bg-black/60 text-white">×</button>
+            </div>
+          ) : (
+            <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[10px]" style={{ borderColor: "var(--border-primary)", color: "var(--text-muted)" }}>
+              Main<br />image
+              <input type="file" accept="image/*" className="hidden" onChange={pickMain} />
+            </label>
+          )}
+          {gallery.map((src, i) => (
+            <div key={i} className="relative h-20 w-20 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-primary)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt={`g${i}`} className="h-full w-full object-cover" />
+              <button onClick={() => setGallery((g) => g.filter((_, j) => j !== i))} className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full bg-black/60 text-white">×</button>
+            </div>
+          ))}
+          {gallery.length < 5 && (
+            <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[10px]" style={{ borderColor: "var(--border-primary)", color: "var(--text-muted)" }}>
+              + Gallery
+              <input type="file" accept="image/*" multiple className="hidden" onChange={pickGallery} />
+            </label>
+          )}
+        </div>
+      </div>
+
+      {err && <p className="mt-3 text-sm text-rose-500">{err}</p>}
+      <div className="mt-4 flex justify-end gap-2">
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={save} disabled={busy}>{busy ? "Adding…" : "Add product"}</Btn>
+      </div>
+    </Modal>
   );
 }
 

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import CommandPalette from "./CommandPalette";
 import CartButton from "./shop/CartButton";
+import NavProfile from "./NavProfile";
 
 // ============================================================================
 // NAV ITEMS WITH MEGA MENU DATA
@@ -460,31 +461,8 @@ export default function Navigation() {
               <ThemeToggle />
               <CartButton />
 
-              {/* CTA Button */}
-              <Link href="/projects">
-                <motion.div
-                  className="relative px-5 py-2 text-[13px] font-semibold rounded-xl overflow-hidden group"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  style={{
-                    background: "linear-gradient(135deg, rgba(6,182,212,0.15), rgba(139,92,246,0.15))",
-                    border: "1px solid var(--border-accent)",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  {/* Shimmer effect on hover */}
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
-                    initial={{ x: "-100%" }}
-                    whileHover={{ x: "100%" }}
-                    transition={{ duration: 0.6 }}
-                  />
-                  <span className="relative z-10 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-cyan)" }} />
-                    View Work
-                  </span>
-                </motion.div>
-              </Link>
+              {/* Profile menu when signed in, else the View Work CTA */}
+              <NavProfile />
             </div>
 
             {/* ============ MOBILE BUTTONS ============ */}

@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { products, getProduct } from "@/lib/shop-data";
+import { products } from "@/lib/shop-data";
+import { getMergedProduct, getMergedProducts } from "@/lib/shop-catalog";
 import ProductDetailClient from "@/components/shop/ProductDetailClient";
 
 export function generateStaticParams() {
   return products.map((p) => ({ slug: p.slug }));
 }
+
+// Re-render at most every 30s so admin price/offer/stock edits reach the
+// prerendered detail pages (authoritative pricing is still enforced server-side
+// at checkout via priceItems).
+export const revalidate = 30;
 
 export async function generateMetadata({
   params,
@@ -13,7 +19,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const p = getProduct(slug);
+  const p = await getMergedProduct(slug);
   if (!p) return { title: "Product — Circuvent Store" };
   return {
     title: `${p.name} — Circuvent Store`,
@@ -24,8 +30,9 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = getProduct(slug);
+  const all = await getMergedProducts();
+  const product = all.find((p) => p.slug === slug);
   if (!product) notFound();
-  const related = products.filter((p) => p.slug !== slug).slice(0, 3);
+  const related = all.filter((p) => p.slug !== slug).slice(0, 3);
   return <ProductDetailClient product={product} related={related} />;
 }

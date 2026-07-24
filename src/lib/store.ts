@@ -78,6 +78,17 @@ export interface StoredProduct {
   available: boolean;
   category: string;
   custom?: boolean; // added by admin, not part of the static catalog
+  // Rich, admin-editable presentation fields (used by the shop for custom
+  // products and to override catalog data).
+  image?: string; // primary image (URL or data-URL)
+  images?: string[]; // gallery
+  description?: string;
+  tagline?: string;
+  specs?: string[];
+  compareAt?: number; // original/MRP price — drives the discount/offer badge
+  badge?: string; // e.g. "New", "Best seller", "Limited"
+  featured?: boolean;
+  accent?: string; // brand accent colour for the media tile
 }
 
 export interface WalletTxn {
@@ -810,6 +821,7 @@ export function upsertProduct(p: Partial<StoredProduct> & { id: string }): Store
     return existing;
   }
   const created: StoredProduct = {
+    ...p,
     id: p.id,
     slug: p.slug || p.id,
     name: p.name || p.id,

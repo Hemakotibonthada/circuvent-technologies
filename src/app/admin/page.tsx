@@ -257,32 +257,40 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, [fetchStats, authenticated, canSee]);
 
-  // SSE for real-time visitor updates (only when authenticated + allowed)
+  // SSE for real-time visitor updates (only when authenticated + allowed).
+  // Serverless functions cap execution time, so a long-lived SSE stream is
+  // periodically terminated — we auto-reconnect so "Live" recovers on its own
+  // instead of getting stuck on "Disconnected" until a manual refresh.
   useEffect(() => {
     if (!authenticated || !canSee("overview")) return;
-    const evtSource = new EventSource("/api/visitors/stream");
+    let es: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
 
-    evtSource.onopen = () => setSSEConnected(true);
-
-    evtSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as VisitorSnapshot;
-        setLiveVisitors(data);
-      } catch {
-        // ignore parse errors
-      }
-    };
-
-    evtSource.onerror = () => {
-      setSSEConnected(false);
-      evtSource.close();
-      // Reconnect after 5s
-      setTimeout(() => {
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource("/api/visitors/stream");
+      es.onopen = () => setSSEConnected(true);
+      es.onmessage = (event) => {
+        try {
+          setLiveVisitors(JSON.parse(event.data) as VisitorSnapshot);
+        } catch {
+          // ignore parse errors
+        }
+      };
+      es.onerror = () => {
         setSSEConnected(false);
-      }, 5000);
+        es?.close();
+        if (!closed) retry = setTimeout(connect, 4000); // auto-reconnect
+      };
     };
+    connect();
 
-    return () => evtSource.close();
+    return () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      es?.close();
+    };
   }, [authenticated, canSee]);
 
   const visitors = liveVisitors ?? stats?.visitors;

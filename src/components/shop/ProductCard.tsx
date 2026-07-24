@@ -13,6 +13,7 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
   const { has, toggle } = useWishlist();
   const saved = has(product.id);
   const saving = product.compareAt && product.compareAt > product.price ? product.compareAt - product.price : 0;
+  const discount = saving > 0 && product.compareAt ? Math.round((saving / product.compareAt) * 100) : 0;
   const soldOut = product.available === false || (typeof product.stock === "number" && product.stock <= 0);
   const lowStock = !soldOut && typeof product.stock === "number" && product.stock <= 5;
 
@@ -46,6 +47,16 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
           name={product.name}
           className="h-44 w-full"
         />
+        {discount > 0 && (
+          <span className="absolute left-3 top-3 rounded-full bg-gradient-to-r from-rose-500 to-orange-500 px-2.5 py-1 text-xs font-bold text-white shadow">
+            {discount}% OFF
+          </span>
+        )}
+        {product.badge && !soldOut && (
+          <span className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow" style={{ background: "var(--accent-violet, #8b5cf6)" }}>
+            {product.badge}
+          </span>
+        )}
         {saving > 0 && (
           <span className="absolute bottom-3 left-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 px-2.5 py-1 text-xs font-semibold text-white shadow">
             Save {formatINR(saving)}
@@ -94,6 +105,11 @@ export default function ProductCard({ product, index = 0 }: { product: Product; 
             {saving > 0 && (
               <span className="text-sm line-through" style={{ color: "var(--text-muted)" }}>
                 {formatINR(product.compareAt!)}
+              </span>
+            )}
+            {discount > 0 && (
+              <span className="text-sm font-semibold" style={{ color: "#10b981" }}>
+                {discount}% off
               </span>
             )}
           </div>
