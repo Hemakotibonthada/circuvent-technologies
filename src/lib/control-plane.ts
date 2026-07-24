@@ -194,7 +194,15 @@ export const controlPlane = {
   login: (email: string, password: string) =>
     req<AuthResp>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false),
   register: (name: string, email: string, password: string) =>
-    req<AuthResp>("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) }, false),
+    req<{ pending: boolean; email: string; otpSent: boolean; expiresInMin: number; error?: string }>(
+      "/auth/register",
+      { method: "POST", body: JSON.stringify({ email, password, name }) },
+      false
+    ),
+  verifyOtp: (email: string, otp: string) =>
+    req<AuthResp>("/auth/verify-otp", { method: "POST", body: JSON.stringify({ email, otp }) }, false),
+  resendOtp: (email: string) =>
+    req<{ pending: boolean; otpSent: boolean; error?: string }>("/auth/resend-otp", { method: "POST", body: JSON.stringify({ email }) }, false),
   devices: () => req<{ devices: Device[] }>("/devices"),
   device: (id: string) => req<{ device: Device }>("/devices/" + encodeURIComponent(id)),
   claim: (id: string, key: string, name: string) =>

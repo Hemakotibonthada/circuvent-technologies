@@ -37,6 +37,8 @@ function onOff(type: string): { field: string; cmd: (v: boolean) => Record<strin
   switch (type) {
     case "smart-plug":
     case "smart-switch":
+    case "smart-light":
+    case "smart-fan":
       return { field: "power", cmd: (v) => ({ power: v }) };
     case "agri-starter":
     case "aquaguard":

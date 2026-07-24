@@ -5,6 +5,7 @@
  */
 #include <CircuventDevice.h>
 #include <fauxmoESP.h>
+#include <Preferences.h>
 
 // Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
@@ -14,12 +15,18 @@
 
 CircuventDevice cv("smart-plug");
 fauxmoESP fauxmo;
+Preferences store;
 bool power = false;
+bool savedPower = false;
 
 void applyPower(bool on) {
   power = on;
   digitalWrite(RELAY_PIN, on ? HIGH : LOW);
   digitalWrite(LED_PIN, on ? HIGH : LOW);
+  if (power != savedPower) {
+    store.putBool("power", power);
+    savedPower = power;
+  }
   cv.set("power", power);
 }
 
@@ -32,7 +39,10 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   pinMode(BTN_PIN, INPUT_PULLUP);
-  applyPower(false);
+  store.begin("plug", false);
+  power = store.getBool("power", false);
+  savedPower = power;
+  applyPower(power);
 
   cv.onCommand(onCommand);
   cv.setInterval(8000);

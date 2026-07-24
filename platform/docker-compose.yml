@@ -42,6 +42,16 @@ services:
       NODE_ENV: production
       SMARTHOME_CLIENT_ID: ${SMARTHOME_CLIENT_ID:-circuvent-smarthome}
       SMARTHOME_CLIENT_SECRET: ${SMARTHOME_CLIENT_SECRET}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Circuvent <onboarding@resend.dev>}
+      OTP_TTL_MIN: ${OTP_TTL_MIN:-10}
+      OTP_DEBUG: ${OTP_DEBUG:-false}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     depends_on:
       postgres:
         condition: service_healthy

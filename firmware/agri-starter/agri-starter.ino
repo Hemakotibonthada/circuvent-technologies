@@ -5,6 +5,7 @@
  * Deps: CircuventDevice, ArduinoJson. Hardware: SIM800L on UART2.
  */
 #include <CircuventDevice.h>
+#include <Preferences.h>
 
 // Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
@@ -15,12 +16,23 @@
 
 HardwareSerial sim(2);
 CircuventDevice cv("agri-starter");
-bool pump = false;
+Preferences store;
+bool pump = false, pumpIntent = false, savedPumpIntent = false;
+
+void applyPump() {
+  bool power = digitalRead(MAINS_SENSE) == HIGH;
+  pump = pumpIntent && power;
+  digitalWrite(PUMP_RELAY, pump ? HIGH : LOW);
+  cv.set("pump", pump);
+}
 
 void setPump(bool on) {
-  pump = on;
-  digitalWrite(PUMP_RELAY, on ? HIGH : LOW);
-  cv.set("pump", pump);
+  pumpIntent = on;
+  if (pumpIntent != savedPumpIntent) {
+    store.putBool("pump", pumpIntent);
+    savedPumpIntent = pumpIntent;
+  }
+  applyPump();
 }
 
 void onCommand(const String &action, JsonObjectConst p) {
@@ -31,7 +43,10 @@ void setup() {
   Serial.begin(115200);
   pinMode(PUMP_RELAY, OUTPUT);
   pinMode(MAINS_SENSE, INPUT);
-  setPump(false);
+  store.begin("agri", false);
+  pumpIntent = store.getBool("pump", false);
+  savedPumpIntent = pumpIntent;
+  applyPump();
 
   sim.begin(9600, SERIAL_8N1, SIM_RX, SIM_TX);
   delay(1500);
@@ -48,7 +63,7 @@ void loop() {
     String line = sim.readStringUntil('\n');
     line.trim();
     if (line.indexOf("RING") >= 0) {
-      setPump(!pump);
+      setPump(!pumpIntent);
       delay(800);
       sim.println("ATH");  // hang up
     } else if (line.indexOf("ON") >= 0) {
@@ -59,7 +74,7 @@ void loop() {
   }
 
   bool power = digitalRead(MAINS_SENSE) == HIGH;
-  if (!power && pump) setPump(false);  // never leave the contactor engaged without mains
+  applyPump();  // never leave the contactor engaged without mains
 
   cv.set("power_available", power);
   cv.loop();

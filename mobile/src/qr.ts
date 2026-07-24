@@ -27,6 +27,9 @@ const TYPE_IDS = [
   "guardian",
   "motion-sensor",
   "agri-starter",
+  "smart-light",
+  "smart-fan",
+  "curtain",
 ];
 
 function clean(v: unknown): string | undefined {

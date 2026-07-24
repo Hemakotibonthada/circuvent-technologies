@@ -1,6 +1,8 @@
 import http from "node:http";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import { config } from "./config";
 import { logger } from "./logger";
@@ -19,6 +21,7 @@ import { roomsRouter } from "./routes/rooms";
 import { scenesRouter } from "./routes/scenes";
 import { eventsRouter } from "./routes/events";
 import { energyRouter } from "./routes/energy";
+import { adminRouter } from "./routes/admin";
 import { startAutomationScheduler } from "./automations";
 
 async function main(): Promise<void> {
@@ -31,13 +34,21 @@ async function main(): Promise<void> {
 
   const app = express();
   app.disable("x-powered-by");
+  app.set("trust proxy", 1); // behind Caddy — needed for correct client IPs (rate limiting)
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
   app.use(cors({ origin: config.CORS_ORIGIN === "*" ? true : config.CORS_ORIGIN.split(",") }));
   app.use(express.json({ limit: "256kb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(pinoHttp({ logger }));
 
+  // Abuse protection. Auth/OTP endpoints are the sensitive ones (brute-force,
+  // OTP-email flooding), so they get a tighter bucket than the general API.
+  const apiLimiter = rateLimit({ windowMs: 60_000, max: 240, standardHeaders: true, legacyHeaders: false });
+  const authLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: "Too many attempts — please wait a minute." } });
+  app.use(apiLimiter);
+
   app.use("/health", healthRouter);
-  app.use("/auth", authRouter);
+  app.use("/auth", authLimiter, authRouter);
   app.use("/devices", deviceRouter);
   app.use("/account", accountRouter);
   app.use("/automations", automationRouter);
@@ -48,6 +59,7 @@ async function main(): Promise<void> {
   app.use("/scenes", scenesRouter);
   app.use("/events", eventsRouter);
   app.use("/energy", energyRouter);
+  app.use("/admin", adminRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 

@@ -25,7 +25,9 @@ interface ConsoleContextValue {
   liveStatus: LiveStatus;
   notifyPermission: NotificationPermission | "unsupported";
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; pending?: boolean; otpSent?: boolean; error?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; error?: string }>;
+  resendOtp: (email: string) => Promise<{ ok: boolean; otpSent?: boolean; error?: string }>;
   logout: () => void;
   subscribe: (fn: (u: DeviceUpdate) => void) => () => void;
   enableNotifications: () => Promise<void>;
@@ -115,13 +117,27 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const r = await controlPlane.register(name, email, password);
+    if (r.ok && r.data?.pending) {
+      return { ok: true, pending: true, otpSent: r.data.otpSent };
+    }
+    return { ok: false, error: (r.data as { error?: string })?.error || "Could not create account" };
+  }, []);
+
+  const verifyOtp = useCallback(async (email: string, otp: string) => {
+    const r = await controlPlane.verifyOtp(email, otp);
     if (r.ok && r.data?.token) {
       setToken(r.data.token);
       setStoredUser(r.data.user);
       setUser(r.data.user);
       return { ok: true };
     }
-    return { ok: false, error: (r.data as { error?: string })?.error || "Could not create account" };
+    return { ok: false, error: (r.data as { error?: string })?.error || "Verification failed" };
+  }, []);
+
+  const resendOtp = useCallback(async (email: string) => {
+    const r = await controlPlane.resendOtp(email);
+    if (r.ok) return { ok: true, otpSent: r.data?.otpSent };
+    return { ok: false, error: (r.data as { error?: string })?.error || "Could not resend code" };
   }, []);
 
   const logout = useCallback(() => {
@@ -149,8 +165,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<ConsoleContextValue>(
-    () => ({ user, ready, liveStatus, notifyPermission, login, register, logout, subscribe, enableNotifications }),
-    [user, ready, liveStatus, notifyPermission, login, register, logout, subscribe, enableNotifications]
+    () => ({ user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, logout, subscribe, enableNotifications }),
+    [user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, logout, subscribe, enableNotifications]
   );
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;

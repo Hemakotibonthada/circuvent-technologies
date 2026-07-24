@@ -38,6 +38,9 @@ const TYPES = [
   { id: "guardian", label: "Guardian SOS", emoji: "🛡️" },
   { id: "motion-sensor", label: "Motion Sensor", emoji: "🚶" },
   { id: "agri-starter", label: "Agri Starter", emoji: "🌱" },
+  { id: "smart-light", label: "Smart Light", emoji: "💡" },
+  { id: "smart-fan", label: "Smart Fan", emoji: "🌀" },
+  { id: "curtain", label: "Curtain", emoji: "🪟" },
 ];
 
 type Step = "mode" | "qr" | "details" | "prep" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
@@ -273,7 +276,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             <StepTag>Scan the QR on your device</StepTag>
             <View style={s.scanBox}>
               <CameraView
-                style={{ flex: 1 }}
+                style={StyleSheet.absoluteFill}
                 facing="back"
                 barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
                 onBarcodeScanned={onScanned}

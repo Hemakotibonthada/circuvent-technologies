@@ -126,17 +126,20 @@ export function capabilities(type: string): Capability {
       return { metric: (d) => (d.state.sos ? "SOS" : d.state.armed ? "Armed" : "Disarmed") };
     case "motion-sensor":
       return { metric: (d) => (d.state.motion ? "Motion" : d.state.armed ? "Armed" : "Clear") };
-    // Generic capability hints for dimmable / color / climate device types that
-    // report matching state fields (used as the platform grows).
+    // Dimmable / speed / motorised device types (match firmware type ids).
+    case "smart-light":
     case "light":
       return {
         power: { field: "power", label: "Power" },
         dimmer: { field: "brightness", label: "Brightness", min: 0, max: 100 },
         color: { field: "color" },
       };
+    case "smart-fan":
     case "fan":
     case "ceiling-fan":
       return { power: { field: "power", label: "Power" }, fan: { field: "speed", label: "Speed", steps: 3 } };
+    case "curtain":
+      return { dimmer: { field: "position", label: "Position", min: 0, max: 100 }, metric: (d) => `${Number(d.state.position ?? 0)}%` };
     case "thermostat":
     case "ac":
       return { power: { field: "power", label: "Power" }, thermostat: { field: "target", label: "Target", min: 16, max: 30 } };

@@ -14,6 +14,20 @@ const schema = z.object({
   // Smart-home (Alexa + Google) account-linking OAuth client.
   SMARTHOME_CLIENT_ID: z.string().default("circuvent-smarthome"),
   SMARTHOME_CLIENT_SECRET: z.string().default(""),
+  // Transactional email for OTP / alerts. SMTP is preferred; Resend is the
+  // fallback (reuses the marketing site's RESEND_API_KEY). If neither is set,
+  // OTP codes are logged (dev) so sign-up still works while email is configured.
+  SMTP_HOST: z.string().default(""),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
+  SMTP_SECURE: z.string().default("false"),
+  RESEND_API_KEY: z.string().default(""),
+  EMAIL_FROM: z.string().default("Circuvent <onboarding@resend.dev>"),
+  OTP_TTL_MIN: z.coerce.number().default(10),
+  OTP_DEBUG: z.coerce.boolean().default(false),
+  // Comma-separated emails auto-granted the admin role on login/verify.
+  ADMIN_EMAILS: z.string().default(""),
 });
 
 const parsed = schema.safeParse(process.env);

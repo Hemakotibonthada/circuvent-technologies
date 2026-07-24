@@ -45,6 +45,7 @@ CircuventDevice cv("aquaguard");
 Preferences store;
 
 bool pump = false, autoMode = true, dryRun = false, overflow = false, sensorFault = false;
+bool pumpIntent = false, savedPumpIntent = false, savedAutoMode = true;
 int  level = 0, levelAtStart = 0;
 float distanceCm = 0;
 uint32_t pumpStart = 0, lastStop = 0, lastBtn = 0, lastBeep = 0;
@@ -53,6 +54,10 @@ void beep(int ms) { digitalWrite(BUZZER_PIN, HIGH); delay(ms); digitalWrite(BUZZ
 
 void loadCfg() {
   store.begin("aqua", false);
+  autoMode       = store.getBool("auto", autoMode);
+  pumpIntent     = store.getBool("pump", pumpIntent);
+  savedAutoMode  = autoMode;
+  savedPumpIntent = pumpIntent;
   startPct       = store.getInt("start", startPct);
   stopPct        = store.getInt("stop", stopPct);
   maxRuntimeMs   = store.getUInt("maxrt", maxRuntimeMs);
@@ -69,7 +74,27 @@ void saveCfg() {
   store.putFloat("full", TANK_FULL_CM);
 }
 
+void saveRunState() {
+  if (autoMode != savedAutoMode) {
+    store.putBool("auto", autoMode);
+    savedAutoMode = autoMode;
+  }
+  if (pumpIntent != savedPumpIntent) {
+    store.putBool("pump", pumpIntent);
+    savedPumpIntent = pumpIntent;
+  }
+}
+
 void setPump(bool on) {
+  pumpIntent = on;
+  saveRunState();
+  if (on && (overflow || dryRun)) {
+    pump = false;
+    digitalWrite(MOTOR_RELAY, LOW);
+    digitalWrite(LED_PIN, LOW);
+    cv.set("pump", pump);
+    return;
+  }
   if (on && !pump) {
     // enforce cool-down between starts to protect the motor
     if (millis() - lastStop < restartDelayMs && lastStop != 0) return;
@@ -115,7 +140,7 @@ int computeLevel() {
 void onCommand(const String &action, JsonObjectConst p) {
   if (action != "set") return;
   bool cfg = false;
-  if (p["auto"].is<bool>()) autoMode = p["auto"].as<bool>();
+  if (p["auto"].is<bool>()) { autoMode = p["auto"].as<bool>(); saveRunState(); }
   if (p["pump"].is<bool>()) { autoMode = false; setPump(p["pump"].as<bool>()); }
   if (p["startPct"].is<int>())  { startPct = constrain(p["startPct"].as<int>(), 5, 90); cfg = true; }
   if (p["stopPct"].is<int>())   { stopPct  = constrain(p["stopPct"].as<int>(), startPct + 5, 100); cfg = true; }
@@ -129,8 +154,9 @@ void setup() {
   pinMode(US_TRIG, OUTPUT); pinMode(US_ECHO, INPUT);
   pinMode(FLOAT_LOW, INPUT_PULLUP); pinMode(FLOAT_HIGH, INPUT_PULLUP);
   pinMode(BTN_PIN, INPUT_PULLUP);
-  setPump(false);
   loadCfg();
+  level = computeLevel();
+  setPump(pumpIntent);
   cv.onCommand(onCommand);
   cv.setInterval(7000);
   // cv.setRootCA(CIRCUVENT_ROOT_CA);   // enable TLS pinning in production

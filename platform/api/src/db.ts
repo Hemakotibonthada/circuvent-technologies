@@ -105,6 +105,20 @@ export async function initDb(): Promise<void> {
       ts          TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_events_owner_ts ON events(owner_id, ts DESC);
+
+    -- Admin role flag for the control-plane admin console.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+
+    -- Email-OTP sign-up: the account is only created after the code is verified.
+    CREATE TABLE IF NOT EXISTS pending_registrations (
+      email       TEXT PRIMARY KEY,
+      name        TEXT NOT NULL DEFAULT '',
+      password    TEXT NOT NULL,
+      otp_hash    TEXT NOT NULL,
+      attempts    INT NOT NULL DEFAULT 0,
+      expires_at  TIMESTAMPTZ NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }
 

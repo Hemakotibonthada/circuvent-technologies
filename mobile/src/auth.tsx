@@ -11,7 +11,9 @@ interface AuthValue {
   account: Account | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; pending?: boolean; otpSent?: boolean; message?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; message?: string }>;
+  resendOtp: (email: string) => Promise<{ ok: boolean; otpSent?: boolean; message?: string }>;
   logout: () => void;
 }
 
@@ -47,13 +49,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register: AuthValue["register"] = async (name, email, password) => {
     const r = await api.register(name, email, password);
+    if (r.ok && r.data?.pending) {
+      return { ok: true, pending: true, otpSent: r.data.otpSent };
+    }
+    return { ok: false, message: (r.data as any)?.error || "Sign up failed." };
+  };
+
+  const verifyOtp: AuthValue["verifyOtp"] = async (email, otp) => {
+    const r = await api.verifyOtp(email, otp);
     if (r.ok && r.data?.token) {
       await setToken(r.data.token);
       setAccount({ email: r.data.user.email, name: r.data.user.name });
       registerPushToken();
       return { ok: true };
     }
-    return { ok: false, message: (r.data as any)?.error || "Sign up failed." };
+    return { ok: false, message: (r.data as any)?.error || "Verification failed." };
+  };
+
+  const resendOtp: AuthValue["resendOtp"] = async (email) => {
+    const r = await api.resendOtp(email);
+    if (r.ok) return { ok: true, otpSent: r.data?.otpSent };
+    return { ok: false, message: (r.data as any)?.error || "Could not resend code." };
   };
 
   const logout = () => {
@@ -61,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAccount(null);
   };
 
-  return <Ctx.Provider value={{ account, ready, login, register, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ account, ready, login, register, verifyOtp, resendOtp, logout }}>{children}</Ctx.Provider>;
 }
 
 function registerPushToken() {

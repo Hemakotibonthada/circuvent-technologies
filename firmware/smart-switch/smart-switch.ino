@@ -5,6 +5,7 @@
  */
 #include <CircuventDevice.h>
 #include <fauxmoESP.h>
+#include <Preferences.h>
 
 // Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.
 
@@ -15,11 +16,21 @@
 
 CircuventDevice cv("smart-switch");
 fauxmoESP fauxmo;
+Preferences store;
 bool p1 = false, p2 = false;
+bool savedP1 = false, savedP2 = false;
 
 void apply() {
   digitalWrite(RELAY1, p1 ? HIGH : LOW);
   digitalWrite(RELAY2, p2 ? HIGH : LOW);
+  if (p1 != savedP1) {
+    store.putBool("p1", p1);
+    savedP1 = p1;
+  }
+  if (p2 != savedP2) {
+    store.putBool("p2", p2);
+    savedP2 = p2;
+  }
   cv.set("power", p1);   // gang 1 (app primary toggle)
   cv.set("power2", p2);  // gang 2
 }
@@ -35,6 +46,11 @@ void setup() {
   Serial.begin(115200);
   pinMode(RELAY1, OUTPUT);
   pinMode(RELAY2, OUTPUT);
+  store.begin("switch", false);
+  p1 = store.getBool("p1", false);
+  p2 = store.getBool("p2", false);
+  savedP1 = p1;
+  savedP2 = p2;
   apply();
 
   cv.onCommand(onCommand);
