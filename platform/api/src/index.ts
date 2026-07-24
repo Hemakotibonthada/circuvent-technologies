@@ -14,7 +14,10 @@ import { deviceRouter } from "./routes/devices";
 async function main(): Promise<void> {
   await initDb();
   logger.info("Database ready");
-  await connectMqtt();
+  // Connect to the broker in the background — never block HTTP startup on it.
+  // mqtt.js auto-reconnects, so the API stays up (and /health works) even if
+  // the broker is briefly unavailable.
+  connectMqtt().catch((err) => logger.error({ err }, "MQTT initial connect failed (will retry)"));
 
   const app = express();
   app.disable("x-powered-by");

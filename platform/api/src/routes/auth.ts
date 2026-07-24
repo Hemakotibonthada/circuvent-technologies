@@ -30,7 +30,7 @@ authRouter.post("/register", async (req, res) => {
       `INSERT INTO users (email, name, password) VALUES ($1, $2, $3) RETURNING id`,
       [emailNorm, name ?? "", hash]
     );
-    const uid = rows[0].id;
+    const uid = Number(rows[0].id);
     res.json({ token: signUserToken({ uid, email: emailNorm }), user: { id: uid, email: emailNorm, name: name ?? "" } });
   } catch {
     res.status(500).json({ error: "Could not create account." });
@@ -54,7 +54,7 @@ authRouter.post("/login", async (req, res) => {
       res.status(401).json({ error: "Invalid email or password." });
       return;
     }
-    res.json({ token: signUserToken({ uid: user.id, email: emailNorm }), user: { id: user.id, email: emailNorm, name: user.name } });
+    res.json({ token: signUserToken({ uid: Number(user.id), email: emailNorm }), user: { id: Number(user.id), email: emailNorm, name: user.name } });
   } catch {
     res.status(500).json({ error: "Login failed." });
   }

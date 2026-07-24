@@ -24,8 +24,10 @@ export function signUserToken(claims: UserClaims): string {
 export function verifyUserToken(token: string): UserClaims | null {
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
-    if (typeof decoded.uid === "number" && typeof decoded.email === "string") {
-      return { uid: decoded.uid, email: decoded.email };
+    // Postgres returns BIGINT ids as strings, so coerce the uid claim.
+    const uid = Number(decoded.uid);
+    if (Number.isFinite(uid) && typeof decoded.email === "string") {
+      return { uid, email: decoded.email };
     }
     return null;
   } catch {
