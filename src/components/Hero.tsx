@@ -7,6 +7,7 @@ import { stats } from "@/lib/projects-data";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Github } from "lucide-react";
 import ScrollReveal from "./ScrollReveal";
+import HeroSystemsGraph from "./HeroSystemsGraph";
 
 export default function Hero() {
   const mouse = useMousePosition();
@@ -38,7 +39,7 @@ export default function Hero() {
       <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 pt-20">
         <div className="grid lg:grid-cols-12 gap-12 items-center">
           {/* Left: Content */}
-          <div className="lg:col-span-7 space-y-8">
+          <div className="lg:col-span-6 space-y-8">
             {/* Eyebrow */}
             <ScrollReveal>
               <motion.div
@@ -134,94 +135,10 @@ export default function Hero() {
             </ScrollReveal>
           </div>
 
-          {/* Right: Orbital Graphic */}
-          <div className="lg:col-span-5 flex justify-center">
+          {/* Right: Interactive systems graph */}
+          <div className="lg:col-span-6 flex justify-center">
             <ScrollReveal direction="right" delay={0.2}>
-              <motion.div
-                className="relative w-56 h-56 sm:w-80 sm:h-80 md:w-96 md:h-96"
-                animate={{
-                  rotateX: mouse.normalizedY * 10,
-                  rotateY: mouse.normalizedX * 10,
-                }}
-                transition={{ type: "spring", stiffness: 50, damping: 30 }}
-                style={{ perspective: 1000 }}
-              >
-                {/* Orbital rings */}
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute inset-0 rounded-full"
-                    style={{
-                      transform: `rotateX(${60 + i * 15}deg) rotateZ(${i * 30}deg)`,
-                      border: "1px solid var(--border-primary)",
-                    }}
-                    animate={{ rotate: 360 }}
-                    transition={{
-                      duration: 20 + i * 5,
-                      repeat: Infinity,
-                      ease: "linear",
-                    }}
-                  >
-                    <div
-                      className={`absolute w-3 h-3 rounded-full shadow-lg ${
-                        i === 0
-                          ? "bg-cyan-500 shadow-cyan-500/50 top-0 left-1/2 -translate-x-1/2"
-                          : i === 1
-                          ? "bg-violet-500 shadow-violet-500/50 bottom-0 left-1/2 -translate-x-1/2"
-                          : "bg-pink-500 shadow-pink-500/50 top-1/2 right-0 -translate-y-1/2"
-                      }`}
-                    />
-                  </motion.div>
-                ))}
-
-                {/* Center glow */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative">
-                    <div
-                      className="w-24 h-24 rounded-full backdrop-blur-xl flex items-center justify-center"
-                      style={{
-                        background: "var(--bg-glass)",
-                        border: "1px solid var(--border-hover)",
-                        boxShadow: "var(--shadow-glow-cyan)",
-                      }}
-                    >
-                      <span className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-violet-500 bg-clip-text text-transparent">
-                        CT
-                      </span>
-                    </div>
-                    <div className="absolute inset-0 rounded-full blur-3xl animate-pulse" style={{ background: "var(--accent-cyan)", opacity: 0.15 }} />
-                  </div>
-                </div>
-
-                {/* Tech labels floating */}
-                {[
-                  { label: "AI", x: "10%", y: "15%" },
-                  { label: "IoT", x: "75%", y: "20%" },
-                  { label: "ML", x: "5%", y: "70%" },
-                  { label: "Edge", x: "80%", y: "75%" },
-                ].map((item, i) => (
-                  <motion.span
-                    key={item.label}
-                    className="absolute text-xs font-mono"
-                    style={{
-                      left: item.x,
-                      top: item.y,
-                      color: "var(--text-muted)",
-                    }}
-                    animate={{
-                      y: [0, -8, 0],
-                      opacity: [0.3, 0.6, 0.3],
-                    }}
-                    transition={{
-                      duration: 3,
-                      delay: i * 0.7,
-                      repeat: Infinity,
-                    }}
-                  >
-                    {item.label}
-                  </motion.span>
-                ))}
-              </motion.div>
+              <HeroSystemsGraph />
             </ScrollReveal>
           </div>
         </div>
