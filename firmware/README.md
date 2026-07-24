@@ -39,7 +39,14 @@ Full contract in **`../platform/PROTOCOL.md`**. In short, each device uses:
 Auth: MQTT **username = device id**, **password = device key**. TLS uses
 Circuvent's own CA, embedded in `CircuventDevice.h` (`CIRCUVENT_DEFAULT_CA`).
 
-## Build & flash
+## Build & flash (PlatformIO)
+
+Every device runs the **same firmware** — no per-device id/key in code. Open the
+folder for your device (e.g. `firmware/smart-plug/`) in the **PlatformIO IDE**
+(each folder has its own `platformio.ini`), plug in the ESP32, and click
+**Upload**. Flash the identical binary to every unit.
+
+Legacy Arduino-IDE path:
 
 1. **Arduino IDE** with the **ESP32** (or ESP8266) board core.
 2. Install libraries (Library Manager): **ArduinoJson** (v7), **PubSubClient**,
@@ -58,7 +65,13 @@ cv.setBroker("140.245.238.154");   // until mqtt.circuvent.com DNS is live
 cv.begin();
 ```
 
-## Onboarding a device (2 steps)
+## Onboarding a device (zero-touch — in the app, no `add-device.sh`)
+
+The app does this automatically (Add device → Set up a new device): it reads the
+device's setup hotspot (`GET /info`), provisions an identity from the control
+plane, and pushes it + your Wi-Fi (`POST /save`). Broker credentials are created
+by the control-plane via Mosquitto Dynamic Security. The steps below are the
+underlying calls, for reference only:
 
 1. **Provision** (creates the device + returns its one-time key):
    ```bash
