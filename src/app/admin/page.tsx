@@ -36,6 +36,10 @@ import CouponsPanel from "./CouponsPanel";
 import ReturnsPanel from "./ReturnsPanel";
 import SupportPanel from "./SupportPanel";
 import StaffPanel from "./StaffPanel";
+import AnalyticsPanel from "./AnalyticsPanel";
+import MonitoringPanel from "./MonitoringPanel";
+import ReportsPanel from "./ReportsPanel";
+import { FileBarChart } from "lucide-react";
 
 interface PageStats {
   page: string;
@@ -105,8 +109,8 @@ function getPageName(path: string): string {
 
 // Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
 const ROLE_AREAS: Record<string, string[]> = {
-  superadmin: ["overview", "orders", "inventory", "customers", "coupons", "returns", "support", "staff"],
-  manager: ["overview", "orders", "inventory", "customers", "coupons", "returns", "support"],
+  superadmin: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "staff"],
+  manager: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support"],
   inventory: ["inventory"],
   orders: ["orders", "returns", "customers"],
   support: ["support", "returns", "customers"],
@@ -133,7 +137,7 @@ export default function AdminDashboard() {
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [tab, setTab] = useState<
-    "overview" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "staff"
+    "overview" | "analytics" | "monitoring" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "staff"
   >("overview");
 
   const canSee = useCallback(
@@ -406,6 +410,9 @@ export default function AdminDashboard() {
         >
           {[
             { id: "overview", label: "Overview", icon: <BarChart3 className="w-4 h-4" /> },
+            { id: "analytics", label: "Analytics", icon: <TrendingUp className="w-4 h-4" /> },
+            { id: "reports", label: "Reports", icon: <FileBarChart className="w-4 h-4" /> },
+            { id: "monitoring", label: "Monitoring", icon: <Activity className="w-4 h-4" /> },
             { id: "orders", label: "Orders", icon: <ShoppingBag className="w-4 h-4" /> },
             { id: "inventory", label: "Inventory", icon: <Boxes className="w-4 h-4" /> },
             { id: "customers", label: "Customers", icon: <Users2 className="w-4 h-4" /> },
@@ -428,6 +435,9 @@ export default function AdminDashboard() {
         </div>
 
         {tab === "orders" && <OrdersPanel />}
+        {tab === "analytics" && <AnalyticsPanel />}
+        {tab === "monitoring" && <MonitoringPanel />}
+        {tab === "reports" && <ReportsPanel />}
         {tab === "inventory" && <InventoryPanel />}
         {tab === "customers" && <CustomersPanel />}
         {tab === "coupons" && <CouponsPanel />}
