@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 describe("Contact form validation", () => {
   const validData = {
     name: "John Doe",

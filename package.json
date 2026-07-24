@@ -10,6 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:db": "tsx scripts/test-db.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -49,6 +50,7 @@
     "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.6",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

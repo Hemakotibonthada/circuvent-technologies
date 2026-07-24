@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { rateLimit } from "@/lib/rate-limit";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Instantiated lazily so a missing RESEND_API_KEY doesn't crash the route at
+// import time (the Resend constructor throws on an empty key). The handler
+// already guards for the missing key and returns a graceful 500.
+let resendClient: Resend | null = null;
+function getResend(): Resend {
+  if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
+}
 
 /**
  * POST /api/contact
@@ -21,23 +28,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!process.env.RESEND_API_KEY) {
-      console.error("RESEND_API_KEY is not configured");
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Email service is not configured. Please set the RESEND_API_KEY environment variable.",
-        },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
 
     const { name, email, company, service, budget, message } = body;
 
-    // Validation
+    // Validation — always run before checking service availability so callers
+    // get a 400 for bad input regardless of email configuration.
     const errors: Record<string, string> = {};
 
     if (!name || name.trim().length < 2) {
@@ -59,11 +55,23 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!process.env.RESEND_API_KEY) {
+      console.error("RESEND_API_KEY is not configured");
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Email service is not configured. Please set the RESEND_API_KEY environment variable.",
+        },
+        { status: 500 }
+      );
+    }
+
     // Send email via Resend
     // NOTE: Using onboarding@resend.dev + owner email for testing.
     // For production, verify your domain at resend.com/domains and update
     // `from` to use your domain (e.g., contact@circuvent.com) and `to` as needed.
-    const { data, error: resendError } = await resend.emails.send({
+    const { data, error: resendError } = await getResend().emails.send({
       from: "Circuvent Contact <onboarding@resend.dev>",
       to: [process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com"],
       replyTo: email,
@@ -101,7 +109,7 @@ export async function POST(request: Request) {
               <p style="font-size: 14px; line-height: 1.6; white-space: pre-wrap; margin: 0;">${message}</p>
             </div>
             <p style="color: #94a3b8; font-size: 11px; margin-top: 24px;">
-              Sent from circuvent.tech contact form at ${new Date().toISOString()}
+              Sent from circuvent.com contact form at ${new Date().toISOString()}
             </p>
           </div>
         </div>

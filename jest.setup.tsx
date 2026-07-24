@@ -82,39 +82,43 @@ jest.mock("framer-motion", () => ({
   useScroll: () => ({ scrollYProgress: { get: () => 0 } }),
 }));
 
-// Mock matchMedia
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
+// Browser-only globals — guarded so tests using the `node` test environment
+// (e.g. database/adapter tests) can share this setup file without crashing.
+if (typeof window !== "undefined") {
+  // Mock matchMedia
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: jest.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
 
-// Mock IntersectionObserver
-class MockIntersectionObserver {
-  observe = jest.fn();
-  unobserve = jest.fn();
-  disconnect = jest.fn();
-}
-Object.defineProperty(window, "IntersectionObserver", {
-  writable: true,
-  value: MockIntersectionObserver,
-});
+  // Mock IntersectionObserver
+  class MockIntersectionObserver {
+    observe = jest.fn();
+    unobserve = jest.fn();
+    disconnect = jest.fn();
+  }
+  Object.defineProperty(window, "IntersectionObserver", {
+    writable: true,
+    value: MockIntersectionObserver,
+  });
 
-// Mock ResizeObserver
-class MockResizeObserver {
-  observe = jest.fn();
-  unobserve = jest.fn();
-  disconnect = jest.fn();
+  // Mock ResizeObserver
+  class MockResizeObserver {
+    observe = jest.fn();
+    unobserve = jest.fn();
+    disconnect = jest.fn();
+  }
+  Object.defineProperty(window, "ResizeObserver", {
+    writable: true,
+    value: MockResizeObserver,
+  });
 }
-Object.defineProperty(window, "ResizeObserver", {
-  writable: true,
-  value: MockResizeObserver,
-});

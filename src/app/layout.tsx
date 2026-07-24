@@ -13,6 +13,8 @@ import CartDrawer from "@/components/shop/CartDrawer";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import VisitorTracker from "@/components/VisitorTracker";
+import { SITE_URL, siteConfig } from "@/lib/config";
+import { getOrganizationJsonLd, getWebsiteJsonLd } from "@/lib/seo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,19 +27,36 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Circuvent Technologies | Engineering What's Next",
-  description:
-    "Circuvent Technologies crafts intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering. 53+ projects. 200K+ lines of code. Zero limits.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Circuvent Technologies | Engineering What's Next",
+    template: "%s | Circuvent Technologies",
+  },
+  description: siteConfig.description,
+  applicationName: siteConfig.name,
   keywords: [
     "AI", "IoT", "Smart Home", "Machine Learning", "Full Stack",
     "FinTech", "HealthTech", "React", "Next.js", "Flutter", "ESP32", "MQTT",
   ],
+  authors: [{ name: siteConfig.name, url: SITE_URL }],
+  creator: siteConfig.name,
+  publisher: siteConfig.name,
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Circuvent Technologies",
     description: "Engineering What's Next — AI, IoT, Full-Stack",
     type: "website",
+    url: SITE_URL,
     siteName: "Circuvent Technologies",
+    images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: siteConfig.name }],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Circuvent Technologies",
+    description: "Engineering What's Next — AI, IoT, Full-Stack",
+    creator: siteConfig.twitterHandle,
+  },
+  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {
@@ -64,25 +83,11 @@ export default function RootLayout({
         {/* Favicons & app icons are provided via src/app/{icon,apple-icon,favicon}.* */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Organization",
-              name: "Circuvent Technologies",
-              url: "https://circuvent.tech",
-              logo: "https://circuvent.tech/logo.png",
-              description: "Engineering intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering.",
-              sameAs: [
-                "https://github.com/Hemakotibonthada",
-                "https://linkedin.com/company/circuvent",
-              ],
-              contactPoint: {
-                "@type": "ContactPoint",
-                contactType: "customer service",
-                url: "https://circuvent.tech/contact",
-              },
-            }),
-          }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(getOrganizationJsonLd()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(getWebsiteJsonLd()) }}
         />
         {/* Inline script to prevent flash of wrong theme */}
         <script

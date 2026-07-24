@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, feature/shopping]
+  pull_request:
+    branches: [main, master]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Type-check · Lint · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Deterministic, secret-free build. Real values are configured in Vercel.
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint (informational)
+        # The existing codebase has many pre-existing lint findings; linting is
+        # reported but non-blocking so it doesn't mask the hard quality gates
+        # below. New code is expected to be lint-clean.
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test -- --ci --runInBand
+
+      - name: Database adapter test (PGlite)
+        run: npm run test:db
+
+      - name: Production build
+        run: npm run build

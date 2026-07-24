@@ -1,6 +1,6 @@
 import { blogPosts } from "@/lib/blog-data";
+import { SITE_URL } from "@/lib/config";
 
-const SITE_URL = "https://circuvent.tech";
 const SITE_NAME = "Circuvent Technologies";
 const SITE_DESCRIPTION =
   "Engineering insights, architecture decisions, and lessons learned from building 53+ technology projects across AI, IoT, and full-stack.";

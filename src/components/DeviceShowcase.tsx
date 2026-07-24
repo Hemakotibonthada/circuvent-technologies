@@ -412,7 +412,7 @@ interface BrowserMockupProps {
 }
 
 export function BrowserMockup({
-  url = "https://circuvent.tech",
+  url = "https://circuvent.com",
   title = "Circuvent Technologies",
   children,
   className = "",
@@ -667,7 +667,7 @@ export function DeviceShowcase({
           className="flex justify-center"
         >
           {activeDevice === "desktop" && (
-            <BrowserMockup url="https://circuvent.tech" className="w-full max-w-3xl">
+            <BrowserMockup url="https://circuvent.com" className="w-full max-w-3xl">
               {desktopContent}
             </BrowserMockup>
           )}

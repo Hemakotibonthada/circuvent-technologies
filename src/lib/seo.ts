@@ -6,16 +6,17 @@
  */
 
 import type { Metadata } from "next";
+import { SITE_URL as CONFIG_SITE_URL, siteConfig } from "./config";
 
 // ============================================================
 // BASE CONFIGURATION
 // ============================================================
 
-const SITE_NAME = "Circuvent Technologies";
-const SITE_URL = "https://circuvent.tech";
-const SITE_DESCRIPTION = "Engineering intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering. 53+ projects. 200K+ lines of code. Zero limits.";
-const DEFAULT_OG_IMAGE = "/og-image.png";
-const TWITTER_HANDLE = "@circuvent_tech";
+const SITE_NAME = siteConfig.name;
+const SITE_URL = CONFIG_SITE_URL;
+const SITE_DESCRIPTION = siteConfig.description;
+const DEFAULT_OG_IMAGE = siteConfig.ogImage;
+const TWITTER_HANDLE = siteConfig.twitterHandle;
 
 // ============================================================
 // PAGE-SPECIFIC METADATA
@@ -307,7 +308,7 @@ export function getOrganizationJsonLd() {
     name: SITE_NAME,
     url: SITE_URL,
     description: SITE_DESCRIPTION,
-    logo: `${SITE_URL}/logo.png`,
+    logo: `${SITE_URL}${siteConfig.logo}`,
     foundingDate: "2023-01-01",
     numberOfEmployees: {
       "@type": "QuantitativeValue",

@@ -3,8 +3,7 @@ import { blogPosts } from "@/lib/blog-data";
 import { projects } from "@/lib/projects-data";
 import { domains } from "@/lib/domains-data";
 import { careerRoles } from "@/lib/services-data";
-
-const SITE_URL = "https://circuvent.tech";
+import { SITE_URL } from "@/lib/config";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date().toISOString();

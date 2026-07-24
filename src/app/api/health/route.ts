@@ -1,36 +1,57 @@
 import { NextResponse } from "next/server";
+import { isDbConfigured, validateEnv } from "@/lib/config";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/health
- * 
- * Health check endpoint for monitoring.
- * Returns application status, version, and uptime information.
+ *
+ * Liveness/readiness probe for monitoring. Lightweight — reports process,
+ * database configuration and environment-validation status without performing
+ * an expensive database round-trip (see /api/health/db for that).
  */
 export async function GET() {
   const uptime = process.uptime();
   const memoryUsage = process.memoryUsage();
+  const env = validateEnv();
+  const dbConfigured = isDbConfigured();
 
-  return NextResponse.json({
-    status: "healthy",
-    version: "1.0.0",
-    timestamp: new Date().toISOString(),
-    uptime: {
-      seconds: Math.round(uptime),
-      formatted: formatUptime(uptime),
+  const status = env.ok ? "healthy" : "degraded";
+
+  return NextResponse.json(
+    {
+      status,
+      version: "1.0.0",
+      timestamp: new Date().toISOString(),
+      uptime: {
+        seconds: Math.round(uptime),
+        formatted: formatUptime(uptime),
+      },
+      memory: {
+        heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
+        rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
+      },
+      environment: process.env.NODE_ENV || "development",
+      nextVersion: "16.1.6",
+      database: {
+        configured: dbConfigured,
+        mode: dbConfigured ? "postgres" : "file",
+      },
+      env: {
+        ok: env.ok,
+        missing: env.missing.length,
+        warnings: env.warnings.length,
+      },
+      features: {
+        githubSync: !!process.env.GITHUB_TOKEN,
+        payments: !!process.env.RAZORPAY_KEY_ID,
+        email: !!process.env.SMTP_HOST || !!process.env.RESEND_API_KEY,
+      },
     },
-    memory: {
-      heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-      heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
-      rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
-    },
-    environment: process.env.NODE_ENV || "development",
-    nextVersion: "16.1.6",
-    features: {
-      githubSync: !!process.env.GITHUB_TOKEN,
-      analytics: false,
-      newsletter: false,
-    },
-  });
+    { status: status === "healthy" ? 200 : 503 }
+  );
 }
 
 function formatUptime(seconds: number): string {
