@@ -31,7 +31,14 @@ export async function POST(request: Request) {
     const priced = priceItems(items, body?.coupon);
     if (!priced.ok) return NextResponse.json({ success: false, message: priced.error }, { status: 400 });
 
-    const amount = Math.round(priced.total * 100); // paise
+    // A partial wallet redemption reduces the amount charged online.
+    const walletApply = Math.max(0, Math.min(Number(body?.walletApply) || 0, priced.total));
+    const due = Math.max(0, priced.total - walletApply);
+    if (due <= 0) {
+      return NextResponse.json({ success: false, message: "Wallet covers the full amount — no online payment needed." }, { status: 400 });
+    }
+
+    const amount = Math.round(due * 100); // paise
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
     const res = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",

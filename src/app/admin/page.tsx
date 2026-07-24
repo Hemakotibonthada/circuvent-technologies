@@ -40,8 +40,10 @@ import AnalyticsPanel from "./AnalyticsPanel";
 import MonitoringPanel from "./MonitoringPanel";
 import ReportsPanel from "./ReportsPanel";
 import AlertRulesPanel from "./AlertRulesPanel";
+import MessagesPanel from "./MessagesPanel";
 import AdminAlerts from "./AdminAlerts";
-import { FileBarChart } from "lucide-react";
+import Admin2fa from "./Admin2fa";
+import { FileBarChart, Inbox } from "lucide-react";
 
 interface PageStats {
   page: string;
@@ -111,11 +113,11 @@ function getPageName(path: string): string {
 
 // Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
 const ROLE_AREAS: Record<string, string[]> = {
-  superadmin: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "staff"],
-  manager: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support"],
+  superadmin: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff"],
+  manager: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages"],
   inventory: ["inventory"],
   orders: ["orders", "returns", "customers"],
-  support: ["support", "returns", "customers"],
+  support: ["support", "messages", "returns", "customers"],
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -132,6 +134,8 @@ export default function AdminDashboard() {
   const [email, setEmail] = useState("admin@circuvent.com");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [twoFA, setTwoFA] = useState(false);
+  const [otp, setOtp] = useState("");
   const [role, setRole] = useState<string>("superadmin");
   const [adminName, setAdminName] = useState<string>("");
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -139,7 +143,7 @@ export default function AdminDashboard() {
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [tab, setTab] = useState<
-    "overview" | "analytics" | "monitoring" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "staff"
+    "overview" | "analytics" | "monitoring" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff"
   >("overview");
 
   const canSee = useCallback(
@@ -178,6 +182,11 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         const d = await res.json();
+        if (d.twoFactor) {
+          setTwoFA(true);
+          setOtp("");
+          return;
+        }
         sessionStorage.setItem("admin-token", d.token);
         setRole(d.role || "superadmin");
         setAdminName(d.name || "");
@@ -185,6 +194,30 @@ export default function AdminDashboard() {
       } else {
         const d = await res.json().catch(() => ({}));
         setAuthError(d.error || "Invalid email or password");
+      }
+    } catch {
+      setAuthError("Connection error");
+    }
+  };
+
+  const verify2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    try {
+      const res = await fetch("/api/admin/auth/verify-2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp: otp.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.ok) {
+        sessionStorage.setItem("admin-token", d.token);
+        setRole(d.role || "superadmin");
+        setAdminName(d.name || "");
+        setTwoFA(false);
+        setAuthenticated(true);
+      } else {
+        setAuthError(d.error || "Invalid code");
       }
     } catch {
       setAuthError("Connection error");
@@ -291,8 +324,39 @@ export default function AdminDashboard() {
             Circuvent Control Center
           </h1>
           <p className="text-sm text-center mb-6" style={{ color: "var(--text-tertiary)" }}>
-            Sign in with your staff email and password
+            {twoFA ? "Enter the 6-digit code we emailed you" : "Sign in with your staff email and password"}
           </p>
+          {twoFA ? (
+            <form onSubmit={verify2fa} className="space-y-4">
+              <input
+                inputMode="numeric"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                autoFocus
+                className="w-full px-4 py-3 rounded-xl text-center text-2xl font-bold tracking-[0.5em] outline-none transition-all"
+                style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", color: "var(--text-primary)" }}
+              />
+              {authError && <p className="text-sm text-red-400 text-center">{authError}</p>}
+              <button
+                type="submit"
+                disabled={otp.length < 6}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-[1.02] disabled:opacity-60"
+                style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)" }}
+              >
+                <LogIn className="w-4 h-4" /> Verify &amp; sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTwoFA(false); setOtp(""); setAuthError(""); }}
+                className="w-full text-center text-xs"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                ← Back to sign in
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleLogin} className="space-y-4">
             <input
               type="email"
@@ -332,6 +396,7 @@ export default function AdminDashboard() {
               <LogIn className="w-4 h-4" /> Sign In
             </button>
           </form>
+          )}
         </motion.div>
       </div>
     );
@@ -358,6 +423,7 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <AdminAlerts onGoto={(t) => setTab(t as typeof tab)} />
+            <Admin2fa />
             {canSee("overview") && (
               <>
                 {/* SSE Status */}
@@ -423,6 +489,7 @@ export default function AdminDashboard() {
             { id: "coupons", label: "Coupons", icon: <Tag className="w-4 h-4" /> },
             { id: "returns", label: "Returns", icon: <RotateCcw className="w-4 h-4" /> },
             { id: "support", label: "Support", icon: <LifeBuoy className="w-4 h-4" /> },
+            { id: "messages", label: "Messages", icon: <Inbox className="w-4 h-4" /> },
             { id: "staff", label: "Staff", icon: <UserCog className="w-4 h-4" /> },
           ]
             .filter((t) => canSee(t.id))
@@ -447,6 +514,7 @@ export default function AdminDashboard() {
           </>
         )}
         {tab === "reports" && <ReportsPanel />}
+        {tab === "messages" && <MessagesPanel />}
         {tab === "inventory" && <InventoryPanel />}
         {tab === "customers" && <CustomersPanel />}
         {tab === "coupons" && <CouponsPanel />}

@@ -52,25 +52,25 @@ export async function POST(request: Request) {
     if (Object.keys(errors).length > 0) return NextResponse.json({ success: false, errors }, { status: 400 });
 
     const method = c.paymentMethod || "cod";
+    const walletApply = Math.max(0, Math.min(Number(body?.walletApply) || 0, priced.total));
 
-    // Wallet (store credit) payment — needs a signed-in account whose email
-    // matches the checkout email, and enough balance.
-    if (method === "wallet") {
-      const tokenEmail = verifyToken(tokenFromRequest(request));
+    // Any wallet use (full method or partial redemption) needs a signed-in
+    // account whose email matches the checkout email.
+    let tokenEmail: string | null = null;
+    if (method === "wallet" || walletApply > 0) {
+      tokenEmail = verifyToken(tokenFromRequest(request));
       if (!tokenEmail) {
-        return NextResponse.json(
-          { success: false, message: "Please sign in to pay with your wallet." },
-          { status: 401 }
-        );
+        return NextResponse.json({ success: false, message: "Please sign in to pay with your wallet." }, { status: 401 });
       }
       if (tokenEmail.toLowerCase() !== String(c.email || "").toLowerCase()) {
-        return NextResponse.json(
-          { success: false, message: "Use your signed-in account email to pay with wallet." },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, message: "Use your signed-in account email to pay with wallet." }, { status: 400 });
       }
+    }
+
+    // Full wallet payment.
+    if (method === "wallet") {
       const orderNo = genOrderNo();
-      const res = debitWallet(tokenEmail, priced.total, `Order ${orderNo}`, orderNo);
+      const res = debitWallet(tokenEmail!, priced.total, `Order ${orderNo}`, orderNo);
       if (!res.ok) {
         return NextResponse.json(
           { success: false, message: "Insufficient wallet balance. Top up or choose another method." },
@@ -80,7 +80,21 @@ export async function POST(request: Request) {
       return await finalize(orderNo, priced, c, method, "paid", items);
     }
 
-    return await finalize(genOrderNo(), priced, c, method, "pending", items);
+    // Cash on delivery, optionally with a partial wallet redemption applied now.
+    const orderNo = genOrderNo();
+    if (walletApply > 0) {
+      const res = debitWallet(tokenEmail!, walletApply, `Order ${orderNo} (wallet part-payment)`, orderNo);
+      if (!res.ok) {
+        return NextResponse.json(
+          { success: false, message: "Insufficient wallet balance for the amount applied." },
+          { status: 400 }
+        );
+      }
+    }
+    const remainder = priced.total - walletApply;
+    const payMethod = walletApply > 0 ? "cod+wallet" : method;
+    const payStatus = remainder <= 0 ? "paid" : "pending";
+    return await finalize(orderNo, priced, c, payMethod, payStatus, items);
   } catch (error) {
     console.error("Orders error:", error);
     return NextResponse.json(

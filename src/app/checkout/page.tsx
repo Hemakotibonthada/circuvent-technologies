@@ -100,6 +100,7 @@ export default function CheckoutPage() {
   >([]);
   const [selectedAddrId, setSelectedAddrId] = useState<string | null>(null);
   const [saveAddr, setSaveAddr] = useState(true);
+  const [applyWallet, setApplyWallet] = useState(false);
 
   useEffect(() => {
     if (!account) return;
@@ -200,6 +201,10 @@ export default function CheckoutPage() {
   const dispShipping = quote?.shipping ?? shipping;
   const discount = quote?.discount ?? (coupon?.discount || 0);
   const payTotal = quote?.total ?? Math.max(0, subtotal + shipping - discount);
+  // Partial wallet redemption: how much wallet is applied, and what remains due.
+  const walletUse = account && applyWallet && wallet > 0 ? Math.min(wallet, payTotal) : 0;
+  const dueNow = Math.max(0, payTotal - walletUse);
+  const fullWallet = walletUse > 0 && dueNow === 0;
 
   const applyCoupon = async () => {
     if (!couponInput.trim()) return;
@@ -266,14 +271,20 @@ export default function CheckoutPage() {
     setError("");
     setErrors({});
     try {
+      const method = fullWallet ? "wallet" : form.paymentMethod; // "cod" otherwise
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ items: cartPayload(), customer: form, coupon: coupon?.code }),
+        body: JSON.stringify({
+          items: cartPayload(),
+          customer: { ...form, paymentMethod: method },
+          coupon: coupon?.code,
+          walletApply: fullWallet ? 0 : walletUse,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        if (form.paymentMethod === "wallet") refreshWallet();
+        if (walletUse > 0 || form.paymentMethod === "wallet") refreshWallet();
         finalize(data.order);
       } else {
         setError(data.message || "");
@@ -299,8 +310,8 @@ export default function CheckoutPage() {
       }
       const res = await fetch("/api/payments/create-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cartPayload(), coupon: coupon?.code }),
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ items: cartPayload(), coupon: coupon?.code, walletApply: walletUse }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -323,11 +334,11 @@ export default function CheckoutPage() {
           try {
             const vr = await fetch("/api/payments/verify", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...resp, items: cartPayload(), customer: form, coupon: coupon?.code }),
+              headers: { "Content-Type": "application/json", ...authHeaders() },
+              body: JSON.stringify({ ...resp, items: cartPayload(), customer: form, coupon: coupon?.code, walletApply: walletUse }),
             });
             const vd = await vr.json();
-            if (vd.success) finalize(vd.order);
+            if (vd.success) { if (walletUse > 0) refreshWallet(); finalize(vd.order); }
             else setError(vd.message || "Payment verification failed.");
           } catch {
             setError("Payment verification error. If money was debited, contact support with your payment id.");
@@ -346,7 +357,8 @@ export default function CheckoutPage() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.paymentMethod === "razorpay") payOnline();
+    if (fullWallet) placeOffline();
+    else if (form.paymentMethod === "razorpay") payOnline();
     else placeOffline();
   };
 
@@ -563,34 +575,64 @@ export default function CheckoutPage() {
             <label className={labelCls} style={{ color: "var(--text-tertiary)" }}>
               Payment method
             </label>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                { id: "razorpay", label: "Pay online — cards, UPI, netbanking" },
-                ...(account && wallet >= payTotal
-                  ? [{ id: "wallet", label: `Circuvent Wallet — ${formatINR(wallet)} available` }]
-                  : []),
-                { id: "cod", label: "Cash on delivery" },
-              ].map((opt) => (
-                <label
-                  key={opt.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-3 text-sm"
-                  style={{
-                    borderColor: form.paymentMethod === opt.id ? "var(--accent-cyan)" : "var(--border-primary)",
-                    color: "var(--text-secondary)",
-                    background: form.paymentMethod === opt.id ? "var(--accent-cyan-muted)" : "transparent",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="pay"
-                    className="accent-cyan-500"
-                    checked={form.paymentMethod === opt.id}
-                    onChange={() => setForm((f) => ({ ...f, paymentMethod: opt.id }))}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
+
+            {account && wallet > 0 && (
+              <label
+                className="mb-2 flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm"
+                style={{
+                  borderColor: applyWallet ? "var(--accent-cyan)" : "var(--border-primary)",
+                  background: applyWallet ? "var(--accent-cyan-muted)" : "transparent",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                <span className="flex items-center gap-2">
+                  <input type="checkbox" className="accent-cyan-500" checked={applyWallet} onChange={(e) => setApplyWallet(e.target.checked)} />
+                  Use Circuvent Wallet — {formatINR(wallet)} available
+                </span>
+                {applyWallet && walletUse > 0 && (
+                  <span className="font-semibold" style={{ color: "var(--accent-cyan)" }}>− {formatINR(walletUse)}</span>
+                )}
+              </label>
+            )}
+
+            {fullWallet ? (
+              <p className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: "var(--accent-cyan)", background: "var(--accent-cyan-muted)", color: "var(--accent-cyan)" }}>
+                Your wallet covers this order in full — no other payment needed.
+              </p>
+            ) : (
+              <>
+                {walletUse > 0 && (
+                  <p className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                    Pay the remaining <b>{formatINR(dueNow)}</b> with:
+                  </p>
+                )}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    { id: "razorpay", label: "Pay online — cards, UPI, netbanking" },
+                    { id: "cod", label: "Cash on delivery" },
+                  ].map((opt) => (
+                    <label
+                      key={opt.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-3 text-sm"
+                      style={{
+                        borderColor: form.paymentMethod === opt.id ? "var(--accent-cyan)" : "var(--border-primary)",
+                        color: "var(--text-secondary)",
+                        background: form.paymentMethod === opt.id ? "var(--accent-cyan-muted)" : "transparent",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="pay"
+                        className="accent-cyan-500"
+                        checked={form.paymentMethod === opt.id}
+                        onChange={() => setForm((f) => ({ ...f, paymentMethod: opt.id }))}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {error && (
@@ -677,6 +719,22 @@ export default function CheckoutPage() {
                 {formatINR(payTotal)}
               </dd>
             </div>
+            {walletUse > 0 && (
+              <>
+                <div className="flex justify-between">
+                  <dt style={{ color: "var(--text-tertiary)" }}>Wallet applied</dt>
+                  <dd className="font-medium text-emerald-500">- {formatINR(walletUse)}</dd>
+                </div>
+                <div className="flex justify-between pt-2 text-base" style={{ borderTop: "1px dashed var(--border-primary)" }}>
+                  <dt className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {fullWallet ? "Paid by wallet" : "Due now"}
+                  </dt>
+                  <dd className="font-extrabold" style={{ color: "var(--accent-cyan)" }}>
+                    {formatINR(dueNow)}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
           <button
             type="submit"
@@ -685,14 +743,16 @@ export default function CheckoutPage() {
           >
             {placing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             {placing
-              ? form.paymentMethod === "cod"
+              ? form.paymentMethod === "cod" || fullWallet
                 ? "Placing order…"
                 : "Processing…"
-              : form.paymentMethod === "razorpay"
-                ? `Pay ${formatINR(payTotal)}`
-                : form.paymentMethod === "wallet"
-                  ? `Pay ${formatINR(payTotal)} with wallet`
-                  : "Place order"}
+              : fullWallet
+                ? `Pay ${formatINR(payTotal)} with wallet`
+                : form.paymentMethod === "razorpay"
+                  ? `Pay ${formatINR(dueNow)}`
+                  : walletUse > 0
+                    ? `Place order · ${formatINR(dueNow)} on delivery`
+                    : "Place order"}
           </button>
           <div className="mt-4 flex items-center justify-center gap-4 text-[11px]" style={{ color: "var(--text-muted)" }}>
             <span className="flex items-center gap-1">

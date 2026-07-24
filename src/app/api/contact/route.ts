@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { rateLimit } from "@/lib/rate-limit";
+import { addContactMessage, flushNow } from "@/lib/store";
 
 // Instantiated lazily so a missing RESEND_API_KEY doesn't crash the route at
 // import time (the Resend constructor throws on an empty key). The handler
@@ -9,6 +10,25 @@ let resendClient: Resend | null = null;
 function getResend(): Resend {
   if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY);
   return resendClient;
+}
+
+/** Per-service team routing. Overridable via env; defaults to a team alias on the domain. */
+function teamEmailFor(service?: string): string | undefined {
+  if (!service) return undefined;
+  const key = service.toLowerCase();
+  const env = (n: string) => process.env[n];
+  const map: Record<string, string | undefined> = {
+    "ai-ml": env("TEAM_AI_EMAIL") || "ai@circuvent.com",
+    ai: env("TEAM_AI_EMAIL") || "ai@circuvent.com",
+    iot: env("TEAM_IOT_EMAIL") || "iot@circuvent.com",
+    web: env("TEAM_WEB_EMAIL") || "web@circuvent.com",
+    "web-development": env("TEAM_WEB_EMAIL") || "web@circuvent.com",
+    mobile: env("TEAM_MOBILE_EMAIL") || "mobile@circuvent.com",
+    enterprise: env("TEAM_ENTERPRISE_EMAIL") || "enterprise@circuvent.com",
+    devops: env("TEAM_DEVOPS_EMAIL") || "devops@circuvent.com",
+    cloud: env("TEAM_DEVOPS_EMAIL") || "devops@circuvent.com",
+  };
+  return map[key];
 }
 
 /**
@@ -55,16 +75,27 @@ export async function POST(request: Request) {
       );
     }
 
+    const team = teamEmailFor(service);
+    // Persist to the store so it appears in the admin Messages panel even if
+    // email delivery is unavailable.
+    try {
+      addContactMessage({ name, email, company, service, budget, message, team });
+      await flushNow();
+    } catch (e) {
+      console.error("contact persist error:", e);
+    }
+
+    // Email is best-effort: the message is already captured (visible in the
+    // admin Messages panel), so a delivery failure must not fail the request.
+    const successResponse = NextResponse.json({
+      success: true,
+      message: "Thank you for your message. We'll respond within 24-48 hours.",
+      data: { name, email, submittedAt: new Date().toISOString() },
+    });
+
     if (!process.env.RESEND_API_KEY) {
-      console.error("RESEND_API_KEY is not configured");
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Email service is not configured. Please set the RESEND_API_KEY environment variable.",
-        },
-        { status: 500 }
-      );
+      console.warn("RESEND_API_KEY not configured — contact message saved but not emailed.");
+      return successResponse;
     }
 
     // Send email via Resend
@@ -74,6 +105,7 @@ export async function POST(request: Request) {
     const { data, error: resendError } = await getResend().emails.send({
       from: "Circuvent Contact <onboarding@resend.dev>",
       to: [process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com"],
+      cc: team ? [team] : undefined,
       replyTo: email,
       subject: `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`,
       html: `
@@ -117,27 +149,13 @@ export async function POST(request: Request) {
     });
 
     if (resendError) {
-      console.error("Resend error:", JSON.stringify(resendError, null, 2));
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Failed to send email: ${resendError.message || "Unknown Resend error"}`,
-        },
-        { status: 500 }
-      );
+      console.warn("Resend error (message still saved to admin):", JSON.stringify(resendError));
+      return successResponse;
     }
 
     console.log("Contact email sent successfully:", JSON.stringify(data, null, 2));
 
-    return NextResponse.json({
-      success: true,
-      message: "Thank you for your message. We'll respond within 24-48 hours.",
-      data: {
-        name,
-        email,
-        submittedAt: new Date().toISOString(),
-      },
-    });
+    return successResponse;
   } catch (error) {
     console.error(
       "Contact form error:",

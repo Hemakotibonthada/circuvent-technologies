@@ -8,7 +8,9 @@ import {
   type IncomingItem,
   type CustomerInfo,
 } from "@/lib/order-core";
-import { recordOrder, adjustStock, earnPoints, rewardReferralOnPaidOrder } from "@/lib/store";
+import { recordOrder, adjustStock, earnPoints, rewardReferralOnPaidOrder, debitWallet } from "@/lib/store";
+import { verifyToken, tokenFromRequest } from "@/lib/account";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -51,6 +53,21 @@ export async function POST(request: Request) {
     const errors = validateCustomer(c);
     if (Object.keys(errors).length) return NextResponse.json({ success: false, errors }, { status: 400 });
 
+    // Apply any partial wallet redemption now that the online remainder is paid.
+    const walletApply = Math.max(0, Math.min(Number(body?.walletApply) || 0, priced.total));
+    let walletUsed = 0;
+    if (walletApply > 0) {
+      const tokenEmail = verifyToken(tokenFromRequest(request));
+      if (tokenEmail && tokenEmail.toLowerCase() === String(c.email || "").toLowerCase()) {
+        const res = debitWallet(tokenEmail, walletApply, `Order (wallet part-payment)`, razorpay_payment_id);
+        if (res.ok) walletUsed = walletApply;
+        else logger.warn("payments.wallet_apply_failed", { email: tokenEmail, walletApply });
+      } else {
+        logger.warn("payments.wallet_apply_unauthorized", {});
+      }
+    }
+    const payMethod = walletUsed > 0 ? "razorpay+wallet" : "razorpay";
+
     const orderNo = genOrderNo();
     const placedAt = new Date().toISOString();
     const customer = {
@@ -74,7 +91,7 @@ export async function POST(request: Request) {
         couponCode: priced.couponCode,
         total: priced.total,
         customer,
-        paymentMethod: "razorpay",
+        paymentMethod: payMethod,
         paymentStatus: "paid",
         paymentId: razorpay_payment_id,
       });
@@ -97,7 +114,7 @@ export async function POST(request: Request) {
         couponLabel: priced.couponLabel,
         total: priced.total,
         customer: c,
-        paymentMethod: "razorpay",
+        paymentMethod: payMethod,
         paymentStatus: "paid",
       });
     });
@@ -114,7 +131,7 @@ export async function POST(request: Request) {
         couponCode: priced.couponCode,
         total: priced.total,
         customer,
-        paymentMethod: "razorpay",
+        paymentMethod: payMethod,
         paymentId: razorpay_payment_id,
         paymentStatus: "paid",
         status: "placed",

@@ -182,6 +182,7 @@ export interface Review {
   at: string;
   helpful?: number;
   helpfulBy?: string[];
+  images?: string[];
 }
 
 export interface StoreCoupon {
@@ -257,6 +258,7 @@ export interface AdminUser {
   createdAt: string;
   createdBy?: string;
   lastLoginAt?: string;
+  twoFactorEnabled?: boolean;
 }
 
 export interface OrderNote {
@@ -316,6 +318,19 @@ export interface Notification {
   at: string;
 }
 
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  company?: string;
+  service?: string;
+  budget?: string;
+  message: string;
+  team?: string;
+  status: "new" | "read" | "archived";
+  at: string;
+}
+
 export interface AlertSettings {
   notifyEmail?: string;
   lowStockThreshold: number;
@@ -337,6 +352,7 @@ export interface DB {
   accounts: Record<string, Account>;
   pending: Record<string, PendingRegistration>;
   passwordResets: Record<string, PendingReset>;
+  admin2fa: Record<string, PendingReset>;
   devices: Record<string, Device>;
   reviews: Review[];
   addresses: Address[];
@@ -354,6 +370,7 @@ export interface DB {
   questions: ProductQuestion[];
   notifications: Record<string, Notification[]>;
   alertSettings: AlertSettings;
+  contactMessages: ContactMessage[];
 }
 
 // ---------------------------------------------------------- persistence ----
@@ -428,6 +445,7 @@ function emptyDB(): DB {
     accounts: {},
     pending: {},
     passwordResets: {},
+    admin2fa: {},
     devices: {},
     reviews: [],
     addresses: [],
@@ -445,6 +463,7 @@ function emptyDB(): DB {
     questions: [],
     notifications: {},
     alertSettings: defaultAlertSettings(),
+    contactMessages: [],
   };
 }
 
@@ -482,6 +501,7 @@ function load(): DB {
         accounts: parsed.accounts ?? {},
         pending: parsed.pending ?? {},
         passwordResets: parsed.passwordResets ?? {},
+        admin2fa: parsed.admin2fa ?? {},
         devices: parsed.devices ?? {},
         reviews: parsed.reviews ?? [],
         addresses: parsed.addresses ?? [],
@@ -499,6 +519,7 @@ function load(): DB {
         questions: parsed.questions ?? [],
         notifications: parsed.notifications ?? {},
         alertSettings: { ...defaultAlertSettings(), ...(parsed.alertSettings ?? {}) },
+        contactMessages: parsed.contactMessages ?? [],
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -883,17 +904,22 @@ export function createAccount(a: Account): void {
 }
 
 // --------------------------------------------------------------- reviews ---
-export function addReview(r: { productId: string; email: string; name: string; rating: number; comment: string }): Review {
+export function addReview(r: { productId: string; email: string; name: string; rating: number; comment: string; images?: string[] }): Review {
   const db = load();
   const email = r.email.trim().toLowerCase();
   const rating = Math.max(1, Math.min(5, Math.round(r.rating)));
   const comment = String(r.comment || "").slice(0, 1000);
+  // Keep at most 4 image data-URLs, each reasonably small.
+  const images = Array.isArray(r.images)
+    ? r.images.filter((s) => typeof s === "string" && s.startsWith("data:image/") && s.length < 400_000).slice(0, 4)
+    : undefined;
   const existing = db.reviews.find((x) => x.productId === r.productId && x.email === email);
   if (existing) {
     existing.rating = rating;
     existing.comment = comment;
     existing.name = r.name;
     existing.at = new Date().toISOString();
+    if (images) existing.images = images;
     save();
     return existing;
   }
@@ -905,6 +931,7 @@ export function addReview(r: { productId: string; email: string; name: string; r
     rating,
     comment,
     at: new Date().toISOString(),
+    ...(images && images.length ? { images } : {}),
   };
   db.reviews.unshift(review);
   save();
@@ -1047,6 +1074,75 @@ export function updateAlertSettings(patch: Partial<AlertSettings>): AlertSetting
   db.alertSettings = { ...defaultAlertSettings(), ...db.alertSettings, ...patch };
   save();
   return db.alertSettings;
+}
+
+// --------------------------------------------------------- admin 2FA -------
+export function setAdminTwoFactor(email: string, enabled: boolean): boolean {
+  const db = load();
+  const u = db.adminUsers[email.trim().toLowerCase()];
+  if (!u) return false;
+  u.twoFactorEnabled = enabled;
+  save();
+  return true;
+}
+
+export function setAdmin2faOtp(email: string, otp: string): void {
+  const db = load();
+  db.admin2fa[email.trim().toLowerCase()] = { email: email.trim().toLowerCase(), otp, expires: Date.now() + 10 * 60 * 1000, attempts: 0 };
+  save();
+}
+
+export function getAdmin2faOtp(email: string): PendingReset | null {
+  return load().admin2fa[email.trim().toLowerCase()] || null;
+}
+
+export function bumpAdmin2faAttempt(email: string): void {
+  const db = load();
+  const p = db.admin2fa[email.trim().toLowerCase()];
+  if (p) {
+    p.attempts += 1;
+    save();
+  }
+}
+
+export function clearAdmin2faOtp(email: string): void {
+  const db = load();
+  delete db.admin2fa[email.trim().toLowerCase()];
+  save();
+}
+
+// ------------------------------------------------------ contact messages ---
+export function addContactMessage(m: Omit<ContactMessage, "id" | "status" | "at"> & { team?: string }): ContactMessage {
+  const db = load();
+  const msg: ContactMessage = {
+    id: Math.random().toString(36).slice(2, 10),
+    name: String(m.name || "").slice(0, 120),
+    email: String(m.email || "").slice(0, 160),
+    company: m.company ? String(m.company).slice(0, 160) : undefined,
+    service: m.service ? String(m.service).slice(0, 60) : undefined,
+    budget: m.budget ? String(m.budget).slice(0, 60) : undefined,
+    message: String(m.message || "").slice(0, 4000),
+    team: m.team,
+    status: "new",
+    at: new Date().toISOString(),
+  };
+  db.contactMessages.unshift(msg);
+  if (db.contactMessages.length > 1000) db.contactMessages.length = 1000;
+  save();
+  return msg;
+}
+
+export function listContactMessages(): ContactMessage[] {
+  return load().contactMessages;
+}
+
+export function setContactMessageStatus(id: string, status: ContactMessage["status"]): boolean {
+  const db = load();
+  const m = db.contactMessages.find((x) => x.id === id);
+  if (!m) return false;
+  m.status = status;
+  save();
+  return true;
 }
 
 // --------------------------------------------------------------- devices ---

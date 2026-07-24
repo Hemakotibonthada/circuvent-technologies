@@ -34,6 +34,7 @@ export async function GET(request: Request) {
       helpful: r.helpful || 0,
       youVoted: viewer ? (r.helpfulBy || []).includes(viewer.toLowerCase()) : false,
       isYours: viewer ? r.email.toLowerCase() === viewer.toLowerCase() : false,
+      images: r.images || [],
     }));
 
   return NextResponse.json({
@@ -58,13 +59,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const { productId, rating, comment } = await request.json();
+  const { productId, rating, comment, images } = await request.json();
   if (!productId || !rating) {
     return NextResponse.json({ success: false, message: "productId and rating are required." }, { status: 400 });
   }
   const acc = getAccount(email);
   const name = acc?.name || email.split("@")[0];
-  const review = addReview({ productId: String(productId), email, name, rating: Number(rating), comment: String(comment || "") });
+  const imgs = Array.isArray(images) ? images.filter((s: unknown) => typeof s === "string") : undefined;
+  const review = addReview({ productId: String(productId), email, name, rating: Number(rating), comment: String(comment || ""), images: imgs });
   return NextResponse.json({
     success: true,
     review: {
@@ -77,6 +79,7 @@ export async function POST(request: Request) {
       helpful: 0,
       youVoted: false,
       isYours: true,
+      images: review.images || [],
     },
   });
 }

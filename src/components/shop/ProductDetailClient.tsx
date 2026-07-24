@@ -49,6 +49,7 @@ export default function ProductDetailClient({
   }, [product.id]);
 
   const saving = live.compareAt && live.compareAt > live.price ? live.compareAt - live.price : 0;
+  const soldOut = live.available === false || (typeof live.stock === "number" && live.stock <= 0);
 
   const buyNow = () => {
     add(live, qty, { silent: true });
@@ -145,8 +146,8 @@ export default function ProductDetailClient({
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {live.stock > 0 ? `${live.stock} in stock` : "Made to order"}
+            <span className="text-xs" style={{ color: soldOut ? "#ef4444" : "var(--text-muted)" }}>
+              {soldOut ? "Out of stock" : `${live.stock} in stock`}
             </span>
           </div>
 
@@ -160,11 +161,18 @@ export default function ProductDetailClient({
             </button>
             <button
               onClick={buyNow}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02]"
+              disabled={soldOut}
+              title={soldOut ? "This product is out of stock" : "Buy now"}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
-              <Zap className="h-4 w-4" /> Buy now
+              <Zap className="h-4 w-4" /> {soldOut ? "Out of stock" : "Buy now"}
             </button>
           </div>
+          {soldOut && (
+            <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+              You can still add this to your cart or wishlist — ordering reopens as soon as it&apos;s back in stock.
+            </p>
+          )}
 
           <p className="mt-6 flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
             <ShieldCheck className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> 6-month warranty · Cash on

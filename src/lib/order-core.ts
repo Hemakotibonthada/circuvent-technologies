@@ -7,6 +7,11 @@ import { listProducts } from "./store";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
 
+/** Absolute logo URL for emails (relative paths don't resolve in mail clients). */
+const LOGO_URL = `${SITE_URL}/logo-mark.png`;
+const emailLogo = (size = 26) =>
+  `<img src="${LOGO_URL}" width="${size}" height="${size}" alt="Circuvent" style="vertical-align:middle;margin-right:8px;border-radius:5px" />`;
+
 let transporter: Transporter | null = null;
 function getTransport(): Transporter | null {
   if (transporter) return transporter;
@@ -122,9 +127,15 @@ export function priceItems(items: IncomingItem[], couponCode?: string): PriceRes
     const lp = live.find((pr) => pr.id === it.id || pr.slug === it.slug);
     if (!cat && !lp) return { ok: false, error: "A product in your cart is no longer available." };
     if (lp && lp.available === false) return { ok: false, error: `${lp.name} is currently unavailable.` };
+    if (lp && typeof lp.stock === "number" && lp.stock <= 0) {
+      return { ok: false, error: `${lp.name} is out of stock and can't be ordered right now.` };
+    }
     const name = cat?.name || lp?.name || "Item";
     const price = lp?.price ?? cat?.price ?? 0; // live store price wins over the static catalog
     const qty = Math.max(1, Math.min(99, Number(it.qty) || 1));
+    if (lp && typeof lp.stock === "number" && qty > lp.stock) {
+      return { ok: false, error: `Only ${lp.stock} unit(s) of ${name} left in stock.` };
+    }
     lines.push({ name, price, qty, lineTotal: price * qty });
   }
   const { subtotal, shipping } = computeTotals(lines);
@@ -188,7 +199,7 @@ export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
   const customerHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto">
       <div style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);padding:24px;border-radius:12px 12px 0 0">
-        <h1 style="color:#fff;margin:0;font-size:20px">Thanks for your order!</h1>
+        <h1 style="color:#fff;margin:0;font-size:20px">${emailLogo()}Thanks for your order!</h1>
         <p style="color:#e0f2fe;margin:6px 0 0;font-size:13px">Order ${a.orderNo}</p>
       </div>
       <div style="background:#f8fafc;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px">
@@ -245,7 +256,7 @@ export async function sendStatusEmail(args: {
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto">
       <div style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);padding:24px;border-radius:12px 12px 0 0">
-        <h1 style="color:#fff;margin:0;font-size:20px">Order update</h1>
+        <h1 style="color:#fff;margin:0;font-size:20px">${emailLogo()}Order update</h1>
         <p style="color:#e0f2fe;margin:6px 0 0;font-size:13px">Order ${args.orderNo}</p>
       </div>
       <div style="background:#f8fafc;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px">
@@ -269,7 +280,7 @@ export async function sendOtpEmail(email: string, name: string, otp: string): Pr
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto">
       <div style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);padding:24px;border-radius:12px 12px 0 0">
-        <h1 style="color:#fff;margin:0;font-size:20px">Verify your email</h1>
+        <h1 style="color:#fff;margin:0;font-size:20px">${emailLogo()}Verify your email</h1>
       </div>
       <div style="background:#f8fafc;padding:28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;text-align:center">
         <p style="font-size:14px;color:#0c1222;margin:0 0 14px">Hi ${name || "there"}, use this code to finish creating your Circuvent account:</p>
@@ -284,7 +295,7 @@ export async function sendPasswordResetEmail(email: string, name: string, otp: s
   const html = `
     <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto">
       <div style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);padding:24px;border-radius:12px 12px 0 0">
-        <h1 style="color:#fff;margin:0;font-size:20px">Reset your password</h1>
+        <h1 style="color:#fff;margin:0;font-size:20px">${emailLogo()}Reset your password</h1>
       </div>
       <div style="background:#f8fafc;padding:28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;text-align:center">
         <p style="font-size:14px;color:#0c1222;margin:0 0 14px">Hi ${name || "there"}, use this code to reset your Circuvent account password:</p>
@@ -293,4 +304,19 @@ export async function sendPasswordResetEmail(email: string, name: string, otp: s
       </div>
     </div>`;
   return sendMail(email, `${otp} is your Circuvent password reset code`, html, process.env.EMAIL_REPLY_TO);
+}
+
+export async function sendAdmin2faEmail(email: string, name: string, otp: string): Promise<boolean> {
+  const html = `
+    <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto">
+      <div style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);padding:24px;border-radius:12px 12px 0 0">
+        <h1 style="color:#fff;margin:0;font-size:20px">${emailLogo()}Admin sign-in code</h1>
+      </div>
+      <div style="background:#f8fafc;padding:28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;text-align:center">
+        <p style="font-size:14px;color:#0c1222;margin:0 0 14px">Hi ${name || "there"}, enter this code to complete your Circuvent admin sign-in:</p>
+        <div style="font-size:34px;font-weight:800;letter-spacing:10px;color:#0c1222;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 0">${otp}</div>
+        <p style="font-size:12px;color:#94a3b8;margin:16px 0 0">This code expires in 10 minutes. If this wasn't you, change your password immediately.</p>
+      </div>
+    </div>`;
+  return sendMail(email, `${otp} is your Circuvent admin sign-in code`, html, process.env.EMAIL_REPLY_TO);
 }

@@ -14,9 +14,14 @@ import {
   LifeBuoy,
   Send,
   RotateCcw,
+  Heart,
+  ShoppingCart,
+  Trash2,
+  IndianRupee,
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
 import { useCart } from "@/components/shop/CartProvider";
+import { useWishlist } from "@/components/shop/WishlistProvider";
 import { useRouter } from "next/navigation";
 import AuthForm from "@/components/shop/AuthForm";
 import AccountExtras from "@/components/shop/AccountExtras";
@@ -129,6 +134,7 @@ function SignedIn({
 }) {
   const [history, setHistory] = useState<WalletTxn[]>([]);
   const { add } = useCart();
+  const { ids: wishIds, remove: removeWish, count: wishCount } = useWishlist();
   const router = useRouter();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -301,6 +307,23 @@ function SignedIn({
 
   return (
     <>
+    {/* Account dashboard summary */}
+    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {[
+        { icon: Package, label: "Orders", value: String(orders.length) },
+        { icon: IndianRupee, label: "Total spent", value: formatINR(orders.filter((o) => o.status !== "cancelled").reduce((s, o) => s + (o.total || 0), 0)) },
+        { icon: Wallet, label: "Wallet", value: formatINR(wallet) },
+        { icon: Heart, label: "Wishlist", value: String(wishCount) },
+      ].map((s) => (
+        <div key={s.label} className="rounded-2xl border p-4" style={card}>
+          <div className="flex items-center gap-2" style={{ color: "var(--text-tertiary)" }}>
+            <s.icon className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
+            <span className="text-xs font-medium uppercase tracking-wider">{s.label}</span>
+          </div>
+          <p className="mt-1.5 text-xl font-extrabold" style={{ color: "var(--text-primary)" }}>{s.value}</p>
+        </div>
+      ))}
+    </div>
     <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
       {/* Left column: profile + wallet */}
       <div className="space-y-6">
@@ -490,9 +513,70 @@ function SignedIn({
         )}
       </div>
     </div>
+    <WishlistSection ids={wishIds} onRemove={removeWish} onAdd={(p) => add(p)} />
     <SupportSection authHeaders={authHeaders} />
     <AccountExtras authHeaders={authHeaders} onWalletChange={refreshWallet} />
     </>
+  );
+}
+
+function WishlistSection({
+  ids,
+  onRemove,
+  onAdd,
+}: {
+  ids: string[];
+  onRemove: (id: string) => void;
+  onAdd: (p: (typeof CATALOG)[number]) => void;
+}) {
+  const card = { background: "var(--bg-surface)", borderColor: "var(--border-primary)" };
+  const items = ids.map((id) => CATALOG.find((p) => p.id === id || p.slug === id)).filter(Boolean) as (typeof CATALOG);
+  return (
+    <div className="mt-6 rounded-2xl border p-6" style={card}>
+      <h2 className="flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
+        <Heart className="h-4 w-4" style={{ color: "#ef4444" }} /> Wishlist
+        {items.length > 0 && <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>· {items.length}</span>}
+      </h2>
+      {items.length === 0 ? (
+        <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>
+          No saved products yet. Tap the heart on any product to save it here.
+        </p>
+      ) : (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {items.map((p) => {
+            const soldOut = p.available === false || (typeof p.stock === "number" && p.stock <= 0);
+            return (
+              <div key={p.id} className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: "var(--border-primary)" }}>
+                <div className="min-w-0 flex-1">
+                  <Link href={`/shop/${p.slug}`} className="truncate font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>
+                    {p.name}
+                  </Link>
+                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    {formatINR(p.price)} {soldOut && <span className="text-xs" style={{ color: "#ef4444" }}>· Out of stock</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={() => onAdd(p)}
+                  disabled={soldOut}
+                  title={soldOut ? "Out of stock" : "Add to cart"}
+                  className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 text-white disabled:opacity-40"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => onRemove(p.id)}
+                  title="Remove from wishlist"
+                  className="grid h-9 w-9 place-items-center rounded-lg border"
+                  style={{ borderColor: "var(--border-primary)", color: "var(--text-muted)" }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

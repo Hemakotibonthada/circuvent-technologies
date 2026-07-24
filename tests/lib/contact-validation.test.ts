@@ -1,6 +1,14 @@
 /**
  * @jest-environment node
  */
+// The contact route imports the store (which uses top-level await for DB
+// hydration and can't be loaded under jest's CJS runtime). We only exercise
+// request validation here, so mock the two store helpers the route uses.
+jest.mock("@/lib/store", () => ({
+  addContactMessage: jest.fn(),
+  flushNow: jest.fn(() => Promise.resolve()),
+}));
+
 describe("Contact form validation", () => {
   const validData = {
     name: "John Doe",

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { revalidate } from "@/lib/store";
+import { NextRequest, NextResponse, after } from "next/server";
+import { revalidate, setAdmin2faOtp, flushNow } from "@/lib/store";
+import { sendAdmin2faEmail } from "@/lib/order-core";
 import {
   authenticate,
   adminFromRequest,
@@ -7,6 +8,10 @@ import {
   ensureSeeded,
   DEFAULT_ADMIN_EMAIL,
 } from "@/lib/admin-auth";
+
+function genOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 // POST — Sign in with email + password
 export async function POST(request: NextRequest) {
@@ -26,6 +31,18 @@ export async function POST(request: NextRequest) {
     const user = authenticate(email, password);
     if (!user) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    }
+
+    // Two-step verification: if enabled for this account, email a code and
+    // require it at /api/admin/auth/verify-2fa before issuing a token.
+    if (user.twoFactorEnabled) {
+      const otp = genOtp();
+      setAdmin2faOtp(user.email, otp);
+      await flushNow();
+      after(async () => {
+        await sendAdmin2faEmail(user.email, user.name, otp);
+      });
+      return NextResponse.json({ twoFactor: true, email: user.email });
     }
 
     return NextResponse.json({

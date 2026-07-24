@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Star, Loader2, MessageSquare, BadgeCheck, ThumbsUp } from "lucide-react";
+import { Star, Loader2, MessageSquare, BadgeCheck, ThumbsUp, ImagePlus, X } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 
 interface Review {
@@ -15,6 +15,7 @@ interface Review {
   helpful?: number;
   youVoted?: boolean;
   isYours?: boolean;
+  images?: string[];
 }
 
 type Histogram = Record<"1" | "2" | "3" | "4" | "5", number>;
@@ -56,7 +57,49 @@ export default function ProductReviews({ productId }: { productId: string }) {
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [filter, setFilter] = useState<0 | 1 | 2 | 3 | 4 | 5>(0);
+
+  // Downscale a picked image to a small JPEG data-URL (keeps the store light).
+  const downscale = (file: File, max = 900, quality = 0.7): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new window.Image();
+        img.onload = () => {
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("no ctx"));
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const onPickFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return;
+    const room = Math.max(0, 4 - photos.length);
+    const next: string[] = [];
+    for (const f of files.slice(0, room)) {
+      try {
+        next.push(await downscale(f));
+      } catch {
+        /* skip unreadable image */
+      }
+    }
+    setPhotos((p) => [...p, ...next].slice(0, 4));
+    e.target.value = "";
+  };
 
   const load = useCallback(async () => {
     try {
@@ -87,11 +130,12 @@ export default function ProductReviews({ productId }: { productId: string }) {
       const r = await fetch("/api/shop/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ productId, rating, comment }),
+        body: JSON.stringify({ productId, rating, comment, images: photos }),
       });
       const d = await r.json();
       if (d.success) {
         setComment("");
+        setPhotos([]);
         setMsg("Thanks for your review!");
         load();
       } else {
@@ -211,6 +255,33 @@ export default function ProductReviews({ productId }: { productId: string }) {
               className="min-h-[80px] w-full rounded-xl border px-4 py-3 text-sm outline-none"
               style={{ background: "var(--bg-glass)", borderColor: "var(--border-primary)", color: "var(--text-primary)" }}
             />
+            {/* Photo upload */}
+            <div className="flex flex-wrap items-center gap-2">
+              {photos.map((src, i) => (
+                <div key={i} className="relative h-16 w-16 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-primary)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`upload ${i + 1}`} className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}
+                    className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full bg-black/60 text-white"
+                    aria-label="Remove photo"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+              {photos.length < 4 && (
+                <label
+                  className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[10px]"
+                  style={{ borderColor: "var(--border-primary)", color: "var(--text-muted)" }}
+                >
+                  <ImagePlus className="h-4 w-4" />
+                  Photo
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
+                </label>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               <button
                 type="submit"
@@ -272,6 +343,16 @@ export default function ProductReviews({ productId }: { productId: string }) {
                   <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
                     {r.comment}
                   </p>
+                )}
+                {r.images && r.images.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {r.images.map((src, i) => (
+                      <a key={i} href={src} target="_blank" rel="noreferrer" className="block h-20 w-20 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border-primary)" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt={`review photo ${i + 1}`} className="h-full w-full object-cover transition-transform hover:scale-105" loading="lazy" />
+                      </a>
+                    ))}
+                  </div>
                 )}
                 <div className="mt-3 flex items-center gap-3">
                   <button
