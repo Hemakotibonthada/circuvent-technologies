@@ -36,7 +36,7 @@ void loop() {
   cv.set("armed", armed);
 
   // Push an immediate alert on the rising edge instead of waiting for the timer.
-  if (motion && !lastMotion && armed) cv.sync();
+  if (motion && !lastMotion && armed) cv.publishState();
   lastMotion = motion;
 
   cv.loop();

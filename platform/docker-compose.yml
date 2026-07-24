@@ -21,9 +21,9 @@ services:
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/aclfile:/mosquitto/config/aclfile:ro
+      - ./mosquitto/certs:/mosquitto/certs:ro
       - mosquitto_data:/mosquitto/data
       - mosquitto_pw:/mosquitto/pw
-      - caddy_data:/certs:ro
     ports:
       - "8883:8883"   # device MQTT over TLS (public)
     networks: [internal]

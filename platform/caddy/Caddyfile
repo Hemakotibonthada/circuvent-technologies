@@ -1,19 +1,10 @@
-# Circuvent edge — Caddy reverse proxy + automatic TLS.
-# Pin ACME to Let's Encrypt so the cert storage path is stable (Mosquitto reads
-# the mqtt.circuvent.com cert from this exact path via the shared volume).
+# Circuvent edge — Caddy reverse proxy + automatic TLS for the app API.
 {
 	email admin@circuvent.com
-	acme_ca https://acme-v02.api.letsencrypt.org/directory
 }
 
 # Control-plane REST API + live WebSocket (/ws). Caddy proxies the WS upgrade.
 api.circuvent.com {
 	encode zstd gzip
 	reverse_proxy api:8080
-}
-
-# Obtaining/renewing the TLS cert for the MQTT broker. Mosquitto reads the cert
-# that Caddy stores for this hostname; this block just keeps it certified.
-mqtt.circuvent.com {
-	respond "Circuvent MQTT endpoint — connect on port 8883 (mqtts)." 200
 }

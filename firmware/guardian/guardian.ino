@@ -56,7 +56,7 @@ void sendSOS() {
   sim.print("ATD");  // place emergency call
   sim.print(TRUSTED_NUMBER);
   sim.println(";");
-  cv.sync();  // push the alert to the cloud immediately
+  cv.publishState();  // push the alert to the cloud immediately
 }
 
 void onCommand(const String &action, JsonObjectConst p) {

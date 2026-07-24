@@ -45,25 +45,33 @@ Smart Plug:
 { "power_w": 42.6, "voltage": 232, "level": 71 }
 ```
 
-### cmd — actions (device applies + republishes `state`)
+### cmd — commands (device applies, then republishes `state`)
+All commands use `"action":"set"` with device-specific fields alongside it. The
+control-plane publishes these to `cv/<id>/cmd`; the app calls
+`POST /devices/<id>/command` with the same JSON body.
+
 Home Hub:
 ```json
-{ "action": "setRelay", "index": 2, "value": true }
-{ "action": "setScene", "scene": "night" }
+{ "action": "set", "ch": 2, "on": true }
+{ "action": "set", "relays": [true, false, false, true] }
+{ "action": "set", "scene": "night" }
 ```
-AquaGuard:
+AquaGuard (water tank):
 ```json
-{ "action": "setPump", "value": true }
-{ "action": "setMode", "mode": "auto", "startPct": 30, "stopPct": 90 }
+{ "action": "set", "pump": true }
+{ "action": "set", "auto": true }
+{ "action": "set", "startPct": 30, "stopPct": 90 }
 ```
-Smart Plug:
+Smart Plug / Smart Switch:
 ```json
-{ "action": "setPower", "value": false }
+{ "action": "set", "power": true }
+{ "action": "set", "power": true, "power2": false }
 ```
-Generic:
+Guardian (safety) / Motion sensor / Agri starter:
 ```json
-{ "action": "reboot" }
-{ "action": "identify" }        // blink LED so the user can find the device
+{ "action": "set", "armed": true }
+{ "action": "set", "sos": false }
+{ "action": "set", "pump": true }
 ```
 
 ## Latency model

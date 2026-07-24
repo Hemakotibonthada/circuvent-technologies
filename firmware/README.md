@@ -1,69 +1,82 @@
 # Circuvent Device Firmware
 
-Proprietary, end‑to‑end firmware for every Circuvent device. All devices speak
-one simple, Circuvent‑owned HTTPS protocol to the Circuvent cloud — no
-third‑party IoT platform, no external broker.
+Proprietary, end-to-end firmware for every Circuvent device. Devices talk **MQTT
+over TLS** to **our own self-hosted broker** (see `../platform/`) — no third-party
+IoT cloud, no external broker. Commands arrive in **under a second** (push, not
+polling).
 
 ```
-Device (ESP32/ESP8266)  ──HTTPS──►  Circuvent Cloud (/api/devices/*)  ──►  App (/shop/devices)
-        firmware/                     Next.js API + file store                 web dashboard
+Device (ESP32/ESP8266) ──mqtts:8883──►  Circuvent broker (Mosquitto)  ◄──►  Control-plane API
+        firmware/            (our CA)          platform/                    REST + live /ws
+                                                                                  ▲
+                                        App (mobile/web)  ──https / wss──────────┘
 ```
 
 ## Devices
 
-| Folder            | Product                     | Type id           | Key telemetry / controls            |
+| Folder            | Product                     | Type id           | Key state / controls                |
 |-------------------|-----------------------------|-------------------|-------------------------------------|
 | `smart-plug/`     | Smart Plug                  | `smart-plug`      | `power`, `watts` · toggle           |
-| `smart-switch/`   | Smart Switch (2‑gang)       | `smart-switch`    | `power`, `power2` · toggle          |
+| `smart-switch/`   | Smart Switch (2-gang)       | `smart-switch`    | `power`, `power2` · toggle          |
 | `aquaguard/`      | AquaGuard tank controller   | `aquaguard`       | `level`, `pump`, `dryRun` · pump    |
 | `agri-starter/`   | Agri GSM pump starter       | `agri-starter`    | `pump`, `power_available` · pump    |
 | `guardian/`       | Safety SOS beacon           | `guardian`        | `sos`, `battery`, `lat/lng`, `armed`|
-| `energy-monitor/` | Whole‑home energy monitor   | `energy-monitor`  | `watts`, `amps`, `kwh`              |
+| `energy-monitor/` | Whole-home energy monitor   | `energy-monitor`  | `watts`, `amps`, `kwh`              |
 | `motion-sensor/`  | PIR motion sensor           | `motion-sensor`   | `motion`, `armed`                   |
-| `home-hub/`       | Automation hub              | `home-hub`        | `scene`, `power`, `uptime`          |
+| `home-hub/`       | Automation hub              | `home-hub`        | `scene`, relays, `uptime`           |
 
-## The protocol (proprietary)
+## The protocol (MQTT)
 
-A device makes **one** call on a timer:
+Full contract in **`../platform/PROTOCOL.md`**. In short, each device uses:
 
-```
-POST {API}/api/devices/sync
-Headers: x-device-id, x-device-key
-Body:    { "type": "<type id>", "state": { ...telemetry } }
-→ 200:   { "ok": true, "claimed": true|false, "commands": [ { "action": "set", "params": {...} }, ... ] }
-```
+| Topic | Dir | Purpose |
+| --- | --- | --- |
+| `cv/<id>/cmd` | in | commands (`{"action":"set", ...}`) — handled by the sketch's `onCommand` |
+| `cv/<id>/state` | out | retained full state (published on a timer + on demand) |
+| `cv/<id>/telemetry` | out | one-off readings |
+| `cv/<id>/status` | out | `{"online":true}` on connect; Last-Will `{"online":false}` on drop |
 
-- **Telemetry up, commands down** in a single request (efficient for battery/polled devices).
-- Commands are **drained** on read; the firmware applies each via its `onCommand` handler.
-- `claimed` tells the device whether an account has linked it yet.
-
-App‑side (authenticated with the customer's account token):
-`GET /api/devices` · `POST /api/devices/claim {deviceId,key,name}` · `POST /api/devices/command {deviceId,action,params}`.
+Auth: MQTT **username = device id**, **password = device key**. TLS uses
+Circuvent's own CA, embedded in `CircuventDevice.h` (`CIRCUVENT_DEFAULT_CA`).
 
 ## Build & flash
 
 1. **Arduino IDE** with the **ESP32** (or ESP8266) board core.
-2. Install libraries (Library Manager): **ArduinoJson** (v7), and per device:
-   `fauxmoESP` (smart‑plug, smart‑switch), `TinyGPSPlus` (guardian).
+2. Install libraries (Library Manager): **ArduinoJson** (v7), **PubSubClient**,
+   and per device: `fauxmoESP` (smart-plug, smart-switch), `TinyGPSPlus` (guardian).
 3. Copy `firmware/CircuventDevice` into your `Arduino/libraries/` folder.
-4. Open the device sketch (e.g. `smart-plug/smart-plug.ino`), set `WIFI_SSID`,
-   `WIFI_PASS`, and the `DEVICE_ID` / `DEVICE_KEY` printed on the unit.
+4. Open a sketch (e.g. `home-hub/home-hub.ino`), set the `DEVICE_ID` /
+   `DEVICE_KEY` from provisioning (below). Wi-Fi is entered on-device via the
+   captive portal (`Circuvent-Setup-XXXX`) — no need to hard-code it.
 5. Select your board + port and **Upload**.
 
-Set the cloud endpoint by passing a base URL to the constructor if self‑hosting,
-e.g. `CircuventDevice cv(ID, KEY, "smart-plug", "https://circuvent.com");`.
+The broker defaults to `mqtt.circuvent.com:8883`. **Before you've set the DNS
+record**, point a device straight at the VM IP in `setup()`:
 
-## Provisioning & linking
+```cpp
+cv.setBroker("140.245.238.154");   // until mqtt.circuvent.com DNS is live
+cv.begin();
+```
 
-- Every unit ships with a unique **Device ID** + **Device Key** (sticker).
-- On first boot the device auto‑registers itself (unclaimed) via `/sync`.
-- The owner opens **Store → Devices**, taps **Add a device**, and enters the
-  ID + key to link it to their account. From then on the dashboard shows live
-  state and can send commands.
+## Onboarding a device (2 steps)
 
-## Production hardening (TODO)
+1. **Provision** (creates the device + returns its one-time key):
+   ```bash
+   curl -s https://api.circuvent.com/devices/provision \
+     -H "authorization: Bearer <YOUR_APP_TOKEN>" -H 'content-type: application/json' \
+     -d '{"id":"hub-a1b2c3","type":"home-hub","name":"Living Room Hub"}'
+   ```
+2. **Grant broker access** on the server, then flash the id+key:
+   ```bash
+   cd platform && ./scripts/add-device.sh hub-a1b2c3 '<ONE-TIME-KEY>'
+   ```
 
-- Pin the Circuvent TLS certificate in `CircuventDevice.h` (replace `setInsecure()`).
-- Store credentials in NVS + add Wi‑Fi provisioning (SoftAP/BLE) instead of hard‑coding.
-- Add signed OTA firmware updates.
-- Rotate device keys; rate‑limit `/api/devices/sync` per device.
+## Production hardening
+
+- ✅ TLS to the broker via our own embedded CA (`setInsecure()` no longer used
+  for MQTT).
+- ✅ Captive-portal Wi-Fi provisioning + NVS credential storage.
+- ✅ Last-Will online/offline + retained state so the app reflects reality instantly.
+- Optional: signed OTA (`setOtaInterval(ms)` to enable; off by default).
+- Future: delegate broker auth to Postgres (mosquitto-go-auth) so provisioning
+  alone grants broker access without `add-device.sh`.

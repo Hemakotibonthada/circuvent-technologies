@@ -10,3 +10,4 @@ data/
 pgdata/
 caddy_data/
 mosquitto/passwordfile
+mosquitto/certs/
