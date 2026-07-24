@@ -567,13 +567,14 @@ async function bootstrap(): Promise<void> {
     await dbLayer.initDb();
     const data = await dbLayer.dbHydrate();
     mem = { ...emptyDB(), ...data } as DB;
-    // Seed catalog/coupons the first time the database is empty.
+    // Persist seeded catalog/coupons the first time the database has no stored
+    // row for them, so the database becomes the source of truth from boot one.
     const seedNeeded: (keyof DB)[] = [];
-    if (!mem.products || mem.products.length === 0) {
+    if (data.products === undefined) {
       mem.products = seedProducts();
       seedNeeded.push("products");
     }
-    if (!mem.coupons || mem.coupons.length === 0) {
+    if (data.coupons === undefined) {
       mem.coupons = seedCoupons();
       seedNeeded.push("coupons");
     }
