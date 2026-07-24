@@ -39,6 +39,7 @@ import StaffPanel from "./StaffPanel";
 import AnalyticsPanel from "./AnalyticsPanel";
 import MonitoringPanel from "./MonitoringPanel";
 import ReportsPanel from "./ReportsPanel";
+import AdminAlerts from "./AdminAlerts";
 import { FileBarChart } from "lucide-react";
 
 interface PageStats {
@@ -283,9 +284,7 @@ export default function AdminDashboard() {
           }}
         >
           <div className="flex items-center justify-center mb-6">
-            <div className="p-3 rounded-xl" style={{ background: "rgba(6,182,212,0.1)" }}>
-              <Lock className="w-6 h-6" style={{ color: "var(--accent-cyan)" }} />
-            </div>
+            <img src="/logo-mark.png" alt="Circuvent" width={52} height={52} />
           </div>
           <h1 className="text-xl font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>
             Circuvent Control Center
@@ -342,18 +341,22 @@ export default function AdminDashboard() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-10">
-          <div>
-            <h1
-              className="text-3xl font-bold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Admin Dashboard
-            </h1>
-            <p className="text-sm mt-1" style={{ color: "var(--text-tertiary)" }}>
-              Real-time website analytics and server monitoring
-            </p>
+          <div className="flex items-center gap-3">
+            <img src="/logo-mark.png" alt="Circuvent" width={44} height={44} />
+            <div>
+              <h1
+                className="text-3xl font-bold"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Admin Dashboard
+              </h1>
+              <p className="text-sm mt-1" style={{ color: "var(--text-tertiary)" }}>
+                Real-time website analytics and server monitoring
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
+            <AdminAlerts onGoto={(t) => setTab(t as typeof tab)} />
             {canSee("overview") && (
               <>
                 {/* SSE Status */}
