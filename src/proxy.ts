@@ -28,6 +28,8 @@ const CSP_DIRECTIVES: Record<string, string[]> = {
   "img-src": ["'self'", "data:", "blob:", "https:"],
   "connect-src": [
     "'self'",
+    "https://api.circuvent.com",
+    "wss://api.circuvent.com",
     "https://api.razorpay.com",
     "https://lumberjack.razorpay.com",
     "https://*.razorpay.com",

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool } from "../db";
 import { requireAuth, type AuthedRequest, verifyDeviceKey, generateDeviceKey, hashDeviceKey } from "../auth";
 import { publishCommand } from "../mqtt";
+import { logger } from "../logger";
 
 export const deviceRouter = Router();
 
@@ -141,11 +142,15 @@ deviceRouter.post("/:id/command", requireAuth, async (req: AuthedRequest, res) =
     return;
   }
   publishCommand(req.params.id, payload);
-  await pool.query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [
-    req.params.id,
-    req.user!.uid,
-    payload,
-  ]);
+  // Audit log is best-effort — do NOT block the command response on the DB
+  // write; the command is already on its way to the device via MQTT.
+  void pool
+    .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [
+      req.params.id,
+      req.user!.uid,
+      payload,
+    ])
+    .catch((err) => logger.error({ err, deviceId: req.params.id }, "command audit insert failed"));
   res.json({ success: true });
 });
 
