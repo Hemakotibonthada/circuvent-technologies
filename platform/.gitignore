@@ -1,0 +1,12 @@
+# Control-plane build + secrets
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# Runtime data volumes (if ever bind-mounted locally)
+data/
+pgdata/
+caddy_data/
+mosquitto/passwordfile

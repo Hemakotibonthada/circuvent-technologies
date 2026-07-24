@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: circuvent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: circuvent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U circuvent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/aclfile:/mosquitto/config/aclfile:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_pw:/mosquitto/pw
+      - caddy_data:/certs:ro
+    ports:
+      - "8883:8883"   # device MQTT over TLS (public)
+    networks: [internal]
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://circuvent:${POSTGRES_PASSWORD}@postgres:5432/circuvent
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: control-plane
+      MQTT_PASSWORD: ${MQTT_CONTROL_PLANE_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks: [internal]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+    networks: [internal]
+
+volumes:
+  pgdata:
+  mosquitto_data:
+  mosquitto_pw:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:

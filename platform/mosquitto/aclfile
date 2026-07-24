@@ -1,0 +1,7 @@
+# Control-plane bridge: full access to every device topic.
+user control-plane
+topic readwrite cv/#
+
+# Every device (MQTT username == its deviceId) may only read/write its OWN
+# topics: cv/<deviceId>/cmd, /state, /telemetry, /status. %u = username.
+pattern readwrite cv/%u/#
