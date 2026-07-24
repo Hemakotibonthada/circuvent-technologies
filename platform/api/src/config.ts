@@ -11,6 +11,9 @@ const schema = z.object({
   JWT_EXPIRES_IN: z.string().default("30d"),
   CORS_ORIGIN: z.string().default("*"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("production"),
+  // Smart-home (Alexa + Google) account-linking OAuth client.
+  SMARTHOME_CLIENT_ID: z.string().default("circuvent-smarthome"),
+  SMARTHOME_CLIENT_SECRET: z.string().default(""),
 });
 
 const parsed = schema.safeParse(process.env);

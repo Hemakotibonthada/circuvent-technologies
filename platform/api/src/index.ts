@@ -13,6 +13,8 @@ import { deviceRouter } from "./routes/devices";
 import { accountRouter } from "./routes/account";
 import { automationRouter } from "./routes/automations";
 import { provisioningRouter } from "./routes/provisioning";
+import { oauthRouter } from "./routes/oauth";
+import { smarthomeRouter } from "./routes/smarthome";
 import { startAutomationScheduler } from "./automations";
 
 async function main(): Promise<void> {
@@ -27,6 +29,7 @@ async function main(): Promise<void> {
   app.disable("x-powered-by");
   app.use(cors({ origin: config.CORS_ORIGIN === "*" ? true : config.CORS_ORIGIN.split(",") }));
   app.use(express.json({ limit: "256kb" }));
+  app.use(express.urlencoded({ extended: true }));
   app.use(pinoHttp({ logger }));
 
   app.use("/health", healthRouter);
@@ -35,6 +38,8 @@ async function main(): Promise<void> {
   app.use("/account", accountRouter);
   app.use("/automations", automationRouter);
   app.use("/provisioning", provisioningRouter);
+  app.use("/oauth", oauthRouter);
+  app.use("/smarthome", smarthomeRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 

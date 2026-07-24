@@ -40,6 +40,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       NODE_ENV: production
+      SMARTHOME_CLIENT_ID: ${SMARTHOME_CLIENT_ID:-circuvent-smarthome}
+      SMARTHOME_CLIENT_SECRET: ${SMARTHOME_CLIENT_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
