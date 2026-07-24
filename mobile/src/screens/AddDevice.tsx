@@ -14,27 +14,39 @@ import * as IntentLauncher from "expo-intent-launcher";
 import { api } from "../api";
 
 /**
- * Zero-touch "Add a device" wizard.
+ * Enterprise zero-touch onboarding.
  *
- * Every device runs the SAME firmware with NO baked-in id/key. On first boot it
- * broadcasts an open AP "Circuvent-Setup-XXXX" and serves a tiny portal at
- * 192.168.4.1 (GET /info -> {hwid,type}, POST /save). The app:
- *   1. collects the home Wi-Fi,
- *   2. reads /info from the device (over the device AP),
- *   3. provisions a fresh identity from the control plane (id+key, owned by the
- *      user) over cellular,
- *   4. pushes id+key+Wi-Fi to the device, which reboots and connects.
- * No manual id/key, no separate claim — the device is owned the moment it's set up.
- *
- * NOTE: keep mobile data ON during setup so the phone can reach both the device
- * (local Wi-Fi) and the control plane (cellular) at the same time.
+ *  1. PICK type + PROVISION on the internet first (server mints id+key, owns it
+ *     to the user, creates the broker client). Done while on home Wi-Fi/cellular.
+ *  2. Join the device hotspot (mobile data OFF) — the DEVICE scans nearby Wi-Fi
+ *     (GET /scan; 2.4 GHz only, which is all an ESP32 sees) and the app shows a
+ *     picker. User selects the network + enters the password.
+ *  3. PUSH ssid+pass+id+key to the device (local, 192.168.4.1/save).
+ *  4. VALIDATE by polling the control plane until the device comes online. If it
+ *     never joins, the password was likely wrong -> back to the picker to retry
+ *     (no re-provision). Every step shows a live, meaningful status.
  */
 
-const INFO_URL = "http://192.168.4.1/info";
-const SAVE_URL = "http://192.168.4.1/save";
+const BASE = "http://192.168.4.1";
 const BROKER = "mqtt.circuvent.com";
 
-type Step = "mode" | "wifi" | "connect" | "working" | "done" | "manual";
+const TYPES = [
+  { id: "smart-plug", label: "Smart Plug", emoji: "🔌" },
+  { id: "smart-switch", label: "Smart Switch", emoji: "🎚️" },
+  { id: "aquaguard", label: "AquaGuard tank", emoji: "💧" },
+  { id: "home-hub", label: "Home Hub", emoji: "🏠" },
+  { id: "energy-monitor", label: "Energy Monitor", emoji: "⚡" },
+  { id: "guardian", label: "Guardian SOS", emoji: "🛡️" },
+  { id: "motion-sensor", label: "Motion Sensor", emoji: "🚶" },
+  { id: "agri-starter", label: "Agri Starter", emoji: "🌱" },
+];
+
+type Step = "mode" | "details" | "provision" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
+type LogState = "run" | "ok" | "err";
+interface LogItem { msg: string; state: LogState }
+interface Net { ssid: string; rssi: number; lock: boolean }
+
+const hex = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 
 function fetchTimeout(url: string, opts: RequestInit, ms: number): Promise<Response> {
   const c = new AbortController();
@@ -42,20 +54,35 @@ function fetchTimeout(url: string, opts: RequestInit, ms: number): Promise<Respo
   return fetch(url, { ...opts, signal: c.signal }).finally(() => clearTimeout(t));
 }
 
-const rand = () => Math.random().toString(36).slice(2, 6);
+function bars(rssi: number): string {
+  if (rssi >= -55) return "▂▄▆█";
+  if (rssi >= -67) return "▂▄▆";
+  if (rssi >= -78) return "▂▄";
+  return "▂";
+}
 
 export default function AddDevice({ onClose }: { onClose: (added: boolean) => void }) {
   const [step, setStep] = useState<Step>("mode");
+  const [type, setType] = useState("");
   const [name, setName] = useState("");
   const [ssid, setSsid] = useState("");
   const [pass, setPass] = useState("");
+  const [manual, setManual] = useState(false);
+  const [networks, setNetworks] = useState<Net[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanErr, setScanErr] = useState("");
+  const [retryNote, setRetryNote] = useState("");
   const [error, setError] = useState("");
-  const [detail, setDetail] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  // manual path
+  const [log, setLog] = useState<LogItem[]>([]);
+  const [devId, setDevId] = useState("");
+  const [devKey, setDevKey] = useState("");
   const [mid, setMid] = useState("");
   const [mkey, setMkey] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const setLast = (state: LogState, msg?: string) =>
+    setLog((l) => l.map((it, i) => (i === l.length - 1 ? { msg: msg ?? it.msg, state } : it)));
+  const addLog = (msg: string) => setLog((l) => [...l, { msg, state: "run" }]);
 
   const openWifiSettings = async () => {
     try {
@@ -66,69 +93,87 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
     }
   };
 
-  const run = async () => {
-    setError("");
-    setStep("working");
+  const provision = async () => {
+    setError(""); setLog([]); setStep("provision");
+    addLog("Registering your device with Circuvent…");
+    let id = `${type}-${hex(8)}`;
+    let r = await api.provision(id, type, name.trim() || type);
+    if (!r.ok && r.status === 409) { id = `${type}-${hex(8)}`; r = await api.provision(id, type, name.trim() || type); }
+    if (!r.ok || !r.data?.key) {
+      setLast("err", "Couldn't register the device.");
+      setError(r.status === 0 ? "No internet for this step. Stay on your home Wi-Fi / mobile data and try again." : r.data?.error || "Registration failed.");
+      setStep("fail");
+      return;
+    }
+    setDevId(id); setDevKey(r.data.key);
+    setLast("ok", "Device registered to your account ✓");
+    setStep("connect");
+  };
 
-    // 1. read the device's hardware id + type over the setup AP
-    setDetail("Reading device…");
-    let hwid = "";
-    let type = "";
+  const scan = async () => {
+    setScanErr(""); setScanning(true);
     try {
-      const r = await fetchTimeout(INFO_URL, {}, 8000);
-      const info = (await r.json()) as { hwid?: string; type?: string };
-      hwid = String(info.hwid || "");
-      type = String(info.type || "");
+      const res = await fetchTimeout(`${BASE}/scan`, {}, 9000);
+      const arr = (await res.json()) as Net[];
+      arr.sort((a, b) => b.rssi - a.rssi);
+      setNetworks(arr);
+      if (!arr.length) setScanErr("No networks found. Move closer to your router or enter the name manually.");
     } catch {
-      setError("Couldn't reach the device. Connect to the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi (keep mobile data ON) and try again.");
-      setStep("connect");
-      return;
+      setScanErr("Couldn't reach the device to scan. Make sure you joined \u201CCircuvent-Setup-\u2026\u201D and mobile data is OFF.");
     }
-    if (!hwid || !type) {
-      setError("The device didn't report its details. Power-cycle it and retry.");
-      setStep("connect");
-      return;
-    }
+    setScanning(false);
+  };
 
-    // 2. provision a fresh identity from the control plane (over cellular)
-    setDetail("Registering with your account…");
-    let id = `${type}-${hwid}`.toLowerCase();
-    let prov = await api.provision(id, type, name.trim() || type);
-    if (!prov.ok && prov.status === 409) {
-      id = `${id}-${rand()}`;
-      prov = await api.provision(id, type, name.trim() || type);
-    }
-    if (!prov.ok || !prov.data?.key) {
-      setError(prov.data?.error || "Couldn't register the device. Check your internet (keep mobile data ON) and retry.");
-      setStep("connect");
-      return;
-    }
-    const key = prov.data.key;
+  const goWifi = () => { setStep("wifi"); setRetryNote(""); scan(); };
 
-    // 3. push identity + Wi-Fi to the device; it reboots and joins
-    setDetail("Sending Wi-Fi + identity to the device…");
+  const sendToDevice = async () => {
+    setError("");
+    if (!ssid.trim()) { setError("Pick or enter your Wi-Fi network."); return; }
+    setStep("sending");
+    setLog([
+      { msg: "Device registered to your account ✓", state: "ok" },
+      { msg: `Sending Wi-Fi (${ssid}) to the device…`, state: "run" },
+    ]);
     const body =
       `ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}` +
-      `&id=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}&broker=${encodeURIComponent(BROKER)}`;
+      `&id=${encodeURIComponent(devId)}&key=${encodeURIComponent(devKey)}&broker=${encodeURIComponent(BROKER)}`;
     try {
-      await fetchTimeout(SAVE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
-      }, 10000);
+      const res = await fetchTimeout(`${BASE}/save`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body }, 10000);
+      if (!res.ok) throw new Error(String(res.status));
+      setLast("ok", "Wi-Fi + identity sent to the device ✓");
+      setStep("reconnect");
     } catch {
-      // The device reboots right after saving, which can abort the response —
-      // that's expected. We confirm via the device coming online shortly.
+      setLast("err", "Couldn't reach the device.");
+      setError("Make sure you're on the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi with mobile data OFF, then try again.");
+      setStep("wifi");
     }
-    setStep("done");
+  };
+
+  const waitForOnline = async () => {
+    setStep("waiting");
+    setLog([
+      { msg: "Device registered ✓", state: "ok" },
+      { msg: "Wi-Fi sent ✓", state: "ok" },
+      { msg: `Verifying the device can join ${ssid}…`, state: "run" },
+    ]);
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const r = await api.device(devId);
+      if (r.ok && r.data?.device?.online) {
+        setLast("ok", "Device is online ✓");
+        setStep("done");
+        return;
+      }
+    }
+    // Never came online -> almost always a wrong Wi-Fi password. Let them retry.
+    setLast("err", `The device couldn't join ${ssid}.`);
+    setRetryNote(`The device didn't come online. The Wi-Fi password may be wrong. Re-join the "Circuvent-Setup-…" hotspot (mobile data OFF) and re-enter the password.`);
+    setStep("wifi");
   };
 
   const claim = async () => {
     setError("");
-    if (!mid.trim() || !mkey.trim()) {
-      setError("Enter the device ID and key.");
-      return;
-    }
+    if (!mid.trim() || !mkey.trim()) { setError("Enter the device ID and key."); return; }
     setBusy(true);
     const r = await api.claim(mid.trim(), mkey.trim(), name.trim() || mid.trim());
     setBusy(false);
@@ -136,12 +181,17 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
     else setError(r.data?.error || "Could not add device. Check the ID and key.");
   };
 
+  const goBack = () => {
+    if (step === "mode") return onClose(false);
+    if (step === "fail") return setStep("details");
+    if (step === "wifi") return setStep("connect");
+    setStep("mode");
+  };
+
   return (
     <View style={s.wrap}>
       <View style={s.top}>
-        <Pressable onPress={() => (step === "mode" ? onClose(false) : setStep("mode"))} hitSlop={10}>
-          <Text style={s.back}>{step === "mode" ? "✕ Close" : "‹ Back"}</Text>
-        </Pressable>
+        <Pressable onPress={goBack} hitSlop={10}><Text style={s.back}>{step === "mode" ? "✕ Close" : "‹ Back"}</Text></Pressable>
         <Text style={s.title}>Add a device</Text>
         <View style={{ width: 54 }} />
       </View>
@@ -150,20 +200,14 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
         {step === "mode" && (
           <View>
             <Text style={s.lead}>How would you like to add your device?</Text>
-            <Pressable style={s.optCard} onPress={() => setStep("wifi")}>
+            <Pressable style={s.optCard} onPress={() => setStep("details")}>
               <Text style={s.optEmoji}>📶</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={s.optTitle}>Set up a new device</Text>
-                <Text style={s.optSub}>Connect it to Wi-Fi — no codes to type</Text>
-              </View>
+              <View style={{ flex: 1 }}><Text style={s.optTitle}>Set up a new device</Text><Text style={s.optSub}>Connect it to Wi-Fi — no codes to type</Text></View>
               <Text style={s.chev}>›</Text>
             </Pressable>
             <Pressable style={s.optCard} onPress={() => setStep("manual")}>
               <Text style={s.optEmoji}>🔗</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={s.optTitle}>Add by ID &amp; key</Text>
-                <Text style={s.optSub}>The device is already online</Text>
-              </View>
+              <View style={{ flex: 1 }}><Text style={s.optTitle}>Add by ID &amp; key</Text><Text style={s.optSub}>The device is already online</Text></View>
               <Text style={s.chev}>›</Text>
             </Pressable>
           </View>
@@ -180,60 +224,133 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
           </View>
         )}
 
-        {step === "wifi" && (
+        {step === "details" && (
           <View>
-            <StepTag>Step 1 of 3 · Your Wi-Fi</StepTag>
-            <Text style={s.lead}>The device will join this network. Circuvent devices use 2.4 GHz Wi-Fi.</Text>
-            <Field label="Device name" value={name} onChangeText={setName} placeholder="e.g. Overhead tank" />
-            <Field label="Wi-Fi name (SSID)" value={ssid} onChangeText={setSsid} placeholder="Your home Wi-Fi" autoCapitalize="none" />
-            <Field label="Wi-Fi password" value={pass} onChangeText={setPass} placeholder="Wi-Fi password" secureTextEntry />
+            <StepTag>Step 1 of 3 · What are you setting up?</StepTag>
+            <View style={s.typeGrid}>
+              {TYPES.map((t) => (
+                <Pressable key={t.id} style={[s.typeChip, type === t.id && s.typeChipOn]} onPress={() => setType(t.id)}>
+                  <Text style={s.typeEmoji}>{t.emoji}</Text>
+                  <Text style={[s.typeLabel, type === t.id && { color: "#fff" }]}>{t.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={{ height: 10 }} />
+            <Field label="Device name (optional)" value={name} onChangeText={setName} placeholder="e.g. Overhead tank" />
             {!!error && <Text style={s.err}>{error}</Text>}
-            <Primary
-              label="Next"
-              onPress={() => {
-                if (!ssid.trim()) { setError("Enter your Wi-Fi name."); return; }
-                setError(""); setStep("connect");
-              }}
-            />
+            <Primary label="Next" onPress={() => { if (!type) { setError("Pick what you're setting up."); return; } setError(""); provision(); }} />
+          </View>
+        )}
+
+        {(step === "provision" || step === "sending" || step === "waiting") && (
+          <View>
+            <StepTag>{step === "provision" ? "Step 1 · Registering" : step === "sending" ? "Step 2 · Sending to device" : "Step 3 · Confirming"}</StepTag>
+            <ProgressLog items={log} />
           </View>
         )}
 
         {step === "connect" && (
           <View>
             <StepTag>Step 2 of 3 · Connect to the device</StepTag>
-            <Text style={s.lead}>
-              1. Power on the device and wait ~15s.{"\n"}
-              2. Tap below and join the <Text style={s.b}>Circuvent-Setup-…</Text> Wi-Fi (no password).{"\n"}
-              3. Keep <Text style={s.b}>mobile data ON</Text> so setup can reach the internet.{"\n"}
+            <ProgressLog items={[{ msg: "Device registered to your account ✓", state: "ok" }]} />
+            <Text style={[s.lead, { marginTop: 14 }]}>
+              1. Power on the device, wait ~15s.{"\n"}
+              2. Tap below, join <Text style={s.b}>Circuvent-Setup-…</Text> (no password).{"\n"}
+              3. Turn <Text style={s.b}>mobile data OFF</Text> so the phone can talk to the device.{"\n"}
               4. Come back and tap <Text style={s.b}>Continue</Text>.
             </Text>
-            <Pressable style={s.secondary} onPress={openWifiSettings}>
-              <Text style={s.secondaryT}>Open Wi-Fi settings</Text>
-            </Pressable>
-            {!!error && <Text style={s.err}>{error}</Text>}
-            <Primary label="Continue" onPress={run} />
+            <Pressable style={s.secondary} onPress={openWifiSettings}><Text style={s.secondaryT}>Open Wi-Fi settings</Text></Pressable>
+            <Primary label="Continue" onPress={goWifi} />
           </View>
         )}
 
-        {step === "working" && (
-          <View style={s.center}>
-            <ActivityIndicator size="large" color="#06b6d4" />
-            <Text style={[s.lead, { textAlign: "center", marginTop: 16 }]}>{detail || "Setting up…"}</Text>
+        {step === "wifi" && (
+          <View>
+            <StepTag>Step 2 of 3 · Choose the device's Wi-Fi</StepTag>
+            {!!retryNote && <Text style={s.err}>{retryNote}</Text>}
+            <View style={s.rowBetween}>
+              <Text style={s.label}>Networks near the device {networks.length ? `(${networks.length})` : ""}</Text>
+              <Pressable onPress={scan} disabled={scanning}><Text style={s.link}>{scanning ? "Scanning…" : "↻ Rescan"}</Text></Pressable>
+            </View>
+
+            {scanning && <View style={s.center}><ActivityIndicator color="#06b6d4" /><Text style={s.hint}>Asking the device to scan…</Text></View>}
+            {!!scanErr && !scanning && <Text style={s.err}>{scanErr}</Text>}
+
+            {!manual && networks.map((nw) => (
+              <Pressable key={nw.ssid} style={[s.netRow, ssid === nw.ssid && s.netRowOn]} onPress={() => setSsid(nw.ssid)}>
+                <Text style={s.netName} numberOfLines={1}>{nw.ssid}</Text>
+                <Text style={s.netMeta}>{nw.lock ? "🔒 " : ""}{bars(nw.rssi)}</Text>
+              </Pressable>
+            ))}
+
+            <Pressable onPress={() => setManual((m) => !m)}>
+              <Text style={[s.link, { marginTop: 10 }]}>{manual ? "‹ Pick from the list" : "Enter network name manually"}</Text>
+            </Pressable>
+            {manual && (
+              <View style={{ marginTop: 8 }}>
+                <Field label="Wi-Fi name (SSID)" value={ssid} onChangeText={setSsid} placeholder="Your 2.4 GHz Wi-Fi" autoCapitalize="none" />
+              </View>
+            )}
+
+            {(ssid.length > 0 || manual) && (
+              <View style={{ marginTop: 8 }}>
+                <Field label={`Password for "${ssid || "your Wi-Fi"}"`} value={pass} onChangeText={setPass} placeholder="Wi-Fi password" secureTextEntry />
+              </View>
+            )}
+
+            {!!error && <Text style={s.err}>{error}</Text>}
+            <Primary label="Send Wi-Fi to device" onPress={sendToDevice} />
+          </View>
+        )}
+
+        {step === "reconnect" && (
+          <View>
+            <StepTag>Almost done</StepTag>
+            <ProgressLog items={[{ msg: "Device registered ✓", state: "ok" }, { msg: "Wi-Fi + identity sent ✓", state: "ok" }]} />
+            <Text style={[s.lead, { marginTop: 14 }]}>
+              The device is restarting and joining <Text style={s.b}>{ssid}</Text>. Switch your phone back to your
+              <Text style={s.b}> home Wi-Fi</Text> (turn mobile data on), then continue to verify.
+            </Text>
+            <Pressable style={s.secondary} onPress={openWifiSettings}><Text style={s.secondaryT}>Open Wi-Fi settings</Text></Pressable>
+            <Primary label="Continue" onPress={waitForOnline} />
           </View>
         )}
 
         {step === "done" && (
           <View>
-            <StepTag>Step 3 of 3 · All set</StepTag>
-            <Text style={s.okBadge}>✓ Device configured</Text>
-            <Text style={s.lead}>
-              It&apos;s restarting and joining <Text style={s.b}>{ssid}</Text>, then it&apos;ll appear in your devices
-              (usually within a minute). Reconnect your phone to your home Wi-Fi.
-            </Text>
-            <Primary label="Done" onPress={() => onClose(true)} />
+            <StepTag>Done</StepTag>
+            <ProgressLog items={log} />
+            <Text style={[s.okBadge, { marginTop: 12 }]}>✓ {name || type} is set up</Text>
+            <Primary label="Finish" onPress={() => onClose(true)} />
+          </View>
+        )}
+
+        {step === "fail" && (
+          <View>
+            <StepTag>Couldn&apos;t complete setup</StepTag>
+            <ProgressLog items={log} />
+            {!!error && <Text style={[s.err, { marginTop: 10 }]}>{error}</Text>}
+            <Primary label="Try again" onPress={() => setStep("details")} />
           </View>
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+function ProgressLog({ items }: { items: LogItem[] }) {
+  return (
+    <View style={{ marginTop: 6 }}>
+      {items.map((it, i) => (
+        <View key={i} style={s.logRow}>
+          {it.state === "run" ? (
+            <ActivityIndicator size="small" color="#06b6d4" style={{ width: 22 }} />
+          ) : (
+            <Text style={[s.logIcon, { color: it.state === "ok" ? "#22c55e" : "#ef4444" }]}>{it.state === "ok" ? "✓" : "✕"}</Text>
+          )}
+          <Text style={[s.logMsg, it.state === "err" && { color: "#fca5a5" }]}>{it.msg}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -262,14 +379,27 @@ const s = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, borderBottomColor: "#1f2937", borderBottomWidth: 1 },
   back: { color: "#8b5cf6", fontSize: 15, width: 54 },
   title: { color: "#fff", fontSize: 17, fontWeight: "800" },
-  lead: { color: "#94a3b8", fontSize: 14, lineHeight: 21, marginBottom: 16 },
+  lead: { color: "#94a3b8", fontSize: 14, lineHeight: 22, marginBottom: 16 },
   b: { color: "#e5e7eb", fontWeight: "700" },
-  stepTag: { color: "#06b6d4", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 },
+  stepTag: { color: "#06b6d4", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 },
   optCard: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
   optEmoji: { fontSize: 26 },
   optTitle: { color: "#e5e7eb", fontSize: 16, fontWeight: "700" },
   optSub: { color: "#64748b", fontSize: 13, marginTop: 2 },
   chev: { color: "#475569", fontSize: 26 },
+  label: { color: "#e5e7eb", fontSize: 14, fontWeight: "600", marginBottom: 10 },
+  hint: { color: "#64748b", fontSize: 12, marginTop: 8 },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  link: { color: "#22d3ee", fontWeight: "700" },
+  typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  typeChip: { width: "31%", backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  typeChipOn: { borderColor: "#06b6d4", backgroundColor: "rgba(6,182,212,0.12)" },
+  typeEmoji: { fontSize: 22, marginBottom: 4 },
+  typeLabel: { color: "#94a3b8", fontSize: 11, textAlign: "center" },
+  netRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8 },
+  netRowOn: { borderColor: "#06b6d4", backgroundColor: "rgba(6,182,212,0.12)" },
+  netName: { color: "#e5e7eb", fontSize: 15, flex: 1, marginRight: 10 },
+  netMeta: { color: "#94a3b8", fontSize: 14 },
   fieldLabel: { color: "#94a3b8", fontSize: 12, marginBottom: 6 },
   input: { backgroundColor: "#111827", borderColor: "#334155", borderWidth: 1, borderRadius: 12, color: "#e5e7eb", padding: 14, fontSize: 15 },
   btn: { backgroundColor: "#06b6d4", borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8 },
@@ -277,6 +407,9 @@ const s = StyleSheet.create({
   secondary: { borderColor: "#334155", borderWidth: 1, borderRadius: 12, padding: 14, alignItems: "center", marginBottom: 16 },
   secondaryT: { color: "#22d3ee", fontWeight: "700" },
   err: { color: "#f59e0b", marginBottom: 12, lineHeight: 20 },
-  center: { alignItems: "center", justifyContent: "center", paddingVertical: 60 },
   okBadge: { color: "#22c55e", fontWeight: "800", fontSize: 16, marginBottom: 12 },
+  center: { alignItems: "center", justifyContent: "center", paddingVertical: 20 },
+  logRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7 },
+  logIcon: { width: 22, textAlign: "center", fontSize: 16, fontWeight: "800" },
+  logMsg: { color: "#cbd5e1", fontSize: 14, flex: 1 },
 });

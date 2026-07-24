@@ -244,6 +244,10 @@ class CircuventDevice {
       _server.sendHeader("Access-Control-Allow-Origin", "*");
       _server.send(200, "application/json", _infoJson());
     });
+    _server.on("/scan", [this]() {
+      _server.sendHeader("Access-Control-Allow-Origin", "*");
+      _server.send(200, "application/json", _scanJson());
+    });
     _server.on("/save", [this]() { _portalSave(); });
     _server.onNotFound([this]() { _server.send(200, "text/html", _portalPage()); });
     _server.begin();
@@ -404,6 +408,33 @@ class CircuventDevice {
     p += F("</p>");
     return p;
   }
+  // Nearby Wi-Fi networks the device can see (2.4 GHz only — that's all an ESP32
+  // radio picks up), for the app's network picker. GET /scan on the portal.
+  String _scanJson() {
+    int n = WiFi.scanNetworks();
+    JsonDocument d;
+    JsonArray arr = d.to<JsonArray>();
+    for (int i = 0; i < n && i < 30; i++) {
+      String ss = WiFi.SSID(i);
+      if (!ss.length()) continue;
+      bool dup = false;
+      for (JsonObject o : arr) {
+        if (ss == (const char *)(o["ssid"] | "")) { dup = true; break; }
+      }
+      if (dup) continue;
+      JsonObject o = arr.add<JsonObject>();
+      o["ssid"] = ss;
+      o["rssi"] = WiFi.RSSI(i);
+#if defined(ESP32)
+      o["lock"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+#else
+      o["lock"] = (WiFi.encryptionType(i) != ENC_TYPE_NONE);
+#endif
+    }
+    WiFi.scanDelete();
+    String s; serializeJson(d, s); return s;
+  }
+
   // Hardware/identity info for the app's setup flow (GET /info on the portal).
   String _infoJson() {
     JsonDocument d;
