@@ -9,7 +9,7 @@ const TYPE_LABEL: Record<string, string> = {
   "home-hub": "Automation Hub",
 };
 
-export default function Devices({ onOpen }: { onOpen: (d: Device) => void }) {
+export default function Devices({ onOpen, onAutomations }: { onOpen: (d: Device) => void; onAutomations: () => void }) {
   const { logout } = useAuth();
   const [devices, setDevices] = useState<Device[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,7 +54,10 @@ export default function Devices({ onOpen }: { onOpen: (d: Device) => void }) {
     <View style={s.wrap}>
       <View style={s.top}>
         <Text style={s.h1}>My devices</Text>
-        <Pressable onPress={logout}><Text style={s.logout}>Sign out</Text></Pressable>
+        <View style={s.actions}>
+          <Pressable onPress={onAutomations}><Text style={s.actionLink}>⚡ Automations</Text></Pressable>
+          <Pressable onPress={logout}><Text style={s.logout}>Sign out</Text></Pressable>
+        </View>
       </View>
 
       <FlatList
@@ -102,6 +105,8 @@ const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: "#0b1020", padding: 16 },
   top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 },
   h1: { color: "#fff", fontSize: 24, fontWeight: "800" },
+  actions: { alignItems: "flex-end", gap: 6 },
+  actionLink: { color: "#06b6d4", fontWeight: "700" },
   logout: { color: "#8b5cf6" },
   empty: { color: "#64748b", textAlign: "center", marginTop: 60 },
   card: { flexDirection: "row", alignItems: "center", backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 10 },

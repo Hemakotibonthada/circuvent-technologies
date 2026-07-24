@@ -39,6 +39,39 @@ export interface Device {
   fw_version?: string;
 }
 
+export interface AutomationTrigger {
+  type: "state" | "time";
+  deviceId?: string;
+  field?: string;
+  op?: "<" | "<=" | ">" | ">=" | "==" | "!=" | "truthy" | "falsy";
+  value?: number | string | boolean;
+  at?: string;
+}
+
+export interface AutomationAction {
+  type: "command" | "notify";
+  deviceId?: string;
+  command?: Record<string, unknown>;
+  title?: string;
+  body?: string;
+}
+
+export interface Automation {
+  id: number;
+  name: string;
+  enabled: boolean;
+  trigger: AutomationTrigger;
+  action: AutomationAction;
+  created_at?: string;
+}
+
+export interface AutomationBody {
+  name?: string;
+  enabled?: boolean;
+  trigger?: AutomationTrigger;
+  action?: AutomationAction;
+}
+
 interface AuthResp {
   token: string;
   user: { id: number; email: string; name: string };
@@ -65,4 +98,21 @@ export const api = {
     req<{ telemetry: { ts: string; payload: any }[] }>(
       "/devices/" + encodeURIComponent(id) + "/telemetry?limit=" + limit
     ),
+  automations: () => req<{ automations: Automation[] }>("/automations"),
+  createAutomation: (body: AutomationBody) =>
+    req<{ automation: Automation }>("/automations", { method: "POST", body: JSON.stringify(body) }),
+  updateAutomation: (id: number, body: AutomationBody) =>
+    req<{ automation: Automation }>("/automations/" + encodeURIComponent(String(id)), {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteAutomation: (id: number) =>
+    req<{ success: boolean }>("/automations/" + encodeURIComponent(String(id)), { method: "DELETE" }),
+  registerPushToken: (token: string, platform: string) =>
+    req<{ success: boolean }>("/account/push-token", {
+      method: "POST",
+      body: JSON.stringify({ token, platform }),
+    }),
+  removePushToken: (token: string) =>
+    req<{ success: boolean }>("/account/push-token", { method: "DELETE", body: JSON.stringify({ token }) }),
 };

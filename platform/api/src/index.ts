@@ -10,6 +10,9 @@ import { attachWebSocket } from "./ws";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { deviceRouter } from "./routes/devices";
+import { accountRouter } from "./routes/account";
+import { automationRouter } from "./routes/automations";
+import { startAutomationScheduler } from "./automations";
 
 async function main(): Promise<void> {
   await initDb();
@@ -28,11 +31,15 @@ async function main(): Promise<void> {
   app.use("/health", healthRouter);
   app.use("/auth", authRouter);
   app.use("/devices", deviceRouter);
+  app.use("/account", accountRouter);
+  app.use("/automations", automationRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 
   const server = http.createServer(app);
   attachWebSocket(server);
+
+  startAutomationScheduler();
 
   server.listen(config.PORT, () => logger.info(`Control plane listening on :${config.PORT}`));
 

@@ -56,5 +56,13 @@ export async function initDb(): Promise<void> {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_automations_owner ON automations(owner_id);
+
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      token       TEXT PRIMARY KEY,
+      user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      platform    TEXT NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
   `);
 }

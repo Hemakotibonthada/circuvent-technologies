@@ -5,11 +5,13 @@ import { AuthProvider, useAuth } from "./src/auth";
 import Login from "./src/screens/Login";
 import Devices from "./src/screens/Devices";
 import Control from "./src/screens/Control";
+import Automations from "./src/screens/Automations";
 import { Device } from "./src/api";
 
 function Root() {
   const { account, ready } = useAuth();
   const [selected, setSelected] = useState<Device | null>(null);
+  const [showAutomations, setShowAutomations] = useState(false);
 
   if (!ready) {
     return (
@@ -19,8 +21,9 @@ function Root() {
     );
   }
   if (!account) return <Login />;
+  if (showAutomations) return <Automations onBack={() => setShowAutomations(false)} />;
   if (selected) return <Control device={selected} onBack={() => setSelected(null)} />;
-  return <Devices onOpen={setSelected} />;
+  return <Devices onOpen={setSelected} onAutomations={() => setShowAutomations(true)} />;
 }
 
 export default function App() {

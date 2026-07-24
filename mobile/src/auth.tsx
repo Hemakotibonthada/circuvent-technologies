@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { api, getToken, setToken } from "./api";
+import { registerForPush } from "./push";
 
 interface Account {
   email: string;
@@ -37,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (r.ok && r.data?.token) {
       await setToken(r.data.token);
       setAccount({ email: r.data.user.email, name: r.data.user.name });
+      registerPushToken();
       return { ok: true };
     }
     return { ok: false, message: (r.data as any)?.error || "Sign in failed." };
@@ -47,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (r.ok && r.data?.token) {
       await setToken(r.data.token);
       setAccount({ email: r.data.user.email, name: r.data.user.name });
+      registerPushToken();
       return { ok: true };
     }
     return { ok: false, message: (r.data as any)?.error || "Sign up failed." };
@@ -58,6 +62,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return <Ctx.Provider value={{ account, ready, login, register, logout }}>{children}</Ctx.Provider>;
+}
+
+function registerPushToken() {
+  void (async () => {
+    try {
+      const token = await registerForPush();
+      if (token) await api.registerPushToken(token, Platform.OS);
+    } catch {
+      // Push registration is best-effort; auth should not depend on it.
+    }
+  })();
 }
 
 export function useAuth() {

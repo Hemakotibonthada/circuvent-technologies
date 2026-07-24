@@ -44,12 +44,23 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
 
       {d.type === "aquaguard" && <AquaGuard d={d} send={send} busy={busy} />}
       {d.type === "home-hub" && <HomeHub d={d} send={send} busy={busy} />}
-      {d.type !== "aquaguard" && d.type !== "home-hub" && (
-        <Text style={{ color: "#94a3b8", marginTop: 20 }}>{JSON.stringify(d.state, null, 2)}</Text>
+      {d.type === "smart-plug" && <SmartPlug d={d} send={send} busy={busy} />}
+      {d.type === "smart-switch" && <SmartSwitch d={d} send={send} busy={busy} />}
+      {d.type === "energy-monitor" && <EnergyMonitor d={d} />}
+      {d.type === "guardian" && <Guardian d={d} send={send} busy={busy} />}
+      {d.type === "motion-sensor" && <MotionSensor d={d} send={send} busy={busy} />}
+      {d.type === "agri-starter" && <AgriStarter d={d} send={send} busy={busy} />}
+      {!KNOWN.includes(d.type) && (
+        <>
+          <Text style={s.section}>Raw state</Text>
+          <Text style={{ color: "#94a3b8", fontFamily: "monospace" }}>{JSON.stringify(d.state, null, 2)}</Text>
+        </>
       )}
     </ScrollView>
   );
 }
+
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter"];
 
 function AquaGuard({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
   const level = Number(d.state.level ?? 0);
@@ -103,6 +114,104 @@ function HomeHub({ d, send }: { d: Device; send: (p: any) => void; busy: boolean
   );
 }
 
+function SmartPlug({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+  const watts = Number(d.state.watts ?? 0);
+  return (
+    <View>
+      <View style={s.gauge}>
+        <Text style={s.level}>{watts.toFixed(1)}<Text style={s.pct}> W</Text></Text>
+        <Text style={s.tank}>Live power draw</Text>
+      </View>
+      <Row label="Power"><Switch value={!!d.state.power} onValueChange={(v) => send({ power: v })} /></Row>
+    </View>
+  );
+}
+
+function SmartSwitch({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+  return (
+    <View>
+      <Row label="Gang 1"><Switch value={!!d.state.power} onValueChange={(v) => send({ power: v })} /></Row>
+      <Row label="Gang 2"><Switch value={!!d.state.power2} onValueChange={(v) => send({ power2: v })} /></Row>
+    </View>
+  );
+}
+
+function EnergyMonitor({ d }: { d: Device }) {
+  const watts = Number(d.state.watts ?? 0);
+  const amps = Number(d.state.amps ?? 0);
+  const kwh = Number(d.state.kwh ?? 0);
+  return (
+    <View>
+      <View style={s.gauge}>
+        <Text style={s.level}>{watts.toFixed(0)}<Text style={s.pct}> W</Text></Text>
+        <Text style={s.tank}>Instantaneous load</Text>
+      </View>
+      <View style={s.statsRow}>
+        <Stat label="Current" value={`${amps.toFixed(2)} A`} />
+        <Stat label="Energy" value={`${kwh.toFixed(2)} kWh`} />
+      </View>
+      <Text style={s.note}>Read-only meter — no controls.</Text>
+    </View>
+  );
+}
+
+function Guardian({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+  const battery = Number(d.state.battery ?? 0);
+  const lat = d.state.lat != null ? Number(d.state.lat) : null;
+  const lng = d.state.lng != null ? Number(d.state.lng) : null;
+  return (
+    <View>
+      {!!d.state.sos && (
+        <View style={s.sosBanner}>
+          <Text style={s.sosT}>🆘 SOS TRIGGERED</Text>
+          <Pressable style={s.sosClear} onPress={() => send({ sos: false })}><Text style={s.sosClearT}>Clear alert</Text></Pressable>
+        </View>
+      )}
+      <Row label="Armed"><Switch value={!!d.state.armed} onValueChange={(v) => send({ armed: v })} /></Row>
+      <View style={s.statsRow}>
+        <Stat label="Battery" value={`${battery}%`} />
+        <Stat label="Location" value={lat != null && lng != null ? `${lat.toFixed(3)}, ${lng.toFixed(3)}` : "—"} />
+      </View>
+    </View>
+  );
+}
+
+function MotionSensor({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+  const motion = !!d.state.motion;
+  return (
+    <View>
+      <View style={[s.gauge, { backgroundColor: motion ? "rgba(239,68,68,0.15)" : "#111827" }]}>
+        <Text style={[s.level, { fontSize: 30, color: motion ? "#ef4444" : "#22c55e" }]}>{motion ? "MOTION" : "CLEAR"}</Text>
+        <Text style={s.tank}>{d.state.armed ? "Armed" : "Disarmed"}</Text>
+      </View>
+      <Row label="Armed"><Switch value={!!d.state.armed} onValueChange={(v) => send({ armed: v })} /></Row>
+    </View>
+  );
+}
+
+function AgriStarter({ d, send }: { d: Device; send: (p: any) => void; busy: boolean }) {
+  const power = !!d.state.power_available;
+  return (
+    <View>
+      <Row label="Pump"><Switch value={!!d.state.pump} onValueChange={(v) => send({ pump: v })} /></Row>
+      <View style={[s.row, { justifyContent: "flex-start" }]}>
+        <Text style={s.rowT}>Mains power </Text>
+        <Text style={{ color: power ? "#22c55e" : "#ef4444", fontWeight: "700" }}>{power ? "Available" : "Unavailable"}</Text>
+      </View>
+      {!power && <Text style={s.alert}>⚠ No mains power — pump cannot start</Text>}
+    </View>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.stat}>
+      <Text style={s.statV}>{value}</Text>
+      <Text style={s.statL}>{label}</Text>
+    </View>
+  );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={s.row}>
@@ -144,4 +253,13 @@ const s = StyleSheet.create({
   scene: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, backgroundColor: "#111827", borderColor: "#334155", borderWidth: 1 },
   sceneOn: { backgroundColor: "#8b5cf6", borderColor: "#8b5cf6" },
   sceneT: { color: "#94a3b8", textTransform: "capitalize" },
+  statsRow: { flexDirection: "row", gap: 10 },
+  stat: { flex: 1, backgroundColor: "#111827", borderRadius: 12, padding: 16, alignItems: "center" },
+  statV: { color: "#fff", fontSize: 20, fontWeight: "800" },
+  statL: { color: "#64748b", fontSize: 12, marginTop: 4, textTransform: "uppercase", letterSpacing: 1 },
+  note: { color: "#64748b", marginTop: 12, fontStyle: "italic" },
+  sosBanner: { backgroundColor: "rgba(239,68,68,0.15)", borderColor: "#ef4444", borderWidth: 1, borderRadius: 12, padding: 16, marginBottom: 12, alignItems: "center" },
+  sosT: { color: "#ef4444", fontSize: 18, fontWeight: "800", marginBottom: 10 },
+  sosClear: { backgroundColor: "#ef4444", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 },
+  sosClearT: { color: "#fff", fontWeight: "700" },
 });
