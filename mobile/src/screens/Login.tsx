@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
+import { C, GRAD } from "../theme";
 
 export default function Login() {
   const { login, register } = useAuth();
@@ -18,51 +20,89 @@ export default function Login() {
       mode === "login"
         ? await login(email.trim(), password)
         : await register(name.trim(), email.trim(), password);
-    if (!r.ok) setMsg(r.message || "");
+    if (!r.ok) setMsg(r.message || "Something went wrong");
     setBusy(false);
   };
 
   return (
-    <View style={s.wrap}>
-      <Text style={s.logo}>
-        Circu<Text style={{ color: "#06b6d4" }}>vent</Text>
-      </Text>
-      <Text style={s.sub}>Control your smart devices</Text>
+    <LinearGradient colors={GRAD.screen} style={s.wrap}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.flex}>
+        <View style={s.center}>
+          <LinearGradient colors={GRAD.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.logoPill}>
+            <Image source={require("../../assets/icon.png")} style={s.logoImg} resizeMode="contain" />
+          </LinearGradient>
+          <Text style={s.logo}>
+            Circu<Text style={{ color: C.cyanHi }}>vent</Text>
+          </Text>
+          <Text style={s.sub}>{mode === "login" ? "Welcome back — control your world." : "Create your account."}</Text>
 
-      {mode === "register" && (
-        <TextInput style={s.input} placeholder="Full name" placeholderTextColor="#64748b" value={name} onChangeText={setName} />
-      )}
-      <TextInput
-        style={s.input}
-        placeholder="Email"
-        placeholderTextColor="#64748b"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput style={s.input} placeholder="Password" placeholderTextColor="#64748b" secureTextEntry value={password} onChangeText={setPassword} />
+          <View style={s.card}>
+            {mode === "register" && (
+              <Field icon="👤">
+                <TextInput style={s.input} placeholder="Full name" placeholderTextColor={C.faint} value={name} onChangeText={setName} />
+              </Field>
+            )}
+            <Field icon="✉️">
+              <TextInput
+                style={s.input}
+                placeholder="Email"
+                placeholderTextColor={C.faint}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </Field>
+            <Field icon="🔒">
+              <TextInput style={s.input} placeholder="Password" placeholderTextColor={C.faint} secureTextEntry value={password} onChangeText={setPassword} />
+            </Field>
 
-      <Pressable style={s.btn} onPress={submit} disabled={busy}>
-        {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.btnT}>{mode === "login" ? "Sign in" : "Create account"}</Text>}
-      </Pressable>
+            {!!msg && <Text style={s.msg}>{msg}</Text>}
 
-      {!!msg && <Text style={s.msg}>{msg}</Text>}
+            <Pressable onPress={submit} disabled={busy} style={{ marginTop: 6 }}>
+              <LinearGradient colors={GRAD.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btn}>
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.btnT}>{mode === "login" ? "Sign in" : "Create account"}</Text>}
+              </LinearGradient>
+            </Pressable>
+          </View>
 
-      <Pressable onPress={() => { setMode(mode === "login" ? "register" : "login"); setMsg(""); }}>
-        <Text style={s.link}>{mode === "login" ? "New here? Create an account" : "Have an account? Sign in"}</Text>
-      </Pressable>
+          <Pressable onPress={() => { setMode(mode === "login" ? "register" : "login"); setMsg(""); }} hitSlop={8}>
+            <Text style={s.link}>
+              {mode === "login" ? "New to Circuvent? " : "Already have an account? "}
+              <Text style={{ color: C.cyanHi, fontWeight: "700" }}>{mode === "login" ? "Create an account" : "Sign in"}</Text>
+            </Text>
+          </Pressable>
+        </View>
+        <Text style={s.footer}>Self-hosted control plane · end-to-end encrypted</Text>
+      </KeyboardAvoidingView>
+    </LinearGradient>
+  );
+}
+
+function Field({ icon, children }: { icon: string; children: React.ReactNode }) {
+  return (
+    <View style={s.field}>
+      <Text style={s.fieldIcon}>{icon}</Text>
+      {children}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#0b1020", padding: 24, justifyContent: "center" },
-  logo: { color: "#fff", fontSize: 34, fontWeight: "800", textAlign: "center" },
-  sub: { color: "#94a3b8", textAlign: "center", marginBottom: 28 },
-  input: { backgroundColor: "#111827", borderColor: "#334155", borderWidth: 1, borderRadius: 12, color: "#e5e7eb", padding: 14, marginBottom: 12 },
-  btn: { backgroundColor: "#06b6d4", borderRadius: 12, padding: 15, alignItems: "center", marginTop: 4 },
-  btnT: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  msg: { color: "#f59e0b", textAlign: "center", marginTop: 14 },
-  link: { color: "#8b5cf6", textAlign: "center", marginTop: 20 },
+  wrap: { flex: 1 },
+  flex: { flex: 1 },
+  center: { flex: 1, padding: 24, justifyContent: "center" },
+  logoPill: { width: 76, height: 76, borderRadius: 22, alignSelf: "center", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  logoImg: { width: 46, height: 46 },
+  logo: { color: "#fff", fontSize: 32, fontWeight: "800", textAlign: "center", letterSpacing: 0.3 },
+  sub: { color: C.textDim, textAlign: "center", marginTop: 6, marginBottom: 26 },
+  card: { backgroundColor: "rgba(255,255,255,0.03)", borderColor: C.border, borderWidth: 1, borderRadius: 20, padding: 18 },
+  field: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.card, borderColor: C.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, marginBottom: 12 },
+  fieldIcon: { fontSize: 15 },
+  input: { flex: 1, color: C.text, paddingVertical: 14, fontSize: 15 },
+  btn: { borderRadius: 14, paddingVertical: 15, alignItems: "center" },
+  btnT: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  msg: { color: C.amber, textAlign: "center", marginBottom: 10 },
+  link: { color: C.textDim, textAlign: "center", marginTop: 22 },
+  footer: { color: C.faint, textAlign: "center", fontSize: 12, paddingBottom: 24 },
 });

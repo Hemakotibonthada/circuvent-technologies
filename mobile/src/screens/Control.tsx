@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, Switch, StyleSheet, ScrollView } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { api, Device } from "../api";
 import { useLive } from "../live";
+import { C, GRAD, deviceMeta } from "../theme";
 
 export default function Control({ device, onBack }: { device: Device; onBack: () => void }) {
   const [d, setD] = useState<Device>(device);
@@ -36,11 +38,24 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
     setBusy(false);
   };
 
+  const meta = deviceMeta(d.type);
   return (
-    <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16 }}>
-      <Pressable onPress={onBack}><Text style={s.back}>‹ Devices</Text></Pressable>
-      <Text style={s.h1}>{d.name}</Text>
-      <Text style={[s.status, { color: d.online ? "#22c55e" : "#64748b" }]}>{d.online ? "● Online" : "○ Offline"}</Text>
+    <LinearGradient colors={GRAD.screen} style={{ flex: 1 }}>
+    <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <Pressable onPress={onBack} hitSlop={8}><Text style={s.back}>‹ Devices</Text></Pressable>
+      <View style={s.hero}>
+        <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.heroPill}>
+          <Text style={s.heroGlyph}>{meta.glyph}</Text>
+        </LinearGradient>
+        <View style={{ flex: 1 }}>
+          <Text style={s.h1} numberOfLines={1}>{d.name || d.id}</Text>
+          <View style={s.heroMeta}>
+            <Text style={s.heroType}>{meta.label}</Text>
+            <View style={[s.onlineDot, { backgroundColor: d.online ? C.green : C.faint }]} />
+            <Text style={[s.status, { color: d.online ? C.green : C.faint }]}>{d.online ? "Online" : "Offline"}</Text>
+          </View>
+        </View>
+      </View>
 
       {d.type === "aquaguard" && <AquaGuard d={d} send={send} busy={busy} />}
       {d.type === "home-hub" && <HomeHub d={d} send={send} busy={busy} />}
@@ -57,6 +72,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
         </>
       )}
     </ScrollView>
+    </LinearGradient>
   );
 }
 
@@ -233,10 +249,16 @@ function Stepper({ label, onUp, onDown }: { label: string; onUp: () => void; onD
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#0b1020" },
-  back: { color: "#8b5cf6", marginTop: 8, marginBottom: 6 },
+  wrap: { flex: 1 },
+  back: { color: "#8b5cf6", marginTop: 8, marginBottom: 12 },
+  hero: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 20 },
+  heroPill: { width: 56, height: 56, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  heroGlyph: { fontSize: 28 },
   h1: { color: "#fff", fontSize: 24, fontWeight: "800" },
-  status: { marginBottom: 16, marginTop: 2 },
+  heroMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  heroType: { color: "#94a3b8", fontSize: 13 },
+  onlineDot: { width: 8, height: 8, borderRadius: 4 },
+  status: { fontSize: 13, fontWeight: "600" },
   gauge: { backgroundColor: "#111827", borderRadius: 16, padding: 20, alignItems: "center", marginBottom: 16 },
   level: { color: "#fff", fontSize: 56, fontWeight: "800" },
   pct: { fontSize: 24, color: "#94a3b8" },
