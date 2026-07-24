@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listCustomers, setAccountBlocked, creditWallet, debitWallet, logAudit } from "@/lib/store";
+import { listCustomers, setAccountBlocked, creditWallet, debitWallet, logAudit, revalidate } from "@/lib/store";
 import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
@@ -12,6 +12,7 @@ function verifyAdmin(request: Request): boolean {
 /** GET /api/admin/customers — directory with order count, spend, wallet. */
 export async function GET(request: Request) {
   if (!verifyAdmin(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  await revalidate(["accounts", "orders", "wallets", "loyalty"]);
   return NextResponse.json({ success: true, customers: listCustomers() });
 }
 

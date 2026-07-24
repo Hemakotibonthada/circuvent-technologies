@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidate } from "@/lib/store";
 import {
   authenticate,
   adminFromRequest,
@@ -11,6 +12,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     ensureSeeded();
+    await revalidate(["adminUsers"]);
     const body = await request.json().catch(() => ({}));
     // Backwards-compatible: an old client that sends only { password } is treated
     // as the default owner account.
@@ -40,6 +42,7 @@ export async function POST(request: NextRequest) {
 
 // GET — Verify an existing token and return the current identity + role
 export async function GET(request: NextRequest) {
+  await revalidate(["adminUsers"]);
   const user = adminFromRequest(request);
   if (!user) {
     return NextResponse.json({ authenticated: false }, { status: 401 });

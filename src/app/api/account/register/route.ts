@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
-import { getAccount, setPendingRegistration } from "@/lib/store";
+import { getAccount, setPendingRegistration, revalidate, flushNow } from "@/lib/store";
 import { hashPassword } from "@/lib/account";
 import { sendOtpEmail } from "@/lib/order-core";
 
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     if (Object.keys(errors).length) return NextResponse.json({ success: false, errors }, { status: 400 });
 
     const clean = String(email).trim().toLowerCase();
+    await revalidate(["accounts"]);
     if (getAccount(clean)) {
       return NextResponse.json(
         { success: false, message: "An account with this email already exists. Please sign in." },
@@ -55,6 +56,9 @@ export async function POST(request: Request) {
       attempts: 0,
       ref: typeof ref === "string" ? ref.trim().toUpperCase().slice(0, 12) : undefined,
     });
+    // Persist the pending sign-up durably before responding so the verify step
+    // (which may hit a different serverless instance) can find it.
+    await flushNow();
 
     // Send the code after the response so sign-up feels instant.
     after(async () => {

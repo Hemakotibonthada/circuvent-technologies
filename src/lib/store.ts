@@ -1,17 +1,25 @@
 // Circuvent shop — durable server-side store.
-// File-backed JSON persistence (works in local dev and any Node host with a
-// writable disk). On a read-only/serverless filesystem it transparently falls
-// back to an in-memory store for the life of the warm instance, so API calls
-// never crash — they just won't persist across cold starts there. For a fully
-// durable production deployment, point DATA_DIR at a mounted volume or swap
-// these functions for a database.
+//
+// Persistence has two modes, chosen automatically at runtime:
+//   1. Database mode (production): when DATABASE_URL is set, all data is
+//      hydrated from and written through to Postgres (see ./db). This is what
+//      makes accounts/orders durable and shared across serverless instances on
+//      Vercel, where the filesystem is read-only and ephemeral.
+//   2. File mode (local dev / persistent-disk hosts): when DATABASE_URL is
+//      unset, data is kept in a JSON file under DATA_DIR. On a read-only FS it
+//      degrades to in-memory for the life of the instance.
+//
+// The in-memory `mem` object is always the working copy; database writes are
+// change-detected per collection and flushed after each mutation.
 //
 // SERVER ONLY — never import this from a client component (uses node:fs).
 
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { after } from "next/server";
 import { products as CATALOG } from "./shop-data";
+import * as dbLayer from "./db";
 
 // ---------------------------------------------------------------- types ----
 export interface StoredOrderItem {
@@ -299,7 +307,7 @@ export interface Notification {
   at: string;
 }
 
-interface DB {
+export interface DB {
   orders: StoredOrder[];
   products: StoredProduct[];
   wallets: Record<string, Wallet>;
@@ -327,8 +335,31 @@ interface DB {
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "shop-db.json");
 
+/** True when a durable database is configured (production). */
+const USE_DB = dbLayer.dbEnabled();
+
 let mem: DB | null = null;
 let canWrite = true;
+
+// Per-collection content hashes, used to detect what changed so we only write
+// the affected collections back to the database on each save.
+const lastHash: Partial<Record<keyof DB, string>> = {};
+
+function hashOf(v: unknown): string {
+  return crypto.createHash("sha1").update(JSON.stringify(v ?? null)).digest("hex");
+}
+
+function collectionKeys(): (keyof DB)[] {
+  return mem ? (Object.keys(mem) as (keyof DB)[]) : [];
+}
+
+function changedCollections(): (keyof DB)[] {
+  return collectionKeys().filter((k) => lastHash[k] !== hashOf(mem![k]));
+}
+
+function snapshotHashes(keys?: (keyof DB)[]): void {
+  for (const k of keys ?? collectionKeys()) lastHash[k] = hashOf(mem![k]);
+}
 
 function seedProducts(): StoredProduct[] {
   return CATALOG.map((p) => ({
@@ -398,8 +429,10 @@ function reconcileProducts(db: DB): boolean {
 
 function load(): DB {
   if (mem) return mem;
+  // In DB mode `mem` is populated by the top-level bootstrap() before any
+  // request handler runs; this branch is a defensive fallback only.
   try {
-    if (fs.existsSync(DB_FILE)) {
+    if (!USE_DB && fs.existsSync(DB_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(DB_FILE, "utf8")) as Partial<DB>;
       mem = {
         orders: parsed.orders ?? [],
@@ -436,7 +469,12 @@ function load(): DB {
 }
 
 function save() {
-  if (!mem || !canWrite) return;
+  if (!mem) return;
+  if (USE_DB) {
+    scheduleFlush();
+    return;
+  }
+  if (!canWrite) return;
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(DB_FILE, JSON.stringify(mem, null, 2), "utf8");
@@ -445,6 +483,116 @@ function save() {
     console.warn("[store] disk not writable; using in-memory store for this instance");
   }
 }
+
+// ------------------------------------------------- database write-through ---
+let flushChain: Promise<void> = Promise.resolve();
+let flushQueued = false;
+
+/**
+ * Schedules a database flush for the current request. Uses Next's after() so
+ * the write reliably completes on Vercel (the function is kept alive until the
+ * promise settles) instead of being frozen after the response. Falls back to a
+ * best-effort immediate flush when called outside a request (e.g. bootstrap).
+ */
+function scheduleFlush(): void {
+  if (!USE_DB || flushQueued) return;
+  flushQueued = true;
+  try {
+    after(async () => {
+      flushQueued = false;
+      await flush();
+    });
+  } catch {
+    flushQueued = false;
+    void flush();
+  }
+}
+
+/**
+ * Writes any changed collections to the database. Serialized so concurrent
+ * saves don't interleave. Collections whose flush fails keep their old hash so
+ * they are retried on the next save — giving eventual durability.
+ */
+export async function flush(): Promise<void> {
+  if (!USE_DB || !mem) return;
+  flushChain = flushChain.then(async () => {
+    const changed = changedCollections();
+    if (!changed.length) return;
+    try {
+      await dbLayer.dbFlush(mem!, changed);
+      snapshotHashes(changed);
+    } catch (e) {
+      console.error("[store] db flush error:", e);
+    }
+  });
+  await flushChain;
+}
+
+/** Awaitable flush for routes that must guarantee durability before responding. */
+export async function flushNow(): Promise<void> {
+  await flush();
+}
+
+/**
+ * Re-reads the given collections from the database into memory so a warm
+ * serverless instance sees writes made by other instances. Call at the top of
+ * requests that need cross-instance consistency (login, sign-up, admin views).
+ * No-op in file mode.
+ */
+export async function revalidate(cols?: (keyof DB)[]): Promise<void> {
+  if (!USE_DB) return;
+  if (!mem) load();
+  try {
+    const data = await dbLayer.dbHydrate(cols);
+    const keys = (cols ?? (Object.keys(data) as (keyof DB)[])) as (keyof DB)[];
+    for (const k of keys) {
+      if (data[k] !== undefined) {
+        (mem as unknown as Record<string, unknown>)[k as string] = data[k];
+        lastHash[k] = hashOf(mem![k]);
+      }
+    }
+  } catch (e) {
+    console.error("[store] revalidate error:", e);
+  }
+}
+
+/** Hydrates `mem` from the database once per cold start (DB mode only). */
+async function bootstrap(): Promise<void> {
+  if (mem) return;
+  if (!USE_DB) {
+    load();
+    return;
+  }
+  try {
+    await dbLayer.initDb();
+    const data = await dbLayer.dbHydrate();
+    mem = { ...emptyDB(), ...data } as DB;
+    // Seed catalog/coupons the first time the database is empty.
+    const seedNeeded: (keyof DB)[] = [];
+    if (!mem.products || mem.products.length === 0) {
+      mem.products = seedProducts();
+      seedNeeded.push("products");
+    }
+    if (!mem.coupons || mem.coupons.length === 0) {
+      mem.coupons = seedCoupons();
+      seedNeeded.push("coupons");
+    }
+    if (reconcileProducts(mem) && !seedNeeded.includes("products")) seedNeeded.push("products");
+    snapshotHashes();
+    if (seedNeeded.length) {
+      for (const k of seedNeeded) lastHash[k] = ""; // force initial write
+      await flush();
+    }
+  } catch (e) {
+    console.error("[store] bootstrap failed; using in-memory for this instance:", e);
+    mem = emptyDB();
+    snapshotHashes();
+  }
+}
+
+// Hydrate before any route handler runs. Top-level await keeps every importing
+// route from executing until the store is ready (ESM awaits the module graph).
+await bootstrap();
 
 // ---------------------------------------------------------- admin users ----
 function normEmail(email: string): string {

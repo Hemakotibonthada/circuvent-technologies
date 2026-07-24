@@ -8,6 +8,8 @@ import {
   getAccount,
   getOrCreateReferral,
   linkReferral,
+  revalidate,
+  flushNow,
 } from "@/lib/store";
 import { signToken } from "@/lib/account";
 
@@ -34,6 +36,7 @@ export async function POST(request: Request) {
     }
 
     const clean = String(email).trim().toLowerCase();
+    await revalidate(["pending", "accounts"]);
     const p = getPendingRegistration(clean);
     if (!p) {
       return NextResponse.json(
@@ -67,6 +70,9 @@ export async function POST(request: Request) {
       if (p.ref) linkReferral(p.email, p.ref);
     }
     clearPendingRegistration(clean);
+    // Guarantee the new account is durable before responding so the user can
+    // immediately sign in on any device / serverless instance.
+    await flushNow();
 
     return NextResponse.json({
       success: true,

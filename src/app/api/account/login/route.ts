@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
-import { getAccount } from "@/lib/store";
+import { getAccount, revalidate } from "@/lib/store";
 import { verifyPassword, signToken } from "@/lib/account";
 
 export const runtime = "nodejs";
@@ -21,6 +21,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Email and password are required." }, { status: 400 });
     }
 
+    await revalidate(["accounts"]);
     const acc = getAccount(String(email));
     if (!acc || !verifyPassword(String(password), acc.salt, acc.hash)) {
       return NextResponse.json({ success: false, message: "Invalid email or password." }, { status: 401 });
