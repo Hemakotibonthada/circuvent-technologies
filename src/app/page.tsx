@@ -279,8 +279,12 @@ export default function Home() {
             {officeSuiteApps.map((app, i) => (
               <ScrollReveal key={app.title} delay={i * 0.12}>
                 <TiltCard tiltAmount={6}>
-                  <motion.div
-                    className="group relative overflow-hidden rounded-2xl transition-all duration-500 h-full"
+                  <motion.a
+                    href={app.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Explore Circuvent ${app.title}`}
+                    className="group relative block overflow-hidden rounded-2xl transition-all duration-500 h-full cursor-pointer"
                     style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}
                     whileHover={{ y: -4 }}
                   >
@@ -339,18 +343,15 @@ export default function Home() {
                             </span>
                           ))}
                         </div>
-                        <a
-                          href={app.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs font-semibold cursor-pointer transition-transform hover:translate-x-1"
+                        <span
+                          className="flex items-center gap-1 text-xs font-semibold transition-transform group-hover:translate-x-1"
                           style={{ color: "var(--accent-cyan)" }}
                         >
                           Explore <ArrowRight className="w-3.5 h-3.5" />
-                        </a>
+                        </span>
                       </div>
                     </div>
-                  </motion.div>
+                  </motion.a>
                 </TiltCard>
               </ScrollReveal>
             ))}
