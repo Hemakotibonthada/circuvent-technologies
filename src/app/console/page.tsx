@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Plus, Loader2, X, ChevronRight, Cpu } from "lucide-react";
-import { controlPlane, type Device } from "@/lib/control-plane";
+import { Plus, Loader2, X, ChevronRight, Cpu, Search, Star, Zap, Home, Activity } from "lucide-react";
+import { controlPlane, type AppEvent, type Device, type EnergySummary, type Room, type Scene } from "@/lib/control-plane";
 import { useConsole } from "./ConsoleProvider";
 import { deviceMeta } from "./DeviceControls";
 
@@ -13,6 +14,11 @@ export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [query, setQuery] = useState("");
+  const [energy, setEnergy] = useState<EnergySummary | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [events, setEvents] = useState<AppEvent[]>([]);
 
   const load = useCallback(async () => {
     const r = await controlPlane.devices();
@@ -24,6 +30,16 @@ export default function DevicesPage() {
     } else {
       setError("Failed to load devices.");
     }
+    const [en, ro, sc, ev] = await Promise.all([
+      controlPlane.energySummary(),
+      controlPlane.rooms(),
+      controlPlane.scenes(),
+      controlPlane.events(5),
+    ]);
+    if (en.ok) setEnergy(en.data);
+    if (ro.ok) setRooms(ro.data.rooms ?? []);
+    if (sc.ok) setScenes(sc.data.scenes ?? []);
+    if (ev.ok) setEvents(ev.data.events ?? []);
     setLoading(false);
   }, []);
 
@@ -47,11 +63,20 @@ export default function DevicesPage() {
     });
   }, [subscribe]);
 
+  const filtered = devices.filter((d) => `${d.name} ${d.id} ${d.type} ${d.room ?? ""}`.toLowerCase().includes(query.toLowerCase()));
+  const favorites = devices.filter((d) => d.favorite);
+  const favScenes = scenes.filter((s) => s.favorite).slice(0, 4);
+
+  const patchFavorite = async (device: Device) => {
+    setDevices((prev) => prev.map((d) => (d.id === device.id ? { ...d, favorite: !d.favorite } : d)));
+    await controlPlane.patchDevice(device.id, { favorite: !device.favorite });
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-white">Your devices</h1>
+          <h1 className="text-2xl font-extrabold text-white">Home dashboard</h1>
           <p className="text-slate-400 text-sm mt-1">
             {user?.name ? `Welcome back, ${user.name.split(" ")[0]}. ` : ""}
             {devices.length} {devices.length === 1 ? "device" : "devices"} connected.
@@ -75,11 +100,23 @@ export default function DevicesPage() {
       ) : devices.length === 0 ? (
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {devices.map((d) => (
-            <DeviceCard key={d.id} device={d} />
-          ))}
-        </div>
+        <>
+          <DashboardWidgets energy={energy} favorites={favorites} scenes={favScenes} rooms={rooms} events={events} />
+          <div className="mt-6 mb-4 flex items-center gap-3 rounded-2xl cv-card px-4 py-3">
+            <Search className="h-5 w-5 text-slate-500" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search devices, rooms or types"
+              className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((d) => (
+              <DeviceCard key={d.id} device={d} onFavorite={() => patchFavorite(d)} />
+            ))}
+          </div>
+        </>
       )}
 
       {showAdd && (
@@ -94,6 +131,61 @@ export default function DevicesPage() {
       )}
     </div>
   );
+}
+
+function DashboardWidgets({
+  energy,
+  favorites,
+  scenes,
+  rooms,
+  events,
+}: {
+  energy: EnergySummary | null;
+  favorites: Device[];
+  scenes: Scene[];
+  rooms: Room[];
+  events: AppEvent[];
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-4">
+        <Widget icon={<Zap className="h-5 w-5" />} label="Live power" value={`${Math.round(energy?.liveWatts ?? 0)} W`} />
+        <Widget icon={<Activity className="h-5 w-5" />} label="Today" value={`${(energy?.todayKwh ?? 0).toFixed(2)} kWh`} />
+        <Widget icon={<Star className="h-5 w-5" />} label="Favorites" value={String(favorites.length)} />
+        <Widget icon={<Home className="h-5 w-5" />} label="Rooms" value={String(rooms.length)} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel title="Favorites">
+          {favorites.length ? favorites.slice(0, 5).map((d) => <Link key={d.id} href={`/console/device/${encodeURIComponent(d.id)}`} className="block rounded-xl bg-black/20 px-3 py-2 text-sm text-slate-200">{d.name || d.id}</Link>) : <EmptyMini text="Star devices to pin them here." />}
+        </Panel>
+        <Panel title="Scene shortcuts">
+          {scenes.length ? scenes.map((s) => <button key={s.id} onClick={() => controlPlane.activateScene(s.id)} className="w-full rounded-xl bg-black/20 px-3 py-2 text-left text-sm text-slate-200">{s.icon} {s.name}</button>) : <EmptyMini text="Favorite scenes become quick actions." />}
+        </Panel>
+        <Panel title="Recent activity">
+          {events.length ? events.map((e) => <div key={e.id} className="rounded-xl bg-black/20 px-3 py-2 text-sm"><div className="text-slate-200">{e.title}</div><div className="text-xs text-slate-500 truncate">{e.body}</div></div>) : <EmptyMini text="No recent alerts." />}
+        </Panel>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {rooms.map((r) => (
+          <Link key={`${r.id}-${r.name}`} href="/console/rooms" className="shrink-0 rounded-2xl cv-card px-4 py-3 text-sm text-slate-200">
+            <span className="mr-2">{r.icon}</span>{r.name}<span className="ml-2 text-slate-500">{r.count}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Widget({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return <div className="rounded-2xl cv-card p-4"><div className="text-cyan-300">{icon}</div><div className="mt-3 text-2xl font-extrabold text-white">{value}</div><div className="text-xs uppercase tracking-[0.15em] text-slate-500">{label}</div></div>;
+}
+
+function Panel({ title, children }: { title: string; children: ReactNode }) {
+  return <div className="rounded-2xl cv-card p-4"><h2 className="font-bold text-white mb-3">{title}</h2><div className="space-y-2">{children}</div></div>;
+}
+
+function EmptyMini({ text }: { text: string }) {
+  return <div className="text-sm text-slate-500">{text}</div>;
 }
 
 function metric(d: Device): string {
@@ -118,7 +210,7 @@ function metric(d: Device): string {
   }
 }
 
-function DeviceCard({ device }: { device: Device }) {
+function DeviceCard({ device, onFavorite }: { device: Device; onFavorite: () => void }) {
   const meta = deviceMeta(device.type);
   const Icon = meta.icon;
   const m = metric(device);
@@ -134,17 +226,26 @@ function DeviceCard({ device }: { device: Device }) {
         >
           <Icon className="h-6 w-6" />
         </div>
-        <span
-          className="flex items-center gap-1.5 text-xs"
-          style={{ color: device.online ? "#22c55e" : "#64748b" }}
-        >
-          <span className="h-2 w-2 rounded-full" style={{ background: device.online ? "#22c55e" : "#64748b" }} />
-          {device.online ? "Online" : "Offline"}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onFavorite();
+            }}
+            className="rounded-lg p-1 text-slate-500 hover:text-yellow-300"
+            aria-label="Toggle favorite"
+          >
+            <Star className={`h-4 w-4 ${device.favorite ? "fill-yellow-300 text-yellow-300" : ""}`} />
+          </button>
+          <span className="flex items-center gap-1.5 text-xs" style={{ color: device.online ? "#22c55e" : "#64748b" }}>
+            <span className="h-2 w-2 rounded-full" style={{ background: device.online ? "#22c55e" : "#64748b" }} />
+            {device.online ? "Online" : "Offline"}
+          </span>
+        </div>
       </div>
       <div className="mt-4">
         <div className="font-bold text-white truncate">{device.name || device.id}</div>
-        <div className="text-slate-500 text-xs">{meta.label}</div>
+        <div className="text-slate-500 text-xs">{meta.label}{device.room ? ` · ${device.room}` : ""}</div>
       </div>
       <div className="mt-4 flex items-center justify-between">
         <span className="text-lg font-extrabold" style={{ color: meta.accent }}>

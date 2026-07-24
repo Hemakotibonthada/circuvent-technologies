@@ -4,7 +4,7 @@ import { Minus, Plus } from "lucide-react";
 
 export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-white/10 bg-white/[0.03] ${className}`}>{children}</div>
+    <div className={`rounded-2xl cv-card ${className}`}>{children}</div>
   );
 }
 
@@ -37,7 +37,7 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-50"
-      style={{ background: checked ? "linear-gradient(135deg,#06b6d4,#8b5cf6)" : "#334155" }}
+      style={{ background: checked ? "var(--cv-gradient)" : "#334155" }}
     >
       <span
         className="inline-block h-5 w-5 transform rounded-full bg-white shadow transition"
@@ -130,7 +130,7 @@ export function Segmented<T extends string>({
             className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${
               active ? "text-white" : "text-slate-400 hover:text-slate-200"
             }`}
-            style={active ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" } : undefined}
+            style={active ? { background: "var(--cv-gradient)" } : undefined}
           >
             {o.label}
           </button>
@@ -167,7 +167,7 @@ export function ScenePill({
       className={`px-4 py-2 rounded-full text-sm capitalize border transition ${
         active ? "text-white border-transparent" : "text-slate-300 border-white/10 bg-black/20 hover:bg-white/5"
       }`}
-      style={active ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" } : undefined}
+      style={active ? { background: "var(--cv-gradient)" } : undefined}
     >
       {label}
     </button>

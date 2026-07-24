@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ConsoleProvider } from "./ConsoleProvider";
 import ConsoleChrome from "./ConsoleChrome";
+import { ConsoleThemeProvider } from "./theme";
 
 export const metadata: Metadata = {
   title: "Device Console | Circuvent",
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
   return (
     <ConsoleProvider>
-      <ConsoleChrome>{children}</ConsoleChrome>
+      <ConsoleThemeProvider>
+        <ConsoleChrome>{children}</ConsoleChrome>
+      </ConsoleThemeProvider>
     </ConsoleProvider>
   );
 }

@@ -41,9 +41,10 @@ export function deviceMeta(type: string): DeviceTypeMeta {
 type SendFn = (params: Record<string, unknown>) => void;
 
 export function DeviceControls({ device, send, busy }: { device: Device; send: SendFn; busy: boolean }) {
+  const generic = <GenericCapabilities d={device} send={send} busy={busy} />;
   switch (device.type) {
     case "aquaguard":
-      return <AquaGuard d={device} send={send} busy={busy} />;
+      return <>{generic}<AquaGuard d={device} send={send} busy={busy} /></>;
     case "home-hub":
       return <HomeHub d={device} send={send} busy={busy} />;
     case "smart-plug":
@@ -57,14 +58,95 @@ export function DeviceControls({ device, send, busy }: { device: Device; send: S
     case "motion-sensor":
       return <MotionSensor d={device} send={send} busy={busy} />;
     case "agri-starter":
-      return <AgriStarter d={device} send={send} busy={busy} />;
+      return <>{generic}<AgriStarter d={device} send={send} busy={busy} /></>;
     default:
-      return <RawState d={device} />;
+      return <>{generic}<RawState d={device} /></>;
   }
 }
 
 const n = (v: unknown, dflt = 0) => (v == null || Number.isNaN(Number(v)) ? dflt : Number(v));
 const b = (v: unknown) => !!v;
+
+export interface Capability {
+  power?: { field: string; label: string };
+  dimmer?: { field: string; label: string; min: number; max: number };
+  fan?: { field: string; label: string; steps: number };
+  color?: { field: string };
+  thermostat?: { field: string; label: string; min: number; max: number };
+}
+
+export function capabilities(type: string): Capability {
+  switch (type) {
+    case "smart-plug":
+      return { power: { field: "power", label: "Power" } };
+    case "smart-switch":
+      return { power: { field: "power", label: "Gang 1" } };
+    case "home-hub":
+      return { power: { field: "power", label: "Channel 1" } };
+    case "aquaguard":
+    case "agri-starter":
+      return { power: { field: "pump", label: "Pump" } };
+    case "light":
+      return { power: { field: "power", label: "Power" }, dimmer: { field: "brightness", label: "Brightness", min: 0, max: 100 }, color: { field: "color" } };
+    case "fan":
+    case "ceiling-fan":
+      return { power: { field: "power", label: "Power" }, fan: { field: "speed", label: "Speed", steps: 3 } };
+    case "thermostat":
+    case "ac":
+      return { power: { field: "power", label: "Power" }, thermostat: { field: "target", label: "Target", min: 16, max: 30 } };
+    default:
+      return { power: { field: "power", label: "Power" } };
+  }
+}
+
+export function primaryPowerField(type: string): string {
+  return capabilities(type).power?.field ?? "power";
+}
+
+function GenericCapabilities({ d, send, busy }: { d: Device; send: SendFn; busy: boolean }) {
+  const caps = capabilities(d.type);
+  const genericTypes = ["light", "fan", "ceiling-fan", "thermostat", "ac"];
+  if (!genericTypes.includes(d.type) && !caps.dimmer && !caps.fan && !caps.color && !caps.thermostat) return null;
+  const colors = ["#ffffff", "#f87171", "#fb923c", "#facc15", "#4ade80", "#22d3ee", "#60a5fa", "#a78bfa"];
+  return (
+    <div className="mb-5">
+      <SectionLabel>Smart controls</SectionLabel>
+      {caps.power && (
+        <ControlRow label={caps.power.label}>
+          <Toggle checked={b(d.state[caps.power.field])} onChange={(v) => send({ [caps.power!.field]: v })} disabled={busy} label={caps.power.label} />
+        </ControlRow>
+      )}
+      {caps.dimmer && (
+        <ControlRow label={caps.dimmer.label} hint={`${n(d.state[caps.dimmer.field])}%`}>
+          <input type="range" min={caps.dimmer.min} max={caps.dimmer.max} value={n(d.state[caps.dimmer.field])} onChange={(e) => send({ [caps.dimmer!.field]: Number(e.target.value) })} className="w-40 accent-cyan-400" />
+        </ControlRow>
+      )}
+      {caps.fan && (
+        <ControlRow label={caps.fan.label}>
+          <div className="flex gap-2">
+            {Array.from({ length: caps.fan.steps + 1 }, (_, i) => (
+              <button key={i} onClick={() => send({ [caps.fan!.field]: i })} className={`h-9 w-9 rounded-lg border border-white/10 ${n(d.state[caps.fan!.field]) === i ? "text-white cv-gradient" : "text-slate-300 bg-white/5"}`}>{i}</button>
+            ))}
+          </div>
+        </ControlRow>
+      )}
+      {caps.color && (
+        <ControlRow label="Colour">
+          <div className="flex gap-2">
+            {colors.map((c) => (
+              <button key={c} onClick={() => send({ [caps.color!.field]: c })} className="h-7 w-7 rounded-full border border-white/30" style={{ background: c }} aria-label={`Color ${c}`} />
+            ))}
+          </div>
+        </ControlRow>
+      )}
+      {caps.thermostat && (
+        <ControlRow label={caps.thermostat.label}>
+          <Stepper value={n(d.state[caps.thermostat.field], 24)} onChange={(v) => send({ [caps.thermostat!.field]: v })} min={caps.thermostat.min} max={caps.thermostat.max} suffix="°" />
+        </ControlRow>
+      )}
+    </div>
+  );
+}
 
 function AlertBanner({ text }: { text: string }) {
   return (
