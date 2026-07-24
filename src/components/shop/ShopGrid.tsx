@@ -5,6 +5,7 @@ import { Truck, ShieldCheck, Wallet, MapPin, Search, PackageX, Heart } from "luc
 import { products as STATIC, formatINR, SHIPPING, type Product } from "@/lib/shop-data";
 import { useWishlist } from "./WishlistProvider";
 import ProductCard from "./ProductCard";
+import RecentlyViewed from "./RecentlyViewed";
 
 const BENEFITS = [
   { icon: Truck, title: "Free shipping", sub: `Over ${formatINR(SHIPPING.freeOver)}` },
@@ -29,6 +30,8 @@ export default function ShopGrid() {
   const [sort, setSort] = useState("featured");
   const [inStock, setInStock] = useState(false);
   const [savedOnly, setSavedOnly] = useState(false);
+  const [minPrice, setMinPrice] = useState<number | "">("");
+  const [maxPrice, setMaxPrice] = useState<number | "">("");
 
   useEffect(() => {
     let alive = true;
@@ -49,6 +52,8 @@ export default function ShopGrid() {
 
   const shown = useMemo(() => {
     const ql = q.trim().toLowerCase();
+    const lo = minPrice === "" ? -Infinity : Number(minPrice);
+    const hi = maxPrice === "" ? Infinity : Number(maxPrice);
     let out = list.filter((p) => {
       const catOk = cat === "All" || p.category === cat;
       const qOk =
@@ -58,7 +63,8 @@ export default function ShopGrid() {
         p.category.toLowerCase().includes(ql);
       const stockOk = !inStock || (p.available !== false && (typeof p.stock !== "number" || p.stock > 0));
       const savedOk = !savedOnly || has(p.id);
-      return catOk && qOk && stockOk && savedOk;
+      const priceOk = p.price >= lo && p.price <= hi;
+      return catOk && qOk && stockOk && savedOk && priceOk;
     });
     out = [...out];
     if (sort === "price-asc") out.sort((a, b) => a.price - b.price);
@@ -67,7 +73,24 @@ export default function ShopGrid() {
     else if (sort === "name") out.sort((a, b) => a.name.localeCompare(b.name));
     else out.sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || (b.rating || 0) - (a.rating || 0));
     return out;
-  }, [list, cat, q, sort, inStock, savedOnly, has]);
+  }, [list, cat, q, sort, inStock, savedOnly, minPrice, maxPrice, has]);
+
+  const priceBounds = useMemo(() => {
+    if (!list.length) return { min: 0, max: 0 };
+    const prices = list.map((p) => p.price);
+    return { min: Math.min(...prices), max: Math.max(...prices) };
+  }, [list]);
+
+  const anyFilter = cat !== "All" || !!q || inStock || savedOnly || minPrice !== "" || maxPrice !== "";
+  const resetFilters = () => {
+    setCat("All");
+    setQ("");
+    setInStock(false);
+    setSavedOnly(false);
+    setMinPrice("");
+    setMaxPrice("");
+    setSort("featured");
+  };
 
   const chip = (active: boolean) =>
     active
@@ -146,6 +169,42 @@ export default function ShopGrid() {
         >
           <Heart className="h-3.5 w-3.5" style={{ fill: savedOnly ? "currentColor" : "none" }} /> Saved{count ? ` (${count})` : ""}
         </button>
+        <span className="mx-1 hidden h-5 w-px sm:block" style={{ background: "var(--border-primary)" }} />
+        <div className="flex items-center gap-1.5 rounded-full border px-3 py-1" style={{ borderColor: "var(--border-primary)" }}>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>₹</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value === "" ? "" : Math.max(0, Number(e.target.value)))}
+            placeholder={String(priceBounds.min)}
+            aria-label="Minimum price"
+            className="w-16 bg-transparent text-sm outline-none"
+            style={{ color: "var(--text-primary)" }}
+          />
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>–</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value === "" ? "" : Math.max(0, Number(e.target.value)))}
+            placeholder={String(priceBounds.max)}
+            aria-label="Maximum price"
+            className="w-16 bg-transparent text-sm outline-none"
+            style={{ color: "var(--text-primary)" }}
+          />
+        </div>
+        {anyFilter && (
+          <button
+            onClick={resetFilters}
+            className="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+            style={{ borderColor: "var(--border-primary)", color: "var(--text-muted)" }}
+          >
+            Reset
+          </button>
+        )}
       </div>
 
       <p className="mb-6 text-xs" style={{ color: "var(--text-muted)" }}>
@@ -170,6 +229,8 @@ export default function ShopGrid() {
           </p>
         </div>
       )}
+
+      <RecentlyViewed limit={4} />
     </div>
   );
 }

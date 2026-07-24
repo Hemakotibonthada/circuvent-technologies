@@ -11,6 +11,8 @@ import ProductMedia from "./ProductMedia";
 import ProductReviews from "./ProductReviews";
 import ProductQA from "./ProductQA";
 import RestockNotify from "./RestockNotify";
+import RecentlyViewed from "./RecentlyViewed";
+import { recordView } from "@/lib/recently-viewed";
 
 export default function ProductDetailClient({
   product,
@@ -40,6 +42,11 @@ export default function ProductDetailClient({
       alive = false;
     };
   }, [product.id, product.slug]);
+
+  // Track this product for the "recently viewed" rail.
+  useEffect(() => {
+    recordView(product.id);
+  }, [product.id]);
 
   const saving = live.compareAt && live.compareAt > live.price ? live.compareAt - live.price : 0;
 
@@ -208,6 +215,8 @@ export default function ProductDetailClient({
           </div>
         </div>
       )}
+
+      <RecentlyViewed excludeId={product.id} />
     </section>
   );
 }

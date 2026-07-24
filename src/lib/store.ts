@@ -173,6 +173,8 @@ export interface Review {
   rating: number;
   comment: string;
   at: string;
+  helpful?: number;
+  helpfulBy?: string[];
 }
 
 export interface StoreCoupon {
@@ -888,6 +890,58 @@ export function reviewSummaries(): Record<string, { count: number; average: numb
   const out: Record<string, { count: number; average: number }> = {};
   for (const k in acc) out[k] = { count: acc[k].count, average: Math.round((acc[k].sum / acc[k].count) * 10) / 10 };
   return out;
+}
+
+/** Distribution of ratings (1–5) for a product, for a review histogram. */
+export function reviewHistogram(productId: string): Record<1 | 2 | 3 | 4 | 5, number> {
+  const h: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  for (const r of listReviews(productId)) {
+    const n = Math.max(1, Math.min(5, Math.round(r.rating))) as 1 | 2 | 3 | 4 | 5;
+    h[n] += 1;
+  }
+  return h;
+}
+
+/** True if the email has an order that contains the given product (by id or slug). */
+export function hasPurchased(email: string, productId: string): boolean {
+  const em = email.trim().toLowerCase();
+  if (!em) return false;
+  return load().orders.some(
+    (o) =>
+      (o.customer?.email || "").toLowerCase() === em &&
+      o.items.some((it) => it.id === productId || it.slug === productId)
+  );
+}
+
+/**
+ * Toggles a "helpful" vote on a review for the given voter. Returns the new
+ * count and whether the voter's vote is now active, or null if not found.
+ */
+export function voteReviewHelpful(
+  reviewId: string,
+  voter: string
+): { helpful: number; voted: boolean } | null {
+  const db = load();
+  const r = db.reviews.find((x) => x.id === reviewId);
+  if (!r) return null;
+  const who = voter.trim().toLowerCase();
+  // A reviewer can't vote their own review helpful.
+  if (who === r.email.trim().toLowerCase()) {
+    return { helpful: r.helpful || 0, voted: false };
+  }
+  const set = new Set(r.helpfulBy || []);
+  let voted: boolean;
+  if (set.has(who)) {
+    set.delete(who);
+    voted = false;
+  } else {
+    set.add(who);
+    voted = true;
+  }
+  r.helpfulBy = Array.from(set);
+  r.helpful = r.helpfulBy.length;
+  save();
+  return { helpful: r.helpful, voted };
 }
 
 // ----------------------------------------------- pending registrations ----
