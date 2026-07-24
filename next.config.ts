@@ -25,6 +25,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
 
+  // Tree-shake large barrel packages (icons/animation) to shrink client bundles.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "framer-motion"],
+  },
+
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [

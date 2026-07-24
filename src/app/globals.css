@@ -306,6 +306,17 @@ body {
   box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-cyan);
 }
 
+/* Global keyboard focus indicator (WCAG 2.4.7) — visible outline for keyboard
+   users on any interactive element, while mouse focus stays clean. */
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Gradient border on hover */
 .gradient-border-hover {
   transition: border-color 0.3s ease;
