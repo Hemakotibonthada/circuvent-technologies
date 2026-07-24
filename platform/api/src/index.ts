@@ -12,6 +12,7 @@ import { authRouter } from "./routes/auth";
 import { deviceRouter } from "./routes/devices";
 import { accountRouter } from "./routes/account";
 import { automationRouter } from "./routes/automations";
+import { provisioningRouter } from "./routes/provisioning";
 import { startAutomationScheduler } from "./automations";
 
 async function main(): Promise<void> {
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
   app.use("/devices", deviceRouter);
   app.use("/account", accountRouter);
   app.use("/automations", automationRouter);
+  app.use("/provisioning", provisioningRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 

@@ -97,6 +97,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ id, type, name }),
     }),
+  // A+B secure onboarding: mint a short-lived provisioning token (no secret in
+  // it) for the app to hand a device; the device redeems it over TLS.
+  provisioningToken: (type: string, name: string) =>
+    req<{ token: string; error?: string }>("/provisioning/token", {
+      method: "POST",
+      body: JSON.stringify({ type, name }),
+    }),
   // cmd is the raw command object, e.g. { action: "set", scene: "night" }.
   command: (id: string, cmd: Record<string, any>) =>
     req("/devices/" + encodeURIComponent(id) + "/command", { method: "POST", body: JSON.stringify(cmd) }),

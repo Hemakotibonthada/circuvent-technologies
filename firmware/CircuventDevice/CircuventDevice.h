@@ -43,6 +43,24 @@
 #include <time.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
+#include <mbedtls/base64.h>
+#if defined(ESP32)
+#include <esp_system.h>
+#endif
+extern "C" {
+#include "tweetnacl.h"
+}
+// PRNG required by tweetnacl (device keypair generation). Defined once — only the
+// sketch translation unit includes this header.
+extern "C" void randombytes(unsigned char *p, unsigned long long n) {
+  for (unsigned long long i = 0; i < n; ++i) {
+#if defined(ESP32)
+    p[i] = (unsigned char)(esp_random() & 0xFF);
+#else
+    p[i] = (unsigned char)(os_random() & 0xFF);
+#endif
+  }
+}
 
 #ifndef CV_FW_VERSION
 #define CV_FW_VERSION "1.0.0"
@@ -141,15 +159,22 @@ class CircuventDevice {
 
     if (ssid && strlen(ssid) && !_isPlaceholder(ssid)) { _ssid = ssid; _pass = pass ? pass : ""; _saveWifi(); }
 
-    const bool haveWifi = _ssid.length() > 0;
-    const bool haveIdentity = !_isPlaceholder(_id.c_str()) && !_isPlaceholder(_key.c_str());
+    bool haveWifi = _ssid.length() > 0;
+    bool haveIdentity = !_isPlaceholder(_id.c_str()) && !_isPlaceholder(_key.c_str());
 
     WiFi.mode(WIFI_STA);
     WiFi.persistent(false);
-    if (haveWifi && haveIdentity) _connect();
+    if (haveWifi) _connect();
 
-    // No Wi-Fi, or not yet provisioned with an id/key -> open the setup portal
-    // so the Circuvent app (or a browser) can push Wi-Fi + the assigned identity.
+    // B: if online but not yet provisioned, redeem the provisioning token over
+    // TLS to fetch our id+key from the control plane — the permanent secret is
+    // delivered cloud->device only, never carried on the local setup link.
+    if (WiFi.status() == WL_CONNECTED && !haveIdentity && _token.length()) {
+      if (_selfProvision()) haveIdentity = true;
+    }
+
+    // No Wi-Fi, or still not provisioned -> open the setup portal so the app
+    // can push (encrypted) Wi-Fi + a provisioning token.
     if ((WiFi.status() != WL_CONNECTED || !haveIdentity) && _provisioningEnabled) { startPortal(); return; }
 
     _ntpSync();      // TLS cert validity needs a real clock
@@ -235,6 +260,7 @@ class CircuventDevice {
   // ---- Wi-Fi provisioning portal ---------------------------------------
   void startPortal() {
     _portalActive = true;
+    if (!_boxReady) { crypto_box_keypair(_boxPk, _boxSk); _boxReady = true; }
     String ap = "Circuvent-Setup-" + _shortId();
     WiFi.mode(WIFI_AP);
     WiFi.softAP(ap.c_str());
@@ -281,8 +307,47 @@ class CircuventDevice {
   uint16_t _reconnectTries = 0, _mqttFails = 0;
   bool _mqttUp = false, _provisioningEnabled = true, _portalActive = false;
   JsonDocument _state;
+  uint8_t _boxPk[32], _boxSk[32];
+  bool _boxReady = false;
+  String _token;
 
   String _topic(const char *leaf) { return String("cv/") + _id + "/" + leaf; }
+
+  // B: redeem the provisioning token at the control plane over TLS and receive
+  // this device's id+key. The secret is created server-side and delivered only
+  // over this TLS response — it is never present on the local setup link.
+  bool _selfProvision() {
+    if (_token.length() == 0) return false;
+    _ntpSync();  // TLS needs a valid clock
+    WiFiClientSecure client;
+    client.setInsecure();  // control-plane uses a public CA; the token is the capability
+    HTTPClient https;
+    if (!https.begin(client, "https://api.circuvent.com/provisioning/self")) return false;
+    https.addHeader("Content-Type", "application/json");
+    String payload = String("{\"token\":\"") + _token + "\",\"hwid\":\"" + _shortId() + "\"}";
+    int code = https.POST(payload);
+    bool ok = false;
+    if (code == 200) {
+      JsonDocument doc;
+      if (deserializeJson(doc, https.getStream()) == DeserializationError::Ok) {
+        String id = String((const char *)(doc["id"] | ""));
+        String key = String((const char *)(doc["key"] | ""));
+        String br = String((const char *)(doc["broker"] | ""));
+        if (id.length() && key.length()) {
+          _id = id; _key = key;
+          if (br.length()) _brokerHost = br;
+          _token = "";  // one-time use
+          _saveAll();
+          ok = true;
+          Serial.printf("[CV] self-provisioned as %s\n", _id.c_str());
+        }
+      }
+    } else {
+      Serial.printf("[CV] self-provision HTTP %d\n", code);
+    }
+    https.end();
+    return ok;
+  }
 
   void _tlsSetup() {
 #if defined(ESP32)
@@ -369,6 +434,7 @@ class CircuventDevice {
     String key = _prefs.getString("key", "");
     if (id.length()) _id = id;
     if (key.length()) _key = key;
+    _token = _prefs.getString("token", "");
 #endif
   }
   void _saveWifi() {
@@ -443,6 +509,8 @@ class CircuventDevice {
     d["id"] = _id;
     d["claimed"] = (!_isPlaceholder(_id.c_str()) && !_isPlaceholder(_key.c_str()));
     d["fw"] = CV_FW_VERSION;
+    if (!_boxReady) { crypto_box_keypair(_boxPk, _boxSk); _boxReady = true; }
+    d["pk"] = _b64(_boxPk, 32);
     String s; serializeJson(d, s); return s;
   }
   void _saveAll() {
@@ -452,17 +520,86 @@ class CircuventDevice {
     if (_id.length()) _prefs.putString("id", _id);
     if (_key.length()) _prefs.putString("key", _key);
     _prefs.putString("broker", _brokerHost);
+    _prefs.putString("token", _token);
 #endif
   }
+  static String _b64(const uint8_t *data, size_t len) {
+    size_t olen = 0;
+    unsigned char out[200];
+    if (mbedtls_base64_encode(out, sizeof(out) - 1, &olen, data, len) != 0) return String();
+    out[olen] = 0;
+    return String((const char *)out);
+  }
+  static int _b64dec(const String &in, uint8_t *out, size_t outcap) {
+    size_t olen = 0;
+    if (mbedtls_base64_decode(out, outcap, &olen, (const unsigned char *)in.c_str(), in.length()) != 0) return -1;
+    return (int)olen;
+  }
+  static String _urldec(const String &s) {
+    String o;
+    auto hx = [](char h) -> int { return h <= '9' ? h - '0' : (h | 0x20) - 'a' + 10; };
+    for (size_t i = 0; i < s.length(); i++) {
+      char c = s[i];
+      if (c == '+') o += ' ';
+      else if (c == '%' && i + 2 < s.length()) { o += (char)((hx(s[i + 1]) << 4) | hx(s[i + 2])); i += 2; }
+      else o += c;
+    }
+    return o;
+  }
+  void _parseForm(const String &body) {
+    int start = 0;
+    while (start < (int)body.length()) {
+      int amp = body.indexOf('&', start);
+      if (amp < 0) amp = body.length();
+      int eq = body.indexOf('=', start);
+      if (eq > start && eq < amp) {
+        String k = body.substring(start, eq);
+        String v = _urldec(body.substring(eq + 1, amp));
+        if (k == "ssid") _ssid = v;
+        else if (k == "pass") _pass = v;
+        else if (k == "token") _token = v;
+        else if (k == "id" && v.length()) _id = v;
+        else if (k == "key" && v.length()) _key = v;
+        else if (k == "broker" && v.length()) _brokerHost = v;
+      }
+      start = amp + 1;
+    }
+  }
+  // A: decrypt an app payload sealed to our box public key (NaCl crypto_box).
+  bool _decryptSave() {
+    uint8_t epk[32], nonce[24];
+    if (_b64dec(_server.arg("epk"), epk, sizeof(epk)) != 32) return false;
+    if (_b64dec(_server.arg("nonce"), nonce, sizeof(nonce)) != 24) return false;
+    static uint8_t c[600], m[600];
+    memset(c, 0, 16);
+    int bl = _b64dec(_server.arg("box"), c + 16, sizeof(c) - 16);
+    if (bl <= 16) return false;
+    unsigned long long clen = 16 + (unsigned long long)bl;
+    if (crypto_box_open(m, c, clen, nonce, epk, _boxSk) != 0) return false;
+    int plen = (int)clen - 32;
+    if (plen < 0) return false;
+    String body;
+    body.reserve(plen);
+    for (int i = 0; i < plen; i++) body += (char)m[32 + i];
+    _parseForm(body);
+    return true;
+  }
   void _portalSave() {
-    if (_server.hasArg("ssid")) _ssid = _server.arg("ssid");
-    if (_server.hasArg("pass")) _pass = _server.arg("pass");
-    // The app pushes the provisioned identity alongside Wi-Fi.
-    if (_server.hasArg("id") && _server.arg("id").length()) _id = _server.arg("id");
-    if (_server.hasArg("key") && _server.arg("key").length()) _key = _server.arg("key");
-    if (_server.hasArg("broker") && _server.arg("broker").length()) _brokerHost = _server.arg("broker");
-    _saveAll();
+    bool ok = true;
+    if (_server.hasArg("enc") && _server.hasArg("box")) {
+      ok = _decryptSave();  // A: encrypted handoff
+    } else {
+      // Backward-compatible plaintext path.
+      if (_server.hasArg("ssid")) _ssid = _server.arg("ssid");
+      if (_server.hasArg("pass")) _pass = _server.arg("pass");
+      if (_server.hasArg("id") && _server.arg("id").length()) _id = _server.arg("id");
+      if (_server.hasArg("key") && _server.arg("key").length()) _key = _server.arg("key");
+      if (_server.hasArg("token") && _server.arg("token").length()) _token = _server.arg("token");
+      if (_server.hasArg("broker") && _server.arg("broker").length()) _brokerHost = _server.arg("broker");
+    }
     _server.sendHeader("Access-Control-Allow-Origin", "*");
+    if (!ok) { _server.send(200, "application/json", "{\"ok\":false,\"error\":\"decrypt\"}"); return; }
+    _saveAll();
     _server.send(200, "application/json", "{\"ok\":true}");
     delay(600);
     ESP.restart();

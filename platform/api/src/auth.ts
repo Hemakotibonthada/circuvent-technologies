@@ -35,6 +35,36 @@ export function verifyUserToken(token: string): UserClaims | null {
   }
 }
 
+/**
+ * Short-lived, single-purpose provisioning token. The app mints one for the
+ * logged-in user and hands it to a new device (encrypted over the setup link);
+ * the device redeems it over TLS to self-provision its id+key. The permanent
+ * device secret is therefore never carried on the local link.
+ */
+export interface ProvisionClaims {
+  purpose: "provision";
+  uid: number;
+  type: string;
+  name: string;
+}
+
+export function signProvisionToken(c: { uid: number; type: string; name: string }): string {
+  return jwt.sign({ ...c, purpose: "provision" }, config.JWT_SECRET, { expiresIn: "15m" } as jwt.SignOptions);
+}
+
+export function verifyProvisionToken(token: string): ProvisionClaims | null {
+  try {
+    const d = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
+    const uid = Number(d.uid);
+    if (d.purpose === "provision" && Number.isFinite(uid) && typeof d.type === "string") {
+      return { purpose: "provision", uid, type: d.type, name: typeof d.name === "string" ? d.name : "" };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** A random device claim key shown once at provisioning (stored only as a hash). */
 export function generateDeviceKey(): string {
   return crypto.randomBytes(18).toString("base64url");
