@@ -368,6 +368,15 @@ body {
   }
 }
 
+/* Hide scrollbars on horizontally-scrolling rails (mobile chip filters, etc.). */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ===== SMOOTH THEME TRANSITION ===== */
 .theme-transition,
 .theme-transition * {

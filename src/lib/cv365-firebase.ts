@@ -1,5 +1,6 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, addDoc, Timestamp } from "firebase/firestore";
+// CV-365 Firestore contact bridge — Firebase is imported lazily (dynamic
+// import inside the submit path) so the heavy SDK is NOT in the initial page
+// bundle; it only loads when a visitor actually submits the contact form.
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_CV365_FIREBASE_API_KEY,
@@ -10,11 +11,6 @@ const firebaseConfig = {
 };
 
 const appName = "cv365";
-const app = getApps().find((a) => a.name === appName)
-  ? getApp(appName)
-  : initializeApp(firebaseConfig, appName);
-
-const db = getFirestore(app);
 
 /**
  * Save a contact message to CV-365 Firestore (client-side).
@@ -28,6 +24,12 @@ export async function saveContactMessage(data: {
   message: string;
   source: string;
 }) {
+  const [{ initializeApp, getApps, getApp }, { getFirestore, collection, addDoc, Timestamp }] =
+    await Promise.all([import("firebase/app"), import("firebase/firestore")]);
+  const app = getApps().find((a) => a.name === appName)
+    ? getApp(appName)
+    : initializeApp(firebaseConfig, appName);
+  const db = getFirestore(app);
   return addDoc(collection(db, "contactMessages"), {
     ...data,
     status: "new",

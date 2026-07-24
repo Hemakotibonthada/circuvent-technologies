@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Search, CheckCircle2, Circle, Package, Truck, Loader2, ExternalLink } from "lucide-react";
-import PageHeader from "@/components/PageHeader";
 import { formatINR } from "@/lib/shop-data";
 
 interface TrackedOrder {
@@ -130,19 +129,24 @@ export default function TrackPage() {
   const inputStyle = { background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-primary)" };
 
   return (
-    <>
-      <PageHeader
-        eyebrow="Order tracking"
-        title="Track your"
-        titleHighlight="order"
-        description="Enter your order number and the email you used at checkout to see live status."
-      />
-      <section className="relative z-10 mx-auto max-w-3xl px-6 pb-24 lg:px-8">
-        <form
-          onSubmit={submit}
-          className="flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row"
-          style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
-        >
+    <section className="relative z-10 mx-auto max-w-3xl px-6 pb-24 pt-28 lg:px-8 lg:pt-32">
+      <div className="mb-6">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>
+          Order tracking
+        </p>
+        <h1 className="text-3xl font-bold sm:text-4xl" style={{ color: "var(--text-primary)" }}>
+          Track your{" "}
+          <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">order</span>
+        </h1>
+        <p className="mt-2 text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
+          Enter your order number and the email you used at checkout to see live status.
+        </p>
+      </div>
+      <form
+        onSubmit={submit}
+        className="flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row"
+        style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+      >
           <input
             className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
             style={inputStyle}
@@ -317,6 +321,5 @@ export default function TrackPage() {
           </div>
         )}
       </section>
-    </>
   );
 }

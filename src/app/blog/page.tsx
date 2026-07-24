@@ -88,21 +88,21 @@ export default function BlogPage() {
 
       {/* Filters */}
       <section
-        className="relative z-30 pb-4 sticky top-0 backdrop-blur-2xl"
+        className="relative z-30 sticky top-0 backdrop-blur-xl"
         style={{
-          background: "var(--bg-overlay)",
+          background: "var(--bg-primary)",
           borderBottom: "1px solid var(--border-primary)",
         }}
       >
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4 py-3">
-            {/* Category Pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Category Pills — horizontal scroll on mobile, wrap on desktop */}
+            <div className="-mx-6 flex items-center gap-1.5 overflow-x-auto px-6 no-scrollbar sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
               {BLOG_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className="px-3 py-1.5 rounded-full text-[13px] font-medium transition-all duration-300 cursor-pointer whitespace-nowrap"
+                  className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium transition-all duration-300 cursor-pointer whitespace-nowrap"
                   style={
                     activeCategory === cat
                       ? {
@@ -127,7 +127,7 @@ export default function BlogPage() {
             </div>
 
             {/* Search */}
-            <div className="relative shrink-0">
+            <div className="relative w-full sm:w-56 sm:shrink-0">
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
                 style={{ color: "var(--text-muted)" }}
@@ -137,7 +137,7 @@ export default function BlogPage() {
                 placeholder="Search articles..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-56 pl-9 pr-3 py-2 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] transition-all"
+                className="w-full pl-9 pr-3 py-2 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] transition-all"
                 style={{
                   background: "var(--bg-surface)",
                   border: "1px solid var(--border-primary)",

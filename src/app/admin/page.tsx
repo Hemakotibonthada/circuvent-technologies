@@ -40,6 +40,7 @@ import AnalyticsPanel from "./AnalyticsPanel";
 import MonitoringPanel from "./MonitoringPanel";
 import ReportsPanel from "./ReportsPanel";
 import AlertRulesPanel from "./AlertRulesPanel";
+import AuditLogPanel from "./AuditLogPanel";
 import MessagesPanel from "./MessagesPanel";
 import AdminAlerts from "./AdminAlerts";
 import Admin2fa from "./Admin2fa";
@@ -511,6 +512,7 @@ export default function AdminDashboard() {
           <>
             <MonitoringPanel />
             <AlertRulesPanel />
+            <AuditLogPanel />
           </>
         )}
         {tab === "reports" && <ReportsPanel />}

@@ -10,8 +10,8 @@ import { CartProvider } from "@/components/shop/CartProvider";
 import { AccountProvider } from "@/components/shop/AccountProvider";
 import { WishlistProvider } from "@/components/shop/WishlistProvider";
 import CartDrawer from "@/components/shop/CartDrawer";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import AnalyticsGate from "@/components/AnalyticsGate";
+import CookieConsent from "@/components/CookieConsent";
 import VisitorTracker from "@/components/VisitorTracker";
 import { SITE_URL, siteConfig } from "@/lib/config";
 import { getOrganizationJsonLd, getWebsiteJsonLd } from "@/lib/seo";
@@ -136,8 +136,8 @@ export default function RootLayout({
             </AccountProvider>
           </CartProvider>
         </ThemeProvider>
-        <Analytics />
-        <SpeedInsights />
+        <CookieConsent />
+        <AnalyticsGate />
       </body>
     </html>
   );
