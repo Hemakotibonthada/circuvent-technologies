@@ -64,5 +64,64 @@ export async function initDb(): Promise<void> {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+
+    -- Favorite flag for quick-access on the dashboard.
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS favorite BOOLEAN NOT NULL DEFAULT false;
+
+    -- Rooms: optional metadata (icon/order) + lets empty rooms exist. Device
+    -- membership is the free-text devices.room matched by name.
+    CREATE TABLE IF NOT EXISTS rooms (
+      id          BIGSERIAL PRIMARY KEY,
+      owner_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      icon        TEXT NOT NULL DEFAULT '🏠',
+      sort        INT NOT NULL DEFAULT 0,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (owner_id, name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_rooms_owner ON rooms(owner_id);
+
+    -- Scenes: one-tap presets that publish a batch of device commands.
+    CREATE TABLE IF NOT EXISTS scenes (
+      id          BIGSERIAL PRIMARY KEY,
+      owner_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      icon        TEXT NOT NULL DEFAULT '✨',
+      actions     JSONB NOT NULL DEFAULT '[]'::jsonb,
+      favorite    BOOLEAN NOT NULL DEFAULT false,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_scenes_owner ON scenes(owner_id);
+
+    -- Events: the notification center + activity log feed.
+    CREATE TABLE IF NOT EXISTS events (
+      id          BIGSERIAL PRIMARY KEY,
+      owner_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_id   TEXT,
+      kind        TEXT NOT NULL DEFAULT 'info',   -- info | alert | success | security | activity
+      title       TEXT NOT NULL,
+      body        TEXT NOT NULL DEFAULT '',
+      read        BOOLEAN NOT NULL DEFAULT false,
+      ts          TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_owner_ts ON events(owner_id, ts DESC);
   `);
+}
+
+/** Record an event for the notification center / activity log (best-effort). */
+export async function recordEvent(
+  ownerId: number,
+  kind: string,
+  title: string,
+  body = "",
+  deviceId: string | null = null
+): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO events (owner_id, device_id, kind, title, body) VALUES ($1, $2, $3, $4, $5)`,
+      [ownerId, deviceId, kind, title, body]
+    );
+  } catch {
+    /* best-effort: never block the caller on the activity feed */
+  }
 }

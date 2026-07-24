@@ -1,7 +1,7 @@
 import mqtt, { type MqttClient } from "mqtt";
 import { EventEmitter } from "node:events";
 import { config, topics, deviceIdFromTopic } from "./config";
-import { pool } from "./db";
+import { pool, recordEvent } from "./db";
 import { logger } from "./logger";
 import { onStateChange } from "./automations";
 import { sendPushToUser } from "./push";
@@ -18,6 +18,9 @@ export interface DeviceUpdate {
 }
 
 let client: MqttClient | null = null;
+
+/** Throttle watts->telemetry snapshots so the energy chart has history w/o bloat. */
+const lastEnergyLog = new Map<string, number>();
 
 // Dynamic Security control channel. The control-plane is the dynsec admin; it
 // manages broker clients (one per device) and their topic permissions here.
@@ -145,6 +148,21 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
         await notifyStateEvents(row.owner_id, row.name || deviceId, prevState, payload as Record<string, unknown>);
         await onStateChange(deviceId, prevState, payload as Record<string, unknown>);
       }
+      // Snapshot numeric watts into telemetry (throttled) so the energy
+      // dashboard has real history even for devices that only report in state.
+      const w = Number((payload as Record<string, unknown>)?.watts);
+      if (Number.isFinite(w)) {
+        const now = Date.now();
+        if (now - (lastEnergyLog.get(deviceId) ?? 0) > 60000) {
+          lastEnergyLog.set(deviceId, now);
+          void pool
+            .query(
+              `INSERT INTO telemetry (device_id, payload) SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM devices WHERE id = $1)`,
+              [deviceId, { watts: w }]
+            )
+            .catch(() => {});
+        }
+      }
     } else if (kind === "telemetry") {
       await pool.query(
         `INSERT INTO telemetry (device_id, payload) SELECT $1, $2
@@ -162,6 +180,10 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
       await pool.query(`UPDATE devices SET online = $2, last_seen = now() WHERE id = $1`, [deviceId, online]);
       if (row?.owner_id != null && row.online === true && online === false) {
         await sendPushToUser(row.owner_id, { title: "Device offline", body: `${row.name || deviceId} went offline.` });
+        await recordEvent(row.owner_id, "info", "Device offline", `${row.name || deviceId} went offline.`, deviceId);
+      }
+      if (row?.owner_id != null && row.online === false && online === true) {
+        await recordEvent(row.owner_id, "success", "Device online", `${row.name || deviceId} reconnected.`, deviceId);
       }
     }
   } catch (err) {
@@ -180,9 +202,21 @@ async function notifyStateEvents(
   next: Record<string, unknown>
 ): Promise<void> {
   const rose = (f: string) => !!next?.[f] && !prev?.[f];
-  if (rose("dryRun")) await sendPushToUser(ownerId, { title: "AquaGuard alert", body: `${name}: dry-run detected — pump stopped.` });
-  if (rose("overflow")) await sendPushToUser(ownerId, { title: "AquaGuard alert", body: `${name}: tank overflow — pump stopped.` });
-  if (rose("sos")) await sendPushToUser(ownerId, { title: "SOS alert", body: `${name}: SOS triggered!` });
+  if (rose("dryRun")) {
+    await sendPushToUser(ownerId, { title: "AquaGuard alert", body: `${name}: dry-run detected — pump stopped.` });
+    await recordEvent(ownerId, "alert", "AquaGuard dry-run", `${name}: dry-run detected — pump stopped.`);
+  }
+  if (rose("overflow")) {
+    await sendPushToUser(ownerId, { title: "AquaGuard alert", body: `${name}: tank overflow — pump stopped.` });
+    await recordEvent(ownerId, "alert", "Tank overflow", `${name}: tank overflow — pump stopped.`);
+  }
+  if (rose("sos")) {
+    await sendPushToUser(ownerId, { title: "SOS alert", body: `${name}: SOS triggered!` });
+    await recordEvent(ownerId, "security", "SOS triggered", `${name}: SOS triggered!`);
+  }
+  if (rose("motion")) {
+    await recordEvent(ownerId, "security", "Motion detected", `${name}: motion detected.`);
+  }
 }
 
 /** Publish a command to a device. QoS 1 for reliable delivery. */

@@ -86,7 +86,7 @@ deviceRouter.post("/claim", requireAuth, async (req: AuthedRequest, res) => {
 /** GET /devices — the caller's devices with live-ish state. */
 deviceRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
-    `SELECT id, name, type, room, online, last_seen, state, fw_version
+    `SELECT id, name, type, room, favorite, online, last_seen, state, fw_version
      FROM devices WHERE owner_id = $1 ORDER BY created_at`,
     [req.user!.uid]
   );
@@ -101,7 +101,7 @@ async function ownsDevice(uid: number, id: string): Promise<boolean> {
 /** GET /devices/:id — single device detail. */
 deviceRouter.get("/:id", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
-    `SELECT id, name, type, room, online, last_seen, state, fw_version
+    `SELECT id, name, type, room, favorite, online, last_seen, state, fw_version
      FROM devices WHERE id = $1 AND owner_id = $2`,
     [req.params.id, req.user!.uid]
   );
@@ -112,8 +112,12 @@ deviceRouter.get("/:id", requireAuth, async (req: AuthedRequest, res) => {
   res.json({ device: rows[0] });
 });
 
-/** PATCH /devices/:id — rename / assign room. */
-const patchSchema = z.object({ name: z.string().max(120).optional(), room: z.string().max(80).optional() });
+/** PATCH /devices/:id — rename / assign room / favorite. */
+const patchSchema = z.object({
+  name: z.string().max(120).optional(),
+  room: z.string().max(80).optional(),
+  favorite: z.boolean().optional(),
+});
 deviceRouter.patch("/:id", requireAuth, async (req: AuthedRequest, res) => {
   if (!(await ownsDevice(req.user!.uid, req.params.id))) {
     res.status(404).json({ error: "Not found" });
@@ -125,8 +129,8 @@ deviceRouter.patch("/:id", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
   await pool.query(
-    `UPDATE devices SET name = COALESCE($2, name), room = COALESCE($3, room) WHERE id = $1`,
-    [req.params.id, parsed.data.name ?? null, parsed.data.room ?? null]
+    `UPDATE devices SET name = COALESCE($2, name), room = COALESCE($3, room), favorite = COALESCE($4, favorite) WHERE id = $1`,
+    [req.params.id, parsed.data.name ?? null, parsed.data.room ?? null, parsed.data.favorite ?? null]
   );
   res.json({ success: true });
 });
@@ -170,6 +174,39 @@ deviceRouter.get("/:id/telemetry", requireAuth, async (req: AuthedRequest, res) 
     [req.params.id, limit]
   );
   res.json({ telemetry: rows });
+});
+
+/**
+ * GET /devices/:id/energy?hours=24&metric=watts — time-bucketed series for the
+ * energy dashboard. Buckets adapt to the window (hourly for <=48h, else daily),
+ * averaging the chosen numeric telemetry metric and integrating it to kWh.
+ */
+deviceRouter.get("/:id/energy", requireAuth, async (req: AuthedRequest, res) => {
+  if (!(await ownsDevice(req.user!.uid, req.params.id))) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const hours = Math.min(24 * 90, Math.max(1, Number(req.query.hours) || 24));
+  const metric = String(req.query.metric || "watts").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 40) || "watts";
+  const gran = hours <= 48 ? "hour" : "day";
+  const { rows } = await pool.query(
+    `SELECT date_trunc($3, ts) AS bucket,
+            AVG(NULLIF(payload->>$4,'')::float) AS avg,
+            MAX(NULLIF(payload->>$4,'')::float) AS max
+     FROM telemetry
+     WHERE device_id = $1 AND ts > now() - ($2 || ' hours')::interval
+       AND payload ? $4
+     GROUP BY 1 ORDER BY 1`,
+    [req.params.id, String(hours), gran, metric]
+  );
+  const bucketHours = gran === "hour" ? 1 : 24;
+  const series = rows.map((r: { bucket: string; avg: number | null; max: number | null }) => ({
+    t: r.bucket,
+    avg: r.avg == null ? 0 : Math.round(r.avg * 100) / 100,
+    max: r.max == null ? 0 : Math.round(r.max * 100) / 100,
+  }));
+  const kwh = series.reduce((s, p) => s + (p.avg * bucketHours) / 1000, 0);
+  res.json({ metric, gran, series, kwh: Math.round(kwh * 1000) / 1000 });
 });
 
 /** DELETE /devices/:id — unclaim/remove from the account. */

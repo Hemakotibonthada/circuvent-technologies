@@ -189,11 +189,19 @@ class CircuventDevice {
   const char *firmwareVersion() const { return CV_FW_VERSION; }
 
   // ---- state setters (published to cv/<id>/state) -----------------------
-  void set(const char *k, bool v) { _state[k] = v; }
-  void set(const char *k, int v) { _state[k] = v; }
-  void set(const char *k, long v) { _state[k] = v; }
-  void set(const char *k, float v) { _state[k] = v; }
-  void set(const char *k, const char *v) { _state[k] = v; }
+  // Each setter marks the state dirty ONLY when the value actually changes, so
+  // a physical button press / local event pushes to the cloud within _minGap
+  // (see loop()) — the app reflects manual control in real time (<1s).
+  void set(const char *k, bool v) { if (!_state[k].is<bool>() || _state[k].as<bool>() != v) { _state[k] = v; _dirty = true; } }
+  void set(const char *k, int v) { if (!_state[k].is<int>() || _state[k].as<int>() != v) { _state[k] = v; _dirty = true; } }
+  void set(const char *k, long v) { if (!_state[k].is<long>() || _state[k].as<long>() != v) { _state[k] = v; _dirty = true; } }
+  void set(const char *k, float v) { if (!_state[k].is<float>() || _state[k].as<float>() != v) { _state[k] = v; _dirty = true; } }
+  void set(const char *k, const char *v) {
+    const char *cur = _state[k].as<const char *>();
+    if (!cur || strcmp(cur, v) != 0) { _state[k] = v; _dirty = true; }
+  }
+  /** Force an immediate state push (e.g. right after a physical toggle). */
+  void publishStateNow() { if (_mqttUp) { _lastPub = millis(); _dirty = false; publishState(); } }
 
   // ---- telemetry (one-off reading to cv/<id>/telemetry) -----------------
   void publishTelemetry(JsonObjectConst obj) {
@@ -253,7 +261,11 @@ class CircuventDevice {
 
     uint32_t now = millis();
     if (_otaInterval && (_lastOta == 0 || now - _lastOta > _otaInterval)) { _lastOta = now; checkOTA(); }
-    if (_mqttUp && (now - _lastPub >= _interval)) { _lastPub = now; publishState(); }
+    // Publish on the heartbeat interval OR promptly after a local state change
+    // (coalesced by _minGap) so manual/physical control shows up in the app fast.
+    bool heartbeat = (now - _lastPub >= _interval);
+    bool changed = _dirty && (now - _lastPub >= _minGap);
+    if (_mqttUp && (heartbeat || changed)) { _lastPub = now; _dirty = false; publishState(); }
   }
 
   // Publish the current accumulated state (retained) so the app sees it instantly.
@@ -357,6 +369,8 @@ class CircuventDevice {
   PubSubClient _mqtt{_net};
 
   uint32_t _interval = 10000, _lastPub = 0, _lastReconnect = 0;
+  uint32_t _minGap = 250;  // min ms between change-triggered publishes (coalesce bursts)
+  bool _dirty = false;     // a state value changed locally since the last publish
   uint32_t _otaInterval = 0, _lastOta = 0;
   uint32_t _lastMqttTry = 0;
   uint16_t _reconnectTries = 0, _mqttFails = 0;

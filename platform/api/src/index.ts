@@ -15,6 +15,10 @@ import { automationRouter } from "./routes/automations";
 import { provisioningRouter } from "./routes/provisioning";
 import { oauthRouter } from "./routes/oauth";
 import { smarthomeRouter } from "./routes/smarthome";
+import { roomsRouter } from "./routes/rooms";
+import { scenesRouter } from "./routes/scenes";
+import { eventsRouter } from "./routes/events";
+import { energyRouter } from "./routes/energy";
 import { startAutomationScheduler } from "./automations";
 
 async function main(): Promise<void> {
@@ -40,6 +44,10 @@ async function main(): Promise<void> {
   app.use("/provisioning", provisioningRouter);
   app.use("/oauth", oauthRouter);
   app.use("/smarthome", smarthomeRouter);
+  app.use("/rooms", roomsRouter);
+  app.use("/scenes", scenesRouter);
+  app.use("/events", eventsRouter);
+  app.use("/energy", energyRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 
