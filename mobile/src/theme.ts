@@ -55,6 +55,10 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   "smart-fan": { glyph: "🌀", accent: C.cyan, grad: GRAD.cyan, label: "Smart Fan", toggle: { field: "power", label: "Fan" } },
   curtain: { glyph: "🪟", accent: C.violet, grad: GRAD.violet, label: "Curtain" },
   "smart-lock": { glyph: "🔒", accent: C.amber, grad: GRAD.amber, label: "Smart Lock", toggle: { field: "locked", label: "Lock" } },
+  watertank: { glyph: "🌊", accent: C.cyan, grad: GRAD.cyan, label: "Water Tank", toggle: { field: "pump", label: "Pump" } },
+  "rfid-gate": { glyph: "🚗", accent: C.amber, grad: GRAD.amber, label: "RFID Gate" },
+  facedoor: { glyph: "🚪", accent: C.violet, grad: GRAD.violet, label: "Smart Door", toggle: { field: "locked", label: "Lock" } },
+  touchboard: { glyph: "🎛️", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board", toggle: { field: "g1", label: "Gang 1" } },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

@@ -11,6 +11,12 @@ import {
   Sprout,
   Cpu,
   AlertTriangle,
+  Waves,
+  DoorOpen,
+  LayoutGrid,
+  Car,
+  Lock,
+  LockOpen,
   type LucideIcon,
 } from "lucide-react";
 import type { Device } from "@/lib/control-plane";
@@ -32,6 +38,10 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   guardian: { label: "Guardian", icon: ShieldAlert, accent: "#ef4444", blurb: "Personal safety" },
   "motion-sensor": { label: "Motion Sensor", icon: ScanLine, accent: "#22c55e", blurb: "PIR intrusion" },
   "agri-starter": { label: "Agri Starter", icon: Sprout, accent: "#22c55e", blurb: "Farm pump control" },
+  watertank: { label: "WaterTank Duo", icon: Waves, accent: "#06b6d4", blurb: "Sump + overhead auto-fill" },
+  "rfid-gate": { label: "RFID Gate", icon: Car, accent: "#f59e0b", blurb: "Vehicle access barrier" },
+  facedoor: { label: "Smart Door", icon: DoorOpen, accent: "#8b5cf6", blurb: "Face / fingerprint / PIN" },
+  touchboard: { label: "Touch Board", icon: LayoutGrid, accent: "#06b6d4", blurb: "3-gang metered switch" },
 };
 
 export function deviceMeta(type: string): DeviceTypeMeta {
@@ -59,6 +69,14 @@ export function DeviceControls({ device, send, busy }: { device: Device; send: S
       return <MotionSensor d={device} send={send} busy={busy} />;
     case "agri-starter":
       return <>{generic}<AgriStarter d={device} send={send} busy={busy} /></>;
+    case "watertank":
+      return <WaterTank d={device} send={send} busy={busy} />;
+    case "rfid-gate":
+      return <RfidGate d={device} send={send} busy={busy} />;
+    case "facedoor":
+      return <FaceDoor d={device} send={send} busy={busy} />;
+    case "touchboard":
+      return <TouchBoard d={device} send={send} busy={busy} />;
     default:
       return <>{generic}<RawState d={device} /></>;
   }
@@ -350,6 +368,191 @@ function AgriStarter({ d, send, busy }: { d: Device; send: SendFn; busy: boolean
         </span>
       </div>
       {!power && <div className="mt-3"><AlertBanner text="No mains power — pump cannot start." /></div>}
+    </div>
+  );
+}
+
+function TankGauge({ label, pct, litres, accent, fault }: { label: string; pct: number; litres: number; accent: string; fault?: boolean }) {
+  const clamped = Math.min(100, Math.max(0, pct));
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative h-48 w-24 overflow-hidden rounded-2xl border border-white/15 bg-black/30">
+        {/* fluid */}
+        <div
+          className="absolute inset-x-0 bottom-0 transition-all duration-700"
+          style={{ height: `${clamped}%`, background: `linear-gradient(180deg, ${accent}cc, ${accent}66)` }}
+        >
+          {/* animated wave crest */}
+          <div className="animate-pulse absolute inset-x-0 top-0 h-3 opacity-70" style={{ background: accent }} />
+        </div>
+        {/* level ticks */}
+        {[25, 50, 75].map((t) => (
+          <div key={t} className="absolute inset-x-0 border-t border-white/10" style={{ bottom: `${t}%` }} />
+        ))}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-2xl font-extrabold text-white drop-shadow">{clamped}%</span>
+        </div>
+      </div>
+      <div className="text-center">
+        <div className="text-sm font-semibold text-white">{label}</div>
+        <div className="text-xs text-slate-400">{litres.toLocaleString("en-IN")} L{fault ? " · sensor?" : ""}</div>
+      </div>
+    </div>
+  );
+}
+
+function WaterTank({ d, send, busy }: { d: Device; send: SendFn; busy: boolean }) {
+  const oh = n(d.state.ohPct);
+  const sump = n(d.state.sumpPct);
+  return (
+    <div>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
+        <div className="flex items-end justify-center gap-10">
+          <TankGauge label="Overhead" pct={oh} litres={n(d.state.ohLitres)} accent="#06b6d4" fault={b(d.state.ohFault)} />
+          <div className="flex flex-col items-center pb-10">
+            <div className={`text-xs font-bold ${b(d.state.pump) ? "text-cyan-400" : "text-slate-500"}`}>
+              {b(d.state.pump) ? "▲ PUMPING" : "IDLE"}
+            </div>
+            <div className="my-1 h-16 w-0.5 bg-white/15" />
+            <Droplets className="h-5 w-5" style={{ color: b(d.state.pump) ? "#06b6d4" : "#475569" }} />
+          </div>
+          <TankGauge label="Sump" pct={sump} litres={n(d.state.sumpLitres)} accent="#22d3ee" fault={b(d.state.sumpFault)} />
+        </div>
+      </div>
+
+      {b(d.state.dryRun) && <div className="mt-3"><AlertBanner text="Dry-run detected — pump cut. Reset after checking the sump/motor." /></div>}
+      {b(d.state.overflow) && <div className="mt-3"><AlertBanner text="Overflow float tripped — pump stopped." /></div>}
+
+      <SectionLabel>Controls</SectionLabel>
+      <ControlRow label="Auto-fill" hint="Fill the overhead tank automatically from the sump">
+        <Toggle checked={b(d.state.auto)} onChange={(v) => send({ auto: v })} disabled={busy} label="Auto-fill" />
+      </ControlRow>
+      <ControlRow label="Pump" hint={b(d.state.auto) ? "Overridden by auto-fill" : "Manual pump control"}>
+        <Toggle checked={b(d.state.pump)} onChange={(v) => send({ pump: v })} disabled={busy} label="Pump" />
+      </ControlRow>
+      {b(d.state.dryRun) && (
+        <ControlRow label="Dry-run" hint="Clear the trip once the sump has water">
+          <button onClick={() => send({ action: "resetDryRun" })} disabled={busy} className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white hover:bg-white/10">Reset trip</button>
+        </ControlRow>
+      )}
+
+      <SectionLabel>Auto thresholds</SectionLabel>
+      <ControlRow label="Start overhead at" hint="Fill when overhead drops to this">
+        <Stepper value={n(d.state.startPct, 20)} onChange={(v) => send({ startPct: v })} min={5} max={90} suffix="%" />
+      </ControlRow>
+      <ControlRow label="Stop overhead at" hint="Stop when overhead reaches this">
+        <Stepper value={n(d.state.stopPct, 95)} onChange={(v) => send({ stopPct: v })} min={10} max={100} suffix="%" />
+      </ControlRow>
+      <ControlRow label="Protect sump below" hint="Never run the pump below this sump level">
+        <Stepper value={n(d.state.sumpMinPct, 15)} onChange={(v) => send({ sumpMinPct: v })} min={5} max={60} suffix="%" />
+      </ControlRow>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <StatTile label="Pump current" value={`${n(d.state.amps).toFixed(1)} A`} />
+        <StatTile label="Mode" value={b(d.state.auto) ? "Auto" : "Manual"} />
+      </div>
+    </div>
+  );
+}
+
+function RfidGate({ d, send, busy }: { d: Device; send: SendFn; busy: boolean }) {
+  const open = String(d.state.barrier ?? "closed") === "open";
+  const allowed = b(d.state.lastAllowed);
+  return (
+    <div>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
+        <div className={`text-3xl font-extrabold ${open ? "text-green-400" : "text-slate-300"}`}>
+          {open ? "BARRIER OPEN" : "BARRIER CLOSED"}
+        </div>
+        <div className="mt-2 text-sm text-slate-400">
+          {b(d.state.vehiclePresent) ? "🚗 Vehicle at gate" : "No vehicle detected"} · {n(d.state.tagCount)} tags enrolled
+        </div>
+      </div>
+
+      <SectionLabel>Barrier</SectionLabel>
+      <div className="flex gap-2.5">
+        <button onClick={() => send({ action: "open" })} disabled={busy} className="flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20">Open</button>
+        <button onClick={() => send({ action: "close" })} disabled={busy} className="flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10">Close</button>
+      </div>
+
+      <SectionLabel>Last scan</SectionLabel>
+      <div className="rounded-xl border border-white/10 bg-black/20 p-4 flex items-center justify-between">
+        <div>
+          <div className="font-mono text-white">Tag {n(d.state.lastTag) || "—"}</div>
+          <div className="text-xs text-slate-400">{n(d.state.scanCount)} scans total</div>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${allowed ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"}`}>
+          {allowed ? "AUTHORISED" : "DENIED"}
+        </span>
+      </div>
+      <ControlRow label="Mode" hint="Auto opens for authorised tags">
+        <Toggle checked={String(d.state.mode ?? "auto") === "auto"} onChange={(v) => send({ mode: v ? "auto" : "manual" })} disabled={busy} label="Auto mode" />
+      </ControlRow>
+    </div>
+  );
+}
+
+function FaceDoor({ d, send, busy }: { d: Device; send: SendFn; busy: boolean }) {
+  const locked = b(d.state.locked);
+  const LockIcon = locked ? Lock : LockOpen;
+  return (
+    <div>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
+        <LockIcon className="h-12 w-12" style={{ color: locked ? "#8b5cf6" : "#22c55e" }} />
+        <div className={`mt-3 text-2xl font-extrabold ${locked ? "text-slate-200" : "text-green-400"}`}>{locked ? "LOCKED" : "UNLOCKED"}</div>
+        <div className="mt-1 text-sm text-slate-400">
+          {String(d.state.lastMethod ?? "—")}{d.state.lastName ? ` · ${String(d.state.lastName)}` : ""}
+        </div>
+      </div>
+
+      <SectionLabel>Controls</SectionLabel>
+      <div className="flex gap-2.5">
+        <button onClick={() => send({ action: "unlock", method: "app" })} disabled={busy} className="flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 flex items-center justify-center gap-2"><LockOpen className="h-4 w-4" /> Unlock</button>
+        <button onClick={() => send({ action: "lock" })} disabled={busy} className="flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 flex items-center justify-center gap-2"><Lock className="h-4 w-4" /> Lock</button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <StatTile label="Accesses" value={String(n(d.state.accessCount))} />
+        <StatTile label="Bell presses" value={String(n(d.state.bellCount))} />
+      </div>
+      <ControlRow label="Auto-relock" hint="Seconds before the door re-locks">
+        <Stepper value={n(d.state.autoLockSec, 8)} onChange={(v) => send({ autoLockSec: v })} min={0} max={120} suffix="s" />
+      </ControlRow>
+    </div>
+  );
+}
+
+function TouchBoard({ d, send, busy }: { d: Device; send: SendFn; busy: boolean }) {
+  const gangs = [
+    { key: "g1", label: "Gang 1" },
+    { key: "g2", label: "Gang 2" },
+    { key: "g3", label: "Gang 3" },
+  ];
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="Power" value={`${n(d.state.watts).toFixed(0)} W`} />
+        <StatTile label="Voltage" value={`${n(d.state.volts).toFixed(0)} V`} />
+        <StatTile label="Current" value={`${n(d.state.amps).toFixed(2)} A`} />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <StatTile label="Power factor" value={n(d.state.pf).toFixed(2)} />
+        <StatTile label="Energy" value={`${n(d.state.kwh).toFixed(2)} kWh`} />
+      </div>
+
+      <SectionLabel>Gangs</SectionLabel>
+      {gangs.map((g) => (
+        <ControlRow key={g.key} label={g.label}>
+          <Toggle checked={b(d.state[g.key])} onChange={(v) => send({ [g.key]: v })} disabled={busy} label={g.label} />
+        </ControlRow>
+      ))}
+      <div className="mt-3 flex gap-2.5">
+        <button onClick={() => send({ all: true })} disabled={busy} className="flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">All on</button>
+        <button onClick={() => send({ all: false })} disabled={busy} className="flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10">All off</button>
+      </div>
+      <SectionLabel>Backlight</SectionLabel>
+      <ControlRow label="Brightness">
+        <Stepper value={n(d.state.backlight, 60)} onChange={(v) => send({ backlight: v })} min={0} max={100} step={10} suffix="%" />
+      </ControlRow>
     </div>
   );
 }
