@@ -33,16 +33,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    // Two-step verification: if enabled for this account, email a code and
-    // require it at /api/admin/auth/verify-2fa before issuing a token.
+    // Two-step verification: if enabled for this account, either email a code
+    // (method "email") or require an authenticator code (method "totp") at
+    // /api/admin/auth/verify-2fa before issuing a token.
     if (user.twoFactorEnabled) {
-      const otp = genOtp();
-      setAdmin2faOtp(user.email, otp);
-      await flushNow();
-      after(async () => {
-        await sendAdmin2faEmail(user.email, user.name, otp);
-      });
-      return NextResponse.json({ twoFactor: true, email: user.email });
+      const method = user.twoFactorMethod === "totp" && user.totpSecret ? "totp" : "email";
+      if (method === "email") {
+        const otp = genOtp();
+        setAdmin2faOtp(user.email, otp);
+        await flushNow();
+        after(async () => {
+          await sendAdmin2faEmail(user.email, user.name, otp);
+        });
+      }
+      return NextResponse.json({ twoFactor: true, method, email: user.email });
     }
 
     return NextResponse.json({

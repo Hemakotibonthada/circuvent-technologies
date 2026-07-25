@@ -5,11 +5,15 @@ import { setAdminTwoFactor, flushNow } from "@/lib/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/admin/2fa — whether 2FA is enabled for the signed-in admin.
+// GET /api/admin/2fa — whether 2FA is enabled + which method, for the admin.
 export async function GET(request: Request) {
   const me = adminFromRequest(request);
   if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  return NextResponse.json({ ok: true, enabled: !!me.twoFactorEnabled });
+  return NextResponse.json({
+    ok: true,
+    enabled: !!me.twoFactorEnabled,
+    method: me.twoFactorEnabled ? me.twoFactorMethod || "email" : null,
+  });
 }
 
 // PUT /api/admin/2fa { enabled } — enable/disable 2-step verification for self.

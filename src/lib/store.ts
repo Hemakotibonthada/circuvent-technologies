@@ -270,6 +270,8 @@ export interface AdminUser {
   createdBy?: string;
   lastLoginAt?: string;
   twoFactorEnabled?: boolean;
+  twoFactorMethod?: "email" | "totp"; // default "email" when 2FA is on
+  totpSecret?: string; // base32; present only when method === "totp"
 }
 
 export interface OrderNote {
@@ -1094,6 +1096,37 @@ export function setAdminTwoFactor(email: string, enabled: boolean): boolean {
   const u = db.adminUsers[email.trim().toLowerCase()];
   if (!u) return false;
   u.twoFactorEnabled = enabled;
+  if (enabled) {
+    if (!u.twoFactorMethod) u.twoFactorMethod = "email";
+  } else {
+    // Fully disabling clears any authenticator binding.
+    u.twoFactorMethod = undefined;
+    u.totpSecret = undefined;
+  }
+  save();
+  return true;
+}
+
+/** Bind an authenticator (TOTP) secret and switch the account to that method. */
+export function setAdminTotp(email: string, secret: string): boolean {
+  const db = load();
+  const u = db.adminUsers[email.trim().toLowerCase()];
+  if (!u) return false;
+  u.totpSecret = secret;
+  u.twoFactorMethod = "totp";
+  u.twoFactorEnabled = true;
+  save();
+  return true;
+}
+
+/** Switch 2FA back to email codes (keeps 2FA enabled, drops the TOTP secret). */
+export function setAdminTwoFactorMethodEmail(email: string): boolean {
+  const db = load();
+  const u = db.adminUsers[email.trim().toLowerCase()];
+  if (!u) return false;
+  u.twoFactorMethod = "email";
+  u.totpSecret = undefined;
+  u.twoFactorEnabled = true;
   save();
   return true;
 }

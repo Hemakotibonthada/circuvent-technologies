@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { revalidate, getAdmin2faOtp, bumpAdmin2faAttempt, clearAdmin2faOtp, getAdminUser, flushNow } from "@/lib/store";
 import { signAdminToken, ensureSeeded } from "@/lib/admin-auth";
+import { verifyTotp } from "@/lib/totp";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,27 @@ export async function POST(request: Request) {
     if (!clean || !otp) return NextResponse.json({ error: "Email and code are required." }, { status: 400 });
 
     await revalidate(["admin2fa", "adminUsers"]);
+
+    const user = getAdminUser(clean);
+    if (!user || !user.active) {
+      return NextResponse.json({ error: "Account not found or inactive." }, { status: 401 });
+    }
+
+    // Authenticator (TOTP) path — verify the code against the shared secret.
+    if (user.twoFactorMethod === "totp" && user.totpSecret) {
+      if (!verifyTotp(user.totpSecret, String(otp))) {
+        return NextResponse.json({ error: "Incorrect code. Check your authenticator app." }, { status: 400 });
+      }
+      return NextResponse.json({
+        ok: true,
+        token: signAdminToken(user.email),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      });
+    }
+
+    // Email-OTP path.
     const p = getAdmin2faOtp(clean);
     if (!p) return NextResponse.json({ error: "No pending verification. Please sign in again." }, { status: 400 });
     if (Date.now() > p.expires) {
@@ -41,11 +63,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Incorrect code. Please try again." }, { status: 400 });
     }
 
-    const user = getAdminUser(clean);
-    if (!user || !user.active) {
-      clearAdmin2faOtp(clean);
-      return NextResponse.json({ error: "Account not found or inactive." }, { status: 401 });
-    }
     clearAdmin2faOtp(clean);
     await flushNow();
 

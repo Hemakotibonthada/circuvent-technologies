@@ -28,6 +28,7 @@ export default function ProductsTab() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [locs, setLocs] = useState<Loc[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [bulk, setBulk] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,6 +74,42 @@ export default function ProductsTab() {
     }
     setSel(new Set());
     load();
+  };
+
+  // Apply a set of fields to every selected product (price %, category, flags…).
+  const applyBulk = async (build: (row: ProductRow) => Record<string, unknown> | null) => {
+    const targets = rows.filter((r) => sel.has(r.productId));
+    for (const r of targets) {
+      const patch = build(r);
+      if (!patch) continue;
+      await fetch("/api/admin/products", { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-token": tok() }, body: JSON.stringify({ id: r.productId, ...patch }) });
+    }
+    setSel(new Set());
+    setBulk(false);
+    load();
+  };
+
+  const bulkDelete = async () => {
+    const targets = rows.filter((r) => sel.has(r.productId));
+    if (!confirm(`Delete ${targets.length} product(s)? Only admin-added products can be removed; catalog items are skipped.`)) return;
+    for (const r of targets) {
+      await fetch(`/api/admin/products?id=${encodeURIComponent(r.productId)}`, { method: "DELETE", headers: { "x-admin-token": tok() } });
+    }
+    setSel(new Set());
+    setBulk(false);
+    load();
+  };
+
+  const exportSelected = () => {
+    const targets = rows.filter((r) => sel.has(r.productId));
+    const head = ["name", "sku", "barcode", "category", "price", "costPrice", "stock", "available"];
+    const csv = [head.join(",")]
+      .concat(targets.map((r) => [r.name, r.sku, r.barcode || "", r.category, r.price, r.costPrice, r.stock, r.available ? "true" : "false"].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `products-selected-${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const printLabels = () => {
@@ -122,9 +159,12 @@ export default function ProductsTab() {
       {sel.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: "var(--accent-cyan-muted)", border: "1px solid var(--border-accent)" }}>
           <span className="text-sm font-medium" style={{ color: "var(--accent-cyan)" }}>{sel.size} selected</span>
+          <Btn variant="ghost" onClick={() => setBulk(true)}><SlidersHorizontal className="h-4 w-4" /> Bulk edit</Btn>
           <Btn variant="ghost" onClick={() => bulkAvailability(true)}>List</Btn>
           <Btn variant="ghost" onClick={() => bulkAvailability(false)}>Hide</Btn>
           <Btn variant="ghost" onClick={printLabels}><Barcode className="h-4 w-4" /> Print labels</Btn>
+          <Btn variant="ghost" onClick={exportSelected}><Download className="h-4 w-4" /> Export selected</Btn>
+          <Btn variant="ghost" onClick={bulkDelete}><span style={{ color: "#ef4444" }}>Delete</span></Btn>
           <Btn variant="ghost" onClick={() => setSel(new Set())}>Clear</Btn>
         </div>
       )}
@@ -179,7 +219,82 @@ export default function ProductsTab() {
       {adjust && <AdjustModal row={adjust} onClose={() => setAdjust(null)} onDone={() => { setAdjust(null); load(); }} />}
       {hist && <HistoryModal row={hist} onClose={() => setHist(null)} />}
       {showAdd && <AddProductModal categories={cats} onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
+      {bulk && <BulkEditModal count={sel.size} cats={cats} onClose={() => setBulk(false)} onApply={applyBulk} />}
     </div>
+  );
+}
+
+// -------------------------------------------------------- bulk edit ----
+type BulkOp =
+  | { kind: "priceSet"; value: number }
+  | { kind: "pricePct"; value: number }
+  | { kind: "compareClear" }
+  | { kind: "stockSet"; value: number }
+  | { kind: "stockDelta"; value: number }
+  | { kind: "category"; value: string }
+  | { kind: "featured"; value: boolean };
+
+function BulkEditModal({ count, cats, onClose, onApply }: { count: number; cats: Cat[]; onClose: () => void; onApply: (build: (row: ProductRow) => Record<string, unknown> | null) => void }) {
+  const [op, setOp] = useState<BulkOp["kind"]>("pricePct");
+  const [num, setNum] = useState("");
+  const [category, setCategory] = useState(cats[0]?.name || "");
+  const [featured, setFeatured] = useState(true);
+
+  const apply = () => {
+    const n = Number(num);
+    switch (op) {
+      case "priceSet": return onApply(() => ({ price: Math.max(0, Math.round(n || 0)) }));
+      case "pricePct": return onApply((r) => ({ price: Math.max(0, Math.round(r.price * (1 + (n || 0) / 100))) }));
+      case "compareClear": return onApply(() => ({ compareAt: 0 }));
+      case "stockSet": return onApply(() => ({ stock: Math.max(0, Math.round(n || 0)) }));
+      case "stockDelta": return onApply((r) => ({ stock: Math.max(0, r.stock + Math.round(n || 0)) }));
+      case "category": return onApply(() => ({ category }));
+      case "featured": return onApply(() => ({ featured }));
+    }
+  };
+
+  const needsNum = op === "priceSet" || op === "pricePct" || op === "stockSet" || op === "stockDelta";
+
+  return (
+    <Modal title={`Bulk edit · ${count} product(s)`} onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Operation">
+          <select value={op} onChange={(e) => setOp(e.target.value as BulkOp["kind"])} className={inputCls} style={inputStyle}>
+            <option value="pricePct">Adjust price by %</option>
+            <option value="priceSet">Set price (₹)</option>
+            <option value="compareClear">Clear compare-at (end sale)</option>
+            <option value="stockSet">Set stock to</option>
+            <option value="stockDelta">Adjust stock by ±</option>
+            <option value="category">Set category</option>
+            <option value="featured">Set featured flag</option>
+          </select>
+        </Field>
+        {needsNum && (
+          <Field label={op === "pricePct" ? "Percent (e.g. -10 for 10% off)" : op === "stockDelta" ? "Delta (e.g. 25 or -5)" : "Value"}>
+            <input value={num} onChange={(e) => setNum(e.target.value.replace(/[^\d.-]/g, ""))} inputMode="numeric" placeholder="0" className={inputCls} style={inputStyle} />
+          </Field>
+        )}
+        {op === "category" && (
+          <Field label="Category">
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls} style={inputStyle}>
+              {cats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+          </Field>
+        )}
+        {op === "featured" && (
+          <Field label="Featured">
+            <select value={featured ? "yes" : "no"} onChange={(e) => setFeatured(e.target.value === "yes")} className={inputCls} style={inputStyle}>
+              <option value="yes">Featured</option>
+              <option value="no">Not featured</option>
+            </select>
+          </Field>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={apply}>Apply to {count}</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

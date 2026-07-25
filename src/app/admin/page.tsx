@@ -139,6 +139,7 @@ export default function AdminDashboard() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [twoFA, setTwoFA] = useState(false);
+  const [twoFAMethod, setTwoFAMethod] = useState<"email" | "totp">("email");
   const [otp, setOtp] = useState("");
   const [role, setRole] = useState<string>("superadmin");
   const [adminName, setAdminName] = useState<string>("");
@@ -188,6 +189,7 @@ export default function AdminDashboard() {
         const d = await res.json();
         if (d.twoFactor) {
           setTwoFA(true);
+          setTwoFAMethod(d.method === "totp" ? "totp" : "email");
           setOtp("");
           return;
         }
@@ -336,7 +338,7 @@ export default function AdminDashboard() {
             Circuvent Control Center
           </h1>
           <p className="text-sm text-center mb-6" style={{ color: "var(--text-tertiary)" }}>
-            {twoFA ? "Enter the 6-digit code we emailed you" : "Sign in with your staff email and password"}
+            {twoFA ? (twoFAMethod === "totp" ? "Enter the 6-digit code from your authenticator app" : "Enter the 6-digit code we emailed you") : "Sign in with your staff email and password"}
           </p>
           {twoFA ? (
             <form onSubmit={verify2fa} className="space-y-4">
