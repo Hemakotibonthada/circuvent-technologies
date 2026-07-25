@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# local dev data fallback (email evidence log, file store)
+/.data/
+
 # next.js
 /.next/
 /out/

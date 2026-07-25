@@ -122,8 +122,29 @@ const SCHEMA_STATEMENTS: string[] = [
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      PRIMARY KEY (collection, key)
    )`,
+  `CREATE TABLE IF NOT EXISTS email_history (
+     id BIGSERIAL PRIMARY KEY,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     "to" TEXT NOT NULL,
+     from_addr TEXT,
+     reply_to TEXT,
+     cc TEXT,
+     subject TEXT,
+     type TEXT NOT NULL DEFAULT 'other',
+     status TEXT NOT NULL DEFAULT 'sent',
+     provider TEXT,
+     message_id TEXT,
+     error TEXT,
+     related TEXT,
+     body_html TEXT,
+     meta JSONB
+   )`,
   `CREATE INDEX IF NOT EXISTS accounts_created_idx ON accounts (created_at)`,
   `CREATE INDEX IF NOT EXISTS admin_users_role_idx ON admin_users (role)`,
+  `CREATE INDEX IF NOT EXISTS email_history_created_idx ON email_history (created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS email_history_type_idx ON email_history (type)`,
+  `CREATE INDEX IF NOT EXISTS email_history_to_idx ON email_history ("to")`,
+  `CREATE INDEX IF NOT EXISTS email_history_status_idx ON email_history (status)`,
 ];
 
 let _initPromise: Promise<void> | null = null;
@@ -136,6 +157,111 @@ export function initDb(): Promise<void> {
     for (const stmt of SCHEMA_STATEMENTS) await q(stmt);
   })();
   return _initPromise;
+}
+
+// ------------------------------------------------------------- email evidence
+// Append-only audit log of every email the platform sends. Kept out of the
+// in-memory store hydrate/flush cycle (it can grow large and is write-once), so
+// it is written and queried directly against its own table.
+
+export interface EmailRecord {
+  to: string;
+  from?: string | null;
+  replyTo?: string | null;
+  cc?: string | null;
+  subject?: string | null;
+  type?: string;
+  status?: string;
+  provider?: string | null;
+  messageId?: string | null;
+  error?: string | null;
+  related?: string | null;
+  bodyHtml?: string | null;
+  meta?: unknown;
+}
+
+export interface EmailHistoryRow {
+  id: number;
+  created_at: string;
+  to: string;
+  from_addr: string | null;
+  reply_to: string | null;
+  cc: string | null;
+  subject: string | null;
+  type: string;
+  status: string;
+  provider: string | null;
+  message_id: string | null;
+  error: string | null;
+  related: string | null;
+  body_html: string | null;
+  meta: unknown;
+}
+
+export interface EmailQuery { limit?: number; offset?: number; type?: string; status?: string; q?: string }
+
+/** Appends one email to the durable evidence log. */
+export async function dbLogEmail(e: EmailRecord): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q(
+    `INSERT INTO email_history ("to", from_addr, reply_to, cc, subject, type, status, provider, message_id, error, related, body_html, meta)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb)`,
+    [
+      e.to,
+      e.from ?? null,
+      e.replyTo ?? null,
+      e.cc ?? null,
+      e.subject ?? null,
+      e.type ?? "other",
+      e.status ?? "sent",
+      e.provider ?? null,
+      e.messageId ?? null,
+      e.error ?? null,
+      e.related ?? null,
+      e.bodyHtml ?? null,
+      e.meta === undefined ? null : JSON.stringify(e.meta),
+    ]
+  );
+}
+
+function emailWhere(opts: EmailQuery): { clause: string; params: unknown[] } {
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (opts.type && opts.type !== "all") { params.push(opts.type); conds.push(`type = $${params.length}`); }
+  if (opts.status && opts.status !== "all") { params.push(opts.status); conds.push(`status = $${params.length}`); }
+  if (opts.q) { params.push(`%${opts.q}%`); const i = params.length; conds.push(`("to" ILIKE $${i} OR subject ILIKE $${i} OR related ILIKE $${i})`); }
+  return { clause: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
+}
+
+/** Lists email evidence rows, newest first (body included for full evidence). */
+export async function dbListEmailHistory(opts: EmailQuery = {}): Promise<EmailHistoryRow[]> {
+  await initDb();
+  const q = await getQuery();
+  const { clause, params } = emailWhere(opts);
+  const limit = Math.min(500, Math.max(1, opts.limit ?? 100));
+  const offset = Math.max(0, opts.offset ?? 0);
+  const rows = await q(
+    `SELECT id, created_at, "to", from_addr, reply_to, cc, subject, type, status, provider, message_id, error, related, body_html, meta
+     FROM email_history ${clause} ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${offset}`,
+    params
+  );
+  return rows as unknown as EmailHistoryRow[];
+}
+
+export async function dbCountEmailHistory(opts: EmailQuery = {}): Promise<{ total: number; sent: number; failed: number }> {
+  await initDb();
+  const q = await getQuery();
+  const { clause, params } = emailWhere(opts);
+  const rows = await q(
+    `SELECT COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE status = 'sent')::int AS sent,
+            COUNT(*) FILTER (WHERE status = 'failed')::int AS failed
+     FROM email_history ${clause}`,
+    params
+  );
+  const r = (rows[0] || {}) as { total?: number; sent?: number; failed?: number };
+  return { total: Number(r.total ?? 0), sent: Number(r.sent ?? 0), failed: Number(r.failed ?? 0) };
 }
 
 function recordFromRows(rows: Record<string, unknown>[]): Record<string, unknown> {

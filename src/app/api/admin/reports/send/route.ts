@@ -44,7 +44,7 @@ async function handle(request: Request) {
   const report = buildReportHtml(days);
   const to = settings.notifyEmail || DEFAULT_ADMIN_EMAIL;
 
-  const ok = await sendMail(to, report.subject, report.html);
+  const ok = await sendMail(to, report.subject, report.html, undefined, { type: "report", related: to });
   if (!ok) {
     logger.warn("reports.send_failed", { to });
     return NextResponse.json({ ok: false, sent: false, reason: "Email transport not configured or failed." }, { status: 502 });

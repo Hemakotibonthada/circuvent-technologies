@@ -37,7 +37,9 @@ export async function PATCH(request: Request) {
         await sendMail(
           r.email,
           `Refund processed — order ${r.orderNo}`,
-          `<div style="font-family:system-ui,sans-serif"><p>We've credited ₹${amt} to your Circuvent Wallet for order ${r.orderNo}. You can use it on your next order.</p></div>`
+          `<div style="font-family:system-ui,sans-serif"><p>We've credited ₹${amt} to your Circuvent Wallet for order ${r.orderNo}. You can use it on your next order.</p></div>`,
+          undefined,
+          { type: "return", related: r.orderNo }
         );
       });
     } else {

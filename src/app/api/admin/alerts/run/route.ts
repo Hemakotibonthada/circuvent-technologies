@@ -28,7 +28,7 @@ async function handle(request: Request) {
   }
 
   const to = settings.notifyEmail || DEFAULT_ADMIN_EMAIL;
-  const ok = await sendMail(to, digest.subject, digest.html);
+  const ok = await sendMail(to, digest.subject, digest.html, undefined, { type: "alert", related: to });
   if (!ok) {
     logger.warn("alerts.digest.send_failed", { to });
     return NextResponse.json({ ok: false, sent: false, reason: "Email transport not configured or failed." }, { status: 502 });

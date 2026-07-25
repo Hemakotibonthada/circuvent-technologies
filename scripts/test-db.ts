@@ -77,6 +77,24 @@ async function main() {
   const scoped: any = await db.dbHydrate(["accounts"]);
   assert(scoped.accounts && scoped.orders === undefined, "scoped hydrate returns only requested collection");
 
+  // ---- email evidence log (email_history) ----------------------------------
+  console.log("email evidence log…");
+  await db.dbLogEmail({ to: "a@x.com", subject: "Your Circuvent order CV-1001", type: "order", status: "sent", provider: "resend", messageId: "re_1", related: "CV-1001", bodyHtml: "<p>hi</p>", from: "Circuvent <noreply@circuvent.com>" });
+  await db.dbLogEmail({ to: "a@x.com", subject: "123456 is your code", type: "otp", status: "sent", provider: "smtp" });
+  await db.dbLogEmail({ to: "x@y.com", subject: "alert digest", type: "alert", status: "failed", error: "No transport" });
+  const emails = await db.dbListEmailHistory();
+  assert(emails.length === 3, "3 emails logged to email_history");
+  const otp = await db.dbListEmailHistory({ type: "otp" });
+  assert(otp.length === 1 && otp[0].type === "otp", "email type filter works");
+  const failed = await db.dbListEmailHistory({ status: "failed" });
+  assert(failed.length === 1 && failed[0].error === "No transport", "email status filter + error preserved");
+  const search = await db.dbListEmailHistory({ q: "CV-1001" });
+  assert(search.length === 1 && search[0].related === "CV-1001", "email search matches subject/related");
+  const counts = await db.dbCountEmailHistory();
+  assert(counts.total === 3 && counts.sent === 2 && counts.failed === 1, "email counts (total/sent/failed) correct");
+  const orderEmail = emails.find((e) => e.type === "order");
+  assert(!!orderEmail && orderEmail.body_html === "<p>hi</p>", "email body_html evidence preserved");
+
   console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILURE(S)`);
   process.exit(failures === 0 ? 0 : 1);
 }

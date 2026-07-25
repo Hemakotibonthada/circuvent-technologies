@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
 import { validateCoupon } from "./coupons";
 import { listProducts } from "./store";
+import { recordEmail } from "./email-log";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
 
@@ -28,47 +29,86 @@ function getTransport(): Transporter | null {
   return transporter;
 }
 
+export interface MailMeta {
+  /** Category tag for the evidence log (otp, order, contact, alert, report, ...). */
+  type?: string;
+  /** Extra recipients (also captured as evidence). */
+  cc?: string[];
+  /** Related identifier — order number, customer email, ticket id, etc. */
+  related?: string;
+}
+
 /**
- * Sends one email. Prefers SMTP (the store's own domain mailbox, which can
- * deliver to any recipient) and falls back to Resend when SMTP isn't set up.
+ * Sends one email and records it to the email evidence log (email_history).
+ * Prefers SMTP (the store's own domain mailbox) and falls back to Resend.
+ * Returns true on delivery; every attempt (success or failure) is logged.
  */
 export async function sendMail(
   to: string,
   subject: string,
   html: string,
-  replyTo?: string
+  replyTo?: string,
+  meta?: MailMeta
 ): Promise<boolean> {
+  const type = meta?.type || "other";
+  const replyToUsed = replyTo || process.env.EMAIL_REPLY_TO || null;
+  const cc = meta?.cc && meta.cc.length ? meta.cc : undefined;
+  let ok = false;
+  let provider = "none";
+  let messageId: string | null = null;
+  let error: string | null = null;
+  let fromUsed: string | null = null;
+
   const t = getTransport();
   if (t) {
+    provider = "smtp";
+    fromUsed = process.env.EMAIL_FROM || `Circuvent Store <${process.env.SMTP_USER}>`;
     try {
-      await t.sendMail({
-        from: process.env.EMAIL_FROM || `Circuvent Store <${process.env.SMTP_USER}>`,
-        to,
-        subject,
-        html,
-        replyTo: replyTo || process.env.EMAIL_REPLY_TO,
-      });
-      return true;
+      const info = await t.sendMail({ from: fromUsed, to, cc, subject, html, replyTo: replyToUsed || undefined });
+      ok = true;
+      messageId = (info as { messageId?: string })?.messageId ?? null;
     } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
       console.error("SMTP send error:", e);
     }
   }
-  if (process.env.RESEND_API_KEY) {
+  if (!ok && process.env.RESEND_API_KEY) {
+    provider = "resend";
+    fromUsed = "Circuvent Store <onboarding@resend.dev>";
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: "Circuvent Store <onboarding@resend.dev>",
-        to: [to],
-        subject,
-        html,
-        replyTo,
-      });
-      return true;
+      const r = (await resend.emails.send({ from: fromUsed, to: [to], cc, subject, html, replyTo: replyToUsed || undefined })) as { data: { id?: string } | null; error: { message?: string } | string | null };
+      if (r.error) {
+        error = typeof r.error === "string" ? r.error : r.error.message || JSON.stringify(r.error);
+        console.error("Resend send error:", r.error);
+      } else {
+        ok = true;
+        messageId = r.data?.id ?? null;
+      }
     } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
       console.error("Resend send error:", e);
     }
   }
-  return false;
+  if (provider === "none") error = error || "No mail transport configured (set SMTP_* or RESEND_API_KEY)";
+
+  await recordEmail({
+    to,
+    from: fromUsed,
+    replyTo: replyToUsed,
+    cc: cc ? cc.join(", ") : null,
+    subject,
+    type,
+    status: ok ? "sent" : "failed",
+    provider,
+    messageId,
+    error,
+    related: meta?.related ?? null,
+    bodyHtml: html,
+    meta: meta ?? null,
+  });
+
+  return ok;
 }
 
 export interface IncomingItem {
@@ -227,13 +267,15 @@ export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
       a.customer.email as string,
       `Your Circuvent order ${a.orderNo}`,
       customerHtml,
-      process.env.EMAIL_REPLY_TO || process.env.CONTACT_EMAIL || "hema@circuvent.com"
+      process.env.EMAIL_REPLY_TO || process.env.CONTACT_EMAIL || "hema@circuvent.com",
+      { type: "order", related: a.orderNo }
     ),
     sendMail(
       process.env.CONTACT_EMAIL || process.env.EMAIL_REPLY_TO || "hemakotibonthada@gmail.com",
       `[Order] ${a.orderNo} — ${a.customer.name} — ${formatINR(a.total)}`,
       adminHtml,
-      a.customer.email as string
+      a.customer.email as string,
+      { type: "order", related: a.orderNo }
     ),
   ]);
   return toCustomer || toStore;
@@ -271,7 +313,8 @@ export async function sendStatusEmail(args: {
     args.email,
     `Your Circuvent order ${args.orderNo} — ${args.statusLabel}`,
     html,
-    process.env.EMAIL_REPLY_TO
+    process.env.EMAIL_REPLY_TO,
+    { type: "order_status", related: args.orderNo }
   );
 }
 
@@ -288,7 +331,7 @@ export async function sendOtpEmail(email: string, name: string, otp: string): Pr
         <p style="font-size:12px;color:#94a3b8;margin:16px 0 0">This code expires in 10 minutes. If you didn't request it, you can ignore this email.</p>
       </div>
     </div>`;
-  return sendMail(email, `${otp} is your Circuvent verification code`, html, process.env.EMAIL_REPLY_TO);
+  return sendMail(email, `${otp} is your Circuvent verification code`, html, process.env.EMAIL_REPLY_TO, { type: "otp", related: email });
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, otp: string): Promise<boolean> {
@@ -303,7 +346,7 @@ export async function sendPasswordResetEmail(email: string, name: string, otp: s
         <p style="font-size:12px;color:#94a3b8;margin:16px 0 0">This code expires in 15 minutes. If you didn't request a password reset, you can safely ignore this email — your password won't change.</p>
       </div>
     </div>`;
-  return sendMail(email, `${otp} is your Circuvent password reset code`, html, process.env.EMAIL_REPLY_TO);
+  return sendMail(email, `${otp} is your Circuvent password reset code`, html, process.env.EMAIL_REPLY_TO, { type: "password_reset", related: email });
 }
 
 export async function sendAdmin2faEmail(email: string, name: string, otp: string): Promise<boolean> {
@@ -318,5 +361,5 @@ export async function sendAdmin2faEmail(email: string, name: string, otp: string
         <p style="font-size:12px;color:#94a3b8;margin:16px 0 0">This code expires in 10 minutes. If this wasn't you, change your password immediately.</p>
       </div>
     </div>`;
-  return sendMail(email, `${otp} is your Circuvent admin sign-in code`, html, process.env.EMAIL_REPLY_TO);
+  return sendMail(email, `${otp} is your Circuvent admin sign-in code`, html, process.env.EMAIL_REPLY_TO, { type: "admin_2fa", related: email });
 }

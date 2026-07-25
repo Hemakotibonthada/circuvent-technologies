@@ -131,7 +131,9 @@ export async function PATCH(request: Request) {
             await sendMail(
               email,
               `${product.name} is back in stock`,
-              `<div style="font-family:sans-serif"><h2>Good news — it's back!</h2><p><b>${product.name}</b> is back in stock at Circuvent.</p><p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#06b6d4;color:#fff;border-radius:8px;text-decoration:none">Shop now</a></p></div>`
+              `<div style="font-family:sans-serif"><h2>Good news — it's back!</h2><p><b>${product.name}</b> is back in stock at Circuvent.</p><p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#06b6d4;color:#fff;border-radius:8px;text-decoration:none">Shop now</a></p></div>`,
+              undefined,
+              { type: "product_restock", related: email }
             );
           }
         });

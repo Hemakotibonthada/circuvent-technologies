@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { rateLimit } from "@/lib/rate-limit";
 import { addContactMessage, flushNow } from "@/lib/store";
+import { recordEmail } from "@/lib/email-log";
 
 // Instantiated lazily so a missing RESEND_API_KEY doesn't crash the route at
 // import time (the Resend constructor throws on an empty key). The handler
@@ -146,6 +147,22 @@ export async function POST(request: Request) {
           </div>
         </div>
       `,
+    });
+
+    await recordEmail({
+      to: process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com",
+      from: "Circuvent Contact <onboarding@resend.dev>",
+      replyTo: email,
+      cc: team || null,
+      subject: `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`,
+      type: "contact",
+      status: resendError ? "failed" : "sent",
+      provider: "resend",
+      messageId: data?.id ?? null,
+      error: resendError ? (typeof resendError === "string" ? resendError : JSON.stringify(resendError)) : null,
+      related: email,
+      bodyHtml: `<div style="font-family:system-ui,sans-serif"><h2>New Contact Form Submission</h2><table><tr><td>Name</td><td>${name}</td></tr><tr><td>Email</td><td>${email}</td></tr>${company ? `<tr><td>Company</td><td>${company}</td></tr>` : ""}${service ? `<tr><td>Service</td><td>${service}</td></tr>` : ""}${budget ? `<tr><td>Budget</td><td>${budget}</td></tr>` : ""}</table><p style="white-space:pre-wrap">${String(message).replace(/</g, "&lt;")}</p></div>`,
+      meta: { name, email, company, service, budget, team },
     });
 
     if (resendError) {

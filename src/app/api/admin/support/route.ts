@@ -29,7 +29,9 @@ export async function PATCH(request: Request) {
         await sendMail(
           t.email,
           `Re: ${t.subject} — Circuvent Support`,
-          `<div style="font-family:system-ui,sans-serif"><p>${String(message || "").replace(/</g, "&lt;")}</p><p style="color:#94a3b8;font-size:12px">Reply to this email or visit your account to continue the conversation.</p></div>`
+          `<div style="font-family:system-ui,sans-serif"><p>${String(message || "").replace(/</g, "&lt;")}</p><p style="color:#94a3b8;font-size:12px">Reply to this email or visit your account to continue the conversation.</p></div>`,
+          undefined,
+          { type: "support", related: t.email }
         );
       });
       return NextResponse.json({ success: true, ticket: t });
