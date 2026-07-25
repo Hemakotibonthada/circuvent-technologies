@@ -135,9 +135,40 @@ export async function getWeatherByQuery(q: string): Promise<WeatherBundle> {
 
 const SAVED_KEY = "cv-weather-loc";
 export interface SavedLoc { lat: number; lon: number; name: string }
+
+// ---- units ----
+export type TempUnit = "C" | "F";
+const UNIT_KEY = "cv-weather-unit";
+export async function getUnit(): Promise<TempUnit> { try { const u = await AsyncStorage.getItem(UNIT_KEY); return u === "F" ? "F" : "C"; } catch { return "C"; } }
+export async function setUnit(u: TempUnit): Promise<void> { try { await AsyncStorage.setItem(UNIT_KEY, u); } catch { /* ignore */ } }
+export function toTemp(celsius: number, unit: TempUnit): number { return unit === "F" ? Math.round((celsius * 9) / 5 + 32) : Math.round(celsius); }
+export function unitSym(unit: TempUnit): string { return unit === "F" ? "°F" : "°C"; }
+
+// ---- saved locations (list; index 0 = active) ----
+const LOCS_KEY = "cv-weather-locs";
+export async function getLocations(): Promise<SavedLoc[]> { try { const s = await AsyncStorage.getItem(LOCS_KEY); return s ? (JSON.parse(s) as SavedLoc[]) : []; } catch { return []; } }
+export async function saveLocations(list: SavedLoc[]): Promise<void> { try { await AsyncStorage.setItem(LOCS_KEY, JSON.stringify(list.slice(0, 8))); } catch { /* ignore */ } }
+const sameLoc = (a: SavedLoc, lat: number, lon: number) => Math.abs(a.lat - lat) < 0.05 && Math.abs(a.lon - lon) < 0.05;
+export async function addLocation(loc: SavedLoc): Promise<SavedLoc[]> {
+  const list = await getLocations();
+  const next = [loc, ...list.filter((l) => !sameLoc(l, loc.lat, loc.lon))].slice(0, 8);
+  await saveLocations(next);
+  return next;
+}
+export async function removeLocation(lat: number, lon: number): Promise<SavedLoc[]> {
+  const next = (await getLocations()).filter((l) => !sameLoc(l, lat, lon));
+  await saveLocations(next);
+  return next;
+}
+
 export async function getSavedLocation(): Promise<SavedLoc | null> {
-  try { const s = await AsyncStorage.getItem(SAVED_KEY); return s ? (JSON.parse(s) as SavedLoc) : null; } catch { return null; }
+  try {
+    const list = await getLocations();
+    if (list.length) return list[0];
+    const s = await AsyncStorage.getItem(SAVED_KEY);
+    return s ? (JSON.parse(s) as SavedLoc) : null;
+  } catch { return null; }
 }
 export async function setSavedLocation(loc: SavedLoc): Promise<void> {
-  try { await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(loc)); } catch { /* ignore */ }
+  try { await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(loc)); await addLocation(loc); } catch { /* ignore */ }
 }

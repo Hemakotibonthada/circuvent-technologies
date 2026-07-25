@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Device } from "../api";
 import { useDevices } from "../store";
-import { useTheme } from "../ui";
+import { useTheme, useBackHandler } from "../ui";
 import Home from "./Home";
 import Devices from "./Devices";
 import Automate from "./Automate";
@@ -34,6 +34,14 @@ export default function Shell() {
   const [tab, setTab] = useState<Tab>("home");
   const [seg, setSeg] = useState<Seg>("scenes");
   const [overlay, setOverlay] = useState<Overlay>(null);
+
+  // Android hardware/gesture back: dismiss an overlay, else return to Home,
+  // else let the OS exit the app (prevents an accidental one-swipe exit).
+  useBackHandler(() => {
+    if (overlay) { setOverlay(null); return true; }
+    if (tab !== "home") { setTab("home"); return true; }
+    return false;
+  });
 
   if (overlay?.kind === "control") return <Control device={overlay.device} onBack={() => setOverlay(null)} />;
   if (overlay?.kind === "add") return <AddDevice onClose={(added) => { setOverlay(null); if (added) refresh(); }} />;

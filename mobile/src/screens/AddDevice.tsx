@@ -15,6 +15,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { api } from "../api";
 import { sealToDevice } from "../crypto";
 import { parseSetupQr } from "../qr";
+import { useBackHandler } from "../ui";
 
 /**
  * Secure zero-touch onboarding (A + B).
@@ -138,21 +139,24 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
     setStep("connect");
   };
 
-  const scan = async () => {
+  const scan = async (attempts = 4) => {
     setScanErr(""); setScanning(true);
-    try {
-      const res = await fetchTimeout(`${BASE}/scan`, {}, 9000);
-      const arr = (await res.json()) as Net[];
-      arr.sort((a, b) => b.rssi - a.rssi);
-      setNetworks(arr);
-      if (!arr.length) setScanErr("No networks found. Move closer to your router or enter the name manually.");
-    } catch {
-      setScanErr("Couldn't reach the device to scan. Join the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi (mobile data OFF).");
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const res = await fetchTimeout(`${BASE}/scan`, {}, 12000);
+        const arr = (await res.json()) as Net[];
+        arr.sort((a, b) => b.rssi - a.rssi);
+        if (arr.length) { setNetworks(arr); setScanErr(""); setScanning(false); return; }
+      } catch {
+        // transient — the phone may still be switching to the device hotspot
+      }
+      if (i < attempts - 1) { setScanErr(`Scanning the device… (attempt ${i + 2}/${attempts})`); await sleep(1600); }
     }
     setScanning(false);
+    setScanErr("Couldn't get the network list from the device. Make sure you're on the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi with mobile data OFF, then tap Rescan — or enter your network name manually below.");
   };
 
-  const goWifi = () => { setStep("wifi"); setRetryNote(""); scan(); };
+  const goWifi = () => { setStep("wifi"); setRetryNote(""); setNetworks([]); setScanErr("Scanning the device…"); setTimeout(() => scan(), 800); };
 
   // Step 3 — encrypt {ssid,pass,token} to the device and push (local, mobile data OFF).
   const sendToDevice = async () => {
@@ -241,6 +245,8 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
     if (step === "wifi") return setStep("connect");
     setStep("mode");
   };
+
+  useBackHandler(() => { goBack(); return true; });
 
   return (
     <View style={s.wrap}>
@@ -351,7 +357,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             {!!retryNote && <Text style={s.err}>{retryNote}</Text>}
             <View style={s.rowBetween}>
               <Text style={s.label}>Networks near the device {networks.length ? `(${networks.length})` : ""}</Text>
-              <Pressable onPress={scan} disabled={scanning}><Text style={s.link}>{scanning ? "Scanning…" : "↻ Rescan"}</Text></Pressable>
+              <Pressable onPress={() => scan()} disabled={scanning}><Text style={s.link}>{scanning ? "Scanning…" : "↻ Rescan"}</Text></Pressable>
             </View>
             {scanning && <View style={s.center}><ActivityIndicator color="#06b6d4" /><Text style={s.hint}>Asking the device to scan…</Text></View>}
             {!!scanErr && !scanning && <Text style={s.err}>{scanErr}</Text>}

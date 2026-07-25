@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   Animated,
   Easing,
@@ -12,6 +12,7 @@ import {
   TextStyle,
   StyleProp,
   Platform,
+  BackHandler,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -86,6 +87,20 @@ export function useTheme(): ThemeCtx {
 // ------------------------------------------------------------- primitives ---
 
 /** Full-screen themed background. Glass mode adds soft color blobs behind content. */
+/**
+ * Handles the Android hardware / gesture "back" press. `handler` returns true
+ * when it consumed the event (stay in the app) or false to let the OS handle it
+ * (exit). No-op on iOS. Always uses the latest handler without re-subscribing.
+ */
+export function useBackHandler(handler: () => boolean) {
+  const ref = useRef(handler);
+  ref.current = handler;
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => ref.current());
+    return () => sub.remove();
+  }, []);
+}
+
 export function Screen({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
   return (
