@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Cpu, Home, LayoutGrid, Zap, LogOut, Bell, BellOff, Loader2, Radio, Sofa, Clapperboard, BatteryCharging, Settings, ShieldCheck, BarChart3, CloudSun } from "lucide-react";
+import { Cpu, Home, LayoutGrid, Zap, LogOut, Bell, BellOff, Loader2, Radio, Sofa, Clapperboard, BatteryCharging, Settings, ShieldCheck, BarChart3, CloudSun, Map } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import { useConsole } from "./ConsoleProvider";
 import Login from "./Login";
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/console", label: "Devices", icon: LayoutGrid, exact: true },
   { href: "/console/scenes", label: "Scenes", icon: Clapperboard, exact: false },
   { href: "/console/rooms", label: "Rooms", icon: Sofa, exact: false },
+  { href: "/console/floorplan", label: "Floorplan", icon: Map, exact: false },
   { href: "/console/energy", label: "Energy", icon: BatteryCharging, exact: false },
   { href: "/console/weather", label: "Weather", icon: CloudSun, exact: false },
   { href: "/console/widgets", label: "Widgets", icon: BarChart3, exact: false },
