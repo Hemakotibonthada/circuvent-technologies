@@ -8,6 +8,7 @@ import TiltCard from "@/components/TiltCard";
 import Marquee, { MarqueeTechItem } from "@/components/Marquee";
 import { ShimmerText } from "@/components/AnimationEffects";
 import { getFeaturedProjects } from "@/lib/projects-data";
+import SmartHomeShowcase from "@/components/SmartHomeShowcase";
 import { testimonials } from "@/lib/services-data";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -190,6 +191,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* SMART HOME — app + Alexa/Google + device family */}
+      <SmartHomeShowcase />
 
       {/* CODE SHOWCASE — removed to reduce homepage density (see /architecture) */}
 
