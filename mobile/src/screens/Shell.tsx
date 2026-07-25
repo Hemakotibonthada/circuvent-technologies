@@ -15,10 +15,11 @@ import AddDevice from "./AddDevice";
 import More from "./More";
 import CommandPalette from "./CommandPalette";
 import Weather from "./Weather";
+import Kiosk from "./Kiosk";
 
 type Tab = "home" | "devices" | "automate" | "energy" | "settings" | "more";
 type Seg = "scenes" | "rooms" | "automations";
-type Overlay = { kind: "control"; device: Device } | { kind: "changewifi"; device: Device } | { kind: "add" } | { kind: "notifications" } | { kind: "search" } | { kind: "weather" } | null;
+type Overlay = { kind: "control"; device: Device } | { kind: "changewifi"; device: Device } | { kind: "add" } | { kind: "notifications" } | { kind: "search" } | { kind: "weather" } | { kind: "kiosk" } | null;
 
 const TABS: { key: Tab; label: string; glyph: string }[] = [
   { key: "home", label: "Home", glyph: "🏠" },
@@ -49,6 +50,7 @@ export default function Shell() {
   if (overlay?.kind === "add") return <AddDevice onClose={(added) => { setOverlay(null); if (added) refresh(); }} />;
   if (overlay?.kind === "notifications") return <Notifications onBack={() => setOverlay(null)} />;
   if (overlay?.kind === "weather") return <Weather onBack={() => setOverlay(null)} />;
+  if (overlay?.kind === "kiosk") return <Kiosk onExit={() => setOverlay(null)} />;
   if (overlay?.kind === "search")
     return (
       <CommandPalette
@@ -83,7 +85,7 @@ export default function Shell() {
         {tab === "devices" && <Devices onOpen={openControl} onAdd={() => setOverlay({ kind: "add" })} />}
         {tab === "automate" && <Automate key={seg} initial={seg} />}
         {tab === "energy" && <Energy />}
-        {tab === "settings" && <Settings />}
+        {tab === "settings" && <Settings onKiosk={() => setOverlay({ kind: "kiosk" })} />}
         {tab === "more" && (
           <More
             onOpenDevice={openControl}

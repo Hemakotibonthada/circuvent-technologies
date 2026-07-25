@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
 import { Screen, Card, SectionLabel, GhostButton, useTheme } from "../ui";
@@ -11,9 +12,24 @@ const MODES: { key: ThemeMode; label: string; sub: string; glyph: string }[] = [
   { key: "neo", label: "Neo", sub: "Soft neumorphism", glyph: "🩶" },
 ];
 
-export default function Settings({ onBack }: { onBack?: () => void }) {
+export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onKiosk?: () => void }) {
   const { c, mode, scheme, accentKey, setMode, setScheme, setAccentKey } = useTheme();
   const { account, logout } = useAuth();
+
+  const setKioskPin = () => {
+    Alert.prompt?.(
+      "Set kiosk exit PIN",
+      "A 4-digit PIN required to leave kiosk mode.",
+      async (text) => {
+        const pin = (text || "").replace(/[^0-9]/g, "").slice(0, 4);
+        if (pin.length === 4) { await AsyncStorage.setItem("cv-kiosk-pin", pin); Alert.alert("Kiosk PIN updated"); }
+        else Alert.alert("PIN must be 4 digits");
+      },
+      "plain-text",
+      "",
+      "number-pad"
+    );
+  };
 
   return (
     <Screen>
@@ -71,6 +87,19 @@ export default function Settings({ onBack }: { onBack?: () => void }) {
         <Card padded style={{ marginBottom: 16 }}>
           <Row label="Name" value={account?.name || "—"} c={c} />
           <Row label="Email" value={account?.email || "—"} c={c} last />
+        </Card>
+
+        <SectionLabel>WALL KIOSK</SectionLabel>
+        <Card padded style={{ marginBottom: 16 }}>
+          <Text style={{ color: c.textDim, fontSize: 13, lineHeight: 20, marginBottom: 12 }}>
+            Turn this tablet into a locked wall panel: fullscreen dashboard, camera matrix and appliance controls, screen kept awake. A PIN is required to exit.
+          </Text>
+          <Pressable onPress={onKiosk} style={{ backgroundColor: c.accent, borderRadius: 12, paddingVertical: 13, alignItems: "center", marginBottom: 10 }}>
+            <Text style={{ color: c.onAccent || "#fff", fontWeight: "800" }}>Start kiosk mode</Text>
+          </Pressable>
+          <Pressable onPress={setKioskPin} style={{ borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" }}>
+            <Text style={{ color: c.text, fontWeight: "700" }}>Set exit PIN</Text>
+          </Pressable>
         </Card>
 
         <SectionLabel>ABOUT</SectionLabel>
