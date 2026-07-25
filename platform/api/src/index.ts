@@ -22,6 +22,7 @@ import { scenesRouter } from "./routes/scenes";
 import { eventsRouter } from "./routes/events";
 import { energyRouter } from "./routes/energy";
 import { adminRouter } from "./routes/admin";
+import { gateRouter } from "./routes/gate";
 import { startAutomationScheduler } from "./automations";
 
 async function main(): Promise<void> {
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
   app.use("/events", eventsRouter);
   app.use("/energy", energyRouter);
   app.use("/admin", adminRouter);
+  app.use("/gate", gateRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 

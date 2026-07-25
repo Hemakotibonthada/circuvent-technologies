@@ -7,6 +7,7 @@ import { ChevronLeft, Loader2, Star } from "lucide-react";
 import { controlPlane, type Device, type Room } from "@/lib/control-plane";
 import { useConsole } from "../../ConsoleProvider";
 import { DeviceControls, deviceMeta } from "../../DeviceControls";
+import { GatePasses } from "../../GatePasses";
 
 export default function DevicePage() {
   const params = useParams<{ id: string }>();
@@ -146,6 +147,7 @@ export default function DevicePage() {
       )}
 
       <DeviceControls device={device} send={send} busy={busy} />
+      {device.type === "rfid-gate" && <GatePasses deviceId={device.id} />}
     </div>
   );
 }

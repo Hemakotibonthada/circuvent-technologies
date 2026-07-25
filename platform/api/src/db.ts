@@ -119,6 +119,24 @@ export async function initDb(): Promise<void> {
       expires_at  TIMESTAMPTZ NOT NULL,
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    -- Zone-1 gate guest passes: time-boxed QR/PIN codes that open a barrier.
+    CREATE TABLE IF NOT EXISTS gate_passes (
+      id          BIGSERIAL PRIMARY KEY,
+      owner_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      code        TEXT NOT NULL UNIQUE,
+      label       TEXT NOT NULL DEFAULT 'Guest',
+      valid_from  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      valid_to    TIMESTAMPTZ NOT NULL,
+      max_uses    INT NOT NULL DEFAULT 1,
+      uses        INT NOT NULL DEFAULT 0,
+      revoked     BOOLEAN NOT NULL DEFAULT false,
+      last_used   TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_gate_passes_owner ON gate_passes(owner_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_gate_passes_code ON gate_passes(code);
   `);
 }
 

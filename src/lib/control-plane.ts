@@ -35,6 +35,22 @@ export interface Device {
   fw_version?: string;
 }
 
+export interface GatePass {
+  id: number;
+  device_id: string;
+  code: string;
+  label: string;
+  valid_from: string;
+  valid_to: string;
+  max_uses: number;
+  uses: number;
+  revoked: boolean;
+  last_used: string | null;
+  created_at: string;
+  status: string; // active | scheduled | expired | used | revoked
+  qr: string;
+}
+
 export interface AutomationTrigger {
   type: "state" | "time";
   deviceId?: string;
@@ -286,6 +302,15 @@ export const controlPlane = {
   updateRoom: (id: number, body: { name?: string; icon?: string; sort?: number }) =>
     req<{ success: boolean }>("/rooms/" + id, { method: "PATCH", body: JSON.stringify(body) }),
   deleteRoom: (id: number) => req<{ success: boolean }>("/rooms/" + id, { method: "DELETE" }),
+
+  // ---- gate guest passes (Zone 1) ----------------------------------------
+  gatePasses: (deviceId?: string) =>
+    req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),
+  createGatePass: (body: { deviceId: string; label?: string; validToMinutes?: number; maxUses?: number }) =>
+    req<{ pass: GatePass }>("/gate/passes", { method: "POST", body: JSON.stringify(body) }),
+  revokeGatePass: (id: number) => req<{ success: boolean }>("/gate/passes/" + id + "/revoke", { method: "POST" }),
+  redeemGatePass: (code: string) =>
+    req<{ ok: boolean; opened?: boolean; label?: string; usesLeft?: number; error?: string }>("/gate/redeem", { method: "POST", body: JSON.stringify({ code }) }),
 
   // ---- scenes -------------------------------------------------------------
   scenes: () => req<{ scenes: Scene[] }>("/scenes"),
