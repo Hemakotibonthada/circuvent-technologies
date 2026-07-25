@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Download, TrendingUp } from "lucide-react";
-import { LineChart, BarChart, DonutChart, HBar, Heatmap, KpiCard, Legend, PALETTE } from "./charts";
+import { LineChart, BarChart, DonutChart, HBar, Heatmap, KpiCard, Legend, PALETTE, GroupedBar, RadarChart, ScatterChart, ComboChart, BulletChart, FunnelChart, WaterfallChart, RadialBars, CalendarHeatmap, Treemap } from "./charts";
 
 function tok() { try { return sessionStorage.getItem("admin-token") || ""; } catch { return ""; } }
 const money = (n: number) => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
@@ -30,6 +30,11 @@ export default function AnalyticsPanel() {
 
   const s = d.series || [];
   const labels = s.map((p: any) => p.label);
+  const last7 = s.slice(-7);
+  const l7 = last7.map((p: any) => p.label);
+  const cats = (d.categorySales || []).slice(0, 6);
+  const heatDays = s.slice(-35).map((p: any) => ({ date: p.label, value: p.orders || 0 }));
+  const kv = (x: any) => Number(x) || 0;
 
   return (
     <div className="space-y-5">
@@ -143,6 +148,55 @@ export default function AnalyticsPanel() {
       {/* heatmap */}
       <Panel title="Order heatmap (weekday × hour)">
         <Heatmap grid={d.heatmap.grid} rows={d.heatmap.rows} cols={d.heatmap.cols} />
+      </Panel>
+
+      {/* advanced chart widgets */}
+      <h3 className="flex items-center gap-2 text-lg font-bold pt-2" style={{ color: "var(--text-primary)" }}>
+        <TrendingUp className="h-5 w-5" style={{ color: "var(--accent-violet)" }} /> Chart widgets
+      </h3>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Revenue vs orders (combo)">
+          <ComboChart labels={l7} bars={last7.map((p: any) => p.orders)} line={last7.map((p: any) => p.revenue)} barColor={PALETTE[1]} lineColor={PALETTE[0]} />
+        </Panel>
+        <Panel title="Orders vs new customers (grouped)">
+          <GroupedBar labels={l7} series={[{ name: "Orders", data: last7.map((p: any) => p.orders), color: PALETTE[1] }, { name: "New customers", data: last7.map((p: any) => p.newCustomers), color: PALETTE[4] }]} />
+        </Panel>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Revenue build-up by category (waterfall)">
+          {cats.length ? <WaterfallChart labels={cats.map((c: any) => c.name)} deltas={cats.map((c: any) => c.revenue)} /> : <Empty />}
+        </Panel>
+        <Panel title="Category revenue map (treemap)">
+          {cats.length ? <Treemap height={240} items={cats.map((c: any, i: number) => ({ name: c.name, value: c.revenue, color: PALETTE[i % PALETTE.length] }))} /> : <Empty />}
+        </Panel>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Customer value (scatter: orders × spend)">
+          {d.topCustomers?.length ? <ScatterChart xLabel="orders" points={d.topCustomers.map((c: any, i: number) => ({ x: c.orders, y: c.spend, r: 6, color: PALETTE[i % PALETTE.length], label: c.name }))} /> : <Empty />}
+        </Panel>
+        <Panel title="Acquisition funnel">
+          {d.funnel?.length ? <FunnelChart stages={d.funnel.map((f: any) => ({ name: f.stage, value: f.count }))} /> : <Empty />}
+        </Panel>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel title="KPI attainment (radial)">
+          <RadialBars items={[
+            { name: "Revenue", value: kv(d.kpis.revenue.value), max: kv(d.kpis.revenue.value) * 1.3 || 1 },
+            { name: "Orders", value: kv(d.kpis.orders.value), max: kv(d.kpis.orders.value) * 1.3 || 1 },
+            { name: "Customers", value: kv(d.kpis.newCustomers.value), max: kv(d.kpis.newCustomers.value) * 1.3 || 1 },
+          ]} />
+        </Panel>
+        <Panel title="Targets (bullet)">
+          <BulletChart label="Revenue" value={kv(d.kpis.revenue.value)} target={Math.round(kv(d.kpis.revenue.value) * 1.15)} color={PALETTE[0]} />
+          <BulletChart label="Orders" value={kv(d.kpis.orders.value)} target={Math.round(kv(d.kpis.orders.value) * 1.15)} color={PALETTE[1]} />
+          <BulletChart label="New customers" value={kv(d.kpis.newCustomers.value)} target={Math.round(kv(d.kpis.newCustomers.value) * 1.15)} color={PALETTE[4]} />
+        </Panel>
+        <Panel title="Category profile (radar)">
+          {cats.length ? <RadarChart axes={cats.map((c: any) => c.name)} series={[{ name: "Revenue", data: cats.map((c: any) => c.revenue), color: PALETTE[2] }]} /> : <Empty />}
+        </Panel>
+      </div>
+      <Panel title="Daily orders calendar (last 35 days)">
+        <CalendarHeatmap days={heatDays} />
       </Panel>
 
       {/* exports */}

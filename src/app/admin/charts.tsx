@@ -331,3 +331,260 @@ export function GaugeChart({
     </div>
   );
 }
+
+// ------------------------------------------------------------ Grouped bars
+export function GroupedBar({ labels, series, height = 220 }: { labels: string[]; series: Series[]; height?: number }) {
+  const W = 720, H = height, padL = 44, padR = 12, padT = 12, padB = 26;
+  const n = labels.length || 1;
+  const max = niceMax(Math.max(1, ...series.flatMap((s) => s.data)));
+  const groupW = (W - padL - padR) / n;
+  const bw = (groupW * 0.7) / Math.max(1, series.length);
+  const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+          <g key={i}>
+            <line x1={padL} x2={W - padR} y1={y(max * f)} y2={y(max * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
+            <text x={padL - 6} y={y(max * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(max * f)}</text>
+          </g>
+        ))}
+        {labels.map((l, gi) => (
+          <g key={gi}>
+            {series.map((s, si) => { const v = s.data[gi] || 0; const gx = padL + gi * groupW + groupW * 0.15 + si * bw; return <rect key={si} x={gx} y={y(v)} width={bw * 0.9} height={Math.max(0, y(0) - y(v))} rx={2} fill={s.color || PALETTE[si % PALETTE.length]} />; })}
+            <text x={padL + gi * groupW + groupW / 2} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{l}</text>
+          </g>
+        ))}
+      </svg>
+      <div className="mt-2"><Legend items={series.map((s, si) => ({ name: s.name, color: s.color || PALETTE[si % PALETTE.length] }))} /></div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Radar
+export function RadarChart({ axes, series, size = 240 }: { axes: string[]; series: Series[]; size?: number }) {
+  const cx = size / 2, cy = size / 2, r = size / 2 - 30;
+  const n = axes.length || 1;
+  const max = Math.max(1, ...series.flatMap((s) => s.data));
+  const ang = (i: number) => -Math.PI / 2 + (i / n) * Math.PI * 2;
+  const pt = (i: number, val: number) => ({ x: cx + r * (val / max) * Math.cos(ang(i)), y: cy + r * (val / max) * Math.sin(ang(i)) });
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size }}>
+        {[0.25, 0.5, 0.75, 1].map((f, gi) => <polygon key={gi} points={axes.map((_, i) => { const p = pt(i, max * f); return `${p.x},${p.y}`; }).join(" ")} fill="none" stroke={GRID} opacity={0.6} />)}
+        {axes.map((_, i) => { const p = pt(i, max); return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={GRID} opacity={0.6} />; })}
+        {series.map((s, si) => { const col = s.color || PALETTE[si % PALETTE.length]; const pts = s.data.map((v, i) => { const p = pt(i, v); return `${p.x},${p.y}`; }).join(" "); return <polygon key={s.name} points={pts} fill={col} fillOpacity={0.16} stroke={col} strokeWidth={2} />; })}
+        {axes.map((a, i) => { const p = pt(i, max * 1.16); return <text key={i} x={p.x} y={p.y + 3} fontSize={9} fill={AXIS} textAnchor="middle">{a}</text>; })}
+      </svg>
+      <Legend items={series.map((s, si) => ({ name: s.name, color: s.color || PALETTE[si % PALETTE.length] }))} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Scatter
+export function ScatterChart({ points, height = 220, xLabel }: { points: { x: number; y: number; r?: number; color?: string; label?: string }[]; height?: number; xLabel?: string }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const W = 720, H = height, padL = 44, padR = 12, padT = 12, padB = 30;
+  const maxX = niceMax(Math.max(1, ...points.map((p) => p.x)));
+  const maxY = niceMax(Math.max(1, ...points.map((p) => p.y)));
+  const x = (v: number) => padL + (v / maxX) * (W - padL - padR);
+  const y = (v: number) => padT + (H - padT - padB) * (1 - v / maxY);
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)}>
+        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+          <g key={i}>
+            <line x1={padL} x2={W - padR} y1={y(maxY * f)} y2={y(maxY * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
+            <text x={padL - 6} y={y(maxY * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(maxY * f)}</text>
+          </g>
+        ))}
+        {[0, 0.5, 1].map((f, i) => <text key={i} x={x(maxX * f)} y={H - 12} textAnchor="middle" fontSize={9} fill={AXIS}>{abbr(maxX * f)}</text>)}
+        {points.map((p, i) => <circle key={i} cx={x(p.x)} cy={y(p.y)} r={hover === i ? (p.r || 5) + 2 : (p.r || 5)} fill={p.color || PALETTE[i % PALETTE.length]} opacity={0.75} onMouseEnter={() => setHover(i)} />)}
+        {xLabel && <text x={W / 2} y={H - 1} textAnchor="middle" fontSize={9} fill={AXIS}>{xLabel}</text>}
+      </svg>
+      {hover !== null && <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>{points[hover].label || `Point ${hover + 1}`}: <b style={{ color: "var(--text-primary)" }}>({points[hover].x.toLocaleString("en-IN")}, {points[hover].y.toLocaleString("en-IN")})</b></div>}
+    </div>
+  );
+}
+
+// ------------------------------------------------------- Combo (bar + line)
+export function ComboChart({ labels, bars, line, height = 220, barColor = PALETTE[0], lineColor = PALETTE[1] }: { labels: string[]; bars: number[]; line: number[]; height?: number; barColor?: string; lineColor?: string }) {
+  const W = 720, H = height, padL = 44, padR = 40, padT = 12, padB = 26;
+  const n = labels.length || 1;
+  const maxB = niceMax(Math.max(1, ...bars));
+  const maxL = niceMax(Math.max(1, ...line));
+  const bw = (W - padL - padR) / n;
+  const yB = (v: number) => padT + (H - padT - padB) * (1 - v / maxB);
+  const yL = (v: number) => padT + (H - padT - padB) * (1 - v / maxL);
+  const x = (i: number) => padL + i * bw + bw / 2;
+  const linePts = line.map((v, i) => `${x(i)},${yL(v)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+      {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+        <g key={i}>
+          <line x1={padL} x2={W - padR} y1={yB(maxB * f)} y2={yB(maxB * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
+          <text x={padL - 6} y={yB(maxB * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(maxB * f)}</text>
+          <text x={W - padR + 6} y={yL(maxL * f) + 3} textAnchor="start" fontSize={9} fill={lineColor}>{abbr(maxL * f)}</text>
+        </g>
+      ))}
+      {bars.map((v, i) => <rect key={i} x={padL + i * bw + bw * 0.2} y={yB(v)} width={bw * 0.6} height={Math.max(0, yB(0) - yB(v))} rx={3} fill={barColor} opacity={0.8} />)}
+      {labels.map((l, i) => ((i % Math.ceil(n / 10) === 0 || i === n - 1) && <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{l}</text>))}
+      <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth={2.4} strokeLinejoin="round" />
+      {line.map((v, i) => <circle key={i} cx={x(i)} cy={yL(v)} r={2.5} fill={lineColor} />)}
+    </svg>
+  );
+}
+
+// ------------------------------------------------------------------ Bullet
+export function BulletChart({ label, value, target, max, color = PALETTE[0], unit = "" }: { label: string; value: number; target?: number; max?: number; color?: string; unit?: string }) {
+  const m = max ?? (Math.max(value, target ?? 0) * 1.25 || 1);
+  return (
+    <div className="mb-3">
+      <div className="mb-1 flex justify-between text-xs"><span style={{ color: "var(--text-secondary)" }}>{label}</span><span style={{ color: "var(--text-primary)" }}>{value.toLocaleString("en-IN")}{unit}{target !== undefined ? ` / ${target.toLocaleString("en-IN")}${unit}` : ""}</span></div>
+      <div className="relative h-3 rounded-full" style={{ background: "var(--bg-glass)" }}>
+        <div className="h-3 rounded-full" style={{ width: `${Math.min(100, (value / m) * 100)}%`, background: color }} />
+        {target !== undefined && <div className="absolute top-0 bottom-0" style={{ left: `${Math.min(100, (target / m) * 100)}%`, width: 2, background: "var(--text-primary)" }} />}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Funnel
+export function FunnelChart({ stages }: { stages: { name: string; value: number; color?: string }[] }) {
+  const max = Math.max(1, ...stages.map((s) => s.value));
+  return (
+    <div className="space-y-1.5">
+      {stages.map((s, i) => {
+        const w = (s.value / max) * 100;
+        const conv = i > 0 && stages[i - 1].value > 0 ? ((s.value / stages[i - 1].value) * 100).toFixed(0) + "%" : "";
+        return (
+          <div key={s.name}>
+            <div className="mb-0.5 flex justify-between text-xs"><span style={{ color: "var(--text-secondary)" }}>{s.name}</span><span style={{ color: "var(--text-primary)" }}>{s.value.toLocaleString("en-IN")}{conv && <span style={{ color: "var(--text-muted)" }}> · {conv}</span>}</span></div>
+            <div className="mx-auto h-7 rounded" style={{ width: `${w}%`, background: s.color || PALETTE[i % PALETTE.length], opacity: 0.85 }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Waterfall
+export function WaterfallChart({ labels, deltas, height = 220 }: { labels: string[]; deltas: number[]; height?: number }) {
+  const W = 720, H = height, padL = 44, padR = 12, padT = 12, padB = 26;
+  const n = labels.length || 1;
+  let running = 0; const cum: number[] = [];
+  deltas.forEach((d) => { cum.push(running); running += d; });
+  const total = running;
+  const maxV = niceMax(Math.max(1, ...cum.map((c, i) => c + Math.max(0, deltas[i])), total));
+  const minV = Math.min(0, ...cum.map((c, i) => c + Math.min(0, deltas[i])));
+  const range = maxV - minV || 1;
+  const bw = (W - padL - padR) / (n + 1);
+  const y = (v: number) => padT + (H - padT - padB) * (1 - (v - minV) / range);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+      {[0, 0.25, 0.5, 0.75, 1].map((f, i) => { const v = minV + range * f; return (
+        <g key={i}>
+          <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
+          <text x={padL - 6} y={y(v) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(v)}</text>
+        </g>
+      ); })}
+      {deltas.map((d, i) => { const base = cum[i]; const top = base + d; const yTop = y(Math.max(base, top)); const hgt = Math.abs(y(base) - y(top)); return (
+        <g key={i}>
+          <rect x={padL + i * bw + bw * 0.2} y={yTop} width={bw * 0.6} height={Math.max(1, hgt)} rx={2} fill={d >= 0 ? "#10b981" : "#ef4444"} opacity={0.85} />
+          <text x={padL + i * bw + bw * 0.5} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{labels[i]}</text>
+        </g>
+      ); })}
+      <rect x={padL + n * bw + bw * 0.2} y={y(Math.max(0, total))} width={bw * 0.6} height={Math.max(1, Math.abs(y(0) - y(total)))} rx={2} fill={PALETTE[0]} />
+      <text x={padL + n * bw + bw * 0.5} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>Total</text>
+    </svg>
+  );
+}
+
+// -------------------------------------------------------------- Radial bars
+export function RadialBars({ items, size = 200 }: { items: { name: string; value: number; max?: number; color?: string }[]; size?: number }) {
+  const cx = size / 2, cy = size / 2;
+  const thickness = Math.max(8, (size / 2 - 14) / Math.max(1, items.length) - 4);
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size }}>
+        {items.map((it, i) => {
+          const r = size / 2 - 14 - i * (thickness + 4);
+          const circ = 2 * Math.PI * r;
+          const frac = Math.max(0, Math.min(1, it.value / (it.max || 100)));
+          const col = it.color || PALETTE[i % PALETTE.length];
+          return (
+            <g key={it.name}>
+              <circle cx={cx} cy={cy} r={r} fill="none" stroke={GRID} strokeWidth={thickness} opacity={0.3} />
+              <circle cx={cx} cy={cy} r={r} fill="none" stroke={col} strokeWidth={thickness} strokeLinecap="round" strokeDasharray={`${frac * circ} ${circ}`} transform={`rotate(-90 ${cx} ${cy})`} />
+            </g>
+          );
+        })}
+      </svg>
+      <Legend items={items.map((it, i) => ({ name: `${it.name} · ${Math.round((it.value / (it.max || 100)) * 100)}%`, color: it.color || PALETTE[i % PALETTE.length] }))} />
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ Calendar heatmap
+export function CalendarHeatmap({ days, color = "#06b6d4" }: { days: { date: string; value: number }[]; color?: string }) {
+  const max = Math.max(1, ...days.map((d) => d.value));
+  const cell = 13, gap = 3, cols = Math.ceil(days.length / 7);
+  return (
+    <svg viewBox={`0 0 ${cols * (cell + gap)} ${7 * (cell + gap)}`} style={{ width: "100%", maxWidth: cols * (cell + gap) }}>
+      {days.map((d, i) => (
+        <rect key={i} x={Math.floor(i / 7) * (cell + gap)} y={(i % 7) * (cell + gap)} width={cell} height={cell} rx={3} fill={color} opacity={d.value <= 0 ? 0.08 : 0.15 + 0.85 * (d.value / max)}>
+          <title>{`${d.date}: ${d.value}`}</title>
+        </rect>
+      ))}
+    </svg>
+  );
+}
+
+// ------------------------------------------------------------------ Treemap
+type TmNode = { name: string; value: number; color: string; area: number };
+export function Treemap({ items, width = 720, height = 260 }: { items: { name: string; value: number; color?: string }[]; width?: number; height?: number }) {
+  const total = items.reduce((s, i) => s + i.value, 0) || 1;
+  const scale = (width * height) / total;
+  const nodes: TmNode[] = items.map((it, i) => ({ name: it.name, value: it.value, color: it.color || PALETTE[i % PALETTE.length], area: it.value * scale }));
+  const rects: { x: number; y: number; w: number; h: number; name: string; value: number; color: string }[] = [];
+  let x = 0, y = 0, w = width, h = height;
+  const worst = (row: TmNode[], len: number) => {
+    if (!row.length) return Infinity;
+    const areas = row.map((r) => r.area);
+    const sum = areas.reduce((a, b) => a + b, 0);
+    const mx = Math.max(...areas), mn = Math.min(...areas);
+    return Math.max((len * len * mx) / (sum * sum), (sum * sum) / (len * len * mn));
+  };
+  const remaining = [...nodes];
+  while (remaining.length) {
+    const horizontal = w >= h;
+    const len = horizontal ? w : h;
+    const cur: TmNode[] = [];
+    while (remaining.length) {
+      const test = [...cur, remaining[0]];
+      if (cur.length && worst(test, len) > worst(cur, len)) break;
+      cur.push(remaining.shift()!);
+    }
+    const sum = cur.reduce((a, b) => a + b.area, 0);
+    if (horizontal) {
+      const rh = w ? sum / w : 0; let rx = x;
+      cur.forEach((r) => { const rw = rh ? r.area / rh : 0; rects.push({ x: rx, y, w: rw, h: rh, name: r.name, value: r.value, color: r.color }); rx += rw; });
+      y += rh; h -= rh;
+    } else {
+      const rw = h ? sum / h : 0; let ry = y;
+      cur.forEach((r) => { const rh2 = rw ? r.area / rw : 0; rects.push({ x, y: ry, w: rw, h: rh2, name: r.name, value: r.value, color: r.color }); ry += rh2; });
+      x += rw; w -= rw;
+    }
+  }
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
+      {rects.map((r, i) => (
+        <g key={i}>
+          <rect x={r.x + 1} y={r.y + 1} width={Math.max(0, r.w - 2)} height={Math.max(0, r.h - 2)} rx={4} fill={r.color} opacity={0.85} />
+          {r.w > 60 && r.h > 24 && <text x={r.x + 8} y={r.y + 18} fontSize={11} fontWeight={700} fill="#fff">{r.name}</text>}
+          {r.w > 60 && r.h > 42 && <text x={r.x + 8} y={r.y + 34} fontSize={10} fill="rgba(255,255,255,0.85)">{abbr(r.value)}</text>}
+        </g>
+      ))}
+    </svg>
+  );
+}

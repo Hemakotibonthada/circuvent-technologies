@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { api, EnergySummary, EnergySeries } from "../api";
 import { Screen, Card, SectionLabel, useTheme, Chip } from "../ui";
-import { Gauge, LineChart, Donut, Sparkline } from "../charts";
+import { Gauge, LineChart, Donut, Sparkline, HBars } from "../charts";
 import { deviceMeta } from "../theme";
 
 const PALETTE = ["#06b6d4", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#14b8a6"];
@@ -66,6 +66,15 @@ export default function Energy() {
             <SectionLabel>DISTRIBUTION</SectionLabel>
             <Card padded style={{ marginBottom: 14, alignItems: "center" }}>
               <Donut segments={donut} />
+            </Card>
+          </>
+        )}
+
+        {consumers.length > 0 && (
+          <>
+            <SectionLabel>TOP CONSUMERS</SectionLabel>
+            <Card padded style={{ marginBottom: 14 }}>
+              <HBars items={consumers.slice(0, 6).map((d, i) => ({ name: d.name, value: Math.round(d.watts), color: PALETTE[i % PALETTE.length] }))} unit=" W" />
             </Card>
           </>
         )}
