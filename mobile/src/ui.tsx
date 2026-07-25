@@ -1,8 +1,11 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import {
+  Animated,
+  Easing,
   View,
   Text,
   Pressable,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
   ViewStyle,
@@ -270,4 +273,116 @@ export function StatTile({ label, value, grad, glyph }: { label: string; value: 
       <Text style={{ color: c.faint, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{label}</Text>
     </Card>
   );
+}
+
+
+// --------------------------------------------------------- extended widgets ---
+
+export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  return <View style={[{ height: 1, backgroundColor: c.border, marginVertical: 12 }, style]} />;
+}
+
+export function Skeleton({ width = "100%", height = 18, radius = 12, style }: { width?: number | `${number}%`; height?: number; radius?: number; style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  const shimmer = React.useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.timing(shimmer, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }));
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
+  const translateX = shimmer.interpolate({ inputRange: [0, 1], outputRange: [-120, 180] });
+  return (
+    <View style={[{ width, height, borderRadius: radius, overflow: "hidden", backgroundColor: c.cardHi }, style]}>
+      <Animated.View style={{ width: 90, height: "100%", transform: [{ translateX }], opacity: 0.45, backgroundColor: c.surfaceHi }} />
+    </View>
+  );
+}
+
+export function Badge({ label, color }: { label: string; color?: string }) {
+  const { c } = useTheme(); const bg = color ?? c.accent;
+  return <View style={{ alignSelf: "flex-start", borderRadius: 999, backgroundColor: bg, paddingHorizontal: 9, paddingVertical: 4 }}><Text style={{ color: c.onAccent, fontSize: 11, fontWeight: "900" }}>{label}</Text></View>;
+}
+
+export function ProgressBar({ value, max = 100, color }: { value: number; max?: number; color?: string }) {
+  const { c } = useTheme(); const pct = Math.max(0, Math.min(1, max > 0 ? value / max : 0));
+  return <View style={{ height: 10, borderRadius: 999, backgroundColor: c.cardHi, overflow: "hidden", borderWidth: 1, borderColor: c.border }}><View style={{ width: `${pct * 100}%`, height: "100%", borderRadius: 999, backgroundColor: color ?? c.accent }} /></View>;
+}
+
+export function SegmentedControl<T extends string>({ options, value, onChange }: { options: readonly T[]; value: T; onChange: (v: T) => void }) {
+  const { c } = useTheme();
+  return <View style={{ flexDirection: "row", padding: 4, borderRadius: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, gap: 4 }}>{options.map((o) => <Pressable key={o} onPress={() => onChange(o)} style={{ flex: 1, borderRadius: 11, paddingVertical: 9, alignItems: "center", backgroundColor: value === o ? c.accent : "transparent" }}><Text style={{ color: value === o ? c.onAccent : c.textDim, fontWeight: "800", textTransform: "capitalize" }}>{o}</Text></Pressable>)}</View>;
+}
+
+export function Accordion({ title, children }: { title: string; children: React.ReactNode }) {
+  const { c } = useTheme(); const [open, setOpen] = useState(false);
+  return <Card style={{ marginBottom: 10 }}><Pressable onPress={() => setOpen((v) => !v)} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "900", flex: 1 }}>{title}</Text><Text style={{ color: c.faint, fontSize: 18 }}>{open ? "−" : "+"}</Text></Pressable>{open ? <View style={{ marginTop: 12 }}>{children}</View> : null}</Card>;
+}
+
+export function Banner({ kind, text }: { kind: "info" | "success" | "warning" | "error"; text: string }) {
+  const { c } = useTheme();
+  const color = kind === "success" ? c.green : kind === "warning" ? c.amber : kind === "error" ? c.red : c.cyan;
+  return <View style={{ borderRadius: 14, padding: 12, backgroundColor: `${color}22`, borderWidth: 1, borderColor: `${color}66`, marginBottom: 12 }}><Text style={{ color: c.textDim, fontWeight: "700" }}>{text}</Text></View>;
+}
+
+export function Avatar({ name, size = 48 }: { name?: string | null; size?: number }) {
+  const { c } = useTheme(); const initials = (name || "Circuvent User").split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join("") || "CU";
+  return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}><Text style={{ color: c.onAccent, fontWeight: "900", fontSize: Math.max(13, size * 0.36) }}>{initials}</Text></View>;
+}
+
+export function ListRow({ icon, title, subtitle, right, onPress }: { icon?: string; title: string; subtitle?: string; right?: React.ReactNode; onPress?: () => void }) {
+  const { c } = useTheme();
+  const content = <><Text style={{ fontSize: 22, width: 28 }}>{icon ?? "•"}</Text><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "800" }}>{title}</Text>{subtitle ? <Text style={{ color: c.faint, marginTop: 2 }}>{subtitle}</Text> : null}</View>{right ?? <Text style={{ color: c.faint }}>›</Text>}</>;
+  const row = { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingVertical: 12 };
+  return onPress ? <Pressable onPress={onPress} style={({ pressed }) => [row, { opacity: pressed ? 0.8 : 1 }]}>{content}</Pressable> : <View style={row}>{content}</View>;
+}
+
+export function FadeInView({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  const v = React.useRef(new Animated.Value(0)).current;
+  useEffect(() => { Animated.timing(v, { toValue: 1, duration: 420, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(); }, [delay, v]);
+  return <Animated.View style={{ opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }}>{children}</Animated.View>;
+}
+
+export function EmptyState({ glyph = "∅", title, subtitle, actionLabel, onAction }: { glyph?: string; title: string; subtitle?: string; actionLabel?: string; onAction?: () => void }) {
+  const { c } = useTheme();
+  return <Card style={{ alignItems: "center" }}><Text style={{ fontSize: 34, marginBottom: 8 }}>{glyph}</Text><Text style={{ color: c.text, fontWeight: "900", fontSize: 17 }}>{title}</Text>{subtitle ? <Text style={{ color: c.faint, textAlign: "center", marginTop: 6 }}>{subtitle}</Text> : null}{actionLabel && onAction ? <GhostButton label={actionLabel} onPress={onAction} style={{ marginTop: 14, alignSelf: "stretch" }} /> : null}</Card>;
+}
+
+export function ErrorState({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  return <EmptyState glyph="⚠️" title="Something went wrong" subtitle={text} actionLabel={onRetry ? "Try again" : undefined} onAction={onRetry} />;
+}
+
+export function HelpTip({ text }: { text: string }) {
+  const { c } = useTheme(); const [open, setOpen] = useState(false);
+  return <View style={{ alignSelf: "flex-start" }}><Pressable onPress={() => setOpen((v) => !v)} style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.borderHi }}><Text style={{ color: c.textDim, fontWeight: "900" }}>?</Text></Pressable>{open ? <View style={{ position: "absolute", top: 28, left: 0, width: 220, zIndex: 20, borderRadius: 12, padding: 10, backgroundColor: c.surfaceHi, borderWidth: 1, borderColor: c.borderHi }}><Text style={{ color: c.textDim, fontSize: 12 }}>{text}</Text></View> : null}</View>;
+}
+
+export interface ToastMsg { text: string; kind?: "info" | "success" | "warning" | "error" }
+export function useToast() {
+  const [toast, setToast] = useState<ToastMsg | null>(null);
+  const show = useCallback((text: string, kind: ToastMsg["kind"] = "info") => setToast({ text, kind }), []);
+  const hide = useCallback(() => setToast(null), []);
+  return { toast, show, hide };
+}
+export function ToastHost({ toast, onHide }: { toast: ToastMsg | null; onHide: () => void }) {
+  const { c } = useTheme();
+  useEffect(() => { if (!toast) return; const t = setTimeout(onHide, 2200); return () => clearTimeout(t); }, [toast, onHide]);
+  if (!toast) return null;
+  const color = toast.kind === "success" ? c.green : toast.kind === "warning" ? c.amber : toast.kind === "error" ? c.red : c.accent;
+  return <Pressable onPress={onHide} style={{ position: "absolute", left: 18, right: 18, bottom: 28, borderRadius: 16, backgroundColor: c.surfaceHi, borderWidth: 1, borderColor: color, padding: 14 }}><Text style={{ color: c.text, fontWeight: "800" }}>{toast.text}</Text></Pressable>;
+}
+
+
+export function DataTable({ columns, rows }: { columns: string[]; rows: (string | number | boolean | null | undefined)[][] }) {
+  const { c } = useTheme();
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={{ minWidth: 300, borderWidth: 1, borderColor: c.border, borderRadius: 14, overflow: "hidden" }}><View style={{ flexDirection: "row", backgroundColor: c.cardHi }}>{columns.map((col) => <Text key={col} style={{ color: c.text, fontWeight: "900", padding: 10, minWidth: 110 }}>{col}</Text>)}</View>{rows.map((row, i) => <View key={i} style={{ flexDirection: "row", borderTopWidth: 1, borderTopColor: c.border }}>{row.map((cell, j) => <Text key={`${i}-${j}`} style={{ color: c.textDim, padding: 10, minWidth: 110 }}>{String(cell ?? "—")}</Text>)}</View>)}</View></ScrollView>;
+}
+
+export function Timeline({ items }: { items: { title: string; subtitle?: string; time?: string; color?: string }[] }) {
+  const { c } = useTheme();
+  return <View>{items.map((it, i) => <View key={`${it.title}-${i}`} style={{ flexDirection: "row", gap: 10 }}><View style={{ alignItems: "center" }}><View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: it.color ?? c.accent, marginTop: 3 }} />{i < items.length - 1 ? <View style={{ width: 2, flex: 1, backgroundColor: c.borderHi, minHeight: 34 }} /> : null}</View><View style={{ flex: 1, paddingBottom: 14 }}><Text style={{ color: c.text, fontWeight: "800" }}>{it.title}</Text>{it.subtitle ? <Text style={{ color: c.textDim, marginTop: 2 }}>{it.subtitle}</Text> : null}{it.time ? <Text style={{ color: c.faint, fontSize: 12, marginTop: 3 }}>{it.time}</Text> : null}</View></View>)}</View>;
+}
+
+export function Carousel({ children }: { children: React.ReactNode }) {
+  return <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>{React.Children.map(children, (child, i) => <View key={i} style={{ width: 280 }}>{child}</View>)}</ScrollView>;
 }

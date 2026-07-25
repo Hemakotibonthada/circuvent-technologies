@@ -163,3 +163,28 @@ function EmptyChart({ height }: { height: number }) {
     </View>
   );
 }
+
+
+// ------------------------------------------------------------- extra charts ---
+
+function polar(cx: number, cy: number, r: number, a: number) { return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) }; }
+function slicePath(cx: number, cy: number, r: number, a0: number, a1: number) {
+  const s = polar(cx, cy, r, a0); const e = polar(cx, cy, r, a1); const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M ${cx} ${cy} L ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y} Z`;
+}
+
+export function PieChart({ segments, size = 150 }: { segments: { label: string; value: number; color?: string }[]; size?: number }) {
+  const { c } = useTheme(); const colors = [c.accent, c.violet, c.cyan, c.green, c.amber, c.red]; const total = segments.reduce((s, x) => s + x.value, 0) || 1; let acc = -Math.PI / 2; const r = size / 2 - 4;
+  return <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}><Svg width={size} height={size}>{segments.map((seg, i) => { const a0 = acc; const a1 = acc + (seg.value / total) * Math.PI * 2; acc = a1; return <Path key={i} d={slicePath(size / 2, size / 2, r, a0, a1)} fill={seg.color ?? colors[i % colors.length]} />; })}</Svg><View style={{ gap: 6, flex: 1 }}>{segments.map((seg, i) => <Text key={seg.label} style={{ color: c.textDim, fontSize: 12 }}>● <Text style={{ color: seg.color ?? colors[i % colors.length] }}> </Text>{seg.label} <Text style={{ color: c.text, fontWeight: "800" }}>{Math.round((seg.value / total) * 100)}%</Text></Text>)}</View></View>;
+}
+
+export function ProgressRing({ value, max = 100, label, size = 128, color }: { value: number; max?: number; label?: string; size?: number; color?: string }) {
+  const { c } = useTheme(); const pct = Math.max(0, Math.min(1, max > 0 ? value / max : 0)); const stroke = 12; const r = (size - stroke) / 2; const circ = 2 * Math.PI * r;
+  return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}><Svg width={size} height={size} style={{ position: "absolute" }}><Circle cx={size / 2} cy={size / 2} r={r} stroke={c.borderHi} strokeWidth={stroke} fill="none" /><Circle cx={size / 2} cy={size / 2} r={r} stroke={color ?? c.accent} strokeWidth={stroke} fill="none" strokeLinecap="round" strokeDasharray={`${circ} ${circ}`} strokeDashoffset={circ * (1 - pct)} rotation="-90" origin={`${size / 2}, ${size / 2}`} /></Svg><Text style={{ color: c.text, fontWeight: "900", fontSize: 22 }}>{Math.round(pct * 100)}%</Text>{label ? <Text style={{ color: c.faint, fontSize: 12 }}>{label}</Text> : null}</View>;
+}
+
+export function CalendarHeatmap({ days }: { days: { date: string; value: number }[] }) {
+  const { c } = useTheme(); const cell = 11; const gap = 4; const cols = Math.max(1, Math.ceil(days.length / 7)); const max = Math.max(1, ...days.map((d) => d.value));
+  const color = (v: number) => v <= 0 ? c.cardHi : v / max > 0.66 ? c.accent : v / max > 0.33 ? c.cyan : c.borderHi;
+  return <Svg width="100%" height={7 * (cell + gap)} viewBox={`0 0 ${cols * (cell + gap)} ${7 * (cell + gap)}`}>{days.map((d, i) => <Rect key={`${d.date}-${i}`} x={Math.floor(i / 7) * (cell + gap)} y={(i % 7) * (cell + gap)} width={cell} height={cell} rx={3} fill={color(d.value)} />)}</Svg>;
+}
