@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Platform,
   Linking,
+  Animated,
+  Easing,
 } from "react-native";
 import * as IntentLauncher from "expo-intent-launcher";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -16,6 +18,10 @@ import { api } from "../api";
 import { sealToDevice } from "../crypto";
 import { parseSetupQr } from "../qr";
 import { useBackHandler } from "../ui";
+import {
+  wifiAutoSupported, ensureWifiPermissions, discoverDeviceAPs, connectToDeviceAP,
+  leaveDeviceAP, rssiBars, type DeviceAP,
+} from "../wifi";
 
 /**
  * Secure zero-touch onboarding (A + B).
@@ -45,7 +51,7 @@ const TYPES = [
   { id: "smart-lock", label: "Smart Lock", emoji: "🔒" },
 ];
 
-type Step = "mode" | "qr" | "details" | "prep" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
+type Step = "mode" | "qr" | "details" | "prep" | "discover" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
 type LogState = "run" | "ok" | "err";
 interface LogItem { msg: string; state: LogState }
 interface Net { ssid: string; rssi: number; lock: boolean }
@@ -84,6 +90,14 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
   const [targetSsid, setTargetSsid] = useState("");
   const [scanLock, setScanLock] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+  // auto-discovery / auto-connect
+  const [deviceAPs, setDeviceAPs] = useState<DeviceAP[]>([]);
+  const [discovering, setDiscovering] = useState(false);
+  const [apError, setApError] = useState("");
+  const [connectingSsid, setConnectingSsid] = useState("");
+  const [autoMode, setAutoMode] = useState(false);
+  const [scanElapsed, setScanElapsed] = useState(0);
+  const discoverStop = useRef(false);
 
   const setLast = (state: LogState, msg?: string) =>
     setLog((l) => l.map((it, i) => (i === l.length - 1 ? { msg: msg ?? it.msg, state } : it)));
@@ -136,27 +150,76 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
     }
     setToken(r.data.token);
     setLast("ok", "Account prepared ✓");
-    setStep("connect");
+    // Android with the native Wi-Fi module → in-app auto-discovery + auto-connect.
+    // Everywhere else → the manual "join in Settings" flow.
+    if (wifiAutoSupported()) { setStep("discover"); setTimeout(() => discover(), 300); }
+    else setStep("connect");
   };
 
-  const scan = async (attempts = 4) => {
-    setScanErr(""); setScanning(true);
-    for (let i = 0; i < attempts; i++) {
-      try {
-        const res = await fetchTimeout(`${BASE}/scan`, {}, 12000);
-        const arr = (await res.json()) as Net[];
-        arr.sort((a, b) => b.rssi - a.rssi);
-        if (arr.length) { setNetworks(arr); setScanErr(""); setScanning(false); return; }
-      } catch {
-        // transient — the phone may still be switching to the device hotspot
-      }
-      if (i < attempts - 1) { setScanErr(`Scanning the device… (attempt ${i + 2}/${attempts})`); await sleep(1600); }
+  // Step 2 (auto) — scan the airwaves for nearby "Circuvent-Setup-…" hotspots and
+  // show them live; no trip to Android Settings.
+  const discover = async () => {
+    setApError(""); setDeviceAPs([]); setDiscovering(true);
+    discoverStop.current = false;
+    const okPerm = await ensureWifiPermissions();
+    if (!okPerm) {
+      setDiscovering(false);
+      setApError("Location permission is needed to find nearby devices. Grant it, or connect manually below.");
+      return;
     }
-    setScanning(false);
-    setScanErr("Couldn't get the network list from the device. Make sure you're on the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi with mobile data OFF, then tap Rescan — or enter your network name manually below.");
+    const found = await discoverDeviceAPs(15000, (aps) => setDeviceAPs(aps), () => discoverStop.current);
+    setDiscovering(false);
+    if (!found.length && !discoverStop.current) {
+      setApError("No Circuvent device found yet. Power it on, wait ~15s for the light to blink, then tap Rescan — or connect manually.");
+    }
   };
 
-  const goWifi = () => { setStep("wifi"); setRetryNote(""); setNetworks([]); setScanErr("Scanning the device…"); setTimeout(() => scan(), 800); };
+  // Tap a discovered device → connect the phone to its open hotspot in-app.
+  const pickDeviceAP = async (ap: DeviceAP) => {
+    setApError(""); setConnectingSsid(ap.ssid); discoverStop.current = true;
+    try {
+      await connectToDeviceAP(ap.ssid);
+      // Give the AP a beat to settle, then confirm we actually landed on it.
+      await sleep(1200);
+      setAutoMode(true);
+      setConnectingSsid("");
+      goWifi(true);
+    } catch {
+      setConnectingSsid("");
+      setApError(`Couldn't join ${ap.ssid}. Tap it to retry, or use "Connect manually".`);
+    }
+  };
+
+  // Bounded, progressive device scan (~15s) so results show fast with a Rescan.
+  const scan = async () => {
+    setScanErr(""); setScanning(true); setScanElapsed(0);
+    const start = Date.now();
+    const tick = setInterval(() => setScanElapsed(Math.round((Date.now() - start) / 1000)), 500);
+    try {
+      // Up to ~15s: quick 5s attempts, ~1.2s apart, through any AP transition.
+      for (let i = 0; Date.now() - start < 15000; i++) {
+        try {
+          const res = await fetchTimeout(`${BASE}/scan`, {}, 5000);
+          const arr = (await res.json()) as Net[];
+          arr.sort((a, b) => b.rssi - a.rssi);
+          if (arr.length) { setNetworks(arr); setScanErr(""); return; }
+        } catch {
+          // transient — the phone may still be switching to the device hotspot
+        }
+        await sleep(1200);
+      }
+      setScanErr(
+        autoMode
+          ? "Couldn't read the network list from the device yet. Tap Rescan — or enter your Wi-Fi name manually below."
+          : "Couldn't get the network list. Make sure you're on the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi, then tap Rescan — or enter your Wi-Fi name manually below."
+      );
+    } finally {
+      clearInterval(tick);
+      setScanning(false);
+    }
+  };
+
+  const goWifi = (auto = false) => { setStep("wifi"); setRetryNote(""); setNetworks([]); setScanErr("Reading nearby networks from the device…"); setTimeout(() => scan(), auto ? 400 : 800); };
 
   // Step 3 — encrypt {ssid,pass,token} to the device and push (local, mobile data OFF).
   const sendToDevice = async () => {
@@ -197,10 +260,22 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
       const res = await fetchTimeout(`${BASE}/save`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body }, 10000);
       if (!res.ok) throw new Error(String(res.status));
       setLast("ok", "Encrypted Wi-Fi sent ✓");
-      setStep("reconnect");
+      if (autoMode) {
+        // We joined the AP in-app — release it so the phone returns to home Wi-Fi,
+        // then watch for the device to register. No manual Settings trip needed.
+        addLog("Switching your phone back to home Wi-Fi…");
+        await leaveDeviceAP();
+        await sleep(1500);
+        setLast("ok", "Back on your home Wi-Fi ✓");
+        waitForOnline();
+      } else {
+        setStep("reconnect");
+      }
     } catch {
       setLast("err", "Couldn't reach the device.");
-      setError("Make sure you're on the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi with mobile data OFF, then try again.");
+      setError(autoMode
+        ? "Lost the connection to the device. Tap \u201CTry again\u201D to rejoin and resend."
+        : "Make sure you're on the \u201CCircuvent-Setup-\u2026\u201D Wi-Fi with mobile data OFF, then try again.");
       setStep("wifi");
     }
   };
@@ -242,9 +317,13 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
   const goBack = () => {
     if (step === "mode") return onClose(false);
     if (step === "fail") return setStep("details");
-    if (step === "wifi") return setStep("connect");
+    if (step === "discover") { discoverStop.current = true; return setStep("connect"); }
+    if (step === "wifi") { if (autoMode) { leaveDeviceAP(); setAutoMode(false); } return setStep(wifiAutoSupported() ? "discover" : "connect"); }
     setStep("mode");
   };
+
+  // Release any device-AP binding if the user backs out mid-setup.
+  useEffect(() => () => { discoverStop.current = true; leaveDeviceAP(); }, []);
 
   useBackHandler(() => { goBack(); return true; });
 
@@ -336,9 +415,51 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
           </View>
         )}
 
+        {step === "discover" && (
+          <View>
+            <StepTag>Step 2 of 3 · Find your device</StepTag>
+            <ProgressLog items={[{ msg: "Account prepared ✓", state: "ok" }]} />
+            <View style={s.radarWrap}>
+              <RadarPulse active={discovering || !!connectingSsid} />
+              <Text style={s.radarGlyph}>{connectingSsid ? "🔗" : "📡"}</Text>
+            </View>
+            <Text style={[s.lead, { textAlign: "center", marginTop: 4 }]}>
+              {connectingSsid
+                ? `Connecting to ${connectingSsid}…\nTap “Connect” if your phone shows a prompt.`
+                : discovering
+                  ? "Scanning for nearby Circuvent devices…\nPower it on and wait for the light to blink."
+                  : deviceAPs.length
+                    ? "Tap your device below to connect automatically."
+                    : "Make sure the device is powered on and blinking."}
+            </Text>
+
+            {deviceAPs.map((ap) => (
+              <Pressable key={ap.ssid} style={[s.apRow, connectingSsid === ap.ssid && s.apRowOn]} onPress={() => pickDeviceAP(ap)} disabled={!!connectingSsid}>
+                <Text style={s.apGlyph}>📶</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.apName} numberOfLines={1}>{ap.ssid}</Text>
+                  <Text style={s.apSub}>Circuvent device · {ap.hwid}</Text>
+                </View>
+                {connectingSsid === ap.ssid ? <ActivityIndicator color="#06b6d4" /> : <Text style={s.apBars}>{rssiBars(ap.rssi)}</Text>}
+              </Pressable>
+            ))}
+
+            {!!apError && <Text style={[s.err, { marginTop: 10 }]}>{apError}</Text>}
+
+            <View style={[s.rowBetween, { marginTop: 16 }]}>
+              <Pressable onPress={() => discover()} disabled={discovering || !!connectingSsid} hitSlop={10}>
+                <Text style={[s.link, (discovering || !!connectingSsid) && { opacity: 0.5 }]}>{discovering ? "Scanning…" : "↻ Rescan"}</Text>
+              </Pressable>
+              <Pressable onPress={() => { discoverStop.current = true; setDiscovering(false); setStep("connect"); }} hitSlop={10}>
+                <Text style={s.link}>Connect manually ›</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {step === "connect" && (
           <View>
-            <StepTag>Step 2 of 3 · Connect to the device</StepTag>
+            <StepTag>Step 2 of 3 · Connect manually</StepTag>
             <ProgressLog items={[{ msg: "Account prepared ✓", state: "ok" }]} />
             <Text style={[s.lead, { marginTop: 14 }]}>
               1. Power on the device, wait ~15s.{"\n"}
@@ -347,27 +468,36 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
               4. Come back and tap <Text style={s.b}>Continue</Text>.
             </Text>
             <Pressable style={s.secondary} onPress={openWifiSettings}><Text style={s.secondaryT}>Open Wi-Fi settings</Text></Pressable>
-            <Primary label="Continue" onPress={goWifi} />
+            {wifiAutoSupported() && (
+              <Pressable onPress={() => { setStep("discover"); setTimeout(() => discover(), 300); }}><Text style={[s.link, { textAlign: "center", marginBottom: 6 }]}>‹ Find &amp; connect automatically instead</Text></Pressable>
+            )}
+            <Primary label="Continue" onPress={() => goWifi(false)} />
           </View>
         )}
 
         {step === "wifi" && (
           <View>
-            <StepTag>Step 2 of 3 · Choose the device's Wi-Fi</StepTag>
+            <StepTag>Step 2 of 3 · Choose your home Wi-Fi</StepTag>
+            {autoMode && <View style={s.okChip}><Text style={s.okChipT}>✓ Connected to your device automatically</Text></View>}
             {!!retryNote && <Text style={s.err}>{retryNote}</Text>}
             <View style={s.rowBetween}>
               <Text style={s.label}>Networks near the device {networks.length ? `(${networks.length})` : ""}</Text>
-              <Pressable onPress={() => scan()} disabled={scanning}><Text style={s.link}>{scanning ? "Scanning…" : "↻ Rescan"}</Text></Pressable>
+              <Pressable onPress={() => scan()} disabled={scanning} hitSlop={10}><Text style={[s.link, scanning && { opacity: 0.5 }]}>{scanning ? "Scanning…" : "↻ Rescan"}</Text></Pressable>
             </View>
-            {scanning && <View style={s.center}><ActivityIndicator color="#06b6d4" /><Text style={s.hint}>Asking the device to scan…</Text></View>}
+            {scanning && (
+              <View style={s.center}>
+                <ActivityIndicator color="#06b6d4" />
+                <Text style={s.hint}>Reading nearby networks from the device… {scanElapsed}s</Text>
+              </View>
+            )}
             {!!scanErr && !scanning && <Text style={s.err}>{scanErr}</Text>}
             {!manual && networks.map((nw) => (
               <Pressable key={nw.ssid} style={[s.netRow, ssid === nw.ssid && s.netRowOn]} onPress={() => setSsid(nw.ssid)}>
-                <Text style={s.netName} numberOfLines={1}>{nw.ssid}</Text>
+                <Text style={s.netName} numberOfLines={1}>{ssid === nw.ssid ? "● " : ""}{nw.ssid}</Text>
                 <Text style={s.netMeta}>{nw.lock ? "🔒 " : ""}{bars(nw.rssi)}</Text>
               </Pressable>
             ))}
-            <Pressable onPress={() => setManual((m) => !m)}><Text style={[s.link, { marginTop: 10 }]}>{manual ? "‹ Pick from the list" : "Enter network name manually"}</Text></Pressable>
+            <Pressable onPress={() => setManual((m) => !m)} hitSlop={8}><Text style={[s.link, { marginTop: 10 }]}>{manual ? "‹ Pick from the list" : "Enter network name manually"}</Text></Pressable>
             {manual && <View style={{ marginTop: 8 }}><Field label="Wi-Fi name (SSID)" value={ssid} onChangeText={setSsid} placeholder="Your 2.4 GHz Wi-Fi" autoCapitalize="none" /></View>}
             {(ssid.length > 0 || manual) && (
               <View style={{ marginTop: 8 }}>
@@ -450,6 +580,33 @@ function StepTag({ children }: { children: React.ReactNode }) {
   return <Text style={s.stepTag}>{children}</Text>;
 }
 
+// Animated radar rings shown while discovering / connecting to a device hotspot.
+function RadarPulse({ active }: { active: boolean }) {
+  const a1 = useRef(new Animated.Value(0)).current;
+  const a2 = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!active) { a1.stopAnimation(); a2.stopAnimation(); a1.setValue(0); a2.setValue(0); return; }
+    const mk = (v: Animated.Value, delay: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(v, { toValue: 1, duration: 1800, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      ]));
+    const l1 = mk(a1, 0); const l2 = mk(a2, 900);
+    l1.start(); l2.start();
+    return () => { l1.stop(); l2.stop(); };
+  }, [active, a1, a2]);
+  const ring = (v: Animated.Value) => ({
+    transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1.4] }) }],
+    opacity: v.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.5, 0] }),
+  });
+  return (
+    <View style={s.radarInner} pointerEvents="none">
+      <Animated.View style={[s.radarRing, ring(a1)]} />
+      <Animated.View style={[s.radarRing, ring(a2)]} />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: "#0b1020" },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, borderBottomColor: "#1f2937", borderBottomWidth: 1 },
@@ -467,6 +624,18 @@ const s = StyleSheet.create({
   chev: { color: "#475569", fontSize: 26 },
   label: { color: "#e5e7eb", fontSize: 14, fontWeight: "600", marginBottom: 10 },
   hint: { color: "#64748b", fontSize: 12, marginTop: 8 },
+  radarWrap: { height: 150, alignItems: "center", justifyContent: "center", marginVertical: 6 },
+  radarInner: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
+  radarRing: { position: "absolute", width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: "#06b6d4" },
+  radarGlyph: { fontSize: 46 },
+  apRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 10 },
+  apRowOn: { borderColor: "#06b6d4" },
+  apGlyph: { fontSize: 22 },
+  apName: { color: "#e5e7eb", fontSize: 15, fontWeight: "700" },
+  apSub: { color: "#64748b", fontSize: 12, marginTop: 2 },
+  apBars: { color: "#06b6d4", fontSize: 16 },
+  okChip: { backgroundColor: "rgba(34,197,94,0.12)", borderColor: "rgba(34,197,94,0.4)", borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12 },
+  okChipT: { color: "#22c55e", fontSize: 13, fontWeight: "700" },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   link: { color: "#22d3ee", fontWeight: "700" },
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

@@ -84,6 +84,24 @@ underlying calls, for reference only:
    cd platform && ./scripts/add-device.sh hub-a1b2c3 '<ONE-TIME-KEY>'
    ```
 
+## Resetting & changing Wi-Fi
+
+Every device has a **reset button** (wired to `GPIO0` / the BOOT button by
+default — change it with `cv.setResetButton(pin)`), plus a `/reset` endpoint on
+the setup portal:
+
+| Action | How | Effect |
+| --- | --- | --- |
+| **Change Wi-Fi** | Hold the button **~3 s** (or `GET /reset` on the portal) | Clears only the stored Wi-Fi; **keeps the device identity** (id/key/history) and re-opens the `Circuvent-Setup-XXXX` hotspot so you can push a new network. |
+| **Factory reset** | Hold the button **~8 s** (or `GET /reset?full=1`) | Wipes **all** NVS credentials — the device becomes brand-new and must be re-provisioned. |
+
+In the app this is one tap: open a device → **Change Wi-Fi network**. On Android
+the app **auto-discovers** the device's hotspot and **connects to it in-app** (no
+trip to Settings), reads the nearby networks, and pushes the new Wi-Fi encrypted
+to the device — which then reconnects with its existing identity. The setup
+portal serves `GET /scan` from a **cached async Wi-Fi scan** (mode `WIFI_AP_STA`)
+so the network list returns fast.
+
 ## Production hardening
 
 - ✅ TLS to the broker via our own embedded CA (`setInsecure()` no longer used

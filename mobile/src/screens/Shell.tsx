@@ -9,6 +9,7 @@ import Automate from "./Automate";
 import Energy from "./Energy";
 import Settings from "./Settings";
 import Control from "./Control";
+import ChangeWifi from "./ChangeWifi";
 import Notifications from "./Notifications";
 import AddDevice from "./AddDevice";
 import More from "./More";
@@ -17,7 +18,7 @@ import Weather from "./Weather";
 
 type Tab = "home" | "devices" | "automate" | "energy" | "settings" | "more";
 type Seg = "scenes" | "rooms" | "automations";
-type Overlay = { kind: "control"; device: Device } | { kind: "add" } | { kind: "notifications" } | { kind: "search" } | { kind: "weather" } | null;
+type Overlay = { kind: "control"; device: Device } | { kind: "changewifi"; device: Device } | { kind: "add" } | { kind: "notifications" } | { kind: "search" } | { kind: "weather" } | null;
 
 const TABS: { key: Tab; label: string; glyph: string }[] = [
   { key: "home", label: "Home", glyph: "🏠" },
@@ -43,7 +44,8 @@ export default function Shell() {
     return false;
   });
 
-  if (overlay?.kind === "control") return <Control device={overlay.device} onBack={() => setOverlay(null)} />;
+  if (overlay?.kind === "control") return <Control device={overlay.device} onBack={() => setOverlay(null)} onChangeWifi={(d) => setOverlay({ kind: "changewifi", device: d })} />;
+  if (overlay?.kind === "changewifi") return <ChangeWifi device={overlay.device} onBack={() => { setOverlay(null); refresh(); }} />;
   if (overlay?.kind === "add") return <AddDevice onClose={(added) => { setOverlay(null); if (added) refresh(); }} />;
   if (overlay?.kind === "notifications") return <Notifications onBack={() => setOverlay(null)} />;
   if (overlay?.kind === "weather") return <Weather onBack={() => setOverlay(null)} />;

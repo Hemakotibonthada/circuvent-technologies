@@ -9,7 +9,7 @@ import { deviceMeta, type Palette } from "../theme";
 
 const COLORS = ["#ffffff", "#ffd27f", "#ff7f7f", "#7fd0ff", "#7fff9e", "#c79bff", "#ff9be0"];
 
-export default function Control({ device, onBack }: { device: Device; onBack: () => void }) {
+export default function Control({ device, onBack, onChangeWifi }: { device: Device; onBack: () => void; onChangeWifi?: (d: Device) => void }) {
   const { c } = useTheme();
   const { byId, command, patch } = useDevices();
   const d = byId(device.id) ?? device;
@@ -64,6 +64,18 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
             <Text style={{ color: c.faint, fontFamily: "monospace", fontSize: 12 }}>{JSON.stringify(d.state, null, 2)}</Text>
           </Card>
         )}
+
+        <Section c={c}>Device setup</Section>
+        <Pressable onPress={() => onChangeWifi?.(d)}>
+          <Card padded style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Text style={{ fontSize: 22 }}>📶</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.text, fontSize: 16, fontWeight: "700" }}>Change Wi-Fi network</Text>
+              <Text style={{ color: c.faint, fontSize: 12, marginTop: 2 }}>Moved house or router? Reset the device and push new Wi-Fi.</Text>
+            </View>
+            <Text style={{ color: c.faint, fontSize: 22 }}>›</Text>
+          </Card>
+        </Pressable>
       </ScrollView>
     </Screen>
   );

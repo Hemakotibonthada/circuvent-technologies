@@ -70,6 +70,7 @@ void setup() {
   gpsSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
   cv.onCommand(onCommand);
   cv.setInterval(15000);
+  cv.setResetButton(0);  // BOOT/GPIO0: hold 3s to change Wi-Fi, 8s to factory reset
   cv.begin();
 }
 

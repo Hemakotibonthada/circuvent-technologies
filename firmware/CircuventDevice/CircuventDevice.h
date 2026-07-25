@@ -184,6 +184,9 @@ class CircuventDevice {
   void setBroker(const char *host, uint16_t port = 8883) { _brokerHost = host; _brokerPort = port; }
   void setProvisioning(bool enable) { _provisioningEnabled = enable; }
   void setOtaInterval(uint32_t ms) { _otaInterval = ms; }    // 0 disables OTA polling (default off)
+  // Physical reset button (e.g. the BOOT/GPIO0 button): hold ~3s to clear Wi-Fi
+  // (change network, keeps identity), hold ~8s for a full factory reset.
+  void setResetButton(int pin, bool activeLow = true) { _resetPin = pin; _resetActiveLow = activeLow; }
   bool claimed() const { return _mqttUp; }
   bool online() const { return WiFi.status() == WL_CONNECTED && _mqttUp; }
   const char *firmwareVersion() const { return CV_FW_VERSION; }
@@ -213,6 +216,7 @@ class CircuventDevice {
   // ---- lifecycle --------------------------------------------------------
   void begin(const char *ssid = nullptr, const char *pass = nullptr) {
     _cvInstance = this;
+    if (_resetPin >= 0) pinMode(_resetPin, _resetActiveLow ? INPUT_PULLUP : INPUT);
     _prefsBegin();
     _loadCreds();
 
@@ -246,6 +250,7 @@ class CircuventDevice {
 
   // Call from loop(). Manages Wi-Fi, MQTT (re)connect, state publishing, OTA.
   void loop() {
+    _pollResetButton();
     if (_portalActive) { _portalLoop(); return; }
 
     if (WiFi.status() != WL_CONNECTED) {
@@ -329,7 +334,7 @@ class CircuventDevice {
     _portalActive = true;
     if (!_boxReady) { crypto_box_keypair(_boxPk, _boxSk); _boxReady = true; }
     String ap = "Circuvent-Setup-" + _shortId();
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(WIFI_AP_STA);  // AP for the app + STA so we can scan for home networks
     WiFi.softAP(ap.c_str());
     _dns.start(53, "*", WiFi.softAPIP());
     _server.on("/", [this]() { _server.send(200, "text/html", _portalPage()); });
@@ -342,8 +347,17 @@ class CircuventDevice {
       _server.send(200, "application/json", _scanJson());
     });
     _server.on("/save", [this]() { _portalSave(); });
+    // Allow the app to re-open setup / clear Wi-Fi remotely while on the hotspot.
+    _server.on("/reset", [this]() {
+      _server.sendHeader("Access-Control-Allow-Origin", "*");
+      bool full = _server.hasArg("full") && _server.arg("full") == "1";
+      _server.send(200, "application/json", full ? "{\"ok\":true,\"mode\":\"factory\"}" : "{\"ok\":true,\"mode\":\"wifi\"}");
+      delay(400);
+      if (full) _factoryReset(); else _clearWifi();
+    });
     _server.onNotFound([this]() { _server.send(200, "text/html", _portalPage()); });
     _server.begin();
+    _kickScan();  // start an async Wi-Fi scan so the first GET /scan returns fast
     Serial.printf("[CV] Provisioning AP: %s  (open http://192.168.4.1)\n", ap.c_str());
   }
 
@@ -379,6 +393,15 @@ class CircuventDevice {
   uint8_t _boxPk[32], _boxSk[32];
   bool _boxReady = false;
   String _token;
+  // physical reset button
+  int _resetPin = -1;
+  bool _resetActiveLow = true;
+  uint32_t _resetHoldStart = 0;
+  bool _resetLatched = false;
+  // cached async Wi-Fi scan (keeps GET /scan fast for the app)
+  String _scanCache = "[]";
+  uint32_t _scanStartedAt = 0;
+  bool _scanPending = false;
 
   String _topic(const char *leaf) { return String("cv/") + _id + "/" + leaf; }
 
@@ -527,6 +550,53 @@ class CircuventDevice {
 
   // ---- captive portal ---------------------------------------------------
   void _portalLoop() { _dns.processNextRequest(); _server.handleClient(); }
+
+  // ---- reset button + credential clearing -------------------------------
+  // Erase only the Wi-Fi (keep id/key/token) → device re-opens the portal so the
+  // user can push new Wi-Fi from the app; the device keeps its identity/history.
+  void _clearWifi() {
+    Serial.println(F("[CV] Clearing Wi-Fi — reopening setup portal"));
+    _ssid = ""; _pass = "";
+#if defined(ESP32)
+    _prefs.remove("ssid");
+    _prefs.remove("pass");
+#endif
+    delay(300);
+    ESP.restart();
+  }
+  // Full factory reset — wipe every stored credential (fresh device).
+  void _factoryReset() {
+    Serial.println(F("[CV] FACTORY RESET — wiping all credentials"));
+#if defined(ESP32)
+    _prefs.clear();
+#endif
+    delay(300);
+    ESP.restart();
+  }
+  bool _resetPressed() {
+    if (_resetPin < 0) return false;
+    int v = digitalRead(_resetPin);
+    return _resetActiveLow ? (v == LOW) : (v == HIGH);
+  }
+  // Long-press handling: ~3s → Wi-Fi reset, ~8s → factory reset. Fires on release.
+  void _pollResetButton() {
+    if (_resetPin < 0) return;
+    if (_resetPressed()) {
+      if (_resetHoldStart == 0) _resetHoldStart = millis();
+      uint32_t held = millis() - _resetHoldStart;
+      // brief visual cue on the LED-less path via Serial; act on release below
+      if (held > 8000 && !_resetLatched) { _resetLatched = true; }  // armed for factory
+      return;
+    }
+    // released
+    if (_resetHoldStart) {
+      uint32_t held = millis() - _resetHoldStart;
+      _resetHoldStart = 0; _resetLatched = false;
+      if (held >= 8000) _factoryReset();
+      else if (held >= 3000) _clearWifi();
+    }
+  }
+
   String _portalPage() {
     String opts;
     int n = WiFi.scanNetworks();
@@ -549,8 +619,18 @@ class CircuventDevice {
   }
   // Nearby Wi-Fi networks the device can see (2.4 GHz only — that's all an ESP32
   // radio picks up), for the app's network picker. GET /scan on the portal.
-  String _scanJson() {
-    int n = WiFi.scanNetworks();
+  // Uses an ASYNC scan with a cached result so the HTTP response stays snappy
+  // (a blocking WiFi.scanNetworks() can take 2-4s and stalls the web server).
+  void _kickScan() {
+#if defined(ESP32)
+    if (_scanPending) return;
+    WiFi.scanNetworks(true /*async*/, false /*show_hidden*/);
+    _scanPending = true; _scanStartedAt = millis();
+#endif
+  }
+  void _refreshScanCache() {
+    int n = WiFi.scanComplete();
+    if (n < 0) return;  // -1 running, -2 failed/idle
     JsonDocument d;
     JsonArray arr = d.to<JsonArray>();
     for (int i = 0; i < n && i < 30; i++) {
@@ -570,8 +650,54 @@ class CircuventDevice {
       o["lock"] = (WiFi.encryptionType(i) != ENC_TYPE_NONE);
 #endif
     }
+    String s; serializeJson(d, s);
+    _scanCache = s;
+    WiFi.scanDelete();
+    _scanPending = false;
+  }
+  String _scanJson() {
+#if defined(ESP32)
+    _refreshScanCache();                 // fold in a finished async scan, if any
+    if (!_scanPending) _kickScan();      // keep a fresh scan warming for next time
+    // First call before any scan finishes: fall back to one quick blocking scan
+    // so the app isn't left with an empty list.
+    if (_scanCache == "[]" && WiFi.scanComplete() == WIFI_SCAN_FAILED) {
+      int n = WiFi.scanNetworks();
+      JsonDocument d; JsonArray arr = d.to<JsonArray>();
+      for (int i = 0; i < n && i < 30; i++) {
+        String ss = WiFi.SSID(i);
+        if (!ss.length()) continue;
+        bool dup = false;
+        for (JsonObject o : arr) { if (ss == (const char *)(o["ssid"] | "")) { dup = true; break; } }
+        if (dup) continue;
+        JsonObject o = arr.add<JsonObject>();
+        o["ssid"] = ss; o["rssi"] = WiFi.RSSI(i);
+        o["lock"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+      }
+      WiFi.scanDelete();
+      String s; serializeJson(d, s); _scanCache = s;
+    }
+    return _scanCache;
+#else
+    int n = WiFi.scanNetworks();
+    JsonDocument d;
+    JsonArray arr = d.to<JsonArray>();
+    for (int i = 0; i < n && i < 30; i++) {
+      String ss = WiFi.SSID(i);
+      if (!ss.length()) continue;
+      bool dup = false;
+      for (JsonObject o : arr) {
+        if (ss == (const char *)(o["ssid"] | "")) { dup = true; break; }
+      }
+      if (dup) continue;
+      JsonObject o = arr.add<JsonObject>();
+      o["ssid"] = ss;
+      o["rssi"] = WiFi.RSSI(i);
+      o["lock"] = (WiFi.encryptionType(i) != ENC_TYPE_NONE);
+    }
     WiFi.scanDelete();
     String s; serializeJson(d, s); return s;
+#endif
   }
 
   // Hardware/identity info for the app's setup flow (GET /info on the portal).

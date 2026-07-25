@@ -133,6 +133,7 @@ void setup() {
   cv.onCommand(onCommand);
   cv.setInterval(10000);
   // cv.setRootCA(CIRCUVENT_ROOT_CA);   // enable TLS pinning in production
+  cv.setResetButton(0);  // BOOT/GPIO0: hold 3s to change Wi-Fi, 8s to factory reset
   cv.begin();
   configTime(19800, 0, "pool.ntp.org", "time.google.com");  // IST (UTC+5:30)
 }

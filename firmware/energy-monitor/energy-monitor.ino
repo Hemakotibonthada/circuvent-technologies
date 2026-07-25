@@ -36,6 +36,7 @@ void setup() {
   Serial.begin(115200);
   analogReadResolution(12);
   cv.setInterval(10000);
+  cv.setResetButton(0);  // BOOT/GPIO0: hold 3s to change Wi-Fi, 8s to factory reset
   cv.begin();
   lastCalc = millis();
 }

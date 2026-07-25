@@ -23,6 +23,7 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   cv.onCommand(onCommand);
   cv.setInterval(6000);
+  cv.setResetButton(0);  // BOOT/GPIO0: hold 3s to change Wi-Fi, 8s to factory reset
   cv.begin();
 }
 
