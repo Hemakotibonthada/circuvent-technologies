@@ -54,6 +54,10 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
         {d.type === "guardian" && <Guardian d={d} send={send} c={c} />}
         {d.type === "motion-sensor" && <MotionSensor d={d} send={send} c={c} />}
         {d.type === "agri-starter" && <AgriStarter d={d} send={send} c={c} />}
+        {d.type === "watertank" && <WaterTank d={d} send={send} c={c} />}
+        {d.type === "rfid-gate" && <RfidGate d={d} send={send} c={c} />}
+        {d.type === "facedoor" && <FaceDoor d={d} send={send} c={c} />}
+        {d.type === "touchboard" && <TouchBoard d={d} send={send} c={c} />}
 
         {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
         <GenericControls d={d} send={send} c={c} />
@@ -81,7 +85,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
   );
 }
 
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -312,6 +316,138 @@ function AgriStarter({ d, send, c }: { d: Device; send: (p: Record<string, unkno
         </View>
       </Card>
       {!power && <Alertline c={c} text="⚠ No mains power — pump cannot start" />}
+    </View>
+  );
+}
+
+function TankBar({ label, pct, litres, c, accent, fault }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean }) {
+  const clamped = Math.min(100, Math.max(0, pct));
+  return (
+    <View style={{ alignItems: "center", flex: 1 }}>
+      <View style={{ height: 160, width: 76, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, overflow: "hidden", justifyContent: "flex-end" }}>
+        <View style={{ height: `${clamped}%`, backgroundColor: accent, opacity: 0.85 }} />
+        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }}>{clamped}%</Text>
+        </View>
+      </View>
+      <Text style={{ color: c.text, fontWeight: "700", marginTop: 8 }}>{label}</Text>
+      <Text style={{ color: c.faint, fontSize: 12 }}>{litres.toLocaleString("en-IN")} L{fault ? " · sensor?" : ""}</Text>
+    </View>
+  );
+}
+
+function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const oh = Number(d.state.ohPct ?? 0);
+  const sump = Number(d.state.sumpPct ?? 0);
+  const auto = !!d.state.auto;
+  const start = Number(d.state.startPct ?? 20);
+  const stop = Number(d.state.stopPct ?? 95);
+  const sumpMin = Number(d.state.sumpMinPct ?? 15);
+  return (
+    <View>
+      <Card padded style={{ marginBottom: 14 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
+          <TankBar label="Overhead" pct={oh} litres={Number(d.state.ohLitres ?? 0)} c={c} accent={c.cyan} fault={!!d.state.ohFault} />
+          <View style={{ alignItems: "center", paddingBottom: 34 }}>
+            <Text style={{ color: !!d.state.pump ? c.cyan : c.faint, fontWeight: "800", fontSize: 11 }}>{!!d.state.pump ? "▲ PUMP" : "IDLE"}</Text>
+            <View style={{ width: 2, height: 40, backgroundColor: c.border, marginVertical: 4 }} />
+            <Text style={{ fontSize: 18 }}>💧</Text>
+          </View>
+          <TankBar label="Sump" pct={sump} litres={Number(d.state.sumpLitres ?? 0)} c={c} accent={c.accentHi} fault={!!d.state.sumpFault} />
+        </View>
+      </Card>
+      {!!d.state.dryRun && <Alertline c={c} text="⚠ Dry-run cut — reset after checking sump/motor" />}
+      {!!d.state.overflow && <Alertline c={c} text="⚠ Overflow float tripped — pump stopped" />}
+      <Row label="Auto-fill" c={c}><Sw v={auto} on={(v) => send({ auto: v })} c={c} /></Row>
+      <Row label="Pump" c={c}><Sw v={!!d.state.pump} on={(v) => send({ pump: v })} c={c} /></Row>
+      {!!d.state.dryRun && (
+        <Pressable onPress={() => send({ action: "resetDryRun" })} style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", marginBottom: 10 }}>
+          <Text style={{ color: c.text, fontWeight: "700" }}>Reset dry-run trip</Text>
+        </Pressable>
+      )}
+      <Section c={c}>Auto thresholds</Section>
+      <Stepper label={`Start overhead at ${start}%`} c={c} onDown={() => send({ startPct: Math.max(5, start - 5) })} onUp={() => send({ startPct: Math.min(90, start + 5) })} />
+      <Stepper label={`Stop overhead at ${stop}%`} c={c} onDown={() => send({ stopPct: Math.max(10, stop - 5) })} onUp={() => send({ stopPct: Math.min(100, stop + 5) })} />
+      <Stepper label={`Protect sump below ${sumpMin}%`} c={c} onDown={() => send({ sumpMinPct: Math.max(5, sumpMin - 5) })} onUp={() => send({ sumpMinPct: Math.min(60, sumpMin + 5) })} />
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+        <MiniStat label="Pump current" value={`${Number(d.state.amps ?? 0).toFixed(1)} A`} c={c} />
+        <MiniStat label="Mode" value={auto ? "Auto" : "Manual"} c={c} />
+      </View>
+    </View>
+  );
+}
+
+function RfidGate({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const open = String(d.state.barrier ?? "closed") === "open";
+  const allowed = !!d.state.lastAllowed;
+  return (
+    <View>
+      <Card padded style={{ marginBottom: 12, alignItems: "center" }}>
+        <Text style={{ fontSize: 26, fontWeight: "800", color: open ? c.green : c.textDim }}>{open ? "BARRIER OPEN" : "BARRIER CLOSED"}</Text>
+        <Text style={{ color: c.faint, marginTop: 6, fontSize: 13 }}>{!!d.state.vehiclePresent ? "🚗 Vehicle at gate" : "No vehicle"} · {Number(d.state.tagCount ?? 0)} tags</Text>
+      </Card>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+        <Pressable onPress={() => send({ action: "open" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: "#04121a", fontWeight: "800" }}>Open</Text></Pressable>
+        <Pressable onPress={() => send({ action: "close" })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "800" }}>Close</Text></Pressable>
+      </View>
+      <Card padded style={{ marginBottom: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <View>
+          <Text style={{ color: c.text, fontWeight: "700", fontFamily: "monospace" }}>Tag {Number(d.state.lastTag ?? 0) || "—"}</Text>
+          <Text style={{ color: c.faint, fontSize: 12 }}>{Number(d.state.scanCount ?? 0)} scans</Text>
+        </View>
+        <Text style={{ color: allowed ? c.green : c.red, fontWeight: "800", fontSize: 12 }}>{allowed ? "AUTHORISED" : "DENIED"}</Text>
+      </Card>
+      <Row label="Auto mode" c={c}><Sw v={String(d.state.mode ?? "auto") === "auto"} on={(v) => send({ mode: v ? "auto" : "manual" })} c={c} /></Row>
+    </View>
+  );
+}
+
+function FaceDoor({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const locked = !!d.state.locked;
+  const als = Number(d.state.autoLockSec ?? 8);
+  return (
+    <View>
+      <Card padded style={{ marginBottom: 12, alignItems: "center" }}>
+        <Text style={{ fontSize: 40 }}>{locked ? "🔒" : "🔓"}</Text>
+        <Text style={{ fontSize: 22, fontWeight: "800", color: locked ? c.textDim : c.green, marginTop: 6 }}>{locked ? "LOCKED" : "UNLOCKED"}</Text>
+        <Text style={{ color: c.faint, marginTop: 4, fontSize: 13 }}>{String(d.state.lastMethod ?? "—")}{d.state.lastName ? ` · ${String(d.state.lastName)}` : ""}</Text>
+      </Card>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+        <Pressable onPress={() => send({ action: "unlock", method: "app" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: "#04121a", fontWeight: "800" }}>Unlock</Text></Pressable>
+        <Pressable onPress={() => send({ action: "lock" })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "800" }}>Lock</Text></Pressable>
+      </View>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 4 }}>
+        <MiniStat label="Accesses" value={String(Number(d.state.accessCount ?? 0))} c={c} />
+        <MiniStat label="Bell presses" value={String(Number(d.state.bellCount ?? 0))} c={c} />
+      </View>
+      <Stepper label={`Auto-relock ${als}s`} c={c} onDown={() => send({ autoLockSec: Math.max(0, als - 1) })} onUp={() => send({ autoLockSec: Math.min(120, als + 1) })} />
+    </View>
+  );
+}
+
+function TouchBoard({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const gangs = [{ key: "g1", label: "Gang 1" }, { key: "g2", label: "Gang 2" }, { key: "g3", label: "Gang 3" }];
+  const bl = Number(d.state.backlight ?? 60);
+  return (
+    <View>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+        <MiniStat label="Power" value={`${Number(d.state.watts ?? 0).toFixed(0)} W`} c={c} />
+        <MiniStat label="Voltage" value={`${Number(d.state.volts ?? 0).toFixed(0)} V`} c={c} />
+        <MiniStat label="Current" value={`${Number(d.state.amps ?? 0).toFixed(2)} A`} c={c} />
+      </View>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 4 }}>
+        <MiniStat label="Power factor" value={Number(d.state.pf ?? 0).toFixed(2)} c={c} />
+        <MiniStat label="Energy" value={`${Number(d.state.kwh ?? 0).toFixed(2)} kWh`} c={c} />
+      </View>
+      <Section c={c}>Gangs</Section>
+      {gangs.map((g) => (
+        <Row key={g.key} label={g.label} c={c}><Sw v={!!d.state[g.key]} on={(v) => send({ [g.key]: v })} c={c} /></Row>
+      ))}
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 2, marginBottom: 6 }}>
+        <Pressable onPress={() => send({ all: true })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "700" }}>All on</Text></Pressable>
+        <Pressable onPress={() => send({ all: false })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "700" }}>All off</Text></Pressable>
+      </View>
+      <Stepper label={`Backlight ${bl}%`} c={c} onDown={() => send({ backlight: Math.max(0, bl - 10) })} onUp={() => send({ backlight: Math.min(100, bl + 10) })} />
     </View>
   );
 }
