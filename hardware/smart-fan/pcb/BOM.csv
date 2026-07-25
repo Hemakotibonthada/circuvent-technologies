@@ -1,0 +1,25 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+PS1,1,HLK-PM03 (5V 3W),SIP,230VAC -> 5VDC isolated PSU,Relay + logic
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
+U3,1,MCP6002,SOIC-8,Rail-to-rail op-amp,0-10 V speed buffer
+PC1,1,PC817,DIP-4,Opto-isolator,Relay drive
+Q1,1,S8050,SOT-23,NPN relay driver,
+Qm,1,IRLZ44N,TO-220,N-MOSFET (DC-fan option),Optional
+D1,1,1N4007,DO-41,Flyback diode,Relay coil
+K1,1,SRD-05VDC-SL-C,THT relay,5V SPDT,Fan power
+RV1,1,7D471K,disc,MOV 470V,Mains surge clamp
+F1,1,2A slow-blow,5x20 holder,Mains fuse,
+SW1,1,Tactile 6mm,THT,Button / BOOT,
+LED0,1,Green 3mm,THT,Power/online,
+J1,1,2P 5.08mm,terminal,Mains L/N in,
+J2,1,2P 5.08mm,terminal,Fan power out,
+J3,1,3P 5.08mm,terminal,0-10 V + GND (+ DC fan),
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+R1-R10,10,10k/1k/330 + RC,0805,Pull/base/LED/filter,
+C1,1,470uF/10V,electrolytic,5V bulk,
+C2,1,100uF/6.3V,electrolytic,3.3V rail,
+Cf,1,1uF film,0805,RC filter cap,0-10 V smoothing
+C3-C6,4,100nF,0805,Decoupling,
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm mains-LV creepage; 2oz Cu
+ENC,1,ABS wall box (UL94 V-0),-,Regulator box,Button + LED + brand area

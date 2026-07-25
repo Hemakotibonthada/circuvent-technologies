@@ -1,0 +1,19 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+PS1,1,HLK-PM01 (5V 3W),SIP,230VAC -> 5VDC isolated PSU,Or USB-C variant
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU + analog rail
+CT1,1,SCT-013-030,clamp,Clamp-on current transformer,In the box
+J3,1,3.5mm jack,THT,CT input,
+Rb,1,33R 0.5%,0805,Burden resistor,Across CT secondary
+Rbias,2,10k 0.1%,0805,Mid-rail bias,1.65 V node
+Cb,1,10uF,0805,Bias decouple,
+ZMPT1,1,ZMPT101B module,module,Voltage sense (optional),True power/PF
+RV1,1,7D471K,disc,MOV 470V,PSU variant
+F1,1,500mA,1206 fuse,Mains fuse,PSU variant
+LED0,1,Green 3mm,THT,Power/online,
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+R1-R6,6,10k/330,0805,Pull/LED resistors,
+C1-C2,2,100uF,electrolytic,5V + 3.3V,
+C3-C5,3,100nF,0805,Decoupling,
+PCB,1,2-layer FR4 1.6mm,-,Main board,Isolated PSU island
+ENC,1,ABS DIN/wall box (UL94 V-0),-,Monitor housing,3.5mm CT jack

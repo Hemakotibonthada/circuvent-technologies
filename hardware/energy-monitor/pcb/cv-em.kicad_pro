@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-em.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Wi-Fi Energy Monitor (Clamp CT)",
+    "description": "ESP32 clamp-CT energy monitor with optional voltage sense. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-EM",
+    "REV": "A",
+    "SENSOR": "SCT-013",
+    "VSENSE": "ZMPT101B (opt)",
+    "ADC": "IO34"
+  }
+}

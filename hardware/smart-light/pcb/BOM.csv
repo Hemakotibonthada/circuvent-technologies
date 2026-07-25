@@ -1,0 +1,24 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+U3,1,MP1584 buck,module/SMD,12-24V -> 5V DC-DC,Strip PSU rail
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
+Q1-Q4,4,AO3400 / IRLZ44N,SOT-23 / TO-220,N-MOSFET PWM channels,R/G/B/W
+Q5,1,S8050,SOT-23,NPN relay driver,Aux
+PC1,1,PC817,DIP-4,Opto-isolator,Aux relay
+K1,1,SRD-05VDC-SL-C,THT relay,5V SPDT,Aux fixture
+D1,1,1N4007,DO-41,Flyback diode,Aux coil
+D2,1,SS34,SMA,Reverse-polarity diode,Vin
+TVS1,1,SMBJ33A,SMB,Transient suppressor,Vin surge
+F1,1,5A,1206 fuse,Input fuse,
+SW1,1,Tactile 6mm,THT,Button / BOOT,
+LED0,1,Green 3mm,THT,Power/online,
+J1,1,2P 5.08mm + barrel,terminal,Vin +/-,
+J2,1,5P 5.08mm,terminal,+V R G B W,Strip out
+J3,1,2P 5.08mm,terminal,Aux dry contact,
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+R1-R12,12,100R/100k/10k/330,0805,Gate/pull/LED resistors,
+C1,1,470uF/35V,electrolytic,Vin bulk,
+C2-C3,2,100uF,electrolytic,5V + 3.3V,
+C4-C7,4,100nF,0805,Decoupling,
+PCB,1,2-layer FR4 1.6mm,-,Main board,MOSFET thermal pour
+ENC,1,ABS inline box (UL94 V-0),-,Strip controller box,DC + terminal outs

@@ -1,0 +1,27 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+PS1,1,HLK-PM01 (5V 3W),SIP,230VAC -> 5VDC isolated PSU,From one phase
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
+U3,1,MP1584 buck (4V),module/SMD,5V -> ~4V for SIM800L,2 A capable
+M1,1,SIM800L,module,2G GSM (missed call + SMS),
+PC1,1,PC817,DIP-4,Opto-isolator,Relay drive
+PC2-PC4,3,PC814 (AC input),DIP-4,Phase-present optos,Up to 3 phases
+Q1,1,S8050,SOT-23,NPN relay driver,
+D1,1,1N4007,DO-41,Flyback diode,Relay coil
+K1,1,SRD-05VDC-SL-C,THT relay,5V SPDT 10A,Contactor coil switch
+RV1,1,7D471K,disc,MOV 470V,Mains surge clamp
+F1,1,1A slow-blow,5x20 holder,Mains fuse,
+SIM1,1,Micro-SIM holder,THT,SIM card cage,
+ANT1,1,GSM antenna (SMA/IPEX),-,Cellular antenna,
+FB1,1,Buzzer 5V,THT,Status/alert buzzer,
+C1,1,470uF/10V,electrolytic,5V bulk,
+Cs,1,1000uF/6.3V,electrolytic,SIM800L bulk,2 A bursts
+LED0-LED1,2,3mm,THT,Power + pump status,
+J1,1,2P 5.08mm,terminal,Mains L/N in,
+J2,1,2P 5.08mm,terminal,Contactor coil A1/A2,
+J3,1,4P 5.08mm,terminal,Phase-sense in (up to 3),
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+R1-R14,14,10k/1k/330 + opto R,0805,Pull/base/LED/sense,
+C2-C7,6,100nF/100uF,0805/elec,Decoupling + rails,
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm mains-LV creepage; conformal coat
+ENC,1,ABS/PC box (IP54),-,Industrial housing,Wall mount + glands

@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-led.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Smart Light Controller (RGBW)",
+    "description": "ESP32 RGBW LED-strip controller (12-24V DC) with aux relay. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-LED",
+    "REV": "A",
+    "CHANNELS": "RGBW",
+    "VIN": "12-24V",
+    "PWM": "5kHz/8-bit"
+  }
+}

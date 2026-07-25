@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-pir.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Wi-Fi Motion Sensor (PIR)",
+    "description": "ESP32 PIR motion sensor (USB/battery) with optional light relay. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-PIR",
+    "REV": "A",
+    "SENSOR": "HC-SR501",
+    "POWER": "USB-C/18650",
+    "OPT_RELAY": "yes"
+  }
+}

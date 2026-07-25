@@ -1,0 +1,23 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+PS1,1,HLK-PM03 (5V 3W),SIP,230VAC -> 5VDC isolated PSU,Relay coil + logic
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
+U3,1,BL0937 / HLW8032,SOP,Energy metering front-end,W/kWh/V/A
+U4,1,PC817,DIP-4,Opto-isolator,Relay drive
+Q1,1,S8050,SOT-23,NPN relay driver,
+D1,1,1N4007,DO-41,Flyback diode,Across relay coil
+K1,1,T90/HF105 16A,THT relay,SPDT 16A,Switch socket live
+Rsh,1,1mR 2W,2512,Current shunt,Metering (load-L path)
+RV1,1,10D471K,disc,MOV 470V,Mains surge clamp
+F1,1,16A slow-blow,5x20 holder,Mains fuse,
+SW1,1,Tactile 6mm,THT,Manual button / BOOT,
+LED0,1,Green 3mm,THT,Power/online,
+LED1,1,Blue 3mm,THT,Load status,
+J1,1,Plug pins + socket,-,India 6/16A in/out,Body-integrated
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+R1-R10,10,10k/1k/330 + divider,0805,Pull-ups/base/LED/meter,
+C1,1,1000uF/10V,electrolytic,5V bulk (relay inrush),
+C2,1,100uF/6.3V,electrolytic,3.3V rail,
+C3-C6,4,100nF,0805,Decoupling,
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm mains-LV creepage; 2oz Cu
+ENC,1,ABS plug body (UL94 V-0),-,Plug + socket,Pins + front socket + button

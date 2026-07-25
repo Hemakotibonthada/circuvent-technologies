@@ -1,12 +1,22 @@
 # Circuvent — Production Readiness Checklist
 
-Two products, taken from working prototype to **enterprise, retail‑ready** units
+A full 12-product smart-home line, taken from working prototype to **enterprise, retail‑ready** units
 sold on **circuvent.com**, **Amazon.in** and **Flipkart**:
 
 | Product | Firmware type id | Folder |
 | --- | --- | --- |
 | **Circuvent Home Automation Hub** (4‑channel) | `home-hub` | `firmware/home-hub`, `hardware/home-automation` |
 | **Circuvent AquaGuard — Water Tank Controller** | `aquaguard` | `firmware/aquaguard`, `hardware/water-tank-controller` |
+| **Circuvent Smart Plug 16A** (energy metering) | `smart-plug` | `firmware/smart-plug`, `hardware/smart-plug` |
+| **Circuvent Smart Switch** (2‑gang touch) | `smart-switch` | `firmware/smart-switch`, `hardware/smart-switch` |
+| **Circuvent Smart Light Controller** (RGBW) | `smart-light` | `firmware/smart-light`, `hardware/smart-light` |
+| **Circuvent Smart Fan Regulator** (BLDC) | `smart-fan` | `firmware/smart-fan`, `hardware/smart-fan` |
+| **Circuvent Smart Lock Controller** | `smart-lock` | `firmware/smart-lock`, `hardware/smart-lock` |
+| **Circuvent Smart Curtain & Blind Controller** | `curtain` | `firmware/curtain`, `hardware/curtain` |
+| **Circuvent Motion Sensor** (PIR) | `motion-sensor` | `firmware/motion-sensor`, `hardware/motion-sensor` |
+| **Circuvent Energy Monitor** (clamp CT) | `energy-monitor` | `firmware/energy-monitor`, `hardware/energy-monitor` |
+| **Circuvent Guardian** (GPS + GSM SOS) | `guardian` | `firmware/guardian`, `hardware/guardian` |
+| **Circuvent Agri Pump Starter** (GSM) | `agri-starter` | `firmware/agri-starter`, `hardware/agri-starter` |
 
 Legend: **[x]** done in this repo (code/design source) · **[~]** partial / needs review ·
 **[ ]** requires an external vendor, lab, physical process, or account (cannot be produced in code).
@@ -17,6 +27,7 @@ Legend: **[x]** done in this repo (code/design source) · **[~]** partial / need
 - [x] Product definitions, type ids and telemetry/command contracts (`firmware/README.md`)
 - [x] Single proprietary cloud protocol (`/api/devices/sync|claim|command`)
 - [x] This checklist + per‑device engineering folders
+- [x] Data-driven package generator (`hardware/gen-hardware.js`) regenerates the PCB / enclosure / listing sources for the 10 app-lineup devices
 - [ ] BOM costing → landed cost → MRP & margin sign‑off (finance)
 - [ ] Project plan / EVT → DVT → PVT gate reviews
 - [ ] Vendor selection: PCB fab, PCBA/EMS, enclosure tooling, box printer

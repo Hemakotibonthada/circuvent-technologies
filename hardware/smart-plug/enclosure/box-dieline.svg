@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="460" viewBox="0 0 720 460" font-family="Arial, sans-serif">
+  <style>
+    .cut{fill:none;stroke:#e11d48;stroke-width:1.2}
+    .fold{fill:none;stroke:#2563eb;stroke-width:1;stroke-dasharray:6 4}
+    .panel{fill:#f8fafc}.front{fill:#0b1020}.t{fill:#111827;font-size:11px}.w{fill:#ffffff}
+  </style>
+  <rect width="720" height="460" fill="#ffffff"/>
+  <text x="16" y="22" class="t" font-weight="bold">Smart Plug 16A (Energy Metering) retail carton - die-line (not to scale). Red = cut, blue dashed = fold.</text>
+  <g transform="translate(40,60)">
+    <path class="fold" d="M40,40 h480"/>
+    <path class="cut" d="M40,40 v-34 h120 v34 M160,40 q60,-46 120,0"/>
+    <path class="cut" d="M0,40 h40 v220 h-40 z"/>
+    <text class="t" x="6" y="150" transform="rotate(-90 8,150)">GLUE</text>
+    <path class="fold" d="M40,40 v220"/>
+    <rect class="panel" x="40" y="40" width="120" height="220"/>
+    <text class="t" x="60" y="140">BACK</text><text class="t" x="52" y="158" font-size="9">specs / QR / barcode</text>
+    <path class="fold" d="M160,40 v220"/>
+    <rect class="panel" x="160" y="40" width="120" height="220"/>
+    <text class="t" x="196" y="150">LEFT</text>
+    <path class="fold" d="M280,40 v220"/>
+    <rect class="front" x="280" y="40" width="120" height="220"/>
+    <circle cx="300" cy="66" r="9" fill="none" stroke="#06b6d4" stroke-width="2.5"/>
+    <text class="w" x="316" y="70" font-size="13" font-weight="bold">Circu<tspan fill="#06b6d4">vent</tspan></text>
+    <text class="w" x="292" y="146" font-size="15" font-weight="bold">Smart Plug 16A</text>
+    <text x="292" y="166" font-size="10" fill="#c4b5fd">Energy Metering</text>
+    <text x="292" y="180" font-size="10" fill="#c4b5fd">Wi-Fi . Works offline</text>
+    <text x="292" y="236" font-size="8" fill="#cbd5e1">Live W + kWh . Schedules . Button</text>
+    <path class="fold" d="M400,40 v220"/>
+    <rect class="panel" x="400" y="40" width="120" height="220"/>
+    <text class="t" x="436" y="150">RIGHT</text>
+    <path class="cut" d="M520,40 v220"/>
+    <path class="fold" d="M40,260 h480"/>
+    <path class="cut" d="M40,260 v40 h120 v-40 M280,260 v46 h120 v-46"/>
+    <path class="cut" d="M160,260 v34 h120 v-34"/>
+  </g>
+  <text x="40" y="360" class="t" font-size="9">Material: 300gsm + E-flute . CMYK + matte lamination . spot-UV logo. EAN-13 + statutory text on BACK.</text>
+</svg>

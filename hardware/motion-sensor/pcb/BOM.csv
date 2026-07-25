@@ -1,0 +1,15 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+M1,1,HC-SR501 PIR,module,PIR motion sensor,Dome + lens
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
+J1,1,USB-C 16P,SMD,5V power in,
+LED0,1,Green 3mm,THT,Power/online,
+LED1,1,Pink 3mm,THT,Motion / armed,
+R1-R6,6,10k/330,0805,Pull/LED resistors,
+C1-C2,2,100uF,electrolytic,5V + 3.3V,
+C3-C4,2,100nF,0805,Decoupling,
+BT1,1,TP4056 + DW01/8205 + 18650 holder,module,Charger + protect + cell,Battery variant only
+U3/Q1/K1/D1,1,PC817 + S8050 + SRD-05 + 1N4007,mixed,Optional light relay,Local-light variant only
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+PCB,1,2-layer FR4 1.6mm,-,Main board,PIR keep-out corner
+ENC,1,ABS dome/corner (UL94 V-0),-,Sensor housing,Fresnel lens window

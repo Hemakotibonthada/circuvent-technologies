@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-agri.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Agri GSM + Wi-Fi Pump Starter",
+    "description": "ESP32 + SIM800L farm-pump starter: contactor-coil relay + mains sense + dry-run guard. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-AGRI",
+    "REV": "A",
+    "CELL": "SIM800L",
+    "CONTROL": "contactor coil",
+    "DRYRUN": "mains-sense"
+  }
+}

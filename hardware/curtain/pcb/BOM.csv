@@ -1,0 +1,22 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+PS1,1,HLK-PM03 (5V 3W),SIP,230VAC -> 5VDC isolated PSU,2 relay coils + logic
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
+U3-U4,2,PC817,DIP-4,Opto-isolators,Open + close
+Q1-Q2,2,S8050,SOT-23,NPN relay drivers,
+D1-D2,2,1N4007,DO-41,Flyback diodes,Across each coil
+K1-K2,2,SRD-05VDC-SL-C,THT relay,5V SPDT 10A,Open / close (interlocked)
+RV1,1,7D471K,disc,MOV 470V,Mains surge clamp
+F1,1,3A slow-blow,5x20 holder,Mains fuse,
+SW1-SW3,3,Tactile 6mm,THT,Open / close / stop,
+LED0,1,Green 3mm,THT,Power/online,
+LED1-LED2,2,Teal 3mm,THT,Direction status,
+J1,1,2P 5.08mm,terminal,Mains L/N in,
+J2,1,3P 5.08mm,terminal,Open / close / common,Motor
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+R1-R10,10,10k/1k/330,0805,Pull/base/LED resistors,
+C1,1,470uF/10V,electrolytic,5V bulk,
+C2,1,100uF/6.3V,electrolytic,3.3V rail,
+C3-C6,4,100nF,0805,Decoupling,
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm mains-LV creepage; 2oz Cu
+ENC,1,ABS wall box (UL94 V-0),-,Controller box,3 buttons + brand area

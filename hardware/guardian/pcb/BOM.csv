@@ -1,0 +1,19 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+M1,1,SIM800L,module,2G GSM (SMS + voice),From BAT + bulk
+M2,1,NEO-6M / L80,module,GPS receiver,Active antenna
+U3,1,TP4056 + DW01/8205,module,Li-ion charge + protection,USB-C
+BT1,1,18650 Li-ion + holder,cell,Battery,Protected
+FB1,1,Magnetic buzzer 5V,THT,Confirmation buzzer,
+SW1,1,Tactile 6mm (guarded),THT,SOS button,Also BOOT
+J1,1,USB-C 16P,SMD,Charge in,
+ANT1,1,GSM antenna (SMA/IPEX),-,Cellular antenna,
+ANT2,1,GPS active antenna,-,GPS antenna,
+SIM1,1,Micro-SIM holder,THT,SIM card cage,
+C1,1,1000uF/6.3V,electrolytic,SIM800L bulk,2 A bursts
+LED0-LED1,2,3mm,THT,Power + status,
+R1-R8,8,100k/10k/330,0805,Divider/pull/LED,
+C2-C5,4,100nF/100uF,0805/elec,Decoupling + rails,
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+PCB,1,2-layer FR4 1.6mm,-,Main board,Antenna keep-outs
+ENC,1,ABS pendant (IP54),-,Handheld housing,Lanyard loop + SOS cap

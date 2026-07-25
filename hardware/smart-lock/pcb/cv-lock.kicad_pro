@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-lock.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Smart Lock Controller",
+    "description": "ESP32 12V electric-lock controller: relay + flyback + door reed. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-LOCK",
+    "REV": "A",
+    "VIN": "12V",
+    "OUTPUT": "strike/solenoid/motor",
+    "DOOR_SENSE": "reed"
+  }
+}

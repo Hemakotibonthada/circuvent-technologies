@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-sw2.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Smart Switch (2-Gang Touch)",
+    "description": "2-gang ESP32 mains switch module with capacitive touch + Alexa/Google. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-SW2",
+    "REV": "A",
+    "GANGS": "2",
+    "VOICE": "Alexa+Google",
+    "MAINS_CREEPAGE_MM": "8"
+  }
+}

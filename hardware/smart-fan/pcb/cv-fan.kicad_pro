@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-fan.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Smart Fan Regulator",
+    "description": "ESP32 BLDC/DC fan regulator: relay + 25kHz PWM to 0-10V speed. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-FAN",
+    "REV": "A",
+    "SPEEDS": "6",
+    "SPEED_SIGNAL": "0-10V/PWM",
+    "MAINS_CREEPAGE_MM": "8"
+  }
+}

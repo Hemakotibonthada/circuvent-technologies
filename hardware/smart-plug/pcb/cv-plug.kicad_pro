@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-plug.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Smart Plug 16A (Energy Metering)",
+    "description": "Single-channel 16A ESP32 mains plug with BL0937 energy metering. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-PLUG",
+    "REV": "A",
+    "LOAD": "16A",
+    "METER": "BL0937",
+    "MAINS_CREEPAGE_MM": "8"
+  }
+}

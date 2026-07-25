@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-sos.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Guardian GPS + GSM SOS Beacon",
+    "description": "ESP32 personal SOS beacon: SIM800L (2G) + GPS + Li-ion. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-SOS",
+    "REV": "A",
+    "CELL": "SIM800L",
+    "GPS": "NEO-6M/L80",
+    "BATT": "18650"
+  }
+}

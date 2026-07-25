@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" font-family="Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ede9fe"/><stop offset="1" stop-color="#e0f2fe"/></linearGradient>
+    <linearGradient id="case" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e2e8f0"/></linearGradient>
+    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#34d399"/></linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#bg)"/>
+  <g><rect x="150" y="110" width="300" height="380" rx="24" fill="url(#case)" stroke="#94a3b8" stroke-width="2"/><rect x="150" y="110" width="300" height="60" rx="24" fill="#0b1020"/><rect x="150" y="146" width="300" height="24" fill="#0b1020"/><circle cx="188" cy="142" r="11" fill="none" stroke="#10b981" stroke-width="3"/><text x="208" y="149" fill="#ffffff" font-size="19" font-weight="bold">Circu<tspan fill="#10b981">vent</tspan></text></g><rect x="210" y="230" width="180" height="150" rx="14" fill="#0b1020"/><circle cx="270" cy="300" r="34" fill="url(#acc)"/><path d="M270 300 l24 -14 v28 z" fill="#0b1020"/><rect x="318" y="278" width="52" height="44" rx="6" fill="#1e293b"/><text x="344" y="305" text-anchor="middle" fill="#10b981" font-size="12" font-weight="bold">3PH</text><line x1="360" y1="230" x2="360" y2="196" stroke="#334155" stroke-width="6"/><circle cx="360" cy="192" r="6" fill="#10b981"/><text x="300" y="418" text-anchor="middle" fill="#475569" font-size="12">Missed-call / SMS + app . Dry-run guard</text>
+  <text x="300" y="540" text-anchor="middle" fill="#0f172a" font-size="22" font-weight="bold">Agri Starter</text>
+  <text x="300" y="562" text-anchor="middle" fill="#94a3b8" font-size="11">Render mockup - replace with studio photography before listing.</text>
+</svg>

@@ -1,0 +1,24 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {}
+    }
+  },
+  "meta": {
+    "filename": "cv-curt.kicad_pro",
+    "version": 1
+  },
+  "project": {
+    "name": "Circuvent Smart Curtain & Blind Controller",
+    "description": "ESP32 curtain/blind motor controller: 2 interlocked relays. Capture schematic from SCHEMATIC.md.",
+    "board_revision": "A"
+  },
+  "sheets": [],
+  "text_variables": {
+    "MODEL": "CV-CURT",
+    "REV": "A",
+    "MOTOR": "AC tubular",
+    "INTERLOCK": "yes",
+    "MAINS_CREEPAGE_MM": "8"
+  }
+}
