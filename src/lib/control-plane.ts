@@ -164,6 +164,12 @@ export interface AdminEvent {
   ts: string;
   owner_email: string | null;
 }
+export interface AdminHealth {
+  mqtt: boolean;
+  db: boolean;
+  uptimeSec: number;
+  node: string;
+}
 
 interface AuthResp {
   token: string;
@@ -316,6 +322,23 @@ export const controlPlane = {
   adminDeleteDevice: (id: string) =>
     req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id), { method: "DELETE" }),
   adminEvents: (limit = 100) => req<{ events: AdminEvent[] }>("/admin/events?limit=" + limit),
+  adminHealth: () => req<AdminHealth>("/admin/health"),
+  adminDevice: (id: string) => req<{ device: AdminDevice }>("/admin/devices/" + encodeURIComponent(id)),
+  adminDeviceTelemetry: (id: string, limit = 100) =>
+    req<{ telemetry: { ts: string; payload: Record<string, unknown> }[] }>(
+      "/admin/devices/" + encodeURIComponent(id) + "/telemetry?limit=" + limit
+    ),
+  adminPatchDevice: (id: string, body: { name?: string; room?: string; owner_id?: number | null }) =>
+    req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(body) }),
+  adminProvision: (body: { type: string; name?: string; owner_id?: number }) =>
+    req<{ id: string; key: string; mqttUsername: string; mqttPassword: string; error?: string }>("/admin/devices/provision", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  adminBroadcast: (body: { type?: string; online?: boolean; command: Record<string, unknown> }) =>
+    req<{ success: boolean; sent: number }>("/admin/broadcast", { method: "POST", body: JSON.stringify(body) }),
+  adminOtaBroadcast: (body: { type?: string; url: string; version?: string }) =>
+    req<{ success: boolean; sent: number }>("/admin/ota-broadcast", { method: "POST", body: JSON.stringify(body) }),
 };
 
 export type { AuthResp };
