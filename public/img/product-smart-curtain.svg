@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent Smart Curtain">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="45%" r="45%">
+      <stop offset="0" stop-color="#fde68a"/><stop offset="0.5" stop-color="#f59e0b" stop-opacity="0.7"/><stop offset="1" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="curtain" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.1" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <!-- window opening with sky + sun -->
+  <rect x="230" y="150" width="340" height="460" rx="14" fill="#0b1a3a"/>
+  <circle cx="400" cy="330" r="150" fill="url(#sun)"/>
+  <circle cx="400" cy="330" r="60" fill="#fde68a"/>
+  <!-- window frame -->
+  <rect x="212" y="132" width="376" height="496" rx="18" fill="none" stroke="#334155" stroke-width="20"/>
+  <line x1="400" y1="150" x2="400" y2="610" stroke="#334155" stroke-width="10"/>
+  <line x1="230" y1="380" x2="570" y2="380" stroke="#334155" stroke-width="10"/>
+  <!-- curtain rod -->
+  <rect x="170" y="120" width="460" height="20" rx="10" fill="#64748b"/>
+  <circle cx="176" cy="130" r="16" fill="#94a3b8"/><circle cx="624" cy="130" r="16" fill="#94a3b8"/>
+  <!-- left curtain panel (wavy) -->
+  <path d="M180 140 Q205 200 180 260 Q205 320 180 380 Q205 440 180 500 Q205 560 180 620 L300 620 Q275 560 300 500 Q275 440 300 380 Q275 320 300 260 Q275 200 300 140 Z" fill="url(#curtain)" opacity="0.95"/>
+  <!-- right curtain panel -->
+  <path d="M620 140 Q595 200 620 260 Q595 320 620 380 Q595 440 620 500 Q595 560 620 620 L500 620 Q525 560 500 500 Q525 440 500 380 Q525 320 500 260 Q525 200 500 140 Z" fill="url(#curtain)" opacity="0.95"/>
+  <g stroke="#c4b5fd" stroke-width="4" opacity="0.4">
+    <path d="M215 150 V620 M250 150 V620 M540 150 V620 M575 150 V620" fill="none"/>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#a78bfa" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">Smart Curtain</text>
+</svg>

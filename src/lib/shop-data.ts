@@ -230,6 +230,7 @@ export const products: Product[] = [
     price: 899,
     compareAt: 1299,
     category: "Home Automation",
+    image: "/img/product-smart-light.svg",
     accent: "#f59e0b",
     icon: "💡",
     specs: [
@@ -255,6 +256,7 @@ export const products: Product[] = [
     price: 1099,
     compareAt: 1499,
     category: "Home Automation",
+    image: "/img/product-smart-fan.svg",
     accent: "#22d3ee",
     icon: "🌀",
     specs: [
@@ -279,6 +281,7 @@ export const products: Product[] = [
     price: 4999,
     compareAt: 6499,
     category: "Safety",
+    image: "/img/product-smart-lock.svg",
     accent: "#ef4444",
     icon: "🔒",
     specs: [
@@ -304,6 +307,7 @@ export const products: Product[] = [
     price: 3499,
     compareAt: 4499,
     category: "Home Automation",
+    image: "/img/product-smart-curtain.svg",
     accent: "#8b5cf6",
     icon: "🪟",
     specs: [

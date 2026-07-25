@@ -9,6 +9,8 @@ import Image from "next/image";
 const footerLinks = {
   shop: [
     { label: "Shop", href: "/shop" },
+    { label: "Smart Home", href: "/smart-home" },
+    { label: "Get the App", href: "/app" },
     { label: "Track Order", href: "/track" },
     { label: "Services", href: "/services" },
   ],
