@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { config, topics, deviceIdFromTopic } from "./config";
 import { pool, recordEvent } from "./db";
 import { logger } from "./logger";
-import { onStateChange } from "./automations";
+import { onStateChange, onEvent } from "./automations";
 import { sendPushToUser } from "./push";
 
 /** In-process bus: MQTT messages -> WebSocket fan-out to app clients. */
@@ -170,6 +170,13 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
         [deviceId, payload as object]
       );
       await pool.query(`UPDATE devices SET online = true, last_seen = now() WHERE id = $1`, [deviceId]);
+      // Discrete events (facedoor access, gate rfid, doorbell) can drive
+      // event-triggered automations (welcome-home greeting + lights + AC).
+      const evt = payload as Record<string, unknown>;
+      if (evt && typeof evt === "object" && typeof evt.type === "string") {
+        const owner = await pool.query<{ owner_id: number | null }>(`SELECT owner_id FROM devices WHERE id = $1`, [deviceId]);
+        if (owner.rows[0]?.owner_id != null) await onEvent(deviceId, evt);
+      }
     } else if (kind === "status") {
       const online = (payload as { online?: boolean })?.online ?? raw.includes("online");
       const prev = await pool.query<{ owner_id: number | null; name: string | null; online: boolean | null }>(

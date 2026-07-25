@@ -6,25 +6,29 @@ import { requireAuth, type AuthedRequest } from "../auth";
 export const automationRouter = Router();
 
 const triggerSchema = z.object({
-  type: z.enum(["state", "time"]),
+  type: z.enum(["state", "time", "event"]),
   deviceId: z.string().optional(),
   field: z.string().optional(),
   op: z.enum(["<", "<=", ">", ">=", "==", "!=", "truthy", "falsy"]).optional(),
   value: z.union([z.number(), z.string(), z.boolean()]).optional(),
   at: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  eventType: z.string().max(40).optional(),
+  match: z.record(z.string(), z.unknown()).optional(),
 });
 const actionSchema = z.object({
-  type: z.enum(["command", "notify"]),
+  type: z.enum(["command", "notify", "tts"]),
   deviceId: z.string().optional(),
   command: z.record(z.string(), z.unknown()).optional(),
   title: z.string().max(120).optional(),
   body: z.string().max(300).optional(),
+  text: z.string().max(300).optional(),
+  delayMs: z.number().int().min(0).max(30000).optional(),
 });
 const createSchema = z.object({
   name: z.string().min(1).max(120),
   enabled: z.boolean().optional(),
   trigger: triggerSchema,
-  action: actionSchema,
+  action: z.union([actionSchema, z.array(actionSchema).max(12)]),
 });
 
 automationRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
