@@ -140,6 +140,8 @@ export function capabilities(type: string): Capability {
       return { power: { field: "power", label: "Power" }, fan: { field: "speed", label: "Speed", steps: 3 } };
     case "curtain":
       return { dimmer: { field: "position", label: "Position", min: 0, max: 100 }, metric: (d) => `${Number(d.state.position ?? 0)}%` };
+    case "smart-lock":
+      return { power: { field: "locked", label: "Lock" }, metric: (d) => (d.state.locked ? "Locked" : "Unlocked") };
     case "thermostat":
     case "ac":
       return { power: { field: "power", label: "Power" }, thermostat: { field: "target", label: "Target", min: 16, max: 30 } };

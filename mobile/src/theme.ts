@@ -54,6 +54,7 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   "smart-light": { glyph: "💡", accent: C.amber, grad: GRAD.amber, label: "Smart Light", toggle: { field: "power", label: "Light" } },
   "smart-fan": { glyph: "🌀", accent: C.cyan, grad: GRAD.cyan, label: "Smart Fan", toggle: { field: "power", label: "Fan" } },
   curtain: { glyph: "🪟", accent: C.violet, grad: GRAD.violet, label: "Curtain" },
+  "smart-lock": { glyph: "🔒", accent: C.amber, grad: GRAD.amber, label: "Smart Lock", toggle: { field: "locked", label: "Lock" } },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

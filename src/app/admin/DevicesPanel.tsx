@@ -14,11 +14,12 @@ type Phase = "loading" | "login" | "denied" | "ready";
 type Sub = "devices" | "users" | "activity";
 type SortCol = "name" | "type" | "owner" | "online" | "last";
 
-const ALL_TYPES = ["smart-plug", "smart-switch", "smart-light", "smart-fan", "curtain", "home-hub", "aquaguard", "agri-starter", "energy-monitor", "guardian", "motion-sensor"];
+const ALL_TYPES = ["smart-plug", "smart-switch", "smart-light", "smart-fan", "smart-lock", "curtain", "home-hub", "aquaguard", "agri-starter", "energy-monitor", "guardian", "motion-sensor"];
 const PER_PAGE = 12;
 
 function primaryField(type: string): string {
   if (["aquaguard", "agri-starter"].includes(type)) return "pump";
+  if (type === "smart-lock") return "locked";
   return "power";
 }
 function timeAgo(ts: string | null): string {

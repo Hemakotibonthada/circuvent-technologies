@@ -30,6 +30,7 @@ const TYPE_IDS = [
   "smart-light",
   "smart-fan",
   "curtain",
+  "smart-lock",
 ];
 
 function clean(v: unknown): string | undefined {

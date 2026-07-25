@@ -58,7 +58,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
         {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
         <GenericControls d={d} send={send} c={c} />
 
-        {!KNOWN.includes(d.type) && !cap.dimmer && !cap.fan && !cap.thermostat && (
+        {!KNOWN.includes(d.type) && !cap.power && !cap.dimmer && !cap.fan && !cap.thermostat && (
           <Card padded>
             <Text style={{ color: c.textDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Raw state</Text>
             <Text style={{ color: c.faint, fontFamily: "monospace", fontSize: 12 }}>{JSON.stringify(d.state, null, 2)}</Text>
@@ -100,9 +100,18 @@ function Sw({ v, on, c }: { v: boolean; on: (b: boolean) => void; c: Palette }) 
 
 function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const cap = capabilities(d.type);
-  if (!cap.dimmer && !cap.fan && !cap.color && !cap.thermostat) return null;
+  const showPower = !!cap.power && !KNOWN.includes(d.type);
+  if (!showPower && !cap.dimmer && !cap.fan && !cap.color && !cap.thermostat) return null;
   return (
     <View>
+      {showPower && cap.power && (
+        <Card padded style={{ marginBottom: 10 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ color: c.text, fontSize: 16 }}>{cap.power.label}</Text>
+            <Sw v={!!d.state[cap.power.field]} on={(v) => send({ [cap.power!.field]: v })} c={c} />
+          </View>
+        </Card>
+      )}
       {cap.dimmer && (
         <Card padded style={{ marginBottom: 10 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>

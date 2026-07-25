@@ -41,6 +41,7 @@ const TYPES = [
   { id: "smart-light", label: "Smart Light", emoji: "💡" },
   { id: "smart-fan", label: "Smart Fan", emoji: "🌀" },
   { id: "curtain", label: "Curtain", emoji: "🪟" },
+  { id: "smart-lock", label: "Smart Lock", emoji: "🔒" },
 ];
 
 type Step = "mode" | "qr" | "details" | "prep" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
