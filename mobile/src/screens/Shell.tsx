@@ -11,8 +11,9 @@ import Settings from "./Settings";
 import Control from "./Control";
 import Notifications from "./Notifications";
 import AddDevice from "./AddDevice";
+import More from "./More";
 
-type Tab = "home" | "devices" | "automate" | "energy" | "settings";
+type Tab = "home" | "devices" | "automate" | "energy" | "settings" | "more";
 type Seg = "scenes" | "rooms" | "automations";
 type Overlay = { kind: "control"; device: Device } | { kind: "add" } | { kind: "notifications" } | null;
 
@@ -22,6 +23,7 @@ const TABS: { key: Tab; label: string; glyph: string }[] = [
   { key: "automate", label: "Automate", glyph: "✨" },
   { key: "energy", label: "Energy", glyph: "⚡" },
   { key: "settings", label: "Settings", glyph: "⚙️" },
+  { key: "more", label: "More", glyph: "🧩" },
 ];
 
 export default function Shell() {
@@ -55,6 +57,16 @@ export default function Shell() {
         {tab === "automate" && <Automate key={seg} initial={seg} />}
         {tab === "energy" && <Energy />}
         {tab === "settings" && <Settings />}
+        {tab === "more" && (
+          <More
+            onOpenDevice={openControl}
+            onOpenAutomate={openAutomate}
+            onAddDevice={() => setOverlay({ kind: "add" })}
+            onOpenSettings={() => setTab("settings")}
+            onOpenEnergy={() => setTab("energy")}
+            onOpenDevices={() => setTab("devices")}
+          />
+        )}
       </View>
 
       <View style={[s.bar, { backgroundColor: c.surface, borderTopColor: c.border }]}>
