@@ -145,6 +145,17 @@ const SCHEMA_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS email_history_type_idx ON email_history (type)`,
   `CREATE INDEX IF NOT EXISTS email_history_to_idx ON email_history ("to")`,
   `CREATE INDEX IF NOT EXISTS email_history_status_idx ON email_history (status)`,
+  `CREATE TABLE IF NOT EXISTS request_metrics (
+     id BIGSERIAL PRIMARY KEY,
+     ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+     endpoint TEXT NOT NULL,
+     method TEXT,
+     status INTEGER,
+     ms REAL NOT NULL,
+     region TEXT
+   )`,
+  `CREATE INDEX IF NOT EXISTS request_metrics_ts_idx ON request_metrics (ts DESC)`,
+  `CREATE INDEX IF NOT EXISTS request_metrics_endpoint_idx ON request_metrics (endpoint)`,
 ];
 
 let _initPromise: Promise<void> | null = null;
@@ -262,6 +273,44 @@ export async function dbCountEmailHistory(opts: EmailQuery = {}): Promise<{ tota
   );
   const r = (rows[0] || {}) as { total?: number; sent?: number; failed?: number };
   return { total: Number(r.total ?? 0), sent: Number(r.sent ?? 0), failed: Number(r.failed ?? 0) };
+}
+
+// ------------------------------------------------------------- request metrics
+export interface LatencySample { ts: string; endpoint: string; method: string | null; status: number | null; ms: number }
+
+/** Lightweight DB round-trip check used as a live latency probe. */
+export async function pingDb(): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q("SELECT 1");
+}
+
+/** Batch-appends request latency samples (best-effort caller). */
+export async function dbRecordLatency(samples: { endpoint: string; method?: string; status?: number; ms: number; region?: string }[]): Promise<void> {
+  if (!samples.length) return;
+  await initDb();
+  const q = await getQuery();
+  const values: string[] = [];
+  const params: unknown[] = [];
+  samples.forEach((s, i) => {
+    const b = i * 5;
+    values.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5})`);
+    params.push(s.endpoint, s.method ?? null, s.status ?? null, s.ms, s.region ?? null);
+  });
+  await q(`INSERT INTO request_metrics (endpoint, method, status, ms, region) VALUES ${values.join(",")}`, params);
+}
+
+/** Raw latency samples within the last `hours` (newest first, capped). */
+export async function dbLatencySamples(hours: number, limit = 5000): Promise<LatencySample[]> {
+  await initDb();
+  const q = await getQuery();
+  const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const lim = Math.min(20000, Math.max(1, limit));
+  const rows = await q(
+    `SELECT ts, endpoint, method, status, ms FROM request_metrics WHERE ts > $1 ORDER BY ts DESC LIMIT ${lim}`,
+    [cutoff]
+  );
+  return rows as unknown as LatencySample[];
 }
 
 function recordFromRows(rows: Record<string, unknown>[]): Record<string, unknown> {

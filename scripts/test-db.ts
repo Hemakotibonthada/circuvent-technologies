@@ -95,6 +95,19 @@ async function main() {
   const orderEmail = emails.find((e) => e.type === "order");
   assert(!!orderEmail && orderEmail.body_html === "<p>hi</p>", "email body_html evidence preserved");
 
+  // ---- request latency metrics (request_metrics) ---------------------------
+  console.log("latency metrics…");
+  await db.pingDb();
+  await db.dbRecordLatency([
+    { endpoint: "/api/devices", method: "GET", status: 200, ms: 42 },
+    { endpoint: "/api/weather", method: "GET", status: 200, ms: 180 },
+    { endpoint: "/api/orders", method: "POST", status: 500, ms: 610 },
+  ]);
+  const lat = await db.dbLatencySamples(24);
+  assert(lat.length === 3, "3 latency samples recorded to request_metrics");
+  assert(lat.some((r) => r.endpoint === "/api/orders" && r.status === 500), "latency error status preserved");
+  assert(lat.every((r) => typeof r.ms === "number"), "latency ms column is numeric");
+
   console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILURE(S)`);
   process.exit(failures === 0 ? 0 : 1);
 }

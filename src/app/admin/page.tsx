@@ -44,9 +44,10 @@ import AuditLogPanel from "./AuditLogPanel";
 import MessagesPanel from "./MessagesPanel";
 import AdminAlerts from "./AdminAlerts";
 import Admin2fa from "./Admin2fa";
-import { FileBarChart, Inbox, Cpu, Mail } from "lucide-react";
+import { FileBarChart, Inbox, Cpu, Mail, Gauge } from "lucide-react";
 import DevicesPanel from "./DevicesPanel";
 import EmailsPanel from "./EmailsPanel";
+import LatencyPanel from "./LatencyPanel";
 
 interface PageStats {
   page: string;
@@ -116,8 +117,8 @@ function getPageName(path: string): string {
 
 // Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
 const ROLE_AREAS: Record<string, string[]> = {
-  superadmin: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "emails"],
-  manager: ["overview", "analytics", "monitoring", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices"],
+  superadmin: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "emails"],
+  manager: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices"],
   inventory: ["inventory"],
   orders: ["orders", "returns", "customers"],
   support: ["support", "messages", "returns", "customers"],
@@ -146,7 +147,7 @@ export default function AdminDashboard() {
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [tab, setTab] = useState<
-    "overview" | "analytics" | "monitoring" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff" | "devices" | "emails"
+    "overview" | "analytics" | "monitoring" | "latency" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff" | "devices" | "emails"
   >("overview");
 
   const canSee = useCallback(
@@ -494,6 +495,7 @@ export default function AdminDashboard() {
             { id: "analytics", label: "Analytics", icon: <TrendingUp className="w-4 h-4" /> },
             { id: "reports", label: "Reports", icon: <FileBarChart className="w-4 h-4" /> },
             { id: "monitoring", label: "Monitoring", icon: <Activity className="w-4 h-4" /> },
+            { id: "latency", label: "Latency", icon: <Gauge className="w-4 h-4" /> },
             { id: "orders", label: "Orders", icon: <ShoppingBag className="w-4 h-4" /> },
             { id: "inventory", label: "Inventory", icon: <Boxes className="w-4 h-4" /> },
             { id: "customers", label: "Customers", icon: <Users2 className="w-4 h-4" /> },
@@ -521,6 +523,7 @@ export default function AdminDashboard() {
         {tab === "orders" && <OrdersPanel />}
         {tab === "analytics" && <AnalyticsPanel />}
         {tab === "emails" && <EmailsPanel />}
+        {tab === "latency" && <LatencyPanel />}
         {tab === "monitoring" && (
           <>
             <MonitoringPanel />
