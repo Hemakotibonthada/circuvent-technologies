@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, Switch } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { api, Scene, Room, EnergySummary, AppEvent, Device } from "../api";
 import { useAuth } from "../auth";
-import { useDevices } from "../store";
+import { useDevices, capabilities } from "../store";
 import { Screen, Card, SectionLabel, useTheme } from "../ui";
 import { GRAD, deviceMeta, greeting } from "../theme";
+import { getSavedLocation, getWeather, getWeatherByQuery, wmo, type WeatherBundle } from "../weather";
 
 export default function Home({
   onOpenDevice,
@@ -14,6 +15,8 @@ export default function Home({
   onOpenAutomate,
   onOpenEnergy,
   onAddDevice,
+  onOpenSearch,
+  onOpenWeather,
 }: {
   onOpenDevice: (d: Device) => void;
   onOpenNotifications: () => void;
@@ -21,6 +24,8 @@ export default function Home({
   onOpenAutomate: (tab?: "scenes" | "rooms" | "automations") => void;
   onOpenEnergy: () => void;
   onAddDevice: () => void;
+  onOpenSearch: () => void;
+  onOpenWeather: () => void;
 }) {
   const { c } = useTheme();
   const { account } = useAuth();
@@ -62,7 +67,10 @@ export default function Home({
             <Text style={{ color: c.textDim, fontSize: 14 }}>{greeting()}{firstName ? `, ${firstName}` : ""}</Text>
             <Text style={{ color: c.text, fontSize: 26, fontWeight: "800", marginTop: 2 }}>Home</Text>
           </View>
-          <Pressable onPress={onOpenNotifications} hitSlop={8} style={[s.iconBtn, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Pressable onPress={onOpenSearch} hitSlop={8} style={[s.iconBtn, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Text style={{ fontSize: 17 }}>🔍</Text>
+          </Pressable>
+          <Pressable onPress={onOpenNotifications} hitSlop={8} style={[s.iconBtn, { backgroundColor: c.card, borderColor: c.border, marginLeft: 8 }]}>
             <Text style={{ fontSize: 17 }}>🔔</Text>
             {unread > 0 && <View style={[s.badge, { backgroundColor: c.red }]}><Text style={s.badgeT}>{unread > 9 ? "9+" : unread}</Text></View>}
           </Pressable>
@@ -94,6 +102,9 @@ export default function Home({
           <QuickAction glyph="＋" label="Add" onPress={onAddDevice} />
         </View>
 
+        {/* weather */}
+        <WeatherStrip onPress={onOpenWeather} />
+
         {/* scene shortcuts */}
         {favScenes.length > 0 && (
           <>
@@ -119,15 +130,23 @@ export default function Home({
             <View style={s.grid}>
               {favorites.map((d) => {
                 const meta = deviceMeta(d.type);
+                const pf = capabilities(d.type).power?.field;
+                const on = pf ? !!d.state[pf] : false;
                 return (
                   <Pressable key={d.id} style={{ width: "48%" }} onPress={() => onOpenDevice(d)}>
                     <Card padded>
-                      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}><Text style={{ fontSize: 20 }}>{meta.glyph}</Text></LinearGradient>
-                        <View style={[s.dot, { backgroundColor: d.online ? c.green : c.faint }]} />
+                        {pf ? (
+                          <View onStartShouldSetResponder={() => true}>
+                            <Switch value={on} onValueChange={(v) => toggle(d.id, pf, v)} trackColor={{ true: c.accent, false: c.border }} thumbColor="#fff" />
+                          </View>
+                        ) : (
+                          <View style={[s.dot, { backgroundColor: d.online ? c.green : c.faint }]} />
+                        )}
                       </View>
                       <Text style={{ color: c.text, fontWeight: "700", marginTop: 10 }} numberOfLines={1}>{d.name || d.id}</Text>
-                      <Text style={{ color: c.faint, fontSize: 12 }}>{meta.label}</Text>
+                      <Text style={{ color: c.faint, fontSize: 12 }}>{meta.label}{pf ? (on ? " · On" : " · Off") : ""}</Text>
                     </Card>
                   </Pressable>
                 );
@@ -184,6 +203,36 @@ function QuickAction({ glyph, label, onPress }: { glyph: string; label: string; 
       <Card padded style={{ alignItems: "center" }}>
         <Text style={{ fontSize: 22 }}>{glyph}</Text>
         <Text style={{ color: c.textDim, fontSize: 12, fontWeight: "600", marginTop: 6 }}>{label}</Text>
+      </Card>
+    </Pressable>
+  );
+}
+
+function WeatherStrip({ onPress }: { onPress: () => void }) {
+  const { c } = useTheme();
+  const [b, setB] = useState<WeatherBundle | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const s = await getSavedLocation();
+        const bundle = s ? await getWeather(s.lat, s.lon, s.name) : await getWeatherByQuery("Bengaluru");
+        if (alive) setB(bundle);
+      } catch { /* ignore */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+  if (!b) return null;
+  const w = wmo(b.current.weatherCode);
+  return (
+    <Pressable onPress={onPress} style={{ marginBottom: 20 }}>
+      <Card padded style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Text style={{ fontSize: 30 }}>{w.icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: c.text, fontWeight: "800", fontSize: 16 }}>{Math.round(b.current.temperature)}° · {w.label}</Text>
+          <Text style={{ color: c.faint, fontSize: 12 }} numberOfLines={1}>{b.place.name} · feels {Math.round(b.current.apparent)}° · H {Math.round(b.daily[0]?.tMax ?? 0)}° L {Math.round(b.daily[0]?.tMin ?? 0)}°</Text>
+        </View>
+        <Text style={{ color: c.faint, fontSize: 18 }}>›</Text>
       </Card>
     </Pressable>
   );

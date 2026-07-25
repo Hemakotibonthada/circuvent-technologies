@@ -12,10 +12,12 @@ import Control from "./Control";
 import Notifications from "./Notifications";
 import AddDevice from "./AddDevice";
 import More from "./More";
+import CommandPalette from "./CommandPalette";
+import Weather from "./Weather";
 
 type Tab = "home" | "devices" | "automate" | "energy" | "settings" | "more";
 type Seg = "scenes" | "rooms" | "automations";
-type Overlay = { kind: "control"; device: Device } | { kind: "add" } | { kind: "notifications" } | null;
+type Overlay = { kind: "control"; device: Device } | { kind: "add" } | { kind: "notifications" } | { kind: "search" } | { kind: "weather" } | null;
 
 const TABS: { key: Tab; label: string; glyph: string }[] = [
   { key: "home", label: "Home", glyph: "🏠" },
@@ -36,6 +38,19 @@ export default function Shell() {
   if (overlay?.kind === "control") return <Control device={overlay.device} onBack={() => setOverlay(null)} />;
   if (overlay?.kind === "add") return <AddDevice onClose={(added) => { setOverlay(null); if (added) refresh(); }} />;
   if (overlay?.kind === "notifications") return <Notifications onBack={() => setOverlay(null)} />;
+  if (overlay?.kind === "weather") return <Weather onBack={() => setOverlay(null)} />;
+  if (overlay?.kind === "search")
+    return (
+      <CommandPalette
+        onClose={() => setOverlay(null)}
+        onOpenDevice={(d) => setOverlay({ kind: "control", device: d })}
+        onOpenAutomate={(sg) => { setOverlay(null); openAutomate(sg); }}
+        onOpenEnergy={() => { setOverlay(null); setTab("energy"); }}
+        onOpenDevices={() => { setOverlay(null); setTab("devices"); }}
+        onOpenSettings={() => { setOverlay(null); setTab("settings"); }}
+        onAddDevice={() => setOverlay({ kind: "add" })}
+      />
+    );
 
   const openControl = (d: Device) => setOverlay({ kind: "control", device: d });
   const openAutomate = (s?: Seg) => { setSeg(s ?? "scenes"); setTab("automate"); };
@@ -51,6 +66,8 @@ export default function Shell() {
             onOpenAutomate={openAutomate}
             onOpenEnergy={() => setTab("energy")}
             onAddDevice={() => setOverlay({ kind: "add" })}
+            onOpenSearch={() => setOverlay({ kind: "search" })}
+            onOpenWeather={() => setOverlay({ kind: "weather" })}
           />
         )}
         {tab === "devices" && <Devices onOpen={openControl} onAdd={() => setOverlay({ kind: "add" })} />}

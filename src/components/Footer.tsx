@@ -10,6 +10,7 @@ const footerLinks = {
   shop: [
     { label: "Shop", href: "/shop" },
     { label: "Smart Home", href: "/smart-home" },
+    { label: "Weather", href: "/weather" },
     { label: "Get the App", href: "/app" },
     { label: "Track Order", href: "/track" },
     { label: "Services", href: "/services" },
