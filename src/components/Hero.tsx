@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMousePosition, useReducedMotion } from "@/hooks/useMousePosition";
 import { stats } from "@/lib/projects-data";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Github } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import ScrollReveal from "./ScrollReveal";
 import HeroSystemsGraph from "./HeroSystemsGraph";
 
@@ -54,7 +54,7 @@ export default function Hero() {
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-sm font-medium" style={{ color: "var(--text-tertiary)" }}>
-                  Engineering the Future
+                  Smart home · engineered in India
                 </span>
               </motion.div>
             </ScrollReveal>
@@ -95,18 +95,32 @@ export default function Hero() {
             {/* CTAs */}
             <ScrollReveal delay={0.3}>
               <div className="flex flex-wrap gap-4">
-                <Link href="/projects">
+                <Link href="/shop">
                   <Button size="lg" className="group">
-                    Explore Projects
+                    Shop devices
                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </Button>
                 </Link>
-                <Link href="/about">
+                <Link href="/smart-home">
                   <Button variant="outline" size="lg">
-                    <Github className="w-4 h-4" />
-                    Our Story
+                    Explore the app
                   </Button>
                 </Link>
+              </div>
+            </ScrollReveal>
+
+            {/* Trust chips */}
+            <ScrollReveal delay={0.35}>
+              <div className="flex flex-wrap gap-2">
+                {["Works with Alexa & Google", "iOS & Android", "Made in India", "Real-time control"].map((t) => (
+                  <span
+                    key={t}
+                    className="text-xs font-medium px-3 py-1.5 rounded-full"
+                    style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", color: "var(--text-tertiary)" }}
+                  >
+                    {t}
+                  </span>
+                ))}
               </div>
             </ScrollReveal>
 

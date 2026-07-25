@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, Minus, Plus, ShoppingCart, Zap, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, Check, Minus, Plus, ShoppingCart, Zap, ShieldCheck, Star, Truck, RotateCcw } from "lucide-react";
 import { type Product, formatINR } from "@/lib/shop-data";
 import { useCart } from "./CartProvider";
 import ProductMedia from "./ProductMedia";
@@ -174,9 +174,24 @@ export default function ProductDetailClient({
             </p>
           )}
 
-          <p className="mt-6 flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-            <ShieldCheck className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> 6-month warranty · Cash on
-            delivery · Ships across India
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            {[
+              { icon: ShieldCheck, label: "6-month warranty" },
+              { icon: Truck, label: "Free ship over ₹999" },
+              { icon: RotateCcw, label: "7-day returns" },
+            ].map((b) => (
+              <div
+                key={b.label}
+                className="flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-center"
+                style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+              >
+                <b.icon className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
+                <span className="text-[11px] leading-tight" style={{ color: "var(--text-tertiary)" }}>{b.label}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+            Cash on delivery available · Ships across India · Works with Alexa &amp; Google
           </p>
 
           {live.stock <= 0 && <RestockNotify productId={product.id} />}
