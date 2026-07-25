@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, ScrollView, AppState } from "react-native";
+import { View, Text, Pressable, ScrollView, AppState, Image } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme, useBackHandler } from "../ui";
 import { useDevices } from "../store";
 import { deviceMeta } from "../theme";
+import { getUserCameras, mergedCameras, snapshotUrl, type Camera } from "../cameras";
+import { api } from "../api";
 
 // Wall-kiosk mode for a dedicated tablet: fullscreen, screen kept awake,
 // back/exit locked behind a PIN, showing a live home dashboard + a camera
@@ -19,6 +21,30 @@ try {
 
 const PIN_KEY = "cv-kiosk-pin";
 
+// Slow-refreshing live thumbnail for the kiosk camera matrix.
+function KioskThumb({ cam }: { cam: Camera }) {
+  const [uri, setUri] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      if (!alive) return;
+      if (cam.kind === "url" && cam.url) setUri(snapshotUrl(cam.url));
+      else if (cam.kind === "device" && cam.deviceId) {
+        try {
+          const r = await api.telemetry(cam.deviceId, 1);
+          const jpg = r.ok ? (r.data.telemetry?.[0]?.payload as { jpg?: string })?.jpg : undefined;
+          if (alive && jpg) setUri(`data:image/jpeg;base64,${jpg}`);
+        } catch { /* ignore */ }
+      }
+    };
+    tick();
+    const t = setInterval(tick, 3000);
+    return () => { alive = false; clearInterval(t); };
+  }, [cam]);
+  if (!uri) return <Text style={{ fontSize: 24 }}>📷</Text>;
+  return <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" fadeDuration={0} />;
+}
+
 export default function Kiosk({ onExit }: { onExit: () => void }) {
   const { c } = useTheme();
   const { devices, command } = useDevices();
@@ -27,6 +53,9 @@ export default function Kiosk({ onExit }: { onExit: () => void }) {
   const [entry, setEntry] = useState("");
   const [err, setErr] = useState("");
   const pinRef = useRef<string>("1234");
+  const [cams, setCams] = useState<Camera[]>([]);
+
+  useEffect(() => { getUserCameras().then((u) => setCams(mergedCameras(devices, u).slice(0, 6))); }, [devices]);
 
   useEffect(() => {
     AsyncStorage.getItem(PIN_KEY).then((v) => { if (v) pinRef.current = v; });
@@ -72,16 +101,23 @@ export default function Kiosk({ onExit }: { onExit: () => void }) {
         {/* Camera matrix */}
         <Text style={{ color: c.faint, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Cameras</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
-          {["Gate", "Front Door", "Living", "Backyard"].map((cam) => (
-            <View key={cam} style={{ width: "47%", aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: "#0b1220", borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-              <Text style={{ fontSize: 26 }}>📷</Text>
-              <Text style={{ color: c.textDim, fontSize: 12, marginTop: 4 }}>{cam}</Text>
-              <View style={{ position: "absolute", top: 8, right: 8, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.green }} />
-                <Text style={{ color: c.green, fontSize: 10, fontWeight: "700" }}>LIVE</Text>
-              </View>
+          {cams.length === 0 ? (
+            <View style={{ width: "100%", aspectRatio: 32 / 9, borderRadius: 14, backgroundColor: "#0b1220", borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: c.faint, fontSize: 13 }}>No cameras added — add them in More › Cameras</Text>
             </View>
-          ))}
+          ) : cams.map((cam) => {
+            const online = cam.kind === "device" ? devices.find((d) => d.id === cam.deviceId)?.online !== false : true;
+            return (
+              <View key={cam.id} style={{ width: "47%", aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: "#0b1220", borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                <KioskThumb cam={cam} />
+                <View style={{ position: "absolute", bottom: 6, left: 8 }}><Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{cam.name}</Text></View>
+                <View style={{ position: "absolute", top: 8, right: 8, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: online ? c.green : c.red }} />
+                  <Text style={{ color: online ? c.green : c.red, fontSize: 10, fontWeight: "700" }}>{online ? "LIVE" : "OFF"}</Text>
+                </View>
+              </View>
+            );
+          })}
         </View>
 
         {/* Appliance quick controls */}
