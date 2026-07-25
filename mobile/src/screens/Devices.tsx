@@ -20,38 +20,40 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
 
   const online = devices.filter((d) => d.online).length;
 
-  const header = (
-    <View>
-      <View style={s.topRow}>
-        <Text style={{ color: c.text, fontSize: 26, fontWeight: "800" }}>Devices</Text>
-        <Pressable onPress={onAdd} style={[s.addBtn, { borderColor: c.border, backgroundColor: c.card }]}>
-          <Text style={{ color: c.accentHi, fontWeight: "800", fontSize: 15 }}>＋ Add</Text>
-        </Pressable>
-      </View>
-
-      <View style={[s.search, { backgroundColor: c.card, borderColor: c.border }]}>
-        <Text style={{ color: c.faint }}>🔎</Text>
-        <TextInput value={q} onChangeText={setQ} placeholder="Search devices, rooms…" placeholderTextColor={c.faint} style={{ flex: 1, color: c.text, paddingVertical: 8 }} />
-        {q ? <Pressable onPress={() => setQ("")}><Text style={{ color: c.faint }}>✕</Text></Pressable> : null}
-      </View>
-
-      <View style={s.stats}>
-        <StatTile label="Devices" value={String(devices.length)} grad={GRAD.violet} glyph="📟" />
-        <StatTile label="Online" value={String(online)} grad={GRAD.green} glyph="🟢" />
-        <StatTile label="Offline" value={String(devices.length - online)} grad={GRAD.slate} glyph="⚪" />
-      </View>
+  const listHeader = (
+    <View style={s.stats}>
+      <StatTile label="Devices" value={String(devices.length)} grad={GRAD.violet} glyph="📟" />
+      <StatTile label="Online" value={String(online)} grad={GRAD.green} glyph="🟢" />
+      <StatTile label="Offline" value={String(devices.length - online)} grad={GRAD.slate} glyph="⚪" />
     </View>
   );
 
   return (
     <Screen>
+      {/* Fixed top area — the search input lives OUTSIDE the FlatList so it never
+          remounts when the filtered data changes (which would drop the keyboard). */}
+      <View style={{ paddingTop: 56, paddingHorizontal: 16, paddingBottom: 4 }}>
+        <View style={s.topRow}>
+          <Text style={{ color: c.text, fontSize: 26, fontWeight: "800" }}>Devices</Text>
+          <Pressable onPress={onAdd} style={[s.addBtn, { borderColor: c.border, backgroundColor: c.card }]}>
+            <Text style={{ color: c.accentHi, fontWeight: "800", fontSize: 15 }}>＋ Add</Text>
+          </Pressable>
+        </View>
+        <View style={[s.search, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Text style={{ color: c.faint }}>🔎</Text>
+          <TextInput value={q} onChangeText={setQ} placeholder="Search devices, rooms…" placeholderTextColor={c.faint} style={{ flex: 1, color: c.text, paddingVertical: 8 }} autoCorrect={false} />
+          {q ? <Pressable onPress={() => setQ("")}><Text style={{ color: c.faint }}>✕</Text></Pressable> : null}
+        </View>
+      </View>
+
       <FlatList
         data={filtered}
         keyExtractor={(d) => d.id}
         numColumns={2}
+        keyboardShouldPersistTaps="handled"
         columnWrapperStyle={{ justifyContent: "space-between", gap: 12 }}
-        contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 90 }}
-        ListHeaderComponent={header}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 90 }}
+        ListHeaderComponent={listHeader}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accentHi} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} />}
         ListEmptyComponent={
           <View style={{ alignItems: "center", paddingVertical: 50 }}>

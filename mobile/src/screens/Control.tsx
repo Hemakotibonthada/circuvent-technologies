@@ -1,11 +1,13 @@
-import React, { useState } from "react";
-import { View, Text, Pressable, Switch, StyleSheet, ScrollView, Alert } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, Pressable, Switch, StyleSheet, ScrollView, Alert, Animated, Easing, TextInput } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, useTheme } from "../ui";
 import { deviceMeta, type Palette } from "../theme";
+import { useSwitchWidgets } from "../widgets";
 
 const COLORS = ["#ffffff", "#ffd27f", "#ff7f7f", "#7fd0ff", "#7fff9e", "#c79bff", "#ff9be0"];
 
@@ -194,12 +196,15 @@ function AquaGuard({ d, send, c }: { d: Device; send: (p: Record<string, unknown
   return (
     <View>
       <Card padded style={{ marginBottom: 14 }}>
-        <View style={{ alignItems: "center" }}>
-          <Text style={{ color: c.text, fontSize: 52, fontWeight: "800" }}>{level}<Text style={{ fontSize: 22, color: c.textDim }}>%</Text></Text>
-          <View style={{ width: "100%", height: 14, borderRadius: 7, backgroundColor: c.border, marginTop: 10, overflow: "hidden" }}>
-            <View style={{ height: 14, borderRadius: 7, width: `${Math.min(100, level)}%`, backgroundColor: c.accent }} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+          <WaveTank label="Tank level" pct={level} litres={Number(d.state.litres ?? 0)} c={c} accent={c.cyan} fault={!!d.state.sensorFault} />
+          <View style={{ flex: 1, gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ color: !!d.state.pump ? c.cyan : c.faint, fontWeight: "800" }}>{!!d.state.pump ? "▲ Pumping" : "Idle"}</Text>
+            </View>
+            <MiniStat label="Level" value={`${level}%`} c={c} />
+            <MiniStat label="Mode" value={!!d.state.auto ? "Auto" : "Manual"} c={c} />
           </View>
-          <Text style={{ color: c.faint, marginTop: 8 }}>Tank level</Text>
         </View>
       </Card>
       {!!d.state.dryRun && <Alertline c={c} text="⚠ Dry-run detected — pump stopped" />}
@@ -251,10 +256,46 @@ function SmartPlug({ d, send, c }: { d: Device; send: (p: Record<string, unknown
 }
 
 function SmartSwitch({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  return <SwitchGangs d={d} send={send} c={c} />;
+}
+
+// Reusable multi-gang control with per-device widget customization (rename +
+// show/hide). Used by smart-switch, and available to any boolean-field device.
+function SwitchGangs({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const { gangs, visible, rename, setVisible, reset } = useSwitchWidgets(d);
+  const [editing, setEditing] = useState(false);
   return (
     <View>
-      <Row label="Gang 1" c={c}><Sw v={!!d.state.power} on={(v) => send({ power: v })} c={c} /></Row>
-      <Row label="Gang 2" c={c}><Sw v={!!d.state.power2} on={(v) => send({ power2: v })} c={c} /></Row>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <Section c={c}>Controls</Section>
+        <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}><Text style={{ color: c.accentHi, fontWeight: "700", fontSize: 13 }}>{editing ? "Done" : "Customize"}</Text></Pressable>
+      </View>
+      {editing ? (
+        <View>
+          {gangs.map((g) => (
+            <Card key={g.field} padded style={{ marginBottom: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <TextInput
+                  value={g.label}
+                  onChangeText={(t) => rename(g.field, t)}
+                  placeholder={g.field}
+                  placeholderTextColor={c.faint}
+                  style={{ flex: 1, color: c.text, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}
+                />
+                <Sw v={g.visible} on={(v) => setVisible(g.field, v)} c={c} />
+              </View>
+            </Card>
+          ))}
+          <Pressable onPress={reset} style={{ alignSelf: "flex-start", marginTop: 2 }}><Text style={{ color: c.faint }}>Reset to defaults</Text></Pressable>
+        </View>
+      ) : (
+        <View>
+          {visible.length === 0 && <Text style={{ color: c.faint }}>All widgets hidden. Tap Customize to show some.</Text>}
+          {visible.map((g) => (
+            <Row key={g.field} label={g.label} c={c}><Sw v={!!d.state[g.field]} on={(v) => send({ [g.field]: v })} c={c} /></Row>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -320,12 +361,65 @@ function AgriStarter({ d, send, c }: { d: Device; send: (p: Record<string, unkno
   );
 }
 
-function TankBar({ label, pct, litres, c, accent, fault }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean }) {
+const TANK_W = 84;
+const TANK_H = 168;
+// One seamless sine period sampled into an SVG path, drawn twice-wide so a
+// horizontal translate of one tank-width loops without a seam.
+function wavePath(width: number, amp: number): string {
+  const samples = 28;
+  let d = `M 0 ${amp}`;
+  for (let i = 1; i <= samples; i++) {
+    const x = (i / samples) * width;
+    const y = amp - Math.sin((i / samples) * Math.PI * 4) * amp; // 2 periods across 2×tank
+    d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }
+  d += ` L ${width} ${amp * 2 + TANK_H} L 0 ${amp * 2 + TANK_H} Z`;
+  return d;
+}
+
+// A floating, animated liquid tank: the level eases to its target and the
+// surface flows with two offset waves for a lively "floating" feel.
+function WaveTank({ label, pct, litres, c, accent, fault }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean }) {
   const clamped = Math.min(100, Math.max(0, pct));
+  const level = useRef(new Animated.Value(clamped)).current;
+  const flow1 = useRef(new Animated.Value(0)).current;
+  const flow2 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(level, { toValue: clamped, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [clamped, level]);
+
+  useEffect(() => {
+    const mk = (v: Animated.Value, dur: number) => Animated.loop(Animated.timing(v, { toValue: 1, duration: dur, easing: Easing.linear, useNativeDriver: true }));
+    const a = mk(flow1, 2600); const b = mk(flow2, 4200);
+    a.start(); b.start();
+    return () => { a.stop(); b.stop(); };
+  }, [flow1, flow2]);
+
+  const waterHeight = level.interpolate({ inputRange: [0, 100], outputRange: [0, TANK_H] });
+  const tx1 = flow1.interpolate({ inputRange: [0, 1], outputRange: [0, -TANK_W] });
+  const tx2 = flow2.interpolate({ inputRange: [0, 1], outputRange: [-TANK_W, 0] });
+  const amp = 6;
+  const path = wavePath(TANK_W * 2, amp);
+
   return (
     <View style={{ alignItems: "center", flex: 1 }}>
-      <View style={{ height: 160, width: 76, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, overflow: "hidden", justifyContent: "flex-end" }}>
-        <View style={{ height: `${clamped}%`, backgroundColor: accent, opacity: 0.85 }} />
+      <View style={{ height: TANK_H, width: TANK_W, borderRadius: 18, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, overflow: "hidden", justifyContent: "flex-end" }}>
+        {/* grid ticks */}
+        {[25, 50, 75].map((t) => (
+          <View key={t} style={{ position: "absolute", left: 0, right: 0, bottom: `${t}%`, height: 1, backgroundColor: c.border, opacity: 0.5 }} />
+        ))}
+        {/* water body */}
+        <Animated.View style={{ height: waterHeight, width: "100%" }}>
+          {/* back wave */}
+          <Animated.View style={{ position: "absolute", top: -amp, left: 0, width: TANK_W * 2, transform: [{ translateX: tx2 }] }}>
+            <Svg width={TANK_W * 2} height={TANK_H + amp * 2}><Path d={path} fill={accent} opacity={0.45} /></Svg>
+          </Animated.View>
+          {/* front wave */}
+          <Animated.View style={{ position: "absolute", top: -amp, left: 0, width: TANK_W * 2, transform: [{ translateX: tx1 }] }}>
+            <Svg width={TANK_W * 2} height={TANK_H + amp * 2}><Path d={path} fill={accent} opacity={0.9} /></Svg>
+          </Animated.View>
+        </Animated.View>
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }}>{clamped}%</Text>
         </View>
@@ -334,6 +428,10 @@ function TankBar({ label, pct, litres, c, accent, fault }: { label: string; pct:
       <Text style={{ color: c.faint, fontSize: 12 }}>{litres.toLocaleString("en-IN")} L{fault ? " · sensor?" : ""}</Text>
     </View>
   );
+}
+
+function TankBar({ label, pct, litres, c, accent, fault }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean }) {
+  return <WaveTank label={label} pct={pct} litres={litres} c={c} accent={accent} fault={fault} />;
 }
 
 function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
@@ -426,7 +524,6 @@ function FaceDoor({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
 }
 
 function TouchBoard({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const gangs = [{ key: "g1", label: "Gang 1" }, { key: "g2", label: "Gang 2" }, { key: "g3", label: "Gang 3" }];
   const bl = Number(d.state.backlight ?? 60);
   return (
     <View>
@@ -439,10 +536,7 @@ function TouchBoard({ d, send, c }: { d: Device; send: (p: Record<string, unknow
         <MiniStat label="Power factor" value={Number(d.state.pf ?? 0).toFixed(2)} c={c} />
         <MiniStat label="Energy" value={`${Number(d.state.kwh ?? 0).toFixed(2)} kWh`} c={c} />
       </View>
-      <Section c={c}>Gangs</Section>
-      {gangs.map((g) => (
-        <Row key={g.key} label={g.label} c={c}><Sw v={!!d.state[g.key]} on={(v) => send({ [g.key]: v })} c={c} /></Row>
-      ))}
+      <SwitchGangs d={d} send={send} c={c} />
       <View style={{ flexDirection: "row", gap: 10, marginTop: 2, marginBottom: 6 }}>
         <Pressable onPress={() => send({ all: true })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "700" }}>All on</Text></Pressable>
         <Pressable onPress={() => send({ all: false })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "700" }}>All off</Text></Pressable>

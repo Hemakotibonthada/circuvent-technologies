@@ -84,8 +84,8 @@ export default function Home({
           <LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
             <View style={{ flex: 1 }}>
               <Text style={s.heroLabel}>LIVE POWER</Text>
-              <Text style={s.heroValue}>{energy ? energy.liveWatts.toFixed(0) : "—"} <Text style={s.heroUnit}>W</Text></Text>
-              <Text style={s.heroSub}>{energy ? `${energy.todayKwh.toFixed(2)} kWh today` : "Tap for energy details"}</Text>
+              <Text style={s.heroValue} adjustsFontSizeToFit numberOfLines={1}>{energy ? energy.liveWatts.toFixed(0) : "—"} <Text style={s.heroUnit}>W</Text></Text>
+              <Text style={s.heroSub} numberOfLines={1}>{energy ? `${energy.todayKwh.toFixed(2)} kWh today` : "Tap for energy details"}</Text>
             </View>
             <View style={s.heroRight}>
               <Text style={s.heroStat}>{online}/{devices.length}</Text>
@@ -93,6 +93,14 @@ export default function Home({
             </View>
           </LinearGradient>
         </Pressable>
+
+        {/* at-a-glance dashboard */}
+        <View style={s.glanceRow}>
+          <GlanceTile glyph="📟" value={String(devices.length)} label="Devices" />
+          <GlanceTile glyph="🏠" value={String(rooms.length)} label="Rooms" />
+          <GlanceTile glyph="✨" value={String(scenes.length)} label="Scenes" />
+          <GlanceTile glyph="🔔" value={String(unread)} label="Alerts" tint={unread > 0 ? c.red : undefined} />
+        </View>
 
         {/* quick actions */}
         <View style={s.quickRow}>
@@ -208,6 +216,17 @@ function QuickAction({ glyph, label, onPress }: { glyph: string; label: string; 
   );
 }
 
+function GlanceTile({ glyph, value, label, tint }: { glyph: string; value: string; label: string; tint?: string }) {
+  const { c } = useTheme();
+  return (
+    <Card padded style={{ flex: 1, alignItems: "center", paddingVertical: 12 }}>
+      <Text style={{ fontSize: 18 }}>{glyph}</Text>
+      <Text style={{ color: tint || c.text, fontSize: 20, fontWeight: "900", marginTop: 4 }} adjustsFontSizeToFit numberOfLines={1}>{value}</Text>
+      <Text style={{ color: c.faint, fontSize: 11 }}>{label}</Text>
+    </Card>
+  );
+}
+
 function WeatherStrip({ onPress }: { onPress: () => void }) {
   const { c } = useTheme();
   const [b, setB] = useState<WeatherBundle | null>(null);
@@ -265,6 +284,7 @@ const s = StyleSheet.create({
   heroStat: { color: "#fff", fontSize: 22, fontWeight: "800" },
   heroStatLabel: { color: "rgba(255,255,255,0.85)", fontSize: 12 },
   quickRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
+  glanceRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginBottom: 20 },
   pill: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   dot: { width: 9, height: 9, borderRadius: 5, marginTop: 5 },

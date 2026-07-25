@@ -35,6 +35,9 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
     [devices]
   );
 
+  const triggerDevice = useMemo(() => devices.find((d) => d.id === triggerDeviceId), [devices, triggerDeviceId]);
+  const actionDevice = useMemo(() => devices.find((d) => d.id === actionDeviceId), [devices, actionDeviceId]);
+
   const load = useCallback(async () => {
     setMsg("");
     const [automationRes, deviceRes] = await Promise.all([api.automations(), api.devices()]);
@@ -196,22 +199,29 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
 
           {triggerType === "state" ? (
             <>
-              <DevicePicker devices={devices} selected={triggerDeviceId} onSelect={setTriggerDeviceId} />
-              <TextInput style={s.input} placeholder='Field (e.g. "level")' placeholderTextColor="#64748b" value={field} onChangeText={setField} autoCapitalize="none" />
-              <View style={s.ops}>
-                {OPS.map((item) => (
-                  <Pressable key={item} style={[s.chip, op === item && s.chipOn]} onPress={() => setOp(item)}>
-                    <Text style={[s.chipT, op === item && s.chipOnT]}>{item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              {op !== "truthy" && op !== "falsy" && (
-                <TextInput style={s.input} placeholder="Value" placeholderTextColor="#64748b" value={value} onChangeText={setValue} autoCapitalize="none" />
+              <DevicePicker devices={devices} selected={triggerDeviceId} onSelect={(id) => { setTriggerDeviceId(id); setField(""); }} />
+              <Text style={s.hint}>Field (read from the device)</Text>
+              <FieldPicker device={triggerDevice} selected={field} onSelect={setField} />
+              {field ? (
+                <>
+                  <View style={s.ops}>
+                    {OPS.map((item) => (
+                      <Pressable key={item} style={[s.chip, op === item && s.chipOn]} onPress={() => setOp(item)}>
+                        <Text style={[s.chipT, op === item && s.chipOnT]}>{opLabel(item)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {op !== "truthy" && op !== "falsy" && (
+                    <SmartValue device={triggerDevice} field={field} value={value} onChange={setValue} />
+                  )}
+                </>
+              ) : (
+                <Text style={s.note}>Pick a field above to set a condition.</Text>
               )}
             </>
           ) : (
             <>
-              <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor="#64748b" value={at} onChangeText={setAt} autoCapitalize="none" />
+              <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor="#64748b" value={at} onChangeText={setAt} autoCapitalize="none" keyboardType="numbers-and-punctuation" />
               <Text style={s.note}>IST</Text>
             </>
           )}
@@ -233,9 +243,14 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
             </>
           ) : (
             <>
-              <DevicePicker devices={devices} selected={actionDeviceId} onSelect={setActionDeviceId} />
-              <TextInput style={s.input} placeholder='Command field (e.g. "pump")' placeholderTextColor="#64748b" value={commandField} onChangeText={setCommandField} autoCapitalize="none" />
-              <TextInput style={s.input} placeholder='Command value (e.g. "true")' placeholderTextColor="#64748b" value={commandValue} onChangeText={setCommandValue} autoCapitalize="none" />
+              <DevicePicker devices={devices} selected={actionDeviceId} onSelect={(id) => { setActionDeviceId(id); setCommandField(""); }} />
+              <Text style={s.hint}>Set which control (read from the device)</Text>
+              <FieldPicker device={actionDevice} selected={commandField} onSelect={setCommandField} settable />
+              {commandField ? (
+                <SmartValue device={actionDevice} field={commandField} value={commandValue} onChange={setCommandValue} />
+              ) : (
+                <Text style={s.note}>Pick a control above to set its value.</Text>
+              )}
             </>
           )}
 
@@ -281,6 +296,74 @@ function DevicePicker({ devices, selected, onSelect }: { devices: Device[]; sele
       ))}
     </View>
   );
+}
+
+// Hide noisy/read-only telemetry keys when the user is picking a CONTROL to set.
+const SETTABLE = new Set(["power", "power2", "power3", "power4", "pump", "auto", "locked", "armed", "g1", "g2", "g3", "backlight", "scene", "brightness", "target", "speed", "position", "color"]);
+const HIDDEN_FIELDS = new Set(["fw", "rssi", "uptime", "sensorFault", "ohFault", "sumpFault"]);
+
+function humanField(f: string): string {
+  const map: Record<string, string> = {
+    power: "Power", power2: "Power 2", pump: "Pump", auto: "Auto mode", locked: "Lock", armed: "Armed",
+    level: "Level", ohPct: "Overhead %", sumpPct: "Sump %", watts: "Power (W)", volts: "Voltage", amps: "Current",
+    temperature: "Temperature", humidity: "Humidity", motion: "Motion", dryRun: "Dry-run", overflow: "Overflow",
+    g1: "Gang 1", g2: "Gang 2", g3: "Gang 3", backlight: "Backlight", battery: "Battery", barrier: "Barrier",
+  };
+  return map[f] || f.replace(/([A-Z])/g, " $1").replace(/^./, (m) => m.toUpperCase());
+}
+
+// Device-driven field picker: reads the fields straight off the device's live
+// state so the user never types a variable name.
+function FieldPicker({ device, selected, onSelect, settable }: { device: Device | undefined; selected: string; onSelect: (f: string) => void; settable?: boolean }) {
+  if (!device) return <Text style={s.note}>Choose a device first.</Text>;
+  let keys = Object.keys(device.state || {}).filter((k) => !HIDDEN_FIELDS.has(k));
+  if (settable) {
+    const s2 = keys.filter((k) => SETTABLE.has(k) || typeof device.state[k] === "boolean");
+    keys = s2.length ? s2 : keys;
+  }
+  if (keys.length === 0) return <Text style={s.note}>This device isn’t reporting any fields yet.</Text>;
+  return (
+    <View style={s.deviceList}>
+      {keys.map((k) => (
+        <Pressable key={k} style={[s.deviceChip, selected === k && s.fieldChipOn]} onPress={() => onSelect(k)}>
+          <Text style={[s.deviceChipT, selected === k && s.deviceChipOnT]}>{humanField(k)}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+// Value input whose type is inferred from the device's CURRENT value for the
+// field: booleans get an On/Off toggle, numbers get a numeric keypad.
+function SmartValue({ device, field, value, onChange }: { device: Device | undefined; field: string; value: string; onChange: (v: string) => void }) {
+  const cur = device?.state?.[field];
+  const kind = typeof cur;
+  if (kind === "boolean") {
+    return (
+      <Segmented
+        value={value === "true" || value === "false" ? (value as "true" | "false") : (cur ? "false" : "true")}
+        options={[{ label: "On", value: "true" }, { label: "Off", value: "false" }]}
+        onChange={(v) => onChange(v)}
+      />
+    );
+  }
+  const numeric = kind === "number";
+  return (
+    <TextInput
+      style={s.input}
+      placeholder={numeric ? `Value${cur != null ? ` (now ${String(cur)})` : ""}` : "Value"}
+      placeholderTextColor="#64748b"
+      value={value}
+      onChangeText={onChange}
+      autoCapitalize="none"
+      keyboardType={numeric ? "numeric" : "default"}
+    />
+  );
+}
+
+function opLabel(op: StateOp): string {
+  const map: Record<StateOp, string> = { "==": "equals", "!=": "not", ">": ">", ">=": "≥", "<": "<", "<=": "≤", truthy: "is on", falsy: "is off" };
+  return map[op] || op;
 }
 
 function Segmented<T extends string>({
@@ -357,6 +440,8 @@ const s = StyleSheet.create({
   chipT: { color: "#94a3b8", fontWeight: "700" },
   chipOnT: { color: "#fff" },
   note: { color: "#64748b", marginBottom: 10 },
+  hint: { color: "#94a3b8", fontSize: 12, marginBottom: 8 },
+  fieldChipOn: { backgroundColor: "#06b6d4", borderColor: "#06b6d4" },
   btn: { backgroundColor: "#06b6d4", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 4 },
   btnOff: { opacity: 0.65 },
   btnT: { color: "#fff", fontWeight: "700" },
