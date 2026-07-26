@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, Switch } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { api, Scene, Room, EnergySummary, AppEvent, Device } from "../api";
 import { useAuth } from "../auth";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, SectionLabel, useTheme } from "../ui";
+import { Screen, Card, SectionLabel, useTheme, Avatar, PillToggle, RoomChips } from "../ui";
 import { GRAD, deviceMeta, greeting } from "../theme";
 import { getSavedLocation, getWeather, getWeatherByQuery, wmo, type WeatherBundle } from "../weather";
 
@@ -35,6 +35,7 @@ export default function Home({
   const [energy, setEnergy] = useState<EnergySummary | null>(null);
   const [activity, setActivity] = useState<AppEvent[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [roomIdx, setRoomIdx] = useState(0);
 
   const loadExtras = useCallback(async () => {
     const [s, r, e, a] = await Promise.all([api.scenes(), api.rooms(), api.energySummary(), api.events(6)]);
@@ -54,6 +55,8 @@ export default function Home({
   const favorites = devices.filter((d) => d.favorite);
   const favScenes = scenes.filter((s) => s.favorite).concat(scenes.filter((s) => !s.favorite)).slice(0, 6);
   const firstName = (account?.name || "").trim().split(" ")[0];
+  const roomNames = ["All", ...rooms.map((r) => r.name)];
+  const shownDevices = roomIdx === 0 ? devices : devices.filter((d) => d.room === roomNames[roomIdx]);
 
   return (
     <Screen>
@@ -63,9 +66,12 @@ export default function Home({
       >
         {/* header */}
         <View style={s.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: c.textDim, fontSize: 14 }}>{greeting()}{firstName ? `, ${firstName}` : ""}</Text>
-            <Text style={{ color: c.text, fontSize: 26, fontWeight: "800", marginTop: 2 }}>Home</Text>
+          <Pressable onPress={onOpenSettings} hitSlop={8}>
+            <Avatar name={account?.name} size={46} />
+          </Pressable>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={{ color: c.textDim, fontSize: 13 }}>{greeting()}{firstName ? "," : ""}</Text>
+            <Text style={{ color: c.text, fontSize: 21, fontWeight: "800", marginTop: 1 }} numberOfLines={1}>{firstName || "Welcome home"}</Text>
           </View>
           <Pressable onPress={onOpenSearch} hitSlop={8} style={[s.iconBtn, { backgroundColor: c.card, borderColor: c.border }]}>
             <Text style={{ fontSize: 17 }}>🔍</Text>
@@ -73,9 +79,6 @@ export default function Home({
           <Pressable onPress={onOpenNotifications} hitSlop={8} style={[s.iconBtn, { backgroundColor: c.card, borderColor: c.border, marginLeft: 8 }]}>
             <Text style={{ fontSize: 17 }}>🔔</Text>
             {unread > 0 && <View style={[s.badge, { backgroundColor: c.red }]}><Text style={s.badgeT}>{unread > 9 ? "9+" : unread}</Text></View>}
-          </Pressable>
-          <Pressable onPress={onOpenSettings} hitSlop={8} style={[s.iconBtn, { backgroundColor: c.card, borderColor: c.border, marginLeft: 8 }]}>
-            <Text style={{ fontSize: 17 }}>⚙️</Text>
           </Pressable>
         </View>
 
@@ -147,7 +150,7 @@ export default function Home({
                         <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}><Text style={{ fontSize: 20 }}>{meta.glyph}</Text></LinearGradient>
                         {pf ? (
                           <View onStartShouldSetResponder={() => true}>
-                            <Switch value={on} onValueChange={(v) => toggle(d.id, pf, v)} trackColor={{ true: c.accent, false: c.border }} thumbColor="#fff" />
+                            <PillToggle value={on} onChange={(v) => toggle(d.id, pf, v)} size="sm" />
                           </View>
                         ) : (
                           <View style={[s.dot, { backgroundColor: d.online ? c.green : c.faint }]} />
@@ -160,6 +163,43 @@ export default function Home({
                 );
               })}
             </View>
+          </>
+        )}
+
+        {/* room filter + device grid */}
+        {devices.length > 0 && (
+          <>
+            <SectionLabel>YOUR DEVICES</SectionLabel>
+            <RoomChips options={roomNames} value={roomIdx} onChange={setRoomIdx} style={{ marginBottom: 14 }} />
+            {shownDevices.length === 0 ? (
+              <Card padded><Text style={{ color: c.faint, fontSize: 13 }}>No devices in this room yet.</Text></Card>
+            ) : (
+              <View style={s.grid}>
+                {shownDevices.map((d) => {
+                  const meta = deviceMeta(d.type);
+                  const pf = capabilities(d.type).power?.field;
+                  const on = pf ? !!d.state[pf] : false;
+                  return (
+                    <Pressable key={d.id} style={{ width: "48%" }} onPress={() => onOpenDevice(d)}>
+                      <Card padded>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}><Text style={{ fontSize: 20 }}>{meta.glyph}</Text></LinearGradient>
+                          {pf ? (
+                            <View onStartShouldSetResponder={() => true}>
+                              <PillToggle value={on} onChange={(v) => toggle(d.id, pf, v)} size="sm" />
+                            </View>
+                          ) : (
+                            <View style={[s.dot, { backgroundColor: d.online ? c.green : c.faint }]} />
+                          )}
+                        </View>
+                        <Text style={{ color: c.text, fontWeight: "700", marginTop: 10 }} numberOfLines={1}>{d.name || d.id}</Text>
+                        <Text style={{ color: c.faint, fontSize: 12 }} numberOfLines={1}>{d.room || meta.label}{pf ? (on ? " · On" : " · Off") : ""}</Text>
+                      </Card>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </>
         )}
 

@@ -94,6 +94,7 @@ export interface Accent {
 }
 
 export const ACCENTS: Accent[] = [
+  { key: "coral", label: "Coral", color: "#F0532B", colorHi: "#FF7A54", grad: ["#F0532B", "#FF7A54"] },
   { key: "brand", label: "Circuvent", color: "#06b6d4", colorHi: "#22d3ee", grad: ["#06b6d4", "#8b5cf6"] },
   { key: "violet", label: "Violet", color: "#8b5cf6", colorHi: "#a855f7", grad: ["#7c3aed", "#a855f7"] },
   { key: "blue", label: "Blue", color: "#3b82f6", colorHi: "#60a5fa", grad: ["#2563eb", "#3b82f6"] },

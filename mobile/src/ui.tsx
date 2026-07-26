@@ -17,6 +17,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
+import Svg, { Path, Circle } from "react-native-svg";
 import {
   buildPalette,
   ACCENTS,
@@ -40,12 +41,12 @@ interface ThemeCtx {
 }
 
 const Ctx = createContext<ThemeCtx | null>(null);
-const KEY = "cv-theme-v1";
+const KEY = "cv-theme-v2";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeS] = useState<ThemeMode>("aurora");
-  const [scheme, setSchemeS] = useState<Scheme>("dark");
-  const [accentKey, setAccentKeyS] = useState<string>("brand");
+  const [scheme, setSchemeS] = useState<Scheme>("light");
+  const [accentKey, setAccentKeyS] = useState<string>("coral");
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((raw) => {
@@ -400,4 +401,121 @@ export function Timeline({ items }: { items: { title: string; subtitle?: string;
 
 export function Carousel({ children }: { children: React.ReactNode }) {
   return <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>{React.Children.map(children, (child, i) => <View key={i} style={{ width: 280 }}>{child}</View>)}</ScrollView>;
+}
+
+// --------------------------------------------------------------------------
+// Smart-home "coral mockup" signature components: pill power toggle, segmented
+// mode selector, room filter chips, scene chip, and an SVG semicircular arc
+// gauge for climate/AC target temperature. All consume the active Palette.
+// --------------------------------------------------------------------------
+
+/** Rounded capsule power toggle with a white power-glyph thumb (mockup switch). */
+export function PillToggle({ value, onChange, size = "md", disabled, style }: { value: boolean; onChange: (v: boolean) => void; size?: "sm" | "md"; disabled?: boolean; style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  const W = size === "sm" ? 50 : 60;
+  const H = size === "sm" ? 28 : 34;
+  const knob = H - 6;
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled}
+      onPress={() => onChange(!value)}
+      style={[{ width: W, height: H, borderRadius: H, padding: 3, opacity: disabled ? 0.5 : 1, backgroundColor: value ? c.accent : c.cardHi, borderWidth: value ? 0 : 1, borderColor: c.border, flexDirection: "row", justifyContent: value ? "flex-end" : "flex-start", alignItems: "center" }, style]}
+    >
+      <View style={{ width: knob, height: knob, borderRadius: knob / 2, backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ color: value ? c.accent : c.faint, fontSize: knob * 0.5, fontWeight: "900", marginTop: -1 }}>⏻</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+/** Segmented capsule selector (e.g. Cool · Dry · Fan) — coral fill on the active option. */
+export function PillSelector<T extends string>({ options, value, onChange, style }: { options: readonly T[]; value: T; onChange: (v: T) => void; style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  return (
+    <View style={[{ flexDirection: "row", gap: 10 }, style]}>
+      {options.map((o) => {
+        const sel = o === value;
+        return (
+          <Pressable key={o} onPress={() => onChange(o)} style={{ flex: 1, borderRadius: 20, paddingVertical: 13, alignItems: "center", backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
+            <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600", textTransform: "capitalize" }}>{o}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Horizontal room / category filter chips. */
+export function RoomChips({ options, value, onChange, style }: { options: string[]; value: number; onChange: (i: number) => void; style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={style} contentContainerStyle={{ gap: 10, paddingRight: 8 }}>
+      {options.map((o, i) => {
+        const sel = i === value;
+        return (
+          <Pressable key={`${o}-${i}`} onPress={() => onChange(i)} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
+            <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600" }}>{o}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+/** Round scene / quick-action chip with a glyph bubble + label. */
+export function SceneChip({ glyph, label, active, onPress }: { glyph: string; label: string; active?: boolean; onPress: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={onPress} style={{ alignItems: "center", width: 68 }}>
+      <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: active ? c.accent : c.cardHi, borderWidth: active ? 0 : 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontSize: 22 }}>{glyph}</Text>
+      </View>
+      <Text numberOfLines={1} style={{ color: active ? c.text : c.textDim, fontSize: 11, fontWeight: active ? "800" : "600", marginTop: 6 }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Semicircular SVG arc gauge (climate target dial) with tap-to-set knob. */
+export function ArcGauge({ value, min = 16, max = 30, unit = "°", caption = "Temperature", onChange, size = 240 }: { value: number; min?: number; max?: number; unit?: string; caption?: string; onChange?: (v: number) => void; size?: number }) {
+  const { c } = useTheme();
+  const stroke = 18;
+  const r = (size - stroke) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const frac = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
+  const start = Math.PI;
+  const end = Math.PI + Math.PI * frac;
+  const pt = (a: number) => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cy + r * Math.sin(a)).toFixed(2)}`;
+  const arc = (a0: number, a1: number) => `M ${pt(a0)} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${pt(a1)}`;
+  const kx = cx + r * Math.cos(end);
+  const ky = cy + r * Math.sin(end);
+  const svgH = size / 2 + stroke;
+  const step = (delta: number) => onChange?.(Math.max(min, Math.min(max, Math.round(value + delta))));
+  return (
+    <View style={{ alignItems: "center" }}>
+      <View style={{ height: svgH, width: size }}>
+        <Svg width={size} height={svgH}>
+          <Path d={arc(Math.PI, 2 * Math.PI)} stroke={c.cardHi} strokeWidth={stroke} strokeLinecap="round" fill="none" />
+          <Path d={arc(start, end)} stroke={c.accent} strokeWidth={stroke} strokeLinecap="round" fill="none" />
+          <Circle cx={kx} cy={ky} r={stroke * 0.9} fill="#ffffff" />
+          <Circle cx={kx} cy={ky} r={stroke * 0.5} fill={c.accent} />
+        </Svg>
+        <View style={{ position: "absolute", top: svgH - size / 2 + 8, left: 0, right: 0, alignItems: "center" }}>
+          <Text style={{ color: c.text, fontSize: 46, fontWeight: "900" }}>{Math.round(value)}<Text style={{ fontSize: 22, color: c.textDim }}>{unit}</Text></Text>
+          <Text style={{ color: c.faint, fontSize: 13, fontWeight: "600" }}>{caption}</Text>
+        </View>
+      </View>
+      {onChange && (
+        <View style={{ flexDirection: "row", gap: 18, marginTop: 4 }}>
+          <Pressable onPress={() => step(-1)} style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}><Text style={{ color: c.text, fontSize: 22, fontWeight: "900" }}>−</Text></Pressable>
+          <View style={{ minWidth: 60, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: c.faint, fontSize: 11 }}>{min}{unit} – {max}{unit}</Text>
+          </View>
+          <Pressable onPress={() => step(1)} style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}><Text style={{ color: c.onAccent, fontSize: 22, fontWeight: "900" }}>+</Text></Pressable>
+        </View>
+      )}
+    </View>
+  );
 }

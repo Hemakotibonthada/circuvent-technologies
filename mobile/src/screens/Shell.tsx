@@ -29,6 +29,8 @@ const TABS: { key: Tab; label: string; glyph: string }[] = [
   { key: "settings", label: "Settings", glyph: "⚙️" },
   { key: "more", label: "More", glyph: "🧩" },
 ];
+const PILL_TABS = TABS.filter((t) => t.key !== "home");
+const NAV_SPACE = Platform.OS === "ios" ? 104 : 92;
 
 export default function Shell() {
   const { c } = useTheme();
@@ -69,7 +71,7 @@ export default function Shell() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingBottom: NAV_SPACE }}>
         {tab === "home" && (
           <Home
             onOpenDevice={openControl}
@@ -98,27 +100,66 @@ export default function Shell() {
         )}
       </View>
 
-      <View style={[s.bar, { backgroundColor: c.surface, borderTopColor: c.border }]}>
-        {TABS.map((t) => {
-          const active = tab === t.key;
-          return (
-            <Pressable key={t.key} style={s.tab} onPress={() => setTab(t.key)} hitSlop={6}>
-              <Text style={{ fontSize: 20, opacity: active ? 1 : 0.5 }}>{t.glyph}</Text>
-              <Text style={{ color: active ? c.accent : c.faint, fontSize: 11, fontWeight: active ? "800" : "600", marginTop: 2 }}>{t.label}</Text>
-            </Pressable>
-          );
-        })}
+      <View style={s.navWrap} pointerEvents="box-none">
+        <Pressable
+          onPress={() => setTab("home")}
+          hitSlop={8}
+          style={[s.homeBtn, { backgroundColor: c.accent, shadowColor: c.accent, borderWidth: tab === "home" ? 3 : 0, borderColor: "#ffffff" }]}
+        >
+          <Text style={{ fontSize: 24 }}>🏠</Text>
+        </Pressable>
+        <View style={s.navPill}>
+          {PILL_TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <Pressable key={t.key} style={s.navItem} onPress={() => setTab(t.key)} hitSlop={6}>
+                <Text style={{ fontSize: 20, opacity: active ? 1 : 0.6 }}>{t.glyph}</Text>
+                <View style={[s.navDot, { backgroundColor: active ? c.accentHi : "transparent" }]} />
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  bar: {
+  navWrap: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: Platform.OS === "ios" ? 30 : 16,
     flexDirection: "row",
-    borderTopWidth: 1,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 26 : 10,
+    alignItems: "center",
+    gap: 12,
   },
-  tab: { flex: 1, alignItems: "center", justifyContent: "center" },
+  homeBtn: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  navPill: {
+    flex: 1,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "#1E1E22",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingHorizontal: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  navItem: { flex: 1, height: 62, alignItems: "center", justifyContent: "center" },
+  navDot: { width: 5, height: 5, borderRadius: 3, marginTop: 5 },
 });

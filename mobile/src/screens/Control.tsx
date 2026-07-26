@@ -5,7 +5,7 @@ import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, useTheme } from "../ui";
+import { Screen, Card, useTheme, ArcGauge, PillSelector } from "../ui";
 import { deviceMeta, type Palette } from "../theme";
 import { useSwitchWidgets } from "../widgets";
 
@@ -160,16 +160,22 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
         </Card>
       )}
       {cap.thermostat && (
-        <Card padded style={{ marginBottom: 10 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <Text style={{ color: c.text, fontSize: 16 }}>{cap.thermostat.label}</Text>
-            <Text style={{ color: c.accent, fontWeight: "800" }}>{Number(d.state[cap.thermostat.field] ?? cap.thermostat.min)}°</Text>
+        <Card padded style={{ marginBottom: 10, alignItems: "center" }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignSelf: "stretch", marginBottom: 6 }}>
+            <Text style={{ color: c.text, fontSize: 16, fontWeight: "700" }}>{cap.thermostat.label}</Text>
+            <Text style={{ color: c.faint, fontWeight: "700" }}>{String(d.state.mode ?? "cool")}</Text>
           </View>
-          <Slider
-            minimumValue={cap.thermostat.min} maximumValue={cap.thermostat.max} step={1}
+          <ArcGauge
             value={Number(d.state[cap.thermostat.field] ?? cap.thermostat.min)}
-            onSlidingComplete={(v) => send({ [cap.thermostat!.field]: Math.round(v) })}
-            minimumTrackTintColor={c.accent} maximumTrackTintColor={c.border} thumbTintColor={c.accentHi}
+            min={cap.thermostat.min}
+            max={cap.thermostat.max}
+            onChange={(v) => send({ [cap.thermostat!.field]: v })}
+          />
+          <PillSelector
+            options={["cool", "dry", "fan"] as const}
+            value={(["cool", "dry", "fan"].includes(String(d.state.mode)) ? String(d.state.mode) : "cool") as "cool" | "dry" | "fan"}
+            onChange={(m) => send({ mode: m })}
+            style={{ alignSelf: "stretch", marginTop: 16 }}
           />
         </Card>
       )}
