@@ -187,7 +187,7 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <button key={o.value} onClick={() => onChange(o.value)} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`} style={active ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" } : undefined}>
+          <button key={o.value} onClick={() => onChange(o.value)} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`} style={active ? { background: "var(--cv-gradient)" } : undefined}>
             {o.label}
           </button>
         );

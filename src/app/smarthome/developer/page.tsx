@@ -117,7 +117,7 @@ export default function DeveloperPortalPage() {
             <h2 className="font-bold text-white mb-3 flex items-center gap-2"><KeyRound className="h-4 w-4" /> API tokens</h2>
             <div className="flex gap-2 mb-3">
               <input value={newTokenLabel} onChange={(e) => setNewTokenLabel(e.target.value)} placeholder="Label (e.g. Home Assistant)" className="flex-1 bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none" />
-              <button onClick={createToken} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+              <button onClick={createToken} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
                 <Plus className="h-4 w-4" /> Create
               </button>
             </div>
@@ -146,7 +146,7 @@ export default function DeveloperPortalPage() {
           <Card className="p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-white flex items-center gap-2"><Radio className="h-4 w-4" /> Webhooks</h2>
-              <button onClick={() => setWhForm({ url: "", events: [] })} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+              <button onClick={() => setWhForm({ url: "", events: [] })} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
                 <Plus className="h-3.5 w-3.5" /> New webhook
               </button>
             </div>
@@ -208,7 +208,7 @@ export default function DeveloperPortalPage() {
                 </label>
               ))}
             </div>
-            <button onClick={createWebhook} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Create webhook</button>
+            <button onClick={createWebhook} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Create webhook</button>
           </div>
         </div>
       )}

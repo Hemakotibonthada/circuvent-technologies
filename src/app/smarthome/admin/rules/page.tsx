@@ -1,207 +1,558 @@
 "use client";
 
-import { useMemo, useState } from "react";
+/**
+ * Rules & automations console.
+ *
+ * This page is driven entirely by the control plane's real automations API
+ * (`/automations`, full CRUD). Every rule, its trigger and its action are the
+ * exact shape the backend stores (see `Automation` in src/lib/control-plane.ts):
+ * a single trigger (device state OR time of day) and a single action (send a
+ * device command OR raise a notification). Device pickers are populated from the
+ * live fleet (`/admin/devices`), so triggers and actions only reference real
+ * devices.
+ *
+ * The backend models nothing more than that, so the previously fabricated
+ * visual node builder, complex-event-processing, edge deployment, execution
+ * debugger and template marketplace were deleted rather than faked. We expose
+ * exactly what the API supports.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Workflow, Zap, Clock, MapPin, GitBranch, Bot, Webhook, Radio, Database, Bell,
-  Play, Plus, Store, Bug, ChevronRight, CircleDot, TriangleAlert, Check,
+  Workflow, Zap, Clock, Cpu, Bell, Radio, Plus, RefreshCw, Trash2, Pencil, Check,
+  TriangleAlert, Inbox,
 } from "lucide-react";
-import { rulesStore, type Rule } from "../_lib/sim";
-import { useStore, rng, int, pick } from "../_lib/store";
-import { relativeTime, num } from "../_lib/format";
+import { useAutomations, useAdminDevices } from "../_lib/api";
 import {
-  PageHeader, Panel, StatCard, Badge, Dot, Btn, Toggle, Tabs, DataTable, SectionTitle,
-  StaggerGrid, StaggerItem, Segmented, type Column, type Tone,
+  controlPlane,
+  type Automation,
+  type AutomationTrigger,
+  type AutomationAction,
+  type AutomationBody,
+  type AdminDevice,
+} from "@/lib/control-plane";
+import { relativeTime, fmtDateTime, num } from "../_lib/format";
+import {
+  PageHeader, StatCard, Badge, Btn, Toggle, DataTable, SearchInput, Select, Segmented,
+  Modal, Field, Input, EmptyState, LoadingState, ErrorState, SectionTitle, StaggerGrid,
+  StaggerItem, type Column,
 } from "../_ui";
 
-type Tab = "rules" | "builder" | "executions" | "templates";
+// ------------------------------------------------------------------- types ---
+
+type TriggerType = NonNullable<AutomationTrigger["type"]>;
+type ActionType = NonNullable<AutomationAction["type"]>;
+type Op = NonNullable<AutomationTrigger["op"]>;
+type EnabledFilter = "all" | "enabled" | "disabled";
+
+interface RuleForm {
+  name: string;
+  enabled: boolean;
+  triggerType: TriggerType;
+  triggerDeviceId: string;
+  triggerField: string;
+  triggerOp: Op;
+  triggerValue: string;
+  triggerAt: string;
+  actionType: ActionType;
+  actionDeviceId: string;
+  actionCommand: string;
+  actionTitle: string;
+  actionBody: string;
+}
+
+// ----------------------------------------------------------------- helpers ---
+
+const OPS: { value: Op; label: string }[] = [
+  { value: "<", label: "< less than" },
+  { value: "<=", label: "≤ at most" },
+  { value: ">", label: "> greater than" },
+  { value: ">=", label: "≥ at least" },
+  { value: "==", label: "= equals" },
+  { value: "!=", label: "≠ not equal" },
+  { value: "truthy", label: "is set (truthy)" },
+  { value: "falsy", label: "is clear (falsy)" },
+];
+
+const TRIGGER_TYPES: { value: TriggerType; label: string }[] = [
+  { value: "state", label: "Device state" },
+  { value: "time", label: "Time of day" },
+];
+
+const ACTION_TYPES: { value: ActionType; label: string }[] = [
+  { value: "command", label: "Send command" },
+  { value: "notify", label: "Notify" },
+];
+
+const ENABLED_FILTERS: { value: EnabledFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "enabled", label: "Enabled" },
+  { value: "disabled", label: "Disabled" },
+];
+
+const DEFAULT_COMMAND = '{\n  "action": "set",\n  "power": true\n}';
+
+function formatVal(v: number | string | boolean | undefined): string {
+  return v === undefined || v === null ? "?" : String(v);
+}
+
+function triggerSummary(t: AutomationTrigger, deviceName: (id?: string) => string): string {
+  if (t.type === "time") return `At ${t.at ?? "—"}`;
+  const dev = deviceName(t.deviceId);
+  const field = t.field ?? "?";
+  if (t.op === "truthy") return `${dev} · ${field} is set`;
+  if (t.op === "falsy") return `${dev} · ${field} is clear`;
+  return `${dev} · ${field} ${t.op ?? "?"} ${formatVal(t.value)}`;
+}
+
+function actionSummary(a: AutomationAction, deviceName: (id?: string) => string): string {
+  if (a.type === "notify") return `Notify — ${a.title || a.body || "message"}`;
+  return `Command ${deviceName(a.deviceId)} — ${a.command ? JSON.stringify(a.command) : "{}"}`;
+}
+
+function coerceValue(raw: string): number | string | boolean {
+  const s = raw.trim();
+  if (s === "true") return true;
+  if (s === "false") return false;
+  if (s !== "" && !Number.isNaN(Number(s))) return Number(s);
+  return s;
+}
+
+function formFromRule(r: Automation | null): RuleForm {
+  const t = r?.trigger;
+  const a = r?.action;
+  return {
+    name: r?.name ?? "",
+    enabled: r?.enabled ?? true,
+    triggerType: t?.type === "time" ? "time" : "state",
+    triggerDeviceId: t?.deviceId ?? "",
+    triggerField: t?.field ?? "",
+    triggerOp: t?.op ?? ">",
+    triggerValue: t?.value === undefined || t?.value === null ? "" : String(t.value),
+    triggerAt: t?.at ?? "",
+    actionType: a?.type === "notify" ? "notify" : "command",
+    actionDeviceId: a?.deviceId ?? "",
+    actionCommand: a?.command ? JSON.stringify(a.command, null, 2) : DEFAULT_COMMAND,
+    actionTitle: a?.title ?? "",
+    actionBody: a?.body ?? "",
+  };
+}
+
+/** Turn the form into the exact AutomationBody the control plane expects. */
+function buildBody(f: RuleForm): { body?: AutomationBody; error?: string } {
+  if (!f.name.trim()) return { error: "Give the rule a name." };
+
+  let trigger: AutomationTrigger;
+  if (f.triggerType === "time") {
+    if (!f.triggerAt.trim()) return { error: "Enter the trigger time (HH:MM)." };
+    trigger = { type: "time", at: f.triggerAt.trim() };
+  } else {
+    if (!f.triggerDeviceId) return { error: "Pick the trigger device." };
+    if (!f.triggerField.trim()) return { error: "Enter the state field to watch." };
+    trigger = { type: "state", deviceId: f.triggerDeviceId, field: f.triggerField.trim(), op: f.triggerOp };
+    if (f.triggerOp !== "truthy" && f.triggerOp !== "falsy") {
+      trigger.value = coerceValue(f.triggerValue);
+    }
+  }
+
+  let action: AutomationAction;
+  if (f.actionType === "notify") {
+    if (!f.actionTitle.trim() && !f.actionBody.trim()) return { error: "Enter a notification title or body." };
+    action = { type: "notify", title: f.actionTitle.trim() || undefined, body: f.actionBody.trim() || undefined };
+  } else {
+    if (!f.actionDeviceId) return { error: "Pick the device to command." };
+    let command: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(f.actionCommand);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+      command = parsed as Record<string, unknown>;
+    } catch {
+      return { error: "Action command must be a valid JSON object." };
+    }
+    action = { type: "command", deviceId: f.actionDeviceId, command };
+  }
+
+  return { body: { name: f.name.trim(), enabled: f.enabled, trigger, action } };
+}
+
+function apiError(res: { status: number; data: unknown }): string {
+  const d = res.data;
+  const body = d && typeof d === "object" && "error" in d ? String((d as { error?: unknown }).error ?? "") : "";
+  if (body) return body;
+  if (res.status === 0) return "Cannot reach the control plane.";
+  if (res.status === 401) return "Your operator session has expired — sign in again.";
+  if (res.status === 403) return "This account is not an operator.";
+  return `Control plane returned ${res.status}.`;
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/[0.08] px-3 py-2 text-sm text-red-200">
+      <TriangleAlert className="h-4 w-4 shrink-0" /> {message}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------- page ---
 
 export default function RulesPage() {
-  const rules = useStore(rulesStore);
-  const [tab, setTab] = useState<Tab>("rules");
-  const [selected, setSelected] = useState<Rule | null>(rules[0] ?? null);
-  const enabled = rules.filter((r) => r.enabled).length;
-  const runs = rules.reduce((s, r) => s + r.runs24h, 0);
+  const rulesRes = useAutomations();
+  const devicesRes = useAdminDevices();
+
+  const [showEditor, setShowEditor] = useState(false);
+  const [editRule, setEditRule] = useState<Automation | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Automation | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+
+  const [q, setQ] = useState("");
+  const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>("all");
+  const [deviceFilter, setDeviceFilter] = useState("all");
+
+  const rules = useMemo(() => rulesRes.data ?? [], [rulesRes.data]);
+  const devices = useMemo(() => devicesRes.data ?? [], [devicesRes.data]);
+
+  const deviceName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of devices) m.set(d.id, d.name || d.id);
+    return (id?: string) => (id ? m.get(id) ?? id : "any device");
+  }, [devices]);
+
+  const enabledCount = rules.filter((r) => r.enabled).length;
+  const stateTrig = rules.filter((r) => r.trigger.type === "state").length;
+  const timeTrig = rules.filter((r) => r.trigger.type === "time").length;
+
+  const referencedDeviceOptions = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of rules) {
+      if (r.trigger.deviceId) ids.add(r.trigger.deviceId);
+      if (r.action.deviceId) ids.add(r.action.deviceId);
+    }
+    return [{ value: "all", label: "All devices" }, ...[...ids].map((id) => ({ value: id, label: deviceName(id) }))];
+  }, [rules, deviceName]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return rules.filter((r) => {
+      if (enabledFilter !== "all" && (enabledFilter === "enabled") !== r.enabled) return false;
+      if (deviceFilter !== "all" && r.trigger.deviceId !== deviceFilter && r.action.deviceId !== deviceFilter) return false;
+      if (needle) {
+        const hay = `${r.name} ${r.trigger.field ?? ""} ${r.action.title ?? ""} ${r.action.body ?? ""} ${deviceName(r.trigger.deviceId)} ${deviceName(r.action.deviceId)}`.toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [rules, q, enabledFilter, deviceFilter, deviceName]);
+
+  const openEdit = useCallback((r: Automation) => {
+    setEditRule(r);
+    setShowEditor(true);
+  }, []);
+  const openCreate = () => {
+    setEditRule(null);
+    setShowEditor(true);
+  };
+
+  const toggle = useCallback(
+    async (r: Automation) => {
+      setBusyId(r.id);
+      setActionErr(null);
+      const res = await controlPlane.updateAutomation(r.id, { enabled: !r.enabled });
+      setBusyId(null);
+      if (res.ok) rulesRes.reload();
+      else setActionErr(apiError(res));
+    },
+    [rulesRes]
+  );
+
+  const doDelete = useCallback(async () => {
+    if (!confirmDelete) return;
+    setDeleteBusy(true);
+    setActionErr(null);
+    const res = await controlPlane.deleteAutomation(confirmDelete.id);
+    setDeleteBusy(false);
+    if (res.ok) {
+      setConfirmDelete(null);
+      rulesRes.reload();
+    } else {
+      setActionErr(apiError(res));
+    }
+  }, [confirmDelete, rulesRes]);
+
+  const reloadAll = () => {
+    rulesRes.reload();
+    devicesRes.reload();
+  };
+
+  if (rulesRes.loading && rules.length === 0) {
+    return (
+      <div className="space-y-6">
+        <LoadingState rows={2} label="Loading automations…" />
+        <LoadingState rows={4} />
+      </div>
+    );
+  }
+  if (rulesRes.error && rules.length === 0) {
+    return <ErrorState message={rulesRes.error} unauthorized={rulesRes.unauthorized} onRetry={rulesRes.reload} />;
+  }
+
+  const cols: Column<Automation>[] = [
+    {
+      key: "name", header: "Rule",
+      sort: (a, b) => a.name.localeCompare(b.name),
+      render: (r) => (
+        <div className="min-w-0">
+          <div className="truncate font-medium text-white">{r.name}</div>
+          <div className="truncate text-[11px] ad-muted">{triggerSummary(r.trigger, deviceName)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "trigger", header: "Trigger",
+      render: (r) =>
+        r.trigger.type === "time" ? (
+          <Badge tone="blue"><Clock className="h-3 w-3" /> time</Badge>
+        ) : (
+          <Badge tone="brand"><Zap className="h-3 w-3" /> state</Badge>
+        ),
+    },
+    {
+      key: "action", header: "Action",
+      render: (r) => (
+        <div className="flex min-w-0 items-center gap-2">
+          {r.action.type === "notify" ? (
+            <Badge tone="violet"><Bell className="h-3 w-3" /> notify</Badge>
+          ) : (
+            <Badge tone="amber"><Radio className="h-3 w-3" /> command</Badge>
+          )}
+          <span className="max-w-[220px] truncate text-[11px] ad-muted">{actionSummary(r.action, deviceName)}</span>
+        </div>
+      ),
+    },
+    {
+      key: "enabled", header: "Enabled", align: "center",
+      render: (r) => (
+        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+          <Toggle checked={r.enabled} onChange={() => toggle(r)} disabled={busyId === r.id} />
+        </div>
+      ),
+    },
+    {
+      key: "created", header: "Created", align: "right",
+      sort: (a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""),
+      render: (r) => <span className="text-xs ad-muted" title={r.created_at ? fmtDateTime(r.created_at) : ""}>{r.created_at ? relativeTime(r.created_at) : "—"}</span>,
+    },
+    {
+      key: "act", header: "", align: "right",
+      render: (r) => (
+        <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => openEdit(r)} className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-400 transition hover:text-cyan-300"><Pencil className="h-3.5 w-3.5" /> Edit</button>
+          <button onClick={() => { setConfirmDelete(r); setActionErr(null); }} className="inline-flex items-center gap-1 text-xs font-semibold text-red-400 transition hover:text-red-300"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Rules & automation engine" icon={<Workflow className="h-5 w-5" />}
-        subtitle="Visual node-based automation, complex event processing, schedules, edge deployment, and a step-by-step execution debugger."
+        title="Rules & automations"
+        icon={<Workflow className="h-5 w-5" />}
+        subtitle="Automations backed by the control plane's real rules engine: a device-state or time trigger, and a device-command or notification action. Exactly what the API stores — nothing simulated."
+        actions={
+          <div className="flex items-center gap-2">
+            <Btn variant="subtle" onClick={reloadAll}><RefreshCw className="h-4 w-4" /> Refresh</Btn>
+            <Btn variant="primary" onClick={openCreate}><Plus className="h-4 w-4" /> New rule</Btn>
+          </div>
+        }
       />
+
+      {devicesRes.error && (
+        <div role="alert" className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-4 py-2.5 text-sm text-amber-200">
+          <TriangleAlert className="h-4 w-4 shrink-0" /> Device list unavailable ({devicesRes.error}) — device pickers may be empty.
+        </div>
+      )}
 
       <StaggerGrid className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StaggerItem><StatCard label="Active rules" value={num(enabled)} icon={<Zap className="h-4 w-4" />} tone="brand" sub={`of ${rules.length}`} /></StaggerItem>
-        <StaggerItem><StatCard label="Executions 24h" value={num(runs)} icon={<Play className="h-4 w-4" />} tone="violet" /></StaggerItem>
-        <StaggerItem><StatCard label="Edge-deployed" value={num(Math.round(rules.length * 0.4))} icon={<GitBranch className="h-4 w-4" />} tone="green" /></StaggerItem>
-        <StaggerItem><StatCard label="Dry-run" value={num(rules.filter((r) => r.mode === "dry-run").length)} icon={<Bug className="h-4 w-4" />} tone="amber" /></StaggerItem>
+        <StaggerItem><StatCard label="Automations" value={num(rules.length)} icon={<Workflow className="h-4 w-4" />} tone="brand" sub="total" /></StaggerItem>
+        <StaggerItem><StatCard label="Enabled" value={num(enabledCount)} icon={<Zap className="h-4 w-4" />} tone={enabledCount ? "green" : "slate"} sub={`${num(rules.length - enabledCount)} disabled`} /></StaggerItem>
+        <StaggerItem><StatCard label="State-triggered" value={num(stateTrig)} icon={<Cpu className="h-4 w-4" />} tone="violet" sub="on device state" /></StaggerItem>
+        <StaggerItem><StatCard label="Time-triggered" value={num(timeTrig)} icon={<Clock className="h-4 w-4" />} tone="blue" sub="on a schedule" /></StaggerItem>
       </StaggerGrid>
 
-      <Tabs<Tab>
-        value={tab} onChange={setTab}
-        tabs={[
-          { value: "rules", label: "Rules", icon: <Workflow className="h-4 w-4" />, count: rules.length },
-          { value: "builder", label: "Visual Builder", icon: <GitBranch className="h-4 w-4" /> },
-          { value: "executions", label: "Executions", icon: <Bug className="h-4 w-4" /> },
-          { value: "templates", label: "Marketplace", icon: <Store className="h-4 w-4" /> },
-        ]}
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={q} onChange={setQ} placeholder="Search rules…" className="min-w-[200px] flex-1" />
+        <Segmented value={enabledFilter} onChange={setEnabledFilter} options={ENABLED_FILTERS} />
+        <Select value={deviceFilter} onChange={setDeviceFilter} options={referencedDeviceOptions} />
+      </div>
+
+      {actionErr && <ErrorBanner message={actionErr} />}
+
+      {rulesRes.error && (
+        <div role="alert" className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-4 py-2.5 text-sm text-amber-200">
+          <TriangleAlert className="h-4 w-4 shrink-0" /> {rulesRes.error}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="text-sm ad-muted">{num(filtered.length)} of {num(rules.length)} rules</span>
+      </div>
+
+      {rules.length === 0 ? (
+        <EmptyState
+          icon={<Workflow className="h-6 w-6" />}
+          title="No automations yet"
+          hint="Create your first rule to react to device state or run an action on a schedule."
+          action={<Btn variant="primary" onClick={openCreate}><Plus className="h-4 w-4" /> Create rule</Btn>}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={<Inbox className="h-6 w-6" />} title="No matching rules" hint="Adjust the search or filters above." />
+      ) : (
+        <DataTable rows={filtered} columns={cols} rowKey={(r) => String(r.id)} onRowClick={openEdit} />
+      )}
+
+      <RuleEditor
+        open={showEditor}
+        rule={editRule}
+        devices={devices}
+        onClose={() => setShowEditor(false)}
+        onSaved={rulesRes.reload}
       />
 
-      {tab === "rules" && <RulesTab rules={rules} onOpen={(r) => { setSelected(r); setTab("builder"); }} />}
-      {tab === "builder" && <BuilderTab rules={rules} selected={selected} onSelect={setSelected} />}
-      {tab === "executions" && <ExecutionsTab rules={rules} />}
-      {tab === "templates" && <TemplatesTab />}
-    </div>
-  );
-}
-
-function RulesTab({ rules, onOpen }: { rules: Rule[]; onOpen: (r: Rule) => void }) {
-  const toggle = (id: string) => rulesStore.set((p) => p.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r));
-  const cols: Column<Rule>[] = [
-    { key: "name", header: "Rule", render: (r) => (<div><div className="font-medium text-white">{r.name}</div><div className="font-mono text-[11px] ad-muted">{r.condition}</div></div>) },
-    { key: "action", header: "Action", render: (r) => <span className="text-slate-300">{r.action}</span> },
-    { key: "mode", header: "Mode", render: (r) => <Badge tone={r.mode === "live" ? "green" : "amber"}>{r.mode}</Badge> },
-    { key: "runs", header: "Runs 24h", align: "right", sort: (a, b) => a.runs24h - b.runs24h, render: (r) => <span className="tabular-nums text-white">{num(r.runs24h)}</span> },
-    { key: "last", header: "Last run", align: "right", render: (r) => <span className="text-xs ad-muted">{r.lastRun ? relativeTime(r.lastRun) : "never"}</span> },
-    { key: "enabled", header: "Enabled", align: "center", render: (r) => <div onClick={(e) => e.stopPropagation()} className="flex justify-center"><Toggle checked={r.enabled} onChange={() => toggle(r.id)} /></div> },
-    { key: "chev", header: "", align: "right", render: () => <ChevronRight className="h-4 w-4 text-slate-600" /> },
-  ];
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end"><Btn variant="primary"><Plus className="h-4 w-4" /> New rule</Btn></div>
-      <DataTable rows={rules} columns={cols} rowKey={(r) => r.id} onRowClick={onOpen} />
-    </div>
-  );
-}
-
-// ------------------------------------------------------------- visual node ---
-
-interface FlowNode { id: string; kind: "trigger" | "condition" | "action"; label: string; sub: string; icon: typeof Zap; x: number; y: number; }
-
-function BuilderTab({ rules, selected, onSelect }: { rules: Rule[]; selected: Rule | null; onSelect: (r: Rule) => void }) {
-  const rule = selected ?? rules[0];
-  const nodes: FlowNode[] = useMemo(() => rule ? [
-    { id: "t", kind: "trigger", label: "Trigger", sub: rule.condition.split(" ").slice(0, 2).join(" "), icon: rule.trigger === "every" ? Clock : Zap, x: 40, y: 120 },
-    { id: "c", kind: "condition", label: "Condition (CEP)", sub: rule.condition, icon: GitBranch, x: 320, y: 60 },
-    { id: "d", kind: "condition", label: "Debounce", sub: "cooldown 5m", icon: Clock, x: 320, y: 200 },
-    { id: "a", kind: "action", label: "Action", sub: rule.action, icon: Bell, x: 620, y: 120 },
-  ] : [], [rule]);
-
-  const paletteNodes = [
-    { icon: Zap, label: "Threshold", tone: "brand" as Tone }, { icon: Clock, label: "Schedule (cron)", tone: "blue" as Tone },
-    { icon: MapPin, label: "Geofence", tone: "green" as Tone }, { icon: GitBranch, label: "Boolean logic", tone: "violet" as Tone },
-    { icon: Bot, label: "ML anomaly", tone: "violet" as Tone }, { icon: Webhook, label: "Webhook", tone: "amber" as Tone },
-    { icon: Radio, label: "MQTT publish", tone: "brand" as Tone }, { icon: Database, label: "DB insert", tone: "blue" as Tone },
-    { icon: Bell, label: "Notify", tone: "red" as Tone },
-  ];
-
-  const edges = [["t", "c"], ["t", "d"], ["c", "a"], ["d", "a"]];
-  const nodeById = (id: string) => nodes.find((n) => n.id === id)!;
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-      <Panel>
-        <SectionTitle>Node palette</SectionTitle>
-        <div className="mb-3">
-          <div className="mb-1 text-[11px] uppercase tracking-wider ad-muted">Rules</div>
-          <select className="ad-input" value={rule?.id} onChange={(e) => { const r = rules.find((x) => x.id === e.target.value); if (r) onSelect(r); }}>
-            {rules.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          {paletteNodes.map((p) => (
-            <div key={p.label} draggable className="flex cursor-grab items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2 text-sm text-slate-200 transition hover:bg-white/[0.07]">
-              <span className="grid h-7 w-7 place-items-center rounded-md" style={{ background: "rgba(6,182,212,.1)", color: "#22d3ee" }}><p.icon className="h-3.5 w-3.5" /></span>
-              {p.label}
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel pad={false} className="relative overflow-hidden p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm font-semibold text-white">{rule?.name}</span>
-          <div className="flex gap-2"><Badge tone={rule?.mode === "live" ? "green" : "amber"}>{rule?.mode}</Badge><Btn size="sm" variant="primary"><Check className="h-3.5 w-3.5" /> Deploy to edge</Btn></div>
-        </div>
-        <div className="relative overflow-x-auto rounded-xl border border-white/5 bg-[repeating-linear-gradient(0deg,transparent,transparent_23px,rgba(148,163,184,.05)_23px,rgba(148,163,184,.05)_24px),repeating-linear-gradient(90deg,transparent,transparent_23px,rgba(148,163,184,.05)_23px,rgba(148,163,184,.05)_24px)]" style={{ minHeight: 340 }}>
-          <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ minWidth: 820 }}>
-            {edges.map(([from, to], i) => {
-              const a = nodeById(from), b = nodeById(to);
-              const x1 = a.x + 180, y1 = a.y + 34, x2 = b.x, y2 = b.y + 34;
-              const mx = (x1 + x2) / 2;
-              return <path key={i} d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`} fill="none" stroke="rgba(6,182,212,.4)" strokeWidth={2} />;
-            })}
-          </svg>
-          <div className="relative" style={{ minWidth: 820, minHeight: 340 }}>
-            {nodes.map((n) => (
-              <div key={n.id} className="absolute w-[180px] rounded-xl border p-3 shadow-lg" style={{ left: n.x, top: n.y, background: "rgba(15,23,42,.92)", borderColor: n.kind === "trigger" ? "rgba(6,182,212,.4)" : n.kind === "action" ? "rgba(239,68,68,.4)" : "rgba(139,92,246,.4)" }}>
-                <div className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 place-items-center rounded-md" style={{ background: "rgba(6,182,212,.12)", color: "#22d3ee" }}><n.icon className="h-3.5 w-3.5" /></span>
-                  <span className="text-[11px] font-semibold uppercase tracking-wide ad-muted">{n.label}</span>
-                </div>
-                <div className="mt-2 font-mono text-xs text-white">{n.sub}</div>
-              </div>
-            ))}
+      <Modal open={!!confirmDelete} onClose={() => { if (!deleteBusy) setConfirmDelete(null); }} title="Delete rule">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Delete <b className="text-slate-200">{confirmDelete?.name}</b>? The control plane stops evaluating it immediately. This cannot be undone.
+          </p>
+          {actionErr && <ErrorBanner message={actionErr} />}
+          <div className="flex justify-end gap-2">
+            <Btn variant="subtle" onClick={() => setConfirmDelete(null)} disabled={deleteBusy}>Cancel</Btn>
+            <Btn variant="danger" onClick={doDelete} disabled={deleteBusy}>{deleteBusy ? "Deleting…" : "Delete rule"}</Btn>
           </div>
         </div>
-      </Panel>
+      </Modal>
     </div>
   );
 }
 
-function ExecutionsTab({ rules }: { rules: Rule[] }) {
-  const [filter, setFilter] = useState<"all" | "fired" | "skipped">("all");
-  const execs = useMemo(() => {
-    const r = rng("execs");
-    return Array.from({ length: 26 }, (_, i) => {
-      const rule = pick(r, rules);
-      const fired = int(r, 0, 10) > 3;
-      return { id: i, rule: rule.name, input: `${rule.trigger}=${int(r, 10, 95)}`, result: fired ? "fired" : "skipped", latency: int(r, 4, 120), ts: new Date(Date.now() - i * int(r, 1, 30) * 6e4).toISOString() };
-    });
-  }, [rules]);
-  const filtered = execs.filter((e) => filter === "all" || e.result === filter);
+// ------------------------------------------------------------------ editor ---
+
+function RuleEditor({
+  open, rule, devices, onClose, onSaved,
+}: {
+  open: boolean;
+  rule: Automation | null;
+  devices: AdminDevice[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [f, setF] = useState<RuleForm>(() => formFromRule(null));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setF(formFromRule(rule));
+    setErr(null);
+    setBusy(false);
+  }, [open, rule]);
+
+  function set<K extends keyof RuleForm>(k: K, v: RuleForm[K]) {
+    setF((p) => ({ ...p, [k]: v }));
+  }
+
+  const deviceOptions = useMemo(
+    () => [
+      { value: "", label: devices.length ? "Select a device…" : "No devices available" },
+      ...devices.map((d) => ({ value: d.id, label: `${d.name || d.id} · ${d.type}` })),
+    ],
+    [devices]
+  );
+
+  const triggerDevice = devices.find((d) => d.id === f.triggerDeviceId) ?? null;
+  const stateKeys = triggerDevice ? Object.keys(triggerDevice.state ?? {}) : [];
+
+  const save = useCallback(async () => {
+    const { body, error } = buildBody(f);
+    if (error || !body) {
+      setErr(error ?? "Invalid rule.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const res = rule ? await controlPlane.updateAutomation(rule.id, body) : await controlPlane.createAutomation(body);
+    setBusy(false);
+    if (res.ok) {
+      onSaved();
+      onClose();
+    } else {
+      setErr(apiError(res));
+    }
+  }, [f, rule, onSaved, onClose]);
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <Segmented<"all" | "fired" | "skipped"> value={filter} onChange={setFilter} options={[{ value: "all", label: "All" }, { value: "fired", label: "Fired" }, { value: "skipped", label: "Skipped" }]} />
-        <span className="text-sm ad-muted">Step-by-step debugger — input values &amp; evaluation</span>
-      </div>
-      <Panel pad={false}>
-        <div className="divide-y divide-white/5">
-          {filtered.map((e) => (
-            <div key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-              {e.result === "fired" ? <CircleDot className="h-4 w-4 text-green-400" /> : <TriangleAlert className="h-4 w-4 text-slate-600" />}
-              <span className="w-48 truncate font-medium text-white">{e.rule}</span>
-              <span className="font-mono text-xs text-cyan-300">{e.input}</span>
-              <Badge tone={e.result === "fired" ? "green" : "slate"}>{e.result}</Badge>
-              <span className="ml-auto text-xs ad-muted tabular-nums">{e.latency}ms · {relativeTime(e.ts)}</span>
+    <Modal open={open} onClose={() => { if (!busy) onClose(); }} title={rule ? "Edit rule" : "New rule"} wide>
+      <div className="space-y-4">
+        <Field label="Name"><Input value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Turn on pump when tank is low" /></Field>
+        <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2.5">
+          <span className="text-sm text-slate-200">Enabled</span>
+          <Toggle checked={f.enabled} onChange={(v) => set("enabled", v)} />
+        </label>
+
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <SectionTitle>When · trigger</SectionTitle>
+          <Segmented value={f.triggerType} onChange={(v) => set("triggerType", v)} options={TRIGGER_TYPES} />
+          {f.triggerType === "state" ? (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label="Device"><Select value={f.triggerDeviceId} onChange={(v) => set("triggerDeviceId", v)} options={deviceOptions} /></Field>
+              <Field label="State field" hint={stateKeys.length ? `Live keys: ${stateKeys.slice(0, 6).join(", ")}` : "The state property the firmware publishes."}>
+                <input
+                  list="cv-rule-state-keys"
+                  value={f.triggerField}
+                  onChange={(e) => set("triggerField", e.target.value)}
+                  placeholder="e.g. level, leak, temp"
+                  className="ad-input"
+                />
+                <datalist id="cv-rule-state-keys">{stateKeys.map((k) => <option key={k} value={k} />)}</datalist>
+              </Field>
+              <Field label="Comparator"><Select value={f.triggerOp} onChange={(v) => set("triggerOp", v)} options={OPS} /></Field>
+              {f.triggerOp !== "truthy" && f.triggerOp !== "falsy" && (
+                <Field label="Value" hint="Numbers and true/false are typed automatically."><Input value={f.triggerValue} onChange={(e) => set("triggerValue", e.target.value)} placeholder="e.g. 20" /></Field>
+              )}
             </div>
-          ))}
+          ) : (
+            <div className="mt-3">
+              <Field label="Time" hint="24-hour HH:MM, evaluated by the control plane."><Input value={f.triggerAt} onChange={(e) => set("triggerAt", e.target.value)} placeholder="07:30" /></Field>
+            </div>
+          )}
         </div>
-      </Panel>
-    </div>
-  );
-}
 
-function TemplatesTab() {
-  const templates = [
-    { name: "HVAC optimization", desc: "Occupancy-based setpoints with peak shaving", installs: "2.1k", icon: Zap },
-    { name: "Cold chain monitor", desc: "Temperature excursion alerts + escalation", installs: "1.4k", icon: TriangleAlert },
-    { name: "Leak auto-shutoff", desc: "Close valve on leak, notify on-call", installs: "980", icon: Radio },
-    { name: "Energy demand response", desc: "Shift load to battery when grid price spikes", installs: "760", icon: GitBranch },
-    { name: "Predictive maintenance", desc: "ML anomaly score triggers work order", installs: "1.9k", icon: Bot },
-    { name: "Geofence arming", desc: "Arm security when everyone leaves", installs: "3.3k", icon: MapPin },
-  ];
-  return (
-    <StaggerGrid className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {templates.map((t) => (
-        <StaggerItem key={t.name}>
-          <Panel className="flex h-full flex-col">
-            <div className="flex items-center gap-2"><span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: "rgba(6,182,212,.1)", color: "#22d3ee" }}><t.icon className="h-4 w-4" /></span><span className="font-semibold text-white">{t.name}</span></div>
-            <p className="mt-2 flex-1 text-sm ad-muted">{t.desc}</p>
-            <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3"><span className="text-xs ad-muted">{t.installs} installs</span><Btn size="sm" variant="subtle"><Plus className="h-3.5 w-3.5" /> Import</Btn></div>
-          </Panel>
-        </StaggerItem>
-      ))}
-    </StaggerGrid>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <SectionTitle>Then · action</SectionTitle>
+          <Segmented value={f.actionType} onChange={(v) => set("actionType", v)} options={ACTION_TYPES} />
+          {f.actionType === "command" ? (
+            <div className="mt-3 space-y-3">
+              <Field label="Device"><Select value={f.actionDeviceId} onChange={(v) => set("actionDeviceId", v)} options={deviceOptions} /></Field>
+              <Field label="Command (JSON)" hint="Published to the device over MQTT when the rule fires.">
+                <textarea value={f.actionCommand} onChange={(e) => set("actionCommand", e.target.value)} rows={4} spellCheck={false} className="ad-input resize-none font-mono text-xs" />
+              </Field>
+            </div>
+          ) : (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label="Title"><Input value={f.actionTitle} onChange={(e) => set("actionTitle", e.target.value)} placeholder="Tank low" /></Field>
+              <Field label="Body"><Input value={f.actionBody} onChange={(e) => set("actionBody", e.target.value)} placeholder="Water level dropped below 20%." /></Field>
+            </div>
+          )}
+        </div>
+
+        {err && <ErrorBanner message={err} />}
+
+        <div className="flex justify-end gap-2">
+          <Btn variant="subtle" onClick={onClose} disabled={busy}>Cancel</Btn>
+          <Btn variant="primary" onClick={save} disabled={busy}><Check className="h-4 w-4" /> {busy ? "Saving…" : rule ? "Save changes" : "Create rule"}</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }

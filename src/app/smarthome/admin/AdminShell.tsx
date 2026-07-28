@@ -91,7 +91,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
         style={{ width: sidebarW }}
       >
         <div className="flex items-center gap-3 px-4 py-4">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: "var(--cv-gradient)" }}>
             <Cpu className="h-5 w-5 text-white" />
           </div>
           {!collapsed && (
@@ -142,7 +142,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 href="/smarthome/admin/fleet"
               className="mb-2 flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
             >
-                <span className="grid h-7 w-7 place-items-center rounded-lg text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+                <span className="grid h-7 w-7 place-items-center rounded-lg text-white" style={{ background: "var(--cv-gradient)" }}>
                   <Radar className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
@@ -252,7 +252,7 @@ function UserMenu({ email, name, onLogout }: { email: string; name: string; onLo
   const initials = name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="grid h-9 w-9 place-items-center rounded-lg text-sm font-bold text-white cursor-pointer" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+      <button onClick={() => setOpen((o) => !o)} className="grid h-9 w-9 place-items-center rounded-lg text-sm font-bold text-white cursor-pointer" style={{ background: "var(--cv-gradient)" }}>
         {initials}
       </button>
       {open && (

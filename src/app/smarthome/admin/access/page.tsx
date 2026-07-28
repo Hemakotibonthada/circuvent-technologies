@@ -205,7 +205,7 @@ function Avatar({ name, email }: { name: string; email: string }) {
       .map((s) => s[0]?.toUpperCase() ?? "")
       .join("") || "?";
   return (
-    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ background: "var(--cv-gradient)" }}>
       {initials}
     </span>
   );

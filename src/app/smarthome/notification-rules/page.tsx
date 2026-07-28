@@ -90,7 +90,7 @@ export default function NotificationRulesPage() {
           <h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><BellRing className="h-6 w-6" /> Notification rules</h1>
           <p className="text-sm text-slate-400 mt-1">Define your own conditions — any device, any field — and get a browser alert the moment they trigger.</p>
         </div>
-        <button onClick={() => setForm({ name: "", deviceId: "", field: "power", op: "truthy", value: "" })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={() => setForm({ name: "", deviceId: "", field: "power", op: "truthy", value: "" })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Plus className="h-4 w-4" /> New rule
         </button>
       </div>
@@ -136,7 +136,7 @@ export default function NotificationRulesPage() {
             {(form.op === "==" || form.op === "<" || form.op === ">") && (
               <input value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="Value" className="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none mb-3" />
             )}
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Save rule</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Save rule</button>
           </div>
         </div>
       )}

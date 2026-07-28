@@ -1,9 +1,9 @@
 "use client";
 
-// Tiny reactive store built on useSyncExternalStore so the whole admin app can
-// share mutable simulation state (add/edit/delete persists across routes) with
-// localStorage persistence. Deterministic RNG keeps generated fleets/telemetry
-// stable across renders and reloads until the user mutates them.
+// Tiny reactive store built on useSyncExternalStore so admin UI state that is
+// genuinely client-owned (column choices, saved filters, layout) survives route
+// changes and reloads via localStorage. Device/telemetry data does NOT live
+// here — that comes from the control plane through `_lib/api.ts`.
 
 import { useEffect, useSyncExternalStore } from "react";
 
@@ -94,63 +94,11 @@ export function useStore<T>(store: Store<T>): T {
   return v;
 }
 
-// --------------------------------------------------------------- deterministic
-
-/** Mulberry32 — small, fast, deterministic PRNG seeded from a string. */
-export function rng(seed: string | number) {
-  let a = typeof seed === "number" ? seed : hashStr(seed);
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-export function pick<T>(r: () => number, arr: readonly T[]): T {
-  return arr[Math.floor(r() * arr.length) % arr.length];
-}
-
-export function int(r: () => number, min: number, max: number): number {
-  return Math.floor(r() * (max - min + 1)) + min;
-}
-
-export function float(r: () => number, min: number, max: number, dp = 1): number {
-  const v = r() * (max - min) + min;
-  const f = Math.pow(10, dp);
-  return Math.round(v * f) / f;
-}
-
-export function chance(r: () => number, p: number): boolean {
-  return r() < p;
-}
+// --------------------------------------------------------------- ids
 
 /** Stable id generator for new records created at runtime. */
 let counter = Date.now() % 100000;
 export function uid(prefix = "id"): string {
   counter += 1;
   return `${prefix}-${counter.toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
-}
-
-/** Deterministic time-series walk for charts. */
-export function walk(seed: string, points: number, base: number, vol: number, min = 0, max = Infinity): number[] {
-  const r = rng(seed);
-  let v = base;
-  const out: number[] = [];
-  for (let i = 0; i < points; i++) {
-    v += (r() - 0.5) * vol;
-    v = Math.max(min, Math.min(max, v));
-    out.push(Math.round(v * 100) / 100);
-  }
-  return out;
 }

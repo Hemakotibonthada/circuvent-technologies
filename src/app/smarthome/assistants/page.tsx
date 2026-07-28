@@ -70,7 +70,7 @@ export default function AssistantsPage() {
             <option value="">Scene…</option>
             {scenes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          <button onClick={add} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+          <button onClick={add} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
             <Plus className="h-4 w-4" /> Add
           </button>
         </div>

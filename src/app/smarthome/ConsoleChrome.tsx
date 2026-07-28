@@ -97,7 +97,10 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
       setIsAdmin(false);
       return;
     }
-    if (adminCache?.uid === user.id) {
+    // Guard on the cache object itself: if a stored session ever lacks `id`,
+    // `adminCache?.uid === user.id` compares undefined to undefined, passes,
+    // and then dereferences null — taking the whole console down.
+    if (adminCache && adminCache.uid === user.id) {
       setIsAdmin(adminCache.admin);
       return;
     }

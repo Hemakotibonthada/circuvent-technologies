@@ -154,7 +154,7 @@ export default function PresencePage() {
               <option value="">None</option>
               {scenes.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Save zone</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Save zone</button>
           </div>
         </div>
       )}

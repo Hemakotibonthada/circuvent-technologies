@@ -78,7 +78,7 @@ export default function Login() {
           <div className="flex items-center gap-3">
             <div
               className="h-11 w-11 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
-              style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+              style={{ background: "var(--cv-gradient)" }}
             >
               <Cpu className="h-6 w-6 text-white" />
             </div>
@@ -132,7 +132,7 @@ export default function Login() {
             <div className="mb-8 flex items-center gap-3 justify-center lg:hidden">
               <div
                 className="h-11 w-11 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
-                style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+                style={{ background: "var(--cv-gradient)" }}
               >
                 <Cpu className="h-6 w-6 text-white" />
               </div>
@@ -412,7 +412,7 @@ function SubmitButton({ busy, label }: { busy: boolean; label: string }) {
       whileHover={{ scale: busy ? 1 : 1.015 }}
       whileTap={{ scale: busy ? 1 : 0.985 }}
       className="group relative w-full overflow-hidden rounded-xl py-3 font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60 transition"
-      style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+      style={{ background: "var(--cv-gradient)" }}
     >
       <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

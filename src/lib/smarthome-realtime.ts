@@ -35,8 +35,16 @@ import { projectCommand, patchSatisfied, sameValue, type CommandPayload, type St
 
 /** How long an unconfirmed optimistic pin survives before it is rolled back. */
 export const COMMAND_TIMEOUT_MS = 6000;
-/** Poll cadence while at least one command is awaiting confirmation. */
-export const ACTIVE_POLL_MS = 900;
+/**
+ * Confirmation poll ramp used while a command is unconfirmed. The websocket is
+ * the primary confirmation path; this is the safety net for when it is slow or
+ * has silently dropped. Starting tight and backing off keeps the worst-case
+ * confirmation near a quarter second without holding a high request rate for
+ * longer than a command should ever take.
+ */
+export const CONFIRM_POLL_RAMP_MS = [180, 260, 380, 560, 800, 1100] as const;
+/** Steady cadence once the ramp is exhausted but a command is still pending. */
+export const ACTIVE_POLL_MS = 1100;
 /** Poll cadence when idle (the WS channel is the primary path). */
 export const IDLE_POLL_MS = 15000;
 /** How long a field keeps its confirmed/failed flash after resolving. */
@@ -364,12 +372,26 @@ export function useLiveDevice(
 
   const hasPending = pins.current.size > 0 || inflight.current.size > 0;
 
-  // Adaptive polling: a tight burst while a command is unconfirmed (covers a
-  // dropped WS link), relaxed cadence otherwise.
+  // Adaptive confirmation polling. While a command is unconfirmed we walk the
+  // ramp (tight first, then backing off); when idle we fall back to the relaxed
+  // cadence because the websocket carries state pushes.
   useEffect(() => {
-    const period = hasPending ? ACTIVE_POLL_MS : IDLE_POLL_MS;
-    const t = setInterval(load, period);
-    return () => clearInterval(t);
+    if (!hasPending) {
+      const t = setInterval(load, IDLE_POLL_MS);
+      return () => clearInterval(t);
+    }
+    let step = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const delay = CONFIRM_POLL_RAMP_MS[step] ?? ACTIVE_POLL_MS;
+      step += 1;
+      timer = setTimeout(() => {
+        load();
+        tick();
+      }, delay);
+    };
+    tick();
+    return () => clearTimeout(timer);
   }, [load, hasPending]);
 
   // Expire stale pins and clear finished flashes even with no traffic.

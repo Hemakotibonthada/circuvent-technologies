@@ -78,7 +78,7 @@ export default function SolarPage() {
         <div className="flex gap-2">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none" />
           <input type="number" value={produced} onChange={(e) => setProduced(e.target.value)} placeholder="kWh produced" className="flex-1 bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none" />
-          <button onClick={save} className="rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Save</button>
+          <button onClick={save} className="rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Save</button>
         </div>
       </Card>
 

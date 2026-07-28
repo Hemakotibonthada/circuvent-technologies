@@ -145,7 +145,7 @@ export default function CommandCenterPage() {
         <button
           onClick={() => setEditMode((v) => !v)}
           className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-sm transition ${editMode ? "text-white" : "text-slate-200 bg-white/5 border border-white/10"}`}
-          style={editMode ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" } : undefined}
+          style={editMode ? { background: "var(--cv-gradient)" } : undefined}
         >
           <Settings2 className="h-4 w-4" /> {editMode ? "Done customizing" : "Customize"}
         </button>

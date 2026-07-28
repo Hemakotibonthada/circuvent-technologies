@@ -34,7 +34,7 @@ export default function CamerasPage() {
           <h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><Video className="h-6 w-6" /> Cameras</h1>
           <p className="text-sm text-slate-400 mt-1">Register a stream URL for any camera you already own — HLS, MJPEG or a snapshot image.</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Plus className="h-4 w-4" /> Add camera
         </button>
       </div>
@@ -84,7 +84,7 @@ export default function CamerasPage() {
               <option value="snapshot">Still snapshot (image URL)</option>
             </select>
             <input value={form.roomName} onChange={(e) => setForm({ ...form, roomName: e.target.value })} placeholder="Room (optional)" className="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none mb-4" />
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Add camera</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Add camera</button>
           </div>
         </div>
       )}

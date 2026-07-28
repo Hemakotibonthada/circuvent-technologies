@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Plus, Loader2, X, ChevronRight, Cpu, Search, Star, Zap, Home, Activity } from "lucide-react";
+import { Plus, Loader2, X, ChevronRight, Cpu, Search, Star } from "lucide-react";
 import { controlPlane, type AppEvent, type Device, type EnergySummary, type Room, type Scene } from "@/lib/control-plane";
 import { useOptimisticCommands, haptic, type FieldStatus } from "@/lib/smarthome-realtime";
 import { masterPower } from "@/lib/smarthome-command-map";
 import { useConsole } from "./ConsoleProvider";
 import { deviceMeta } from "./DeviceControls";
+import { DashboardWidgets } from "./DashboardWidgets";
 
 export default function DevicesPage() {
   const { user, subscribe } = useConsole();
@@ -21,6 +22,7 @@ export default function DevicesPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [events, setEvents] = useState<AppEvent[]>([]);
+  const [unread, setUnread] = useState(0);
   const [view, setView] = useState<"all" | "on" | "offline" | "favorites">("all");
   const cmd = useOptimisticCommands(devices);
 
@@ -34,16 +36,18 @@ export default function DevicesPage() {
     } else {
       setError("Failed to load devices.");
     }
-    const [en, ro, sc, ev] = await Promise.all([
+    const [en, ro, sc, ev, un] = await Promise.all([
       controlPlane.energySummary(),
       controlPlane.rooms(),
       controlPlane.scenes(),
       controlPlane.events(5),
+      controlPlane.unreadCount(),
     ]);
     if (en.ok) setEnergy(en.data);
     if (ro.ok) setRooms(ro.data.rooms ?? []);
     if (sc.ok) setScenes(sc.data.scenes ?? []);
     if (ev.ok) setEvents(ev.data.events ?? []);
+    if (un.ok) setUnread(un.data.count ?? 0);
     setLoading(false);
   }, []);
 
@@ -103,7 +107,7 @@ export default function DevicesPage() {
         <button
           onClick={() => setShowAdd(true)}
           className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white transition active:scale-95 sm:flex-none"
-          style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+          style={{ background: "var(--cv-gradient)" }}
         >
           <Plus className="h-4 w-4" /> Add device
         </button>
@@ -119,7 +123,15 @@ export default function DevicesPage() {
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
         <>
-          <DashboardWidgets energy={energy} favorites={favorites} scenes={favScenes} rooms={rooms} events={events} />
+          <DashboardWidgets
+            energy={energy}
+            devices={devices}
+            favorites={favorites}
+            scenes={favScenes}
+            rooms={rooms}
+            events={events}
+            unread={unread}
+          />
           <div className="mt-6 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="cv-card flex flex-1 items-center gap-3 rounded-2xl px-4 py-3">
               <Search className="h-5 w-5 shrink-0 text-slate-500" />
@@ -184,61 +196,6 @@ export default function DevicesPage() {
       )}
     </div>
   );
-}
-
-function DashboardWidgets({
-  energy,
-  favorites,
-  scenes,
-  rooms,
-  events,
-}: {
-  energy: EnergySummary | null;
-  favorites: Device[];
-  scenes: Scene[];
-  rooms: Room[];
-  events: AppEvent[];
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-4">
-        <Widget icon={<Zap className="h-5 w-5" />} label="Live power" value={`${Math.round(energy?.liveWatts ?? 0)} W`} />
-        <Widget icon={<Activity className="h-5 w-5" />} label="Today" value={`${(energy?.todayKwh ?? 0).toFixed(2)} kWh`} />
-        <Widget icon={<Star className="h-5 w-5" />} label="Favorites" value={String(favorites.length)} />
-        <Widget icon={<Home className="h-5 w-5" />} label="Rooms" value={String(rooms.length)} />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Panel title="Favorites">
-          {favorites.length ? favorites.slice(0, 5).map((d) => <Link key={d.id} href={`/smarthome/device/${encodeURIComponent(d.id)}`} className="block rounded-xl bg-black/20 px-3 py-2 text-sm text-slate-200">{d.name || d.id}</Link>) : <EmptyMini text="Star devices to pin them here." />}
-        </Panel>
-        <Panel title="Scene shortcuts">
-          {scenes.length ? scenes.map((s) => <button key={s.id} onClick={() => controlPlane.activateScene(s.id)} className="w-full rounded-xl bg-black/20 px-3 py-2 text-left text-sm text-slate-200">{s.icon} {s.name}</button>) : <EmptyMini text="Favorite scenes become quick actions." />}
-        </Panel>
-        <Panel title="Recent activity">
-          {events.length ? events.map((e) => <div key={e.id} className="rounded-xl bg-black/20 px-3 py-2 text-sm"><div className="text-slate-200">{e.title}</div><div className="text-xs text-slate-500 truncate">{e.body}</div></div>) : <EmptyMini text="No recent alerts." />}
-        </Panel>
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        {rooms.map((r) => (
-          <Link key={`${r.id}-${r.name}`} href="/smarthome/rooms" className="shrink-0 rounded-2xl cv-card px-4 py-3 text-sm text-slate-200">
-            <span className="mr-2">{r.icon}</span>{r.name}<span className="ml-2 text-slate-500">{r.count}</span>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Widget({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return <div className="rounded-2xl cv-card p-4"><div className="text-cyan-300">{icon}</div><div className="mt-3 text-2xl font-extrabold text-white">{value}</div><div className="text-xs uppercase tracking-[0.15em] text-slate-500">{label}</div></div>;
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return <div className="rounded-2xl cv-card p-4"><h2 className="font-bold text-white mb-3">{title}</h2><div className="space-y-2">{children}</div></div>;
-}
-
-function EmptyMini({ text }: { text: string }) {
-  return <div className="text-sm text-slate-500">{text}</div>;
 }
 
 function metric(d: Device): string {
@@ -385,7 +342,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <button
         onClick={onAdd}
         className="mt-5 flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white"
-        style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+        style={{ background: "var(--cv-gradient)" }}
       >
         <Plus className="h-4 w-4" /> Add your first device
       </button>
@@ -436,7 +393,7 @@ function AddDeviceModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
             type="submit"
             disabled={busy}
             className="w-full rounded-xl py-3 font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60"
-            style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+            style={{ background: "var(--cv-gradient)" }}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />} Claim device
           </button>

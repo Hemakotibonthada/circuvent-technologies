@@ -110,7 +110,7 @@ export default function EnergyBudgetPage() {
             </div>
           ))}
         </div>
-        <button onClick={save} className="mt-4 flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={save} className="mt-4 flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Save className="h-4 w-4" /> {saved ? "Saved" : "Save settings"}
         </button>
       </Card>

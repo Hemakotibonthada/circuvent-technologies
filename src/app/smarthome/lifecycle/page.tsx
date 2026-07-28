@@ -53,7 +53,7 @@ export default function LifecyclePage() {
           <h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><Battery className="h-6 w-6" /> Device lifecycle</h1>
           <p className="text-sm text-slate-400 mt-1">Track age vs expected lifespan so nothing fails without warning.</p>
         </div>
-        <button onClick={() => setForm({ deviceId: "", purchaseDate: new Date().toISOString().slice(0, 10), years: 5 })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={() => setForm({ deviceId: "", purchaseDate: new Date().toISOString().slice(0, 10), years: 5 })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Plus className="h-4 w-4" /> Track a device
         </button>
       </div>
@@ -101,7 +101,7 @@ export default function LifecyclePage() {
             <input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} className="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none mb-3" />
             <label className="block text-xs text-slate-400 mb-1">Expected lifespan (years)</label>
             <input type="number" value={form.years} onChange={(e) => setForm({ ...form, years: Number(e.target.value) })} className="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none mb-4" />
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Save</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Save</button>
           </div>
         </div>
       )}

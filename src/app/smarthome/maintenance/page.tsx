@@ -55,7 +55,7 @@ export default function MaintenancePage() {
           <h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><Wrench className="h-6 w-6" /> Maintenance reminders</h1>
           <p className="text-sm text-slate-400 mt-1">Recurring upkeep — filters, batteries, cleaning — never forgotten.</p>
         </div>
-        <button onClick={() => setForm({ title: "", deviceId: "", intervalDays: 90 })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={() => setForm({ title: "", deviceId: "", intervalDays: 90 })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Plus className="h-4 w-4" /> New reminder
         </button>
       </div>
@@ -74,7 +74,7 @@ export default function MaintenancePage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => done(t.id)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+                <button onClick={() => done(t.id)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
                   <CheckCircle2 className="h-3.5 w-3.5" /> Mark done
                 </button>
                 <button onClick={() => remove(t.id)} className="text-slate-500 hover:text-red-300"><Trash2 className="h-4 w-4" /></button>
@@ -105,7 +105,7 @@ export default function MaintenancePage() {
             </select>
             <label className="block text-xs text-slate-400 mb-1">Repeat every (days)</label>
             <input type="number" value={form.intervalDays} onChange={(e) => setForm({ ...form, intervalDays: Number(e.target.value) })} className="w-full bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none mb-4" />
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Save reminder</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Save reminder</button>
           </div>
         </div>
       )}

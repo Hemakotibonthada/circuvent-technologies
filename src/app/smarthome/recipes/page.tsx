@@ -66,7 +66,7 @@ export default function RecipesPage() {
             <button
               onClick={() => setActive(r)}
               className="mt-4 flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-semibold text-white"
-              style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+              style={{ background: "var(--cv-gradient)" }}
             >
               {used.includes(r.id) ? <CheckCircle2 className="h-4 w-4" /> : null} {used.includes(r.id) ? "Add again" : "Use recipe"}
             </button>
@@ -86,7 +86,7 @@ export default function RecipesPage() {
               <option value="">Select a device…</option>
               {devices.map((d) => <option key={d.id} value={d.id}>{d.name || d.id}</option>)}
             </select>
-            <button onClick={apply} disabled={!deviceId || busy} className="w-full rounded-xl py-2.5 font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+            <button onClick={apply} disabled={!deviceId || busy} className="w-full rounded-xl py-2.5 font-semibold text-white disabled:opacity-50" style={{ background: "var(--cv-gradient)" }}>
               {busy ? "Creating…" : "Create automation"}
             </button>
           </div>

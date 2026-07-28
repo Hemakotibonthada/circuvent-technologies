@@ -72,7 +72,7 @@ export default function PropertiesPage() {
           <h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><Building className="h-6 w-6" /> Properties</h1>
           <p className="text-sm text-slate-400 mt-1">Manage more than one home or site by grouping rooms together.</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Plus className="h-4 w-4" /> New property
         </button>
       </div>
@@ -118,7 +118,7 @@ export default function PropertiesPage() {
               ))}
               {rooms.length === 0 && <p className="text-xs text-slate-500">No rooms yet.</p>}
             </div>
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Create property</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Create property</button>
           </div>
         </div>
       )}

@@ -55,6 +55,7 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
       "--cv-bg": dark ? "#20263a" : "#e6e9f2",
       "--cv-card": dark ? "#20263a" : "#e6e9f2",
       "--cv-card-hi": dark ? "#262d45" : "#eef1f8",
+      "--cv-input-bg": dark ? "#171c2c" : "#dde1ee",
       "--cv-border": dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.75)",
       "--cv-text": dark ? "#e7ecff" : "#24304f",
       "--cv-muted": dark ? "#9aa6c8" : "#5b6488",
@@ -68,6 +69,7 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
       "--cv-bg": `radial-gradient(circle at top left, ${accent.grad[0]}55, transparent 35%), radial-gradient(circle at 80% 20%, ${accent.grad[1]}44, transparent 30%), ${dark ? "#071021" : "#eef2ff"}`,
       "--cv-card": dark ? "rgba(255,255,255,.09)" : "rgba(255,255,255,.50)",
       "--cv-card-hi": dark ? "rgba(255,255,255,.15)" : "rgba(255,255,255,.66)",
+      "--cv-input-bg": dark ? "rgba(3,7,18,.45)" : "rgba(255,255,255,.72)",
       "--cv-border": dark ? "rgba(255,255,255,.18)" : "rgba(255,255,255,.65)",
       "--cv-text": dark ? "#f4f7ff" : "#0b1020",
       "--cv-muted": dark ? "rgba(233,238,255,.72)" : "#33405e",
@@ -80,6 +82,7 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
     "--cv-bg": dark ? "#0b1020" : "#f3f6ff",
     "--cv-card": dark ? "#111a2e" : "#ffffff",
     "--cv-card-hi": dark ? "#17213a" : "#f7f9ff",
+    "--cv-input-bg": dark ? "#0a1120" : "#f1f4fb",
     "--cv-border": dark ? "rgba(255,255,255,.10)" : "rgba(15,23,42,.10)",
     "--cv-text": dark ? "#eef1f8" : "#0b1020",
     "--cv-muted": dark ? "#9aa6c0" : "#475569",
@@ -157,7 +160,7 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
         .cv-input {
           width: 100%;
           border: 1px solid var(--cv-border);
-          background: color-mix(in srgb, var(--cv-card) 75%, black 25%);
+          background: var(--cv-input-bg);
           border-radius: 0.75rem;
           padding: 0.7rem 0.85rem;
           color: var(--cv-text);
@@ -172,6 +175,87 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
         .cv-input option {
           background: #0f1629;
           color: white;
+        }
+
+        /* The marketing shell applies a site-wide rule setting every input,
+           textarea and select background to var(--input-bg). That rule (0,1,1)
+           outranks Tailwind's .bg-transparent (0,1,0), so every bare control
+           inside the console was painted with the light marketing surface —
+           the white boxes visible even in dark mode. Re-bind them to the
+           console's own theme; the leading :root lifts these rules above the
+           global one. */
+        :root .cv-theme input,
+        :root .cv-theme textarea,
+        :root .cv-theme select {
+          background: var(--cv-input-bg);
+          color: var(--cv-text);
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+        :root .cv-theme input.bg-transparent,
+        :root .cv-theme textarea.bg-transparent,
+        :root .cv-theme select.bg-transparent {
+          background: transparent;
+        }
+        :root .cv-theme input[type="checkbox"],
+        :root .cv-theme input[type="radio"],
+        :root .cv-theme input[type="range"],
+        :root .cv-theme input[type="color"] {
+          background: initial;
+        }
+
+        /* ---- Light-scheme remap ------------------------------------------
+           The console was authored dark-first: ~1,100 Tailwind neutrals under
+           /smarthome hardcode white text and black scrims. Remapping them once
+           here — scoped to .cv-light so dark mode is untouched — is what makes
+           the light scheme legible without editing every file. The doubled
+           backslashes escape the "/" in Tailwind's fractional-opacity class
+           names through the template literal. */
+        .cv-theme.cv-light .text-white,
+        .cv-theme.cv-light .text-slate-100,
+        .cv-theme.cv-light .text-slate-200,
+        .cv-theme.cv-light .text-slate-300 {
+          color: var(--cv-text);
+        }
+        .cv-theme.cv-light .text-slate-400,
+        .cv-theme.cv-light .text-slate-500,
+        .cv-theme.cv-light .text-slate-600 {
+          color: var(--cv-muted);
+        }
+        /* Tailwind's fractional-opacity class names contain "/", which cannot
+           be backslash-escaped through styled-jsx's parser. [class~="..."]
+           matches one whole class token instead, so it needs no escaping and
+           still won't leak onto variants like hover:bg-white/10. */
+        .cv-theme.cv-light [class~="bg-black/20"],
+        .cv-theme.cv-light [class~="bg-black/25"],
+        .cv-theme.cv-light [class~="bg-black/30"],
+        .cv-theme.cv-light [class~="bg-black/40"],
+        .cv-theme.cv-light [class~="bg-white/5"],
+        .cv-theme.cv-light [class~="bg-white/10"],
+        .cv-theme.cv-light [class~="bg-white/[0.02]"],
+        .cv-theme.cv-light [class~="bg-white/[0.03]"] {
+          background-color: rgba(15, 23, 42, 0.05);
+        }
+        .cv-theme.cv-light [class~="hover:bg-white/5"]:hover,
+        .cv-theme.cv-light [class~="hover:bg-white/10"]:hover,
+        .cv-theme.cv-light [class~="hover:bg-white/[0.05]"]:hover {
+          background-color: rgba(15, 23, 42, 0.09);
+        }
+        .cv-theme.cv-light [class~="border-white/5"],
+        .cv-theme.cv-light [class~="border-white/10"],
+        .cv-theme.cv-light [class~="border-white/15"],
+        .cv-theme.cv-light [class~="border-white/20"],
+        .cv-theme.cv-light [class~="hover:border-white/20"]:hover {
+          border-color: var(--cv-border);
+        }
+        /* Anything sitting on an accent fill keeps white text. The descendant
+           combinator means the theme root — which merely *defines*
+           --cv-gradient — can never match itself. */
+        .cv-theme.cv-light .cv-gradient,
+        .cv-theme.cv-light .cv-gradient *,
+        .cv-theme.cv-light [style*="--cv-gradient"],
+        .cv-theme.cv-light [style*="--cv-gradient"] * {
+          color: #ffffff;
         }
         /* Command-in-flight shimmer used by the Toggle control. */
         @keyframes cvSweep {

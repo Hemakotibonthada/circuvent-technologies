@@ -98,7 +98,7 @@ export default function GroupsPage() {
           <h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><Layers className="h-6 w-6" /> Device groups</h1>
           <p className="text-sm text-slate-400 mt-1">Organize devices and control several at once.</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Plus className="h-4 w-4" /> New group
         </button>
       </div>
@@ -128,7 +128,7 @@ export default function GroupsPage() {
                 ))}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => bulkPower(g, true)} disabled={busyGroup === g.id} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+                <button onClick={() => bulkPower(g, true)} disabled={busyGroup === g.id} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
                   {busyGroup === g.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />} All on
                 </button>
                 <button onClick={() => bulkPower(g, false)} disabled={busyGroup === g.id} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-semibold text-slate-200 bg-white/5 border border-white/10">
@@ -166,7 +166,7 @@ export default function GroupsPage() {
               })}
               {devices.length === 0 && <p className="text-xs text-slate-500">No devices yet.</p>}
             </div>
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Create group</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Create group</button>
           </div>
         </div>
       )}

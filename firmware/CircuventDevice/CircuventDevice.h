@@ -286,11 +286,16 @@ class CircuventDevice {
   }
 
   // Called by the MQTT callback trampoline — parses a command and dispatches it.
+  // The state produced by a command is published immediately (bypassing the
+  // change-coalescing gap) so the app's optimistic switch is confirmed by the
+  // device in one network round trip instead of waiting for the next tick.
   void _dispatch(uint8_t *payload, unsigned int len) {
     JsonDocument doc;
     if (deserializeJson(doc, payload, len) != DeserializationError::Ok) return;
     String action = doc["action"] | "";
-    if (_handler && action.length()) _handler(action, doc.as<JsonObjectConst>());
+    if (!_handler || !action.length()) return;
+    _handler(action, doc.as<JsonObjectConst>());
+    if (_dirty) publishStateNow();
   }
 
   // ---- OTA (optional; GET {api}/api/devices/firmware) -------------------
@@ -383,7 +388,7 @@ class CircuventDevice {
   PubSubClient _mqtt{_net};
 
   uint32_t _interval = 10000, _lastPub = 0, _lastReconnect = 0;
-  uint32_t _minGap = 250;  // min ms between change-triggered publishes (coalesce bursts)
+  uint32_t _minGap = 80;   // min ms between change-triggered publishes (coalesce bursts)
   bool _dirty = false;     // a state value changed locally since the last publish
   uint32_t _otaInterval = 0, _lastOta = 0;
   uint32_t _lastMqttTry = 0;

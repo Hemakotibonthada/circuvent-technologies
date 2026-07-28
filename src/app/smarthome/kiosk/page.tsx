@@ -80,7 +80,7 @@ export default function KioskPage() {
         <h2 className="font-bold text-white mb-3 flex items-center gap-2"><KeyRound className="h-4 w-4" /> {pinSet ? "Change PIN" : "Set a PIN"}</h2>
         <div className="flex gap-2">
           <input value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="4-6 digit PIN" inputMode="numeric" className="flex-1 bg-black/30 border border-white/10 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none tracking-widest" />
-          <button onClick={save} className="rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Save</button>
+          <button onClick={save} className="rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Save</button>
         </div>
         {pinSet && <button onClick={remove} className="mt-3 text-xs text-red-400">Remove PIN</button>}
       </Card>

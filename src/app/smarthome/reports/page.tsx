@@ -74,7 +74,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between rounded-xl bg-black/20 px-4 py-3"><span className="text-sm text-slate-200">Activity events</span><Toggle checked={includeEvents} onChange={setIncludeEvents} /></div>
           <div className="flex items-center justify-between rounded-xl bg-black/20 px-4 py-3"><span className="text-sm text-slate-200">Energy by device</span><Toggle checked={includeEnergy} onChange={setIncludeEnergy} /></div>
         </div>
-        <button onClick={exportNow} disabled={busy} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={exportNow} disabled={busy} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white disabled:opacity-50" style={{ background: "var(--cv-gradient)" }}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export now
         </button>
       </Card>

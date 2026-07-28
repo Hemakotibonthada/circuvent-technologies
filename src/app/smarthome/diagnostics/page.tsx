@@ -77,7 +77,7 @@ export default function DiagnosticsPage() {
             <input type="number" value={thresholds.staleMinutes} onChange={(e) => setThresholds({ ...thresholds, staleMinutes: Number(e.target.value) })} className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none" />
           </div>
         </div>
-        <button onClick={save} className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={save} className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Save className="h-4 w-4" /> Save thresholds
         </button>
       </Card>

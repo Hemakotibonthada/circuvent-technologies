@@ -75,7 +75,7 @@ export default function AutomationsPage() {
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white"
-          style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+          style={{ background: "var(--cv-gradient)" }}
         >
           <Plus className="h-4 w-4" /> New automation
         </button>
@@ -100,7 +100,7 @@ export default function AutomationsPage() {
           <button
             onClick={() => setShowForm(true)}
             className="mt-5 flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white"
-            style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+            style={{ background: "var(--cv-gradient)" }}
           >
             <Plus className="h-4 w-4" /> Create automation
           </button>
@@ -381,7 +381,7 @@ function AutomationForm({
             type="submit"
             disabled={busy}
             className="w-full rounded-xl py-3 font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60"
-            style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+            style={{ background: "var(--cv-gradient)" }}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />} Create automation
           </button>

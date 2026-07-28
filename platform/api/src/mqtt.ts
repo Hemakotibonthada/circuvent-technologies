@@ -132,8 +132,26 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
   }
   const at = new Date().toISOString();
 
+  // Fan out to live WebSocket clients BEFORE touching Postgres. The dashboard
+  // only needs the payload to confirm a command, so making it wait on two DB
+  // round-trips plus automation evaluation added tens-to-hundreds of ms to
+  // every toggle confirmation. Persistence still happens, just off the hot path.
+  bus.emit("device:update", { deviceId, kind, payload, at } satisfies DeviceUpdate);
+
   try {
-    if (kind === "state") {
+    await persistMessage(deviceId, kind, payload, raw);
+  } catch (err) {
+    logger.error({ err, deviceId, kind }, "Failed to persist device message");
+  }
+}
+
+async function persistMessage(
+  deviceId: string,
+  kind: DeviceUpdate["kind"],
+  payload: unknown,
+  raw: string
+): Promise<void> {
+  if (kind === "state") {
       const prev = await pool.query<{ owner_id: number | null; name: string | null; state: Record<string, unknown> | null }>(
         `SELECT owner_id, name, state FROM devices WHERE id = $1`,
         [deviceId]
@@ -192,13 +210,7 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
       if (row?.owner_id != null && row.online === false && online === true) {
         await recordEvent(row.owner_id, "success", "Device online", `${row.name || deviceId} reconnected.`, deviceId);
       }
-    }
-  } catch (err) {
-    logger.error({ err, deviceId, kind }, "Failed to persist device message");
   }
-
-  const update: DeviceUpdate = { deviceId, kind, payload, at };
-  bus.emit("device:update", update);
 }
 
 /** Push notifications for notable AquaGuard/Guardian state transitions (edge-triggered). */

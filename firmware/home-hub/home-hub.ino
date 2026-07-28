@@ -152,7 +152,8 @@ void loop() {
   if (!clockReady && time(nullptr) > 1700000000) clockReady = true;
   applySchedules();
 
-  cv.set("uptime", (long)(millis() / 1000));
+  // `uptime`/`rssi`/`fw` are appended by publishState(); setting uptime here
+  // would mark the state dirty every second and force a needless publish.
   cv.set("scene", scene.c_str());
   cv.set("channels", NUM_CH);
   cv.set("clock", clockReady);

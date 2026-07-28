@@ -17,11 +17,15 @@ import {
   Car,
   Lock,
   LockOpen,
+  Pencil,
+  Check,
   type LucideIcon,
 } from "lucide-react";
+import { useState } from "react";
 import type { Device } from "@/lib/control-plane";
 import type { FieldStatus } from "@/lib/smarthome-realtime";
 import { haptic } from "@/lib/smarthome-realtime";
+import { useChannelLabels } from "@/lib/smarthome-prefs";
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 
 export interface DeviceTypeMeta {
@@ -60,6 +64,44 @@ function pendCls(s: FieldStatus): string {
   if (s === "confirmed") return "ring-2 ring-green-400/60";
   if (s === "failed") return "ring-2 ring-red-400/70";
   return "";
+}
+
+/** Header control that flips a channel grid between control and rename mode. */
+function RenameToggle({
+  editing,
+  onToggle,
+  onReset,
+}: {
+  editing: boolean;
+  onToggle: () => void;
+  onReset?: () => void;
+}) {
+  return (
+    <span className="flex items-center gap-2">
+      {editing && onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition hover:text-slate-200"
+        >
+          Reset names
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={editing}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+          editing
+            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
+            : "border-white/10 bg-white/5 text-slate-300 hover:text-white"
+        }`}
+      >
+        {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+        {editing ? "Done" : "Rename"}
+      </button>
+    </span>
+  );
 }
 
 export function DeviceControls({ device, send, st }: { device: Device; send: SendFn; st: StatusFn }) {
@@ -230,26 +272,43 @@ function AquaGuard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 }
 
 function HomeHub({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const { labelFor, setLabel, hasCustom, resetDevice } = useChannelLabels();
+  const [editing, setEditing] = useState(false);
   const channels = [
-    { key: "power", ch: 0, label: "Channel 1" },
-    { key: "power2", ch: 1, label: "Channel 2" },
-    { key: "power3", ch: 2, label: "Channel 3" },
-    { key: "power4", ch: 3, label: "Channel 4" },
+    { key: "power", ch: 0, fallback: "Channel 1" },
+    { key: "power2", ch: 1, fallback: "Channel 2" },
+    { key: "power3", ch: 2, fallback: "Channel 3" },
+    { key: "power4", ch: 3, fallback: "Channel 4" },
   ];
   const scenes = ["home", "away", "night", "movie"];
   const current = String(d.state.scene ?? "");
   const onCount = channels.filter((c) => b(d.state[c.key])).length;
   return (
     <div>
-      <SectionLabel right={<span className="text-xs text-slate-400">{onCount}/4 on</span>}>Channels</SectionLabel>
+      <SectionLabel
+        right={
+          <span className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">{onCount}/4 on</span>
+            <RenameToggle
+              editing={editing}
+              onToggle={() => setEditing((v) => !v)}
+              onReset={hasCustom(d.id) ? () => resetDevice(d.id) : undefined}
+            />
+          </span>
+        }
+      >
+        Channels
+      </SectionLabel>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {channels.map((c) => (
           <ChannelTile
             key={c.key}
-            label={c.label}
+            label={labelFor(d.id, c.key, c.fallback)}
             on={b(d.state[c.key])}
             status={st(c.key)}
             onToggle={(v) => send({ ch: c.ch, on: v })}
+            editing={editing}
+            onRename={(name) => setLabel(d.id, c.key, name === c.fallback ? "" : name)}
           />
         ))}
       </div>
@@ -283,12 +342,42 @@ function ChannelTile({
   on,
   status,
   onToggle,
+  onRename,
+  editing,
 }: {
   label: string;
   on: boolean;
   status: FieldStatus;
   onToggle: (v: boolean) => void;
+  onRename?: (name: string) => void;
+  editing?: boolean;
 }) {
+  if (editing && onRename) {
+    return (
+      <div
+        className={`flex min-h-[76px] items-center gap-3 rounded-2xl border px-4 py-3 ${
+          on ? "border-cyan-400/40 bg-cyan-500/10" : "border-white/10 bg-black/20"
+        }`}
+      >
+        <input
+          className="cv-input py-2 text-[15px] font-semibold"
+          defaultValue={label}
+          maxLength={32}
+          aria-label={`Name for ${label}`}
+          placeholder="Switch name"
+          onBlur={(e) => onRename(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") {
+              (e.target as HTMLInputElement).value = label;
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -308,8 +397,21 @@ function ChannelTile({
     >
       <span className="min-w-0">
         <span className="block truncate text-[15px] font-semibold text-white">{label}</span>
-        <span className={`mt-0.5 block text-xs font-medium ${on ? "text-cyan-300" : "text-slate-500"}`}>
-          {status === "pending" ? "Switching…" : status === "failed" ? "Failed — retry" : on ? "On" : "Off"}
+        {/* The tile already shows the commanded state optimistically, so the
+            caption keeps saying On/Off and pending is signalled by a dot —
+            swapping the caption to "Switching…" made a completed action read
+            as unfinished. */}
+        <span className={`mt-0.5 flex items-center gap-1.5 text-xs font-medium ${on ? "text-cyan-300" : "text-slate-500"}`}>
+          {status === "failed" ? (
+            <span className="text-red-300">Failed — tap to retry</span>
+          ) : (
+            <>
+              {on ? "On" : "Off"}
+              {status === "pending" && (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current opacity-70" aria-hidden />
+              )}
+            </>
+          )}
         </span>
       </span>
       <span
@@ -347,15 +449,42 @@ function SmartPlug({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 }
 
 function SmartSwitch({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const { labelFor, setLabel, hasCustom, resetDevice } = useChannelLabels();
+  const [editing, setEditing] = useState(false);
+  const gangs = [
+    { key: "power", fallback: "Gang 1" },
+    { key: "power2", fallback: "Gang 2" },
+  ];
+  const onCount = gangs.filter((g) => b(d.state[g.key])).length;
   return (
     <div>
-      <SectionLabel>Gangs</SectionLabel>
-      <ControlRow label="Gang 1">
-        <Toggle checked={b(d.state.power)} onChange={(v) => send({ power: v })} status={st("power")} label="Gang 1" />
-      </ControlRow>
-      <ControlRow label="Gang 2">
-        <Toggle checked={b(d.state.power2)} onChange={(v) => send({ power2: v })} status={st("power2")} label="Gang 2" />
-      </ControlRow>
+      <SectionLabel
+        right={
+          <span className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">{onCount}/{gangs.length} on</span>
+            <RenameToggle
+              editing={editing}
+              onToggle={() => setEditing((v) => !v)}
+              onReset={hasCustom(d.id) ? () => resetDevice(d.id) : undefined}
+            />
+          </span>
+        }
+      >
+        Gangs
+      </SectionLabel>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {gangs.map((g) => (
+          <ChannelTile
+            key={g.key}
+            label={labelFor(d.id, g.key, g.fallback)}
+            on={b(d.state[g.key])}
+            status={st(g.key)}
+            onToggle={(v) => send({ [g.key]: v })}
+            editing={editing}
+            onRename={(name) => setLabel(d.id, g.key, name === g.fallback ? "" : name)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -600,11 +729,14 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 }
 
 function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const { labelFor, setLabel, hasCustom, resetDevice } = useChannelLabels();
+  const [editing, setEditing] = useState(false);
   const gangs = [
-    { key: "g1", label: "Gang 1" },
-    { key: "g2", label: "Gang 2" },
-    { key: "g3", label: "Gang 3" },
+    { key: "g1", fallback: "Gang 1" },
+    { key: "g2", fallback: "Gang 2" },
+    { key: "g3", fallback: "Gang 3" },
   ];
+  const onCount = gangs.filter((g) => b(d.state[g.key])).length;
   return (
     <div>
       <div className="grid grid-cols-3 gap-3">
@@ -617,12 +749,33 @@ function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
         <StatTile label="Energy" value={`${n(d.state.kwh).toFixed(2)} kWh`} />
       </div>
 
-      <SectionLabel>Gangs</SectionLabel>
-      {gangs.map((g) => (
-        <ControlRow key={g.key} label={g.label}>
-          <Toggle checked={b(d.state[g.key])} onChange={(v) => send({ [g.key]: v })} status={st(g.key)} label={g.label} />
-        </ControlRow>
-      ))}
+      <SectionLabel
+        right={
+          <span className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">{onCount}/{gangs.length} on</span>
+            <RenameToggle
+              editing={editing}
+              onToggle={() => setEditing((v) => !v)}
+              onReset={hasCustom(d.id) ? () => resetDevice(d.id) : undefined}
+            />
+          </span>
+        }
+      >
+        Gangs
+      </SectionLabel>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {gangs.map((g) => (
+          <ChannelTile
+            key={g.key}
+            label={labelFor(d.id, g.key, g.fallback)}
+            on={b(d.state[g.key])}
+            status={st(g.key)}
+            onToggle={(v) => send({ [g.key]: v })}
+            editing={editing}
+            onRename={(name) => setLabel(d.id, g.key, name === g.fallback ? "" : name)}
+          />
+        ))}
+      </div>
       <div className="mt-3 flex gap-2.5">
         <button onClick={() => send({ all: true })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("g1"))}`}>All on</button>
         <button onClick={() => send({ all: false })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("g1"))}`}>All off</button>

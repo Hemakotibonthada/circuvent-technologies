@@ -66,7 +66,7 @@ export default function QuickActionsPage() {
           <h1 className="text-2xl font-extrabold text-white flex items-center gap-2"><Zap className="h-6 w-6" /> Quick actions</h1>
           <p className="text-sm text-slate-400 mt-1">One-tap shortcuts for the things you do most.</p>
         </div>
-        <button onClick={() => setForm({ label: "", icon: ICONS[0], kind: "scene", sceneId: "", deviceId: "", power: true })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+        <button onClick={() => setForm({ label: "", icon: ICONS[0], kind: "scene", sceneId: "", deviceId: "", power: true })} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>
           <Plus className="h-4 w-4" /> New shortcut
         </button>
       </div>
@@ -121,7 +121,7 @@ export default function QuickActionsPage() {
                 </div>
               </>
             )}
-            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>Save shortcut</button>
+            <button onClick={save} className="w-full rounded-xl py-2.5 font-semibold text-white" style={{ background: "var(--cv-gradient)" }}>Save shortcut</button>
           </div>
         </div>
       )}

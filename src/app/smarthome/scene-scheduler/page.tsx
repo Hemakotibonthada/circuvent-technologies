@@ -81,7 +81,7 @@ export default function SceneSchedulerPage() {
             <PowerOff className="h-4 w-4" /> Disable schedule
           </button>
         ) : (
-          <button onClick={enable} disabled={busy || schedule.cells.length === 0} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+          <button onClick={enable} disabled={busy || schedule.cells.length === 0} className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white disabled:opacity-50" style={{ background: "var(--cv-gradient)" }}>
             <Power className="h-4 w-4" /> Enable schedule
           </button>
         )}
