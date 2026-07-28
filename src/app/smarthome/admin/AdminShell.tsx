@@ -6,18 +6,17 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   LayoutDashboard, ShieldCheck, PackagePlus, Radar, Activity, LayoutGrid, Workflow,
   BellRing, DownloadCloud, ShieldAlert, Server, Search, Command as CmdIcon, ChevronLeft,
-  Bell, LifeBuoy, ChevronsUpDown, Cpu, LogOut, Menu, CircleDot, Building2, ArrowRight, Timer,
+  Bell, LifeBuoy, ChevronsUpDown, Cpu, LogOut, Menu, CircleDot, ArrowRight, Timer,
 } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import { useConsole } from "../ConsoleProvider";
-import { tenantsStore, incidentsStore } from "./_lib/sim";
-import { useStore } from "./_lib/store";
+import { useAdminDevices, useAdminStats, deviceHealth } from "./_lib/api";
 
 interface NavItem { href: string; label: string; icon: typeof Cpu; group: string; desc: string; }
 
 const NAV: NavItem[] = [
   { href: "/smarthome/admin", label: "Overview", icon: LayoutDashboard, group: "Overview", desc: "Fleet-wide status, KPIs and live activity" },
-  { href: "/smarthome/admin/access", label: "Access & Tenants", icon: ShieldCheck, group: "Governance", desc: "RBAC, multi-tenancy, SSO, MFA, API keys, audit" },
+  { href: "/smarthome/admin/access", label: "Access & Users", icon: ShieldCheck, group: "Governance", desc: "Operator roles, accounts, API keys and audit trail" },
   { href: "/smarthome/admin/provisioning", label: "Provisioning", icon: PackagePlus, group: "Operations", desc: "Onboard devices: manual, bulk, QR, JIT, templates" },
   { href: "/smarthome/admin/fleet", label: "Fleet", icon: Radar, group: "Operations", desc: "Device fleet, health, map, groups, digital twin" },
   { href: "/smarthome/admin/telemetry", label: "Telemetry", icon: Activity, group: "Operations", desc: "Streams, schema, retention, ingestion, metrics" },
@@ -39,20 +38,26 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [mode, setMode] = useState<"checking" | "live" | "demo">("checking");
+  const [mode, setMode] = useState<AdminMode>("checking");
 
-  const tenants = useStore(tenantsStore);
-  const incidents = useStore(incidentsStore);
-  const activeIncidents = incidents.filter((i) => i.status === "active").length;
-  const [tenantIdx, setTenantIdx] = useState(0);
+  // Real fleet signals drive the sidebar/topbar badges — no seeded incidents.
+  const devicesRes = useAdminDevices(60000);
+  const statsRes = useAdminStats(60000);
+  const attentionCount = useMemo(
+    () => (devicesRes.data ?? []).filter((d) => deviceHealth(d) !== "healthy").length,
+    [devicesRes.data]
+  );
 
-  // Soft auth: try the real control plane; fall back to demo data when offline.
+  // Verify the operator against the real control plane. There is no demo
+  // fallback: if we cannot authenticate we say so rather than showing fiction.
   useEffect(() => {
     let alive = true;
     controlPlane.adminMe().then((r) => {
       if (!alive) return;
-      setMode(r.ok && r.data?.admin ? "live" : "demo");
-    }).catch(() => alive && setMode("demo"));
+      if (r.ok && r.data?.admin) setMode("live");
+      else if (r.status === 0) setMode("offline");
+      else setMode("denied");
+    }).catch(() => alive && setMode("offline"));
     return () => { alive = false; };
   }, []);
 
@@ -118,8 +123,8 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                         {isActive && <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full" style={{ background: "linear-gradient(180deg,#06b6d4,#8b5cf6)" }} />}
                         <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: isActive ? "#22d3ee" : undefined }} />
                         {!collapsed && <span className="flex-1 truncate">{n.label}</span>}
-                        {!collapsed && n.href.endsWith("/alerts") && activeIncidents > 0 && (
-                          <span className="rounded-full bg-red-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">{activeIncidents}</span>
+                        {!collapsed && n.href.endsWith("/alerts") && attentionCount > 0 && (
+                          <span className="rounded-full bg-red-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">{attentionCount}</span>
                         )}
                       </Link>
                     );
@@ -130,23 +135,27 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        {/* Tenant switcher + collapse */}
+        {/* Live fleet summary + collapse */}
         <div className="border-t border-white/10 p-3">
           {!collapsed && (
-            <button
-              onClick={() => setTenantIdx((i) => (i + 1) % Math.max(1, tenants.length))}
+              <Link
+                href="/smarthome/admin/fleet"
               className="mb-2 flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
             >
-              <span className="grid h-7 w-7 place-items-center rounded-lg text-white" style={{ background: tenants[tenantIdx]?.primaryColor ?? "#06b6d4" }}>
-                <Building2 className="h-4 w-4" />
+                <span className="grid h-7 w-7 place-items-center rounded-lg text-white" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+                  <Radar className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-white">{tenants[tenantIdx]?.name ?? "All tenants"}</span>
-                <span className="block text-[10px] text-slate-500">{tenants[tenantIdx]?.plan ?? "Global"} workspace</span>
-              </span>
-              <ChevronsUpDown className="h-4 w-4 text-slate-500" />
-            </button>
-          )}
+                  <span className="block truncate text-xs font-semibold text-white">
+                    {statsRes.data ? `${statsRes.data.online}/${statsRes.data.devices} online` : "Fleet"}
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    {statsRes.loading ? "loading…" : statsRes.error ? "control plane unreachable" : `${statsRes.data?.users ?? 0} accounts`}
+                  </span>
+                </span>
+                <ChevronsUpDown className="h-4 w-4 text-slate-500" />
+              </Link>
+            )}
           <button onClick={() => setCollapsed((c) => !c)} className="hidden w-full items-center justify-center gap-2 rounded-lg py-2 text-xs text-slate-500 hover:text-white md:flex cursor-pointer">
             <ChevronLeft className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />
             {!collapsed && "Collapse"}
@@ -184,7 +193,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
               <ModeBadge mode={mode} />
               <Link href="/smarthome/admin/alerts" className="relative grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06]">
                 <Bell className="h-[18px] w-[18px]" />
-                {activeIncidents > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{activeIncidents}</span>}
+                {attentionCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{attentionCount}</span>}
               </Link>
               <a href="mailto:support@circuvent.com" className="hidden h-9 w-9 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06] sm:grid"><LifeBuoy className="h-[18px] w-[18px]" /></a>
               <UserMenu email={user?.email ?? "admin@circuvent.com"} name={user?.name ?? "Platform Admin"} onLogout={logout} />
@@ -202,17 +211,32 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   );
 }
 
-function ModeBadge({ mode }: { mode: "checking" | "live" | "demo" }) {
+type AdminMode = "checking" | "live" | "denied" | "offline";
+
+/**
+ * Honest connection indicator. "Demo data" no longer exists — when the control
+ * plane is unreachable or rejects the operator we surface that instead of
+ * silently swapping in generated data.
+ */
+function ModeBadge({ mode }: { mode: AdminMode }) {
   if (mode === "checking") return null;
-  const live = mode === "live";
+  const style =
+    mode === "live"
+      ? { color: "#4ade80", borderColor: "rgba(34,197,94,.3)", background: "rgba(34,197,94,.1)" }
+      : mode === "denied"
+      ? { color: "#fbbf24", borderColor: "rgba(245,158,11,.3)", background: "rgba(245,158,11,.1)" }
+      : { color: "#f87171", borderColor: "rgba(239,68,68,.3)", background: "rgba(239,68,68,.1)" };
+  const label = mode === "live" ? "Live" : mode === "denied" ? "No access" : "Offline";
+  const title =
+    mode === "live"
+      ? "Connected to the live control plane"
+      : mode === "denied"
+      ? "Signed in, but this account is not a platform operator"
+      : "Cannot reach the control plane — panels will show errors instead of data";
   return (
-    <span
-      className="hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold sm:flex"
-      style={live ? { color: "#4ade80", borderColor: "rgba(34,197,94,.3)", background: "rgba(34,197,94,.1)" } : { color: "#fbbf24", borderColor: "rgba(245,158,11,.3)", background: "rgba(245,158,11,.1)" }}
-      title={live ? "Connected to the live control plane" : "Control plane offline — showing realistic simulation data"}
-    >
+    <span className="hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold sm:flex" style={style} title={title}>
       <CircleDot className="h-3.5 w-3.5" />
-      {live ? "Live" : "Demo data"}
+      {label}
     </span>
   );
 }

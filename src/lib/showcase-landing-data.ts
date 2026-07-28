@@ -744,7 +744,7 @@ export const masonryTestimonials = [
   },
 ];
 
-// Heat map data for activity
+// Heat map data for activity (deterministic — derived from the weekday/work-hour profile)
 export function generateHeatMapData() {
   const rows = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const cols = ["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm", "8pm", "10pm"];
@@ -755,10 +755,11 @@ export function generateHeatMapData() {
       const isWeekday = !["Sat", "Sun"].includes(row);
       const isWorkHours = ["10am", "12pm", "2pm", "4pm"].includes(col);
       const base = isWeekday && isWorkHours ? 60 : isWeekday ? 30 : 15;
+      const ramp = Math.round((cols.indexOf(col) / (cols.length - 1)) * 30);
       data.push({
         row,
         col,
-        value: Math.floor(base + Math.random() * 40),
+        value: base + ramp,
       });
     }
   }

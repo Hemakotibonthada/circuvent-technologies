@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Search, X, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Check, Copy } from "lucide-react";
+import Link from "next/link";
+import { Search, X, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Check, Copy, AlertTriangle } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 // ------------------------------------------------------------------- tones ---
@@ -242,6 +243,69 @@ export function EmptyState({ icon, title, hint, action }: { icon?: ReactNode; ti
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
+}
+
+// ------------------------------------------------------- loading / failure ---
+
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`cv-pending rounded-lg bg-white/[0.05] ${className}`} />;
+}
+
+export function LoadingState({ rows = 3, label = "Loading live data…" }: { rows?: number; label?: string }) {
+  return (
+    <div role="status" aria-live="polite" className="space-y-3">
+      <span className="sr-only">{label}</span>
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} className="h-16 w-full" />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Rendered whenever the control plane could not be reached or refused the
+ * request. We surface the real reason instead of falling back to placeholder
+ * numbers, so an operator can never mistake a failure for healthy data.
+ */
+export function ErrorState({
+  message, unauthorized, onRetry,
+}: { message: string; unauthorized?: boolean; onRetry?: () => void }) {
+  return (
+    <div role="alert" className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-6 py-10 text-center">
+      <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-red-500/10 text-red-300">
+        <AlertTriangle className="h-6 w-6" />
+      </div>
+      <h3 className="font-semibold text-white">
+        {unauthorized ? "Operator sign-in required" : "Live data unavailable"}
+      </h3>
+      <p className="mx-auto mt-1 max-w-sm text-sm ad-muted">{message}</p>
+      <div className="mt-4 flex justify-center gap-2">
+        {unauthorized ? (
+          <Link href="/smarthome" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/15">
+            Go to sign in
+          </Link>
+        ) : (
+          onRetry && <Btn variant="primary" size="sm" onClick={onRetry}>Retry</Btn>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Standard gate: skeleton while first-loading, honest error on failure, the
+ * caller's empty state when the control plane genuinely has no rows.
+ */
+export function ResourceGate({
+  loading, error, unauthorized, onRetry, isEmpty, empty, children, skeletonRows,
+}: {
+  loading: boolean; error: string | null; unauthorized?: boolean; onRetry?: () => void;
+  isEmpty?: boolean; empty?: ReactNode; children: ReactNode; skeletonRows?: number;
+}) {
+  if (loading) return <LoadingState rows={skeletonRows} />;
+  if (error) return <ErrorState message={error} unauthorized={unauthorized} onRetry={onRetry} />;
+  if (isEmpty && empty) return <>{empty}</>;
+  return <>{children}</>;
 }
 
 // -------------------------------------------------------------- data table ---

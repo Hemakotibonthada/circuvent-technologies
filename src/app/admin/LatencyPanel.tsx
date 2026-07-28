@@ -11,7 +11,7 @@ const RANGES = [{ label: "1h", h: 1 }, { label: "24h", h: 24 }, { label: "7d", h
 interface Probe { name: string; label: string; ms: number; ok: boolean }
 interface Bucket { label: string; p50: number; p95: number; p99: number; count: number; errPct: number }
 interface EndpointStat { endpoint: string; count: number; p50: number; p95: number; avg: number; errPct: number }
-interface Report { source: "live" | "sample"; rangeHours: number; percentiles: { p50: number; p95: number; p99: number; avg: number }; uptimePct: number; errorRatePct: number; throughput: number; series: Bucket[]; byEndpoint: EndpointStat[] }
+interface Report { source: "live" | "warming"; rangeHours: number; percentiles: { p50: number; p95: number; p99: number; avg: number }; uptimePct: number; errorRatePct: number; throughput: number; series: Bucket[]; byEndpoint: EndpointStat[] }
 
 export default function LatencyPanel() {
   const [range, setRange] = useState(24);
@@ -43,7 +43,7 @@ export default function LatencyPanel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-bold" style={{ color: "var(--text-primary)" }}><Activity className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} /> Latency &amp; performance</h3>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>API + upstream response times, percentiles and error rates. Source: <span style={{ color: report.source === "live" ? "#10b981" : "#f59e0b" }}>{report.source === "live" ? "live telemetry" : "sample data (accruing)"}</span>{at ? ` · updated ${new Date(at).toLocaleTimeString("en-IN")}` : ""}</p>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>API + upstream response times, percentiles and error rates. Source: <span style={{ color: report.source === "live" ? "#10b981" : "#f59e0b" }}>{report.source === "live" ? "live telemetry" : `warming up · ${report.throughput.toLocaleString("en-IN")} sample${report.throughput === 1 ? "" : "s"} recorded`}</span>{at ? ` · updated ${new Date(at).toLocaleTimeString("en-IN")}` : ""}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg p-0.5" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
@@ -65,6 +65,16 @@ export default function LatencyPanel() {
         ))}
       </div>
 
+      {report.throughput === 0 ? (
+        <div className="rounded-2xl p-10 text-center" style={card}>
+          <Activity className="mx-auto h-8 w-8" style={{ color: "var(--text-tertiary)" }} />
+          <p className="mt-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>No requests recorded in the last {report.rangeHours < 24 ? `${report.rangeHours}h` : `${Math.round(report.rangeHours / 24)}d`}</p>
+          <p className="mx-auto mt-1 max-w-md text-xs" style={{ color: "var(--text-tertiary)" }}>
+            Percentiles, throughput and per-endpoint stats are computed from real request telemetry. The probe cards above are live measurements taken just now — the rest of this view fills in as traffic accrues.
+          </p>
+        </div>
+      ) : (
+      <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KpiCard label="p50 (ms)" value={report.percentiles.p50} color={PALETTE[0]} />
         <KpiCard label="p95 (ms)" value={report.percentiles.p95} color={PALETTE[3]} />
@@ -134,6 +144,8 @@ export default function LatencyPanel() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
     </div>
   );
 }

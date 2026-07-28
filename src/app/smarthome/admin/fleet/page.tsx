@@ -1,222 +1,289 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+/**
+ * Fleet management.
+ *
+ * The whole page is driven by `useAdminDevices()` (live control-plane fleet) and
+ * `useFleetInsights()` (real groupings derived from it). Filters, KPIs, the table,
+ * the card grid and the room/site view all read real fields only. Health is
+ * derived by `deviceHealth()` from each device's online flag, last-seen age and
+ * reported fault flags — never randomised. The overview deep-links here with
+ * `?device=<id>`; we read that with `useSearchParams()` and open the drawer.
+ */
+
+import { Suspense, useCallback, useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Radar, Wifi, WifiOff, TriangleAlert, ShieldAlert, Map as MapIcon, Table2, Grid3x3,
-  Download, Terminal, DownloadCloud, Layers, Trash2, Cpu, ChevronRight, Filter,
+  Radar, Wifi, WifiOff, TriangleAlert, ServerCog, Cpu, Table2, Grid3x3, Building2,
+  Download, DownloadCloud, Filter, ChevronRight,
 } from "lucide-react";
-import { controlPlane } from "@/lib/control-plane";
-import FleetMap from "./FleetMap";
+import FleetSites from "./FleetMap";
 import DeviceDrawer from "./DeviceDrawer";
-import {
-  fleetStore, REGIONS, DEVICE_TYPES, HW_MODELS, FW_VERSIONS, CONNECTIVITY, HEALTH,
-  type FleetDevice, type Health,
-} from "../_lib/sim";
-import { useStore, rng, int, pick } from "../_lib/store";
+import { useAdminDevices, useFleetInsights, deviceHealth, type DeviceHealth } from "../_lib/api";
 import { relativeTime, num } from "../_lib/format";
+import type { AdminDevice } from "@/lib/control-plane";
 import {
   PageHeader, Panel, StatCard, Badge, Dot, Btn, IconBtn, SearchInput, Select, Segmented,
-  DataTable, Progress, StaggerGrid, StaggerItem, EmptyState, type Column, type Tone,
+  DataTable, StaggerGrid, StaggerItem, EmptyState, ErrorState, LoadingState,
+  TONE, type Column, type Tone,
 } from "../_ui";
 
-const healthTone = (h: Health): Tone => (h === "healthy" ? "green" : h === "warning" ? "amber" : h === "critical" ? "red" : "slate");
+const HEALTH_TONE: Record<DeviceHealth, Tone> = { healthy: "green", warning: "amber", critical: "red", offline: "slate" };
+const HEALTH_OPTIONS: DeviceHealth[] = ["healthy", "warning", "critical", "offline"];
+
+const roomLabel = (d: AdminDevice) => (d.room && d.room.trim()) || "Unassigned";
+
+function rank(h: DeviceHealth): number {
+  return h === "critical" ? 0 : h === "offline" ? 1 : h === "warning" ? 2 : 3;
+}
 
 export default function FleetPage() {
-  const sim = useStore(fleetStore);
-  const [real, setReal] = useState<FleetDevice[] | null>(null);
-  const [view, setView] = useState<"map" | "table" | "grid">("table");
+  return (
+    <Suspense fallback={<LoadingState rows={4} label="Loading fleet…" />}>
+      <FleetInner />
+    </Suspense>
+  );
+}
+
+function FleetInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const devicesRes = useAdminDevices();
+  const devices = useMemo(() => devicesRes.data ?? [], [devicesRes.data]);
+  const insights = useFleetInsights(devicesRes.data);
+
+  const [view, setView] = useState<"table" | "grid" | "sites">("table");
   const [q, setQ] = useState("");
-  const [region, setRegion] = useState<string>("all");
-  const [type, setType] = useState<string>("all");
-  const [model, setModel] = useState<string>("all");
-  const [fw, setFw] = useState<string>("all");
-  const [conn, setConn] = useState<string>("all");
-  const [health, setHealth] = useState<string>("all");
+  const [type, setType] = useState("all");
+  const [room, setRoom] = useState("all");
+  const [fw, setFw] = useState("all");
+  const [health, setHealth] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [drawer, setDrawer] = useState<FleetDevice | null>(null);
 
-  // Best-effort: pull the live control plane; fall back to simulation.
-  useEffect(() => {
-    let alive = true;
-    controlPlane.adminDevices().then((r) => {
-      if (!alive || !r.ok || !r.data?.devices?.length) return;
-      const rnd = rng("realmap");
-      setReal(
-        r.data.devices.map((d) => ({
-          id: d.id, name: d.name || d.id, type: d.type, model: pick(rnd, HW_MODELS),
-          tenant: d.owner_email || "—", region: pick(rnd, REGIONS), city: "—",
-          lat: int(rnd, -50, 60), lng: int(rnd, -120, 140),
-          health: (d.online ? "healthy" : "offline") as Health, healthScore: d.online ? 90 : 20,
-          lifecycle: "active", online: d.online, fw: d.fw_version || "—",
-          connectivity: pick(rnd, CONNECTIVITY), rssi: -int(rnd, 40, 85), battery: null,
-          powerSource: "grid", cpu: int(rnd, 5, 80), mem: int(rnd, 20, 90),
-          uptimeSec: int(rnd, 1000, 8e5), lastSeen: d.last_seen || new Date().toISOString(),
-          tags: ["prod"], gateway: null,
-        }))
-      );
-    });
-    return () => { alive = false; };
-  }, []);
+  const openId = searchParams.get("device");
+  const setOpenDevice = useCallback(
+    (id: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (id) params.set("device", id);
+      else params.delete("device");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [searchParams, router, pathname]
+  );
 
-  const devices = real ?? sim;
+  const matchesBase = useCallback(
+    (d: AdminDevice) => {
+      if (type !== "all" && d.type !== type) return false;
+      if (fw !== "all" && (d.fw_version || "unknown") !== fw) return false;
+      if (health !== "all" && deviceHealth(d) !== health) return false;
+      if (q) {
+        const hay = `${d.name} ${d.id} ${d.owner_email ?? ""} ${d.room ?? ""} ${d.type}`.toLowerCase();
+        if (!hay.includes(q.toLowerCase())) return false;
+      }
+      return true;
+    },
+    [type, fw, health, q]
+  );
 
-  const matrix = useMemo(() => ({
-    total: devices.length,
-    online: devices.filter((d) => d.online).length,
-    offline: devices.filter((d) => !d.online).length,
-    warning: devices.filter((d) => d.health === "warning").length,
-    critical: devices.filter((d) => d.health === "critical").length,
-    staging: devices.filter((d) => d.lifecycle === "provisioned" || d.lifecycle === "draft").length,
-  }), [devices]);
+  const baseFiltered = useMemo(() => devices.filter(matchesBase), [devices, matchesBase]);
+  const filtered = useMemo(
+    () => baseFiltered.filter((d) => room === "all" || roomLabel(d) === room),
+    [baseFiltered, room]
+  );
 
-  const filtered = useMemo(() => devices.filter((d) => {
-    if (region !== "all" && d.region !== region) return false;
-    if (type !== "all" && d.type !== type) return false;
-    if (model !== "all" && d.model !== model) return false;
-    if (fw !== "all" && d.fw !== fw) return false;
-    if (conn !== "all" && d.connectivity !== conn) return false;
-    if (health !== "all" && d.health !== health) return false;
-    if (q && !`${d.name} ${d.id} ${d.type} ${d.tenant} ${d.city} ${d.tags.join(" ")}`.toLowerCase().includes(q.toLowerCase())) return false;
-    return true;
-  }), [devices, region, type, model, fw, conn, health, q]);
-
-  const allChecked = filtered.length > 0 && filtered.every((d) => selected.has(d.id));
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(filtered.map((d) => d.id)));
-
-  const exportCsv = () => {
-    const header = ["id", "name", "type", "model", "tenant", "region", "health", "score", "online", "fw", "connectivity", "lastSeen"];
-    const lines = filtered.map((d) => [d.id, d.name, d.type, d.model, d.tenant, d.region, d.health, d.healthScore, d.online, d.fw, d.connectivity, d.lastSeen].join(","));
+  const exportCsv = useCallback(() => {
+    const header = ["id", "name", "type", "room", "owner_email", "fw_version", "health", "online", "last_seen"];
+    const esc = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = filtered.map((d) =>
+      [d.id, d.name, d.type, roomLabel(d), d.owner_email ?? "", d.fw_version || "", deviceHealth(d), d.online, d.last_seen ?? ""]
+        .map(esc)
+        .join(",")
+    );
     const blob = new Blob([[header.join(","), ...lines].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = "fleet-export.csv"; a.click();
-  };
+    a.href = URL.createObjectURL(blob);
+    a.download = "fleet-export.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, [filtered]);
 
-  const cols: Column<FleetDevice>[] = [
+  const cols: Column<AdminDevice>[] = [
     {
-      key: "check", header: "", className: "w-8",
-      render: (d) => <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} onClick={(e) => e.stopPropagation()} className="h-4 w-4 accent-cyan-500" />,
-    },
-    {
-      key: "name", header: "Device", sort: (a, b) => a.name.localeCompare(b.name),
+      key: "name", header: "Device", sort: (a, b) => (a.name || a.id).localeCompare(b.name || b.id),
       render: (d) => (
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: "rgba(6,182,212,.1)", color: "#22d3ee" }}><Cpu className="h-4 w-4" /></span>
-          <div className="min-w-0"><div className="truncate font-medium text-white">{d.name}</div><div className="font-mono text-[11px] ad-muted">{d.id}</div></div>
+          <span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: TONE.brand.bg, color: TONE.brand.fg }}><Cpu className="h-4 w-4" /></span>
+          <div className="min-w-0">
+            <div className="truncate font-medium text-white">{d.name || d.id}</div>
+            <div className="font-mono text-[11px] ad-muted">{d.id}</div>
+          </div>
         </div>
       ),
     },
     { key: "type", header: "Type", sort: (a, b) => a.type.localeCompare(b.type), render: (d) => <span className="text-slate-300">{d.type}</span> },
-    { key: "tenant", header: "Tenant", render: (d) => <span className="truncate text-slate-400">{d.tenant}</span> },
-    { key: "region", header: "Region", sort: (a, b) => a.region.localeCompare(b.region), render: (d) => <Badge tone="slate">{d.region}</Badge> },
+    { key: "room", header: "Room", sort: (a, b) => roomLabel(a).localeCompare(roomLabel(b)), render: (d) => <span className="text-slate-400">{roomLabel(d)}</span> },
+    { key: "owner", header: "Owner", render: (d) => <span className="truncate text-slate-400">{d.owner_email || "unclaimed"}</span> },
+    { key: "fw", header: "Firmware", sort: (a, b) => (a.fw_version || "").localeCompare(b.fw_version || ""), render: (d) => <span className="font-mono text-xs text-slate-300">{d.fw_version || "—"}</span> },
     {
-      key: "health", header: "Health", sort: (a, b) => a.healthScore - b.healthScore,
-      render: (d) => (
-        <div className="flex items-center gap-2">
-          <div className="w-14"><Progress value={d.healthScore} tone={healthTone(d.health)} height={6} /></div>
-          <span className="w-7 text-xs tabular-nums ad-muted">{d.healthScore}</span>
-        </div>
-      ),
+      key: "health", header: "Health", sort: (a, b) => rank(deviceHealth(a)) - rank(deviceHealth(b)),
+      render: (d) => { const h = deviceHealth(d); return <Badge tone={HEALTH_TONE[h]}>{h}</Badge>; },
     },
-    { key: "fw", header: "Firmware", sort: (a, b) => a.fw.localeCompare(b.fw), render: (d) => <span className="font-mono text-xs text-slate-300">{d.fw}</span> },
     {
-      key: "status", header: "Status", align: "right", sort: (a, b) => Number(b.online) - Number(a.online),
-      render: (d) => <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: d.online ? "#4ade80" : "#64748b" }}><Dot tone={d.online ? "green" : "slate"} pulse={d.online} /> {d.online ? "Online" : relativeTime(d.lastSeen)}</span>,
+      key: "status", header: "Last seen", align: "right", sort: (a, b) => Number(b.online) - Number(a.online),
+      render: (d) => (
+        <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: d.online ? "#4ade80" : "#64748b" }}>
+          <Dot tone={d.online ? "green" : "slate"} pulse={d.online} /> {d.online ? "Online" : relativeTime(d.last_seen)}
+        </span>
+      ),
     },
     { key: "chev", header: "", align: "right", render: () => <ChevronRight className="h-4 w-4 text-slate-600" /> },
   ];
 
+  const header = (
+    <PageHeader
+      title="Fleet management" icon={<Radar className="h-5 w-5" />}
+      subtitle="Monitor, filter and operate every device registered on the control plane. Health is derived from each device's online flag, last-seen age and reported fault flags."
+      actions={
+        <>
+          <Btn variant="ghost" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4" /> Export</Btn>
+          <Link href="/smarthome/admin/ota"><Btn variant="primary"><DownloadCloud className="h-4 w-4" /> OTA campaigns</Btn></Link>
+        </>
+      }
+    />
+  );
+
+  if (devicesRes.loading && devices.length === 0) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <LoadingState rows={2} label="Loading fleet from the control plane…" />
+        <LoadingState rows={5} />
+      </div>
+    );
+  }
+
+  if (devicesRes.error && devices.length === 0) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <ErrorState message={devicesRes.error} unauthorized={devicesRes.unauthorized} onRetry={devicesRes.reload} />
+      </div>
+    );
+  }
+
+  const offline = insights.total - insights.online;
+  const needsAttention = insights.health.warning + insights.health.critical + insights.health.offline;
+  const emptyHint = devices.length === 0
+    ? "Provision a device to populate the fleet."
+    : "Adjust the filters or search.";
+  const emptyTitle = devices.length === 0 ? "No devices provisioned" : "No devices match";
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Fleet management" icon={<Radar className="h-5 w-5" />}
-        subtitle="Monitor, filter and operate every device across the platform. Health scores blend uptime, latency, CPU, memory and error rate."
-        actions={<><Btn variant="ghost" onClick={exportCsv}><Download className="h-4 w-4" /> Export</Btn><Btn variant="primary"><DownloadCloud className="h-4 w-4" /> New OTA campaign</Btn></>}
-      />
+      {header}
 
-      {/* Status matrix */}
-      <StaggerGrid className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <StaggerItem><button onClick={() => setHealth("all")} className="w-full text-left"><StatCard label="Total" value={num(matrix.total)} icon={<Cpu className="h-4 w-4" />} tone="brand" /></button></StaggerItem>
-        <StaggerItem><button onClick={() => setHealth("all")} className="w-full text-left"><StatCard label="Online" value={num(matrix.online)} icon={<Wifi className="h-4 w-4" />} tone="green" /></button></StaggerItem>
-        <StaggerItem><button onClick={() => setHealth("offline")} className="w-full text-left"><StatCard label="Offline" value={num(matrix.offline)} icon={<WifiOff className="h-4 w-4" />} tone="slate" /></button></StaggerItem>
-        <StaggerItem><button onClick={() => setHealth("warning")} className="w-full text-left"><StatCard label="Warning" value={num(matrix.warning)} icon={<TriangleAlert className="h-4 w-4" />} tone="amber" /></button></StaggerItem>
-        <StaggerItem><button onClick={() => setHealth("critical")} className="w-full text-left"><StatCard label="Critical" value={num(matrix.critical)} icon={<ShieldAlert className="h-4 w-4" />} tone="red" /></button></StaggerItem>
-        <StaggerItem><StatCard label="Staging" value={num(matrix.staging)} icon={<Layers className="h-4 w-4" />} tone="violet" /></StaggerItem>
+      {devicesRes.error && (
+        <div role="alert" className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-4 py-2.5 text-sm text-amber-200">
+          <TriangleAlert className="h-4 w-4 shrink-0" /> {devicesRes.error}
+        </div>
+      )}
+
+      <StaggerGrid className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        <StaggerItem><button onClick={() => setHealth("all")} className="w-full text-left"><StatCard label="Total" value={num(insights.total)} icon={<Cpu className="h-4 w-4" />} tone="brand" sub="registered" /></button></StaggerItem>
+        <StaggerItem>
+          <button onClick={() => setHealth("all")} className="w-full text-left">
+            <StatCard label="Online" value={num(insights.online)} icon={<Wifi className="h-4 w-4" />} tone="green" sub={insights.total ? `${((insights.online / insights.total) * 100).toFixed(0)}% of fleet` : "no devices yet"} />
+          </button>
+        </StaggerItem>
+        <StaggerItem><button onClick={() => setHealth("offline")} className="w-full text-left"><StatCard label="Offline" value={num(offline)} icon={<WifiOff className="h-4 w-4" />} tone="slate" sub="not reporting" /></button></StaggerItem>
+        <StaggerItem>
+          <button onClick={() => setHealth("critical")} className="w-full text-left">
+            <StatCard
+              label="Needs attention" value={num(needsAttention)} icon={<TriangleAlert className="h-4 w-4" />}
+              tone={insights.health.critical > 0 ? "red" : needsAttention > 0 ? "amber" : "green"}
+              sub={insights.health.critical ? `${insights.health.critical} critical` : "warning + offline"}
+            />
+          </button>
+        </StaggerItem>
+        <StaggerItem><StatCard label="Firmware versions" value={num(insights.byFirmware.length)} icon={<ServerCog className="h-4 w-4" />} tone="violet" sub="distinct in field" /></StaggerItem>
       </StaggerGrid>
 
-      {/* Toolbar */}
       <Panel pad={false} className="p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <SearchInput value={q} onChange={setQ} placeholder="Search devices, tags, tenants…" className="min-w-[220px] flex-1" />
+          <SearchInput value={q} onChange={setQ} placeholder="Search name, id, owner…" className="min-w-[220px] flex-1" />
           <IconBtn active={showFilters} onClick={() => setShowFilters((v) => !v)} title="Filters"><Filter className="h-4 w-4" /></IconBtn>
-          <Segmented<"map" | "table" | "grid">
+          <Segmented<"table" | "grid" | "sites">
             value={view} onChange={setView}
-            options={[{ value: "table", label: <Table2 className="h-4 w-4" /> }, { value: "grid", label: <Grid3x3 className="h-4 w-4" /> }, { value: "map", label: <MapIcon className="h-4 w-4" /> }]}
+            options={[
+              { value: "table", label: <Table2 className="h-4 w-4" /> },
+              { value: "grid", label: <Grid3x3 className="h-4 w-4" /> },
+              { value: "sites", label: <Building2 className="h-4 w-4" /> },
+            ]}
           />
         </div>
         {showFilters && (
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Select value={region} onChange={setRegion} options={[{ value: "all", label: "All regions" }, ...REGIONS.map((r) => ({ value: r, label: r }))]} />
-            <Select value={type} onChange={setType} options={[{ value: "all", label: "All types" }, ...DEVICE_TYPES.map((t) => ({ value: t, label: t }))]} />
-            <Select value={model} onChange={setModel} options={[{ value: "all", label: "All models" }, ...HW_MODELS.map((m) => ({ value: m, label: m }))]} />
-            <Select value={fw} onChange={setFw} options={[{ value: "all", label: "All firmware" }, ...FW_VERSIONS.map((f) => ({ value: f, label: `v${f}` }))]} />
-            <Select value={conn} onChange={setConn} options={[{ value: "all", label: "All connectivity" }, ...CONNECTIVITY.map((c) => ({ value: c, label: c }))]} />
-            <Select value={health} onChange={setHealth} options={[{ value: "all", label: "All health" }, ...HEALTH.map((h) => ({ value: h, label: h }))]} />
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3 sm:grid-cols-4">
+            <Select value={type} onChange={setType} options={[{ value: "all", label: "All types" }, ...insights.byType.map((t) => ({ value: t.name, label: `${t.name} (${t.value})` }))]} />
+            <Select value={room} onChange={setRoom} options={[{ value: "all", label: "All rooms" }, ...insights.byRoom.map((r) => ({ value: r.name, label: `${r.name} (${r.value})` }))]} />
+            <Select value={fw} onChange={setFw} options={[{ value: "all", label: "All firmware" }, ...insights.byFirmware.map((f) => ({ value: f.name, label: `${f.name} (${f.value})` }))]} />
+            <Select value={health} onChange={setHealth} options={[{ value: "all", label: "All health" }, ...HEALTH_OPTIONS.map((h) => ({ value: h, label: h }))]} />
           </div>
         )}
       </Panel>
 
-      {/* Batch action bar */}
-      {selected.size > 0 && (
-        <div className="sticky top-16 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 backdrop-blur">
-          <span className="text-sm font-semibold text-white">{selected.size} selected</span>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <Btn size="sm" variant="subtle"><Terminal className="h-3.5 w-3.5" /> Command</Btn>
-            <Btn size="sm" variant="subtle"><DownloadCloud className="h-3.5 w-3.5" /> Update</Btn>
-            <Btn size="sm" variant="subtle"><Layers className="h-3.5 w-3.5" /> Group</Btn>
-            <Btn size="sm" variant="danger"><Trash2 className="h-3.5 w-3.5" /> Decommission</Btn>
-            <Btn size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Btn>
+      {view === "table" && (
+        <div>
+          <div className="mb-2 flex items-center justify-end px-1 text-xs ad-muted">
+            <span>{num(filtered.length)} of {num(devices.length)} devices</span>
           </div>
+          <DataTable
+            rows={filtered} columns={cols} rowKey={(d) => d.id} onRowClick={(d) => setOpenDevice(d.id)}
+            empty={<EmptyState icon={<Radar className="h-6 w-6" />} title={emptyTitle} hint={emptyHint} />}
+          />
         </div>
       )}
 
-      {/* Views */}
-      {view === "map" && (
+      {view === "grid" &&
+        (filtered.length === 0 ? (
+          <EmptyState icon={<Radar className="h-6 w-6" />} title={emptyTitle} hint={emptyHint} />
+        ) : (
+          <StaggerGrid className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((d) => {
+              const h = deviceHealth(d);
+              return (
+                <StaggerItem key={d.id}>
+                  <button onClick={() => setOpenDevice(d.id)} className="ad-card w-full rounded-2xl p-4 text-left transition hover:border-cyan-500/30">
+                    <div className="flex items-start justify-between">
+                      <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: TONE.brand.bg, color: TONE.brand.fg }}><Cpu className="h-5 w-5" /></span>
+                      <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: d.online ? "#4ade80" : "#64748b" }}><Dot tone={d.online ? "green" : "slate"} pulse={d.online} /> {d.online ? "Online" : "Offline"}</span>
+                    </div>
+                    <div className="mt-3 truncate font-semibold text-white">{d.name || d.id}</div>
+                    <div className="truncate text-xs ad-muted">{d.type} · {roomLabel(d)}</div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <Badge tone={HEALTH_TONE[h]}>{h}</Badge>
+                      <span className="font-mono text-[11px] ad-muted">{d.fw_version || "—"}</span>
+                    </div>
+                  </button>
+                </StaggerItem>
+              );
+            })}
+          </StaggerGrid>
+        ))}
+
+      {view === "sites" && (
         <Panel>
-          <FleetMap devices={filtered} selectedRegion={region === "all" ? null : region} onSelectRegion={(r) => setRegion(r ?? "all")} />
+          <FleetSites devices={baseFiltered} selectedRoom={room === "all" ? null : room} onSelectRoom={(r) => setRoom(r ?? "all")} />
         </Panel>
       )}
 
-      {view === "table" && (
-        <div>
-          <div className="mb-2 flex items-center justify-between px-1 text-xs ad-muted">
-            <button onClick={toggleAll} className="flex items-center gap-2 hover:text-white"><input type="checkbox" readOnly checked={allChecked} className="h-3.5 w-3.5 accent-cyan-500" /> Select all {filtered.length}</button>
-            <span>{num(filtered.length)} of {num(devices.length)} devices</span>
-          </div>
-          <DataTable rows={filtered} columns={cols} rowKey={(d) => d.id} onRowClick={(d) => setDrawer(d)} empty={<EmptyState icon={<Radar className="h-6 w-6" />} title="No devices match" hint="Adjust filters or search." />} />
-        </div>
-      )}
-
-      {view === "grid" && (
-        <StaggerGrid className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.slice(0, 60).map((d) => (
-            <StaggerItem key={d.id}>
-              <button onClick={() => setDrawer(d)} className="ad-card w-full rounded-2xl p-4 text-left transition hover:border-cyan-500/30">
-                <div className="flex items-start justify-between">
-                  <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: "rgba(6,182,212,.1)", color: "#22d3ee" }}><Cpu className="h-5 w-5" /></span>
-                  <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: d.online ? "#4ade80" : "#64748b" }}><Dot tone={d.online ? "green" : "slate"} pulse={d.online} /> {d.online ? "Online" : "Offline"}</span>
-                </div>
-                <div className="mt-3 truncate font-semibold text-white">{d.name}</div>
-                <div className="truncate text-xs ad-muted">{d.type} · {d.region}</div>
-                <div className="mt-3 flex items-center gap-2"><div className="flex-1"><Progress value={d.healthScore} tone={healthTone(d.health)} height={6} /></div><span className="text-xs tabular-nums ad-muted">{d.healthScore}</span></div>
-              </button>
-            </StaggerItem>
-          ))}
-        </StaggerGrid>
-      )}
-
-      <DeviceDrawer device={drawer} onClose={() => setDrawer(null)} onCommand={(id, cmd) => console.log("cmd", id, cmd)} />
+      <DeviceDrawer deviceId={openId} onClose={() => setOpenDevice(null)} onChanged={devicesRes.reload} />
     </div>
   );
 }

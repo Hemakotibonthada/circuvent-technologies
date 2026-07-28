@@ -1,268 +1,489 @@
 "use client";
 
-import { useState } from "react";
+/**
+ * Dashboard builder.
+ *
+ * Operators compose their own dashboards here and they are persisted on the
+ * server via /api/smarthome/admin/config ("dashboards" collection), so a layout
+ * survives a reload. There are no preset/sample dashboards, no fake floor plan
+ * and no invented kiosk metrics: every widget renders from a live control-plane
+ * source (fleet, energy, events, platform health or a device's real telemetry),
+ * and "Present" is a real fullscreen view over those same widgets.
+ */
+
+import { useEffect, useMemo, useState } from "react";
 import {
-  LayoutGrid, Plus, X, Calendar, RefreshCw, Gauge as GaugeIcon, LineChart as LineIcon,
-  BarChart3, PieChart, ToggleLeft, SlidersHorizontal, Grid2x2, Tv, Building, Video,
-  Thermometer, DoorOpen, Maximize2, Activity,
+  LayoutGrid, Plus, X, Trash2, Pencil, Maximize2, Tv, Wifi, Zap, Activity,
+  ServerCog, Cpu, Inbox, RefreshCw, ArrowLeft, ArrowRight, Check, BarChart3,
+  PieChart, LineChart as LineIcon, type LucideIcon,
 } from "lucide-react";
-import { LineChart, BarChart, Gauge, Donut, ProgressRing, Heatmap, KpiCard, HBar } from "../../charts";
-import { useStore, walk, rng, int } from "../_lib/store";
-import { flagsStore } from "../_lib/sim";
+import { LineChart, Donut, HBar, PALETTE } from "../../charts";
 import {
-  PageHeader, Panel, Btn, Badge, Dot, Toggle, Tabs, Segmented, SectionTitle,
-  StaggerGrid, StaggerItem, type Tone,
+  useAdminConfig, useAdminStats, useAdminDevices, useAdminEvents, useAdminHealth,
+  useEnergySummary, useDeviceTelemetry, useFleetInsights, availableMetrics,
+  telemetrySeries, timeSeries, type Resource, type ConfigRecord,
+} from "../_lib/api";
+import { num, relativeTime, uptime } from "../_lib/format";
+import {
+  PageHeader, Panel, Btn, Dot, SectionTitle, StaggerGrid, StaggerItem,
+  Select, Field, Input, Modal, EmptyState, ErrorState, LoadingState, Skeleton,
+  TONE, type Tone,
 } from "../_ui";
+import type {
+  AdminDevice, AdminEvent, AdminHealth, AdminStats, EnergySummary,
+} from "@/lib/control-plane";
 
-type Tab = "builder" | "floorplan" | "templates" | "kiosk";
-type WidgetType = "kpi" | "line" | "bar" | "gauge" | "donut" | "ring" | "toggle" | "slider" | "heatmap" | "hbar";
+type WidgetType =
+  | "fleet-online" | "live-power" | "type-donut" | "room-bar" | "health-donut"
+  | "event-rate" | "recent-events" | "platform-health" | "device-metric";
 
-interface Widget { id: string; type: WidgetType; title: string; span: 1 | 2; }
+interface Widget {
+  id: string;
+  type: WidgetType;
+  span: 1 | 2;
+  deviceId?: string;
+  deviceName?: string;
+  metric?: string;
+}
 
-const DEFAULT_WIDGETS: Widget[] = [
-  { id: "w1", type: "kpi", title: "Live power", span: 1 },
-  { id: "w2", type: "kpi", title: "Devices online", span: 1 },
-  { id: "w3", type: "gauge", title: "Load", span: 1 },
-  { id: "w4", type: "ring", title: "Uptime SLA", span: 1 },
-  { id: "w5", type: "line", title: "Throughput · 24h", span: 2 },
-  { id: "w6", type: "donut", title: "Health mix", span: 1 },
-  { id: "w7", type: "bar", title: "Energy by room", span: 1 },
-  { id: "w8", type: "heatmap", title: "Activity heatmap", span: 2 },
-  { id: "w9", type: "toggle", title: "All lights", span: 1 },
-  { id: "w10", type: "slider", title: "Target temp", span: 1 },
-];
+interface DashboardRecord extends ConfigRecord {
+  name: string;
+  widgets: Widget[];
+}
 
-const PALETTE: { type: WidgetType; label: string; icon: typeof GaugeIcon }[] = [
-  { type: "kpi", label: "KPI", icon: Activity }, { type: "line", label: "Line chart", icon: LineIcon },
-  { type: "bar", label: "Bar chart", icon: BarChart3 }, { type: "gauge", label: "Gauge", icon: GaugeIcon },
-  { type: "donut", label: "Donut", icon: PieChart }, { type: "ring", label: "Progress ring", icon: Grid2x2 },
-  { type: "toggle", label: "Switch", icon: ToggleLeft }, { type: "slider", label: "Slider", icon: SlidersHorizontal },
-  { type: "heatmap", label: "Heatmap", icon: Grid2x2 }, { type: "hbar", label: "Ranking", icon: BarChart3 },
+interface Ctx {
+  stats: Resource<AdminStats>;
+  devices: Resource<AdminDevice[]>;
+  events: Resource<AdminEvent[]>;
+  health: Resource<AdminHealth>;
+  energy: Resource<EnergySummary>;
+  fleet: ReturnType<typeof useFleetInsights>;
+}
+
+const CATALOGUE: { type: WidgetType; label: string; icon: LucideIcon; span: 1 | 2; config?: boolean }[] = [
+  { type: "fleet-online", label: "Devices online", icon: Wifi, span: 1 },
+  { type: "live-power", label: "Live power", icon: Zap, span: 1 },
+  { type: "type-donut", label: "Devices by type", icon: PieChart, span: 1 },
+  { type: "room-bar", label: "Devices by room", icon: BarChart3, span: 1 },
+  { type: "health-donut", label: "Fleet health", icon: Activity, span: 1 },
+  { type: "platform-health", label: "Platform health", icon: ServerCog, span: 1 },
+  { type: "event-rate", label: "Event rate · 24h", icon: LineIcon, span: 2 },
+  { type: "recent-events", label: "Recent events", icon: Inbox, span: 2 },
+  { type: "device-metric", label: "Device metric", icon: Cpu, span: 2, config: true },
 ];
 
 export default function DashboardsPage() {
-  const [tab, setTab] = useState<Tab>("builder");
+  const cfg = useAdminConfig<DashboardRecord>("dashboards");
+  const statsRes = useAdminStats();
+  const devicesRes = useAdminDevices();
+  const eventsRes = useAdminEvents(300);
+  const healthRes = useAdminHealth();
+  const energyRes = useEnergySummary();
+  const fleet = useFleetInsights(devicesRes.data);
+  const ctx: Ctx = { stats: statsRes, devices: devicesRes, events: eventsRes, health: healthRes, energy: energyRes, fleet };
+
+  const dashboards = cfg.rows;
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [kiosk, setKiosk] = useState(false);
+  const [dialog, setDialog] = useState<null | { mode: "create" | "rename" }>(null);
+  const [addDevice, setAddDevice] = useState(false);
+
+  useEffect(() => {
+    if (!dashboards.length) { if (activeId !== null) setActiveId(null); return; }
+    if (!activeId || !dashboards.some((d) => d.id === activeId)) setActiveId(dashboards[0].id);
+  }, [dashboards, activeId]);
+
+  const active = dashboards.find((d) => d.id === activeId) ?? null;
+  const widgets = useMemo(() => (active && Array.isArray(active.widgets) ? active.widgets : []), [active]);
+
+  const saveWidgets = (next: Widget[]) => { if (active) cfg.update(active.id, { widgets: next }); };
+  const addWidget = (w: Omit<Widget, "id">) => { if (active) saveWidgets([...widgets, { ...w, id: crypto.randomUUID() }]); };
+  const removeWidget = (id: string) => saveWidgets(widgets.filter((w) => w.id !== id));
+  const moveWidget = (id: string, dir: -1 | 1) => {
+    const i = widgets.findIndex((w) => w.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= widgets.length) return;
+    const next = [...widgets];
+    [next[i], next[j]] = [next[j], next[i]];
+    saveWidgets(next);
+  };
+
+  const submitDialog = async (name: string) => {
+    const n = name.trim();
+    const mode = dialog?.mode;
+    setDialog(null);
+    if (!n) return;
+    if (mode === "create") {
+      const rec = await cfg.create({ name: n, widgets: [] });
+      if (rec) setActiveId(rec.id);
+    } else if (active) {
+      await cfg.update(active.id, { name: n });
+    }
+  };
+
+  const deleteActive = async () => {
+    if (!active) return;
+    if (typeof window !== "undefined" && !window.confirm(`Delete “${active.name}”? This cannot be undone.`)) return;
+    await cfg.remove(active.id);
+    setActiveId(null);
+  };
+
+  if (cfg.loading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Visual dashboards" icon={<LayoutGrid className="h-5 w-5" />} subtitle="Operator-defined dashboards, persisted on the server. Every widget renders from a live control-plane source." />
+        <LoadingState rows={4} label="Loading your dashboards…" />
+      </div>
+    );
+  }
+  if (cfg.error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Visual dashboards" icon={<LayoutGrid className="h-5 w-5" />} />
+        <ErrorState message={cfg.error} unauthorized={cfg.unauthorized} onRetry={cfg.reload} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Visual dashboards" icon={<LayoutGrid className="h-5 w-5" />}
-        subtitle="Drag-and-drop dashboard builder with a rich widget library, floor-plan overlays, heatmaps, kiosk mode and shareable templates."
+        subtitle="Operator-defined dashboards, persisted on the server. Every widget renders from a live control-plane source."
+        actions={<Btn variant="primary" onClick={() => setDialog({ mode: "create" })}><Plus className="h-4 w-4" /> New dashboard</Btn>}
       />
-      <Tabs<Tab>
-        value={tab} onChange={setTab}
-        tabs={[
-          { value: "builder", label: "Builder", icon: <LayoutGrid className="h-4 w-4" /> },
-          { value: "floorplan", label: "Floor Plan", icon: <Building className="h-4 w-4" /> },
-          { value: "templates", label: "Templates", icon: <Grid2x2 className="h-4 w-4" /> },
-          { value: "kiosk", label: "Kiosk", icon: <Tv className="h-4 w-4" /> },
-        ]}
-      />
-      {tab === "builder" && <BuilderTab />}
-      {tab === "floorplan" && <FloorPlanTab />}
-      {tab === "templates" && <TemplatesTab />}
-      {tab === "kiosk" && <KioskTab />}
-    </div>
-  );
-}
 
-function BuilderTab() {
-  const [widgets, setWidgets] = useState<Widget[]>(DEFAULT_WIDGETS);
-  const [range, setRange] = useState<"15m" | "24h" | "7d">("24h");
-  const [refresh, setRefresh] = useState<"live" | "5s" | "1m">("live");
-  const add = (type: WidgetType) => setWidgets((w) => [...w, { id: `w${Date.now()}`, type, title: PALETTE.find((p) => p.type === type)?.label ?? "Widget", span: type === "line" || type === "heatmap" ? 2 : 1 }]);
-  const remove = (id: string) => setWidgets((w) => w.filter((x) => x.id !== id));
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-[200px_1fr]">
-      <div className="space-y-3">
-        <Panel>
-          <SectionTitle>Widgets</SectionTitle>
-          <div className="space-y-1.5">
-            {PALETTE.map((p) => (
-              <button key={p.type} onClick={() => add(p.type)} draggable className="flex w-full cursor-grab items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2 text-sm text-slate-200 transition hover:bg-white/[0.07]">
-                <span className="grid h-7 w-7 place-items-center rounded-md" style={{ background: "rgba(6,182,212,.1)", color: "#22d3ee" }}><p.icon className="h-3.5 w-3.5" /></span>
-                {p.label}<Plus className="ml-auto h-3.5 w-3.5 text-slate-500" />
-              </button>
-            ))}
+      {dashboards.length === 0 ? (
+        <EmptyState
+          icon={<LayoutGrid className="h-6 w-6" />}
+          title="No dashboards yet"
+          hint="Create your first dashboard, then add widgets that read live fleet, energy, event and telemetry data."
+          action={<Btn variant="primary" onClick={() => setDialog({ mode: "create" })}><Plus className="h-4 w-4" /> Create dashboard</Btn>}
+        />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+          <div className="space-y-3">
+            <Panel>
+              <SectionTitle>Dashboards</SectionTitle>
+              <div className="space-y-1.5">
+                {dashboards.map((d) => {
+                  const on = d.id === activeId;
+                  const count = Array.isArray(d.widgets) ? d.widgets.length : 0;
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => setActiveId(d.id)}
+                      className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition ${
+                        on ? "border-cyan-500/40 bg-cyan-500/10 text-white" : "border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.07]"
+                      }`}
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
+                      <span className="min-w-0 flex-1 truncate">{d.name}</span>
+                      <span className="shrink-0 text-[10px] ad-muted tabular-nums">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Panel>
+            <Panel>
+              <SectionTitle>Add widget</SectionTitle>
+              <div className="space-y-1.5">
+                {CATALOGUE.map((c) => (
+                  <button
+                    key={c.type}
+                    onClick={() => (c.config ? setAddDevice(true) : addWidget({ type: c.type, span: c.span }))}
+                    disabled={!active}
+                    className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2 text-sm text-slate-200 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span className="grid h-7 w-7 place-items-center rounded-md" style={{ background: "rgba(6,182,212,.1)", color: "#22d3ee" }}><c.icon className="h-3.5 w-3.5" /></span>
+                    {c.label}<Plus className="ml-auto h-3.5 w-3.5 text-slate-500" />
+                  </button>
+                ))}
+              </div>
+            </Panel>
           </div>
-        </Panel>
-      </div>
 
-      <div className="space-y-3">
-        <Panel pad={false} className="flex flex-wrap items-center gap-2 p-3">
-          <span className="flex items-center gap-1.5 text-sm text-white"><Calendar className="h-4 w-4 text-cyan-400" /> Range</span>
-          <Segmented<"15m" | "24h" | "7d"> value={range} onChange={setRange} options={[{ value: "15m", label: "15m" }, { value: "24h", label: "24h" }, { value: "7d", label: "7d" }]} />
-          <span className="ml-auto flex items-center gap-1.5 text-sm text-white"><RefreshCw className="h-4 w-4 text-cyan-400" /> Refresh</span>
-          <Segmented<"live" | "5s" | "1m"> value={refresh} onChange={setRefresh} options={[{ value: "live", label: "Live" }, { value: "5s", label: "5s" }, { value: "1m", label: "1m" }]} />
-        </Panel>
+          <div className="space-y-3">
+            <Panel pad={false} className="flex flex-wrap items-center gap-2 p-3">
+              <span className="text-sm font-semibold text-white">{active?.name ?? "—"}</span>
+              {cfg.saving && <span className="flex items-center gap-1 text-xs ad-muted"><RefreshCw className="h-3 w-3 animate-spin" /> saving…</span>}
+              <span className="text-xs ad-muted">{widgets.length} widget{widgets.length === 1 ? "" : "s"}</span>
+              <div className="ml-auto flex items-center gap-2">
+                <Btn size="sm" variant="subtle" onClick={() => setDialog({ mode: "rename" })} disabled={!active}><Pencil className="h-3.5 w-3.5" /> Rename</Btn>
+                <Btn size="sm" variant="subtle" onClick={() => setKiosk(true)} disabled={!active || widgets.length === 0}><Maximize2 className="h-3.5 w-3.5" /> Present</Btn>
+                <Btn size="sm" variant="danger" onClick={deleteActive} disabled={!active}><Trash2 className="h-3.5 w-3.5" /> Delete</Btn>
+              </div>
+            </Panel>
 
-        <StaggerGrid className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {widgets.map((w) => (
-            <StaggerItem key={w.id} className={w.span === 2 ? "sm:col-span-2" : ""}>
-              <WidgetCard widget={w} onRemove={() => remove(w.id)} />
-            </StaggerItem>
-          ))}
-        </StaggerGrid>
-      </div>
+            {widgets.length === 0 ? (
+              <EmptyState icon={<Plus className="h-6 w-6" />} title="This dashboard is empty" hint="Add widgets from the catalogue on the left. Each one renders live data from the control plane." />
+            ) : (
+              <StaggerGrid className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {widgets.map((w) => (
+                  <StaggerItem key={w.id} className={w.span === 2 ? "sm:col-span-2" : ""}>
+                    <WidgetCard widget={w} ctx={ctx} onRemove={() => removeWidget(w.id)} onMove={(dir) => moveWidget(w.id, dir)} />
+                  </StaggerItem>
+                ))}
+              </StaggerGrid>
+            )}
+          </div>
+        </div>
+      )}
+
+      <NameDialog
+        open={dialog !== null}
+        title={dialog?.mode === "rename" ? "Rename dashboard" : "New dashboard"}
+        initial={dialog?.mode === "rename" ? active?.name ?? "" : ""}
+        onClose={() => setDialog(null)}
+        onSubmit={submitDialog}
+      />
+      <AddDeviceMetricModal
+        open={addDevice}
+        devices={devicesRes.data ?? []}
+        onClose={() => setAddDevice(false)}
+        onAdd={(deviceId, deviceName, metric) => { addWidget({ type: "device-metric", span: 2, deviceId, deviceName, metric }); setAddDevice(false); }}
+      />
+      {kiosk && active && <KioskOverlay dashboard={active} ctx={ctx} onExit={() => setKiosk(false)} />}
     </div>
   );
 }
 
-function WidgetCard({ widget, onRemove }: { widget: Widget; onRemove: () => void }) {
+// ------------------------------------------------------------------ widgets --
+
+function WidgetCard({ widget, ctx, onRemove, onMove }: { widget: Widget; ctx: Ctx; onRemove: () => void; onMove: (dir: -1 | 1) => void }) {
   return (
-    <div className="group relative ad-card rounded-2xl p-4">
-      <button onClick={onRemove} className="absolute right-2 top-2 z-10 rounded-md p-1 text-slate-600 opacity-0 transition hover:text-red-300 group-hover:opacity-100"><X className="h-4 w-4" /></button>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider ad-muted">{widget.title}</span>
+    <div className="group relative ad-card h-full rounded-2xl p-4">
+      <div className="absolute right-2 top-2 z-10 flex gap-0.5 opacity-0 transition group-hover:opacity-100">
+        <button onClick={() => onMove(-1)} title="Move earlier" className="rounded-md p-1 text-slate-500 hover:text-cyan-300"><ArrowLeft className="h-3.5 w-3.5" /></button>
+        <button onClick={() => onMove(1)} title="Move later" className="rounded-md p-1 text-slate-500 hover:text-cyan-300"><ArrowRight className="h-3.5 w-3.5" /></button>
+        <button onClick={onRemove} title="Remove" className="rounded-md p-1 text-slate-500 hover:text-red-300"><X className="h-3.5 w-3.5" /></button>
       </div>
-      <WidgetBody widget={widget} />
+      <div className="mb-2 truncate pr-16 text-[11px] font-semibold uppercase tracking-wider ad-muted">{titleFor(widget)}</div>
+      <WidgetView widget={widget} ctx={ctx} />
     </div>
   );
 }
 
-function WidgetBody({ widget }: { widget: Widget }) {
-  const seed = widget.id;
+function titleFor(w: Widget): string {
+  if (w.type === "device-metric") return `${w.deviceName || w.deviceId || "device"} · ${w.metric || "metric"}`;
+  return CATALOGUE.find((c) => c.type === w.type)?.label ?? "Widget";
+}
+
+function WBusy() { return <Skeleton className="h-28 w-full" />; }
+function WErr({ msg }: { msg: string }) { return <p className="py-8 text-center text-xs text-red-300">{msg}</p>; }
+function WEmpty({ msg }: { msg: string }) { return <p className="py-8 text-center text-sm ad-muted">{msg}</p>; }
+
+function BigStat({ value, sub, color = "#fff" }: { value: string; sub?: string; color?: string }) {
+  return (
+    <div className="py-3 text-center">
+      <div className="text-3xl font-extrabold tabular-nums" style={{ color }}>{value}</div>
+      {sub && <div className="mt-1 text-xs ad-muted">{sub}</div>}
+    </div>
+  );
+}
+
+function HRow({ name, ok, detail }: { name: string; ok: boolean; detail: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Dot tone={ok ? "green" : "red"} />
+      <span className="flex-1 truncate text-slate-200">{name}</span>
+      <span className="text-xs ad-muted tabular-nums">{detail}</span>
+    </div>
+  );
+}
+
+function WidgetView({ widget, ctx }: { widget: Widget; ctx: Ctx }) {
+  const { stats, devices, events, health, energy, fleet } = ctx;
   switch (widget.type) {
-    case "kpi": return <KpiCard label="" value={int(rng(seed), 40, 990)} delta={int(rng(seed + "d"), -8, 12)} spark={walk(seed, 20, 50, 8)} color="#22d3ee" />;
-    case "line": return <LineChart data={walk(seed, 40, 40, 6)} color="#22d3ee" height={150} />;
-    case "bar": return <BarChart labels={["A", "B", "C", "D", "E"]} data={[42, 68, 31, 79, 54]} color="#8b5cf6" height={150} />;
-    case "gauge": return <div className="flex justify-center"><Gauge value={int(rng(seed), 800, 2600)} max={3000} label="Load" unit="W" size={150} /></div>;
-    case "donut": return <div className="flex justify-center"><Donut size={140} segments={[{ label: "OK", value: 82, color: "#22c55e" }, { label: "Warn", value: 12, color: "#f59e0b" }, { label: "Crit", value: 6, color: "#ef4444" }]} /></div>;
-    case "ring": return <div className="flex justify-center"><ProgressRing value={99.4} max={100} size={120} label="99.4%" color="#22c55e" /></div>;
-    case "toggle": return <ToggleWidget />;
-    case "slider": return <SliderWidget />;
-    case "heatmap": return <Heatmap grid={Array.from({ length: 5 }, (_, i) => Array.from({ length: 12 }, (_, j) => int(rng(seed + i + j), 0, 100)))} rows={["Mon", "Tue", "Wed", "Thu", "Fri"]} cols={Array.from({ length: 12 }, (_, i) => `${i * 2}`)} color="#06b6d4" />;
-    case "hbar": return <HBar items={[{ name: "Kitchen", value: 82, color: "#06b6d4" }, { name: "Office", value: 61, color: "#8b5cf6" }, { name: "Garage", value: 44, color: "#22c55e" }, { name: "Bedroom", value: 28, color: "#f59e0b" }]} />;
+    case "fleet-online": {
+      if (stats.loading && !stats.data) return <WBusy />;
+      if (stats.error && !stats.data) return <WErr msg={stats.error} />;
+      const total = stats.data?.devices ?? fleet.total;
+      const online = stats.data?.online ?? fleet.online;
+      const rate = total ? (online / total) * 100 : 0;
+      return <BigStat value={`${num(online)} / ${num(total)}`} sub={total ? `${rate.toFixed(0)}% online` : "no devices"} color={rate >= 80 ? TONE.green.fg : rate >= 50 ? TONE.amber.fg : TONE.red.fg} />;
+    }
+    case "live-power": {
+      if (energy.loading && !energy.data) return <WBusy />;
+      if (energy.error && !energy.data) return <WErr msg={energy.error} />;
+      return <BigStat value={`${num(energy.data?.liveWatts ?? 0)} W`} sub={`${num(energy.data?.todayKwh ?? 0, 1)} kWh today`} color={TONE.amber.fg} />;
+    }
+    case "type-donut": {
+      if (devices.loading && !devices.data) return <WBusy />;
+      if (devices.error && !devices.data) return <WErr msg={devices.error} />;
+      if (!fleet.byType.length) return <WEmpty msg="No devices" />;
+      return <div className="flex justify-center"><Donut size={140} segments={fleet.byType.slice(0, 6).map((t, i) => ({ label: t.name, value: t.value, color: PALETTE[i % PALETTE.length] }))} /></div>;
+    }
+    case "room-bar": {
+      if (devices.loading && !devices.data) return <WBusy />;
+      if (devices.error && !devices.data) return <WErr msg={devices.error} />;
+      if (!fleet.byRoom.length) return <WEmpty msg="No rooms assigned" />;
+      return <HBar items={fleet.byRoom.slice(0, 6).map((r, i) => ({ name: r.name, value: r.value, color: PALETTE[i % PALETTE.length] }))} />;
+    }
+    case "health-donut": {
+      if (devices.loading && !devices.data) return <WBusy />;
+      if (devices.error && !devices.data) return <WErr msg={devices.error} />;
+      if (!fleet.total) return <WEmpty msg="No devices" />;
+      const h = fleet.health;
+      const segs = [
+        { label: "healthy", value: h.healthy, color: TONE.green.fg },
+        { label: "warning", value: h.warning, color: TONE.amber.fg },
+        { label: "critical", value: h.critical, color: TONE.red.fg },
+        { label: "offline", value: h.offline, color: TONE.slate.fg },
+      ].filter((s) => s.value > 0);
+      return <div className="flex justify-center"><Donut size={140} segments={segs} /></div>;
+    }
+    case "event-rate": {
+      if (events.loading && !events.data) return <WBusy />;
+      if (events.error && !events.data) return <WErr msg={events.error} />;
+      const rows = events.data ?? [];
+      if (!rows.length) return <WEmpty msg="No events in range" />;
+      const s = timeSeries(rows, (e) => e.ts, 24, 3600000);
+      return <LineChart data={s.data} color="#22d3ee" height={150} />;
+    }
+    case "recent-events": {
+      if (events.loading && !events.data) return <WBusy />;
+      if (events.error && !events.data) return <WErr msg={events.error} />;
+      const rows = (events.data ?? []).slice(0, 6);
+      if (!rows.length) return <WEmpty msg="No recent events" />;
+      return (
+        <div className="divide-y divide-white/5">
+          {rows.map((e) => (
+            <div key={e.id} className="flex items-center gap-2 py-2 text-sm">
+              <Dot tone={kindTone(e.kind)} />
+              <span className="min-w-0 flex-1 truncate text-slate-200"><span className="font-medium text-white">{e.title}</span></span>
+              <span className="shrink-0 text-[11px] ad-muted">{relativeTime(e.ts)}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case "platform-health": {
+      if (health.loading && !health.data) return <WBusy />;
+      if (health.error && !health.data) return <WErr msg={health.error} />;
+      const h = health.data;
+      return (
+        <div className="space-y-1.5 text-sm">
+          <HRow name="MQTT broker" ok={h?.mqtt === true} detail={h ? (h.mqtt ? "connected" : "down") : "—"} />
+          <HRow name="Database" ok={h?.db === true} detail={h ? (h.db ? "up" : "down") : "—"} />
+          <HRow name="API uptime" ok detail={h ? uptime(h.uptimeSec) : "—"} />
+          <HRow name="Runtime" ok detail={h?.node ?? "—"} />
+        </div>
+      );
+    }
+    case "device-metric":
+      return <DeviceMetricWidget widget={widget} />;
+    default:
+      return null;
   }
 }
 
-function ToggleWidget() {
-  const [on, setOn] = useState(true);
+function DeviceMetricWidget({ widget }: { widget: Widget }) {
+  const tele = useDeviceTelemetry(widget.deviceId ?? null, 200, 20000);
+  const frames = useMemo(() => tele.data ?? [], [tele.data]);
+  const series = useMemo(() => telemetrySeries(frames, widget.metric ?? ""), [frames, widget.metric]);
+  if (tele.loading && !tele.data) return <WBusy />;
+  if (tele.error && !tele.data) return <WErr msg={tele.error} />;
+  if (!series.data.length) return <WEmpty msg="No telemetry for this metric" />;
   return (
-    <div className="flex flex-col items-center py-4">
-      <Toggle checked={on} onChange={setOn} />
-      <span className="mt-2 text-sm font-semibold" style={{ color: on ? "#4ade80" : "#64748b" }}>{on ? "ON" : "OFF"}</span>
+    <div>
+      <LineChart data={series.data} color={PALETTE[4]} height={150} />
+      <div className="mt-1 text-xs ad-muted">latest <b className="text-white tabular-nums">{num(series.data[series.data.length - 1])}</b> · {series.data.length} pts</div>
     </div>
   );
 }
 
-function SliderWidget() {
-  const [v, setV] = useState(22);
-  const tone: Tone = v > 25 ? "red" : v > 22 ? "amber" : "brand";
-  return (
-    <div className="py-2">
-      <div className="mb-1 text-center text-2xl font-extrabold" style={{ color: tone === "red" ? "#f87171" : tone === "amber" ? "#fbbf24" : "#22d3ee" }}>{v}°C</div>
-      <input type="range" min={16} max={30} value={v} onChange={(e) => setV(+e.target.value)} className="w-full accent-cyan-500" />
-    </div>
-  );
+function kindTone(kind: string): Tone {
+  const k = kind.toLowerCase();
+  if (k.includes("alert") || k.includes("sos") || k.includes("fault") || k.includes("error")) return "red";
+  if (k.includes("warn") || k.includes("offline")) return "amber";
+  if (k.includes("secur") || k.includes("auth")) return "violet";
+  return "brand";
 }
 
-// ---------------------------------------------------------------- floorplan ---
+// ------------------------------------------------------------------ dialogs --
 
-function FloorPlanTab() {
-  const rooms = [
-    { name: "Living", x: 20, y: 20, w: 240, h: 160 }, { name: "Kitchen", x: 270, y: 20, w: 160, h: 160 },
-    { name: "Bedroom", x: 20, y: 190, w: 180, h: 150 }, { name: "Office", x: 210, y: 190, w: 120, h: 150 },
-    { name: "Garage", x: 340, y: 190, w: 90, h: 150 },
-  ];
-  const sensors = [
-    { room: "Living", x: 120, y: 90, kind: "temp", val: 22, tone: "green" }, { room: "Living", x: 210, y: 140, kind: "motion", val: 1, tone: "brand" },
-    { room: "Kitchen", x: 350, y: 100, kind: "temp", val: 27, tone: "amber" }, { room: "Bedroom", x: 100, y: 260, kind: "temp", val: 20, tone: "green" },
-    { room: "Office", x: 270, y: 260, kind: "co2", val: 780, tone: "red" }, { room: "Garage", x: 385, y: 260, kind: "door", val: 0, tone: "green" },
-  ] as const;
-  const toneColor: Record<string, string> = { green: "#22c55e", amber: "#f59e0b", red: "#ef4444", brand: "#06b6d4" };
+function NameDialog({ open, title, initial, onClose, onSubmit }: { open: boolean; title: string; initial: string; onClose: () => void; onSubmit: (name: string) => void }) {
+  const [name, setName] = useState(initial);
+  useEffect(() => { if (open) setName(initial); }, [open, initial]);
   return (
-    <Panel>
-      <SectionTitle right={<Badge tone="brand">CAD overlay · live</Badge>}>Floor plan sensor overlay</SectionTitle>
-      <div className="overflow-x-auto">
-        <svg viewBox="0 0 460 360" className="w-full" style={{ maxHeight: 460 }}>
-          {rooms.map((r) => (
-            <g key={r.name}>
-              <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={8} fill="rgba(148,163,184,.04)" stroke="rgba(148,163,184,.25)" strokeWidth={1.5} />
-              <text x={r.x + 10} y={r.y + 20} fontSize={12} fill="#7c8aa5">{r.name}</text>
-            </g>
-          ))}
-          {sensors.map((s, i) => (
-            <g key={i}>
-              <circle cx={s.x} cy={s.y} r={16} fill={`${toneColor[s.tone]}22`} stroke={toneColor[s.tone]} strokeWidth={1.5}>
-                <animate attributeName="r" from="16" to="22" dur="2.2s" repeatCount="indefinite" />
-                <animate attributeName="opacity" from="0.7" to="0.1" dur="2.2s" repeatCount="indefinite" />
-              </circle>
-              <circle cx={s.x} cy={s.y} r={13} fill="rgba(7,11,20,.9)" stroke={toneColor[s.tone]} strokeWidth={1.5} />
-              <text x={s.x} y={s.y + 4} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">{s.kind === "motion" ? "•" : s.kind === "door" ? "▢" : s.val}</text>
-            </g>
-          ))}
-        </svg>
+    <Modal open={open} onClose={onClose} title={title}>
+      <div className="space-y-3">
+        <Field label="Name">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. NOC overview" onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) onSubmit(name); }} />
+        </Field>
+        <Btn variant="primary" className="w-full" disabled={!name.trim()} onClick={() => onSubmit(name)}><Check className="h-4 w-4" /> Save</Btn>
       </div>
-      <div className="mt-2 flex flex-wrap gap-4 text-xs ad-muted">
-        <span className="flex items-center gap-1.5"><Thermometer className="h-3.5 w-3.5" /> temperature</span>
-        <span className="flex items-center gap-1.5"><Activity className="h-3.5 w-3.5" /> motion</span>
-        <span className="flex items-center gap-1.5"><DoorOpen className="h-3.5 w-3.5" /> door</span>
-        <span className="ml-auto">colors reflect live threshold state</span>
+    </Modal>
+  );
+}
+
+function AddDeviceMetricModal({ open, devices, onClose, onAdd }: { open: boolean; devices: AdminDevice[]; onClose: () => void; onAdd: (deviceId: string, deviceName: string, metric: string) => void }) {
+  const [deviceId, setDeviceId] = useState("");
+  const [metric, setMetric] = useState("");
+  const tele = useDeviceTelemetry(deviceId || null, 200, 0);
+  const metrics = useMemo(() => availableMetrics(tele.data ?? []), [tele.data]);
+
+  useEffect(() => { if (!open) { setDeviceId(""); setMetric(""); } }, [open]);
+  useEffect(() => { setMetric(""); }, [deviceId]);
+
+  const device = devices.find((d) => d.id === deviceId) ?? null;
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add device metric widget">
+      <div className="space-y-3">
+        <Field label="Device">
+          <Select value={deviceId} onChange={setDeviceId} options={[{ value: "", label: "Select a device…" }, ...devices.map((d) => ({ value: d.id, label: d.name || d.id }))]} />
+        </Field>
+        <Field label="Metric" hint={deviceId && !tele.loading && metrics.length === 0 ? "No numeric metrics found in this device's frames." : undefined}>
+          {!deviceId ? (
+            <p className="text-xs ad-muted">Choose a device first.</p>
+          ) : tele.loading && !tele.data ? (
+            <p className="text-xs ad-muted">Loading metrics…</p>
+          ) : (
+            <Select value={metric} onChange={setMetric} options={[{ value: "", label: metrics.length ? "Select a metric…" : "No metrics available" }, ...metrics.map((m) => ({ value: m, label: m }))]} />
+          )}
+        </Field>
+        <Btn variant="primary" className="w-full" disabled={!deviceId || !metric} onClick={() => device && metric && onAdd(deviceId, device.name || device.id, metric)}>
+          <Plus className="h-4 w-4" /> Add widget
+        </Btn>
       </div>
-    </Panel>
+    </Modal>
   );
 }
 
-function TemplatesTab() {
-  const templates = [
-    { name: "HVAC operations", desc: "Zone temps, setpoints, energy and comfort index", widgets: 12, icon: Thermometer },
-    { name: "Energy analytics", desc: "Consumption, cost, solar offset and demand", widgets: 9, icon: Activity },
-    { name: "Asset tracking", desc: "Map, geofences, battery and movement", widgets: 8, icon: Building },
-    { name: "Security wall", desc: "Cameras, motion, door state and alerts", widgets: 10, icon: Video },
-    { name: "Fleet NOC", desc: "Status matrix, latency, incidents, throughput", widgets: 14, icon: LayoutGrid },
-    { name: "Water systems", desc: "Levels, flow, leaks and pump status", widgets: 7, icon: GaugeIcon },
-  ];
-  return (
-    <StaggerGrid className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {templates.map((t) => (
-        <StaggerItem key={t.name}>
-          <Panel className="flex h-full flex-col">
-            <div className="flex items-center gap-2"><span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: "rgba(6,182,212,.1)", color: "#22d3ee" }}><t.icon className="h-4 w-4" /></span><span className="font-semibold text-white">{t.name}</span></div>
-            <p className="mt-2 flex-1 text-sm ad-muted">{t.desc}</p>
-            <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3"><span className="text-xs ad-muted">{t.widgets} widgets</span><Btn size="sm" variant="subtle"><Plus className="h-3.5 w-3.5" /> Clone</Btn></div>
-          </Panel>
-        </StaggerItem>
-      ))}
-    </StaggerGrid>
-  );
-}
+// ------------------------------------------------------------------- kiosk ---
 
-function KioskTab() {
-  const flags = useStore(flagsStore);
+function KioskOverlay({ dashboard, ctx, onExit }: { dashboard: DashboardRecord; ctx: Ctx; onExit: () => void }) {
+  const widgets = Array.isArray(dashboard.widgets) ? dashboard.widgets : [];
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onExit(); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    };
+  }, [onExit]);
+
   return (
-    <div className="space-y-4">
-      <Panel>
-        <SectionTitle right={<Btn size="sm" variant="primary"><Maximize2 className="h-3.5 w-3.5" /> Enter kiosk</Btn>}>Kiosk / control-room mode</SectionTitle>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-3 text-sm">
-            <p className="ad-muted">Fullscreen, distraction-free, auto-rotating dashboards optimized for wall displays and NOC screens. Read-only and password-protected.</p>
-            {[["Auto-rotate dashboards", true], ["Hide navigation chrome", true], ["Password protect", true], ["Wake-lock display", false]].map(([l, on]) => (
-              <div key={l as string} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-4 py-3"><span className="text-white">{l}</span><span className="flex items-center gap-1.5 text-xs" style={{ color: on ? "#4ade80" : "#64748b" }}><Dot tone={on ? "green" : "slate"} /> {on ? "on" : "off"}</span></div>
-            ))}
-          </div>
-          <div className="rounded-xl border border-white/10 bg-gradient-to-br from-slate-900 to-black p-4">
-            <div className="mb-2 flex items-center justify-between text-xs ad-muted"><span>NOC · Fleet overview</span><span className="flex items-center gap-1 text-green-400"><Dot tone="green" pulse /> live</span></div>
-            <div className="grid grid-cols-3 gap-2">
-              {[["Online", "98.2%"], ["Alerts", "3"], ["Throughput", "14.2k/s"]].map(([l, v]) => (
-                <div key={l} className="rounded-lg bg-white/[0.04] p-2 text-center"><div className="text-lg font-bold text-white">{v}</div><div className="text-[10px] ad-muted">{l}</div></div>
-              ))}
-            </div>
-            <div className="mt-2"><LineChart data={walk("kiosk", 30, 40, 6)} color="#22d3ee" height={80} /></div>
-          </div>
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-gradient-to-br from-slate-950 to-black p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-white">
+          <Tv className="h-5 w-5 text-cyan-400" />
+          <span className="text-lg font-bold">{dashboard.name}</span>
+          <span className="flex items-center gap-1 text-xs text-green-400"><Dot tone="green" pulse /> live</span>
         </div>
-      </Panel>
-      <Panel>
-        <SectionTitle>Feature flags</SectionTitle>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {flags.slice(0, 6).map((f) => (
-            <div key={f.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-4 py-2.5">
-              <span className="min-w-0"><span className="block truncate font-mono text-sm text-white">{f.key}</span><span className="block truncate text-[11px] ad-muted">{f.description}</span></span>
-              <Badge tone={f.enabled ? "green" : "slate"}>{f.enabled ? `${f.rollout}%` : "off"}</Badge>
-            </div>
-          ))}
-        </div>
-      </Panel>
+        <Btn variant="subtle" onClick={onExit}><X className="h-4 w-4" /> Exit</Btn>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {widgets.map((w) => (
+          <div key={w.id} className={`ad-card rounded-2xl p-4 ${w.span === 2 ? "sm:col-span-2" : ""}`}>
+            <div className="mb-2 truncate text-[11px] font-semibold uppercase tracking-wider ad-muted">{titleFor(w)}</div>
+            <WidgetView widget={w} ctx={ctx} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

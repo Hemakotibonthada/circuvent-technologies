@@ -2,13 +2,14 @@
 
 // Command-latency observability for the IoT control plane.
 //
-// Primary data source is the live ring buffer in `@/lib/smarthome-realtime`,
+// The ONLY data source is the live ring buffer in `@/lib/smarthome-realtime`,
 // which every dashboard command writes to (send -> HTTP accept -> device echo).
-// When an operator opens this page without having driven any devices in the
-// current tab the buffer is empty, so a deterministic simulator keeps the
-// charts meaningful. The active source is always labelled in the header.
+// Measurements persist to localStorage, so real history survives a reload and
+// is shared across tabs. When nothing has been measured yet the page says so
+// rather than inventing a synthetic fleet.
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
   AlertTriangle,
@@ -17,8 +18,6 @@ import {
   Download,
   Gauge,
   Network,
-  Pause,
-  Play,
   Radio,
   RefreshCw,
   Server,
@@ -36,7 +35,6 @@ import {
   type LatencySample,
 } from "@/lib/smarthome-realtime";
 import { BarChart, HBar, Legend, MultiLineChart, PALETTE, ProgressRing, RadarChart, Sparkline } from "../../charts";
-import { rng } from "../_lib/store";
 import { num } from "../_lib/format";
 import {
   Badge,
@@ -59,7 +57,6 @@ import {
 
 type Tab = "overview" | "samples" | "devices" | "pipeline" | "network";
 type Win = "5m" | "15m" | "1h";
-type Source = "auto" | "live" | "demo";
 
 const WIN_MS: Record<Win, number> = { "5m": 5 * 60_000, "15m": 15 * 60_000, "1h": 60 * 60_000 };
 
@@ -198,73 +195,17 @@ function hopBreakdown(list: LatencySample[]): { name: string; value: number; col
   }));
 }
 
-// ---------------------------------------------------------------- simulator
-
-const SIM_DEVICES: { id: string; type: string; base: number; jitter: number; loss: number }[] = [
-  { id: "hub-livingroom", type: "home-hub", base: 210, jitter: 90, loss: 0.01 },
-  { id: "hub-myroom", type: "home-hub", base: 260, jitter: 140, loss: 0.02 },
-  { id: "touch-kitchen", type: "touchboard", base: 180, jitter: 70, loss: 0.005 },
-  { id: "plug-fridge", type: "smart-plug", base: 320, jitter: 160, loss: 0.02 },
-  { id: "tank-roof", type: "watertank", base: 480, jitter: 260, loss: 0.04 },
-  { id: "gate-main", type: "rfid-gate", base: 620, jitter: 300, loss: 0.05 },
-  { id: "door-front", type: "facedoor", base: 390, jitter: 150, loss: 0.02 },
-];
-
-const SIM_FIELDS: Record<string, string[]> = {
-  "home-hub": ["power", "power2", "power3", "power4", "scene"],
-  touchboard: ["g1", "g2", "g3"],
-  "smart-plug": ["power"],
-  watertank: ["pump", "auto"],
-  "rfid-gate": ["barrier", "mode"],
-  facedoor: ["locked"],
-};
-
-function makeSample(r: () => number, at: number, seq: number): LatencySample {
-  const d = SIM_DEVICES[Math.floor(r() * SIM_DEVICES.length) % SIM_DEVICES.length];
-  const fields = SIM_FIELDS[d.type] ?? ["power"];
-  const field = fields[Math.floor(r() * fields.length) % fields.length];
-  const spike = r() < 0.04 ? 3 + r() * 4 : 1;
-  const rtt = Math.round((d.base + (r() - 0.35) * d.jitter) * spike);
-  const api = Math.round(Math.min(rtt * 0.55, 45 + r() * 90));
-  const dropped = r() < d.loss;
-  return {
-    id: `sim-${seq}`,
-    deviceId: d.id,
-    deviceType: d.type,
-    fields: [field],
-    sentAt: at,
-    apiMs: dropped && r() < 0.4 ? null : api,
-    rttMs: dropped ? null : Math.max(api + 20, rtt),
-    outcome: dropped ? (r() < 0.4 ? "error" : "timeout") : "confirmed",
-    error: dropped ? "device did not echo within 6000 ms" : undefined,
-  };
-}
-
-function seedDemo(now: number, n: number): LatencySample[] {
-  const r = rng("cv-latency-demo");
-  const out: LatencySample[] = [];
-  for (let i = 0; i < n; i++) {
-    out.push(makeSample(r, now - Math.round(((n - i) / n) * 60 * 60_000), i));
-  }
-  return out;
-}
-
-// -------------------------------------------------------------------- page
+// ---------------------------------------------------------------- page
 
 export default function LatencyPage() {
   const liveSamples = useLatencySamples();
   const [mounted, setMounted] = useState(false);
-  const [demo, setDemo] = useState<LatencySample[]>([]);
-  const [streaming, setStreaming] = useState(true);
-  const [source, setSource] = useState<Source>("auto");
   const [win, setWin] = useState<Win>("15m");
   const [tab, setTab] = useState<Tab>("overview");
   const [now, setNow] = useState(0);
 
   useEffect(() => {
-    const t = Date.now();
-    setNow(t);
-    setDemo(seedDemo(t, 420));
+    setNow(Date.now());
     setMounted(true);
   }, []);
 
@@ -274,19 +215,7 @@ export default function LatencyPage() {
     return () => clearInterval(t);
   }, [mounted]);
 
-  useEffect(() => {
-    if (!mounted || !streaming) return;
-    let seq = 100000;
-    const r = rng(`cv-latency-stream-${Math.floor(Date.now() / 1000)}`);
-    const t = setInterval(() => {
-      seq += 1;
-      setDemo((prev) => [...prev.slice(-599), makeSample(r, Date.now(), seq)]);
-    }, 1600);
-    return () => clearInterval(t);
-  }, [mounted, streaming]);
-
-  const usingDemo = source === "demo" || (source === "auto" && liveSamples.length < 5);
-  const pool = usingDemo ? demo : liveSamples;
+  const pool = liveSamples;
 
   const from = now - WIN_MS[win];
   const samples = useMemo(() => pool.filter((s) => s.sentAt >= from), [pool, from]);
@@ -344,18 +273,8 @@ export default function LatencyPage() {
         subtitle="End-to-end command round trips measured from the dashboard tap to the device state echo, with per-hop attribution, SLO burn and link health."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Segmented<Source>
-              value={source}
-              onChange={setSource}
-              options={[
-                { value: "auto", label: "Auto" },
-                { value: "live", label: "Live" },
-                { value: "demo", label: "Simulated" },
-              ]}
-            />
-            <Btn variant="ghost" onClick={() => setStreaming((v) => !v)} title={streaming ? "Pause stream" : "Resume stream"}>
-              {streaming ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {streaming ? "Pause" : "Resume"}
+            <Btn variant="ghost" onClick={() => clearLatencySamples()} title="Discard recorded measurements">
+              <Trash2 className="h-4 w-4" /> Clear
             </Btn>
             <Btn variant="ghost" onClick={exportCsv}>
               <Download className="h-4 w-4" /> CSV
@@ -366,12 +285,12 @@ export default function LatencyPage() {
 
       <Panel className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Dot tone={usingDemo ? "amber" : "green"} pulse={streaming} />
-          <span className="font-semibold text-white">{usingDemo ? "Simulated fleet" : "Live control plane"}</span>
+          <Dot tone={pool.length ? "green" : "slate"} pulse={pool.length > 0} />
+          <span className="font-semibold text-white">Live control plane</span>
           <span className="ad-muted">
-            {usingDemo
-              ? "No commands recorded in this tab yet — showing a synthetic fleet with realistic timing."
-              : `${num(liveSamples.length)} real commands captured in this session.`}
+            {pool.length
+              ? `${num(pool.length)} real command${pool.length === 1 ? "" : "s"} measured on this browser.`
+              : "No commands measured yet — every control you use is timed and recorded here."}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -387,11 +306,6 @@ export default function LatencyPage() {
           <Btn variant="ghost" size="sm" onClick={() => setNow(Date.now())} title="Refresh window">
             <RefreshCw className="h-4 w-4" />
           </Btn>
-          {!usingDemo && (
-            <Btn variant="ghost" size="sm" onClick={() => clearLatencySamples()} title="Clear captured samples">
-              <Trash2 className="h-4 w-4" />
-            </Btn>
-          )}
         </div>
       </Panel>
 
@@ -449,12 +363,16 @@ export default function LatencyPage() {
       {samples.length === 0 ? (
         <EmptyState
           icon={<Timer className="h-6 w-6" />}
-          title="No commands in this window"
-          hint="Widen the time window, switch the source to Simulated, or send a command from the device console to start recording."
+          title={pool.length ? "No commands in this window" : "No measurements recorded yet"}
+          hint={
+            pool.length
+              ? "Widen the time window, or send a command from the device console to record a fresh round trip."
+              : "Every control you operate in the console is timed end to end — tap a device switch and the measurement will appear here."
+          }
           action={
-            <Btn variant="primary" onClick={() => setSource("demo")}>
-              Show simulated data
-            </Btn>
+            <Link href="/smarthome">
+              <Btn variant="primary">Open device console</Btn>
+            </Link>
           }
         />
       ) : (

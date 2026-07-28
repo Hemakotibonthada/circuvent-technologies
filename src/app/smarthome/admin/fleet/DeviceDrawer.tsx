@@ -1,215 +1,365 @@
 "use client";
 
-import { useMemo, useState } from "react";
+/**
+ * Real device detail.
+ *
+ * Everything shown is loaded live from the control plane for the given id:
+ *   - `controlPlane.adminDevice(id)` for metadata + reported state
+ *   - `useDeviceTelemetry(id)` for stored telemetry frames
+ * Operator actions (rename/move, command, OTA, delete) are wired straight to the
+ * control plane, each with a pending state, the real success/error message, and
+ * a refresh. Nothing here is fabricated.
+ */
+
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
-  Cpu, Wifi, Battery, Activity, Terminal, History, GitCompareArrows, Send, Power,
-  RefreshCw, Crosshair, Trash2, Radio, Gauge as GaugeIcon,
+  Activity, Cpu, Terminal, Send, DownloadCloud, Trash2, Save, RefreshCw,
+  TriangleAlert, ListTree, Sliders, CheckCircle2, XCircle, Loader2,
 } from "lucide-react";
-import { LineChart, Sparkline } from "../../charts";
-import type { FleetDevice } from "../_lib/sim";
-import { rng, int, walk } from "../_lib/store";
-import { relativeTime, uptime } from "../_lib/format";
-import { Drawer, Tabs, Badge, Btn, Progress, Dot, TONE, type Tone } from "../_ui";
+import { LineChart } from "../../charts";
+import { controlPlane, type AdminDevice, type ApiResult } from "@/lib/control-plane";
+import {
+  useResource, useDeviceTelemetry, availableMetrics, telemetrySeries,
+  deviceHealth, activeFaults, type DeviceHealth, type Resource,
+} from "../_lib/api";
+import { relativeTime, fmtDateTime, num } from "../_lib/format";
+import {
+  Drawer, Tabs, Badge, Btn, Dot, Field, Input, Select, Skeleton,
+  ErrorState, EmptyState, type Tone,
+} from "../_ui";
 
-type Tab = "twin" | "telemetry" | "network" | "commands" | "history";
+type Tab = "state" | "telemetry" | "actions";
+type TelemetryResource = Resource<{ ts: string; payload: Record<string, unknown> }[]>;
 
-const healthTone = (h: string): Tone => (h === "healthy" ? "green" : h === "warning" ? "amber" : h === "critical" ? "red" : "slate");
+const HEALTH_TONE: Record<DeviceHealth, Tone> = { healthy: "green", warning: "amber", critical: "red", offline: "slate" };
 
-export default function DeviceDrawer({ device, onClose, onCommand }: { device: FleetDevice | null; onClose: () => void; onCommand?: (id: string, cmd: string) => void }) {
-  const [tab, setTab] = useState<Tab>("twin");
-  if (!device) return null;
+/** Human-readable failure reason for a raw control-plane response envelope. */
+function errText(r: { status: number; data: unknown }): string {
+  const body = r.data;
+  if (body && typeof body === "object" && "error" in body) {
+    const m = String((body as { error?: unknown }).error ?? "");
+    if (m) return m;
+  }
+  if (r.status === 0) return "Cannot reach the control plane.";
+  if (r.status === 401) return "Not signed in to the control plane.";
+  if (r.status === 403) return "This account is not an operator.";
+  if (r.status === 404) return "Device not found on the control plane.";
+  return `Control plane returned ${r.status}.`;
+}
+
+function formatValue(v: unknown): string {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "—";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+export default function DeviceDrawer({
+  deviceId,
+  onClose,
+  onChanged,
+}: {
+  deviceId: string | null;
+  onClose: () => void;
+  onChanged?: () => void;
+}) {
+  const [tab, setTab] = useState<Tab>("state");
+
+  const detail = useResource(
+    useCallback(
+      (): Promise<ApiResult<{ device: AdminDevice | null }>> =>
+        deviceId
+          ? controlPlane.adminDevice(deviceId)
+          : Promise.resolve({ ok: true, status: 200, data: { device: null } }),
+      [deviceId]
+    ),
+    (r) => r.device,
+    15000
+  );
+  const telemetry = useDeviceTelemetry(deviceId, 200, 15000);
+
+  const device = detail.data;
+
+  if (!deviceId) return null;
+
+  const health: DeviceHealth = device ? deviceHealth(device) : "offline";
+
   return (
-    <Drawer open={!!device} onClose={onClose} title={device.name} width={560}>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Badge tone={device.online ? "green" : "slate"}><Dot tone={device.online ? "green" : "slate"} pulse={device.online} /> {device.online ? "Online" : "Offline"}</Badge>
-        <Badge tone={healthTone(device.health)}>Health {device.healthScore}</Badge>
-        <Badge tone="blue">{device.lifecycle}</Badge>
-        <Badge tone="slate">{device.model}</Badge>
-        <span className="ml-auto font-mono text-xs ad-muted">{device.id}</span>
-      </div>
+    <Drawer open onClose={onClose} title={device?.name || deviceId} width={620}>
+      {detail.loading && !device ? (
+        <div className="space-y-3">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      ) : detail.error && !device ? (
+        <ErrorState message={detail.error} unauthorized={detail.unauthorized} onRetry={detail.reload} />
+      ) : !device ? (
+        <EmptyState icon={<Cpu className="h-6 w-6" />} title="Device not found" hint="It may have been deleted or is not visible to this operator." />
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Badge tone={device.online ? "green" : "slate"}><Dot tone={device.online ? "green" : "slate"} pulse={device.online} /> {device.online ? "Online" : "Offline"}</Badge>
+            <Badge tone={HEALTH_TONE[health]}>{health}</Badge>
+            <Badge tone="slate">{device.type}</Badge>
+            {device.fw_version && <Badge tone="blue">fw {device.fw_version}</Badge>}
+            <span className="ml-auto font-mono text-xs ad-muted">{device.id}</span>
+          </div>
 
-      <div className="mb-4">
-        <Tabs<Tab>
-          value={tab} onChange={setTab}
-          tabs={[
-            { value: "twin", label: "Digital Twin", icon: <GitCompareArrows className="h-4 w-4" /> },
-            { value: "telemetry", label: "Telemetry", icon: <Activity className="h-4 w-4" /> },
-            { value: "network", label: "Network", icon: <Wifi className="h-4 w-4" /> },
-            { value: "commands", label: "Commands", icon: <Terminal className="h-4 w-4" /> },
-            { value: "history", label: "History", icon: <History className="h-4 w-4" /> },
-          ]}
-        />
-      </div>
+          <div className="mb-4">
+            <Tabs<Tab>
+              value={tab} onChange={setTab}
+              tabs={[
+                { value: "state", label: "State", icon: <ListTree className="h-4 w-4" /> },
+                { value: "telemetry", label: "Telemetry", icon: <Activity className="h-4 w-4" /> },
+                { value: "actions", label: "Actions", icon: <Sliders className="h-4 w-4" /> },
+              ]}
+            />
+          </div>
 
-      {tab === "twin" && <TwinTab device={device} />}
-      {tab === "telemetry" && <TelemetryTab device={device} />}
-      {tab === "network" && <NetworkTab device={device} />}
-      {tab === "commands" && <CommandsTab device={device} onCommand={onCommand} />}
-      {tab === "history" && <HistoryTab device={device} />}
+          {tab === "state" && <StateTab device={device} />}
+          {tab === "telemetry" && <TelemetryTab telemetry={telemetry} />}
+          {tab === "actions" && (
+            <ActionsTab
+              device={device}
+              onChanged={() => { detail.reload(); onChanged?.(); }}
+              onDeleted={() => { onChanged?.(); onClose(); }}
+            />
+          )}
+        </>
+      )}
     </Drawer>
   );
 }
 
-function KV({ k, v }: { k: string; v: React.ReactNode }) {
+function KV({ k, v }: { k: string; v: ReactNode }) {
   return (
-    <div className="flex items-center justify-between border-b border-white/5 py-2 text-sm last:border-0">
+    <div className="flex items-center justify-between gap-3 border-b border-white/5 py-2 text-sm last:border-0">
       <span className="ad-muted">{k}</span>
-      <span className="font-medium text-white">{v}</span>
+      <span className="min-w-0 truncate text-right font-medium text-white">{v}</span>
     </div>
   );
 }
 
-function TwinTab({ device }: { device: FleetDevice }) {
-  const r = rng(device.id + "twin");
-  const rows = [
-    { field: "power", reported: "on", desired: "on" },
-    { field: "brightness", reported: `${int(r, 20, 90)}%`, desired: `${int(r, 20, 90)}%` },
-    { field: "target_temp", reported: `${int(r, 18, 24)}°C`, desired: `${int(r, 18, 24)}°C` },
-    { field: "mode", reported: "auto", desired: "eco" },
-    { field: "fw_version", reported: device.fw, desired: device.fw },
-    { field: "report_interval", reported: "30s", desired: "15s" },
-  ];
+function StateTab({ device }: { device: AdminDevice }) {
+  const faults = activeFaults(device.state);
+  const entries = Object.entries(device.state ?? {});
   return (
     <div className="space-y-4">
       <div className="ad-card rounded-xl p-4">
-        <div className="mb-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[11px] font-semibold uppercase tracking-wider ad-muted">
-          <span>Reported (device)</span><span /><span className="text-right">Desired (cloud)</span>
-        </div>
-        {rows.map((row) => {
-          const drift = row.reported !== row.desired;
-          return (
-            <div key={row.field} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-white/5 py-2 text-sm">
-              <span className="font-mono text-slate-200">{row.field}: <span className="text-white">{row.reported}</span></span>
-              <span className={drift ? "text-amber-400" : "text-slate-600"}>{drift ? "≠" : "="}</span>
-              <span className="text-right font-mono text-slate-200"><span className={drift ? "text-amber-300" : "text-white"}>{row.desired}</span></span>
-            </div>
-          );
-        })}
+        <KV k="Name" v={device.name || "—"} />
+        <KV k="Type" v={device.type} />
+        <KV k="Room" v={(device.room && device.room.trim()) || "Unassigned"} />
+        <KV k="Owner" v={device.owner_email || "unclaimed"} />
+        <KV k="Firmware" v={<span className="font-mono">{device.fw_version || "—"}</span>} />
+        <KV k="Last seen" v={device.last_seen ? `${fmtDateTime(device.last_seen)} · ${relativeTime(device.last_seen)}` : "never"} />
+        <KV k="Status" v={<span className="inline-flex items-center gap-1.5"><Dot tone={device.online ? "green" : "slate"} pulse={device.online} /> {device.online ? "Online" : "Offline"}</span>} />
       </div>
-      <Btn variant="primary" className="w-full"><RefreshCw className="h-4 w-4" /> Reconcile desired state</Btn>
-    </div>
-  );
-}
 
-function TelemetryTab({ device }: { device: FleetDevice }) {
-  const power = useMemo(() => walk(device.id + "pw", 60, 40, 6, 0), [device.id]);
-  const temp = useMemo(() => walk(device.id + "tp", 60, 22, 1.2, 10), [device.id]);
-  const rssi = useMemo(() => walk(device.id + "rs", 60, Math.abs(device.rssi), 4, 20), [device.id, device.rssi]);
-  return (
-    <div className="space-y-4">
-      <MetricBlock title="Power draw" unit="W" value={power[power.length - 1].toFixed(1)} data={power} color="#22d3ee" />
-      <MetricBlock title="Temperature" unit="°C" value={temp[temp.length - 1].toFixed(1)} data={temp} color="#f59e0b" />
-      <MetricBlock title="Signal (RSSI)" unit="dBm" value={`-${rssi[rssi.length - 1].toFixed(0)}`} data={rssi} color="#8b5cf6" />
-    </div>
-  );
-}
-
-function MetricBlock({ title, unit, value, data, color }: { title: string; unit: string; value: string; data: number[]; color: string }) {
-  return (
-    <div className="ad-card rounded-xl p-4">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-sm font-medium text-white">{title}</span>
-        <span className="text-lg font-bold tabular-nums" style={{ color }}>{value}<span className="ml-0.5 text-xs ad-muted">{unit}</span></span>
-      </div>
-      <LineChart data={data} color={color} height={90} />
-    </div>
-  );
-}
-
-function NetworkTab({ device }: { device: FleetDevice }) {
-  const r = rng(device.id + "net");
-  const cpu = useMemo(() => walk(device.id + "cpu", 40, device.cpu, 8, 0, 100), [device.id, device.cpu]);
-  const mem = useMemo(() => walk(device.id + "mem", 40, device.mem, 5, 0, 100), [device.id, device.mem]);
-  return (
-    <div className="space-y-4">
-      <div className="ad-card rounded-xl p-4">
-        <KV k="Connectivity" v={<span className="capitalize">{device.connectivity}</span>} />
-        <KV k="IP address" v={<span className="font-mono">{`10.${int(r, 0, 255)}.${int(r, 0, 255)}.${int(r, 2, 254)}`}</span>} />
-        <KV k="MAC" v={<span className="font-mono">{Array.from({ length: 6 }, () => "0123456789ABCDEF"[int(r, 0, 15)] + "0123456789ABCDEF"[int(r, 0, 15)]).join(":")}</span>} />
-        <KV k="Signal (RSSI)" v={`${device.rssi} dBm`} />
-        <KV k="Gateway" v={device.gateway ?? "direct"} />
-        <KV k="Uptime" v={uptime(device.uptimeSec)} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="ad-card rounded-xl p-3">
-          <div className="mb-1 flex items-center gap-1.5 text-xs ad-muted"><Cpu className="h-3.5 w-3.5" /> CPU {device.cpu}%</div>
-          <Sparkline data={cpu} color="#06b6d4" width={220} height={40} />
-        </div>
-        <div className="ad-card rounded-xl p-3">
-          <div className="mb-1 flex items-center gap-1.5 text-xs ad-muted"><GaugeIcon className="h-3.5 w-3.5" /> Memory {device.mem}%</div>
-          <Sparkline data={mem} color="#8b5cf6" width={220} height={40} />
-        </div>
-      </div>
-      {device.battery !== null && (
-        <div className="ad-card rounded-xl p-4">
-          <div className="mb-2 flex items-center justify-between text-sm"><span className="flex items-center gap-2 text-white"><Battery className="h-4 w-4" /> Battery</span><span className="font-bold text-white">{device.battery}%</span></div>
-          <Progress value={device.battery} tone={device.battery > 40 ? "green" : device.battery > 15 ? "amber" : "red"} />
-          <div className="mt-1.5 text-xs ad-muted">Power source: {device.powerSource}</div>
+      {faults.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2.5">
+          <TriangleAlert className="h-4 w-4 shrink-0 text-red-300" />
+          <span className="text-sm text-red-200">Active faults:</span>
+          {faults.map((f) => <Badge key={f} tone="red">{f}</Badge>)}
         </div>
       )}
+
+      <div className="ad-card rounded-xl p-4">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider ad-muted">Reported state</div>
+        {entries.length === 0 ? (
+          <p className="py-6 text-center text-sm ad-muted">This device has not reported any state yet.</p>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {entries.map(([k, v]) => (
+              <div key={k} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="font-mono text-slate-400">{k}</span>
+                <span className="max-w-[60%] truncate text-right font-medium text-white" title={formatValue(v)}>{formatValue(v)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function CommandsTab({ device, onCommand }: { device: FleetDevice; onCommand?: (id: string, cmd: string) => void }) {
-  const [log, setLog] = useState<string[]>([`$ connected to ${device.id} over ${device.connectivity}`, "$ awaiting command…"]);
-  const run = (cmd: string) => {
-    onCommand?.(device.id, cmd);
-    setLog((l) => [...l, `$ ${cmd}`, `> ack (${Math.round(20 + Math.random() * 180)}ms)`]);
-  };
-  const cmds = [
-    { label: "Reboot", icon: Power, cmd: "reboot" },
-    { label: "Identify", icon: Crosshair, cmd: "identify --blink" },
-    { label: "Calibrate", icon: RefreshCw, cmd: "calibrate_sensor" },
-    { label: "Ping", icon: Radio, cmd: "ping" },
-  ];
+function TelemetryTab({ telemetry }: { telemetry: TelemetryResource }) {
+  const frames = useMemo(() => telemetry.data ?? [], [telemetry.data]);
+  const metrics = useMemo(() => availableMetrics(frames), [frames]);
+  const [metric, setMetric] = useState<string>("");
+  const active = metric && metrics.includes(metric) ? metric : metrics[0] ?? "";
+  const series = useMemo(() => (active ? telemetrySeries(frames, active) : { labels: [], data: [] }), [frames, active]);
+
+  if (telemetry.loading && frames.length === 0) {
+    return <div className="space-y-3"><Skeleton className="h-9 w-40" /><Skeleton className="h-56 w-full" /></div>;
+  }
+  if (telemetry.error && frames.length === 0) {
+    return <ErrorState message={telemetry.error} unauthorized={telemetry.unauthorized} onRetry={telemetry.reload} />;
+  }
+  if (frames.length === 0 || metrics.length === 0) {
+    return <EmptyState icon={<Activity className="h-6 w-6" />} title="No telemetry recorded" hint="Numeric telemetry frames chart here once the device reports them." />;
+  }
+
+  const values = series.data;
+  const last = values.length ? values[values.length - 1] : null;
+  const min = values.length ? Math.min(...values) : null;
+  const max = values.length ? Math.max(...values) : null;
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
-        {cmds.map((c) => (
-          <Btn key={c.cmd} variant="subtle" onClick={() => run(c.cmd)}><c.icon className="h-4 w-4" /> {c.label}</Btn>
-        ))}
+      <div className="flex items-center justify-between gap-2">
+        <Select value={active} onChange={setMetric} options={metrics.map((m) => ({ value: m, label: m }))} className="min-w-[160px]" />
+        <Btn size="sm" variant="subtle" onClick={telemetry.reload}><RefreshCw className="h-3.5 w-3.5" /> Refresh</Btn>
       </div>
-      <div className="ad-card rounded-xl p-3">
-        <div className="mb-2 flex items-center gap-2 text-xs ad-muted"><Terminal className="h-3.5 w-3.5" /> Remote shell (RPC)</div>
-        <div className="max-h-44 overflow-y-auto rounded-lg bg-black/50 p-3 font-mono text-xs text-emerald-300">
-          {log.map((l, i) => <div key={i} className={l.startsWith(">") ? "text-cyan-300" : ""}>{l}</div>)}
+      <div className="ad-card rounded-xl p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-sm font-medium text-white">{active}</span>
+          <span className="text-lg font-bold tabular-nums text-cyan-300">{last !== null ? String(last) : "—"}</span>
         </div>
-        <div className="mt-2 flex gap-2">
-          <input placeholder="Type a command…" className="ad-input flex-1 font-mono" onKeyDown={(e) => { if (e.key === "Enter" && e.currentTarget.value) { run(e.currentTarget.value); e.currentTarget.value = ""; } }} />
-          <Btn variant="primary"><Send className="h-4 w-4" /></Btn>
+        {values.length ? (
+          <LineChart data={values} color="#22d3ee" height={200} />
+        ) : (
+          <p className="py-8 text-center text-sm ad-muted">No numeric points for “{active}”.</p>
+        )}
+        <div className="mt-3 flex gap-4 text-xs ad-muted">
+          <span>min <span className="tabular-nums text-white">{min !== null ? String(min) : "—"}</span></span>
+          <span>max <span className="tabular-nums text-white">{max !== null ? String(max) : "—"}</span></span>
+          <span className="ml-auto">{num(frames.length)} frames</span>
         </div>
       </div>
-      <Btn variant="danger" className="w-full" onClick={() => run("factory_reset --confirm")}><Trash2 className="h-4 w-4" /> Factory reset</Btn>
     </div>
   );
 }
 
-function HistoryTab({ device }: { device: FleetDevice }) {
-  const r = rng(device.id + "hist");
-  const events = useMemo(() => {
-    const kinds = [
-      ["Connected", "green"], ["Disconnected", "amber"], ["OTA applied 3.4.1", "blue"],
-      ["Config pushed", "violet"], ["Warning: high CPU", "amber"], ["Reboot", "slate"],
-      ["Certificate renewed", "green"], ["Command: calibrate", "blue"],
-    ] as const;
-    return Array.from({ length: 10 }, (_, i) => {
-      const [label, tone] = kinds[int(r, 0, kinds.length - 1)];
-      return { id: i, label, tone: tone as Tone, ts: new Date(Date.now() - i * int(r, 1, 40) * 36e5).toISOString() };
-    });
-  }, [device.id]);
+function ActionsTab({
+  device, onChanged, onDeleted,
+}: {
+  device: AdminDevice;
+  onChanged: () => void;
+  onDeleted: () => void;
+}) {
+  const [name, setName] = useState(device.name ?? "");
+  const [room, setRoom] = useState(device.room ?? "");
+  const [command, setCommand] = useState('{ "power": true }');
+  const [otaUrl, setOtaUrl] = useState("");
+  const [otaVersion, setOtaVersion] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const [busy, setBusy] = useState<string | null>(null);
+  const [result, setResult] = useState<{ action: string; ok: boolean; msg: string } | null>(null);
+
+  const run = useCallback(
+    async (
+      action: string,
+      fn: () => Promise<ApiResult<{ success?: boolean; error?: string }>>,
+      okMsg: string,
+      after?: () => void
+    ) => {
+      setBusy(action);
+      setResult(null);
+      const r = await fn();
+      const ok = r.ok && r.data?.success !== false;
+      setBusy(null);
+      setResult({ action, ok, msg: ok ? okMsg : errText(r) });
+      if (ok) after?.();
+    },
+    []
+  );
+
+  const metaDirty = name.trim() !== (device.name ?? "") || room.trim() !== (device.room ?? "");
+
+  const parsedCommand = useMemo<{ value: Record<string, unknown> | null; error: string }>(() => {
+    try {
+      const p: unknown = JSON.parse(command);
+      if (p && typeof p === "object" && !Array.isArray(p)) return { value: p as Record<string, unknown>, error: "" };
+      return { value: null, error: "Command must be a JSON object." };
+    } catch {
+      return { value: null, error: "Invalid JSON." };
+    }
+  }, [command]);
+
+  const status = (action: string) =>
+    result && result.action === action ? (
+      <div className={`mt-2 flex items-center gap-1.5 text-xs ${result.ok ? "text-emerald-300" : "text-red-300"}`}>
+        {result.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />} {result.msg}
+      </div>
+    ) : null;
+
   return (
-    <div className="relative space-y-0 pl-4">
-      <div className="absolute left-[7px] top-1 h-full w-px bg-white/10" />
-      {events.map((e) => (
-        <div key={e.id} className="relative flex items-start gap-3 py-2.5">
-          <span className="absolute -left-[1px] mt-1.5 h-2.5 w-2.5 rounded-full" style={{ background: TONE[e.tone].fg }} />
-          <div className="ml-4 flex-1">
-            <div className="text-sm text-white">{e.label}</div>
-            <div className="text-xs ad-muted">{relativeTime(e.ts)}</div>
-          </div>
+    <div className="space-y-4">
+      <section className="ad-card rounded-xl p-4">
+        <div className="mb-3 text-sm font-semibold text-white">Identity</div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Device name" /></Field>
+          <Field label="Room"><Input value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Room" /></Field>
         </div>
-      ))}
+        <div className="mt-3">
+          <Btn
+            variant="primary" size="sm" disabled={!metaDirty || busy === "meta"}
+            onClick={() => run("meta", () => controlPlane.adminPatchDevice(device.id, { name: name.trim(), room: room.trim() }), "Saved device metadata.", onChanged)}
+          >
+            {busy === "meta" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+          </Btn>
+          {status("meta")}
+        </div>
+      </section>
+
+      <section className="ad-card rounded-xl p-4">
+        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-white"><Terminal className="h-4 w-4" /> Send command</div>
+        <p className="mb-2 text-xs ad-muted">Publishes a JSON command to the device over MQTT.</p>
+        <textarea
+          value={command} onChange={(e) => setCommand(e.target.value)} rows={3} spellCheck={false}
+          className="ad-input w-full font-mono text-xs"
+        />
+        {parsedCommand.error && <div className="mt-1 text-xs text-amber-300">{parsedCommand.error}</div>}
+        <div className="mt-2">
+          <Btn
+            variant="subtle" size="sm" disabled={!parsedCommand.value || busy === "command"}
+            onClick={() => parsedCommand.value && run("command", () => controlPlane.adminCommand(device.id, parsedCommand.value as Record<string, unknown>), "Command published.", onChanged)}
+          >
+            {busy === "command" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
+          </Btn>
+          {status("command")}
+        </div>
+      </section>
+
+      <section className="ad-card rounded-xl p-4">
+        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-white"><DownloadCloud className="h-4 w-4" /> Push firmware (OTA)</div>
+        <p className="mb-2 text-xs ad-muted">Instructs the device to download and flash a firmware image.</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Image URL"><Input value={otaUrl} onChange={(e) => setOtaUrl(e.target.value)} placeholder="https://…/firmware.bin" /></Field>
+          <Field label="Version (optional)"><Input value={otaVersion} onChange={(e) => setOtaVersion(e.target.value)} placeholder="1.2.3" /></Field>
+        </div>
+        <div className="mt-3">
+          <Btn
+            variant="subtle" size="sm" disabled={!otaUrl.trim() || busy === "ota"}
+            onClick={() => run("ota", () => controlPlane.adminOta(device.id, otaUrl.trim(), otaVersion.trim() || undefined), "OTA update dispatched.", onChanged)}
+          >
+            {busy === "ota" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />} Push OTA
+          </Btn>
+          {status("ota")}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-red-500/25 bg-red-500/[0.05] p-4">
+        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-red-200"><Trash2 className="h-4 w-4" /> Delete device</div>
+        <p className="mb-3 text-xs text-red-200/70">Removes the device and its data from the control plane. This cannot be undone.</p>
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <Btn
+              variant="danger" size="sm" disabled={busy === "delete"}
+              onClick={() => run("delete", () => controlPlane.adminDeleteDevice(device.id), "Device deleted.", onDeleted)}
+            >
+              {busy === "delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Confirm delete
+            </Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
+          </div>
+        ) : (
+          <Btn variant="danger" size="sm" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" /> Delete…</Btn>
+        )}
+        {status("delete")}
+      </section>
     </div>
   );
 }

@@ -1,115 +1,113 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { FleetDevice, Health } from "../_lib/sim";
+/**
+ * Site & room distribution.
+ *
+ * The control plane does not store device coordinates, so a geographic map would
+ * be fabrication. Instead we group the real fleet by each device's `room` field
+ * and show a per-room breakdown (count, online, health mix) derived entirely
+ * from `useAdminDevices()`. Clicking a room filters the fleet.
+ */
 
-const HEALTH_COLOR: Record<Health, string> = {
-  healthy: "#22c55e", warning: "#f59e0b", critical: "#ef4444", offline: "#64748b",
-};
+import { useMemo } from "react";
+import { Building2, Wifi, WifiOff } from "lucide-react";
+import type { AdminDevice } from "@/lib/control-plane";
+import { healthBreakdown, type DeviceHealth } from "../_lib/api";
+import { num } from "../_lib/format";
+import { EmptyState, TONE, type Tone } from "../_ui";
 
-const W = 1000;
-const H = 480;
-const proj = (lat: number, lng: number) => ({ x: ((lng + 180) / 360) * W, y: ((90 - lat) / 180) * H });
+const HEALTH_TONE: Record<DeviceHealth, Tone> = { healthy: "green", warning: "amber", critical: "red", offline: "slate" };
+const HEALTH_ORDER: DeviceHealth[] = ["healthy", "warning", "critical", "offline"];
 
-export default function FleetMap({
-  devices, onSelectRegion, selectedRegion, height = 420,
+interface RoomGroup {
+  room: string;
+  total: number;
+  online: number;
+  health: Record<DeviceHealth, number>;
+}
+
+const roomLabel = (d: AdminDevice) => (d.room && d.room.trim()) || "Unassigned";
+
+export default function FleetSites({
+  devices,
+  selectedRoom,
+  onSelectRoom,
 }: {
-  devices: FleetDevice[];
-  onSelectRegion?: (region: string | null) => void;
-  selectedRegion?: string | null;
-  height?: number;
+  devices: AdminDevice[];
+  selectedRoom?: string | null;
+  onSelectRoom?: (room: string | null) => void;
 }) {
-  const [hover, setHover] = useState<{ x: number; y: number; d: FleetDevice } | null>(null);
-
-  const clusters = useMemo(() => {
-    const byRegion = new Map<string, { lat: number; lng: number; devices: FleetDevice[] }>();
+  const rooms = useMemo<RoomGroup[]>(() => {
+    const groups = new Map<string, AdminDevice[]>();
     for (const d of devices) {
-      const c = byRegion.get(d.region) ?? { lat: 0, lng: 0, devices: [] };
-      c.lat += d.lat; c.lng += d.lng; c.devices.push(d);
-      byRegion.set(d.region, c);
+      const key = roomLabel(d);
+      const list = groups.get(key);
+      if (list) list.push(d);
+      else groups.set(key, [d]);
     }
-    return Array.from(byRegion.entries()).map(([region, c]) => ({
-      region,
-      lat: c.lat / c.devices.length,
-      lng: c.lng / c.devices.length,
-      count: c.devices.length,
-      critical: c.devices.filter((d) => d.health === "critical" || !d.online).length,
-    }));
+    return [...groups.entries()]
+      .map(([room, list]) => ({
+        room,
+        total: list.length,
+        online: list.filter((d) => d.online).length,
+        health: healthBreakdown(list),
+      }))
+      .sort((a, b) => b.total - a.total || a.room.localeCompare(b.room));
   }, [devices]);
 
-  const graticule: React.ReactNode[] = [];
-  for (let lng = -150; lng <= 150; lng += 30) {
-    const { x } = proj(0, lng);
-    graticule.push(<line key={`v${lng}`} x1={x} y1={0} x2={x} y2={H} stroke="rgba(148,163,184,.07)" strokeWidth={1} />);
-  }
-  for (let lat = -60; lat <= 60; lat += 30) {
-    const { y } = proj(lat, 0);
-    graticule.push(<line key={`h${lat}`} x1={0} y1={y} x2={W} y2={y} stroke="rgba(148,163,184,.07)" strokeWidth={1} />);
+  if (rooms.length === 0) {
+    return (
+      <EmptyState
+        icon={<Building2 className="h-6 w-6" />}
+        title="No rooms to show"
+        hint="Devices are grouped by room here once the fleet reports them."
+      />
+    );
   }
 
   return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height }} className="rounded-xl">
-        <defs>
-          <radialGradient id="mapglow" cx="50%" cy="0%" r="80%">
-            <stop offset="0%" stopColor="rgba(6,182,212,.10)" />
-            <stop offset="100%" stopColor="transparent" />
-          </radialGradient>
-        </defs>
-        <rect x={0} y={0} width={W} height={H} fill="url(#mapglow)" />
-        {graticule}
-
-        {/* individual devices */}
-        {devices.map((d, i) => {
-          const { x, y } = proj(d.lat, d.lng);
-          const dim = selectedRegion && d.region !== selectedRegion;
+    <div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {rooms.map((r) => {
+          const selected = selectedRoom === r.room;
+          const offline = r.total - r.online;
           return (
-            <circle
-              key={d.id + i} cx={x} cy={y} r={3}
-              fill={HEALTH_COLOR[d.health]} opacity={dim ? 0.15 : 0.85}
-              onMouseEnter={() => setHover({ x, y, d })} onMouseLeave={() => setHover(null)}
-              style={{ cursor: "pointer" }}
-            />
+            <button
+              key={r.room}
+              onClick={() => onSelectRoom?.(selected ? null : r.room)}
+              className={`ad-card rounded-2xl p-4 text-left transition hover:border-cyan-500/30 ${selected ? "border-cyan-500/50 ring-1 ring-cyan-500/30" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: TONE.brand.bg, color: TONE.brand.fg }}>
+                    <Building2 className="h-4 w-4" />
+                  </span>
+                  <span className="truncate font-semibold text-white">{r.room}</span>
+                </div>
+                <span className="shrink-0 text-2xl font-extrabold tabular-nums text-white">{num(r.total)}</span>
+              </div>
+
+              <div className="mt-3 flex items-center gap-3 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-emerald-400"><Wifi className="h-3.5 w-3.5" /> {num(r.online)} online</span>
+                <span className="inline-flex items-center gap-1.5 text-slate-500"><WifiOff className="h-3.5 w-3.5" /> {num(offline)} offline</span>
+              </div>
+
+              <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-white/10">
+                {HEALTH_ORDER.map((h) => (r.health[h] > 0 ? <span key={h} style={{ flexGrow: r.health[h], background: TONE[HEALTH_TONE[h]].fg }} /> : null))}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] ad-muted">
+                {HEALTH_ORDER.filter((h) => r.health[h] > 0).map((h) => (
+                  <span key={h} className="inline-flex items-center gap-1 capitalize">
+                    <span className="h-2 w-2 rounded-full" style={{ background: TONE[HEALTH_TONE[h]].fg }} /> {h} {r.health[h]}
+                  </span>
+                ))}
+              </div>
+            </button>
           );
         })}
-
-        {/* region clusters */}
-        {clusters.map((c) => {
-          const { x, y } = proj(c.lat, c.lng);
-          const r = 14 + Math.min(26, c.count / 4);
-          const selected = selectedRegion === c.region;
-          return (
-            <g key={c.region} onClick={() => onSelectRegion?.(selected ? null : c.region)} style={{ cursor: "pointer" }}>
-              <circle cx={x} cy={y} r={r} fill="rgba(6,182,212,.10)" stroke={selected ? "#22d3ee" : "rgba(6,182,212,.5)"} strokeWidth={selected ? 2 : 1} />
-              <circle cx={x} cy={y} r={r} fill="none" stroke="rgba(6,182,212,.25)" strokeWidth={1}>
-                <animate attributeName="r" from={r} to={r + 12} dur="2.4s" repeatCount="indefinite" />
-                <animate attributeName="opacity" from="0.5" to="0" dur="2.4s" repeatCount="indefinite" />
-              </circle>
-              <text x={x} y={y + 4} textAnchor="middle" fontSize={13} fontWeight={700} fill="#e2e8f0">{c.count}</text>
-              <text x={x} y={y + r + 14} textAnchor="middle" fontSize={10} fill="#7c8aa5">{c.region}</text>
-            </g>
-          );
-        })}
-      </svg>
-
-      {hover && (
-        <div
-          className="pointer-events-none absolute z-10 rounded-lg border border-white/10 bg-black/85 px-2.5 py-1.5 text-xs text-white backdrop-blur"
-          style={{ left: `${(hover.x / W) * 100}%`, top: `${(hover.y / H) * height}px`, transform: "translate(-50%, -130%)" }}
-        >
-          <div className="font-semibold">{hover.d.name}</div>
-          <div className="text-slate-400">{hover.d.city} · {hover.d.health}</div>
-        </div>
-      )}
-
-      {/* legend */}
-      <div className="mt-2 flex flex-wrap items-center gap-4 text-xs ad-muted">
-        {(Object.keys(HEALTH_COLOR) as Health[]).map((h) => (
-          <span key={h} className="flex items-center gap-1.5 capitalize">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: HEALTH_COLOR[h] }} /> {h}
-          </span>
-        ))}
-        <span className="ml-auto">{devices.length} devices · click a cluster to filter by region</span>
+      </div>
+      <div className="mt-3 text-xs ad-muted">
+        {num(rooms.length)} room{rooms.length === 1 ? "" : "s"} · {num(devices.length)} device{devices.length === 1 ? "" : "s"} · click a room to filter the fleet
       </div>
     </div>
   );

@@ -130,7 +130,7 @@ export const activityHeatmapData = (() => {
       data.push({
         row,
         col,
-        value: pattern[i] + Math.floor(Math.random() * 10),
+        value: pattern[i],
       });
     });
   }

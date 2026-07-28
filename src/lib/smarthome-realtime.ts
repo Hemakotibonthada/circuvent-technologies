@@ -62,8 +62,43 @@ export interface LatencySample {
 // ------------------------------------------------------------ latency store --
 
 const MAX_SAMPLES = 600;
+const LATENCY_KEY = "cv-latency-samples";
+
 let samples: LatencySample[] = [];
+let hydrated = false;
 const listeners = new Set<() => void>();
+
+/**
+ * Real command measurements are persisted so the admin latency console shows
+ * genuine history after a reload (and across tabs) instead of an empty chart.
+ * Only measurements this browser actually recorded are ever stored — nothing
+ * is generated.
+ */
+function hydrate(): void {
+  if (hydrated || typeof window === "undefined") return;
+  hydrated = true;
+  try {
+    const raw = window.localStorage.getItem(LATENCY_KEY);
+    if (!raw) return;
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) samples = (parsed as LatencySample[]).slice(-MAX_SAMPLES);
+  } catch {
+    // Corrupt or unavailable storage — start from an empty buffer.
+  }
+}
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function persist(): void {
+  if (typeof window === "undefined") return;
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    try {
+      window.localStorage.setItem(LATENCY_KEY, JSON.stringify(samples));
+    } catch {
+      // Quota or private mode — stay in memory for this session.
+    }
+  }, 400);
+}
 
 function emit() {
   // New array identity so useSyncExternalStore sees the change.
@@ -72,24 +107,56 @@ function emit() {
 }
 
 export function recordLatencySample(s: LatencySample): void {
+  hydrate();
   samples = [...samples, s];
   emit();
+  persist();
 }
 
 export function getLatencySamples(): LatencySample[] {
+  hydrate();
   return samples;
 }
 
 export function clearLatencySamples(): void {
   samples = [];
+  hydrated = true;
   emit();
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(LATENCY_KEY);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function subscribeLatency(fn: () => void): () => void {
+  hydrate();
   listeners.add(fn);
+  if (listeners.size === 1 && typeof window !== "undefined") {
+    window.addEventListener("storage", onStorage);
+  }
   return () => {
     listeners.delete(fn);
+    if (listeners.size === 0 && typeof window !== "undefined") {
+      window.removeEventListener("storage", onStorage);
+    }
   };
+}
+
+/** Pick up measurements recorded by another tab. */
+function onStorage(e: StorageEvent): void {
+  if (e.key !== LATENCY_KEY) return;
+  try {
+    const parsed: unknown = e.newValue ? JSON.parse(e.newValue) : [];
+    if (Array.isArray(parsed)) {
+      samples = (parsed as LatencySample[]).slice(-MAX_SAMPLES);
+      listeners.forEach((l) => l());
+    }
+  } catch {
+    // ignore malformed cross-tab payloads
+  }
 }
 
 const EMPTY: LatencySample[] = [];
