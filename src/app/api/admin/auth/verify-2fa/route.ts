@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { revalidate, getAdmin2faOtp, bumpAdmin2faAttempt, clearAdmin2faOtp, getAdminUser, flushNow } from "@/lib/store";
 import { signAdminToken, ensureSeeded } from "@/lib/admin-auth";
+import { recordStaffLogin } from "@/lib/admin-staff-activity";
 import { verifyTotp } from "@/lib/totp";
 
 export const runtime = "nodejs";
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
       if (!verifyTotp(user.totpSecret, String(otp))) {
         return NextResponse.json({ error: "Incorrect code. Check your authenticator app." }, { status: 400 });
       }
+      recordStaffLogin(user.email, request.headers.get("user-agent") || undefined);
       return NextResponse.json({
         ok: true,
         token: signAdminToken(user.email),
@@ -66,6 +68,7 @@ export async function POST(request: Request) {
     clearAdmin2faOtp(clean);
     await flushNow();
 
+    recordStaffLogin(user.email, request.headers.get("user-agent") || undefined);
     return NextResponse.json({
       ok: true,
       token: signAdminToken(user.email),

@@ -41,7 +41,31 @@ export type AdminArea =
   | "coupons"
   | "support"
   | "staff"
-  | "settings";
+  | "settings"
+  // --- extended feature areas (added for the growth-stage feature buildout) ---
+  | "cms"
+  | "marketing"
+  | "pricing"
+  | "vendors"
+  | "fraud"
+  | "flags"
+  | "integrations"
+  | "tax"
+  | "crm"
+  | "subscriptions"
+  | "affiliates"
+  | "warranty"
+  | "jobs"
+  | "bulk"
+  | "seo"
+  | "shipping"
+  | "bundles"
+  | "macros"
+  | "surveys"
+  | "currency"
+  | "privacy"
+  | "forecasting"
+  | "reportbuilder";
 
 /** What each role is allowed to touch. superadmin is allowed everything. */
 const ROLE_AREAS: Record<AdminRole, AdminArea[]> = {
@@ -56,6 +80,29 @@ const ROLE_AREAS: Record<AdminRole, AdminArea[]> = {
     "support",
     "staff",
     "settings",
+    "cms",
+    "marketing",
+    "pricing",
+    "vendors",
+    "fraud",
+    "flags",
+    "integrations",
+    "tax",
+    "crm",
+    "subscriptions",
+    "affiliates",
+    "warranty",
+    "jobs",
+    "bulk",
+    "seo",
+    "shipping",
+    "bundles",
+    "macros",
+    "surveys",
+    "currency",
+    "privacy",
+    "forecasting",
+    "reportbuilder",
   ],
   manager: [
     "overview",
@@ -66,10 +113,28 @@ const ROLE_AREAS: Record<AdminRole, AdminArea[]> = {
     "customers",
     "coupons",
     "support",
+    "cms",
+    "marketing",
+    "pricing",
+    "vendors",
+    "fraud",
+    "crm",
+    "subscriptions",
+    "affiliates",
+    "warranty",
+    "seo",
+    "shipping",
+    "bundles",
+    "macros",
+    "surveys",
+    "currency",
+    "privacy",
+    "forecasting",
+    "reportbuilder",
   ],
-  inventory: ["inventory"],
-  orders: ["orders", "returns", "customers"],
-  support: ["support", "returns", "customers"],
+  inventory: ["inventory", "vendors", "pricing", "shipping", "bundles", "forecasting"],
+  orders: ["orders", "returns", "customers", "fraud", "warranty", "shipping"],
+  support: ["support", "returns", "customers", "warranty", "macros", "surveys", "privacy"],
 };
 
 export const ROLE_LABELS: Record<AdminRole, string> = {

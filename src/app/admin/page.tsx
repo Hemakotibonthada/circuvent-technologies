@@ -48,6 +48,33 @@ import { FileBarChart, Inbox, Cpu, Mail, Gauge } from "lucide-react";
 import DevicesPanel from "./DevicesPanel";
 import EmailsPanel from "./EmailsPanel";
 import LatencyPanel from "./LatencyPanel";
+import { BookOpen, Target, Percent, Building2, ShieldAlert, FlaskConical, Link2, Receipt, Contact2, CreditCard, Handshake, Wrench, Timer, FileUp } from "lucide-react";
+import ContentStudioPanel from "./ContentStudioPanel";
+import MarketingPanel from "./MarketingPanel";
+import PricingPanel from "./PricingPanel";
+import VendorPortalPanel from "./VendorPortalPanel";
+import FraudPanel from "./FraudPanel";
+import FeatureFlagsPanel from "./FeatureFlagsPanel";
+import IntegrationsPanel from "./IntegrationsPanel";
+import TaxCenterPanel from "./TaxCenterPanel";
+import CrmPanel from "./CrmPanel";
+import SubscriptionsPanel from "./SubscriptionsPanel";
+import AffiliatesPanel from "./AffiliatesPanel";
+import WarrantyPanel from "./WarrantyPanel";
+import JobsPanel from "./JobsPanel";
+import BulkIOPanel from "./BulkIOPanel";
+import { Globe2, Truck, Package, MessagesSquare, Smile } from "lucide-react";
+import SeoManagerPanel from "./SeoManagerPanel";
+import ShippingPanel from "./ShippingPanel";
+import BundlesPanel from "./BundlesPanel";
+import MacrosPanel from "./MacrosPanel";
+import SurveysPanel from "./SurveysPanel";
+import { Coins, ShieldQuestion, LineChart, FileSpreadsheet, Settings } from "lucide-react";
+import CurrencyPanel from "./CurrencyPanel";
+import PrivacyPanel from "./PrivacyPanel";
+import StaffActivityPanel from "./StaffActivityPanel";
+import ForecastingPanel from "./ForecastingPanel";
+import ReportBuilderPanel from "./ReportBuilderPanel";
 
 interface PageStats {
   page: string;
@@ -117,11 +144,11 @@ function getPageName(path: string): string {
 
 // Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
 const ROLE_AREAS: Record<string, string[]> = {
-  superadmin: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "emails"],
-  manager: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices"],
-  inventory: ["inventory"],
-  orders: ["orders", "returns", "customers"],
-  support: ["support", "messages", "returns", "customers"],
+  superadmin: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "emails", "cms", "marketing", "pricing", "vendors", "fraud", "flags", "integrations", "tax", "crm", "subscriptions", "affiliates", "warranty", "jobs", "bulk", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
+  manager: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices", "cms", "marketing", "pricing", "vendors", "fraud", "crm", "subscriptions", "affiliates", "warranty", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
+  inventory: ["inventory", "vendors", "pricing", "shipping", "bundles", "forecasting"],
+  orders: ["orders", "returns", "customers", "fraud", "warranty", "shipping"],
+  support: ["support", "messages", "returns", "customers", "warranty", "macros", "surveys", "privacy"],
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -131,6 +158,67 @@ const ROLE_LABELS: Record<string, string> = {
   orders: "Orders Staff",
   support: "Support Staff",
 };
+
+// Every tab, grouped into a category so the nav reads as sections instead of
+// one long wall of buttons. Categories with zero visible tabs (per role) are
+// hidden automatically.
+type IconType = React.ComponentType<{ className?: string }>;
+const TAB_META: Record<string, { label: string; icon: IconType; category: string }> = {
+  overview: { label: "Overview", icon: BarChart3, category: "overview" },
+  analytics: { label: "Analytics", icon: TrendingUp, category: "overview" },
+  reports: { label: "Reports", icon: FileBarChart, category: "overview" },
+  monitoring: { label: "Monitoring", icon: Activity, category: "overview" },
+  latency: { label: "Latency", icon: Gauge, category: "overview" },
+
+  orders: { label: "Orders", icon: ShoppingBag, category: "commerce" },
+  inventory: { label: "Inventory", icon: Boxes, category: "commerce" },
+  returns: { label: "Returns", icon: RotateCcw, category: "commerce" },
+  shipping: { label: "Shipping", icon: Truck, category: "commerce" },
+  bundles: { label: "Bundles", icon: Package, category: "commerce" },
+  pricing: { label: "Pricing", icon: Percent, category: "commerce" },
+  forecasting: { label: "Forecasting", icon: LineChart, category: "commerce" },
+  vendors: { label: "Vendor Portal", icon: Building2, category: "commerce" },
+
+  customers: { label: "Customers", icon: Users2, category: "customers" },
+  crm: { label: "CRM", icon: Contact2, category: "customers" },
+  support: { label: "Support", icon: LifeBuoy, category: "customers" },
+  messages: { label: "Messages", icon: Inbox, category: "customers" },
+  warranty: { label: "Warranty & RMA", icon: Wrench, category: "customers" },
+  macros: { label: "Macros", icon: MessagesSquare, category: "customers" },
+
+  marketing: { label: "Marketing", icon: Target, category: "marketing" },
+  coupons: { label: "Coupons", icon: Tag, category: "marketing" },
+  subscriptions: { label: "Subscriptions", icon: CreditCard, category: "marketing" },
+  affiliates: { label: "Affiliates", icon: Handshake, category: "marketing" },
+  surveys: { label: "Feedback (NPS)", icon: Smile, category: "marketing" },
+  seo: { label: "SEO & Redirects", icon: Globe2, category: "marketing" },
+
+  tax: { label: "Tax & GST", icon: Receipt, category: "finance" },
+  currency: { label: "Currency", icon: Coins, category: "finance" },
+  privacy: { label: "Privacy Requests", icon: ShieldQuestion, category: "finance" },
+  fraud: { label: "Fraud & Risk", icon: ShieldAlert, category: "finance" },
+
+  cms: { label: "Content Studio", icon: BookOpen, category: "content" },
+  devices: { label: "Devices", icon: Cpu, category: "content" },
+
+  staff: { label: "Staff", icon: UserCog, category: "platform" },
+  emails: { label: "Emails", icon: Mail, category: "platform" },
+  jobs: { label: "Ops & Jobs", icon: Timer, category: "platform" },
+  bulk: { label: "Bulk Import/Export", icon: FileUp, category: "platform" },
+  flags: { label: "Feature Flags", icon: FlaskConical, category: "platform" },
+  integrations: { label: "Integrations", icon: Link2, category: "platform" },
+  reportbuilder: { label: "Report Builder", icon: FileSpreadsheet, category: "platform" },
+};
+
+const CATEGORY_META: { id: string; label: string; icon: IconType }[] = [
+  { id: "overview", label: "Overview", icon: BarChart3 },
+  { id: "commerce", label: "Orders & Inventory", icon: ShoppingBag },
+  { id: "customers", label: "Customers & Support", icon: Users2 },
+  { id: "marketing", label: "Marketing & Growth", icon: Target },
+  { id: "finance", label: "Finance & Compliance", icon: Receipt },
+  { id: "content", label: "Content & Devices", icon: BookOpen },
+  { id: "platform", label: "Platform & Admin", icon: Settings },
+];
 
 export default function AdminDashboard() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -149,12 +237,34 @@ export default function AdminDashboard() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [tab, setTab] = useState<
     "overview" | "analytics" | "monitoring" | "latency" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff" | "devices" | "emails"
+    | "cms" | "marketing" | "pricing" | "vendors" | "fraud" | "flags" | "integrations" | "tax" | "crm" | "subscriptions" | "affiliates" | "warranty" | "jobs" | "bulk"
+    | "seo" | "shipping" | "bundles" | "macros" | "surveys"
+    | "currency" | "privacy" | "forecasting" | "reportbuilder"
   >("overview");
 
   const canSee = useCallback(
     (area: string) => (ROLE_AREAS[role] ?? []).includes(area),
     [role]
   );
+
+  const [activeCategory, setActiveCategory] = useState<string>("overview");
+
+  // Keep the category pill row in sync whenever the active tab changes for any
+  // reason (clicking a tab directly, an admin-alert deep link, a role reset).
+  useEffect(() => {
+    const cat = TAB_META[tab]?.category;
+    if (cat) setActiveCategory((prev) => (prev === cat ? prev : cat));
+  }, [tab]);
+
+  const visibleTabIds = Object.keys(TAB_META).filter((id) => canSee(id));
+
+  const selectCategory = (categoryId: string) => {
+    setActiveCategory(categoryId);
+    const tabsInCategory = visibleTabIds.filter((id) => TAB_META[id].category === categoryId);
+    if (tabsInCategory.length && !tabsInCategory.includes(tab)) {
+      setTab(tabsInCategory[0] as typeof tab);
+    }
+  };
 
   // Check existing session
   useEffect(() => {
@@ -487,39 +597,49 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Category selector */}
+        <div className="mb-3 flex flex-wrap gap-2">
+          {CATEGORY_META.filter((c) => visibleTabIds.some((id) => TAB_META[id].category === c.id)).map((c) => {
+            const CatIcon = c.icon;
+            const active = activeCategory === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => selectCategory(c.id)}
+                className="flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all"
+                style={
+                  active
+                    ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" }
+                    : { background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }
+                }
+              >
+                <CatIcon className="w-4 h-4" /> {c.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tabs within the selected category */}
         <div
           className="mb-8 flex flex-wrap gap-1 rounded-xl p-1"
           style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", width: "fit-content", maxWidth: "100%" }}
         >
-          {[
-            { id: "overview", label: "Overview", icon: <BarChart3 className="w-4 h-4" /> },
-            { id: "analytics", label: "Analytics", icon: <TrendingUp className="w-4 h-4" /> },
-            { id: "reports", label: "Reports", icon: <FileBarChart className="w-4 h-4" /> },
-            { id: "monitoring", label: "Monitoring", icon: <Activity className="w-4 h-4" /> },
-            { id: "latency", label: "Latency", icon: <Gauge className="w-4 h-4" /> },
-            { id: "orders", label: "Orders", icon: <ShoppingBag className="w-4 h-4" /> },
-            { id: "inventory", label: "Inventory", icon: <Boxes className="w-4 h-4" /> },
-            { id: "customers", label: "Customers", icon: <Users2 className="w-4 h-4" /> },
-            { id: "coupons", label: "Coupons", icon: <Tag className="w-4 h-4" /> },
-            { id: "returns", label: "Returns", icon: <RotateCcw className="w-4 h-4" /> },
-            { id: "support", label: "Support", icon: <LifeBuoy className="w-4 h-4" /> },
-            { id: "messages", label: "Messages", icon: <Inbox className="w-4 h-4" /> },
-            { id: "staff", label: "Staff", icon: <UserCog className="w-4 h-4" /> },
-            { id: "devices", label: "Devices", icon: <Cpu className="w-4 h-4" /> },
-            { id: "emails", label: "Emails", icon: <Mail className="w-4 h-4" /> },
-          ]
-            .filter((t) => canSee(t.id))
-            .map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id as typeof tab)}
-              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-              style={tab === t.id ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" } : { color: "var(--text-tertiary)" }}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
+          {visibleTabIds
+            .filter((id) => TAB_META[id].category === activeCategory)
+            .map((id) => {
+              const meta = TAB_META[id];
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTab(id as typeof tab)}
+                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                  style={tab === id ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" } : { color: "var(--text-tertiary)" }}
+                >
+                  <Icon className="w-4 h-4" /> {meta.label}
+                </button>
+              );
+            })}
         </div>
 
         {tab === "orders" && <OrdersPanel />}
@@ -540,8 +660,36 @@ export default function AdminDashboard() {
         {tab === "coupons" && <CouponsPanel />}
         {tab === "returns" && <ReturnsPanel />}
         {tab === "support" && <SupportPanel />}
-        {tab === "staff" && <StaffPanel />}
+        {tab === "staff" && (
+          <>
+            <StaffPanel />
+            <StaffActivityPanel />
+          </>
+        )}
         {tab === "devices" && <DevicesPanel />}
+        {tab === "cms" && <ContentStudioPanel />}
+        {tab === "marketing" && <MarketingPanel />}
+        {tab === "pricing" && <PricingPanel />}
+        {tab === "vendors" && <VendorPortalPanel />}
+        {tab === "fraud" && <FraudPanel />}
+        {tab === "flags" && <FeatureFlagsPanel />}
+        {tab === "integrations" && <IntegrationsPanel />}
+        {tab === "tax" && <TaxCenterPanel />}
+        {tab === "crm" && <CrmPanel />}
+        {tab === "subscriptions" && <SubscriptionsPanel />}
+        {tab === "affiliates" && <AffiliatesPanel />}
+        {tab === "warranty" && <WarrantyPanel />}
+        {tab === "jobs" && <JobsPanel />}
+        {tab === "bulk" && <BulkIOPanel />}
+        {tab === "seo" && <SeoManagerPanel />}
+        {tab === "shipping" && <ShippingPanel />}
+        {tab === "bundles" && <BundlesPanel />}
+        {tab === "macros" && <MacrosPanel />}
+        {tab === "surveys" && <SurveysPanel />}
+        {tab === "currency" && <CurrencyPanel />}
+        {tab === "privacy" && <PrivacyPanel />}
+        {tab === "forecasting" && <ForecastingPanel />}
+        {tab === "reportbuilder" && <ReportBuilderPanel />}
 
         {tab === "overview" && (
         <>

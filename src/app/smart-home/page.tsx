@@ -65,7 +65,7 @@ export default function SmartHomePage() {
               <Link href="/shop" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 font-semibold text-white group" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
                 Shop devices <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>
-              <Link href="/console" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 font-semibold" style={{ border: "1px solid var(--border-primary)", color: "var(--text-primary)" }}>
+              <Link href="/smarthome" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 font-semibold" style={{ border: "1px solid var(--border-primary)", color: "var(--text-primary)" }}>
                 Open web console
               </Link>
             </div>
