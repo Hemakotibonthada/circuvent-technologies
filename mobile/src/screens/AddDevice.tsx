@@ -18,6 +18,8 @@ import { api } from "../api";
 import { sealToDevice } from "../crypto";
 import { parseSetupQr } from "../qr";
 import { useBackHandler } from "../ui";
+import { Icon, type IconName } from "../icons";
+import { deviceMeta } from "../theme";
 import {
   wifiAutoSupported, ensureWifiPermissions, discoverDeviceAPs, connectToDeviceAP,
   leaveDeviceAP, rssiBars, type DeviceAP,
@@ -36,19 +38,24 @@ import {
 
 const BASE = "http://192.168.4.1";
 
+// Icons are derived from DEVICE_META rather than listed here. A second parallel
+// mapping is exactly how the tile for a new device type ends up blank.
 const TYPES = [
-  { id: "smart-plug", label: "Smart Plug", emoji: "🔌" },
-  { id: "smart-switch", label: "Smart Switch", emoji: "🎚️" },
-  { id: "aquaguard", label: "AquaGuard tank", emoji: "💧" },
-  { id: "home-hub", label: "Home Hub", emoji: "🏠" },
-  { id: "energy-monitor", label: "Energy Monitor", emoji: "⚡" },
-  { id: "guardian", label: "Guardian SOS", emoji: "🛡️" },
-  { id: "motion-sensor", label: "Motion Sensor", emoji: "🚶" },
-  { id: "agri-starter", label: "Agri Starter", emoji: "🌱" },
-  { id: "smart-light", label: "Smart Light", emoji: "💡" },
-  { id: "smart-fan", label: "Smart Fan", emoji: "🌀" },
-  { id: "curtain", label: "Curtain", emoji: "🪟" },
-  { id: "smart-lock", label: "Smart Lock", emoji: "🔒" },
+  { id: "smart-plug", label: "Smart Plug" },
+  { id: "smart-switch", label: "Smart Switch" },
+  { id: "aquaguard", label: "AquaGuard tank" },
+  { id: "home-hub", label: "Home Hub" },
+  { id: "energy-monitor", label: "Energy Monitor" },
+  { id: "guardian", label: "Guardian SOS" },
+  { id: "motion-sensor", label: "Motion Sensor" },
+  { id: "agri-starter", label: "Agri Starter" },
+  { id: "smart-light", label: "Smart Light" },
+  { id: "smart-fan", label: "Smart Fan" },
+  { id: "curtain", label: "Curtain" },
+  { id: "smart-lock", label: "Smart Lock" },
+  { id: "camera", label: "Camera" },
+  { id: "cctv", label: "CCTV Camera" },
+  { id: "doorbell", label: "Video Doorbell" },
 ];
 
 type Step = "mode" | "qr" | "details" | "prep" | "discover" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
@@ -396,7 +403,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             <View style={s.typeGrid}>
               {TYPES.map((t) => (
                 <Pressable key={t.id} style={[s.typeChip, type === t.id && s.typeChipOn]} onPress={() => setType(t.id)}>
-                  <Text style={s.typeEmoji}>{t.emoji}</Text>
+                  <Icon name={deviceMeta(t.id).icon as IconName} size={22} color={type === t.id ? "#06b6d4" : "#94a3b8"} />
                   <Text style={[s.typeLabel, type === t.id && { color: "#fff" }]}>{t.label}</Text>
                 </Pressable>
               ))}
@@ -641,8 +648,7 @@ const s = StyleSheet.create({
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   typeChip: { width: "31%", backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
   typeChipOn: { borderColor: "#06b6d4", backgroundColor: "rgba(6,182,212,0.12)" },
-  typeEmoji: { fontSize: 22, marginBottom: 4 },
-  typeLabel: { color: "#94a3b8", fontSize: 11, textAlign: "center" },
+  typeLabel: { color: "#94a3b8", fontSize: 11, textAlign: "center", marginTop: 6 },
   netRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8 },
   netRowOn: { borderColor: "#06b6d4", backgroundColor: "rgba(6,182,212,0.12)" },
   netName: { color: "#e5e7eb", fontSize: 15, flex: 1, marginRight: 10 },
