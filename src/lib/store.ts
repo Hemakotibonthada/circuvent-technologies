@@ -18,6 +18,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { after } from "next/server";
+import { registerAccountLookup } from "./account";
 import { products as CATALOG } from "./shop-data";
 import * as dbLayer from "./db";
 
@@ -384,9 +385,33 @@ export interface DB {
   notifications: Record<string, Notification[]>;
   alertSettings: AlertSettings;
   contactMessages: ContactMessage[];
+  /** Razorpay payment ids already redeemed, so a signature cannot be replayed. */
+  consumedPayments: Record<string, ConsumedPayment>;
+}
+
+/** A gateway payment that has already been applied to an order or wallet. */
+export interface ConsumedPayment {
+  paymentId: string;
+  purpose: "wallet_topup" | "order";
+  email: string;
+  amountPaise: number;
+  ref: string;
+  at: string;
 }
 
 // ---------------------------------------------------------- persistence ----
+/**
+ * Short random id for records handed back to callers.
+ *
+ * These were `Math.random().toString(36)`. V8's PRNG is not a CSPRNG and its
+ * internal state can be recovered from a run of outputs — and the same process
+ * also used `Math.random()` for password-reset codes, so returning raw PRNG
+ * output to any authenticated caller leaked the stream those codes came from.
+ */
+function randomId(bytes = 8): string {
+  return crypto.randomBytes(bytes).toString("hex").slice(0, bytes);
+}
+
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "shop-db.json");
 
@@ -477,6 +502,7 @@ function emptyDB(): DB {
     notifications: {},
     alertSettings: defaultAlertSettings(),
     contactMessages: [],
+    consumedPayments: {},
   };
 }
 
@@ -533,6 +559,7 @@ function load(): DB {
         notifications: parsed.notifications ?? {},
         alertSettings: { ...defaultAlertSettings(), ...(parsed.alertSettings ?? {}) },
         contactMessages: parsed.contactMessages ?? [],
+        consumedPayments: parsed.consumedPayments ?? {},
       };
       if (reconcileProducts(mem)) save();
       return mem;
@@ -861,6 +888,33 @@ export function adjustStock(
 }
 
 // --------------------------------------------------------------- wallet ----
+/**
+ * Single-use guard for gateway payments.
+ *
+ * A Razorpay checkout signature covers only `order_id|payment_id`, so it stays
+ * valid forever and can be replayed. Nothing may be credited or marked paid
+ * until the payment id has been claimed here exactly once.
+ *
+ * Returns false if this payment was already applied.
+ */
+export function consumePayment(p: Omit<ConsumedPayment, "at">): boolean {
+  const db = load();
+  const key = p.paymentId.trim();
+  if (!key || db.consumedPayments[key]) return false;
+  db.consumedPayments[key] = { ...p, paymentId: key, at: new Date().toISOString() };
+  save();
+  return true;
+}
+
+/** Releases a claimed payment id when the work it guarded could not complete. */
+export function releasePayment(paymentId: string): void {
+  const db = load();
+  if (db.consumedPayments[paymentId.trim()]) {
+    delete db.consumedPayments[paymentId.trim()];
+    save();
+  }
+}
+
 export function getWallet(email: string): Wallet {
   const db = load();
   const key = email.trim().toLowerCase();
@@ -911,6 +965,10 @@ export function getAccount(email: string): Account | null {
   return load().accounts[email.trim().toLowerCase()] || null;
 }
 
+// Let session verification see live account state (blocks, deletions, password
+// resets) without account.ts importing this module — see registerAccountLookup.
+registerAccountLookup(getAccount);
+
 export function createAccount(a: Account): void {
   const db = load();
   db.accounts[a.email.trim().toLowerCase()] = a;
@@ -938,7 +996,7 @@ export function addReview(r: { productId: string; email: string; name: string; r
     return existing;
   }
   const review: Review = {
-    id: Math.random().toString(36).slice(2, 10),
+    id: randomId(8),
     productId: r.productId,
     email,
     name: r.name,
@@ -1160,7 +1218,7 @@ export function clearAdmin2faOtp(email: string): void {
 export function addContactMessage(m: Omit<ContactMessage, "id" | "status" | "at"> & { team?: string }): ContactMessage {
   const db = load();
   const msg: ContactMessage = {
-    id: Math.random().toString(36).slice(2, 10),
+    id: randomId(8),
     name: String(m.name || "").slice(0, 120),
     email: String(m.email || "").slice(0, 160),
     company: m.company ? String(m.company).slice(0, 160) : undefined,
@@ -1226,31 +1284,38 @@ function toView(d: Device): DeviceView {
   return { id: d.id, type: d.type, name: d.name, online, lastSeen: d.lastSeen, state: d.state };
 }
 
+/** Constant-time compare so key checks don't leak a prefix by timing. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
 /**
- * Device heartbeat/telemetry + command fetch in one call. Auto-provisions an
- * unclaimed device on first contact. Returns null if the key doesn't match.
+ * Device heartbeat/telemetry + command fetch in one call.
+ *
+ * Deliberately does NOT create records: this endpoint is unauthenticated by
+ * nature (the device is the caller), so letting it mint an identity would mean
+ * anyone who learns a device id — they are printed on the enclosure — could
+ * register it first under a key of their own choosing and both hijack the
+ * device and lock the real owner out. Records are created by the owner in
+ * claimDevice(), which proves possession of the printed key behind a session.
+ *
+ * Returns null if the key doesn't match a known device.
  */
 export function deviceSync(
   id: string,
   key: string,
   type: string | undefined,
   telemetry: Record<string, unknown> | undefined
-): { commands: DeviceCommand[]; claimed: boolean } | null {
+): { commands: DeviceCommand[]; claimed: boolean; pending?: boolean } | null {
   const db = load();
-  let d = db.devices[id];
-  if (!d) {
-    d = {
-      id,
-      key,
-      type: type || "generic",
-      name: type ? `Circuvent ${type}` : id,
-      state: {},
-      commands: [],
-      createdAt: new Date().toISOString(),
-    };
-    db.devices[id] = d;
-  }
-  if (d.key !== key) return null;
+  const d = db.devices[id];
+  // Not provisioned yet — tell the firmware to keep waiting rather than
+  // erroring, but write nothing.
+  if (!d) return { commands: [], claimed: false, pending: true };
+  if (!safeEqual(d.key, key)) return null;
   if (type && d.type === "generic") d.type = type;
   if (telemetry && typeof telemetry === "object") d.state = { ...d.state, ...telemetry };
   d.lastSeen = new Date().toISOString();
@@ -1267,8 +1332,25 @@ export function claimDevice(
   name?: string
 ): { ok: boolean; message?: string; device?: DeviceView } {
   const db = load();
-  const d = db.devices[id];
-  if (!d || d.key !== key) return { ok: false, message: "Device ID or key is incorrect." };
+  let d = db.devices[id];
+  if (!d) {
+    // First claim provisions the record. Whoever holds the printed key is the
+    // owner; there is nothing to steal because no prior state exists.
+    if (id.length < 6 || id.length > 64 || key.length < 8 || key.length > 128) {
+      return { ok: false, message: "Device ID or key is incorrect." };
+    }
+    d = {
+      id,
+      key,
+      type: "generic",
+      name: name || id,
+      state: {},
+      commands: [],
+      createdAt: new Date().toISOString(),
+    };
+    db.devices[id] = d;
+  }
+  if (!safeEqual(d.key, key)) return { ok: false, message: "Device ID or key is incorrect." };
   if (d.ownerEmail && d.ownerEmail !== ownerEmail.toLowerCase()) {
     return { ok: false, message: "This device is already linked to another account." };
   }
@@ -1296,7 +1378,7 @@ export function enqueueCommand(
   if (!d || d.ownerEmail !== ownerEmail.trim().toLowerCase()) {
     return { ok: false, message: "Device not found." };
   }
-  d.commands.push({ id: Math.random().toString(36).slice(2, 10), action, params, at: new Date().toISOString() });
+  d.commands.push({ id: randomId(8), action, params, at: new Date().toISOString() });
   // Optimistically reflect obvious state so the UI feels instant.
   if (action === "set" && params && typeof params === "object") d.state = { ...d.state, ...params };
   save();
@@ -1362,7 +1444,7 @@ export function createTicket(t: {
   const db = load();
   const now = new Date().toISOString();
   const ticket: SupportTicket = {
-    id: Math.random().toString(36).slice(2, 10),
+    id: randomId(8),
     email: t.email.trim().toLowerCase(),
     name: t.name,
     subject: String(t.subject || "Support request").slice(0, 160),
@@ -1417,7 +1499,7 @@ export function createReturn(r: { orderNo: string; email: string; reason: string
   if (existing) return { ok: false, message: "A return for this order is already in progress." };
   const now = new Date().toISOString();
   const req: ReturnRequest = {
-    id: Math.random().toString(36).slice(2, 10),
+    id: randomId(8),
     orderNo: r.orderNo,
     email,
     reason: String(r.reason || "").slice(0, 500),
@@ -1619,7 +1701,7 @@ export function addAddress(email: string, data: Partial<Address>): Address {
   const e = email.trim().toLowerCase();
   const mine = db.addresses.filter((a) => a.email === e);
   const addr: Address = {
-    id: Math.random().toString(36).slice(2, 10),
+    id: randomId(8),
     email: e,
     label: String(data.label || "Home").slice(0, 30),
     name: String(data.name || "").slice(0, 80),
@@ -1823,7 +1905,7 @@ export function listQuestions(productId?: string, includeUnpublished = false): P
 export function addQuestion(input: { productId: string; name: string; email: string; question: string }): ProductQuestion {
   const db = load();
   const q: ProductQuestion = {
-    id: "q_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    id: "q_" + Date.now().toString(36) + randomId(4),
     productId: input.productId,
     name: input.name || "Customer",
     email: (input.email || "").trim().toLowerCase(),
@@ -1883,7 +1965,7 @@ export function pushNotification(email: string, n: { type: string; title: string
   const key = email.trim().toLowerCase();
   if (!db.notifications[key]) db.notifications[key] = [];
   const notif: Notification = {
-    id: "n_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    id: "n_" + Date.now().toString(36) + randomId(4),
     type: n.type,
     title: n.title,
     body: n.body,
@@ -1921,7 +2003,7 @@ export function addNotifyRequest(productId: string, email: string): NotifyReques
   const key = email.trim().toLowerCase();
   const existing = db.notifyRequests.find((r) => r.productId === productId && r.email === key && !r.notified);
   if (existing) return existing;
-  const req: NotifyRequest = { id: "nr_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), productId, email: key, at: new Date().toISOString() };
+  const req: NotifyRequest = { id: "nr_" + Date.now().toString(36) + randomId(3), productId, email: key, at: new Date().toISOString() };
   db.notifyRequests.push(req);
   save();
   return req;

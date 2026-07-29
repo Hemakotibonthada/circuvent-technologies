@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 import { getOrder } from "@/lib/store";
 
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  * tracking / carrier info an admin has added.
  */
 export async function GET(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(request);
   const { ok, retryAfter } = rateLimit("track", ip);
   if (!ok) {
     return NextResponse.json(

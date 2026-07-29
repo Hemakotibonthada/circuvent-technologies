@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import { rateLimit, rateLimitIdentity } from "@/lib/rate-limit";
 import { getAccount, revalidate } from "@/lib/store";
 import { verifyPassword, signToken } from "@/lib/account";
 
@@ -7,7 +8,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("account", ip);
     if (!ok) {
       return NextResponse.json(
@@ -19,6 +20,16 @@ export async function POST(request: Request) {
     const { email, password } = await request.json();
     if (!email || !password) {
       return NextResponse.json({ success: false, message: "Email and password are required." }, { status: 400 });
+    }
+
+    // The IP limit does not protect one account from a distributed guessing
+    // run, so cap attempts against the target address too.
+    const perEmail = rateLimitIdentity("login", String(email), 8);
+    if (!perEmail.ok) {
+      return NextResponse.json(
+        { success: false, message: "Too many attempts. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(perEmail.retryAfter) } }
+      );
     }
 
     await revalidate(["accounts"]);

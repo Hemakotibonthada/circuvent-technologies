@@ -15,6 +15,7 @@ import CookieConsent from "@/components/CookieConsent";
 import VisitorTracker from "@/components/VisitorTracker";
 import { SITE_URL, siteConfig } from "@/lib/config";
 import { getOrganizationJsonLd, getWebsiteJsonLd } from "@/lib/seo";
+import { jsonForScript } from "@/lib/json-script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -83,11 +84,11 @@ export default function RootLayout({
         {/* Favicons & app icons are provided via src/app/{icon,apple-icon,favicon}.* */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(getOrganizationJsonLd()) }}
+          dangerouslySetInnerHTML={{ __html: jsonForScript(getOrganizationJsonLd()) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(getWebsiteJsonLd()) }}
+          dangerouslySetInnerHTML={{ __html: jsonForScript(getWebsiteJsonLd()) }}
         />
         {/* Inline script to prevent flash of wrong theme */}
         <script

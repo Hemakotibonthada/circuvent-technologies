@@ -1,19 +1,14 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
+import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
-import { creditWallet } from "@/lib/store";
+import { creditWallet, consumePayment, releasePayment, revalidate, flushNow } from "@/lib/store";
 import { verifyToken, tokenFromRequest } from "@/lib/account";
+import { razorpayKeys, verifyCapturedPayment } from "@/lib/razorpay";
 
 export const runtime = "nodejs";
 
 const MIN = 100;
 const MAX = 100000;
-
-function safeEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a);
-  const bb = Buffer.from(b);
-  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
-}
 
 /**
  * POST /api/wallet/topup
@@ -24,7 +19,7 @@ function safeEqual(a: string, b: string): boolean {
  */
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("payments", ip);
     if (!ok) {
       return NextResponse.json(
@@ -38,22 +33,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Please sign in to top up your wallet." }, { status: 401 });
     }
 
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (!keyId || !keySecret) {
+    const keys = razorpayKeys();
+    if (!keys) {
       return NextResponse.json({ success: false, message: "Payment gateway is not configured." }, { status: 500 });
     }
+    const { keyId, keySecret } = keys;
 
     const body = await request.json();
-    const amount = Math.round(Number(body?.amount) || 0);
-    if (amount < MIN || amount > MAX) {
-      return NextResponse.json(
-        { success: false, message: `Enter an amount between ₹${MIN} and ₹${MAX}.` },
-        { status: 400 }
-      );
-    }
 
     if (body?.mode === "create") {
+      const amount = Math.round(Number(body?.amount) || 0);
+      if (amount < MIN || amount > MAX) {
+        return NextResponse.json(
+          { success: false, message: `Enter an amount between ₹${MIN} and ₹${MAX}.` },
+          { status: 400 }
+        );
+      }
       const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
       const res = await fetch("https://api.razorpay.com/v1/orders", {
         method: "POST",
@@ -79,18 +74,52 @@ export async function POST(request: Request) {
 
     if (body?.mode === "verify") {
       const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body || {};
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-        return NextResponse.json({ success: false, message: "Missing payment details." }, { status: 400 });
+      const check = await verifyCapturedPayment({
+        orderId: String(razorpay_order_id || ""),
+        paymentId: String(razorpay_payment_id || ""),
+        signature: String(razorpay_signature || ""),
+      });
+      if (!check.ok) {
+        return NextResponse.json({ success: false, message: check.message }, { status: check.status });
       }
-      const expected = crypto
-        .createHmac("sha256", keySecret)
-        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-        .digest("hex");
-      if (!safeEqual(expected, razorpay_signature)) {
+      const { payment } = check;
+
+      // The order carries the account it was raised for. A payment made for
+      // someone else's top-up must not land in this wallet.
+      const orderedFor = (payment.notes?.email || "").trim().toLowerCase();
+      if (payment.notes?.purpose !== "wallet_topup" || (orderedFor && orderedFor !== email)) {
         return NextResponse.json({ success: false, message: "Payment verification failed." }, { status: 400 });
       }
-      const w = creditWallet(email, amount, "Wallet top-up", razorpay_payment_id);
-      return NextResponse.json({ success: true, balance: w.balance });
+
+      // Balances are read-modify-written in memory, so pull the current copy in
+      // before crediting and push it back out before responding.
+      await revalidate(["wallets", "consumedPayments"]);
+
+      // Claim the payment id first. The checkout signature stays valid for ever,
+      // so this is what stops one capture crediting the wallet twice.
+      const claimed = consumePayment({
+        paymentId: payment.id,
+        purpose: "wallet_topup",
+        email,
+        amountPaise: payment.amountPaise,
+        ref: payment.orderId,
+      });
+      if (!claimed) {
+        return NextResponse.json(
+          { success: false, message: "That payment has already been credited." },
+          { status: 409 }
+        );
+      }
+
+      try {
+        // Credit what the gateway actually captured — never the body value.
+        const w = creditWallet(email, Math.round(payment.amountPaise / 100), "Wallet top-up", payment.id);
+        await flushNow();
+        return NextResponse.json({ success: true, balance: w.balance });
+      } catch (e) {
+        releasePayment(payment.id);
+        throw e;
+      }
     }
 
     return NextResponse.json({ success: false, message: "Unknown request." }, { status: 400 });

@@ -7,6 +7,7 @@
 
 import crypto from "crypto";
 import { createFileStore, shortId } from "./data-file";
+import { checkOutboundUrl } from "./outbound-url";
 
 export interface DevToken {
   id: string;
@@ -123,15 +124,38 @@ export function listDeliveries(uid: number, webhookId?: string): DevDelivery[] {
 export async function sendTestEvent(uid: number, webhookId: string, event: string): Promise<DevDelivery | null> {
   const webhook = store.read().webhooks.find((w) => w.id === webhookId && w.uid === uid);
   if (!webhook) return null;
+
+  // Re-check at send time: DNS can be repointed into private space after the
+  // webhook was registered.
+  const allowed = await checkOutboundUrl(webhook.url);
+  if (!allowed.ok) {
+    const blocked: DevDelivery = {
+      id: shortId("dvy"),
+      webhookId,
+      event,
+      status: "failed",
+      error: allowed.reason,
+      durationMs: 0,
+      at: new Date().toISOString(),
+    };
+    store.mutate((db) => {
+      db.deliveries.unshift(blocked);
+      db.deliveries = db.deliveries.slice(0, 1000);
+    });
+    return blocked;
+  }
+
   const body = JSON.stringify({ event, payload: { test: true }, at: new Date().toISOString() });
   const signature = crypto.createHmac("sha256", webhook.secret).update(body).digest("hex");
   const started = Date.now();
   let delivery: DevDelivery;
   try {
-    const res = await fetch(webhook.url, {
+    const res = await fetch(allowed.url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Circuvent-Signature": signature },
       body,
+      // A 3xx to an internal host would otherwise walk straight past the check.
+      redirect: "manual",
       signal: AbortSignal.timeout(8000),
     });
     delivery = { id: shortId("dvy"), webhookId, event, status: res.ok ? "success" : "failed", responseCode: res.status, durationMs: Date.now() - started, at: new Date().toISOString() };

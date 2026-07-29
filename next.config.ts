@@ -1,12 +1,15 @@
 import type { NextConfig } from "next";
+import { CSP } from "./src/lib/csp";
 
-// Static security headers applied to every response (CSP is set dynamically in
-// middleware.ts). These follow OWASP secure-headers guidance.
+// Static security headers applied to every response. These follow OWASP
+// secure-headers guidance. The CSP is repeated here (the edge proxy also sets
+// it) so routes the proxy matcher skips are never served without a policy.
 const securityHeaders = [
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
+  { key: "Content-Security-Policy", value: CSP },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -33,7 +36,9 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
-      { protocol: "https", hostname: "res.cloudinary.com", pathname: "/**" },
+      // Scoped to our own Cloudinary cloud: "/**" would turn the Next image
+      // optimizer into an open proxy for every tenant on res.cloudinary.com.
+      { protocol: "https", hostname: "res.cloudinary.com", pathname: "/djucuoojo/**" },
       { protocol: "https", hostname: "avatars.githubusercontent.com", pathname: "/**" },
     ],
   },

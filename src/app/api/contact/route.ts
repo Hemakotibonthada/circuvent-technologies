@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { Resend } from "resend";
 import { rateLimit } from "@/lib/rate-limit";
 import { addContactMessage, flushNow } from "@/lib/store";
@@ -40,7 +41,7 @@ function teamEmailFor(service?: string): string | undefined {
 export async function POST(request: Request) {
   try {
     // Rate limiting — 5 submissions per minute per IP
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("contact", ip);
     if (!ok) {
       return NextResponse.json(

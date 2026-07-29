@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   priceItems,
@@ -8,7 +9,7 @@ import {
   type IncomingItem,
   type CustomerInfo,
 } from "@/lib/order-core";
-import { recordOrder, adjustStock, debitWallet, earnPoints, rewardReferralOnPaidOrder } from "@/lib/store";
+import { recordOrder, adjustStock, debitWallet, earnPoints, rewardReferralOnPaidOrder, revalidate, flushNow } from "@/lib/store";
 import { verifyToken, tokenFromRequest } from "@/lib/account";
 
 export const runtime = "nodejs";
@@ -32,7 +33,7 @@ type Priced = {
  */
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("orders", ip);
     if (!ok) {
       return NextResponse.json(
@@ -70,6 +71,9 @@ export async function POST(request: Request) {
     // Full wallet payment.
     if (method === "wallet") {
       const orderNo = genOrderNo();
+      // Read the live balance before debiting: a stale in-memory wallet on a
+      // second serverless instance would let the same funds be spent twice.
+      await revalidate(["wallets"]);
       const res = debitWallet(tokenEmail!, priced.total, `Order ${orderNo}`, orderNo);
       if (!res.ok) {
         return NextResponse.json(
@@ -77,12 +81,14 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      await flushNow();
       return await finalize(orderNo, priced, c, method, "paid", items);
     }
 
     // Cash on delivery, optionally with a partial wallet redemption applied now.
     const orderNo = genOrderNo();
     if (walletApply > 0) {
+      await revalidate(["wallets"]);
       const res = debitWallet(tokenEmail!, walletApply, `Order ${orderNo} (wallet part-payment)`, orderNo);
       if (!res.ok) {
         return NextResponse.json(
@@ -90,6 +96,7 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      await flushNow();
     }
     const remainder = priced.total - walletApply;
     const payMethod = walletApply > 0 ? "cod+wallet" : method;

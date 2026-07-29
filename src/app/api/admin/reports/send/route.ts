@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminFromRequest, DEFAULT_ADMIN_EMAIL } from "@/lib/admin-auth";
+import { adminFromRequest, requireArea, DEFAULT_ADMIN_EMAIL } from "@/lib/admin-auth";
 import { getAlertSettings, updateAlertSettings, revalidate, flushNow } from "@/lib/store";
 import { buildReportHtml } from "@/lib/alerts";
 import { sendMail } from "@/lib/order-core";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (secret && request.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return !!adminFromRequest(request);
+  return requireArea(adminFromRequest(request), "analytics");
 }
 
 /**
@@ -20,7 +20,9 @@ function authorized(request: Request): boolean {
  * admin UI, which can force-send and override the range.
  */
 async function handle(request: Request) {
-  const isAdmin = !!adminFromRequest(request);
+  // The report contains revenue figures, so a staff account may only force-send
+  // it if their role covers analytics. Cron keeps its own secret-based path.
+  const isAdmin = requireArea(adminFromRequest(request), "analytics");
   if (!authorized(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   let daysParam: number | undefined;

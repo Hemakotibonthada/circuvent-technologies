@@ -8,6 +8,7 @@
 
 import crypto from "crypto";
 import { hashPassword, verifyPassword } from "./account";
+import { requireSecret, seedAdminPassword } from "./secrets";
 import {
   countAdminUsers,
   getAdminUser,
@@ -17,18 +18,21 @@ import {
   type AdminUser,
 } from "./store";
 
-const SECRET =
-  process.env.ADMIN_SECRET ||
-  process.env.ACCOUNT_SECRET ||
-  process.env.ADMIN_PASSWORD ||
-  "circuvent-admin-secret";
+// Staff sessions get their own key so a leaked customer key cannot mint one.
+const SECRET = requireSecret(["ADMIN_SECRET", "ACCOUNT_SECRET"], "staff sessions");
 
 /** The always-available root administrator (as requested by the owner). */
 export const DEFAULT_ADMIN_EMAIL = (
   process.env.ADMIN_DEFAULT_EMAIL || "admin@circuvent.com"
 ).toLowerCase();
-export const DEFAULT_ADMIN_PASSWORD =
-  process.env.ADMIN_DEFAULT_PASSWORD || "Hemakoti@003";
+
+/**
+ * Stored in the pending-2FA slot when the second factor is an authenticator.
+ * Its presence proves the password stage was passed, so a TOTP code can never
+ * be the only factor, and guesses land on the same attempt counter as email
+ * codes. It can never collide with a 6-digit numeric code.
+ */
+export const TOTP_PENDING = "totp-pending";
 
 /** Areas of the admin control center that can be independently permissioned. */
 export type AdminArea =
@@ -150,7 +154,7 @@ export const ALL_ROLES: AdminRole[] = ["superadmin", "manager", "inventory", "or
 /** Ensures the default super-admin always exists so the owner can never be locked out. */
 export function ensureSeeded(): void {
   if (countAdminUsers() > 0) return;
-  const { salt, hash } = hashPassword(DEFAULT_ADMIN_PASSWORD);
+  const { salt, hash } = hashPassword(seedAdminPassword());
   upsertAdminUser({
     email: DEFAULT_ADMIN_EMAIL,
     name: "Owner",

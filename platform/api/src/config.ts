@@ -14,6 +14,10 @@ const schema = z.object({
   // Smart-home (Alexa + Google) account-linking OAuth client.
   SMARTHOME_CLIENT_ID: z.string().default("circuvent-smarthome"),
   SMARTHOME_CLIENT_SECRET: z.string().default(""),
+  // Extra redirect URIs allowed during account linking, comma-separated.
+  // The built-in Alexa/Google endpoints are always allowed; this is for
+  // vendor consoles and local testing. Prefixes are matched exactly.
+  SMARTHOME_REDIRECT_URIS: z.string().default(""),
   // Transactional email for OTP / alerts. SMTP is preferred; Resend is the
   // fallback (reuses the marketing site's RESEND_API_KEY). If neither is set,
   // OTP codes are logged (dev) so sign-up still works while email is configured.

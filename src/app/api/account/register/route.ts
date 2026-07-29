@@ -1,4 +1,6 @@
 import { NextResponse, after } from "next/server";
+import { clientIp } from "@/lib/client-ip";
+import crypto from "crypto";
 import { rateLimit } from "@/lib/rate-limit";
 import { getAccount, setPendingRegistration, revalidate, flushNow } from "@/lib/store";
 import { hashPassword } from "@/lib/account";
@@ -7,7 +9,8 @@ import { sendOtpEmail } from "@/lib/order-core";
 export const runtime = "nodejs";
 
 function genOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // crypto, not Math.random — see forgot-password/route.ts.
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 /**
@@ -18,7 +21,7 @@ function genOtp(): string {
  */
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("account", ip);
     if (!ok) {
       return NextResponse.json(

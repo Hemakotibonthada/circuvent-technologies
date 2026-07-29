@@ -1,22 +1,24 @@
 import { NextResponse } from "next/server";
-import { adminFromRequest } from "@/lib/admin-auth";
+import { adminFromRequest, requireArea } from "@/lib/admin-auth";
 import { getAlertSettings, updateAlertSettings, flushNow, type AlertSettings } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/admin/alerts/rules — current alert configuration (any active admin).
+// GET /api/admin/alerts/rules — current alert configuration.
 export async function GET(request: Request) {
-  const me = adminFromRequest(request);
-  if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Exposes the notification email and thresholds, so it is settings-scoped.
+  if (!requireArea(adminFromRequest(request), "settings")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   return NextResponse.json({ ok: true, settings: getAlertSettings() });
 }
 
 // PUT /api/admin/alerts/rules — update configuration (superadmin/manager only).
 export async function PUT(request: Request) {
   const me = adminFromRequest(request);
-  if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (me.role !== "superadmin" && me.role !== "manager") {
+  if (!requireArea(me, "settings")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (me!.role !== "superadmin" && me!.role !== "manager") {
     return NextResponse.json({ error: "Only managers can change alert rules." }, { status: 403 });
   }
 

@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { config } from "../config";
 import { requireAuth, type AuthedRequest, generateDeviceKey, hashDeviceKey } from "../auth";
 import { publishCommand, provisionBrokerClient, deprovisionBrokerClient, getMqtt } from "../mqtt";
+import { invalidateOwnership, invalidateOwner } from "../ownership";
 import { logger } from "../logger";
 
 export const adminRouter = Router();
@@ -98,6 +99,9 @@ adminRouter.delete("/users/:id", async (req: AuthedRequest, res) => {
     return;
   }
   await pool.query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
+  // Their devices' owner_id goes NULL — drop every cached grant immediately so
+  // the deleted account's still-valid bearer token cannot keep sending commands.
+  invalidateOwner(req.params.id);
   res.json({ success: true });
 });
 
@@ -137,6 +141,7 @@ adminRouter.post("/devices/:id/ota", async (req: AuthedRequest, res) => {
 /** DELETE /admin/devices/:id — force-remove a device from the fleet. */
 adminRouter.delete("/devices/:id", async (req: AuthedRequest, res) => {
   await pool.query(`DELETE FROM devices WHERE id = $1`, [req.params.id]);
+  invalidateOwnership(req.params.id);
   deprovisionBrokerClient(req.params.id);
   res.json({ success: true });
 });
@@ -213,6 +218,8 @@ adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
   if (d.room !== undefined) { sets.push(`room = $${i++}`); vals.push(d.room); }
   if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "owner_id")) { sets.push(`owner_id = $${i++}`); vals.push(d.owner_id ?? null); }
   if (sets.length) await pool.query(`UPDATE devices SET ${sets.join(", ")} WHERE id = $1`, vals);
+  // Reassigning an owner must revoke the previous one's cached command rights.
+  invalidateOwnership(req.params.id);
   res.json({ success: true });
 });
 

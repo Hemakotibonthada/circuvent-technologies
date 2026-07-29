@@ -28,6 +28,60 @@ function esc(s: string): string {
   return (s || "").replace(/[<>"'&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "&": "&amp;" }[c] as string));
 }
 
+/**
+ * Registered account-linking redirect URIs.
+ *
+ * SECURITY: this list is the only thing standing between the login form and
+ * authorization-code exfiltration. A scheme-only check ("must start with
+ * https://") leaves the host attacker-controlled, so a phishing link can run
+ * the whole flow on the genuine API origin and then have the code 302'd to the
+ * attacker. Every candidate must match one of these origins exactly, with the
+ * path constrained to the vendor's documented prefix.
+ */
+const BUILTIN_REDIRECT_PREFIXES = [
+  // Amazon Alexa account linking (per-region endpoints).
+  "https://layla.amazon.com/api/skill/link/",
+  "https://pitangui.amazon.com/api/skill/link/",
+  "https://alexa.amazon.co.jp/api/skill/link/",
+  // Google Home / Actions on Google account linking.
+  "https://oauth-redirect.googleusercontent.com/r/",
+  "https://oauth-redirect-sandbox.googleusercontent.com/r/",
+];
+
+function allowedRedirectPrefixes(): string[] {
+  const extra = config.SMARTHOME_REDIRECT_URIS.split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.startsWith("https://") || s.startsWith("http://localhost"));
+  return [...BUILTIN_REDIRECT_PREFIXES, ...extra];
+}
+
+/** Returns the redirect_uri only if it is registered; null otherwise. */
+function checkRedirectUri(raw: string): string | null {
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  // A userinfo section lets `https://layla.amazon.com@evil.tld/` slip past a
+  // naive prefix test, so reject it outright before comparing.
+  if (url.username || url.password) return null;
+  const normalized = url.toString();
+  for (const prefix of allowedRedirectPrefixes()) {
+    let p: URL;
+    try {
+      p = new URL(prefix);
+    } catch {
+      continue;
+    }
+    if (url.protocol === p.protocol && url.host === p.host && url.pathname.startsWith(p.pathname)) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
 function loginPage(p: Record<string, string>, err = ""): string {
   const hidden = ["client_id", "redirect_uri", "state", "response_type", "scope"]
     .map((k) => `<input type="hidden" name="${k}" value="${esc(p[k] || "")}">`)
@@ -54,6 +108,12 @@ oauthRouter.get("/authorize", (req, res) => {
     res.status(400).send("Invalid client_id");
     return;
   }
+  // Reject before rendering: an unregistered redirect_uri would otherwise be
+  // echoed into the form and used on submit.
+  if (!checkRedirectUri(q.redirect_uri || "")) {
+    res.status(400).send("Invalid redirect_uri");
+    return;
+  }
   res.set("Content-Type", "text/html").send(loginPage(q));
 });
 
@@ -64,8 +124,8 @@ oauthRouter.post("/authorize", async (req, res) => {
     res.status(400).send("Invalid client_id");
     return;
   }
-  const redirect = b.redirect_uri || "";
-  if (!/^https:\/\//i.test(redirect)) {
+  const redirect = checkRedirectUri(b.redirect_uri || "");
+  if (!redirect) {
     res.status(400).send("Invalid redirect_uri");
     return;
   }
@@ -79,7 +139,10 @@ oauthRouter.post("/authorize", async (req, res) => {
     res.set("Content-Type", "text/html").send(loginPage(b, "Invalid email or password."));
     return;
   }
-  const code = sign("sh_code", Number(u.id), "10m");
+  // Bind the code to the redirect it was issued for (RFC 6749 §4.1.3).
+  const code = jwt.sign({ uid: Number(u.id), purpose: "sh_code", ruri: redirect }, config.JWT_SECRET, {
+    expiresIn: "10m",
+  } as jwt.SignOptions);
   const sep = redirect.includes("?") ? "&" : "?";
   const url = `${redirect}${sep}code=${encodeURIComponent(code)}${b.state ? `&state=${encodeURIComponent(b.state)}` : ""}`;
   res.redirect(302, url);
@@ -101,8 +164,18 @@ oauthRouter.post("/token", (req, res) => {
     return;
   }
   let uid: number | null = null;
-  if (b.grant_type === "authorization_code") uid = verify("sh_code", b.code || "");
-  else if (b.grant_type === "refresh_token") uid = verify("sh_refresh", b.refresh_token || "");
+  if (b.grant_type === "authorization_code") {
+    try {
+      const d = jwt.verify(b.code || "", config.JWT_SECRET) as jwt.JwtPayload;
+      const claimed = Number(d.uid);
+      // The code is only valid for the redirect it was issued against, so a
+      // leaked code cannot be redeemed from a different registered client.
+      const ruriOk = !b.redirect_uri || !d.ruri || b.redirect_uri === d.ruri;
+      if (d.purpose === "sh_code" && Number.isFinite(claimed) && ruriOk) uid = claimed;
+    } catch {
+      uid = null;
+    }
+  } else if (b.grant_type === "refresh_token") uid = verify("sh_refresh", b.refresh_token || "");
   else {
     res.status(400).json({ error: "unsupported_grant_type" });
     return;

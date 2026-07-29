@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
@@ -9,7 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 export async function POST(request: Request) {
   try {
     // Rate limiting — 5 subscriptions per minute per IP
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("newsletter", ip);
     if (!ok) {
       return NextResponse.json(

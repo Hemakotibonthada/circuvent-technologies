@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { visitorTracker } from "@/lib/visitor-tracker";
 
 // POST — visitor connect / heartbeat / disconnect
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing visitorId or action" }, { status: 400 });
     }
 
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = clientIp(request);
     const userAgent = request.headers.get("user-agent") ?? "unknown";
 
     switch (action) {

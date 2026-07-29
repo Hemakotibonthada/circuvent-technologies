@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import { rateLimit, rateLimitIdentity } from "@/lib/rate-limit";
 import {
   getAccount,
   getPasswordReset,
@@ -20,7 +21,7 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("account", ip);
     if (!ok) {
       return NextResponse.json(
@@ -36,6 +37,16 @@ export async function POST(request: Request) {
     }
     if (!password || String(password).length < 6) {
       return NextResponse.json({ success: false, message: "Use at least 6 characters for your new password." }, { status: 400 });
+    }
+
+    // Per-address cap: without it the IP limit can be sidestepped to guess the
+    // 6-digit reset code for a specific account.
+    const perEmail = rateLimitIdentity("reset-password", clean, 6);
+    if (!perEmail.ok) {
+      return NextResponse.json(
+        { success: false, message: "Too many attempts. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(perEmail.retryAfter) } }
+      );
     }
 
     await revalidate(["passwordResets", "accounts"]);

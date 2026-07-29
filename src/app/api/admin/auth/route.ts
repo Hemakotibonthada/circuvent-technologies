@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
+import crypto from "crypto";
 import { revalidate, setAdmin2faOtp, flushNow } from "@/lib/store";
 import { sendAdmin2faEmail } from "@/lib/order-core";
 import {
@@ -7,11 +8,14 @@ import {
   signAdminToken,
   ensureSeeded,
   DEFAULT_ADMIN_EMAIL,
+  TOTP_PENDING,
 } from "@/lib/admin-auth";
 import { recordStaffLogin } from "@/lib/admin-staff-activity";
 
 function genOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // crypto, not Math.random: a login code is a credential, and V8's PRNG state
+  // is recoverable from other outputs the same process hands to callers.
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 // POST — Sign in with email + password
@@ -46,6 +50,12 @@ export async function POST(request: NextRequest) {
         after(async () => {
           await sendAdmin2faEmail(user.email, user.name, otp);
         });
+      } else {
+        // Record that the password stage passed. Without this marker the TOTP
+        // branch of verify-2fa would accept a code as the *only* factor, and
+        // its guesses would not be counted against the attempt limit.
+        setAdmin2faOtp(user.email, TOTP_PENDING);
+        await flushNow();
       }
       return NextResponse.json({ twoFactor: true, method, email: user.email });
     }

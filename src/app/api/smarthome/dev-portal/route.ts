@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyConsolePrincipal } from "@/lib/smarthome-auth";
+import { checkOutboundUrl } from "@/lib/outbound-url";
 import { createToken, listTokens, revokeToken, createWebhook, listWebhooks, toggleWebhook, deleteWebhook, listDeliveries, sendTestEvent, CONSOLE_EVENTS } from "@/lib/smarthome-dev-portal";
 
 export const runtime = "nodejs";
@@ -26,7 +27,11 @@ export async function POST(request: Request) {
       if (!b.url || !Array.isArray(b.events) || !b.events.length) {
         return NextResponse.json({ success: false, message: "url and at least one event required." }, { status: 400 });
       }
-      const webhook = createWebhook(me.uid, b.url, b.events);
+      const allowed = await checkOutboundUrl(String(b.url));
+      if (!allowed.ok) {
+        return NextResponse.json({ success: false, message: allowed.reason }, { status: 400 });
+      }
+      const webhook = createWebhook(me.uid, allowed.url, b.events);
       return NextResponse.json({ success: true, webhook });
     }
     if (b.kind === "test-event") {

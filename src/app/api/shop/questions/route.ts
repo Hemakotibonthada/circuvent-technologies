@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { listQuestions, addQuestion, markQuestionHelpful, getStoredProduct, getAccount } from "@/lib/store";
 import { verifyToken, tokenFromRequest } from "@/lib/account";
 import { rateLimit } from "@/lib/rate-limit";
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
 
 /** POST /api/shop/questions { productId, question, name?, email? } — ask a question. */
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(request);
   const { ok, retryAfter } = rateLimit("questions", ip);
   if (!ok) {
     return NextResponse.json(

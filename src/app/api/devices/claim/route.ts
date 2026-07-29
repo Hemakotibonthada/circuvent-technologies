@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 import { claimDevice } from "@/lib/store";
 import { verifyToken, tokenFromRequest } from "@/lib/account";
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
   const email = verifyToken(tokenFromRequest(request));
   if (!email) return NextResponse.json({ success: false, message: "Please sign in." }, { status: 401 });
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(request);
   const { ok, retryAfter } = rateLimit("account", ip);
   if (!ok) {
     return NextResponse.json(

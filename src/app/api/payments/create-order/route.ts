@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 import { priceItems, type IncomingItem } from "@/lib/order-core";
 
@@ -11,7 +12,7 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("payments", ip);
     if (!ok) {
       return NextResponse.json(

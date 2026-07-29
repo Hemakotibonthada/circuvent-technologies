@@ -31,5 +31,5 @@ export async function POST(request: Request) {
   if (!res) {
     return NextResponse.json({ ok: false, error: "Authentication failed" }, { status: 401 });
   }
-  return NextResponse.json({ ok: true, claimed: res.claimed, commands: res.commands });
+  return NextResponse.json({ ok: true, claimed: res.claimed, pending: !!res.pending, commands: res.commands });
 }

@@ -42,41 +42,65 @@ export function attachWebSocket(server: Server): void {
     const client: Client = { ws, uid: claims.uid, deviceIds: new Set() };
     clients.add(client);
 
-    // Prime the set of owned device ids so pushes are scoped to this user.
-    try {
-      const { rows } = await pool.query<{ id: string }>(`SELECT id FROM devices WHERE owner_id = $1`, [claims.uid]);
-      for (const r of rows) client.deviceIds.add(r.id);
-    } catch (err) {
-      logger.error({ err }, "ws prime devices failed");
-    }
+    /**
+     * The set of device ids a socket may receive is derived from the database
+     * and never from the client. A `subscribe` frame is only a request to
+     * re-read it, so a caller cannot widen its own fan-out scope.
+     */
+    const syncDeviceIds = async (): Promise<void> => {
+      try {
+        const { rows } = await pool.query<{ id: string }>(`SELECT id FROM devices WHERE owner_id = $1`, [claims.uid]);
+        client.deviceIds = new Set(rows.map((r) => r.id));
+      } catch (err) {
+        logger.error({ err }, "ws sync devices failed");
+      }
+    };
 
+    await syncDeviceIds();
     ws.send(JSON.stringify({ type: "ready", devices: [...client.deviceIds] }));
 
+    // Re-reading owned devices hits Postgres, so a client cannot spin it.
+    let lastSync = Date.now();
+    let syncing = false;
+
     ws.on("message", (data) => {
-      // Clients may refresh their device set after claiming a new device.
+      // Clients ask for a refresh after claiming or releasing a device.
+      let m: { type?: unknown };
       try {
-        const m = JSON.parse(data.toString());
-        if (m?.type === "subscribe" && Array.isArray(m.deviceIds)) {
-          // Only allow ids the user owns (re-check against DB is done on claim).
-          for (const id of m.deviceIds) if (typeof id === "string") client.deviceIds.add(id);
-        }
+        m = JSON.parse(data.toString()) as { type?: unknown };
       } catch {
-        /* ignore malformed frames */
+        return; // malformed frame
       }
+      if (m?.type !== "subscribe") return;
+      if (syncing || Date.now() - lastSync < 2000) return;
+      syncing = true;
+      lastSync = Date.now();
+      void syncDeviceIds().finally(() => {
+        syncing = false;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "ready", devices: [...client.deviceIds] }));
+        }
+      });
     });
 
     const ping = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) ws.ping();
     }, 30000);
 
-    ws.on("close", () => {
+    // Ownership can change out from under a long-lived socket (admin
+    // reassignment, unclaim), so re-derive it periodically rather than
+    // trusting the snapshot taken at connect time.
+    const resync = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) void syncDeviceIds();
+    }, 60000);
+
+    const teardown = () => {
       clearInterval(ping);
+      clearInterval(resync);
       clients.delete(client);
-    });
-    ws.on("error", () => {
-      clearInterval(ping);
-      clients.delete(client);
-    });
+    };
+    ws.on("close", teardown);
+    ws.on("error", teardown);
   });
 
   logger.info("WebSocket channel attached at /ws");

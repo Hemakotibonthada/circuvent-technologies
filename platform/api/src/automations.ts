@@ -109,8 +109,9 @@ export async function onStateChange(deviceId: string, prev: Record<string, unkno
   let rows: AutomationRow[];
   try {
     const q = await pool.query<AutomationRow>(
-      `SELECT id, owner_id, name, enabled, trigger, action FROM automations
-       WHERE enabled AND trigger->>'type' = 'state' AND trigger->>'deviceId' = $1`,
+      `SELECT a.id, a.owner_id, a.name, a.enabled, a.trigger, a.action FROM automations a
+       JOIN devices d ON d.id = $1 AND d.owner_id = a.owner_id
+       WHERE a.enabled AND a.trigger->>'type' = 'state' AND a.trigger->>'deviceId' = $1`,
       [deviceId]
     );
     rows = q.rows;
@@ -132,8 +133,9 @@ export async function onEvent(deviceId: string, payload: Record<string, unknown>
   let rows: AutomationRow[];
   try {
     const q = await pool.query<AutomationRow>(
-      `SELECT id, owner_id, name, enabled, trigger, action FROM automations
-       WHERE enabled AND trigger->>'type' = 'event' AND trigger->>'deviceId' = $1`,
+      `SELECT a.id, a.owner_id, a.name, a.enabled, a.trigger, a.action FROM automations a
+       JOIN devices d ON d.id = $1 AND d.owner_id = a.owner_id
+       WHERE a.enabled AND a.trigger->>'type' = 'event' AND a.trigger->>'deviceId' = $1`,
       [deviceId]
     );
     rows = q.rows;

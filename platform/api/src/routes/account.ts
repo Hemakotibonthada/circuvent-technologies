@@ -21,6 +21,8 @@ accountRouter.post("/push-token", requireAuth, async (req: AuthedRequest, res) =
 // DELETE /account/push-token — unregister (e.g. on sign-out).
 accountRouter.delete("/push-token", requireAuth, async (req: AuthedRequest, res) => {
   const t = String(req.body?.token || "");
-  if (t) await removePushToken(t);
+  // Scoped to the caller: an unscoped delete lets any authenticated user
+  // silence another account's alerts if they ever learn its token.
+  if (t) await removePushToken(t, req.user!.uid);
   res.json({ success: true });
 });

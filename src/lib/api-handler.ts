@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 import { logger, type Logger } from "./logger";
 import { rateLimit } from "./rate-limit";
+import { clientIp as resolveClientIp } from "./client-ip";
 
 export interface ApiContext {
   req: Request;
@@ -35,9 +36,7 @@ export interface ApiOptions {
 }
 
 function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  return req.headers.get("x-real-ip") || "unknown";
+  return resolveClientIp(req);
 }
 
 function makeRequestId(req: Request): string {

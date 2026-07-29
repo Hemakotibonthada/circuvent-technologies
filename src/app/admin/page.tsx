@@ -223,7 +223,7 @@ const CATEGORY_META: { id: string; label: string; icon: IconType }[] = [
 export default function AdminDashboard() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
-  const [email, setEmail] = useState("admin@circuvent.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [twoFA, setTwoFA] = useState(false);

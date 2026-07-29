@@ -608,6 +608,13 @@ function HistoryModal({ row, onClose }: { row: ProductRow; onClose: () => void }
 
 // ---- printable barcode labels (Code128-ish visual + text) ----
 function barcodeLabels(rows: ProductRow[]) {
+  // Product fields are staff-writable and land in an HTML sink. The popup is
+  // opened on about:blank, which inherits this origin, so an unescaped name
+  // would run script with access to the opener's admin session.
+  const esc = (s: unknown) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string
+    );
   const bars = (s: string) => {
     let out = "";
     for (let i = 0; i < s.length; i++) {
@@ -618,12 +625,12 @@ function barcodeLabels(rows: ProductRow[]) {
   };
   const labels = rows.map((r) => `
     <div style="width:5cm;border:1px solid #ddd;padding:8px;margin:6px;display:inline-block;font-family:Arial">
-      <div style="font-weight:bold;font-size:12px">${r.name}</div>
-      <div style="font-size:10px;color:#555">${r.category} · ${"₹" + Math.round(r.price)}</div>
+      <div style="font-weight:bold;font-size:12px">${esc(r.name)}</div>
+      <div style="font-size:10px;color:#555">${esc(r.category)} · ${"₹" + Math.round(r.price)}</div>
       <div style="margin:6px 0;white-space:nowrap;overflow:hidden">${bars((r.barcode || r.sku) + "XXXX")}</div>
-      <div style="font-family:monospace;font-size:11px">${r.barcode || r.sku}</div>
+      <div style="font-family:monospace;font-size:11px">${esc(r.barcode || r.sku)}</div>
     </div>`).join("");
-  const w = window.open("", "_blank", "width=800,height=600");
+  const w = window.open("", "_blank", "width=800,height=600,noopener");
   if (!w) return;
   w.document.write(`<title>Labels</title><body onload="window.print()">${labels}</body>`);
   w.document.close();

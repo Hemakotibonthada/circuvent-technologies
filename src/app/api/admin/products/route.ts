@@ -17,21 +17,40 @@ function slugify(s: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * Product text is written by staff but rendered into HTML sinks (JSON-LD,
+ * printed labels, restock emails), so angle brackets are stripped at the
+ * boundary rather than relying on every downstream renderer to escape.
+ */
+function plainText(s: unknown, max: number): string {
+  return String(s ?? "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[<>\u0000-\u001f\u007f]/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function escapeHtml(s: unknown): string {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string
+  );
+}
+
 /** Extracts optional rich presentation fields from a request body. */
 function richFields(body: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   if (typeof body.image === "string") out.image = body.image.slice(0, 600000);
   if (Array.isArray(body.images)) out.images = (body.images as unknown[]).filter((s) => typeof s === "string").slice(0, 6);
-  if (typeof body.description === "string") out.description = body.description.slice(0, 5000);
-  if (typeof body.tagline === "string") out.tagline = body.tagline.slice(0, 200);
-  if (Array.isArray(body.specs)) out.specs = (body.specs as unknown[]).filter((s) => typeof s === "string").slice(0, 24);
+  if (typeof body.description === "string") out.description = plainText(body.description, 5000);
+  if (typeof body.tagline === "string") out.tagline = plainText(body.tagline, 200);
+  if (Array.isArray(body.specs)) out.specs = (body.specs as unknown[]).filter((s) => typeof s === "string").map((s) => plainText(s, 300)).slice(0, 24);
   if (body.compareAt !== undefined) {
     const c = Math.max(0, Math.round(Number(body.compareAt) || 0));
     out.compareAt = c || undefined;
   }
-  if (typeof body.badge === "string") out.badge = body.badge.slice(0, 40);
+  if (typeof body.badge === "string") out.badge = plainText(body.badge, 40);
   if (body.featured !== undefined) out.featured = !!body.featured;
-  if (typeof body.accent === "string") out.accent = body.accent.slice(0, 40);
+  if (typeof body.accent === "string") out.accent = plainText(body.accent, 40);
   return out;
 }
 
@@ -55,19 +74,19 @@ export async function POST(request: Request) {
       let imported = 0;
       const errors: string[] = [];
       for (const row of body.products) {
-        const nm = String(row?.name || "").trim();
+        const nm = plainText(row?.name, 200);
         if (!nm) {
           errors.push("Row skipped: missing name");
           continue;
         }
         upsertProduct({
-          id: String(row?.id || slugify(nm)),
-          slug: String(row?.slug || slugify(nm)),
+          id: slugify(String(row?.id || nm)) || slugify(nm),
+          slug: slugify(String(row?.slug || nm)) || slugify(nm),
           name: nm,
           price: Math.max(0, Math.round(Number(row?.price) || 0)),
           stock: Math.max(0, Math.round(Number(row?.stock) || 0)),
           available: row?.available !== false && String(row?.available).toLowerCase() !== "false",
-          category: String(row?.category || "General"),
+          category: plainText(row?.category || "General", 60),
         });
         imported++;
       }
@@ -75,18 +94,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, imported, errors });
     }
 
-    const name = String(body?.name || "").trim();
+    const name = plainText(body?.name, 200);
     if (!name) return NextResponse.json({ success: false, message: "Product name is required." }, { status: 400 });
 
-    const id = String(body?.id || slugify(name));
+    const id = slugify(String(body?.id || name)) || slugify(name);
     const product = upsertProduct({
       id,
-      slug: String(body?.slug || slugify(name)),
+      slug: slugify(String(body?.slug || name)) || slugify(name),
       name,
       price: Math.max(0, Math.round(Number(body?.price) || 0)),
       stock: Math.max(0, Math.round(Number(body?.stock) || 0)),
       available: body?.available !== false,
-      category: String(body?.category || "General"),
+      category: plainText(body?.category || "General", 60),
       ...richFields(body),
     });
     await flushNow();
@@ -111,8 +130,8 @@ export async function PATCH(request: Request) {
     if (body?.stock !== undefined) patch.stock = Math.max(0, Math.round(Number(body.stock) || 0));
     if (body?.available !== undefined) patch.available = !!body.available;
     if (body?.price !== undefined) patch.price = Math.max(0, Math.round(Number(body.price) || 0));
-    if (body?.name !== undefined && String(body.name).trim()) patch.name = String(body.name).trim();
-    if (body?.category !== undefined) patch.category = String(body.category);
+    if (body?.name !== undefined && plainText(body.name, 200)) patch.name = plainText(body.name, 200);
+    if (body?.category !== undefined) patch.category = plainText(body.category, 60);
     Object.assign(patch, richFields(body));
 
     const product = upsertProduct(patch);
@@ -125,13 +144,13 @@ export async function PATCH(request: Request) {
       notified = subs.length;
       if (subs.length) {
         const origin = new URL(request.url).origin;
-        const link = `${origin}/shop/${product.slug}`;
+        const link = `${origin}/shop/${encodeURIComponent(product.slug)}`;
         after(async () => {
           for (const email of subs) {
             await sendMail(
               email,
               `${product.name} is back in stock`,
-              `<div style="font-family:sans-serif"><h2>Good news — it's back!</h2><p><b>${product.name}</b> is back in stock at Circuvent.</p><p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#06b6d4;color:#fff;border-radius:8px;text-decoration:none">Shop now</a></p></div>`,
+              `<div style="font-family:sans-serif"><h2>Good news — it's back!</h2><p><b>${escapeHtml(product.name)}</b> is back in stock at Circuvent.</p><p><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 18px;background:#06b6d4;color:#fff;border-radius:8px;text-decoration:none">Shop now</a></p></div>`,
               undefined,
               { type: "product_restock", related: email }
             );

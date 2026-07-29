@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool } from "../db";
 import { requireAuth, type AuthedRequest, verifyDeviceKey, generateDeviceKey, hashDeviceKey } from "../auth";
 import { publishCommand, provisionBrokerClient, deprovisionBrokerClient } from "../mqtt";
+import { ownsDevice, invalidateOwnership } from "../ownership";
 import { logger } from "../logger";
 
 export const deviceRouter = Router();
@@ -95,35 +96,9 @@ deviceRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
 });
 
 /**
- * Ownership check, memoised for a short window.
- *
- * Every command POST used to spend a Postgres round-trip here before the MQTT
- * publish, which is pure latency on the hot path for a fact that changes only
- * on claim/unclaim/delete. Positive results are cached briefly and invalidated
- * explicitly by those three routes; negative results are never cached so a
- * fresh claim takes effect immediately.
+ * Ownership checks live in ../ownership so that every route which mutates
+ * `devices.owner_id` (including the admin routes) can invalidate the cache.
  */
-const ownershipCache = new Map<string, number>();
-const OWNERSHIP_TTL_MS = 30_000;
-
-function invalidateOwnership(id: string): void {
-  for (const key of ownershipCache.keys()) {
-    if (key.endsWith(`:${id}`)) ownershipCache.delete(key);
-  }
-}
-
-async function ownsDevice(uid: number, id: string): Promise<boolean> {
-  const key = `${uid}:${id}`;
-  const hit = ownershipCache.get(key);
-  if (hit !== undefined && Date.now() < hit) return true;
-  const { rowCount } = await pool.query(`SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2`, [id, uid]);
-  if (rowCount) {
-    ownershipCache.set(key, Date.now() + OWNERSHIP_TTL_MS);
-    return true;
-  }
-  ownershipCache.delete(key);
-  return false;
-}
 
 /** GET /devices/:id — single device detail. */
 deviceRouter.get("/:id", requireAuth, async (req: AuthedRequest, res) => {

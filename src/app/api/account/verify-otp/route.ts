@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import { rateLimit, rateLimitIdentity } from "@/lib/rate-limit";
 import {
   getPendingRegistration,
   setPendingRegistration,
@@ -21,7 +22,7 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("account", ip);
     if (!ok) {
       return NextResponse.json(
@@ -36,6 +37,15 @@ export async function POST(request: Request) {
     }
 
     const clean = String(email).trim().toLowerCase();
+    // Per-address cap as well: the IP limit alone lets a distributed run burn
+    // through the 6-digit space against one pending sign-up.
+    const perEmail = rateLimitIdentity("verify-otp", clean, 6);
+    if (!perEmail.ok) {
+      return NextResponse.json(
+        { success: false, message: "Too many attempts. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(perEmail.retryAfter) } }
+      );
+    }
     await revalidate(["pending", "accounts"]);
     const p = getPendingRegistration(clean);
     if (!p) {

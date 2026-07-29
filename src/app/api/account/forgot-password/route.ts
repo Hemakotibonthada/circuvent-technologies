@@ -1,12 +1,17 @@
 import { NextResponse, after } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
+import crypto from "crypto";
+import { rateLimit, rateLimitIdentity } from "@/lib/rate-limit";
 import { getAccount, setPasswordReset, revalidate, flushNow } from "@/lib/store";
 import { sendPasswordResetEmail } from "@/lib/order-core";
 
 export const runtime = "nodejs";
 
 function genOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // A reset code is a credential. Math.random is V8's xorshift128+, whose state
+  // is recoverable from other outputs the same process returns to callers
+  // (address / ticket ids), which would make the code predictable.
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 /**
@@ -17,7 +22,7 @@ function genOtp(): string {
  */
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(request);
     const { ok, retryAfter } = rateLimit("account", ip);
     if (!ok) {
       return NextResponse.json(
@@ -33,6 +38,10 @@ export async function POST(request: Request) {
       message: "If an account exists for that email, we've sent a reset code.",
     };
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return NextResponse.json(generic);
+
+    // Cap per address so the reset mail can't be used to flood one inbox from
+    // many source IPs. Still returns the generic body — no enumeration signal.
+    if (!rateLimitIdentity("forgot-password", clean, 3).ok) return NextResponse.json(generic);
 
     await revalidate(["accounts"]);
     const acc = getAccount(clean);

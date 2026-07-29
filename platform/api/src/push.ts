@@ -10,8 +10,13 @@ export async function registerPushToken(userId: number, token: string, platform:
   );
 }
 
-export async function removePushToken(token: string): Promise<void> {
-  await pool.query(`DELETE FROM push_tokens WHERE token = $1`, [token]);
+/** Unregister a token. Scoped to its owner unless called by an internal cleanup. */
+export async function removePushToken(token: string, userId?: number): Promise<void> {
+  if (userId === undefined) {
+    await pool.query(`DELETE FROM push_tokens WHERE token = $1`, [token]);
+    return;
+  }
+  await pool.query(`DELETE FROM push_tokens WHERE token = $1 AND user_id = $2`, [token, userId]);
 }
 
 export interface PushMessage {
