@@ -8,10 +8,10 @@ import { IncidentResponse } from "./IncidentResponse";
 import { SecurityRules } from "./SecurityRules";
 
 export const SECURITY_SCREENS: EnterpriseScreen[] = [
-  { key: "security-center", title: "Security Center", subtitle: "Arming and zones", icon: "shieldLock", group: "Security", render: (p) => <SecurityCenter onBack={p.onBack} /> },
-  { key: "security-events", title: "Event Log", subtitle: "Audit trail", icon: "history", group: "Security", render: (p) => <EventLog onBack={p.onBack} /> },
-  { key: "security-cameras", title: "Camera Wall", subtitle: "Streams and controls", icon: "camera", group: "Security", render: (p) => <CameraWall onBack={p.onBack} /> },
-  { key: "security-access", title: "Access Events", subtitle: "Entry activity", icon: "gate", group: "Security", render: (p) => <AccessEvents onBack={p.onBack} /> },
-  { key: "security-incidents", title: "Incident Response", subtitle: "Local tracking", icon: "incident", group: "Security", render: (p) => <IncidentResponse onBack={p.onBack} /> },
-  { key: "security-rules", title: "Security Rules", subtitle: "Automations", icon: "rules", group: "Security", render: (p) => <SecurityRules onBack={p.onBack} /> },
+  { key: "security-center", title: "Security center", subtitle: "Arming and zones", icon: "shieldLock", group: "Security", render: (p) => <SecurityCenter onBack={p.onBack} /> },
+  { key: "security-events", title: "Event log", subtitle: "Audit trail", icon: "history", group: "Security", render: (p) => <EventLog onBack={p.onBack} /> },
+  { key: "security-cameras", title: "Camera wall", subtitle: "Streams and controls", icon: "camera", group: "Security", render: (p) => <CameraWall onBack={p.onBack} /> },
+  { key: "security-access", title: "Access events", subtitle: "Entry activity", icon: "gate", group: "Security", render: (p) => <AccessEvents onBack={p.onBack} /> },
+  { key: "security-incidents", title: "Incident response", subtitle: "Local tracking", icon: "incident", group: "Security", render: (p) => <IncidentResponse onBack={p.onBack} /> },
+  { key: "security-rules", title: "Security rules", subtitle: "Automations", icon: "rules", group: "Security", render: (p) => <SecurityRules onBack={p.onBack} /> },
 ];
