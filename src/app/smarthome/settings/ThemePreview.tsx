@@ -79,7 +79,7 @@ export default function ThemePreview() {
           ].map((k) => (
             <div key={k.label} className={`${cardCls} p-2.5`}>
               <div
-                className="text-[9px] font-bold uppercase tracking-[0.1em]"
+                className="text-[13px] font-semibold"
                 style={{ color: "var(--cv-muted)" }}
               >
                 {k.label}
@@ -103,7 +103,7 @@ export default function ThemePreview() {
         <div className={`${cardCls} p-3`}>
           <div className="mb-2 flex items-center justify-between">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.1em]"
+              className="text-[13px] font-semibold"
               style={{ color: "var(--cv-muted)" }}
             >
               Control-plane RTT (ms)

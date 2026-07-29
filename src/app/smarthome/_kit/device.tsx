@@ -15,7 +15,7 @@ import type { Device } from "@/lib/control-plane";
 import { masterPower } from "@/lib/smarthome-command-map";
 import { haptic, type FieldStatus } from "@/lib/smarthome-realtime";
 import { deviceMeta } from "../DeviceControls";
-import { Badge, StatusDot, formatRelative } from "./primitives";
+import { StatusDot, formatRelative } from "./primitives";
 
 /**
  * Primary readout for a device type, derived from published state.
@@ -111,10 +111,10 @@ export function PowerButton({
       disabled={!device.online}
       aria-label={`${mp.on ? "Turn off" : "Turn on"} ${device.name}`}
       title={device.online ? mp.label : "Device offline"}
-      className={`${dim} ${RING[status]} flex shrink-0 items-center justify-center rounded-xl text-[10px] font-black uppercase transition active:scale-90 disabled:opacity-40 disabled:active:scale-100`}
+      className={`${dim} ${RING[status]} flex shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase tracking-wide transition active:scale-90 disabled:opacity-40 disabled:active:scale-100`}
       style={
         mp.on
-          ? { background: "var(--cv-gradient)", color: "#fff" }
+          ? { background: "var(--cv-gradient)", color: "#fff", boxShadow: "var(--cv-shadow-1)" }
           : { background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)", color: "var(--cv-muted)" }
       }
     >
@@ -123,6 +123,18 @@ export function PowerButton({
   );
 }
 
+/**
+ * Accessory tile.
+ *
+ * Modelled on the Home app's accessory grid: an active accessory inverts to a
+ * bright fill with dark text so its state is readable at a glance across a wall
+ * of tiles, while an inactive one recedes into the canvas. The circular icon
+ * badge is the on/off target; the rest of the tile opens the device.
+ *
+ * Navigation is an absolutely-positioned overlay link rather than a wrapper
+ * around the content, because the toggle is itself a button and a button nested
+ * inside an anchor is invalid markup that screen readers announce incoherently.
+ */
 export function DeviceTile({
   device,
   status,
@@ -140,55 +152,102 @@ export function DeviceTile({
   const Icon = meta.icon;
   const readout = deviceMetric(device);
   const target = href ?? `/smarthome/device/${encodeURIComponent(device.id)}`;
+  const mp = masterPower(device);
+  const on = Boolean(mp?.on) && device.online;
+  const tint = meta.accent;
+
+  // Secondary line. Offline devices report when they were last heard from
+  // rather than a stale state, so a dark tile is never mistaken for "off".
+  const statusLine = !device.online
+    ? device.last_seen
+      ? `No response · ${formatRelative(device.last_seen)}`
+      : "Never seen"
+    : mp
+      ? mp.on
+        ? "On"
+        : "Off"
+      : "Online";
 
   return (
-    <Link
-      href={target}
-      className={`cv-card group relative block rounded-2xl p-4 transition hover:brightness-110 ${status === "pending" ? "cv-pending" : ""}`}
+    <div
+      className={`cv-tile group relative flex min-h-[128px] flex-col justify-between p-4 ${
+        on ? "cv-tile-on" : ""
+      } ${status === "pending" ? "cv-pending" : ""} ${device.online ? "" : "opacity-65"}`}
     >
-      <div className="flex items-start gap-3">
-        <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: `color-mix(in srgb, ${meta.accent} 18%, transparent)` }}
-        >
-          <Icon className="h-5 w-5" style={{ color: meta.accent }} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="min-w-0 truncate text-sm font-bold" style={{ color: "var(--cv-text)" }}>
-              {device.name}
+      <Link
+        href={target}
+        aria-label={`Open ${device.name}`}
+        className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2"
+        style={{ borderRadius: "inherit", "--tw-ring-color": "var(--cv-accent)" } as React.CSSProperties}
+      />
+
+      <div className="pointer-events-none relative z-10 flex items-start justify-between gap-2">
+        {mp ? (
+          <button
+            type="button"
+            onClick={() => {
+              haptic();
+              onSend(mp.cmd(!mp.on) as Record<string, unknown>);
+            }}
+            disabled={!device.online}
+            aria-label={`${mp.on ? "Turn off" : "Turn on"} ${device.name}`}
+            title={device.online ? mp.label : "Device offline"}
+            className={`pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 disabled:active:scale-100 ${RING[status]}`}
+            style={
+              on
+                ? { background: tint, color: "#fff", boxShadow: "var(--cv-shadow-1)" }
+                : { background: "var(--cv-card-hi)", color: tint }
+            }
+          >
+            <Icon className="h-[22px] w-[22px]" />
+          </button>
+        ) : (
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+            style={{ background: "var(--cv-card-hi)", color: tint }}
+          >
+            <Icon className="h-[22px] w-[22px]" />
+          </span>
+        )}
+
+        <div className="flex items-center gap-2">
+          {readout && (
+            <span className="cv-num text-[15px] font-semibold" style={{ color: "var(--cv-text)" }}>
+              {readout}
             </span>
-            {onFavorite && (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onFavorite();
-                }}
-                aria-label={device.favorite ? "Remove from favourites" : "Add to favourites"}
-                className="shrink-0 opacity-60 transition hover:opacity-100"
-              >
-                <Star className="h-3.5 w-3.5" fill={device.favorite ? "#fbbf24" : "none"} style={{ color: device.favorite ? "#fbbf24" : "var(--cv-muted)" }} />
-              </button>
-            )}
-          </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]" style={{ color: "var(--cv-muted)" }}>
-            <span className="inline-flex items-center gap-1.5">
-              <StatusDot online={device.online} pulse={false} />
-              {device.online ? "Online" : device.last_seen ? formatRelative(device.last_seen) : "Never seen"}
-            </span>
-            {device.room && <span>· {device.room}</span>}
-          </div>
+          )}
+          {onFavorite && (
+            <button
+              type="button"
+              onClick={onFavorite}
+              aria-label={device.favorite ? "Remove from favourites" : "Add to favourites"}
+              className="pointer-events-auto shrink-0 opacity-50 transition hover:opacity-100"
+            >
+              <Star
+                className="h-4 w-4"
+                fill={device.favorite ? "#f0a020" : "none"}
+                style={{ color: device.favorite ? "#f0a020" : "var(--cv-muted)" }}
+              />
+            </button>
+          )}
         </div>
-        <PowerButton device={device} status={status} onSend={onSend} />
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <Badge>{meta.label}</Badge>
-        <span className="text-sm font-bold tabular-nums" style={{ color: readout ? "var(--cv-accent-hi)" : "var(--cv-muted)" }}>
-          {readout ?? "—"}
-        </span>
+      <div className="pointer-events-none relative z-10 mt-3 min-w-0">
+        <div className="truncate text-[15px] font-semibold leading-tight" style={{ color: "var(--cv-text)" }}>
+          {device.name}
+        </div>
+        <div
+          className="mt-1 flex min-w-0 items-center gap-1.5 text-[13px] leading-tight"
+          style={{ color: "var(--cv-muted)" }}
+        >
+          <StatusDot online={device.online} pulse={false} />
+          <span className="truncate">
+            {statusLine}
+            {device.room ? ` · ${device.room}` : ""}
+          </span>
+        </div>
       </div>
-    </Link>
+    </div>
   );
 }

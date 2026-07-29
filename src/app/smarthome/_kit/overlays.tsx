@@ -143,11 +143,11 @@ export function Modal({
         >
           <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--cv-border)" }}>
             <div className="min-w-0">
-              <h2 className="text-base font-extrabold" style={{ color: "var(--cv-text)" }}>
+              <h2 className="text-[19px] font-bold" style={{ color: "var(--cv-text)" }}>
                 {title}
               </h2>
               {subtitle && (
-                <p className="mt-0.5 text-xs" style={{ color: "var(--cv-muted)" }}>
+                <p className="mt-0.5 text-[13px]" style={{ color: "var(--cv-muted)" }}>
                   {subtitle}
                 </p>
               )}
@@ -155,7 +155,7 @@ export function Modal({
             <button
               onClick={onClose}
               aria-label="Close dialog"
-              className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:brightness-125"
+              className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:brightness-125"
               style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
             >
               <X className="h-4 w-4" />
@@ -215,11 +215,11 @@ export function Drawer({
         >
           <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--cv-border)" }}>
             <div className="min-w-0">
-              <h2 className="truncate text-base font-extrabold" style={{ color: "var(--cv-text)" }}>
+              <h2 className="truncate text-[19px] font-bold" style={{ color: "var(--cv-text)" }}>
                 {title}
               </h2>
               {subtitle && (
-                <div className="mt-0.5 text-xs" style={{ color: "var(--cv-muted)" }}>
+                <div className="mt-0.5 text-[13px]" style={{ color: "var(--cv-muted)" }}>
                   {subtitle}
                 </div>
               )}
@@ -227,7 +227,7 @@ export function Drawer({
             <button
               onClick={onClose}
               aria-label="Close panel"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:brightness-125"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:brightness-125"
               style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
             >
               <X className="h-4 w-4" />
@@ -386,16 +386,20 @@ export function ToastHost({ children }: { children: ReactNode }) {
             return (
               <div
                 key={t.id}
-                className="cv-card pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl px-4 py-3 shadow-2xl"
-                style={{ borderLeft: `3px solid ${SEVERITY[t.tone].fg}`, animation: "cvToastIn 200ms ease-out" }}
+                className="cv-card pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-[18px] px-4 py-3.5"
+                style={{
+                  borderLeft: `3px solid ${SEVERITY[t.tone].fg}`,
+                  boxShadow: "var(--cv-shadow-3)",
+                  animation: "cvToastIn 200ms ease-out",
+                }}
               >
                 <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: SEVERITY[t.tone].fg }} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-bold" style={{ color: "var(--cv-text)" }}>
+                  <div className="text-[15px] font-semibold" style={{ color: "var(--cv-text)" }}>
                     {t.title}
                   </div>
                   {t.body && (
-                    <div className="mt-0.5 text-xs" style={{ color: "var(--cv-muted)" }}>
+                    <div className="mt-0.5 text-[13px]" style={{ color: "var(--cv-muted)" }}>
                       {t.body}
                     </div>
                   )}
@@ -531,7 +535,7 @@ export function CommandPalette({
     <Portal>
       <div className="fixed inset-0 z-[150] flex items-start justify-center px-3 pt-[8vh]" role="dialog" aria-modal="true" aria-label="Command palette">
         <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-        <div className="cv-card relative flex max-h-[70vh] w-full max-w-xl cv-pop flex-col overflow-hidden rounded-2xl shadow-2xl">
+        <div className="cv-card relative flex max-h-[70vh] w-full max-w-xl cv-pop flex-col overflow-hidden rounded-[22px]" style={{ boxShadow: "var(--cv-shadow-3)" }}>
           <div className="flex items-center gap-3 border-b px-4 py-3.5" style={{ borderColor: "var(--cv-border)" }}>
             <Search className="h-4 w-4 shrink-0" style={{ color: "var(--cv-muted)" }} />
             <input
@@ -566,7 +570,7 @@ export function CommandPalette({
             )}
             {grouped.map((g) => (
               <div key={g.group}>
-                <div className="px-4 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+                <div className="px-4 pb-1 pt-2 text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
                   {g.group}
                 </div>
                 {g.items.map(({ cmd, idx }) => {

@@ -132,7 +132,7 @@ export default function DeveloperPanel() {
           ].map((k) => (
             <div key={k.label}>
               <div
-                className="text-[10px] font-bold uppercase tracking-[0.12em]"
+                className="text-[13px] font-semibold"
                 style={{ color: "var(--cv-muted)" }}
               >
                 {k.label}

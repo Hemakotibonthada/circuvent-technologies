@@ -171,8 +171,8 @@ export default function LivePanel() {
       <div className="grid gap-4 md:grid-cols-2">
         <Surface>
           <div
-            className="mb-3 flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.16em]"
-            style={{ color: "var(--cv-muted)" }}
+            className="mb-3 flex items-center justify-between gap-2 text-[17px] font-semibold"
+            style={{ color: "var(--cv-text)" }}
           >
             <span>Live load gauge</span>
             <span style={{ textTransform: "none", letterSpacing: "normal", fontWeight: 500 }}>
@@ -224,8 +224,8 @@ export default function LivePanel() {
 
         <Surface>
           <div
-            className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em]"
-            style={{ color: "var(--cv-muted)" }}
+            className="mb-3 text-[17px] font-semibold"
+            style={{ color: "var(--cv-text)" }}
           >
             Device split
           </div>

@@ -135,7 +135,7 @@ export default function ProfileEditor({
         {/* ── Avatar preview + photo controls ───────────── */}
         <section aria-label="Profile picture">
           <div
-            className="mb-3 text-xs font-bold uppercase tracking-[0.14em]"
+            className="mb-3 text-[13px] font-semibold"
             style={{ color: "var(--cv-muted)" }}
           >
             Profile picture
@@ -203,7 +203,7 @@ export default function ProfileEditor({
           {!profile.photo && (
             <div className="mt-5">
               <div
-                className="mb-2.5 text-xs font-bold uppercase tracking-[0.14em]"
+                className="mb-2.5 text-[13px] font-semibold"
                 style={{ color: "var(--cv-muted)" }}
               >
                 Initials colour
@@ -237,7 +237,7 @@ export default function ProfileEditor({
         {/* ── Editable fields ───────────────────────────── */}
         <section aria-label="Profile fields">
           <div
-            className="mb-3 text-xs font-bold uppercase tracking-[0.14em]"
+            className="mb-3 text-[13px] font-semibold"
             style={{ color: "var(--cv-muted)" }}
           >
             Profile
@@ -306,7 +306,7 @@ export default function ProfileEditor({
         {/* ── Read-only account identity ─────────────────── */}
         <section aria-label="Account identity">
           <div
-            className="mb-3 text-xs font-bold uppercase tracking-[0.14em]"
+            className="mb-3 text-[13px] font-semibold"
             style={{ color: "var(--cv-muted)" }}
           >
             Account identity

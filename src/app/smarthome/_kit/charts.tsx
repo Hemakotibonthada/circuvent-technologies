@@ -86,7 +86,7 @@ function ChartFrame({
       {(title || right) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           {title && (
-            <h3 className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+            <h3 className="text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}>
               {title}
             </h3>
           )}

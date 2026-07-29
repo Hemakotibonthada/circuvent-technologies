@@ -329,9 +329,7 @@ export function OnboardingPanel() {
 
       {fleet.devices.length > 0 && (
         <div className="cv-card rounded-2xl p-4">
-          <h3
-            className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em]"
-            style={{ color: "var(--cv-muted)" }}
+          <h3 className="mb-3 text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}
           >
             All devices
           </h3>

@@ -609,7 +609,7 @@ function ChannelEditor({
       />
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-slate-500">Type</span>
+          <span className="mb-1 block text-[13px] font-semibold text-slate-500">Type</span>
           <select
             className="cv-input py-1.5 text-sm"
             value={config.kind}
@@ -624,7 +624,7 @@ function ChannelEditor({
           </select>
         </label>
         <label className="block">
-          <span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-slate-500">Control</span>
+          <span className="mb-1 block text-[13px] font-semibold text-slate-500">Control</span>
           <select
             className="cv-input py-1.5 text-sm"
             value={config.style}

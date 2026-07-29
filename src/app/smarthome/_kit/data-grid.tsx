@@ -265,7 +265,7 @@ export function DataGrid<T>({
                         <th
                           key={c.key}
                           style={{ width: c.width, textAlign: c.align ?? "left", color: "var(--cv-muted)" }}
-                          className={`${pad} text-[10px] font-bold uppercase tracking-[0.14em]`}
+                          className={`${pad} text-[13px] font-semibold`}
                         >
                           <button
                             onClick={() => toggleSort(c.key)}

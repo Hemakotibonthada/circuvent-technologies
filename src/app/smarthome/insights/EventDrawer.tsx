@@ -71,7 +71,7 @@ export function EventDrawer({ event, device, onClose, onMarkRead, onDelete }: Pr
 
         {device && (
           <div>
-            <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--cv-muted)" }}>
+            <div className="mb-2 text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
               Device
             </div>
             <DetailRow label="Name">{device.name}</DetailRow>

@@ -10,8 +10,10 @@ export function Card({ children, className = "" }: { children: React.ReactNode; 
 
 export function SectionLabel({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div className="flex items-end justify-between gap-3 mt-6 mb-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{children}</div>
+    <div className="flex items-end justify-between gap-3 mt-8 mb-4">
+      <div className="text-[19px] font-bold leading-tight" style={{ color: "var(--cv-text)" }}>
+        {children}
+      </div>
       {right}
     </div>
   );
@@ -276,11 +278,11 @@ export function Segmented<T extends string>({
 export function StatTile({ label, value, accent, hint }: { label: string; value: string; accent?: string; hint?: string }) {
   return (
     <div className="flex-1 min-w-0 rounded-xl border border-white/10 bg-black/20 px-3 py-3.5 sm:px-4 sm:py-4 text-center">
-      <div className="text-xl sm:text-2xl font-extrabold tabular-nums truncate" style={{ color: accent ?? "#fff" }}>
+      <div className="cv-num text-[24px] sm:text-[28px] font-bold truncate" style={{ color: accent ?? "var(--cv-text)" }}>
         {value}
       </div>
-      <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.15em] text-slate-500 mt-1">{label}</div>
-      {hint && <div className="text-[10px] text-slate-600 mt-0.5">{hint}</div>}
+      <div className="text-[13px] font-medium mt-1" style={{ color: "var(--cv-muted)" }}>{label}</div>
+      {hint && <div className="text-[12px] text-slate-600 mt-0.5">{hint}</div>}
     </div>
   );
 }

@@ -316,34 +316,42 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen md:flex" style={{ color: "var(--cv-text)" }}>
       {/* ------------------------------------------------ desktop sidebar -- */}
       <aside
-        className="hidden w-60 shrink-0 flex-col px-3 py-5 md:sticky md:top-0 md:flex md:h-screen"
-        style={{ borderRight: "1px solid var(--cv-border)", background: "color-mix(in srgb, var(--cv-card) 60%, transparent)" }}
+        className="cv-material hidden w-64 shrink-0 flex-col px-3 py-5 md:sticky md:top-0 md:flex md:h-screen"
+        style={{ borderRight: "1px solid var(--cv-border)" }}
       >
-        <Link href="/smarthome" className="mb-7 flex items-center gap-3 px-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--cv-gradient)" }}>
+        <Link href="/smarthome" className="mb-6 flex items-center gap-3 px-2">
+          <span
+            className="flex h-10 w-10 items-center justify-center"
+            style={{ background: "var(--cv-gradient)", borderRadius: "var(--cv-r-control)" }}
+          >
             <Cpu className="h-5 w-5 text-white" />
           </span>
           <span>
-            <span className="block text-sm font-extrabold leading-none">Circuvent</span>
-            <span className="block text-[10px] uppercase tracking-[0.2em]" style={{ color: "var(--cv-accent-hi)" }}>
-              Console
+            <span className="block text-[17px] font-bold leading-tight tracking-[-0.02em]">Circuvent</span>
+            <span className="block text-[13px] font-medium leading-tight" style={{ color: "var(--cv-muted)" }}>
+              Home
             </span>
           </span>
         </Link>
 
         <button
           onClick={() => setPaletteOpen(true)}
-          className="mb-5 flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 text-sm transition hover:brightness-110"
-          style={{ background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)", color: "var(--cv-muted)" }}
+          className="mb-5 flex min-h-10 w-full items-center gap-2.5 px-3 text-[14px] transition hover:brightness-110"
+          style={{
+            background: "var(--cv-input-bg)",
+            border: "1px solid var(--cv-border)",
+            color: "var(--cv-muted)",
+            borderRadius: "var(--cv-r-control)",
+          }}
         >
           <Command className="h-4 w-4" />
           <span className="flex-1 text-left">Search…</span>
-          <kbd className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "var(--cv-card-hi)" }}>
+          <kbd className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: "var(--cv-card-hi)" }}>
             ⌘K
           </kbd>
         </button>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto pr-1">
           {nav.map((n) => {
             const active = isActive(n);
             const Icon = n.icon;
@@ -352,17 +360,17 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition"
+                className="flex min-h-10 items-center gap-3 px-3 text-[15px] font-medium transition"
                 style={{
-                  background: active ? "var(--cv-card-hi)" : "transparent",
-                  color: active ? "var(--cv-text)" : "var(--cv-muted)",
-                  boxShadow: active ? "inset 3px 0 0 0 var(--cv-accent)" : undefined,
+                  background: active ? "color-mix(in srgb, var(--cv-accent) 15%, transparent)" : "transparent",
+                  color: active ? "var(--cv-accent-hi)" : "var(--cv-muted)",
+                  borderRadius: "var(--cv-r-control)",
                 }}
               >
-                <Icon className="h-[18px] w-[18px]" style={{ color: active ? "var(--cv-accent-hi)" : undefined }} />
+                <Icon className="h-[19px] w-[19px]" />
                 <span className="flex-1">{n.label}</span>
                 {n.href === "/smarthome/security" && unread > 0 && (
-                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: "var(--cv-accent)" }}>
+                  <span className="cv-num rounded-full px-1.5 py-0.5 text-[11px] font-semibold text-white" style={{ background: "var(--cv-accent)" }}>
                     {unread > 99 ? "99+" : unread}
                   </span>
                 )}
@@ -371,27 +379,31 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--cv-border)" }}>
-          <div className="mb-2 flex items-center justify-between px-3 text-[11px]" style={{ color: "var(--cv-muted)" }}>
+        <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--cv-separator)" }}>
+          <div className="mb-2 flex items-center justify-between px-3 text-[12px]" style={{ color: "var(--cv-muted)" }}>
             <span className="inline-flex items-center gap-1.5">
               <StatusDot online={fleet.online > 0} pulse={false} />
               {fleet.online}/{fleet.devices.length} online
             </span>
             <LiveBadge status={liveStatus} compact />
           </div>
-          <Link href="/smarthome/settings" className="flex items-center gap-2.5 rounded-xl px-3 py-2 transition hover:brightness-110">
+          <Link
+            href="/smarthome/settings"
+            className="flex items-center gap-2.5 px-3 py-2 transition hover:brightness-110"
+            style={{ borderRadius: "var(--cv-r-control)" }}
+          >
             <ProfileAvatar name={user!.name} email={user!.email} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold">{user!.name || user!.email}</span>
-              <span className="block truncate text-xs" style={{ color: "var(--cv-muted)" }}>
+              <span className="block truncate text-[15px] font-semibold">{user!.name || user!.email}</span>
+              <span className="block truncate text-[13px]" style={{ color: "var(--cv-muted)" }}>
                 {isAdmin ? "Administrator" : "Owner"}
               </span>
             </span>
           </Link>
           <button
             onClick={logout}
-            className="mt-1 flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-sm transition hover:brightness-125"
-            style={{ color: "var(--cv-muted)" }}
+            className="mt-1 flex min-h-10 w-full items-center gap-2 px-3 text-[14px] transition hover:brightness-125"
+            style={{ color: "var(--cv-muted)", borderRadius: "var(--cv-r-control)" }}
           >
             <LogOut className="h-4 w-4" /> Sign out
           </button>
@@ -401,28 +413,28 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
       {/* -------------------------------------------------- main column --- */}
       <div className="min-w-0 flex-1">
         <header
-          className="sticky top-0 z-30 flex min-h-14 items-center gap-3 px-4 backdrop-blur-xl md:px-8"
-          style={{ borderBottom: "1px solid var(--cv-border)", background: "color-mix(in srgb, var(--cv-bg) 86%, transparent)" }}
+          className="cv-material sticky top-0 z-30 flex min-h-[54px] items-center gap-3 px-4 md:px-8"
+          style={{ borderBottom: "1px solid var(--cv-border)" }}
         >
           <Link href="/smarthome" className="flex items-center gap-2 md:hidden" aria-label="Circuvent console home">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "var(--cv-gradient)" }}>
+            <span className="flex h-8 w-8 items-center justify-center rounded-[10px]" style={{ background: "var(--cv-gradient)" }}>
               <Cpu className="h-4 w-4 text-white" />
             </span>
           </Link>
 
-          <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-sm md:flex">
-            <span style={{ color: "var(--cv-muted)" }}>Console</span>
+          <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-[14px] md:flex">
+            <span style={{ color: "var(--cv-muted)" }}>Home</span>
             <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--cv-muted)" }} />
             <span className="font-semibold">{current?.label}</span>
           </nav>
 
-          <span className="truncate text-sm font-bold md:hidden">{current?.label}</span>
+          <span className="truncate text-[16px] font-semibold md:hidden">{current?.label}</span>
 
           <div className="ml-auto flex items-center gap-1.5">
             <button
               onClick={() => setPaletteOpen(true)}
               aria-label="Open command palette"
-              className="flex h-9 w-9 items-center justify-center rounded-xl transition hover:brightness-125 md:hidden"
+              className="flex h-9 w-9 items-center justify-center rounded-full transition hover:brightness-125 md:hidden"
               style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
             >
               <Command className="h-4 w-4" />
@@ -431,7 +443,7 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setScheme(scheme === "dark" ? "light" : "dark")}
               aria-label={scheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-              className="flex h-9 w-9 items-center justify-center rounded-xl transition hover:brightness-125"
+              className="flex h-9 w-9 items-center justify-center rounded-full transition hover:brightness-125"
               style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
             >
               {scheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -440,14 +452,14 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
             <Link
               href="/smarthome/security?tab=alerts"
               aria-label={`Alerts${unread ? ` (${unread} unread)` : ""}`}
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl transition hover:brightness-125"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full transition hover:brightness-125"
               style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
             >
               <Bell className="h-4 w-4" />
               {unread > 0 && (
                 <span
                   className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white"
-                  style={{ background: "#ef4444" }}
+                  style={{ background: "#ff453a" }}
                 >
                   {unread > 9 ? "9+" : unread}
                 </span>
@@ -458,7 +470,7 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
               <button
                 onClick={enableNotifications}
                 title="Enable desktop alerts"
-                className="hidden h-9 items-center gap-1.5 rounded-xl px-2.5 text-xs sm:flex"
+                className="hidden h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium sm:flex"
                 style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
               >
                 <BellOff className="h-3.5 w-3.5" /> Enable alerts
@@ -471,16 +483,14 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 md:px-8 md:pb-10">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 pb-28 pt-7 md:px-8 md:pb-12">{children}</main>
       </div>
 
       {/* --------------------------------------------- mobile bottom bar -- */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
+        className="cv-material fixed inset-x-0 bottom-0 z-30 flex md:hidden"
         style={{
           borderTop: "1px solid var(--cv-border)",
-          background: "color-mix(in srgb, var(--cv-bg) 94%, transparent)",
-          backdropFilter: "blur(12px)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
@@ -491,43 +501,48 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
             <Link
               key={n.href}
               href={n.href}
-              className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold"
+              className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium"
               style={{ color: active ? "var(--cv-accent-hi)" : "var(--cv-muted)" }}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-[22px] w-[22px]" />
               {n.label}
             </Link>
           );
         })}
         <button
           onClick={() => setMoreOpen(true)}
-          className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold"
+          className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium"
           style={{ color: secondary.some(isActive) ? "var(--cv-accent-hi)" : "var(--cv-muted)" }}
         >
-          <MoreHorizontal className="h-5 w-5" />
+          <MoreHorizontal className="h-[22px] w-[22px]" />
           More
         </button>
       </nav>
 
       {moreOpen && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="More sections">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMoreOpen(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMoreOpen(false)} />
           <div
-            className="absolute inset-x-0 bottom-0 rounded-t-3xl px-4 pb-8 pt-4"
-            style={{ background: "var(--cv-bg)", borderTop: "1px solid var(--cv-border)" }}
+            className="absolute inset-x-0 bottom-0 rounded-t-[28px] px-4 pb-8 pt-3"
+            style={{ background: "var(--cv-card)", borderTop: "1px solid var(--cv-border)" }}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-bold">More</span>
+            <div className="mx-auto mb-4 h-1 w-9 rounded-full" style={{ background: "var(--cv-border)" }} />
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-[19px] font-bold">More</span>
               <button onClick={() => setMoreOpen(false)} aria-label="Close">
                 <X className="h-5 w-5" style={{ color: "var(--cv-muted)" }} />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 gap-3">
               {secondary.map((n) => {
                 const Icon = n.icon;
                 return (
-                  <Link key={n.href} href={n.href} className="cv-card flex flex-col items-center gap-2 rounded-2xl px-2 py-4 text-center text-[11px] font-semibold">
-                    <Icon className="h-5 w-5" style={{ color: "var(--cv-accent-hi)" }} />
+                  <Link
+                    key={n.href}
+                    href={n.href}
+                    className="cv-tile flex flex-col items-center gap-2 px-2 py-4 text-center text-[12px] font-medium"
+                  >
+                    <Icon className="h-[22px] w-[22px]" style={{ color: "var(--cv-accent-hi)" }} />
                     {n.label}
                   </Link>
                 );

@@ -257,7 +257,7 @@ export function TelemetryPanel() {
                         border: `1px solid ${f === effectiveField ? "var(--cv-accent)" : "var(--cv-border)"}`,
                       }}
                     >
-                      <div className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--cv-muted)" }}>
+                      <div className="text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
                         {f}
                       </div>
                       <div className="mt-1 text-xl font-extrabold tabular-nums" style={{ color: CHART_COLORS[idx % CHART_COLORS.length] }}>

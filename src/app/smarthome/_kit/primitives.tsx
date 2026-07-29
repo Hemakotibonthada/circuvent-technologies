@@ -79,11 +79,17 @@ export function Surface({
   style?: React.CSSProperties;
   title?: string;
 }) {
-  const cls = `cv-card rounded-2xl text-left ${padded ? "p-4 sm:p-5" : ""} ${
-    interactive || onClick ? "transition hover:brightness-110 focus:outline-none focus-visible:ring-2" : ""
+  const clickable = interactive || Boolean(onClick);
+  const cls = `cv-card ${clickable ? "cv-tile" : ""} text-left ${padded ? "p-5" : ""} ${
+    clickable ? "focus:outline-none focus-visible:ring-2" : ""
   } ${className}`;
+  // Inline rather than a `rounded-*` utility: the radius is a theme token, and
+  // an inline value beats Tailwind deterministically regardless of the order
+  // styled-jsx and the Tailwind sheet end up in. `styleProp` spreads last so a
+  // caller can still opt out.
   const style: React.CSSProperties = {
-    ...(interactive || onClick ? ({ "--tw-ring-color": "var(--cv-accent)" } as React.CSSProperties) : null),
+    borderRadius: "var(--cv-r-card)",
+    ...(clickable ? ({ "--tw-ring-color": "var(--cv-accent)" } as React.CSSProperties) : null),
     ...styleProp,
   };
   if (onClick) {
@@ -100,7 +106,11 @@ export function Surface({
   );
 }
 
-/** Page title block. `actions` sits right on desktop and wraps beneath on mobile. */
+/**
+ * Page title block, sized as an iOS "Large Title".
+ *
+ * `actions` sits right on desktop and wraps beneath on mobile.
+ */
 export function PageHeader({
   title,
   subtitle,
@@ -113,18 +123,18 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && (
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--cv-accent-hi)" }}>
+          <div className="mb-1 text-[13px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
             {eyebrow}
           </div>
         )}
-        <h1 className="text-xl font-extrabold sm:text-2xl" style={{ color: "var(--cv-text)" }}>
+        <h1 className="text-[27px] font-bold leading-[1.08] sm:text-[34px]" style={{ color: "var(--cv-text)" }}>
           {title}
         </h1>
         {subtitle && (
-          <div className="mt-1 text-sm" style={{ color: "var(--cv-muted)" }}>
+          <div className="mt-1.5 text-[15px] leading-snug" style={{ color: "var(--cv-muted)" }}>
             {subtitle}
           </div>
         )}
@@ -134,10 +144,18 @@ export function PageHeader({
   );
 }
 
+/**
+ * Group heading.
+ *
+ * Apple labels a group of tiles with a real, sentence-case headline rather than
+ * the tiny letter-spaced all-caps eyebrow common to dense admin consoles — it
+ * is the strongest single signal that a screen is a *home*, not a control
+ * panel, so the console uses the same treatment throughout.
+ */
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
-    <div className="mb-3 mt-7 flex items-end justify-between gap-3">
-      <h2 className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--cv-muted)" }}>
+    <div className="mb-4 mt-9 flex items-end justify-between gap-3 first:mt-0">
+      <h2 className="text-[19px] font-bold leading-tight sm:text-[21px]" style={{ color: "var(--cv-text)" }}>
         {children}
       </h2>
       {right}
@@ -175,16 +193,17 @@ export function Button({
   full?: boolean;
 }) {
   const base =
-    "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 focus:outline-none focus-visible:ring-2";
+    "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 text-[14px] font-semibold tracking-[-0.01em] transition active:scale-[0.96] disabled:opacity-40 disabled:active:scale-100 focus:outline-none focus-visible:ring-2";
   const style: React.CSSProperties = { "--tw-ring-color": "var(--cv-accent)" } as React.CSSProperties;
   let cls = "";
   if (variant === "primary") {
     style.background = "var(--cv-gradient)";
     style.color = "#fff";
+    style.boxShadow = "var(--cv-shadow-1)";
   } else if (variant === "danger") {
     style.background = SEVERITY.critical.dim;
     style.color = SEVERITY.critical.fg;
-    style.border = `1px solid ${SEVERITY.critical.fg}55`;
+    style.border = `1px solid ${SEVERITY.critical.fg}44`;
   } else if (variant === "ghost") {
     style.color = "var(--cv-muted)";
     cls = "hover:brightness-125";
@@ -227,11 +246,11 @@ export function IconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:brightness-125 focus:outline-none focus-visible:ring-2"
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 hover:brightness-125 focus:outline-none focus-visible:ring-2"
       style={
         {
           background: active ? "var(--cv-accent)" : "var(--cv-card-hi)",
-          border: "1px solid var(--cv-border)",
+          border: active ? "1px solid transparent" : "1px solid var(--cv-border)",
           color: danger ? SEVERITY.critical.fg : active ? "#fff" : "var(--cv-muted)",
           "--tw-ring-color": "var(--cv-accent)",
         } as React.CSSProperties
@@ -285,7 +304,7 @@ export function Badge({
   }
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[12px] font-semibold tracking-[-0.01em] ${className}`}
       style={{ color: fg, background: bg }}
       title={title}
     >
@@ -332,30 +351,30 @@ export function Kpi({
   return (
     <Surface onClick={onClick} className="min-w-0">
       <div className="flex items-start justify-between gap-2">
-        <div className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--cv-muted)" }}>
+        <div className="text-[13px] font-semibold leading-tight" style={{ color: "var(--cv-muted)" }}>
           {label}
         </div>
-        {Icon && <Icon className="h-4 w-4 shrink-0" style={{ color: accent }} />}
+        {Icon && <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: accent }} />}
       </div>
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-2xl font-extrabold tabular-nums" style={{ color: accent }}>
+      <div className="mt-2.5 flex items-baseline gap-1.5">
+        <span className="cv-num text-[30px] font-bold leading-none" style={{ color: accent }}>
           {value}
         </span>
         {unit && (
-          <span className="text-sm font-semibold" style={{ color: "var(--cv-muted)" }}>
+          <span className="text-[15px] font-semibold" style={{ color: "var(--cv-muted)" }}>
             {unit}
           </span>
         )}
       </div>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         {hint && (
-          <span className="text-[11px]" style={{ color: "var(--cv-muted)" }}>
+          <span className="text-[13px]" style={{ color: "var(--cv-muted)" }}>
             {hint}
           </span>
         )}
         {typeof trend === "number" && Number.isFinite(trend) && (
           <span
-            className="text-[11px] font-bold tabular-nums"
+            className="cv-num text-[13px] font-semibold"
             style={{ color: trend > 0 ? SEVERITY.warning.fg : SEVERITY.ok.fg }}
           >
             {trend > 0 ? "▲" : "▼"} {Math.abs(trend).toFixed(0)}%
@@ -373,7 +392,7 @@ export function KpiGrid({ children, cols = 4 }: { children: ReactNode; cols?: 2 
       : cols === 3
         ? "sm:grid-cols-2 lg:grid-cols-3"
         : "sm:grid-cols-2 lg:grid-cols-4";
-  return <div className={`grid grid-cols-2 gap-3 ${c}`}>{children}</div>;
+  return <div className={`grid grid-cols-2 gap-3.5 ${c}`}>{children}</div>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -393,8 +412,12 @@ export function SearchField({
 }) {
   return (
     <div
-      className="flex min-h-11 flex-1 items-center gap-2.5 rounded-xl px-3.5"
-      style={{ background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)" }}
+      className="flex min-h-11 flex-1 items-center gap-2.5 px-3.5"
+      style={{
+        background: "var(--cv-input-bg)",
+        border: "1px solid var(--cv-border)",
+        borderRadius: "var(--cv-r-control)",
+      }}
     >
       <Search className="h-4 w-4 shrink-0" style={{ color: "var(--cv-muted)" }} />
       <input
@@ -402,7 +425,7 @@ export function SearchField({
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-transparent text-sm outline-none"
+        className="w-full bg-transparent text-[15px] outline-none"
         style={{ color: "var(--cv-text)" }}
       />
       {value && (
@@ -427,16 +450,16 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold" style={{ color: "var(--cv-muted)" }}>
+      <span className="mb-1.5 block text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
         {label}
       </span>
       {children}
       {error ? (
-        <span className="mt-1 block text-xs" style={{ color: SEVERITY.critical.fg }}>
+        <span className="mt-1 block text-[13px]" style={{ color: SEVERITY.critical.fg }}>
           {error}
         </span>
       ) : hint ? (
-        <span className="mt-1 block text-[11px]" style={{ color: "var(--cv-muted)" }}>
+        <span className="mt-1 block text-[12px]" style={{ color: "var(--cv-muted)" }}>
           {hint}
         </span>
       ) : null}
@@ -543,15 +566,15 @@ export function SwitchRow({
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-3 border-b py-3 last:border-0"
-      style={{ borderColor: "var(--cv-border)" }}
+      className="flex items-center justify-between gap-3 border-b py-3.5 last:border-0"
+      style={{ borderColor: "var(--cv-separator)" }}
     >
       <div className="min-w-0">
-        <div className="text-sm font-medium" style={{ color: "var(--cv-text)" }}>
+        <div className="text-[15px] font-medium" style={{ color: "var(--cv-text)" }}>
           {label}
         </div>
         {hint && (
-          <div className="mt-0.5 text-[11px]" style={{ color: "var(--cv-muted)" }}>
+          <div className="mt-0.5 text-[13px]" style={{ color: "var(--cv-muted)" }}>
             {hint}
           </div>
         )}
@@ -563,19 +586,27 @@ export function SwitchRow({
         aria-label={label}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className="relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-40"
-        style={{ background: checked ? "var(--cv-gradient)" : "var(--cv-input-bg)", border: "1px solid var(--cv-border)" }}
+        className="relative h-[31px] w-[51px] shrink-0 rounded-full transition disabled:opacity-40"
+        style={{
+          background: checked ? "var(--cv-gradient)" : "var(--cv-input-bg)",
+          border: checked ? "1px solid transparent" : "1px solid var(--cv-border)",
+        }}
       >
         <span
-          className="absolute top-1/2 block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 motion-reduce:transition-none"
-          style={{ left: 3, marginTop: -10, transform: `translateX(${checked ? 20 : 0}px)` }}
+          className="absolute top-1/2 block h-[27px] w-[27px] rounded-full bg-white transition-transform duration-200 motion-reduce:transition-none"
+          style={{
+            left: 1,
+            marginTop: -13.5,
+            transform: `translateX(${checked ? 20 : 0}px)`,
+            boxShadow: "0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16)",
+          }}
         />
       </button>
     </div>
   );
 }
 
-/** Horizontal filter chips. Generic over the chip value so callers stay typed. */
+/** Horizontal filter chips, styled as the segmented control's smaller sibling. */
 export function FilterChips<T extends string>({
   options,
   value,
@@ -586,18 +617,17 @@ export function FilterChips<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div
-      className="flex gap-1 overflow-x-auto rounded-xl p-1"
-      style={{ background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)" }}
-    >
+    <div className="cv-seg flex gap-1 overflow-x-auto">
       {options.map((o) => {
         const active = o.value === value;
         return (
           <button
             key={o.value}
             onClick={() => onChange(o.value)}
-            className="min-h-9 whitespace-nowrap rounded-lg px-3 text-xs font-bold transition"
-            style={active ? { background: "var(--cv-gradient)", color: "#fff" } : { color: "var(--cv-muted)" }}
+            className={`min-h-9 whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold tracking-[-0.01em] transition ${
+              active ? "cv-seg-thumb" : ""
+            }`}
+            style={{ color: active ? "var(--cv-text)" : "var(--cv-muted)" }}
           >
             {o.label}
             {typeof o.count === "number" && ` ${o.count}`}
@@ -620,9 +650,14 @@ export interface TabDef {
 }
 
 /**
- * Section tabs. Folding the console's former 36 top-level routes into a handful
- * of sections means each section carries several sub-views; this is how they
- * are exposed without reintroducing nav sprawl.
+ * Section tabs, rendered as an iOS segmented control.
+ *
+ * Folding the console's former 36 top-level routes into a handful of sections
+ * means each section carries several sub-views; this is how they are exposed
+ * without reintroducing nav sprawl. The recessed track with a single elevated
+ * thumb reads as "pick one of these" far faster than an underline strip, and it
+ * degrades to a horizontally scrollable row when a section has five tabs on a
+ * narrow screen.
  */
 export function Tabs({
   tabs,
@@ -634,35 +669,39 @@ export function Tabs({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="mb-5 flex gap-1 overflow-x-auto border-b pb-px" style={{ borderColor: "var(--cv-border)" }} role="tablist">
-      {tabs.map((t) => {
-        const isActive = t.id === active;
-        const Icon = t.icon;
-        return (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(t.id)}
-            className="relative flex min-h-11 shrink-0 items-center gap-2 px-3.5 text-sm font-semibold transition"
-            style={{ color: isActive ? "var(--cv-accent-hi)" : "var(--cv-muted)" }}
-          >
-            {Icon && <Icon className="h-4 w-4" />}
-            {t.label}
-            {typeof t.count === "number" && t.count > 0 && (
-              <span
-                className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
-                style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
-              >
-                {t.count}
-              </span>
-            )}
-            {isActive && (
-              <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full" style={{ background: "var(--cv-gradient)" }} />
-            )}
-          </button>
-        );
-      })}
+    <div className="mb-6 -mx-1 overflow-x-auto px-1 pb-1">
+      <div className="cv-seg inline-flex min-w-full gap-1 sm:min-w-0" role="tablist">
+        {tabs.map((t) => {
+          const isActive = t.id === active;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(t.id)}
+              className={`relative flex min-h-9 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap px-3.5 text-[13px] font-semibold tracking-[-0.01em] transition sm:flex-none ${
+                isActive ? "cv-seg-thumb" : ""
+              }`}
+              style={{ color: isActive ? "var(--cv-text)" : "var(--cv-muted)" }}
+            >
+              {Icon && <Icon className="h-4 w-4" />}
+              {t.label}
+              {typeof t.count === "number" && t.count > 0 && (
+                <span
+                  className="cv-num rounded-full px-1.5 text-[11px] font-semibold"
+                  style={{
+                    background: isActive ? "color-mix(in srgb, var(--cv-accent) 18%, transparent)" : "var(--cv-card-hi)",
+                    color: isActive ? "var(--cv-accent-hi)" : "var(--cv-muted)",
+                  }}
+                >
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -708,17 +747,20 @@ export function EmptyState({
 }) {
   return (
     <div
-      className="flex flex-col items-center rounded-2xl border border-dashed px-6 py-14 text-center"
-      style={{ borderColor: "var(--cv-border)" }}
+      className="flex flex-col items-center border border-dashed px-6 py-16 text-center"
+      style={{ borderColor: "var(--cv-border)", borderRadius: "var(--cv-r-card)" }}
     >
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--cv-card-hi)" }}>
+      <div
+        className="mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+        style={{ background: "var(--cv-card-hi)" }}
+      >
         <Icon className="h-7 w-7" style={{ color: "var(--cv-muted)" }} />
       </div>
-      <h3 className="text-base font-bold" style={{ color: "var(--cv-text)" }}>
+      <h3 className="text-[19px] font-bold" style={{ color: "var(--cv-text)" }}>
         {title}
       </h3>
       {body && (
-        <p className="mt-1 max-w-sm text-sm" style={{ color: "var(--cv-muted)" }}>
+        <p className="mt-1.5 max-w-sm text-[15px] leading-snug" style={{ color: "var(--cv-muted)" }}>
           {body}
         </p>
       )}
@@ -730,11 +772,15 @@ export function EmptyState({
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div
-      className="flex flex-col items-start gap-3 rounded-2xl px-4 py-3.5 sm:flex-row sm:items-center"
-      style={{ background: SEVERITY.critical.dim, border: `1px solid ${SEVERITY.critical.fg}44` }}
+      className="flex flex-col items-start gap-3 px-4 py-3.5 sm:flex-row sm:items-center"
+      style={{
+        background: SEVERITY.critical.dim,
+        border: `1px solid ${SEVERITY.critical.fg}44`,
+        borderRadius: "var(--cv-r-card)",
+      }}
     >
       <XCircle className="h-5 w-5 shrink-0" style={{ color: SEVERITY.critical.fg }} />
-      <span className="flex-1 text-sm" style={{ color: SEVERITY.critical.fg }}>
+      <span className="flex-1 text-[15px]" style={{ color: SEVERITY.critical.fg }}>
         {message}
       </span>
       {onRetry && <Button onClick={onRetry}>Retry</Button>}
@@ -746,11 +792,18 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 export function Callout({ tone = "info", title, children }: { tone?: Severity; title?: string; children: ReactNode }) {
   const Icon = SEVERITY_ICON[tone];
   return (
-    <div className="flex gap-3 rounded-xl px-3.5 py-3" style={{ background: SEVERITY[tone].dim, border: `1px solid ${SEVERITY[tone].fg}33` }}>
+    <div
+      className="flex gap-3 px-4 py-3"
+      style={{
+        background: SEVERITY[tone].dim,
+        border: `1px solid ${SEVERITY[tone].fg}33`,
+        borderRadius: "var(--cv-r-control)",
+      }}
+    >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: SEVERITY[tone].fg }} />
-      <div className="min-w-0 text-sm">
+      <div className="min-w-0 text-[14px] leading-snug">
         {title && (
-          <div className="font-bold" style={{ color: SEVERITY[tone].fg }}>
+          <div className="font-semibold" style={{ color: SEVERITY[tone].fg }}>
             {title}
           </div>
         )}
@@ -784,10 +837,10 @@ export function Meter({
   return (
     <div>
       {(label || showValue) && (
-        <div className="mb-1.5 flex items-baseline justify-between gap-2 text-xs">
+        <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[13px]">
           {label && <span style={{ color: "var(--cv-muted)" }}>{label}</span>}
           {showValue && (
-            <span className="font-bold tabular-nums" style={{ color }}>
+            <span className="cv-num font-semibold" style={{ color }}>
               {Math.round(value)}
               {unit}
             </span>
@@ -822,16 +875,20 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
   return (
     <div>
       {label && (
-        <div className="mb-1.5 text-xs font-semibold" style={{ color: "var(--cv-muted)" }}>
+        <div className="mb-1.5 text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
           {label}
         </div>
       )}
       <button
         onClick={copy}
-        className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left transition hover:brightness-110"
-        style={{ background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)" }}
+        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left transition hover:brightness-110"
+        style={{
+          background: "var(--cv-input-bg)",
+          border: "1px solid var(--cv-border)",
+          borderRadius: "var(--cv-r-control)",
+        }}
       >
-        <code className="min-w-0 flex-1 truncate font-mono text-xs" style={{ color: "var(--cv-text)" }}>
+        <code className="min-w-0 flex-1 truncate font-mono text-[13px]" style={{ color: "var(--cv-text)" }}>
           {value}
         </code>
         {copied ? (
@@ -850,11 +907,11 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
 
 export function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0" style={{ borderColor: "var(--cv-border)" }}>
-      <span className="text-sm" style={{ color: "var(--cv-muted)" }}>
+    <div className="flex items-center justify-between gap-3 border-b py-3 last:border-0" style={{ borderColor: "var(--cv-separator)" }}>
+      <span className="text-[15px]" style={{ color: "var(--cv-muted)" }}>
         {label}
       </span>
-      <span className="min-w-0 truncate text-sm font-semibold" style={{ color: "var(--cv-text)" }}>
+      <span className="min-w-0 truncate text-[15px] font-semibold" style={{ color: "var(--cv-text)" }}>
         {children}
       </span>
     </div>
@@ -876,18 +933,18 @@ export function Disclosure({
   const [open, setOpen] = useState(defaultOpen);
   const id = useId();
   return (
-    <div className="cv-card overflow-hidden rounded-2xl">
+    <div className="cv-card overflow-hidden" style={{ borderRadius: "var(--cv-r-card)" }}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={id}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left"
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
       >
-        <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "var(--cv-text)" }}>
+        <span className="flex items-center gap-2 text-[16px] font-semibold" style={{ color: "var(--cv-text)" }}>
           {title}
           {typeof count === "number" && (
             <span
-              className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+              className="cv-num rounded-full px-1.5 py-0.5 text-[11px] font-semibold"
               style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
             >
               {count}
@@ -897,7 +954,7 @@ export function Disclosure({
         <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} style={{ color: "var(--cv-muted)" }} />
       </button>
       {open && (
-        <div id={id} className="border-t px-4 py-4" style={{ borderColor: "var(--cv-border)" }}>
+        <div id={id} className="border-t px-5 py-4" style={{ borderColor: "var(--cv-separator)" }}>
           {children}
         </div>
       )}
@@ -913,7 +970,7 @@ export function Pager({ page, pageCount, onPage, total }: { page: number; pageCo
   if (pageCount <= 1) return null;
   return (
     <div className="mt-4 flex items-center justify-between gap-3">
-      <span className="text-xs" style={{ color: "var(--cv-muted)" }}>
+      <span className="text-[13px]" style={{ color: "var(--cv-muted)" }}>
         Page {page + 1} of {pageCount}
         {typeof total === "number" ? ` · ${total} rows` : ""}
       </span>

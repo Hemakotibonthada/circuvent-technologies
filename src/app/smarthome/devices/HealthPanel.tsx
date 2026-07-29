@@ -107,9 +107,7 @@ export function HealthPanel() {
       {/* Control-plane reachability probe */}
       <div className="cv-card rounded-2xl p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-2">
-          <h3
-            className="text-[11px] font-bold uppercase tracking-[0.16em]"
-            style={{ color: "var(--cv-muted)" }}
+          <h3 className="text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}
           >
             Control plane RTT
           </h3>
@@ -165,9 +163,7 @@ export function HealthPanel() {
       {/* Admin infrastructure health (only shown when the API confirms admin access) */}
       {isAdmin && checked && adminHealth.health && (
         <div className="cv-card rounded-2xl p-4 sm:p-5">
-          <h3
-            className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em]"
-            style={{ color: "var(--cv-muted)" }}
+          <h3 className="mb-3 text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}
           >
             Infrastructure (admin)
           </h3>
@@ -206,9 +202,7 @@ export function HealthPanel() {
 
       <div className="cv-card rounded-2xl p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-2">
-          <h3
-            className="text-[11px] font-bold uppercase tracking-[0.16em]"
-            style={{ color: "var(--cv-muted)" }}
+          <h3 className="text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}
           >
             Health thresholds
           </h3>

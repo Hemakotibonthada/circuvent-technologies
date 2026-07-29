@@ -211,7 +211,7 @@ export function ReportsPanel() {
         className="rounded-2xl px-5 py-4"
         style={{ background: "var(--cv-card-hi)", border: "1px solid var(--cv-border)" }}
       >
-        <div className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+        <div className="text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}>
           Operational report
         </div>
         <div className="mt-1 text-lg font-extrabold" style={{ color: "var(--cv-text)" }}>
@@ -276,7 +276,7 @@ export function ReportsPanel() {
                 {/* By type */}
                 {fleetSummary.types.length > 0 && (
                   <div>
-                    <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--cv-muted)" }}>
+                    <div className="mb-2 text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
                       By device type
                     </div>
                     <div className="space-y-2">
@@ -303,7 +303,7 @@ export function ReportsPanel() {
                 {/* By room */}
                 {fleetSummary.rooms.length > 0 && (
                   <div>
-                    <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--cv-muted)" }}>
+                    <div className="mb-2 text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
                       By room
                     </div>
                     <div className="space-y-2">

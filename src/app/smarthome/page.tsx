@@ -244,10 +244,10 @@ export default function OverviewPage() {
 
             <Surface padded={false} className="flex flex-col">
               <div className="flex items-center justify-between gap-2 border-b px-4 py-3.5" style={{ borderColor: "var(--cv-border)" }}>
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+                <h3 className="text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}>
                   Needs attention
                 </h3>
-                <Link href="/smarthome/security?tab=alerts" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                <Link href="/smarthome/security?tab=alerts" className="text-[13px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
                   All alerts
                 </Link>
               </div>
@@ -299,7 +299,7 @@ export default function OverviewPage() {
             <>
               <SectionTitle
                 right={
-                  <Link href="/smarthome/automation?tab=scenes" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                  <Link href="/smarthome/automation?tab=scenes" className="text-[13px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
                     Manage
                   </Link>
                 }
@@ -324,7 +324,7 @@ export default function OverviewPage() {
           {/* -------------------------------------------- live control ------ */}
           <SectionTitle
             right={
-              <Link href="/smarthome/devices" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+              <Link href="/smarthome/devices" className="text-[13px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
                 All {fleet.devices.length} devices
               </Link>
             }
@@ -368,7 +368,7 @@ export default function OverviewPage() {
               />
             ) : (
               <Surface>
-                <h3 className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+                <h3 className="mb-3 text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}>
                   Current draw by space
                 </h3>
                 <Callout tone="info" title="No metered devices">
@@ -379,10 +379,10 @@ export default function OverviewPage() {
 
             <Surface>
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+                <h3 className="text-[17px] font-semibold" style={{ color: "var(--cv-text)" }}>
                   Spaces
                 </h3>
-                <Link href="/smarthome/spaces" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                <Link href="/smarthome/spaces" className="text-[13px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
                   Manage
                 </Link>
               </div>
@@ -420,7 +420,7 @@ export default function OverviewPage() {
           {/* -------------------------------------------- latency footer ---- */}
           <SectionTitle
             right={
-              <Link href="/smarthome/insights?tab=latency" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+              <Link href="/smarthome/insights?tab=latency" className="text-[13px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
                 Latency lab
               </Link>
             }
@@ -486,7 +486,7 @@ function HealthCell({
         <Icon className="h-4 w-4" style={{ color }} />
       </span>
       <div className="min-w-0">
-        <div className="truncate text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--cv-muted)" }}>
+        <div className="truncate text-[13px] font-semibold" style={{ color: "var(--cv-muted)" }}>
           {label}
         </div>
         <div className="truncate text-sm font-bold tabular-nums" style={{ color }}>
