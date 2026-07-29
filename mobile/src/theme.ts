@@ -1,6 +1,7 @@
 // Shared visual language for the Circuvent app — a darker, gradient-rich theme
 // inspired by premium smart-home apps, kept on the Circuvent cyan→violet brand.
 import { StatusBar } from "react-native";
+import type { IconName } from "./icons";
 
 export const C = {
   bg: "#090d1f",
@@ -34,7 +35,13 @@ export const GRAD = {
 };
 
 export interface DeviceMeta {
+  /**
+   * Emoji fallback, kept only for the few legacy screens that still render a
+   * glyph into a <Text>. New UI should use `icon`, which is tintable and
+   * renders identically on every OS.
+   */
   glyph: string;
+  icon: IconName;
   accent: string;
   grad: Grad;
   label: string;
@@ -43,26 +50,26 @@ export interface DeviceMeta {
 }
 
 export const DEVICE_META: Record<string, DeviceMeta> = {
-  aquaguard: { glyph: "💧", accent: C.cyan, grad: GRAD.cyan, label: "AquaGuard", toggle: { field: "pump", label: "Pump" } },
-  "home-hub": { glyph: "🏠", accent: C.violet, grad: GRAD.violet, label: "Home Hub" },
-  "smart-plug": { glyph: "🔌", accent: C.cyan, grad: GRAD.cyan, label: "Smart Plug", toggle: { field: "power", label: "Power" } },
-  "smart-switch": { glyph: "🎚️", accent: C.violet, grad: GRAD.violet, label: "Smart Switch", toggle: { field: "power", label: "Gang 1" } },
-  "energy-monitor": { glyph: "⚡", accent: C.amber, grad: GRAD.amber, label: "Energy Monitor" },
-  guardian: { glyph: "🛡️", accent: C.red, grad: GRAD.red, label: "Guardian" },
-  "motion-sensor": { glyph: "🚶", accent: C.green, grad: GRAD.green, label: "Motion Sensor" },
-  "agri-starter": { glyph: "🌱", accent: C.green, grad: GRAD.green, label: "Agri Starter", toggle: { field: "pump", label: "Pump" } },
-  "smart-light": { glyph: "💡", accent: C.amber, grad: GRAD.amber, label: "Smart Light", toggle: { field: "power", label: "Light" } },
-  "smart-fan": { glyph: "🌀", accent: C.cyan, grad: GRAD.cyan, label: "Smart Fan", toggle: { field: "power", label: "Fan" } },
-  curtain: { glyph: "🪟", accent: C.violet, grad: GRAD.violet, label: "Curtain" },
-  "smart-lock": { glyph: "🔒", accent: C.amber, grad: GRAD.amber, label: "Smart Lock", toggle: { field: "locked", label: "Lock" } },
-  watertank: { glyph: "🌊", accent: C.cyan, grad: GRAD.cyan, label: "Water Tank", toggle: { field: "pump", label: "Pump" } },
-  "rfid-gate": { glyph: "🚗", accent: C.amber, grad: GRAD.amber, label: "RFID Gate" },
-  facedoor: { glyph: "🚪", accent: C.violet, grad: GRAD.violet, label: "Smart Door", toggle: { field: "locked", label: "Lock" } },
-  touchboard: { glyph: "🎛️", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board", toggle: { field: "g1", label: "Gang 1" } },
+  aquaguard: { glyph: "💧", icon: "aquaguard", accent: C.cyan, grad: GRAD.cyan, label: "AquaGuard", toggle: { field: "pump", label: "Pump" } },
+  "home-hub": { glyph: "🏠", icon: "home-hub", accent: C.violet, grad: GRAD.violet, label: "Home Hub" },
+  "smart-plug": { glyph: "🔌", icon: "smart-plug", accent: C.cyan, grad: GRAD.cyan, label: "Smart Plug", toggle: { field: "power", label: "Power" } },
+  "smart-switch": { glyph: "🎚️", icon: "smart-switch", accent: C.violet, grad: GRAD.violet, label: "Smart Switch", toggle: { field: "power", label: "Gang 1" } },
+  "energy-monitor": { glyph: "⚡", icon: "energy-monitor", accent: C.amber, grad: GRAD.amber, label: "Energy Monitor" },
+  guardian: { glyph: "🛡️", icon: "guardian", accent: C.red, grad: GRAD.red, label: "Guardian" },
+  "motion-sensor": { glyph: "🚶", icon: "motion-sensor", accent: C.green, grad: GRAD.green, label: "Motion Sensor" },
+  "agri-starter": { glyph: "🌱", icon: "agri-starter", accent: C.green, grad: GRAD.green, label: "Agri Starter", toggle: { field: "pump", label: "Pump" } },
+  "smart-light": { glyph: "💡", icon: "smart-light", accent: C.amber, grad: GRAD.amber, label: "Smart Light", toggle: { field: "power", label: "Light" } },
+  "smart-fan": { glyph: "🌀", icon: "smart-fan", accent: C.cyan, grad: GRAD.cyan, label: "Smart Fan", toggle: { field: "power", label: "Fan" } },
+  curtain: { glyph: "🪟", icon: "curtain", accent: C.violet, grad: GRAD.violet, label: "Curtain" },
+  "smart-lock": { glyph: "🔒", icon: "smart-lock", accent: C.amber, grad: GRAD.amber, label: "Smart Lock", toggle: { field: "locked", label: "Lock" } },
+  watertank: { glyph: "🌊", icon: "watertank", accent: C.cyan, grad: GRAD.cyan, label: "Water Tank", toggle: { field: "pump", label: "Pump" } },
+  "rfid-gate": { glyph: "🚗", icon: "rfid-gate", accent: C.amber, grad: GRAD.amber, label: "RFID Gate" },
+  facedoor: { glyph: "🚪", icon: "facedoor", accent: C.violet, grad: GRAD.violet, label: "Smart Door", toggle: { field: "locked", label: "Lock" } },
+  touchboard: { glyph: "🎛️", icon: "touchboard", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board", toggle: { field: "g1", label: "Gang 1" } },
 };
 
 export function deviceMeta(type: string): DeviceMeta {
-  return DEVICE_META[type] ?? { glyph: "📟", accent: C.faint, grad: GRAD.slate, label: type || "Device" };
+  return DEVICE_META[type] ?? { glyph: "📟", icon: "device", accent: C.faint, grad: GRAD.slate, label: type || "Device" };
 }
 
 export function greeting(): string {

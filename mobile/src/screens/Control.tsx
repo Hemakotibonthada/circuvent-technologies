@@ -8,6 +8,7 @@ import { useDevices, capabilities } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector } from "../ui";
 import { deviceMeta, type Palette } from "../theme";
 import { useSwitchWidgets } from "../widgets";
+import { Icon } from "../icons";
 
 const COLORS = ["#ffffff", "#ffd27f", "#ff7f7f", "#7fd0ff", "#7fff9e", "#c79bff", "#ff9be0"];
 
@@ -37,7 +38,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
         </View>
 
         <View style={s.hero}>
-          <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.heroPill}><Text style={{ fontSize: 28 }}>{meta.glyph}</Text></LinearGradient>
+          <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.heroPill}><Icon name={meta.icon} size={28} color="#fff" /></LinearGradient>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 24, fontWeight: "800" }} numberOfLines={1}>{d.name || d.id}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>

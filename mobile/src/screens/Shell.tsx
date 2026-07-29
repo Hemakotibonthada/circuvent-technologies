@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
+import { BlurView } from "expo-blur";
 import { Device } from "../api";
 import { useDevices } from "../store";
-import { useTheme, useBackHandler } from "../ui";
+import { useTheme, useBackHandler, useSafeArea } from "../ui";
+import { Icon, type IconName } from "../icons";
 import Home from "./Home";
 import Devices from "./Devices";
 import Automate from "./Automate";
@@ -21,23 +23,30 @@ type Tab = "home" | "devices" | "automate" | "energy" | "settings" | "more";
 type Seg = "scenes" | "rooms" | "automations";
 type Overlay = { kind: "control"; device: Device } | { kind: "changewifi"; device: Device } | { kind: "add" } | { kind: "notifications" } | { kind: "search" } | { kind: "weather" } | { kind: "kiosk" } | null;
 
-const TABS: { key: Tab; label: string; glyph: string }[] = [
-  { key: "home", label: "Home", glyph: "🏠" },
-  { key: "devices", label: "Devices", glyph: "📟" },
-  { key: "automate", label: "Automate", glyph: "✨" },
-  { key: "energy", label: "Energy", glyph: "⚡" },
-  { key: "settings", label: "Settings", glyph: "⚙️" },
-  { key: "more", label: "More", glyph: "🧩" },
+const TABS: { key: Tab; label: string; icon: IconName }[] = [
+  { key: "home", label: "Home", icon: "home" },
+  { key: "devices", label: "Devices", icon: "devices" },
+  { key: "automate", label: "Automate", icon: "automate" },
+  { key: "energy", label: "Energy", icon: "energy" },
+  { key: "settings", label: "Settings", icon: "settings" },
+  { key: "more", label: "More", icon: "more" },
 ];
 const PILL_TABS = TABS.filter((t) => t.key !== "home");
-const NAV_SPACE = Platform.OS === "ios" ? 104 : 92;
+const NAV_HEIGHT = 62;
 
 export default function Shell() {
-  const { c } = useTheme();
+  const { c, scheme } = useTheme();
+  const insets = useSafeArea();
   const { refresh } = useDevices();
   const [tab, setTab] = useState<Tab>("home");
   const [seg, setSeg] = useState<Seg>("scenes");
   const [overlay, setOverlay] = useState<Overlay>(null);
+
+  // Clearance so scrolled content ends above the floating nav rather than
+  // behind it — the bar itself, its inset from the bottom, and the home
+  // indicator / gesture area underneath.
+  const navBottom = insets.bottom + 16;
+  const navSpace = NAV_HEIGHT + navBottom + 18;
 
   // Android hardware/gesture back: dismiss an overlay, else return to Home,
   // else let the OS exit the app (prevents an accidental one-swipe exit).
@@ -71,7 +80,7 @@ export default function Shell() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <View style={{ flex: 1, paddingBottom: NAV_SPACE }}>
+      <View style={{ flex: 1, paddingBottom: navSpace }}>
         {tab === "home" && (
           <Home
             onOpenDevice={openControl}
@@ -100,20 +109,57 @@ export default function Shell() {
         )}
       </View>
 
-      <View style={s.navWrap} pointerEvents="box-none">
+      <View style={[s.navWrap, { bottom: navBottom }]} pointerEvents="box-none">
         <Pressable
           onPress={() => setTab("home")}
           hitSlop={8}
-          style={[s.homeBtn, { backgroundColor: c.accent, shadowColor: c.accent, borderWidth: tab === "home" ? 3 : 0, borderColor: "#ffffff" }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Home"
+          accessibilityState={{ selected: tab === "home" }}
+          android_ripple={{ color: "rgba(255,255,255,0.25)", borderless: true, radius: 34 }}
+          style={({ pressed }) => [
+            s.homeBtn,
+            {
+              backgroundColor: c.accent,
+              shadowColor: c.accent,
+              borderWidth: tab === "home" ? 3 : 0,
+              borderColor: c.bg,
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.95 : 1 }],
+            },
+          ]}
         >
-          <Text style={{ fontSize: 24 }}>🏠</Text>
+          <Icon name="home" size={24} color={c.onAccent} />
         </Pressable>
-        <View style={s.navPill}>
+        <View
+          style={[
+            s.navPill,
+            {
+              backgroundColor: c.isGlass ? "transparent" : c.card,
+              borderColor: c.isGlass ? c.glassBorder : c.border,
+            },
+          ]}
+        >
+          {c.isGlass && (
+            <>
+              <BlurView intensity={scheme === "dark" ? 55 : 70} tint={c.glassTint} style={[StyleSheet.absoluteFill, s.navPillFill]} />
+              <View style={[StyleSheet.absoluteFill, s.navPillFill, { backgroundColor: c.surfaceHi }]} />
+            </>
+          )}
           {PILL_TABS.map((t) => {
             const active = tab === t.key;
             return (
-              <Pressable key={t.key} style={s.navItem} onPress={() => setTab(t.key)} hitSlop={6}>
-                <Text style={{ fontSize: 20, opacity: active ? 1 : 0.6 }}>{t.glyph}</Text>
+              <Pressable
+                key={t.key}
+                style={s.navItem}
+                onPress={() => setTab(t.key)}
+                hitSlop={6}
+                accessibilityRole="tab"
+                accessibilityLabel={t.label}
+                accessibilityState={{ selected: active }}
+                android_ripple={{ color: c.borderHi, borderless: true, radius: 28 }}
+              >
+                <Icon name={t.icon} size={21} color={active ? c.accentHi : c.faint} />
                 <View style={[s.navDot, { backgroundColor: active ? c.accentHi : "transparent" }]} />
               </Pressable>
             );
@@ -129,7 +175,6 @@ const s = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    bottom: Platform.OS === "ios" ? 30 : 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -147,9 +192,10 @@ const s = StyleSheet.create({
   },
   navPill: {
     flex: 1,
-    height: 62,
+    height: NAV_HEIGHT,
     borderRadius: 31,
-    backgroundColor: "#1E1E22",
+    borderWidth: 1,
+    overflow: "hidden",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
@@ -160,6 +206,7 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  navItem: { flex: 1, height: 62, alignItems: "center", justifyContent: "center" },
+  navPillFill: { borderRadius: 31 },
+  navItem: { flex: 1, height: NAV_HEIGHT, alignItems: "center", justifyContent: "center" },
   navDot: { width: 5, height: 5, borderRadius: 3, marginTop: 5 },
 });

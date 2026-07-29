@@ -6,6 +6,7 @@ import { useDevices } from "../store";
 import { deviceMeta } from "../theme";
 import { getUserCameras, mergedCameras, snapshotUrl, type Camera } from "../cameras";
 import { api } from "../api";
+import { Icon } from "../icons";
 
 // Wall-kiosk mode for a dedicated tablet: fullscreen, screen kept awake,
 // back/exit locked behind a PIN, showing a live home dashboard + a camera
@@ -128,7 +129,7 @@ export default function Kiosk({ onExit }: { onExit: () => void }) {
             const on = meta.toggle ? !!d.state[meta.toggle.field] : false;
             return (
               <Pressable key={d.id} onPress={() => toggle(d.id, d.type, d.state)} style={{ width: "47%", borderRadius: 16, padding: 16, backgroundColor: on ? meta.accent : c.card, borderWidth: 1, borderColor: on ? meta.accent : c.border }}>
-                <Text style={{ fontSize: 28 }}>{meta.glyph}</Text>
+                <Icon name={meta.icon} size={28} color={on ? "#04121a" : meta.accent} />
                 <Text style={{ color: on ? "#04121a" : c.text, fontWeight: "800", fontSize: 15, marginTop: 8 }} numberOfLines={1}>{d.name || d.id}</Text>
                 <Text style={{ color: on ? "#04121a" : c.faint, fontSize: 12, marginTop: 2 }}>{meta.toggle ? (on ? "On" : "Off") : meta.label}</Text>
               </Pressable>

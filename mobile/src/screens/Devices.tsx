@@ -5,6 +5,7 @@ import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, StatTile, useTheme } from "../ui";
 import { GRAD, deviceMeta } from "../theme";
+import { Icon } from "../icons";
 
 export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void; onAdd: () => void }) {
   const { c } = useTheme();
@@ -22,9 +23,9 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
 
   const listHeader = (
     <View style={s.stats}>
-      <StatTile label="Devices" value={String(devices.length)} grad={GRAD.violet} glyph="📟" />
-      <StatTile label="Online" value={String(online)} grad={GRAD.green} glyph="🟢" />
-      <StatTile label="Offline" value={String(devices.length - online)} grad={GRAD.slate} glyph="⚪" />
+      <StatTile label="Devices" value={String(devices.length)} grad={GRAD.violet} icon="devices" />
+      <StatTile label="Online" value={String(online)} grad={GRAD.green} icon="online" />
+      <StatTile label="Offline" value={String(devices.length - online)} grad={GRAD.slate} icon="offline" />
     </View>
   );
 
@@ -79,7 +80,7 @@ function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpe
   return (
     <Card onPress={() => onOpen(device)} padded>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}><Text style={{ fontSize: 22 }}>{meta.glyph}</Text></LinearGradient>
+        <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}><Icon name={meta.icon} size={22} color="#fff" /></LinearGradient>
         <Pressable onPress={() => onFav(!device.favorite)} hitSlop={8}>
           <Text style={{ fontSize: 16 }}>{device.favorite ? "⭐" : "☆"}</Text>
         </Pressable>

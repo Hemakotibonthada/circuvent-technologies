@@ -4,6 +4,7 @@ import { api, Device, Scene, Room } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, SectionLabel, useTheme } from "../ui";
 import { deviceMeta } from "../theme";
+import { Icon } from "../icons";
 
 type Seg = "scenes" | "rooms" | "automations";
 const row = { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingVertical: 12, paddingHorizontal: 14 };
@@ -77,7 +78,7 @@ export default function CommandPalette({
                   const on = pf ? !!d.state[pf] : false;
                   return (
                     <Pressable key={d.id} onPress={() => onOpenDevice(d)} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
-                      <Text style={{ fontSize: 18 }}>{meta.glyph}</Text>
+                      <Icon name={meta.icon} size={18} color={meta.accent} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.text, fontWeight: "600" }} numberOfLines={1}>{d.name || d.id}</Text>
                         <Text style={{ color: c.faint, fontSize: 12 }} numberOfLines={1}>{[d.room, meta.label].filter(Boolean).join(" · ")}{d.online ? "" : " · offline"}</Text>

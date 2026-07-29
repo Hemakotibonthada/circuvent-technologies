@@ -4,6 +4,7 @@ import { api, Scene, SceneAction } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Card, SectionLabel, PrimaryButton, GhostButton, useTheme } from "../ui";
 import { deviceMeta } from "../theme";
+import { Icon } from "../icons";
 
 const ICONS = ["✨", "🌙", "🌅", "🎬", "🍿", "🛋️", "🚪", "🏠", "💤", "☕", "🎉", "🔒"];
 
@@ -133,7 +134,7 @@ function SceneEditor({ scene, onDone }: { scene: Scene | null; onDone: () => voi
           <Pressable key={d.id} onPress={() => cycle(d.id)}>
             <Card padded style={{ marginBottom: 8 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <Text style={{ fontSize: 20 }}>{meta.glyph}</Text>
+                <Icon name={meta.icon} size={20} color={meta.accent} />
                 <Text style={{ color: c.text, fontWeight: "600", flex: 1 }} numberOfLines={1}>{d.name || d.id}</Text>
                 <View style={[s.stateTag, { backgroundColor: st === "on" ? c.green + "22" : st === "off" ? c.red + "22" : c.border }]}>
                   <Text style={{ color: st === "on" ? c.green : st === "off" ? c.red : c.faint, fontWeight: "700", fontSize: 13 }}>

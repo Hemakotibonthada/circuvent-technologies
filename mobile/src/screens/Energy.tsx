@@ -4,6 +4,7 @@ import { api, EnergySummary, EnergySeries } from "../api";
 import { Screen, Card, SectionLabel, useTheme, Chip } from "../ui";
 import { Gauge, LineChart, Donut, Sparkline, HBars } from "../charts";
 import { deviceMeta } from "../theme";
+import { Icon } from "../icons";
 
 const PALETTE = ["#06b6d4", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#14b8a6"];
 
@@ -100,7 +101,7 @@ export default function Energy() {
             <Pressable key={d.id} onPress={() => setSelected(d.id)}>
               <Card padded hi={on} style={[{ marginBottom: 10 }, on && { borderColor: c.accent, borderWidth: 1.5 }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Text style={{ fontSize: 20 }}>{meta.glyph}</Text>
+                  <Icon name={meta.icon} size={20} color={meta.accent} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontWeight: "700" }} numberOfLines={1}>{d.name}</Text>
                     <Text style={{ color: c.faint, fontSize: 12 }}>{d.online ? "online" : "offline"}</Text>

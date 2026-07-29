@@ -3,17 +3,19 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from "react-nati
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
-import { Screen, Card, SectionLabel, GhostButton, useTheme } from "../ui";
+import { Screen, Card, SectionLabel, GhostButton, useTheme, useSafeArea } from "../ui";
+import { Icon, type IconName } from "../icons";
 import { ACCENTS, ThemeMode } from "../theme";
 
-const MODES: { key: ThemeMode; label: string; sub: string; glyph: string }[] = [
-  { key: "aurora", label: "Aurora", sub: "Signature gradient", glyph: "🌌" },
-  { key: "glass", label: "Glass", sub: "Frosted glassmorphism", glyph: "🧊" },
-  { key: "neo", label: "Neo", sub: "Soft neumorphism", glyph: "🩶" },
+const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = [
+  { key: "aurora", label: "Aurora", sub: "Signature gradient", icon: "aurora" },
+  { key: "glass", label: "Glass", sub: "Frosted glassmorphism", icon: "glass" },
+  { key: "neo", label: "Neo", sub: "Soft neumorphism", icon: "neo" },
 ];
 
 export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onKiosk?: () => void }) {
   const { c, mode, scheme, accentKey, setMode, setScheme, setAccentKey } = useTheme();
+  const insets = useSafeArea();
   const { account, logout } = useAuth();
 
   const setKioskPin = () => {
@@ -33,9 +35,9 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: insets.top + 12, paddingBottom: 40 }}>
         <View style={s.top}>
-          {onBack ? <Pressable onPress={onBack} hitSlop={10}><Text style={{ color: c.textDim, fontSize: 16 }}>‹ Back</Text></Pressable> : <View style={{ width: 54 }} />}
+          {onBack ? <Pressable onPress={onBack} hitSlop={10} accessibilityRole="button" accessibilityLabel="Go back" style={{ flexDirection: "row", alignItems: "center", gap: 2, width: 54 }}><Icon name="back" size={18} color={c.textDim} /><Text style={{ color: c.textDim, fontSize: 16 }}>Back</Text></Pressable> : <View style={{ width: 54 }} />}
           <Text style={{ color: c.text, fontSize: 18, fontWeight: "800" }}>Settings</Text>
           <View style={{ width: 54 }} />
         </View>
@@ -43,10 +45,16 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
         <SectionLabel>APPEARANCE · THEME</SectionLabel>
         <View style={{ gap: 10, marginBottom: 16 }}>
           {MODES.map((m) => (
-            <Pressable key={m.key} onPress={() => setMode(m.key)}>
+            <Pressable
+              key={m.key}
+              onPress={() => setMode(m.key)}
+              accessibilityRole="radio"
+              accessibilityLabel={`${m.label} theme. ${m.sub}`}
+              accessibilityState={{ selected: mode === m.key, checked: mode === m.key }}
+            >
               <Card padded hi={mode === m.key} style={mode === m.key ? { borderColor: c.accent, borderWidth: 2 } : undefined}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                  <Text style={{ fontSize: 24 }}>{m.glyph}</Text>
+                  <Icon name={m.icon} size={24} color={mode === m.key ? c.accentHi : c.textDim} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontWeight: "800", fontSize: 15 }}>{m.label}</Text>
                     <Text style={{ color: c.faint, fontSize: 12 }}>{m.sub}</Text>

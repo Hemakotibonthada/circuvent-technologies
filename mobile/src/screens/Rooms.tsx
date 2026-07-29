@@ -4,6 +4,7 @@ import { api, Room } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Card, SectionLabel, PrimaryButton, useTheme } from "../ui";
 import { deviceMeta } from "../theme";
+import { Icon } from "../icons";
 
 const ICONS = ["🏠", "🛋️", "🛏️", "🍳", "🚿", "🖥️", "🌿", "🚗", "🏢", "🛁", "🎮", "📺"];
 
@@ -106,7 +107,7 @@ function RoomDetail({ name, onBack, onChanged }: { name: string; onBack: () => v
             return (
               <Card key={d.id} padded style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Text style={{ fontSize: 20 }}>{deviceMeta(d.type).glyph}</Text>
+                  <Icon name={deviceMeta(d.type).icon} size={20} color={deviceMeta(d.type).accent} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontWeight: "600" }} numberOfLines={1}>{d.name || d.id}</Text>
                     {!!d.room && d.room !== name && <Text style={{ color: c.faint, fontSize: 11 }}>in {d.room}</Text>}
@@ -126,7 +127,7 @@ function RoomDetail({ name, onBack, onChanged }: { name: string; onBack: () => v
             return (
               <Card key={d.id} padded style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Text style={{ fontSize: 20 }}>{meta.glyph}</Text>
+                  <Icon name={meta.icon} size={20} color={meta.accent} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontWeight: "700" }} numberOfLines={1}>{d.name || d.id}</Text>
                     <Text style={{ color: c.faint, fontSize: 12 }}>{d.online ? "online" : "offline"}</Text>

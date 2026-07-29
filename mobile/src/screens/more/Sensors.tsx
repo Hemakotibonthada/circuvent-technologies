@@ -5,6 +5,7 @@ import { useDevices } from "../../store";
 import { Card, IconButton, Screen, SectionLabel, Title, useTheme } from "../../ui";
 import { Sparkline } from "../../charts";
 import { deviceMeta } from "../../theme";
+import { Icon } from "../../icons";
 
 type Props = { onBack: () => void };
 type Series = Record<string, number[]>;
@@ -50,6 +51,6 @@ export default function Sensors({ onBack }: Props) {
 
 function DeviceSensors({ d, series }: { d: Device; series: Series }) {
   const { c } = useTheme(); const meta = deviceMeta(d.type); const vals = readings(d);
-  return <Card style={{ marginBottom: 12 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}><Text style={{ fontSize: 22 }}>{meta.glyph}</Text><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "800" }}>{d.name}</Text><Text style={{ color: c.faint, fontSize: 12 }}>{d.room || meta.label}</Text></View><View style={{ width: 8, height: 8, borderRadius: 5, backgroundColor: d.online ? c.green : c.faint }} /></View>
+  return <Card style={{ marginBottom: 12 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}><Icon name={meta.icon} size={22} color={meta.accent} /><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "800" }}>{d.name}</Text><Text style={{ color: c.faint, fontSize: 12 }}>{d.room || meta.label}</Text></View><View style={{ width: 8, height: 8, borderRadius: 5, backgroundColor: d.online ? c.green : c.faint }} /></View>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>{vals.map(([k, v]) => <Card key={k} padded hi style={{ width: "47%" }}><Text style={{ color: c.faint, fontSize: 11 }}>{label(k)}</Text><Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }}>{v}{unit(k)}</Text><Sparkline data={series[k] || [Number(v)]} color={meta.accent} /></Card>)}</View></Card>;
 }

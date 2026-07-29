@@ -13,11 +13,18 @@ import {
   StyleProp,
   Platform,
   BackHandler,
+  StatusBar,
+  useWindowDimensions,
+  AppState,
+  AccessibilityInfo,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import Svg, { Path, Circle } from "react-native-svg";
+import { Icon, ICONS, type IconName } from "./icons";
+
+const ICON_KEYS: Record<string, true> = Object.fromEntries(Object.keys(ICONS).map((k) => [k, true]));
 import {
   buildPalette,
   ACCENTS,
@@ -102,6 +109,34 @@ export function useBackHandler(handler: () => boolean) {
   }, []);
 }
 
+/**
+ * Safe-area insets.
+ *
+ * Screens previously hardcoded `paddingTop: 56` and `bottom: Platform.OS ===
+ * "ios" ? 30 : 16`, which is right on exactly one device: too little clearance
+ * under a tall Android status bar, too much on a compact phone, and it lets the
+ * floating nav collide with the iOS home indicator.
+ *
+ * `react-native-safe-area-context` would report exact insets, but adding a
+ * native module to this bare workflow (there is a checked-in android/ project)
+ * forces a full rebuild of the app binary. These values come from the platform
+ * where it can tell us — Android reports the real status-bar height — and fall
+ * back to Apple's published notch/home-indicator metrics keyed off screen
+ * height, which is the standard heuristic and is correct on every shipping
+ * iPhone.
+ */
+export function useSafeArea(): { top: number; bottom: number } {
+  const { height, width } = useWindowDimensions();
+  return useMemo(() => {
+    if (Platform.OS === "android") {
+      return { top: StatusBar.currentHeight ?? 24, bottom: 0 };
+    }
+    // iPhone X and later are >= 812pt tall in portrait (or wide in landscape).
+    const notched = Math.max(height, width) >= 812;
+    return notched ? { top: 44, bottom: 34 } : { top: 20, bottom: 0 };
+  }, [height, width]);
+}
+
 export function Screen({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
   return (
@@ -136,7 +171,7 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
   const pad = padded ? 16 : 0;
   const Wrapper: React.ComponentType<{ children: React.ReactNode; style?: StyleProp<ViewStyle> }> = onPress
     ? ({ children: ch, style: st }) => (
-        <Pressable onPress={onPress} style={({ pressed }) => [st, pressed && { opacity: 0.88 }]}>
+        <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [st, pressed && { opacity: 0.88, transform: [{ scale: 0.985 }] }]}>
           {ch}
         </Pressable>
       )
@@ -249,11 +284,73 @@ export function GhostButton({ label, onPress, style }: { label: string; onPress:
   );
 }
 
-export function IconButton({ glyph, onPress, style }: { glyph: string; onPress: () => void; style?: StyleProp<ViewStyle> }) {
+/**
+ * Legacy glyph → semantic icon.
+ *
+ * Roughly thirty screens were written with `<IconButton glyph="‹" />` and
+ * friends. Mapping the handful of glyphs actually in use lets every one of
+ * those call sites render a real vector icon — correctly sized, tinted with the
+ * palette and identical across platforms — without touching the screens.
+ */
+const LEGACY_GLYPH: Record<string, IconName> = {
+  "‹": "back",
+  "<": "back",
+  "›": "chevron",
+  "🔍": "search",
+  "＋": "add",
+  "+": "add",
+  "🔔": "bell",
+  "✕": "close",
+  "×": "close",
+  "⚙️": "settings",
+  "🔄": "refresh",
+};
+
+export function IconButton({
+  icon,
+  glyph,
+  onPress,
+  label,
+  style,
+}: {
+  icon?: IconName;
+  /** @deprecated pass `icon` — kept so existing screens keep working. */
+  glyph?: string;
+  onPress: () => void;
+  /** Announced by screen readers. Icon-only controls are meaningless without it. */
+  label?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   const { c } = useTheme();
+  const resolved = icon ?? (glyph ? LEGACY_GLYPH[glyph] : undefined);
   return (
-    <Pressable onPress={onPress} hitSlop={8} style={({ pressed }) => [{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.8 : 1 }, style]}>
-      <Text style={{ color: c.textDim, fontSize: 17 }}>{glyph}</Text>
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label ?? (resolved ? resolved.replace(/-/g, " ") : undefined)}
+      android_ripple={{ color: c.borderHi, borderless: true, radius: 24 }}
+      style={({ pressed }) => [
+        {
+          width: 44,
+          height: 44,
+          borderRadius: 14,
+          backgroundColor: c.card,
+          borderColor: c.border,
+          borderWidth: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: pressed ? 0.7 : 1,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
+        },
+        style,
+      ]}
+    >
+      {resolved ? (
+        <Icon name={resolved} size={20} color={c.textDim} />
+      ) : (
+        <Text style={{ color: c.textDim, fontSize: 17 }}>{glyph}</Text>
+      )}
     </Pressable>
   );
 }
@@ -277,15 +374,16 @@ export function Title({ children, style }: { children: React.ReactNode; style?: 
   return <Text style={[{ color: c.text, fontSize: 26, fontWeight: "800" }, style]}>{children}</Text>;
 }
 
-/** Small labelled stat tile with a gradient glyph pill. */
-export function StatTile({ label, value, grad, glyph }: { label: string; value: string; grad: Grad; glyph: string }) {
+/** Small labelled stat tile with a gradient icon pill. */
+export function StatTile({ label, value, grad, glyph, icon }: { label: string; value: string; grad: Grad; glyph?: string; icon?: IconName }) {
   const { c } = useTheme();
+  const resolved = icon ?? (glyph && glyph in ICON_KEYS ? (glyph as IconName) : undefined);
   return (
     <Card style={{ flex: 1 }} padded>
       <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-        <Text style={{ fontSize: 13 }}>{glyph}</Text>
+        {resolved ? <Icon name={resolved} size={16} color="#fff" /> : <Text style={{ fontSize: 13 }}>{glyph}</Text>}
       </LinearGradient>
-      <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }}>{value}</Text>
+      <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }} adjustsFontSizeToFit numberOfLines={1}>{value}</Text>
       <Text style={{ color: c.faint, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{label}</Text>
     </Card>
   );
@@ -346,26 +444,143 @@ export function Avatar({ name, size = 48 }: { name?: string | null; size?: numbe
   return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}><Text style={{ color: c.onAccent, fontWeight: "900", fontSize: Math.max(13, size * 0.36) }}>{initials}</Text></View>;
 }
 
-export function ListRow({ icon, title, subtitle, right, onPress }: { icon?: string; title: string; subtitle?: string; right?: React.ReactNode; onPress?: () => void }) {
+export function ListRow({ icon, title, subtitle, right, onPress }: { icon?: IconName | string; title: string; subtitle?: string; right?: React.ReactNode; onPress?: () => void }) {
   const { c } = useTheme();
-  const content = <><Text style={{ fontSize: 22, width: 28 }}>{icon ?? "•"}</Text><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "800" }}>{title}</Text>{subtitle ? <Text style={{ color: c.faint, marginTop: 2 }}>{subtitle}</Text> : null}</View>{right ?? <Text style={{ color: c.faint }}>›</Text>}</>;
-  const row = { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingVertical: 12 };
-  return onPress ? <Pressable onPress={onPress} style={({ pressed }) => [row, { opacity: pressed ? 0.8 : 1 }]}>{content}</Pressable> : <View style={row}>{content}</View>;
+  const resolved = icon && icon in ICON_KEYS ? (icon as IconName) : undefined;
+  const content = (
+    <>
+      <View style={{ width: 28, alignItems: "center" }}>
+        {resolved ? <Icon name={resolved} size={20} color={c.textDim} /> : <Text style={{ fontSize: 22 }}>{icon ?? "•"}</Text>}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: c.text, fontWeight: "800" }}>{title}</Text>
+        {subtitle ? <Text style={{ color: c.faint, marginTop: 2 }}>{subtitle}</Text> : null}
+      </View>
+      {right ?? <Icon name="chevron" size={16} color={c.faint} />}
+    </>
+  );
+  const row = { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingVertical: 12, minHeight: 44 };
+  return onPress ? (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} android_ripple={{ color: c.border }} style={({ pressed }) => [row, { opacity: pressed ? 0.8 : 1 }]}>{content}</Pressable>
+  ) : (
+    <View style={row}>{content}</View>
+  );
 }
 
 export function FadeInView({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   const v = React.useRef(new Animated.Value(0)).current;
-  useEffect(() => { Animated.timing(v, { toValue: 1, duration: 420, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(); }, [delay, v]);
+  const reduce = useReduceMotion();
+  useEffect(() => {
+    if (reduce) { v.setValue(1); return; }
+    Animated.timing(v, { toValue: 1, duration: 420, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [delay, v, reduce]);
   return <Animated.View style={{ opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }}>{children}</Animated.View>;
 }
 
-export function EmptyState({ glyph = "∅", title, subtitle, actionLabel, onAction }: { glyph?: string; title: string; subtitle?: string; actionLabel?: string; onAction?: () => void }) {
+/**
+ * Whether the user has asked the OS to reduce motion. Entrance animations and
+ * count-ups jump straight to their final state when this is on — vestibular
+ * disorders make sliding/scaling content genuinely unpleasant, and it is a
+ * WCAG 2.1 requirement rather than a nicety.
+ */
+export function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (alive) setReduce(v); }).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduce);
+    return () => { alive = false; sub.remove(); };
+  }, []);
+  return reduce;
+}
+
+/**
+ * Staggered entrance for a grid or list.
+ *
+ * The delay is capped so a long list does not leave the last card fading in a
+ * second and a half after the first — past ~8 items the wave reads as lag
+ * rather than polish.
+ */
+export function Stagger({ index, children, step = 45, max = 8 }: { index: number; children: React.ReactNode; step?: number; max?: number }) {
+  return <FadeInView delay={Math.min(index, max) * step}>{children}</FadeInView>;
+}
+
+/**
+ * A number that animates to its new value.
+ *
+ * Live telemetry that snaps between readings is hard to follow — the eye can't
+ * tell a re-render from a real change. Interpolating makes the direction of
+ * travel legible.
+ */
+export function CountUp({
+  value,
+  decimals = 0,
+  duration = 650,
+  style,
+}: {
+  value: number;
+  decimals?: number;
+  duration?: number;
+  style?: StyleProp<TextStyle>;
+}) {
+  const reduce = useReduceMotion();
+  const anim = useRef(new Animated.Value(value)).current;
+  const [shown, setShown] = useState(value);
+
+  useEffect(() => {
+    if (reduce) {
+      anim.setValue(value);
+      setShown(value);
+      return;
+    }
+    const id = anim.addListener(({ value: v }) => setShown(v));
+    const a = Animated.timing(anim, {
+      toValue: value,
+      duration,
+      easing: Easing.out(Easing.cubic),
+      // Text content lives on the JS thread; there is no native equivalent.
+      useNativeDriver: false,
+    });
+    a.start();
+    return () => {
+      a.stop();
+      anim.removeListener(id);
+    };
+  }, [value, duration, reduce, anim]);
+
+  return <Text style={style}>{shown.toFixed(decimals)}</Text>;
+}
+
+/**
+ * True while the app is in the foreground.
+ *
+ * Dashboard polling used to keep firing on a bare `setInterval` after the user
+ * switched away, burning battery and mobile data to refresh a screen nobody was
+ * looking at — and then showed stale numbers on return anyway.
+ */
+export function useAppActive(): boolean {
+  const [active, setActive] = useState(AppState.currentState === "active");
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (s) => setActive(s === "active"));
+    return () => sub.remove();
+  }, []);
+  return active;
+}
+
+export function EmptyState({ glyph, icon = "empty", title, subtitle, actionLabel, onAction }: { glyph?: string; icon?: IconName; title: string; subtitle?: string; actionLabel?: string; onAction?: () => void }) {
   const { c } = useTheme();
-  return <Card style={{ alignItems: "center" }}><Text style={{ fontSize: 34, marginBottom: 8 }}>{glyph}</Text><Text style={{ color: c.text, fontWeight: "900", fontSize: 17 }}>{title}</Text>{subtitle ? <Text style={{ color: c.faint, textAlign: "center", marginTop: 6 }}>{subtitle}</Text> : null}{actionLabel && onAction ? <GhostButton label={actionLabel} onPress={onAction} style={{ marginTop: 14, alignSelf: "stretch" }} /> : null}</Card>;
+  return (
+    <Card style={{ alignItems: "center" }}>
+      {glyph ? <Text style={{ fontSize: 34, marginBottom: 8 }}>{glyph}</Text> : <Icon name={icon} size={34} color={c.faint} style={{ marginBottom: 8 }} />}
+      <Text style={{ color: c.text, fontWeight: "900", fontSize: 17 }}>{title}</Text>
+      {subtitle ? <Text style={{ color: c.faint, textAlign: "center", marginTop: 6 }}>{subtitle}</Text> : null}
+      {actionLabel && onAction ? <GhostButton label={actionLabel} onPress={onAction} style={{ marginTop: 14, alignSelf: "stretch" }} /> : null}
+    </Card>
+  );
 }
 
 export function ErrorState({ text, onRetry }: { text: string; onRetry?: () => void }) {
-  return <EmptyState glyph="⚠️" title="Something went wrong" subtitle={text} actionLabel={onRetry ? "Try again" : undefined} onAction={onRetry} />;
+  return <EmptyState icon="alert" title="Something went wrong" subtitle={text} actionLabel={onRetry ? "Try again" : undefined} onAction={onRetry} />;
 }
 
 export function HelpTip({ text }: { text: string }) {
