@@ -118,11 +118,16 @@ are shared between the two.
 
 This separation was not always true: the production connection string had been
 scoped to "All Environments", so dev served live customer data and accepted
-production logins. Config hygiene alone regresses, so the app now enforces it. Set
-`PROD_DATA_FINGERPRINT` (a one-way hash of the production connection string) on
-every target, and any non-production deployment holding that exact string
-refuses to start instead of silently serving live data. See
+production logins. Config hygiene alone regresses, so the app now enforces it.
+`PROD_DATA_HOSTS` lists the database hosts only production may use; a
+non-production deployment that finds itself pointed at one of them refuses to
+start instead of silently serving live data. Hosts are not credentials, so the
+list is safe on every target, and it is checked on non-production deployments
+only — an over-broad list can never take production down. See
 `assertNotProductionData` in `src/lib/db.ts`.
+
+Dev has its own Neon project (`dev.circuvent.com`), so it is a real, writable
+database rather than a throwaway in-memory store.
 
 **Only `main` is indexable.** Anything that is not `VERCEL_ENV=production`
 serves `Disallow: /` plus an `X-Robots-Tag: noindex, nofollow` header — a dev

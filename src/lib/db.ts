@@ -21,7 +21,6 @@
 //
 // SERVER ONLY.
 
-import crypto from "crypto";
 import type { DB, Account, AdminUser, PendingRegistration } from "./store";
 
 /** A minimal query interface satisfied by both the Neon driver and PGlite (tests). */
@@ -67,50 +66,58 @@ export function dbEnabled(): boolean {
 }
 
 /**
- * Fingerprint of a connection string — a truncated SHA-256, never the URL.
+ * Normalises a database host for comparison.
  *
- * Exported so the value for PROD_DATA_FINGERPRINT can be generated with the
- * same function that checks it, rather than by a one-off command that might
- * hash something subtly different.
+ * Neon exposes the same database on a direct and a pooled endpoint
+ * (`ep-x.­…` and `ep-x-pooler.…`), and connection strings differ in their query
+ * parameters. Comparing raw strings would miss "same database, different URL",
+ * which is exactly the mistake this guards against.
  */
-export function dataFingerprint(url: string): string {
-  return crypto.createHash("sha256").update(url.trim()).digest("hex").slice(0, 16);
+export function normaliseDataHost(urlOrHost: string): string {
+  const raw = urlOrHost.trim();
+  const host = raw.includes("@")
+    ? (raw.match(/@([^/:?]+)/) || [])[1] || ""
+    : raw.replace(/^[a-z]+:\/\//i, "").split(/[/:?]/)[0];
+  return host.toLowerCase().replace(/-pooler(?=\.)/, "");
 }
 
 /**
- * Refuses to open the production database from a non-production deployment.
+ * Refuses to open a production database from a non-production deployment.
  *
  * Vercel environment variables are scoped per target, and a variable added to
  * "all environments" silently hands preview builds the production connection
  * string. That is how dev.circuvent.com came to serve real customer accounts,
- * orders and wallet balances on a publicly reachable URL — nothing in the code
- * objected, because from the app's point of view it was simply a database.
+ * orders and wallet balances — nothing in the code objected, because from the
+ * app's point of view it was simply a database.
  *
- * PROD_DATA_FINGERPRINT is set on every target and holds the fingerprint of
- * the production connection string. A deployment that is not production and
- * finds itself holding that exact string stops here. The fingerprint is a
- * one-way hash, so publishing it to preview builds discloses nothing about the
- * credentials it protects.
+ * PROD_DATA_HOSTS is a comma-separated list of database hosts that only
+ * production may use. It is checked on non-production deployments only, so an
+ * incomplete list can never take production down; the worst case is that a
+ * host nobody listed goes unguarded. Hosts are not credentials, so the list is
+ * safe to set on every target.
  *
  * This throws rather than falling back to the in-memory store: quietly serving
- * an empty shop would look like data loss, and the operator needs to know the
- * deployment is misconfigured.
+ * an empty shop looks like data loss and hides the misconfiguration.
  */
 export function assertNotProductionData(url: string): void {
-  const expected = (process.env.PROD_DATA_FINGERPRINT || "").trim().toLowerCase();
-  if (!expected) return;
+  const listed = (process.env.PROD_DATA_HOSTS || "")
+    .split(",")
+    .map((h) => normaliseDataHost(h))
+    .filter(Boolean);
+  if (listed.length === 0) return;
 
   const isProduction =
     process.env.VERCEL_ENV === "production" ||
     (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production");
   if (isProduction) return;
 
-  if (dataFingerprint(url) === expected) {
+  const host = normaliseDataHost(url);
+  if (host && listed.includes(host)) {
     throw new Error(
-      "Refusing to use the production database from a non-production deployment. " +
-        "This environment needs its own DATABASE_URL. " +
-        "(Set one for the Preview target, or clear PROD_DATA_FINGERPRINT if the " +
-        "production database really has been replaced.)"
+      `Refusing to use the production database (${host}) from a non-production ` +
+        "deployment. This environment needs its own DATABASE_URL. " +
+        "(Set one for the Preview target, or update PROD_DATA_HOSTS if this " +
+        "database is no longer production.)"
     );
   }
 }

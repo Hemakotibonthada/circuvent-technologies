@@ -1,20 +1,21 @@
-import { dataFingerprint, assertNotProductionData } from "./db";
+import { normaliseDataHost, assertNotProductionData } from "./db";
 
 // dev.circuvent.com served real customer accounts, orders and wallet balances
 // because a Vercel variable scoped to "all environments" handed preview builds
 // the production connection string. Nothing in the code objected. These tests
 // pin the guard that now does.
 
-const PROD_URL = "postgres://user:pw@ep-prod-123.eu-central-1.aws.neon.tech/main";
-const DEV_URL = "postgres://user:pw@ep-dev-456.eu-central-1.aws.neon.tech/main";
+const PROD_HOST = "ep-bitter-king-azky3gdq.c-3.ap-southeast-1.aws.neon.tech";
+const DEV_HOST = "ep-damp-unit-azirxrfa.c-3.ap-southeast-1.aws.neon.tech";
+const prodUrl = (host = PROD_HOST) => `postgresql://u:p@${host}/neondb?sslmode=require`;
+const devUrl = `postgresql://u:p@${DEV_HOST}/neondb?sslmode=require`;
 
-const ENV_KEYS = ["PROD_DATA_FINGERPRINT", "VERCEL_ENV", "NODE_ENV"] as const;
-type Saved = Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>;
+const ENV_KEYS = ["PROD_DATA_HOSTS", "VERCEL_ENV", "NODE_ENV"] as const;
+type Key = (typeof ENV_KEYS)[number];
 
-let saved: Saved = {};
+let saved: Partial<Record<Key, string | undefined>> = {};
 
-function setEnv(key: (typeof ENV_KEYS)[number], value: string | undefined): void {
-  // NODE_ENV is readonly in the Next.js type surface, so assign through a cast.
+function setEnv(key: Key, value: string | undefined): void {
   const env = process.env as Record<string, string | undefined>;
   if (value === undefined) delete env[key];
   else env[key] = value;
@@ -23,70 +24,83 @@ function setEnv(key: (typeof ENV_KEYS)[number], value: string | undefined): void
 beforeEach(() => {
   saved = {};
   for (const k of ENV_KEYS) saved[k] = process.env[k];
+  setEnv("PROD_DATA_HOSTS", PROD_HOST);
 });
 
 afterEach(() => {
   for (const k of ENV_KEYS) setEnv(k, saved[k]);
 });
 
-describe("dataFingerprint", () => {
-  it("is stable for the same URL", () => {
-    expect(dataFingerprint(PROD_URL)).toBe(dataFingerprint(PROD_URL));
+describe("normaliseDataHost", () => {
+  it("extracts the host from a connection string", () => {
+    expect(normaliseDataHost(prodUrl())).toBe(PROD_HOST);
   });
 
-  it("ignores surrounding whitespace, which is easy to paste in", () => {
-    expect(dataFingerprint(`  ${PROD_URL}\n`)).toBe(dataFingerprint(PROD_URL));
+  it("accepts a bare host", () => {
+    expect(normaliseDataHost(PROD_HOST)).toBe(PROD_HOST);
   });
 
-  it("differs between databases", () => {
-    expect(dataFingerprint(DEV_URL)).not.toBe(dataFingerprint(PROD_URL));
+  it("treats the pooled and direct endpoints as the same database", () => {
+    const pooled = "ep-bitter-king-azky3gdq-pooler.c-3.ap-southeast-1.aws.neon.tech";
+    expect(normaliseDataHost(pooled)).toBe(normaliseDataHost(PROD_HOST));
   });
 
-  it("does not disclose the connection string", () => {
-    const fp = dataFingerprint(PROD_URL);
-    expect(fp).toMatch(/^[0-9a-f]{16}$/);
-    expect(PROD_URL).not.toContain(fp);
-    for (const secret of ["user", "pw", "ep-prod-123"]) {
-      expect(fp).not.toContain(secret);
-    }
+  it("ignores credentials, port, database and query parameters", () => {
+    const a = normaliseDataHost(`postgresql://user:pw@${PROD_HOST}:5432/neondb?sslmode=require`);
+    const b = normaliseDataHost(`postgres://other:secret@${PROD_HOST}/otherdb`);
+    expect(a).toBe(PROD_HOST);
+    expect(b).toBe(PROD_HOST);
+  });
+
+  it("is case-insensitive", () => {
+    expect(normaliseDataHost(PROD_HOST.toUpperCase())).toBe(PROD_HOST);
   });
 });
 
 describe("assertNotProductionData", () => {
   it("blocks a preview deployment holding the production database", () => {
-    setEnv("PROD_DATA_FINGERPRINT", dataFingerprint(PROD_URL));
     setEnv("VERCEL_ENV", "preview");
-    expect(() => assertNotProductionData(PROD_URL)).toThrow(/Refusing to use the production database/);
+    expect(() => assertNotProductionData(prodUrl())).toThrow(/Refusing to use the production database/);
   });
 
-  it("allows a preview deployment with its own database", () => {
-    setEnv("PROD_DATA_FINGERPRINT", dataFingerprint(PROD_URL));
+  it("blocks it via the pooled endpoint too, which is the same database", () => {
     setEnv("VERCEL_ENV", "preview");
-    expect(() => assertNotProductionData(DEV_URL)).not.toThrow();
+    const pooled = prodUrl("ep-bitter-king-azky3gdq-pooler.c-3.ap-southeast-1.aws.neon.tech");
+    expect(() => assertNotProductionData(pooled)).toThrow(/Refusing to use the production database/);
   });
 
-  it("allows production to use the production database", () => {
-    setEnv("PROD_DATA_FINGERPRINT", dataFingerprint(PROD_URL));
+  it("allows a preview deployment using the dev database", () => {
+    setEnv("VERCEL_ENV", "preview");
+    expect(() => assertNotProductionData(devUrl)).not.toThrow();
+  });
+
+  it("never blocks production, so an over-broad list cannot cause an outage", () => {
     setEnv("VERCEL_ENV", "production");
-    expect(() => assertNotProductionData(PROD_URL)).not.toThrow();
+    setEnv("PROD_DATA_HOSTS", `${PROD_HOST},${DEV_HOST}`);
+    expect(() => assertNotProductionData(prodUrl())).not.toThrow();
+    expect(() => assertNotProductionData(devUrl)).not.toThrow();
   });
 
-  it("does nothing when no fingerprint is configured", () => {
-    setEnv("PROD_DATA_FINGERPRINT", undefined);
+  it("supports a list of hosts, tolerating stray whitespace", () => {
     setEnv("VERCEL_ENV", "preview");
-    expect(() => assertNotProductionData(PROD_URL)).not.toThrow();
+    setEnv("PROD_DATA_HOSTS", `other.example.com, ${PROD_HOST} ,third.example.com`);
+    expect(() => assertNotProductionData(prodUrl())).toThrow(/Refusing to use the production database/);
   });
 
-  it("tolerates case and whitespace in the configured fingerprint", () => {
-    setEnv("PROD_DATA_FINGERPRINT", `  ${dataFingerprint(PROD_URL).toUpperCase()} `);
+  it("does nothing when no hosts are configured", () => {
     setEnv("VERCEL_ENV", "preview");
-    expect(() => assertNotProductionData(PROD_URL)).toThrow(/Refusing to use the production database/);
+    setEnv("PROD_DATA_HOSTS", "");
+    expect(() => assertNotProductionData(prodUrl())).not.toThrow();
   });
 
-  it("blocks a local production-mode run outside Vercel too", () => {
-    setEnv("PROD_DATA_FINGERPRINT", dataFingerprint(PROD_URL));
+  it("blocks a local development run pointed at production", () => {
     setEnv("VERCEL_ENV", undefined);
     setEnv("NODE_ENV", "development");
-    expect(() => assertNotProductionData(PROD_URL)).toThrow(/Refusing to use the production database/);
+    expect(() => assertNotProductionData(prodUrl())).toThrow(/Refusing to use the production database/);
+  });
+
+  it("names the offending host so the failure is actionable", () => {
+    setEnv("VERCEL_ENV", "preview");
+    expect(() => assertNotProductionData(prodUrl())).toThrow(new RegExp(PROD_HOST));
   });
 });
