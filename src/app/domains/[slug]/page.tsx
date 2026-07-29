@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import ScrollReveal from "@/components/ScrollReveal";
 import StatsCounter from "@/components/StatsCounter";
 import CTASection from "@/components/CTASection";
@@ -72,7 +71,6 @@ export default function DomainPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       {/* Back link */}
       <section className="relative z-10 pt-28 pb-4">

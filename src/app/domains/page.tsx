@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
@@ -26,7 +25,6 @@ const iconMap: Record<string, React.ElementType> = {
 export default function DomainsPage() {
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Domains"

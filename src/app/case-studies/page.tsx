@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
@@ -48,7 +47,6 @@ export default function CaseStudiesPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Case Studies"

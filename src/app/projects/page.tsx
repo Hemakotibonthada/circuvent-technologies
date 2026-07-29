@@ -4,7 +4,6 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ProjectCard from "@/components/ProjectCard";
 import ScrollReveal from "@/components/ScrollReveal";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import {
   projects,
   PROJECT_CATEGORIES,
@@ -30,7 +29,6 @@ export default function ProjectsPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       {/* Page Header */}
       <section className="relative z-10 pt-32 pb-16">

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
@@ -45,7 +44,6 @@ export default function ArchitecturePage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Architecture"

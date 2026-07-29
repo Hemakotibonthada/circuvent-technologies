@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ScrollReveal from "@/components/ScrollReveal";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
@@ -504,7 +503,6 @@ function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemb
 export default function TeamPage() {
   return (
     <>
-      <AnimatedBackground />
 
       {/* Hero */}
       <section className="relative z-10 pt-32 pb-20">

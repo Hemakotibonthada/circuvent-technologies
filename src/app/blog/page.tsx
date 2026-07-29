@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import BlogCard from "@/components/BlogCard";
 import Newsletter from "@/components/Newsletter";
@@ -35,7 +34,6 @@ export default function BlogPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Blog"

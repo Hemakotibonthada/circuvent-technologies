@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ContactForm from "@/components/ContactForm";
 import ScrollReveal from "@/components/ScrollReveal";
@@ -141,7 +140,6 @@ export default function ContactPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Contact"

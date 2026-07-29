@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
@@ -100,7 +99,6 @@ const openSourceValues = [
 export default function OpenSourcePage() {
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Open Source"

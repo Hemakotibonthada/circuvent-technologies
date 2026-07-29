@@ -22,7 +22,6 @@ import {
 
 // Decorative background + below-the-fold carousel are loaded lazily (client-only)
 // so they don't block the homepage's first paint / hydration.
-const AnimatedBackground = dynamic(() => import("@/components/AnimatedBackground"), { ssr: false });
 const TestimonialCarousel = dynamic(() => import("@/components/TestimonialCarousel"), {
   ssr: false,
   loading: () => <div className="min-h-[280px]" />,
@@ -120,7 +119,6 @@ export default function Home() {
 
   return (
     <>
-      <AnimatedBackground />
       <Hero />
 
       {/* TECH MARQUEE */}

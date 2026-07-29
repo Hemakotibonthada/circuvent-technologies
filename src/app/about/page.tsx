@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import ScrollReveal from "@/components/ScrollReveal";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import CTASection from "@/components/CTASection";
 import TiltCard from "@/components/TiltCard";
@@ -125,7 +124,6 @@ const techEcosystem = [
 export default function AboutPage() {
   return (
     <>
-      <AnimatedBackground />
 
       {/* Hero */}
       <section className="relative z-10 pt-32 pb-12 sm:pb-20 overflow-hidden">

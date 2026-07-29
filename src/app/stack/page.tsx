@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
@@ -109,7 +108,6 @@ export default function StackPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Tech Stack"

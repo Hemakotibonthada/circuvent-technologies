@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
 import SmartHomeShowcase from "@/components/SmartHomeShowcase";
@@ -38,7 +37,6 @@ const HIGHLIGHTS = [
 export default function AppPage() {
   return (
     <main className="relative min-h-screen overflow-hidden">
-      <AnimatedBackground />
 
       <section className="relative z-10 pt-32 pb-8">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 text-center">

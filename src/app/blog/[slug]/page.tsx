@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import ScrollReveal from "@/components/ScrollReveal";
 import BlogCard from "@/components/BlogCard";
 import Newsletter from "@/components/Newsletter";
@@ -259,7 +258,6 @@ export default function BlogPostPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       {/* Reading progress bar */}
       <div className="fixed top-0 left-0 right-0 z-[60] h-1">

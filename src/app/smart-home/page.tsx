@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
 import SmartHomeShowcase from "@/components/SmartHomeShowcase";
@@ -38,7 +37,6 @@ export default function SmartHomePage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden">
-      <AnimatedBackground />
 
       {/* HERO */}
       <section className="relative z-10 pt-32 pb-12">

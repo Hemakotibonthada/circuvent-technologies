@@ -1,6 +1,5 @@
 "use client";
 
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
 import {
@@ -41,7 +40,6 @@ export default function ContentPage({
 }) {
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow={eyebrow}

@@ -1,6 +1,5 @@
 "use client";
 
-import AnimatedBackground from "@/components/AnimatedBackground";
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
 import { Shield, Lock, Eye, Database, Globe, FileText, Mail } from "lucide-react";
@@ -94,7 +93,6 @@ export default function PrivacyPolicyPage() {
 
   return (
     <>
-      <AnimatedBackground />
 
       <PageHeader
         eyebrow="Legal"

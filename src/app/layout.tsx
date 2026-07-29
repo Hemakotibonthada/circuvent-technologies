@@ -4,6 +4,7 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import SiteChrome from "@/components/SiteChrome";
+import SiteBackground from "@/components/SiteBackground";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { CartProvider } from "@/components/shop/CartProvider";
@@ -129,6 +130,7 @@ export default function RootLayout({
               Skip to main content
             </a>
             <div className="noise-overlay" />
+            <SiteBackground />
             <SiteChrome nav={<Navigation />} footer={<Footer />}>
               {children}
             </SiteChrome>
