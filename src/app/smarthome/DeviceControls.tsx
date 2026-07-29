@@ -27,12 +27,22 @@ import {
   Blinds,
   Power,
   Zap,
+  Video,
+  VideoOff,
+  Camera as CameraIcon,
+  Flashlight,
+  Play,
+  Square,
+  Radio,
+  Download,
+  RefreshCcw,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Device } from "@/lib/control-plane";
 import type { FieldStatus } from "@/lib/smarthome-realtime";
 import { haptic } from "@/lib/smarthome-realtime";
+import { useCameraFrames, useNow } from "@/lib/control-plane-live";
 import {
   useChannelLabels,
   useChannelConfig,
@@ -62,6 +72,9 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   "rfid-gate": { label: "RFID Gate", icon: Car, accent: "#f59e0b", blurb: "Vehicle access barrier" },
   facedoor: { label: "Smart Door", icon: DoorOpen, accent: "#8b5cf6", blurb: "Face / fingerprint / PIN" },
   touchboard: { label: "Touch Board", icon: LayoutGrid, accent: "#06b6d4", blurb: "3-gang metered switch" },
+  camera: { label: "Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
+  cctv: { label: "CCTV Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
+  doorbell: { label: "Video Doorbell", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
 };
 
 export function deviceMeta(type: string): DeviceTypeMeta {
@@ -229,6 +242,10 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <FaceDoor d={device} send={send} st={st} />;
     case "touchboard":
       return <TouchBoard d={device} send={send} st={st} />;
+    case "camera":
+    case "cctv":
+    case "doorbell":
+      return <CameraDevice d={device} send={send} st={st} />;
     default:
       return <>{generic}<RawState d={device} /></>;
   }
@@ -983,6 +1000,359 @@ function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
       <ControlRow label="Brightness">
         <Stepper value={n(d.state.backlight, 60)} onChange={(v) => send({ backlight: v })} min={0} max={100} step={10} suffix="%" />
       </ControlRow>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------- camera --
+// ESP32-CAM (firmware/camera/camera.ino). Frames never touch telemetry — they
+// ride a dedicated MQTT topic the API relays straight to watching WebSocket
+// clients, so the viewport below is fed by useCameraFrames rather than by
+// device state. Only the settings and counters come from state.
+
+const RESOLUTIONS: { id: string; label: string; psram?: boolean }[] = [
+  { id: "QQVGA", label: "160 × 120" },
+  { id: "QVGA", label: "320 × 240" },
+  { id: "CIF", label: "400 × 296" },
+  { id: "VGA", label: "640 × 480" },
+  { id: "SVGA", label: "800 × 600", psram: true },
+  { id: "XGA", label: "1024 × 768", psram: true },
+  { id: "SXGA", label: "1280 × 1024", psram: true },
+  { id: "UXGA", label: "1600 × 1200", psram: true },
+];
+
+/** Seconds without a frame before a "streaming" camera is called stalled. */
+const STALL_AFTER_MS = 5000;
+
+function uptimeLabel(sec: number): string {
+  if (sec <= 0) return "—";
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m`;
+  return `${Math.floor(sec)}s`;
+}
+
+function signalLabel(rssi: number): { text: string; accent: string } {
+  if (rssi === 0) return { text: "—", accent: "var(--cv-muted)" };
+  if (rssi >= -60) return { text: "Excellent", accent: "#22c55e" };
+  if (rssi >= -70) return { text: "Good", accent: "#22c55e" };
+  if (rssi >= -80) return { text: "Fair", accent: "#f59e0b" };
+  return { text: "Weak", accent: "#ef4444" };
+}
+
+interface LiveFrame {
+  src: string;
+  at: number;
+  bytes: number;
+}
+
+function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const streaming = b(d.state.streaming);
+  const ready = d.state.ready == null ? true : b(d.state.ready);
+  const psram = b(d.state.psram);
+  const motionOn = b(d.state.motion);
+  const motionActive = b(d.state.motionActive);
+  const flash = n(d.state.flash);
+
+  const [frame, setFrame] = useState<LiveFrame | null>(null);
+  const [fps, setFps] = useState(0);
+  const stamps = useRef<number[]>([]);
+
+  // Watch continuously rather than only while streaming: a snapshot is
+  // published on the same frame topic, so a viewer that only subscribes during
+  // a live stream would silently never receive one.
+  useCameraFrames(d.online ? d.id : null, (f) => {
+    const now = Date.now();
+    stamps.current = [...stamps.current, now].filter((t) => now - t <= 2000);
+    setFps(stamps.current.length > 1 ? Math.round((stamps.current.length - 1) / 2) : 0);
+    setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: now, bytes: f.bytes });
+  });
+
+  // Drives the stall check and the "last frame" age without re-rendering on
+  // every frame for the sake of a clock.
+  const now = useNow(1000, d.online);
+  const age = frame ? now - frame.at : Infinity;
+  const stalled = streaming && age > STALL_AFTER_MS;
+  const showingLive = streaming && !stalled && !!frame;
+
+  const download = () => {
+    if (!frame) return;
+    const a = document.createElement("a");
+    a.href = frame.src;
+    a.download = `${d.name || d.id}-${new Date(frame.at).toISOString().replace(/[:.]/g, "-")}.jpg`;
+    a.click();
+  };
+
+  const setRes = (value: string) => send({ resolution: value });
+
+  return (
+    <div>
+      {/* Viewport. Aspect ratio is reserved up front so switching resolution
+          never reflows the page around it. */}
+      <div
+        className="relative w-full overflow-hidden rounded-2xl border"
+        style={{
+          aspectRatio: "4 / 3",
+          background: "#000",
+          borderColor: motionActive ? "rgba(239,68,68,0.55)" : "var(--cv-border)",
+        }}
+      >
+        {frame ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={frame.src}
+            alt={`Live view from ${d.name || d.id}`}
+            className="h-full w-full object-contain"
+            style={{ transform: n(d.state.rotation) === 180 ? "rotate(180deg)" : undefined }}
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
+            <VideoOff className="h-10 w-10" style={{ color: "#475569" }} />
+            <p className="text-sm font-medium" style={{ color: "#94a3b8" }}>
+              {!d.online
+                ? "Camera is offline"
+                : !ready
+                  ? "Camera sensor failed to initialise"
+                  : streaming
+                    ? "Waiting for the first frame…"
+                    : "Live view is off"}
+            </p>
+            {d.online && ready && !streaming && (
+              <button
+                onClick={() => {
+                  haptic();
+                  send({ action: "stream", on: true });
+                }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
+                style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+              >
+                <Play className="h-4 w-4" /> Start live view
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Status overlay */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wide backdrop-blur"
+            style={{
+              background: showingLive ? "rgba(239,68,68,0.85)" : "rgba(15,23,42,0.75)",
+              color: showingLive ? "#fff" : "#cbd5e1",
+            }}
+          >
+            <Radio className="h-3 w-3" />
+            {showingLive ? "Live" : stalled ? "Stalled" : frame ? "Still" : "Idle"}
+          </span>
+          {motionActive && (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wide backdrop-blur"
+              style={{ background: "rgba(239,68,68,0.85)", color: "#fff" }}
+            >
+              <ScanLine className="h-3 w-3" /> Motion
+            </span>
+          )}
+        </div>
+
+        {frame && (
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-medium"
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)", color: "#e2e8f0" }}
+          >
+            <span>
+              {String(d.state.resolution ?? "VGA")} · {(frame.bytes / 1024).toFixed(0)} KB
+              {showingLive && fps > 0 ? ` · ${fps} fps` : ""}
+            </span>
+            <span>
+              {age < 2000 ? "just now" : `${Math.round(age / 1000)}s ago`}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {stalled && (
+        <div className="mt-3">
+          <AlertBanner text="Streaming is on but no frames are arriving — check the camera's Wi-Fi signal." />
+        </div>
+      )}
+      {!ready && d.online && (
+        <div className="mt-3">
+          <AlertBanner text="The camera module did not initialise. Check the ribbon cable seating, then reboot." />
+        </div>
+      )}
+
+      {/* Primary actions */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <button
+          onClick={() => {
+            haptic();
+            send({ action: "stream", on: !streaming });
+          }}
+          disabled={!d.online || !ready}
+          className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40 ${pendCls(st("streaming"))}`}
+          style={{
+            background: streaming ? "rgba(239,68,68,0.15)" : "var(--cv-card-hi)",
+            borderColor: streaming ? "rgba(239,68,68,0.45)" : "var(--cv-border)",
+            color: streaming ? "#f87171" : "var(--cv-text)",
+          }}
+        >
+          {streaming ? <Square className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+          {streaming ? "Stop" : "Live view"}
+        </button>
+        <button
+          onClick={() => {
+            haptic();
+            send({ action: "snapshot" });
+          }}
+          disabled={!d.online || !ready}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
+        >
+          <CameraIcon className="h-4 w-4" /> Snapshot
+        </button>
+        <button
+          onClick={download}
+          disabled={!frame}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
+        >
+          <Download className="h-4 w-4" /> Save
+        </button>
+        <button
+          onClick={() => {
+            haptic();
+            send({ action: "reboot" });
+          }}
+          disabled={!d.online}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
+        >
+          <RefreshCcw className="h-4 w-4" /> Reboot
+        </button>
+      </div>
+
+      <SectionLabel>Image</SectionLabel>
+      <ControlRow label="Resolution" hint={psram ? undefined : "Higher modes need PSRAM"}>
+        <select
+          className="cv-input min-h-11 w-[150px]"
+          value={String(d.state.resolution ?? "VGA")}
+          onChange={(e) => setRes(e.target.value)}
+          aria-label="Camera resolution"
+        >
+          {RESOLUTIONS.map((r) => (
+            <option key={r.id} value={r.id} disabled={r.psram && !psram}>
+              {r.label}
+              {r.psram && !psram ? " — needs PSRAM" : ""}
+            </option>
+          ))}
+        </select>
+      </ControlRow>
+      <ControlRow label="Quality" hint="Lower is sharper but uses more bandwidth">
+        <Stepper
+          value={n(d.state.quality, 12)}
+          onChange={(v) => send({ quality: v })}
+          min={4}
+          max={63}
+          step={2}
+        />
+      </ControlRow>
+      <ControlRow label="Frame rate">
+        <Stepper
+          value={n(d.state.fps, 8)}
+          onChange={(v) => send({ fps: v })}
+          min={1}
+          max={15}
+          step={1}
+          suffix=" fps"
+        />
+      </ControlRow>
+      <ControlRow label="Rotate 180°" hint="For ceiling-mounted cameras">
+        <Toggle
+          checked={n(d.state.rotation) === 180}
+          onChange={(v) => send({ rotation: v ? 180 : 0 })}
+          status={st("rotation")}
+          label="Rotate 180 degrees"
+        />
+      </ControlRow>
+
+      <SectionLabel>Illumination</SectionLabel>
+      <ControlRow label="Flash" hint="On-board LED brightness">
+        <Stepper
+          value={flash}
+          onChange={(v) => send({ action: "flash", level: v })}
+          min={0}
+          max={100}
+          step={10}
+          suffix="%"
+        />
+      </ControlRow>
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={() => send({ action: "flash", level: 0 })}
+          className="min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 active:scale-95"
+        >
+          Off
+        </button>
+        <button
+          onClick={() => send({ action: "flash", level: 100 })}
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 active:scale-95"
+        >
+          <Flashlight className="h-4 w-4" /> Full
+        </button>
+      </div>
+
+      <SectionLabel>Motion detection</SectionLabel>
+      <ControlRow label="Enabled" hint="Publishes an event and can trigger automations">
+        <Toggle
+          checked={motionOn}
+          onChange={(v) => send({ motion: v })}
+          status={st("motion")}
+          label="Motion detection"
+        />
+      </ControlRow>
+      {motionOn && (
+        <ControlRow label="Sensitivity" hint="Higher reacts to smaller changes">
+          <Stepper
+            value={n(d.state.sensitivity, 45)}
+            onChange={(v) => send({ sensitivity: v })}
+            min={1}
+            max={100}
+            step={5}
+          />
+        </ControlRow>
+      )}
+
+      <SectionLabel>Health</SectionLabel>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Frames sent" value={n(d.state.frames).toLocaleString()} />
+        <StatTile
+          label="Dropped"
+          value={n(d.state.dropped).toLocaleString()}
+          accent={n(d.state.dropped) > 0 ? "#f59e0b" : undefined}
+        />
+        <StatTile label="Snapshots" value={n(d.state.snapshots).toLocaleString()} />
+        <StatTile
+          label="Motion events"
+          value={n(d.state.motionCount).toLocaleString()}
+          accent={motionActive ? "#ef4444" : undefined}
+        />
+        <StatTile label="Uptime" value={uptimeLabel(n(d.state.uptime))} />
+        <StatTile
+          label="Signal"
+          value={signalLabel(n(d.state.rssi)).text}
+          accent={signalLabel(n(d.state.rssi)).accent}
+          hint={n(d.state.rssi) ? `${n(d.state.rssi)} dBm` : undefined}
+        />
+        <StatTile label="PSRAM" value={psram ? "Yes" : "No"} accent={psram ? "#22c55e" : "#f59e0b"} />
+        <StatTile
+          label="Sensor"
+          value={ready ? "Ready" : "Fault"}
+          accent={ready ? "#22c55e" : "#ef4444"}
+        />
+      </div>
     </div>
   );
 }

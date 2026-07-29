@@ -12,6 +12,13 @@ export interface Trigger {
   value?: number | string | boolean;
   // time triggers
   at?: string; // "HH:MM" (IST) for time triggers
+  /**
+   * Optional day filter for time triggers: 0=Sunday … 6=Saturday, evaluated in
+   * IST like `at` is. Omitted or empty means every day, which is how every
+   * schedule created before this field existed behaves — so old rows keep
+   * running unchanged.
+   */
+  days?: number[];
   // event triggers (match a telemetry event, e.g. facedoor access / gate rfid / bell)
   eventType?: string; // payload.type, e.g. "access" | "bell" | "rfid"
   match?: Record<string, unknown>; // each key must equal payload[key]
@@ -149,20 +156,34 @@ export async function onEvent(deviceId: string, payload: Record<string, unknown>
   }
 }
 
+/** Today's weekday in IST, 0=Sunday … 6=Saturday. */
+function istWeekday(now: Date): number {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "short" }).format(now);
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
+}
+
 /** Time-triggered automations — checked once a minute (times are IST). */
 export function startAutomationScheduler(): void {
   let lastMinute = "";
   setInterval(async () => {
-    const now = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    const at = new Date();
+    const now = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(at);
     if (now === lastMinute) return;
     lastMinute = now;
+    const weekday = istWeekday(at);
     try {
       const { rows } = await pool.query<AutomationRow>(
         `SELECT id, owner_id, name, enabled, trigger, action FROM automations
          WHERE enabled AND trigger->>'type' = 'time' AND trigger->>'at' = $1`,
         [now]
       );
-      for (const a of rows) await runActions(a);
+      for (const a of rows) {
+        const days = a.trigger?.days;
+        // No day filter (or an unusable one) means "every day" — never skip a
+        // schedule because of a malformed field.
+        if (Array.isArray(days) && days.length > 0 && !days.includes(weekday)) continue;
+        await runActions(a);
+      }
     } catch (err) {
       logger.error({ err }, "automation time tick failed");
     }

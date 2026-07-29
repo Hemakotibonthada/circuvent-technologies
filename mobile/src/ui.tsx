@@ -85,10 +85,17 @@ interface ThemeCtx {
 const Ctx = createContext<ThemeCtx | null>(null);
 const KEY = "cv-theme-v2";
 
+/* App default. Glass-on-dark matches the web console and the product artwork.
+   The provider only writes to storage on an explicit change, so anything found
+   under KEY is a deliberate user choice and always wins over these. */
+export const DEFAULT_MODE: ThemeMode = "glass";
+export const DEFAULT_SCHEME: Scheme = "dark";
+export const DEFAULT_ACCENT = "coral";
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeS] = useState<ThemeMode>("aurora");
-  const [scheme, setSchemeS] = useState<Scheme>("light");
-  const [accentKey, setAccentKeyS] = useState<string>("coral");
+  const [mode, setModeS] = useState<ThemeMode>(DEFAULT_MODE);
+  const [scheme, setSchemeS] = useState<Scheme>(DEFAULT_SCHEME);
+  const [accentKey, setAccentKeyS] = useState<string>(DEFAULT_ACCENT);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((raw) => {

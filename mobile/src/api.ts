@@ -47,6 +47,12 @@ export interface AutomationTrigger {
   op?: "<" | "<=" | ">" | ">=" | "==" | "!=" | "truthy" | "falsy";
   value?: number | string | boolean;
   at?: string;
+  /**
+   * Day filter for time triggers: 0=Sunday … 6=Saturday. Omitted or empty
+   * means every day. The control plane evaluates this in IST, the same zone
+   * as `at` — not in the phone's zone.
+   */
+  days?: number[];
 }
 
 export interface AutomationAction {

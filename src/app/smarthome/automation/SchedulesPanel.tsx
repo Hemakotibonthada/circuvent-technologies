@@ -4,21 +4,17 @@ import { useMemo, useState } from "react";
 import { CalendarClock, Clock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAutomations, useFleet } from "../_data/hooks";
 import { useToast, ConfirmDialog } from "../_kit/overlays";
-import { Button, EmptyState, ErrorState, LoadingState, Badge, SectionTitle } from "../_kit/primitives";
+import { Button, EmptyState, ErrorState, LoadingState, Badge, SectionTitle, Callout } from "../_kit/primitives";
 import type { Automation } from "@/lib/control-plane";
-import { actionText, nextRunText } from "./describe";
+import { daysText, istOffsetNote, istNow, nextRunLabel, WEEK_ORDER, WEEKDAY_LABELS } from "@/lib/smarthome-switches";
+import { actionText } from "./describe";
 import RuleEditor from "./RuleEditor";
 
-/* ------------------------------------------------------------------ */
-/* Hour slots for the weekly grid                                      */
-/* ------------------------------------------------------------------ */
-
-const HOUR_SLOTS: string[] = [];
-for (let h = 0; h < 24; h++) {
-  HOUR_SLOTS.push(`${String(h).padStart(2, "0")}:00`);
-}
-
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+/* Switch timers are time automations too, but they have their own tab with a
+   purpose-built editor. Listing them here as well would show the same rule in
+   two places, and editing one here would strip the marker that pairs its on
+   and off halves. */
+const SWITCH_MARK = "⟨sw⟩";
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -45,9 +41,10 @@ export default function SchedulesPanel() {
   const deviceName = (id?: string) =>
     id ? (deviceById.get(id)?.name ?? id) : "any device";
 
-  // Only time-triggered automations are "schedules"
+  // Only time-triggered automations are "schedules", and switch timers live in
+  // their own tab.
   const schedules = useMemo(
-    () => automations.filter((a) => a.trigger.type === "time"),
+    () => automations.filter((a) => a.trigger.type === "time" && !a.name.startsWith(SWITCH_MARK)),
     [automations],
   );
 
@@ -72,8 +69,8 @@ export default function SchedulesPanel() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm" style={{ color: "var(--cv-muted)" }}>
-          Time-triggered rules run every day at their configured hour. All times are local to
-          this browser.
+          Time-triggered rules that act on a whole device. To time a single switch, use the
+          Switch timers tab.
         </p>
         <Button
           variant="primary"
@@ -83,6 +80,12 @@ export default function SchedulesPanel() {
           New schedule
         </Button>
       </div>
+
+      {istOffsetNote() && (
+        <Callout tone="info">
+          {istOffsetNote()} It is currently {istNow()} IST.
+        </Callout>
+      )}
 
       {schedules.length === 0 && (
         <EmptyState
@@ -169,7 +172,7 @@ function ScheduleCard({
   onDelete: () => void;
 }) {
   const at = schedule.trigger.at ?? "--:--";
-  const next = nextRunText(at);
+  const next = nextRunLabel(at, schedule.trigger.days);
 
   return (
     <div
@@ -195,11 +198,11 @@ function ScheduleCard({
           </Badge>
         </div>
         <div className="mt-1 text-sm" style={{ color: "var(--cv-muted)" }}>
-          Every day at{" "}
+          {daysText(schedule.trigger.days)} at{" "}
           <span className="font-mono font-semibold" style={{ color: "var(--cv-text)" }}>
             {at}
           </span>
-          {" · "}
+          {" IST · "}
           {actionText(schedule.action, deviceName)}
         </div>
         <div className="mt-0.5 text-xs" style={{ color: "var(--cv-muted)" }}>
@@ -241,8 +244,8 @@ function ScheduleCard({
 
 /* ------------------------------------------------------------------ */
 /* Weekly overview grid                                                */
-/* The server trigger has no day-of-week: each schedule runs daily, so */
-/* every column shows the same entries. We show only occupied hours.  */
+/* A schedule with no day filter runs daily and appears in every       */
+/* column; one with a filter only appears on the days it will fire.    */
 /* ------------------------------------------------------------------ */
 
 function WeeklyGrid({ schedules }: { schedules: Automation[] }) {
@@ -276,13 +279,13 @@ function WeeklyGrid({ schedules }: { schedules: Automation[] }) {
             >
               Time
             </th>
-            {WEEKDAYS.map((d) => (
+            {WEEK_ORDER.map((d) => (
               <th
                 key={d}
                 className="px-2 py-1.5 text-center font-bold"
                 style={{ color: "var(--cv-muted)" }}
               >
-                {d}
+                {WEEKDAY_LABELS[d]}
               </th>
             ))}
           </tr>
@@ -299,26 +302,31 @@ function WeeklyGrid({ schedules }: { schedules: Automation[] }) {
                 >
                   {hour}
                 </td>
-                {WEEKDAYS.map((d) => (
+                {WEEK_ORDER.map((d) => (
                   <td key={d} className="px-1 py-1">
                     <div className="flex flex-col gap-1">
-                      {entries.map((s) => (
-                        <div
-                          key={s.id}
-                          title={s.name}
-                          className="truncate rounded-md px-2 py-1 text-center font-semibold"
-                          style={{
-                            maxWidth: 90,
-                            background: s.enabled
-                              ? "color-mix(in srgb, var(--cv-accent) 20%, transparent)"
-                              : "var(--cv-card-hi)",
-                            color: s.enabled ? "var(--cv-accent-hi)" : "var(--cv-muted)",
-                            border: "1px solid var(--cv-border)",
-                          }}
-                        >
-                          {s.name}
-                        </div>
-                      ))}
+                      {entries
+                        .filter((s) => {
+                          const days = s.trigger.days;
+                          return !days || days.length === 0 || days.includes(d);
+                        })
+                        .map((s) => (
+                          <div
+                            key={s.id}
+                            title={s.name}
+                            className="truncate rounded-md px-2 py-1 text-center font-semibold"
+                            style={{
+                              maxWidth: 90,
+                              background: s.enabled
+                                ? "color-mix(in srgb, var(--cv-accent) 20%, transparent)"
+                                : "var(--cv-card-hi)",
+                              color: s.enabled ? "var(--cv-accent-hi)" : "var(--cv-muted)",
+                              border: "1px solid var(--cv-border)",
+                            }}
+                          >
+                            {s.name}
+                          </div>
+                        ))}
                     </div>
                   </td>
                 ))}

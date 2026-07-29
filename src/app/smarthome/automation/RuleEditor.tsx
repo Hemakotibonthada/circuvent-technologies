@@ -5,8 +5,10 @@ import { AlertCircle, Info } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import type { Automation, AutomationBody, AutomationTrigger, AutomationAction } from "@/lib/control-plane";
 import { useFleet, useTelemetry } from "../_data/hooks";
+import { daysText, istOffsetNote, EVERY_DAY, WEEK_ORDER, WEEKDAY_LABELS } from "@/lib/smarthome-switches";
+import { useChannelLabels } from "@/lib/smarthome-prefs";
 import { useToast, Modal } from "../_kit/overlays";
-import { Button, Callout, Field, NumberInput, SelectInput, SwitchRow, TextInput } from "../_kit/primitives";
+import { Button, Field, NumberInput, SelectInput, SwitchRow, TextInput } from "../_kit/primitives";
 import {
   triggerText,
   actionText,
@@ -48,6 +50,7 @@ function parseValue(raw: string, kind: "boolean" | "number" | "string"): number 
 
 export default function RuleEditor({ rule, onClose, onSaved }: Props) {
   const { devices, byId: deviceById } = useFleet();
+  const { labelFor } = useChannelLabels();
   const toast = useToast();
 
   // ---- core fields ----
@@ -63,6 +66,9 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
   );
   const [triggerValue, setTriggerValue] = useState(String(rule?.trigger.value ?? ""));
   const [at, setAt] = useState(rule?.trigger.at ?? "06:00");
+  const [days, setDays] = useState<number[]>(
+    rule?.trigger.days?.length ? rule.trigger.days : EVERY_DAY
+  );
 
   // ---- action ----
   const [actionType, setActionType] = useState<ActionType>(rule?.action.type ?? "notify");
@@ -140,10 +146,18 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
     }
   }, [operators, triggerOp]);
 
-  // Command fields for the selected action device
+  // Command fields for the selected action device.
+  // Relay channels are relabelled with the name the user gave that switch —
+  // "Geyser" rather than "Channel 2" — so the rule builder speaks the same
+  // language as the device page and the switch timers.
   const cmdFields = useMemo(
-    () => (actionDevice ? getCommandFields(actionDevice.type) : []),
-    [actionDevice],
+    () =>
+      actionDevice
+        ? getCommandFields(actionDevice.type).map((f) =>
+            f.kind === "bool" ? { ...f, label: labelFor(actionDevice.id, f.key, f.label) } : f
+          )
+        : [],
+    [actionDevice, labelFor],
   );
 
   // When the action device changes, pick the first available command field
@@ -165,7 +179,10 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
 
   // ---- live preview ----
   const previewTrigger = useMemo((): AutomationTrigger | null => {
-    if (triggerType === "time") return { type: "time", at };
+    if (triggerType === "time") {
+      // Seven days selected is the same as no filter; store the shorter form.
+      return { type: "time", at, days: days.length === 7 ? undefined : days };
+    }
     if (!triggerDeviceId || !triggerField) return null;
     const base: AutomationTrigger = {
       type: "state",
@@ -177,7 +194,7 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
       base.value = parseValue(triggerValue, fieldKind);
     }
     return base;
-  }, [triggerType, at, triggerDeviceId, triggerField, triggerOp, triggerValue, needsValue, fieldKind]);
+  }, [triggerType, at, days, triggerDeviceId, triggerField, triggerOp, triggerValue, needsValue, fieldKind]);
 
   const previewAction = useMemo((): AutomationAction | null => {
     if (actionType === "notify") {
@@ -214,6 +231,9 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
     }
     if (triggerType === "time" && !/^\d{2}:\d{2}$/.test(at)) {
       return "Enter a valid time as HH:MM.";
+    }
+    if (triggerType === "time" && days.length === 0) {
+      return "Select at least one day — a rule with no days would never run.";
     }
     if (actionType === "notify" && !notifyTitle.trim()) {
       return "Enter a notification title.";
@@ -428,9 +448,43 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
               )}
             </div>
           ) : (
-            <Field label="Fire at (daily, local time)">
-              <TextInput type="time" value={at} onChange={setAt} />
-            </Field>
+            <>
+              <Field
+                label="Fire at"
+                hint={istOffsetNote() || "India Standard Time (IST) — the control plane's clock."}
+              >
+                <TextInput type="time" value={at} onChange={setAt} />
+              </Field>
+              <Field label="Days" hint={daysText(days)}>
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEK_ORDER.map((d) => {
+                    const active = days.includes(d);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() =>
+                          setDays((prev) =>
+                            prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()
+                          )
+                        }
+                        aria-pressed={active}
+                        className="h-9 w-11 rounded-lg text-xs font-bold transition"
+                        style={{
+                          background: active
+                            ? "color-mix(in srgb, var(--cv-accent) 25%, transparent)"
+                            : "var(--cv-card-hi)",
+                          color: active ? "var(--cv-accent-hi)" : "var(--cv-muted)",
+                          border: `1px solid ${active ? "var(--cv-accent)" : "var(--cv-border)"}`,
+                        }}
+                      >
+                        {WEEKDAY_LABELS[d]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+            </>
           )}
         </Section>
 

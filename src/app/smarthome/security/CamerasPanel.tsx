@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
-import { Camera, VideoOff } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { Camera, VideoOff, Radio } from "lucide-react";
 import {
   Surface,
   SectionTitle,
   StatusDot,
-  Badge,
   Kpi,
   KpiGrid,
   EmptyState,
@@ -18,11 +18,24 @@ import {
 } from "../_kit/primitives";
 import { useFleet } from "../_data/hooks";
 import { deviceMeta } from "../DeviceControls";
+import { useCameraFrames, useNow } from "@/lib/control-plane-live";
 
 // Security devices that operators typically want visual status for
-const SECURITY_TYPES = new Set(["facedoor", "rfid-gate", "guardian", "motion-sensor", "smart-lock"]);
+const SECURITY_TYPES = new Set([
+  "facedoor",
+  "rfid-gate",
+  "guardian",
+  "motion-sensor",
+  "smart-lock",
+  "camera",
+  "cctv",
+  "doorbell",
+]);
 
-// Types that MIGHT publish a stream URL in their state (none confirmed in current firmware)
+/** Types whose firmware relays JPEG frames over MQTT (firmware/camera). */
+const CAMERA_TYPES = new Set(["camera", "cctv", "doorbell"]);
+
+// Third-party devices may still publish a plain stream/snapshot URL in state.
 const POTENTIAL_CAMERA_TYPES = new Set(["facedoor", "rfid-gate"]);
 
 interface SecurityDeviceCardProps {
@@ -117,8 +130,11 @@ function SecurityDeviceCard({ device }: SecurityDeviceCardProps) {
           </div>
         )}
 
-        {/* Show stream if available; otherwise honest disclosure */}
-        {streamUrl ? (
+        {/* Live frames for Circuvent cameras, then plain stream/snapshot URLs
+            for third-party devices, then honest disclosure. */}
+        {CAMERA_TYPES.has(device.type) ? (
+          <CameraThumb device={device} />
+        ) : streamUrl ? (
           <div>
             <div className="mb-2 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--cv-muted)" }}>
               Live stream
@@ -168,6 +184,70 @@ function SecurityDeviceCard({ device }: SecurityDeviceCardProps) {
   );
 }
 
+/**
+ * Live tile for a Circuvent camera. Subscribes to the frame relay while the
+ * card is mounted, so the wall shows moving pictures rather than a placeholder.
+ * Frames are only produced while the device is streaming; before then this
+ * shows the last snapshot, or an invitation to open the camera.
+ */
+function CameraThumb({ device }: { device: SecurityDeviceCardProps["device"] }) {
+  const [frame, setFrame] = useState<{ src: string; at: number } | null>(null);
+  const seen = useRef(0);
+
+  useCameraFrames(device.online ? device.id : null, (f) => {
+    seen.current += 1;
+    setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: Date.now() });
+  });
+
+  const streaming = device.state.streaming === true;
+  const now = useNow(1000, device.online && frame != null);
+  const live = streaming && frame != null && now - frame.at < 5000;
+
+  return (
+    <Link href={`/smarthome/device/${encodeURIComponent(device.id)}`} className="block">
+      <div
+        className="relative w-full overflow-hidden rounded-xl"
+        style={{ aspectRatio: "4/3", background: "#000", border: "1px solid var(--cv-border)" }}
+      >
+        {frame ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={frame.src}
+            alt={`Live view from ${device.name || device.id}`}
+            className="h-full w-full object-contain"
+            style={{ transform: device.state.rotation === 180 ? "rotate(180deg)" : undefined }}
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center">
+            <VideoOff className="h-7 w-7" style={{ color: "#475569" }} />
+            <span className="text-xs" style={{ color: "#94a3b8" }}>
+              {device.online ? "Open to start live view" : "Camera is offline"}
+            </span>
+          </div>
+        )}
+        <span
+          className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+          style={{
+            background: live ? "rgba(239,68,68,0.85)" : "rgba(15,23,42,0.75)",
+            color: live ? "#fff" : "#cbd5e1",
+          }}
+        >
+          <Radio className="h-2.5 w-2.5" />
+          {live ? "Live" : frame ? "Still" : "Idle"}
+        </span>
+        {device.state.motionActive === true && (
+          <span
+            className="absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+            style={{ background: "rgba(239,68,68,0.85)", color: "#fff" }}
+          >
+            Motion
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 export function CamerasPanel() {
   const { devices, loading, error, refresh } = useFleet();
 
@@ -180,6 +260,7 @@ export function CamerasPanel() {
     () =>
       securityDevices.filter(
         (d) =>
+          CAMERA_TYPES.has(d.type) ||
           typeof d.state.streamUrl === "string" ||
           typeof d.state.snapshotUrl === "string"
       ),
@@ -200,24 +281,25 @@ export function CamerasPanel() {
         <Kpi label="Security devices" value={securityDevices.length} icon={Camera} />
         <Kpi label="Online" value={onlineCount} tone={onlineCount > 0 ? "ok" : undefined} />
         <Kpi
-          label="With live stream"
+          label="With live video"
           value={devicesWithStreams.length}
-          hint={devicesWithStreams.length === 0 ? "None in current firmware" : undefined}
+          hint={devicesWithStreams.length === 0 ? "Add a camera to see live video" : undefined}
         />
       </KpiGrid>
 
-      <Callout tone="info">
-        The Circuvent device line does not include a dedicated camera type. This view shows
-        security devices (facedoors, RFID gates, motion sensors, guardians, smart locks) and
-        displays any stream or snapshot URL they publish in their state. No stream exists in
-        the current fleet — this is an accurate reflection of registered hardware.
-      </Callout>
+      {devicesWithStreams.length === 0 && (
+        <Callout tone="info">
+          This view shows security devices — cameras, facedoors, RFID gates, motion sensors,
+          guardians and smart locks. Circuvent cameras relay live JPEG frames over the device
+          channel; other devices appear here for status only.
+        </Callout>
+      )}
 
       {securityDevices.length === 0 ? (
         <EmptyState
           icon={Camera}
           title="No security devices registered"
-          body="Add a facedoor, RFID gate, motion sensor, guardian, or smart lock to this fleet to see it here."
+          body="Add a camera, facedoor, RFID gate, motion sensor, guardian, or smart lock to this fleet to see it here."
         />
       ) : (
         <>

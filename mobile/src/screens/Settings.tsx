@@ -10,8 +10,8 @@ import { tapLight, toggleFeedback, setHapticsEnabled, hapticsEnabled } from "../
 import { APP_VERSION, APP_BUILD } from "../version";
 
 const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = [
-  { key: "aurora", label: "Aurora", sub: "Signature gradient", icon: "aurora" },
   { key: "glass", label: "Glass", sub: "Frosted glassmorphism", icon: "glass" },
+  { key: "aurora", label: "Aurora", sub: "Signature gradient", icon: "aurora" },
   { key: "neo", label: "Neo", sub: "Soft neumorphism", icon: "neo" },
 ];
 

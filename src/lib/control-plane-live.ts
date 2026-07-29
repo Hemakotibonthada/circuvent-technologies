@@ -216,6 +216,28 @@ export function useCameraFrames(deviceId: string | null | undefined, onFrame: Fr
   }, [deviceId]);
 }
 
+/**
+ * A wall clock that advances on an interval, for deciding whether the last
+ * frame is stale.
+ *
+ * Reading `Date.now()` during render would be impure — the value changes
+ * without a state update, so React is free to render a stale "Live" badge and
+ * never correct it. Sampling the clock inside the interval instead makes the
+ * staleness a real piece of state that drives a re-render.
+ *
+ * @param ms      Sampling period. 1000 is enough for a seconds-granular age.
+ * @param enabled Pass false to stop the timer entirely (e.g. device offline).
+ */
+export function useNow(ms = 1000, enabled = true): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    const t = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(t);
+  }, [ms, enabled]);
+  return now;
+}
+
 /** Asks the server to re-read which devices this account owns. */
 export function refreshLiveSubscription(): void {
   send({ type: "subscribe" });

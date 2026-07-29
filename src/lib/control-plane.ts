@@ -58,6 +58,12 @@ export interface AutomationTrigger {
   op?: "<" | "<=" | ">" | ">=" | "==" | "!=" | "truthy" | "falsy";
   value?: number | string | boolean;
   at?: string;
+  /**
+   * Day filter for time triggers: 0=Sunday … 6=Saturday. Omitted or empty
+   * means every day. Evaluated by the control plane in IST, the same zone as
+   * `at` — not in the browser's zone.
+   */
+  days?: number[];
 }
 
 export interface AutomationAction {

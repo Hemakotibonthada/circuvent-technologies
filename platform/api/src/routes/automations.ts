@@ -12,6 +12,10 @@ const triggerSchema = z.object({
   op: z.enum(["<", "<=", ">", ">=", "==", "!=", "truthy", "falsy"]).optional(),
   value: z.union([z.number(), z.string(), z.boolean()]).optional(),
   at: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  // Day filter for time triggers, 0=Sunday … 6=Saturday, evaluated in IST.
+  // Zod strips unknown keys, so this must be declared or the field is silently
+  // dropped and every schedule quietly reverts to running daily.
+  days: z.array(z.number().int().min(0).max(6)).max(7).optional(),
   eventType: z.string().max(40).optional(),
   match: z.record(z.string(), z.unknown()).optional(),
 });

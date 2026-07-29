@@ -70,34 +70,6 @@ export function rulePreviewText(
 }
 
 /* ------------------------------------------------------------------ */
-/* Schedule helpers                                                    */
-/* ------------------------------------------------------------------ */
-
-/**
- * How long until the next occurrence of a daily HH:MM schedule.
- * The server does not store a timezone; we compare against local time.
- */
-export function nextRunText(at: string): string {
-  const [hStr, mStr] = at.split(":");
-  const h = parseInt(hStr, 10);
-  const m = parseInt(mStr, 10);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return "—";
-
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(h, m, 0, 0);
-  // If that time has already passed today, it runs tomorrow.
-  if (next <= now) next.setDate(next.getDate() + 1);
-
-  const diffMs = next.getTime() - now.getTime();
-  const diffMins = Math.round(diffMs / 60_000);
-  if (diffMins < 60) return `in ${diffMins}m`;
-  const diffHrs = Math.round(diffMins / 60);
-  if (diffHrs < 24) return `in ${diffHrs}h`;
-  return `tomorrow at ${at}`;
-}
-
-/* ------------------------------------------------------------------ */
 /* Field type inference                                                */
 /* ------------------------------------------------------------------ */
 

@@ -17,8 +17,8 @@ import ThemePreview from "./ThemePreview";
 import { DENSITY_KEY, REDUCED_MOTION_KEY, type Density } from "./prefs";
 
 const MODES: { key: ThemeMode; label: string; desc: string }[] = [
+  { key: "glass", label: "Glass", desc: "Frosted cards over an accent glow — default" },
   { key: "aurora", label: "Aurora", desc: "Classic dark smart-home panels" },
-  { key: "glass", label: "Glass", desc: "Frosted cards over an accent glow" },
   { key: "neo", label: "Neo", desc: "Soft extruded surfaces and shadows" },
 ];
 

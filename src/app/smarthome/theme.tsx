@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 export type ThemeMode = "aurora" | "glass" | "neo";
 export type Scheme = "dark" | "light";
@@ -24,6 +24,20 @@ export const ACCENTS: Accent[] = [
 ];
 
 const KEY = "cv-console-theme";
+
+/* Console default. Glass-on-dark is the house look: the accessory tiles read
+   as frosted panes over the accent wash, which is what the product screenshots
+   and the mobile app ship with. Changing these two constants changes the
+   default everywhere — every consumer reads them rather than hard-coding. */
+export const DEFAULT_MODE: ThemeMode = "glass";
+export const DEFAULT_SCHEME: Scheme = "dark";
+
+/* The preference written by builds before glass-dark became the default. The
+   old provider persisted its defaults on first paint, so a stored value of
+   exactly this triple cannot be distinguished from "never chose anything" —
+   we treat it as unset and adopt the new default. Anything else was a
+   deliberate choice and is preserved. */
+const LEGACY_DEFAULT = { mode: "aurora", scheme: "dark", accentKey: "brand" } as const;
 
 interface ThemeValue {
   mode: ThemeMode;
@@ -154,24 +168,39 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
 }
 
 export function ConsoleThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>("aurora");
-  const [scheme, setScheme] = useState<Scheme>("dark");
+  const [mode, setMode] = useState<ThemeMode>(DEFAULT_MODE);
+  const [scheme, setScheme] = useState<Scheme>(DEFAULT_SCHEME);
   const [accentKey, setAccentKey] = useState("brand");
+  const hydrated = useRef(false);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as Partial<{ mode: ThemeMode; scheme: Scheme; accentKey: string }>;
+      const untouched =
+        saved.mode === LEGACY_DEFAULT.mode &&
+        saved.scheme === LEGACY_DEFAULT.scheme &&
+        saved.accentKey === LEGACY_DEFAULT.accentKey;
+      if (untouched) return;
       if (saved.mode) setMode(saved.mode);
       if (saved.scheme) setScheme(saved.scheme);
       if (saved.accentKey) setAccentKey(saved.accentKey);
     } catch {
       /* ignore corrupt preference */
+    } finally {
+      hydrated.current = true;
     }
   }, []);
 
   useEffect(() => {
+    /* Don't write on the very first pass — that would stamp the default over a
+       stored preference before the restore effect above has had a chance to
+       apply it. */
+    if (!hydrated.current) {
+      hydrated.current = true;
+      return;
+    }
     localStorage.setItem(KEY, JSON.stringify({ mode, scheme, accentKey }));
   }, [mode, scheme, accentKey]);
 
