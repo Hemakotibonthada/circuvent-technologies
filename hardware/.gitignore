@@ -1,0 +1,15 @@
+# Autorouter intermediates. Regenerated on every `gen-pcb.py ... ` run from
+# the .kicad_pcb, so tracking them only produces large churn in every diff.
+*.dsn
+*.ses
+.route/
+
+# KiCad per-user local state (window layout, last-used paths). Not project data.
+*.kicad_prl
+
+# KiCad backups and autosaves.
+*-backups/
+*.kicad_pcb-bak
+*.kicad_sch-bak
+_autosave-*
+fp-info-cache
