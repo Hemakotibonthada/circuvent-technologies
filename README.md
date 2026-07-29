@@ -107,7 +107,7 @@ sensitive is shared. Each side has its own:
 
 | Concern | Why it must not be shared |
 | ------- | ------------------------- |
-| `DATABASE_URL` | Dev is publicly reachable; sharing it publishes real customer accounts, orders and wallet balances |
+| `DATABASE_URL` | Sharing it puts real customer accounts, orders and wallet balances in a test environment |
 | `ACCOUNT_SECRET`, `JWT_SECRET`, `SESSION_SECRET` | A session minted on dev would otherwise authenticate against production |
 | Razorpay / Stripe keys | Dev must use **test-mode** keys so checkout works end to end without moving real money |
 | Twilio, SMTP, Resend | Dev must not send SMS or email to real customers |
@@ -117,8 +117,8 @@ Only non-sensitive tuning knobs (rate limits, ports, log level, upload paths)
 are shared between the two.
 
 This separation was not always true: the production connection string had been
-scoped to "All Environments", so dev served live customer data on a public URL.
-Config hygiene alone regresses, so the app now enforces it. Set
+scoped to "All Environments", so dev served live customer data and accepted
+production logins. Config hygiene alone regresses, so the app now enforces it. Set
 `PROD_DATA_FINGERPRINT` (a one-way hash of the production connection string) on
 every target, and any non-production deployment holding that exact string
 refuses to start instead of silently serving live data. See
@@ -131,9 +131,14 @@ exposes unreleased work. See `IS_PUBLIC_SITE` in `src/lib/config.ts`. Vercel
 adds that header to `.vercel.app` URLs by itself but not to a custom domain
 pointed at a branch, which is why the app sets it.
 
-Note that deployment protection is set to `all_except_custom_domains`, so
-dev.circuvent.com is reachable without a Vercel login. Turn on password
-protection for the project if the dev site should not be public.
+Access to dev is gated by Vercel Authentication: an unauthenticated request to
+dev.circuvent.com is answered with `401 Protected deployment`, so only signed-in
+team members can reach it. (The project setting reads
+`all_except_custom_domains`, which suggests custom domains are exempt — they are
+not, as an anonymous request to the domain shows. Verify with a real request
+rather than trusting the setting.) The `noindex` behaviour above is still
+required: protection can be turned off, and a dev site must not become
+indexable the moment it is.
 
 ## Deploy on Vercel
 
