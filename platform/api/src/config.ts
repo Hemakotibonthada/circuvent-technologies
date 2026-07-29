@@ -32,6 +32,12 @@ const schema = z.object({
   OTP_DEBUG: z.string().default("false"),
   // Comma-separated emails auto-granted the admin role on login/verify.
   ADMIN_EMAILS: z.string().default(""),
+  // Shared secret for single sign-on with the storefront. The shop's Next.js
+  // backend proves a customer is already authenticated by signing a request
+  // with this, and gets back a console session for the same address. Empty
+  // disables federation entirely, so a deployment that has not configured it
+  // cannot be talked into minting sessions.
+  FEDERATION_SECRET: z.string().default(""),
 });
 
 const parsed = schema.safeParse(process.env);

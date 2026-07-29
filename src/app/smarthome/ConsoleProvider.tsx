@@ -35,6 +35,26 @@ interface ConsoleContextValue {
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null);
 
+/**
+ * Where the storefront keeps its session (see components/shop/AccountProvider).
+ * It stores an object, not a bare token, so the shape is read defensively —
+ * this is a best-effort convenience and must never throw on the console's
+ * critical path.
+ */
+const SHOP_ACCOUNT_KEY = "circuvent-account";
+
+function readShopToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(SHOP_ACCOUNT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { token?: unknown };
+    return typeof parsed?.token === "string" && parsed.token ? parsed.token : null;
+  } catch {
+    return null;
+  }
+}
+
 interface Flags {
   dryRun?: boolean;
   overflow?: boolean;
@@ -50,15 +70,57 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const subscribers = useRef(new Set<(u: DeviceUpdate) => void>());
   const lastFlags = useRef(new Map<string, Flags>());
 
-  // Hydrate auth from storage on mount.
+  // Hydrate auth on mount.
+  //
+  // A customer who signed in on the shop has a storefront session but no
+  // console token, because the two halves keep separate accounts. Before
+  // showing a login form, offer that session to the backend and take a console
+  // session in return. Failure is silent by design: the login form is the
+  // fallback, and a control plane that is down must not block the page.
+  //
+  // All of this runs inside the async callback rather than the effect body so
+  // the stored-user path and the exchange path share one place that flips
+  // `ready`, and neither can skip the notification-permission read.
   useEffect(() => {
-    setUser(getStoredUser());
-    setReady(true);
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setNotifyPermission(Notification.permission);
-    } else {
-      setNotifyPermission("unsupported");
-    }
+    let cancelled = false;
+
+    void (async () => {
+      const stored = getStoredUser();
+
+      if (!stored) {
+        const shopToken = readShopToken();
+        if (shopToken) {
+          try {
+            const res = await fetch("/api/account/sso/console", {
+              method: "POST",
+              headers: { authorization: `Bearer ${shopToken}` },
+            });
+            const data = await res.json();
+            if (res.ok && data?.token && data?.user) {
+              setToken(data.token);
+              setStoredUser(data.user);
+              if (!cancelled) setUser(data.user);
+            }
+          } catch {
+            /* fall through to the login form */
+          }
+        }
+      } else if (!cancelled) {
+        setUser(stored);
+      }
+
+      if (cancelled) return;
+      if (typeof window !== "undefined" && "Notification" in window) {
+        setNotifyPermission(Notification.permission);
+      } else {
+        setNotifyPermission("unsupported");
+      }
+      setReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const notify = useCallback((title: string, body: string) => {

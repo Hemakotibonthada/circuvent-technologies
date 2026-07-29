@@ -162,3 +162,93 @@ authRouter.post("/login", async (req, res) => {
     res.status(500).json({ error: "Login failed." });
   }
 });
+
+/**
+ * POST /auth/federated — issue a console session for a customer the storefront
+ * has already authenticated.
+ *
+ * The shop and the control plane keep separate user tables with different
+ * password schemes (scrypt vs bcrypt), so single sign-on cannot be done by
+ * sharing credentials. Instead the shop's backend, which has just verified the
+ * customer itself, asks for a session on their behalf.
+ *
+ * The caller proves it is the shop by signing "<timestamp>.<email>" with a
+ * shared secret. That is a server-to-server credential and must never reach a
+ * browser: anyone holding it can mint a session for any address. Requests are
+ * therefore rejected unless the secret is configured, the signature matches in
+ * constant time, and the timestamp is recent enough that a captured request
+ * cannot be replayed later.
+ *
+ * An address with no console account yet gets one created. Its password column
+ * is filled with the hash of a random value nobody keeps, so the row can never
+ * be signed into directly — the only way in is through this endpoint or a
+ * password reset, and "user signed up on the shop" does not silently become
+ * "user has a control-plane password somebody might guess".
+ */
+const FEDERATION_SKEW_MS = 5 * 60_000;
+
+const federatedSchema = z.object({
+  email: z.string().email(),
+  name: z.string().max(120).optional(),
+});
+
+authRouter.post("/federated", async (req, res) => {
+  if (!config.FEDERATION_SECRET) {
+    res.status(404).json({ error: "Federation is not enabled." });
+    return;
+  }
+
+  const parsed = federatedSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+
+  const ts = String(req.header("x-federation-timestamp") ?? "");
+  const sig = String(req.header("x-federation-signature") ?? "");
+  const at = Number(ts);
+  if (!Number.isFinite(at) || Math.abs(Date.now() - at) > FEDERATION_SKEW_MS) {
+    res.status(401).json({ error: "Stale or missing timestamp." });
+    return;
+  }
+
+  const email = parsed.data.email.trim().toLowerCase();
+  const expected = crypto
+    .createHmac("sha256", config.FEDERATION_SECRET)
+    .update(`${ts}.${email}`)
+    .digest("hex");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    res.status(401).json({ error: "Bad signature." });
+    return;
+  }
+
+  try {
+    const found = await pool.query<{ id: number; name: string }>(
+      `SELECT id, name FROM users WHERE email = $1`,
+      [email]
+    );
+    let user = found.rows[0];
+
+    if (!user) {
+      const unusable = await hashPassword(crypto.randomBytes(32).toString("hex"));
+      const created = await pool.query<{ id: number; name: string }>(
+        `INSERT INTO users (email, name, password) VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE SET name = COALESCE(NULLIF(users.name, ''), EXCLUDED.name)
+         RETURNING id, name`,
+        [email, parsed.data.name ?? "", unusable]
+      );
+      user = created.rows[0];
+      logger.info({ email }, "federated sign-in created a console account");
+    }
+
+    res.json({
+      token: signUserToken({ uid: Number(user.id), email }),
+      user: { id: Number(user.id), email, name: user.name },
+    });
+  } catch (err) {
+    logger.error({ err }, "federated sign-in failed");
+    res.status(500).json({ error: "Could not create a session." });
+  }
+});

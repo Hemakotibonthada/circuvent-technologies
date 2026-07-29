@@ -26,12 +26,11 @@
  *
  * Board: AI-Thinker ESP32-CAM (default). Set CV_CAM_BOARD for the others.
  */
-#define CV_FW_VERSION "1.0.0"
+#define CV_FW_VERSION "1.1.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
-#include "soc/soc.h"
-#include "soc/rtc_cntl_reg.h"
+#include "esp_heap_caps.h"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 
@@ -295,6 +294,44 @@ void publishSettings() {
 // ---------------------------------------------------------------------------
 // Camera bring-up
 // ---------------------------------------------------------------------------
+/**
+ * Confirms PSRAM actually stores what is written to it.
+ *
+ * psramFound() reports that the SDK enumerated a chip, not that the chip
+ * works. Clone modules ship with absent, mismatched or marginal PSRAM, and the
+ * failure is silent in the worst way: the allocator keeps handing out external
+ * addresses, the camera DMAs frames into them, and the damage surfaces much
+ * later as a panic somewhere unrelated.
+ *
+ * Every block is written before any block is read back, so a chip that decodes
+ * fewer address lines than it claims — where a later write lands on top of an
+ * earlier block — is caught rather than passing a naive write-then-read.
+ */
+static bool psramUsable() {
+  const size_t BLOCKS = 8;
+  const size_t WORDS = (32 * 1024) / sizeof(uint32_t);
+  uint32_t *blk[BLOCKS] = { nullptr };
+  bool ok = true;
+
+  for (size_t i = 0; i < BLOCKS; i++) {
+    blk[i] = (uint32_t *)heap_caps_malloc(WORDS * sizeof(uint32_t), MALLOC_CAP_SPIRAM);
+    if (!blk[i]) { ok = false; break; }
+  }
+
+  if (ok) {
+    for (size_t i = 0; i < BLOCKS; i++)
+      for (size_t j = 0; j < WORDS; j++)
+        blk[i][j] = (uint32_t)(i * 0x9E3779B1u) ^ (uint32_t)j;
+
+    for (size_t i = 0; i < BLOCKS && ok; i++)
+      for (size_t j = 0; j < WORDS; j++)
+        if (blk[i][j] != ((uint32_t)(i * 0x9E3779B1u) ^ (uint32_t)j)) { ok = false; break; }
+  }
+
+  for (size_t i = 0; i < BLOCKS; i++) if (blk[i]) heap_caps_free(blk[i]);
+  return ok;
+}
+
 bool initCamera() {
   camera_config_t c = {};
   c.ledc_channel = LEDC_CHANNEL_0;
@@ -311,16 +348,29 @@ bool initCamera() {
   c.pin_sccb_scl = SIOC_GPIO_NUM;
   c.pin_pwdn     = PWDN_GPIO_NUM;
   c.pin_reset    = RESET_GPIO_NUM;
-  c.xclk_freq_hz = 20000000;
+  // 10 MHz rather than the 20 MHz the examples use. The sensor, the parallel
+  // data bus and the DMA writes behind them all scale with this clock, and on
+  // AI-Thinker-class boards — especially HW-297 / ESP-32S clones with a small
+  // on-board regulator — 20 MHz is what pushes a marginal supply over the edge
+  // once Wi-Fi is also transmitting. Halving it costs frame rate at the top
+  // resolutions and buys a large stability margin. It also makes SCCB writes
+  // far more reliable, since the sensor clocks its register logic from XCLK.
+  c.xclk_freq_hz = 10000000;
   c.pixel_format = PIXFORMAT_JPEG;
 
-  hasPsram = psramFound();
+  hasPsram = psramFound() && psramUsable();
+  if (psramFound() && !hasPsram) {
+    Serial.println("[CAM] PSRAM present but failed verification — using DRAM");
+  }
+
   if (hasPsram) {
     c.frame_size   = FRAMESIZE_VGA;
     c.jpeg_quality = quality;
-    c.fb_count     = 2;            // double buffered: capture overlaps publish
+    // Single buffer. The second buffer doubles both the PSRAM footprint and
+    // the DMA bandwidth for, at these frame rates, no useful overlap.
+    c.fb_count     = 1;
     c.fb_location  = CAMERA_FB_IN_PSRAM;
-    c.grab_mode    = CAMERA_GRAB_LATEST;
+    c.grab_mode    = CAMERA_GRAB_WHEN_EMPTY;
   } else {
     // Without PSRAM the buffer lives in the internal DRAM shared with TLS and
     // the network stack, so keep it small and single-buffered.
@@ -524,9 +574,20 @@ void onCommand(const String &action, JsonObjectConst p) {
 
 // ---------------------------------------------------------------------------
 void setup() {
-  // The 5V rail sags hard on the first camera capture and on Wi-Fi TX bursts.
-  // Without this the board resets in a loop on most USB supplies.
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+  // The brownout detector stays ON deliberately.
+  //
+  // This used to write RTC_CNTL_BROWN_OUT_REG = 0 because the board reset in a
+  // loop on weak USB supplies. That silenced the warning without adding a
+  // single milliamp of headroom: below the brownout threshold the SPI flash
+  // and PSRAM stop returning correct data, so instead of a clean reset the
+  // chip carries on executing corrupted code. That shows up as Guru Meditation
+  // panics with nonsense program counters, shredded backtraces, and an ELF
+  // SHA256 that reads as a repeating byte pattern — a crash that tells you
+  // nothing about its own cause.
+  //
+  // A reset that prints "Brownout detector was triggered" names the fault in
+  // one line. If that message appears, the supply is the problem: power the
+  // board from a real 5V source rather than an FTDI adapter's regulator.
 
   Serial.begin(115200);
   Serial.setDebugOutput(false);
