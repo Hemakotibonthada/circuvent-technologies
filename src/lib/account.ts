@@ -3,9 +3,9 @@
 // SERVER ONLY — uses node:crypto.
 
 import crypto from "crypto";
-import { requireSecret } from "./secrets";
+import { lazySecret } from "./secrets";
 
-const SECRET = requireSecret(["ACCOUNT_SECRET"], "customer sessions");
+const secret = lazySecret(["ACCOUNT_SECRET"], "customer sessions");
 
 /**
  * Account-state lookup, injected by the store at import time.
@@ -55,7 +55,7 @@ export interface SessionClaims {
 }
 
 function sign(payload: string): string {
-  return crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
+  return crypto.createHmac("sha256", secret()).update(payload).digest("hex");
 }
 
 /** Signs a session token for an email, pinned to its current token version. */

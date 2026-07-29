@@ -8,7 +8,7 @@
 
 import crypto from "crypto";
 import { hashPassword, verifyPassword } from "./account";
-import { requireSecret, seedAdminPassword } from "./secrets";
+import { lazySecret, seedAdminPassword } from "./secrets";
 import {
   countAdminUsers,
   getAdminUser,
@@ -19,7 +19,7 @@ import {
 } from "./store";
 
 // Staff sessions get their own key so a leaked customer key cannot mint one.
-const SECRET = requireSecret(["ADMIN_SECRET", "ACCOUNT_SECRET"], "staff sessions");
+const secret = lazySecret(["ADMIN_SECRET", "ACCOUNT_SECRET"], "staff sessions");
 
 /** The always-available root administrator (as requested by the owner). */
 export const DEFAULT_ADMIN_EMAIL = (
@@ -170,7 +170,7 @@ export function ensureSeeded(): void {
 /** Signs a stateless session token bound to the staff email. */
 export function signAdminToken(email: string): string {
   const e = email.trim().toLowerCase();
-  const sig = crypto.createHmac("sha256", SECRET).update(`admin:${e}`).digest("hex");
+  const sig = crypto.createHmac("sha256", secret()).update(`admin:${e}`).digest("hex");
   return Buffer.from(`${e}:${sig}`).toString("base64");
 }
 
@@ -183,7 +183,7 @@ export function verifyAdminToken(token: string | null | undefined): string | nul
     if (idx < 0) return null;
     const email = dec.slice(0, idx);
     const sig = dec.slice(idx + 1);
-    const expected = crypto.createHmac("sha256", SECRET).update(`admin:${email}`).digest("hex");
+    const expected = crypto.createHmac("sha256", secret()).update(`admin:${email}`).digest("hex");
     const a = Buffer.from(sig);
     const b = Buffer.from(expected);
     if (a.length === b.length && crypto.timingSafeEqual(a, b)) return email;

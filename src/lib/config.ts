@@ -46,7 +46,7 @@ type EnvVar = {
 const ENV_SPEC: EnvVar[] = [
   { key: "DATABASE_URL", required: true, prodOnly: true, description: "Postgres connection string (durable store)" },
   { key: "ACCOUNT_SECRET", required: true, prodOnly: true, description: "Customer session token signing secret" },
-  { key: "ADMIN_SECRET", required: true, prodOnly: true, description: "Staff session token signing secret" },
+  { key: "ADMIN_SECRET", required: false, prodOnly: true, description: "Staff session token signing secret (falls back to ACCOUNT_SECRET)" },
   { key: "ADMIN_DEFAULT_PASSWORD", required: false, description: "Seed password for the bootstrap owner account" },
   { key: "RAZORPAY_KEY_ID", required: false, prodOnly: true, description: "Razorpay live key id" },
   { key: "RAZORPAY_KEY_SECRET", required: false, prodOnly: true, description: "Razorpay live key secret" },

@@ -66,6 +66,23 @@ export function requireSecret(names: string[], label: string): string {
 }
 
 /**
+ * Defers secret resolution to first use.
+ *
+ * `next build` imports every route module to collect page data, so calling
+ * requireSecret() at module scope turns a missing env var into an opaque
+ * build failure — the deploy dies before a single request is ever served,
+ * and the stack trace points at a bundled chunk rather than the real cause.
+ *
+ * Resolving on first use keeps the fail-closed guarantee exactly as strong:
+ * nothing can be signed or verified without a real key, the request simply
+ * errors instead of the build. Routes that never touch sessions stay up.
+ */
+export function lazySecret(names: string[], label: string): () => string {
+  let cached: string | undefined;
+  return () => (cached ??= requireSecret(names, label));
+}
+
+/**
  * The seed password for the bootstrap super-admin.
  *
  * When unset, a strong random password is generated and printed once so the
