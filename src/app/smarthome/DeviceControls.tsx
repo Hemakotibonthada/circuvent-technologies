@@ -1173,14 +1173,14 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
         )}
       </div>
 
-      {stalled && (
+      {stalled && ready && (
         <div className="mt-3">
-          <AlertBanner text="Streaming is on but no frames are arriving — check the camera's Wi-Fi signal." />
+          <AlertBanner text="Streaming is on but no frames are arriving. Check the camera's signal, then try Reboot." />
         </div>
       )}
       {!ready && d.online && (
         <div className="mt-3">
-          <AlertBanner text="The camera module did not initialise. Check the ribbon cable seating, then reboot." />
+          <AlertBanner text="The camera sensor is not responding. Check the ribbon cable seating, then reboot." />
         </div>
       )}
 

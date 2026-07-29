@@ -66,7 +66,11 @@
   #define PCLK_GPIO_NUM  22
   #define FLASH_GPIO_NUM  4    // white illuminator LED (shared with SD DATA1)
   #define STATUS_LED_NUM 33    // small red LED, active-LOW
-  #define CV_RESET_BTN    0
+  // No reset button. GPIO 0 is the camera's XCLK on this board and the module
+  // exposes no other button, so there is no pin to spare. Assigning GPIO 0
+  // here would make CircuventDevice::begin() run pinMode(0, INPUT_PULLUP),
+  // which detaches the LEDC clock output and leaves the sensor unclocked.
+  #define CV_RESET_BTN   -1
 #elif CV_CAM_BOARD == CV_CAM_WROVER_KIT
   #define PWDN_GPIO_NUM  -1
   #define RESET_GPIO_NUM -1
@@ -135,6 +139,36 @@
 #endif
 
 // ---------------------------------------------------------------------------
+// Pin sanity
+// ---------------------------------------------------------------------------
+// Every auxiliary pin below is handed to pinMode() at boot, which rebinds the
+// pad away from whatever peripheral the camera driver attached to it. Doing
+// that to a camera pin does not fail loudly: esp_camera_init() has already
+// returned OK, so the device reports a healthy sensor and then quietly never
+// produces a frame. XCLK is the worst case — losing it stops the sensor's
+// clock, so even SCCB register writes start failing. Catch it at build time.
+#define CV_PIN_CLASH(p) \
+  ((p) >= 0 && ((p) == XCLK_GPIO_NUM  || (p) == SIOD_GPIO_NUM  || (p) == SIOC_GPIO_NUM  || \
+                (p) == PCLK_GPIO_NUM  || (p) == VSYNC_GPIO_NUM || (p) == HREF_GPIO_NUM  || \
+                (p) == Y2_GPIO_NUM    || (p) == Y3_GPIO_NUM    || (p) == Y4_GPIO_NUM    || \
+                (p) == Y5_GPIO_NUM    || (p) == Y6_GPIO_NUM    || (p) == Y7_GPIO_NUM    || \
+                (p) == Y8_GPIO_NUM    || (p) == Y9_GPIO_NUM    || (p) == PWDN_GPIO_NUM  || \
+                (p) == RESET_GPIO_NUM))
+
+#if CV_PIN_CLASH(CV_RESET_BTN)
+#error "CV_RESET_BTN shares a pin with the camera. Set it to -1 for this board."
+#endif
+#if CV_PIN_CLASH(FLASH_GPIO_NUM)
+#error "FLASH_GPIO_NUM shares a pin with the camera. Set it to -1 for this board."
+#endif
+#if CV_PIN_CLASH(STATUS_LED_NUM)
+#error "STATUS_LED_NUM shares a pin with the camera. Set it to -1 for this board."
+#endif
+#if CV_PIN_CLASH(PIR_GPIO_NUM)
+#error "PIR_GPIO_NUM shares a pin with the camera. Pick a free pin."
+#endif
+
+// ---------------------------------------------------------------------------
 // Tunables
 // ---------------------------------------------------------------------------
 #define FPS_MIN                 1
@@ -144,6 +178,7 @@
 #define MOTION_PERIOD_MS     500UL   // how often to run the difference check
 #define MOTION_HOLD_MS      8000UL   // keep "motion" true this long after the last hit
 #define MOTION_COOLDOWN_MS 15000UL   // minimum gap between motion events
+#define SENSOR_RETRY_MS     5000UL   // capture retry pace while the sensor is dead
 #define MD_W                   40    // 1/8 scale of a QVGA frame
 #define MD_H                   30
 #define FLASH_LEDC_CH           7
@@ -171,6 +206,32 @@ unsigned long streamArmedAt = 0, lastFrameAt = 0, lastMotionScan = 0;
 unsigned long lastMotionHit = 0, lastMotionEvent = 0;
 uint8_t  *mdPrev = nullptr;      // previous downscaled luma frame
 bool      mdPrimed = false;
+
+// Sensor health. `camReady` only ever recorded whether esp_camera_init()
+// succeeded at boot, so a sensor that died afterwards still reported "Ready"
+// while every capture failed — the console showed a healthy camera sending
+// nothing, which is the least useful thing it could have said. Track live
+// capture outcomes instead and let the reported state follow them.
+#define CAPTURE_FAIL_LIMIT 5     // consecutive failures before we call it dead
+int   captureFails = 0;
+bool  sensorLive   = false;      // has a capture actually worked recently
+
+/** Records a capture outcome and republishes `ready` when it changes. */
+void noteCapture(bool got) {
+  bool was = sensorLive;
+  if (got) {
+    captureFails = 0;
+    sensorLive = true;
+  } else if (captureFails < CAPTURE_FAIL_LIMIT) {
+    captureFails++;
+    if (captureFails >= CAPTURE_FAIL_LIMIT) sensorLive = false;
+  }
+  if (sensorLive != was) {
+    cv.set("ready", sensorLive);
+    cv.publishStateNow();
+    Serial.printf("[CAM] sensor %s\n", sensorLive ? "recovered" : "not responding");
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -348,6 +409,7 @@ void raiseMotion(const char *source) {
 bool sendFrame(bool isSnapshot) {
   if (!camReady) return false;
   camera_fb_t *fb = esp_camera_fb_get();
+  noteCapture(fb != nullptr);
   if (!fb) { dropCount++; return false; }
 
   bool ok = false;
@@ -498,6 +560,7 @@ void setup() {
     mdPrev = (uint8_t *)malloc(MD_W * MD_H);
     if (!mdPrev) motionOn = false;    // no baseline buffer, no differencing
   }
+  sensorLive = camReady;   // init succeeded; live captures confirm or refute it
   applyFlash(flashLevel);
 
   cv.onCommand(onCommand);
@@ -528,15 +591,23 @@ void loop() {
   if (streaming && now - streamArmedAt > STREAM_TTL_MS) setStreaming(false);
 
   if (streaming && camReady) {
-    unsigned long period = 1000UL / (unsigned long)max(fps, FPS_MIN);
+    // A capture from an unresponsive sensor does not fail fast — it blocks for
+    // seconds waiting on a frame that never arrives, which starves the MQTT
+    // loop and leaves the device ignoring commands. Once the sensor looks
+    // dead, poll it slowly so the device stays reachable and can still recover.
+    unsigned long period = sensorLive
+      ? 1000UL / (unsigned long)max(fps, FPS_MIN)
+      : SENSOR_RETRY_MS;
     if (now - lastFrameAt >= period) {
       lastFrameAt = now;
       sendFrame(false);
     }
-  } else if (motionOn && camReady && now - lastMotionScan >= MOTION_PERIOD_MS) {
+  } else if (motionOn && camReady &&
+             now - lastMotionScan >= (sensorLive ? MOTION_PERIOD_MS : SENSOR_RETRY_MS)) {
     // Idle: capture only as often as the motion check needs, and never publish.
     lastMotionScan = now;
     camera_fb_t *fb = esp_camera_fb_get();
+    noteCapture(fb != nullptr);
     if (fb) {
       bool moved = detectMotion(fb);
       esp_camera_fb_return(fb);
