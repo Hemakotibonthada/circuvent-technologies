@@ -19,13 +19,27 @@ import {
   LockOpen,
   Pencil,
   Check,
+  Lightbulb,
+  Fan,
+  Flame,
+  Tv,
+  Wind,
+  Blinds,
+  Power,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Device } from "@/lib/control-plane";
 import type { FieldStatus } from "@/lib/smarthome-realtime";
 import { haptic } from "@/lib/smarthome-realtime";
-import { useChannelLabels } from "@/lib/smarthome-prefs";
+import {
+  useChannelLabels,
+  useChannelConfig,
+  type ChannelConfig,
+  type ChannelKind,
+  type ChannelStyle,
+} from "@/lib/smarthome-prefs";
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 
 export interface DeviceTypeMeta {
@@ -66,7 +80,7 @@ function pendCls(s: FieldStatus): string {
   return "";
 }
 
-/** Header control that flips a channel grid between control and rename mode. */
+/** Header control that flips a channel grid between control and edit mode. */
 function RenameToggle({
   editing,
   onToggle,
@@ -84,7 +98,7 @@ function RenameToggle({
           onClick={onReset}
           className="rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition hover:text-slate-200"
         >
-          Reset names
+          Reset
         </button>
       )}
       <button
@@ -98,10 +112,94 @@ function RenameToggle({
         }`}
       >
         {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-        {editing ? "Done" : "Rename"}
+        {editing ? "Done" : "Customize"}
       </button>
     </span>
   );
+}
+
+/**
+ * Shared plumbing for every multi-relay device: per-channel names, the
+ * user-selected control model, and the momentary pulse action.
+ *
+ * A relay is physically just on/off, so `momentary` is implemented here rather
+ * than in firmware — close the relay, then release it after the configured
+ * time. That keeps one firmware image working for lights, appliances and
+ * gate triggers alike.
+ */
+function useChannelGrid(d: Device) {
+  const labels = useChannelLabels();
+  const cfg = useChannelConfig();
+  const [editing, setEditing] = useState(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach(clearTimeout);
+  }, []);
+
+  const header = (summary: string) => (
+    <span className="flex items-center gap-3">
+      <span className="text-xs text-slate-400">{summary}</span>
+      <RenameToggle
+        editing={editing}
+        onToggle={() => setEditing((v) => !v)}
+        onReset={
+          labels.hasCustom(d.id) || cfg.hasCustom(d.id)
+            ? () => {
+                labels.resetDevice(d.id);
+                cfg.resetDevice(d.id);
+              }
+            : undefined
+        }
+      />
+    </span>
+  );
+
+  const tile = ({
+    field,
+    fallback,
+    on,
+    status,
+    set,
+  }: {
+    field: string;
+    fallback: string;
+    on: boolean;
+    status: FieldStatus;
+    set: (v: boolean) => void;
+  }) => {
+    const label = labels.labelFor(d.id, field, fallback);
+    const config = cfg.configFor(d.id, field);
+    return (
+      <ChannelTile
+        key={field}
+        label={label}
+        on={on}
+        status={status}
+        config={config}
+        onToggle={set}
+        onPulse={(ms) => {
+          set(true);
+          timers.current.push(setTimeout(() => set(false), ms));
+        }}
+        editor={
+          editing ? (
+            <ChannelEditor
+              key={field}
+              label={label}
+              fallback={fallback}
+              config={config}
+              onRename={(name) => labels.setLabel(d.id, field, name === fallback ? "" : name)}
+              onConfig={(patch) => cfg.setConfig(d.id, field, patch)}
+            />
+          ) : undefined
+        }
+      />
+    );
+  };
+
+  return { header, tile, editing };
 }
 
 export function DeviceControls({ device, send, st }: { device: Device; send: SendFn; st: StatusFn }) {
@@ -272,8 +370,7 @@ function AquaGuard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 }
 
 function HomeHub({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const { labelFor, setLabel, hasCustom, resetDevice } = useChannelLabels();
-  const [editing, setEditing] = useState(false);
+  const chan = useChannelGrid(d);
   const channels = [
     { key: "power", ch: 0, fallback: "Channel 1" },
     { key: "power2", ch: 1, fallback: "Channel 2" },
@@ -285,32 +382,17 @@ function HomeHub({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const onCount = channels.filter((c) => b(d.state[c.key])).length;
   return (
     <div>
-      <SectionLabel
-        right={
-          <span className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">{onCount}/4 on</span>
-            <RenameToggle
-              editing={editing}
-              onToggle={() => setEditing((v) => !v)}
-              onReset={hasCustom(d.id) ? () => resetDevice(d.id) : undefined}
-            />
-          </span>
-        }
-      >
-        Channels
-      </SectionLabel>
+      <SectionLabel right={chan.header(`${onCount}/4 on`)}>Channels</SectionLabel>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {channels.map((c) => (
-          <ChannelTile
-            key={c.key}
-            label={labelFor(d.id, c.key, c.fallback)}
-            on={b(d.state[c.key])}
-            status={st(c.key)}
-            onToggle={(v) => send({ ch: c.ch, on: v })}
-            editing={editing}
-            onRename={(name) => setLabel(d.id, c.key, name === c.fallback ? "" : name)}
-          />
-        ))}
+        {channels.map((c) =>
+          chan.tile({
+            field: c.key,
+            fallback: c.fallback,
+            on: b(d.state[c.key]),
+            status: st(c.key),
+            set: (v) => send({ ch: c.ch, on: v }),
+          })
+        )}
       </div>
       <div className="flex gap-2 mt-3">
         <button
@@ -336,45 +418,120 @@ function HomeHub({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   );
 }
 
-/** Large, thumb-friendly relay tile: the whole card is the hit target. */
+/** Icon + default name for each selectable channel model. */
+const CHANNEL_KINDS: { key: ChannelKind; label: string; icon: LucideIcon }[] = [
+  { key: "generic", label: "Generic switch", icon: ToggleRight },
+  { key: "light", label: "Light", icon: Lightbulb },
+  { key: "fan", label: "Fan", icon: Fan },
+  { key: "socket", label: "Socket", icon: Plug },
+  { key: "geyser", label: "Geyser / heater", icon: Flame },
+  { key: "pump", label: "Pump", icon: Droplets },
+  { key: "tv", label: "TV / media", icon: Tv },
+  { key: "ac", label: "Air conditioner", icon: Wind },
+  { key: "curtain", label: "Curtain / blind", icon: Blinds },
+  { key: "gate", label: "Gate / door", icon: DoorOpen },
+];
+
+const KIND_ICON = new Map(CHANNEL_KINDS.map((k) => [k.key, k.icon]));
+
+/**
+ * One relay channel, rendered according to the model the user picked for it.
+ *
+ * `toggle` latches like a wall switch, `button` is an appliance-style power
+ * key, and `momentary` closes the relay for `pulseMs` then releases — the
+ * correct behaviour for a gate trigger or motor jog, where leaving the relay
+ * held would be wrong.
+ */
 function ChannelTile({
   label,
   on,
   status,
+  config,
   onToggle,
-  onRename,
-  editing,
+  onPulse,
+  editor,
 }: {
   label: string;
   on: boolean;
   status: FieldStatus;
+  config: ChannelConfig;
   onToggle: (v: boolean) => void;
-  onRename?: (name: string) => void;
-  editing?: boolean;
+  onPulse: (ms: number) => void;
+  editor?: ReactNode;
 }) {
-  if (editing && onRename) {
-    return (
-      <div
-        className={`flex min-h-[76px] items-center gap-3 rounded-2xl border px-4 py-3 ${
-          on ? "border-cyan-400/40 bg-cyan-500/10" : "border-white/10 bg-black/20"
+  if (editor) return <>{editor}</>;
+
+  const Icon = KIND_ICON.get(config.kind) ?? ToggleRight;
+  const momentary = config.style === "momentary";
+  const active = momentary ? status === "pending" : on;
+
+  const shell = `group relative flex min-h-[76px] items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left transition active:scale-[0.98] ${
+    active ? "border-cyan-400/40 bg-cyan-500/10" : "border-white/10 bg-black/20 hover:bg-white/5"
+  } ${status === "pending" ? "cv-pending" : ""} ${status === "confirmed" ? "cv-pop" : ""} ${
+    status === "failed" ? "ring-2 ring-red-500/60" : ""
+  }`;
+
+  const caption = (
+    <span className={`mt-0.5 flex items-center gap-1.5 text-xs font-medium ${active ? "text-cyan-300" : "text-slate-500"}`}>
+      {status === "failed" ? (
+        <span className="text-red-300">Failed — tap to retry</span>
+      ) : momentary ? (
+        <>
+          {status === "pending" ? "Triggering…" : `Pulse ${(config.pulseMs / 1000).toFixed(1)}s`}
+        </>
+      ) : (
+        <>
+          {/* The tile already reflects the commanded state optimistically, so
+              the caption keeps saying On/Off and a dot signals in-flight —
+              swapping it to "Switching…" made a finished action read as stuck. */}
+          {on ? "On" : "Off"}
+          {status === "pending" && (
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current opacity-70" aria-hidden />
+          )}
+        </>
+      )}
+    </span>
+  );
+
+  const body = (
+    <span className="flex min-w-0 flex-1 items-center gap-3">
+      <span
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${
+          active ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-300" : "border-white/10 bg-white/5 text-slate-400"
         }`}
+        aria-hidden
       >
-        <input
-          className="cv-input py-2 text-[15px] font-semibold"
-          defaultValue={label}
-          maxLength={32}
-          aria-label={`Name for ${label}`}
-          placeholder="Switch name"
-          onBlur={(e) => onRename(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            if (e.key === "Escape") {
-              (e.target as HTMLInputElement).value = label;
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-        />
-      </div>
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[15px] font-semibold text-white">{label}</span>
+        {caption}
+      </span>
+    </span>
+  );
+
+  if (momentary) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          haptic(18);
+          onPulse(config.pulseMs);
+        }}
+        aria-label={`Trigger ${label}`}
+        aria-busy={status === "pending"}
+        className={shell}
+      >
+        {body}
+        <span
+          aria-hidden
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition ${
+            active ? "border-cyan-300/50 bg-cyan-400 text-slate-900" : "border-white/15 bg-white/10 text-slate-300"
+          }`}
+        >
+          <Zap className="h-4 w-4" />
+        </span>
+      </button>
     );
   }
 
@@ -389,44 +546,118 @@ function ChannelTile({
       aria-checked={on}
       aria-label={label}
       aria-busy={status === "pending"}
-      className={`group relative flex min-h-[76px] items-center justify-between gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left transition active:scale-[0.98] ${
-        on ? "border-cyan-400/40 bg-cyan-500/10" : "border-white/10 bg-black/20 hover:bg-white/5"
-      } ${status === "pending" ? "cv-pending" : ""} ${status === "confirmed" ? "cv-pop" : ""} ${
-        status === "failed" ? "ring-2 ring-red-500/60" : ""
-      }`}
+      className={shell}
     >
-      <span className="min-w-0">
-        <span className="block truncate text-[15px] font-semibold text-white">{label}</span>
-        {/* The tile already shows the commanded state optimistically, so the
-            caption keeps saying On/Off and pending is signalled by a dot —
-            swapping the caption to "Switching…" made a completed action read
-            as unfinished. */}
-        <span className={`mt-0.5 flex items-center gap-1.5 text-xs font-medium ${on ? "text-cyan-300" : "text-slate-500"}`}>
-          {status === "failed" ? (
-            <span className="text-red-300">Failed — tap to retry</span>
-          ) : (
-            <>
-              {on ? "On" : "Off"}
-              {status === "pending" && (
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current opacity-70" aria-hidden />
-              )}
-            </>
-          )}
-        </span>
-      </span>
-      <span
-        aria-hidden
-        className={`relative h-8 w-14 shrink-0 rounded-full border transition-colors ${
-          on ? "border-cyan-300/50 bg-cyan-400" : "border-white/15 bg-white/10"
-        }`}
-      >
+      {body}
+      {config.style === "button" ? (
         <span
-          className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow transition-all duration-150 ${
-            on ? "left-[calc(100%-1.625rem)]" : "left-1"
+          aria-hidden
+          className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 transition ${
+            on ? "border-cyan-300 bg-cyan-400/20 text-cyan-200" : "border-white/20 bg-white/5 text-slate-400"
           }`}
-        />
-      </span>
+        >
+          <Power className="h-5 w-5" />
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={`relative h-8 w-14 shrink-0 rounded-full border transition-colors ${
+            on ? "border-cyan-300/50 bg-cyan-400" : "border-white/15 bg-white/10"
+          }`}
+        >
+          <span
+            className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow transition-all duration-150 ${
+              on ? "left-[calc(100%-1.625rem)]" : "left-1"
+            }`}
+          />
+        </span>
+      )}
     </button>
+  );
+}
+
+/** Inline editor shown in place of a tile while the grid is in edit mode. */
+function ChannelEditor({
+  label,
+  fallback,
+  config,
+  onRename,
+  onConfig,
+}: {
+  label: string;
+  fallback: string;
+  config: ChannelConfig;
+  onRename: (name: string) => void;
+  onConfig: (patch: Partial<ChannelConfig>) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.06] p-3">
+      <input
+        className="cv-input py-2 text-[15px] font-semibold"
+        defaultValue={label}
+        maxLength={32}
+        aria-label={`Name for ${fallback}`}
+        placeholder={fallback}
+        onBlur={(e) => onRename(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") {
+            (e.target as HTMLInputElement).value = label;
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-slate-500">Type</span>
+          <select
+            className="cv-input py-1.5 text-sm"
+            value={config.kind}
+            onChange={(e) => onConfig({ kind: e.target.value as ChannelKind })}
+            aria-label={`Type for ${label}`}
+          >
+            {CHANNEL_KINDS.map((k) => (
+              <option key={k.key} value={k.key}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-slate-500">Control</span>
+          <select
+            className="cv-input py-1.5 text-sm"
+            value={config.style}
+            onChange={(e) => onConfig({ style: e.target.value as ChannelStyle })}
+            aria-label={`Control style for ${label}`}
+          >
+            <option value="toggle">Toggle switch</option>
+            <option value="button">Power button</option>
+            <option value="momentary">Momentary pulse</option>
+          </select>
+        </label>
+      </div>
+      {config.style === "momentary" && (
+        <label className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
+          <span className="text-xs text-slate-400">Pulse length</span>
+          <span className="flex items-center gap-2">
+            <input
+              type="range"
+              min={200}
+              max={5000}
+              step={100}
+              value={config.pulseMs}
+              onChange={(e) => onConfig({ pulseMs: Number(e.target.value) })}
+              aria-label={`Pulse length for ${label}`}
+              className="w-28"
+            />
+            <span className="w-12 text-right text-xs font-semibold text-slate-200">
+              {(config.pulseMs / 1000).toFixed(1)}s
+            </span>
+          </span>
+        </label>
+      )}
+    </div>
   );
 }
 
@@ -449,8 +680,7 @@ function SmartPlug({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 }
 
 function SmartSwitch({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const { labelFor, setLabel, hasCustom, resetDevice } = useChannelLabels();
-  const [editing, setEditing] = useState(false);
+  const chan = useChannelGrid(d);
   const gangs = [
     { key: "power", fallback: "Gang 1" },
     { key: "power2", fallback: "Gang 2" },
@@ -458,32 +688,17 @@ function SmartSwitch({ d, send, st }: { d: Device; send: SendFn; st: StatusFn })
   const onCount = gangs.filter((g) => b(d.state[g.key])).length;
   return (
     <div>
-      <SectionLabel
-        right={
-          <span className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">{onCount}/{gangs.length} on</span>
-            <RenameToggle
-              editing={editing}
-              onToggle={() => setEditing((v) => !v)}
-              onReset={hasCustom(d.id) ? () => resetDevice(d.id) : undefined}
-            />
-          </span>
-        }
-      >
-        Gangs
-      </SectionLabel>
+      <SectionLabel right={chan.header(`${onCount}/${gangs.length} on`)}>Gangs</SectionLabel>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {gangs.map((g) => (
-          <ChannelTile
-            key={g.key}
-            label={labelFor(d.id, g.key, g.fallback)}
-            on={b(d.state[g.key])}
-            status={st(g.key)}
-            onToggle={(v) => send({ [g.key]: v })}
-            editing={editing}
-            onRename={(name) => setLabel(d.id, g.key, name === g.fallback ? "" : name)}
-          />
-        ))}
+        {gangs.map((g) =>
+          chan.tile({
+            field: g.key,
+            fallback: g.fallback,
+            on: b(d.state[g.key]),
+            status: st(g.key),
+            set: (v) => send({ [g.key]: v }),
+          })
+        )}
       </div>
     </div>
   );
@@ -729,8 +944,7 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 }
 
 function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const { labelFor, setLabel, hasCustom, resetDevice } = useChannelLabels();
-  const [editing, setEditing] = useState(false);
+  const chan = useChannelGrid(d);
   const gangs = [
     { key: "g1", fallback: "Gang 1" },
     { key: "g2", fallback: "Gang 2" },
@@ -749,32 +963,17 @@ function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
         <StatTile label="Energy" value={`${n(d.state.kwh).toFixed(2)} kWh`} />
       </div>
 
-      <SectionLabel
-        right={
-          <span className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">{onCount}/{gangs.length} on</span>
-            <RenameToggle
-              editing={editing}
-              onToggle={() => setEditing((v) => !v)}
-              onReset={hasCustom(d.id) ? () => resetDevice(d.id) : undefined}
-            />
-          </span>
-        }
-      >
-        Gangs
-      </SectionLabel>
+      <SectionLabel right={chan.header(`${onCount}/${gangs.length} on`)}>Gangs</SectionLabel>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {gangs.map((g) => (
-          <ChannelTile
-            key={g.key}
-            label={labelFor(d.id, g.key, g.fallback)}
-            on={b(d.state[g.key])}
-            status={st(g.key)}
-            onToggle={(v) => send({ [g.key]: v })}
-            editing={editing}
-            onRename={(name) => setLabel(d.id, g.key, name === g.fallback ? "" : name)}
-          />
-        ))}
+        {gangs.map((g) =>
+          chan.tile({
+            field: g.key,
+            fallback: g.fallback,
+            on: b(d.state[g.key]),
+            status: st(g.key),
+            set: (v) => send({ [g.key]: v }),
+          })
+        )}
       </div>
       <div className="mt-3 flex gap-2.5">
         <button onClick={() => send({ all: true })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("g1"))}`}>All on</button>

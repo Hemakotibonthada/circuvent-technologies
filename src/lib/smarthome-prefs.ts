@@ -191,3 +191,95 @@ export function useChannelLabels(): ChannelLabelApi {
 
   return { labelFor, setLabel, hasCustom, resetDevice, error };
 }
+
+// -------------------------------------------------------- channel widgets ---
+
+/**
+ * How a single relay channel is presented and driven.
+ *
+ * A relay board is electrically just on/off, so the "model" is the affordance
+ * the user gets: which icon identifies it, and whether it latches (a light),
+ * reads as an appliance power button, or fires a timed pulse (a gate trigger
+ * or motor jog, where holding the relay closed would be wrong).
+ */
+export type ChannelKind =
+  | "generic"
+  | "light"
+  | "fan"
+  | "socket"
+  | "geyser"
+  | "pump"
+  | "tv"
+  | "ac"
+  | "curtain"
+  | "gate";
+
+export type ChannelStyle = "toggle" | "button" | "momentary";
+
+export interface ChannelConfig {
+  kind: ChannelKind;
+  style: ChannelStyle;
+  /** Relay closed time for `momentary`, in milliseconds. */
+  pulseMs: number;
+}
+
+export const DEFAULT_CHANNEL_CONFIG: ChannelConfig = { kind: "generic", style: "toggle", pulseMs: 600 };
+
+/** `{ [deviceId]: { [stateField]: Partial<ChannelConfig> } }` */
+export type ChannelConfigs = Record<string, Record<string, Partial<ChannelConfig>>>;
+
+export interface ChannelConfigApi {
+  configFor: (deviceId: string, field: string) => ChannelConfig;
+  setConfig: (deviceId: string, field: string, patch: Partial<ChannelConfig>) => void;
+  resetDevice: (deviceId: string) => void;
+  hasCustom: (deviceId: string) => boolean;
+  error: string;
+}
+
+export function useChannelConfig(): ChannelConfigApi {
+  const { value, update, error } = useUserPrefs<ChannelConfigs>("device-widgets", {});
+
+  const configFor = useCallback(
+    (deviceId: string, field: string): ChannelConfig => ({
+      ...DEFAULT_CHANNEL_CONFIG,
+      ...(value[deviceId]?.[field] ?? {}),
+    }),
+    [value]
+  );
+
+  const setConfig = useCallback(
+    (deviceId: string, field: string, patch: Partial<ChannelConfig>) => {
+      update((prev) => {
+        const forDevice = { ...(prev[deviceId] ?? {}) };
+        const merged = { ...(forDevice[field] ?? {}), ...patch };
+        // Drop entries that are back to the default so the stored document
+        // stays a diff rather than a copy of the defaults.
+        for (const k of Object.keys(merged) as (keyof ChannelConfig)[]) {
+          if (merged[k] === DEFAULT_CHANNEL_CONFIG[k]) delete merged[k];
+        }
+        if (Object.keys(merged).length) forDevice[field] = merged;
+        else delete forDevice[field];
+        const next = { ...prev };
+        if (Object.keys(forDevice).length) next[deviceId] = forDevice;
+        else delete next[deviceId];
+        return next;
+      });
+    },
+    [update]
+  );
+
+  const resetDevice = useCallback(
+    (deviceId: string) => {
+      update((prev) => {
+        const next = { ...prev };
+        delete next[deviceId];
+        return next;
+      });
+    },
+    [update]
+  );
+
+  const hasCustom = useCallback((deviceId: string) => Object.keys(value[deviceId] ?? {}).length > 0, [value]);
+
+  return { configFor, setConfig, resetDevice, hasCustom, error };
+}
