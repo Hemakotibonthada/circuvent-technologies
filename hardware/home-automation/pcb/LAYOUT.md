@@ -8,14 +8,14 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | --- | --- |
 | Board file | `homehub.kicad_pcb` |
 | Custom design rules | `homehub.kicad_dru` |
-| Board size | **137.8 x 96.6 mm** (doc target 90 x 65 mm) |
+| Board size | **133.0 x 90.8 mm** (doc target 90 x 65 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 58 of 58 BOM positions |
 | Nets | 135 total, 17 multi-pad (routable) |
 | Pads bound to nets | 215 of 215 |
 | Net classes | Default=11, MAINS=4, POWER=3 |
-| Routing | autorouted, 613 track/via segments |
-| DRC errors / unconnected | **0 / 0** |
+| Routing | autorouted, 589 track/via segments |
+| DRC errors / unconnected | **1 / 2** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -86,6 +86,21 @@ never invents a rail connection it cannot justify from the documentation.
 
 Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R11`, `R12`, `R13`, `R14`, `R15`, `R16`, `R6`, `R7`, `R8`, `R9`
 
+## Residual unconnected items - hand-finish list
+The autorouter left 2 connection(s) open. Each one is a real missing copper
+connection and has to be drawn by hand (or designed out) before fabrication:
+
+| # | Net | Class | From | To |
+| --- | --- | --- | --- | --- |
+| 1 | `AC_L_FUSED` | MAINS | Track on B.Cu, length 8.7845 mm | PTH pad 1 of PS1 |
+| 2 | `AC_N` | MAINS | PTH pad 2 of PS1 | Track on F.Cu, length 15.3668 mm |
+
+The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
+path between them is blocked by the 8.0 mm mains clearance and the isolation
+band, because the parts involved sit on the barrier itself. They resolve when
+the open safety items below are resolved - typically by isolating the metering
+front end - not by re-running the router.
+
 ## OPEN SAFETY ITEM - parts that bridge the mains barrier
 These footprints have pads on both a MAINS net and a SELV net, so the isolation
 across them is provided by the component, not by the PCB. Each one needs an
@@ -105,7 +120,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 613 track/via segments)
+- [x] Copper routing (autorouted, 589 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

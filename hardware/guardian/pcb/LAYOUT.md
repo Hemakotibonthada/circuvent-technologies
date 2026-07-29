@@ -8,14 +8,14 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | --- | --- |
 | Board file | `cv-sos.kicad_pcb` |
 | Custom design rules | `cv-sos.kicad_dru` |
-| Board size | **100.4 x 71.0 mm** (doc target 60 x 40 mm) |
+| Board size | **95.9 x 62.2 mm** (doc target 60 x 40 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 27 of 27 BOM positions |
 | Nets | 55 total, 13 multi-pad (routable) |
 | Pads bound to nets | 127 of 127 |
 | Net classes | Default=11, POWER=3 |
-| Routing | autorouted, 671 track/via segments |
-| DRC errors / unconnected | **0 / 0** |
+| Routing | autorouted, 538 track/via segments |
+| DRC errors / unconnected | **0 / 3** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -74,11 +74,21 @@ never invents a rail connection it cannot justify from the documentation.
 
 Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R6`, `R7`, `R8`
 
+## Residual unconnected items - hand-finish list
+The autorouter left 3 connection(s) open. Each one is a real missing copper
+connection and has to be drawn by hand (or designed out) before fabrication:
+
+| # | Net | Class | From | To |
+| --- | --- | --- | --- | --- |
+| 1 | `GND` | POWER | Via on F.Cu - B.Cu | Pad 15 of U1 on F.Cu |
+| 2 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
+| 3 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
+
 ## Status
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 671 track/via segments)
+- [x] Copper routing (autorouted, 538 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

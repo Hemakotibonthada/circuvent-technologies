@@ -1,0 +1,38 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-C3-WROOM-02 (4MB),ESP32-C3,Wi-Fi/BLE RISC-V MCU module,Native USB on IO18/IO19
+U2,1,AP2112K-3.3,SOT-23-5,5V -> 3.3V 600mA LDO,MCU rail
+U3,1,USBLC6-2SC6,SOT-23-6,USB ESD protection array,On D+/D-/VBUS
+PC1,1,LTV-817S,SO-4,Optocoupler CTR 50-600%,Isolates MCU from coil driver
+K1,1,Omron G5Q-1A 5VDC,relay G5Q,SPST-NO 10A power relay,Channel 1 - switches the mains load
+Q1,1,AO3400A,SOT-23,N-channel MOSFET 30V 5.7A,Relay coil driver
+Q2,1,AO3400A,SOT-23,N-channel MOSFET 30V 5.7A,Channel 2 PWM low-side switch
+D1,1,SS14,SMA,Schottky 40V 1A,USB VBUS OR-ing diode
+D2,1,SS14,SMA,Schottky 40V 1A,Terminal 5V OR-ing diode
+D3,1,SS14,SMA,Schottky 40V 1A,K1 coil flyback clamp
+D4,1,SS14,SMA,Schottky 40V 1A,Channel 2 inductive clamp
+J1,1,USB-C 16P receptacle,USB-C,5V power + native USB,Programming and debug
+J2,1,5V DC input,term 3.5/2,3.5mm screw terminal 2P,Auxiliary 5V supply
+J3,1,Relay load out (mains),term 3.5/3,3.5mm screw terminal 3P,COM / NO / PE - mains rated
+J4,1,Pulse output,JST-XH/2,JST-XH 2-pin header,Channel 2 PWM out
+SW1,1,RESET tactile,tactile SMD,3x4x2mm SMD tactile switch,Pulls EN low
+SW2,1,BOOT tactile,tactile SMD,3x4x2mm SMD tactile switch,Pulls IO9 low
+LED1,1,Green,0603LED,Power indicator,Always on from 3V3
+LED2,1,Red,0603LED,Relay energised,IO6
+LED3,1,Blue,0603LED,Pulse active,IO7
+R1,1,5.1k,0402,USB-C CC1 pulldown,Sink advertisement
+R2,1,5.1k,0402,USB-C CC2 pulldown,Sink advertisement
+R3,1,10k,0402,EN pull-up,Reset RC with C6
+R4,1,10k,0402,IO9 boot pull-up,
+R5,1,1k,0402,PC1 LED series resistor,From IO4
+R6,1,10k,0402,Q1 gate pulldown,Fail-safe off
+R7,1,100R,0402,Q2 gate series resistor,Limits ringing
+R8,1,100k,0402,Q2 gate pulldown,Fail-safe off
+R9,1,1k,0603,LED1 series resistor,
+R10,1,1k,0603,LED2 series resistor,
+R11,1,1k,0603,LED3 series resistor,
+C1,1,10u,0603C,Bulk on 5V rail,
+C2,1,100n,0402C,HF decoupling on 5V,
+C3,1,10u,0603C,Bulk on 3V3 rail,
+C4,1,100n,0402C,LDO output decoupling,
+C5,1,100n,0402C,ESP32-C3 decoupling,
+C6,1,100n,0402C,EN debounce capacitor,With R3

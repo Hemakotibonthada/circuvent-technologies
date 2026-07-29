@@ -16,6 +16,7 @@ Must be run with KiCad's bundled Python (pcbnew).
 import collections
 import csv
 import json
+import math
 import os
 import re
 import subprocess
@@ -74,6 +75,11 @@ DEVICES = [
          w=90, h=65, mounts=4, mains=True, creepage=8.0),
     dict(folder="water-tank-controller", model="aquaguard", title="Circuvent AquaGuard",
          w=80, h=60, mounts=4, mains=True, creepage=8.0),
+    # High-density USB-C board. `compact` selects build_netlist_compact() and
+    # the 0402/0603 SMD footprint set; everything downstream is shared.
+    dict(folder="load-controller", model="cv-duo",
+         title="Circuvent Dual-Channel Load Controller",
+         w=46, h=36, mounts=2, mains=True, creepage=8.0, compact=True),
 ]
 
 # --------------------------------------------------------------------------
@@ -130,6 +136,27 @@ FP = {
     "module_sm": ("Connector_PinHeader_2.54mm", "PinHeader_1x04_P2.54mm_Vertical", 3.5, 11.5, True),
     "coincell":  ("Battery", "BatteryHolder_Keystone_103_1x20mm", 24.0, 24.0, True),
     "rf_sma":    ("Connector_Coaxial", "SMA_Amphenol_132289_EdgeMount", 9.0, 6.5, True),
+    # --- high-density SMD set, used by the compact load-controller board ----
+    "esp32c3":   ("RF_Module", "ESP32-C3-WROOM-02", 18.0, 20.5, False),
+    # USB-C has NPTH mounting posts and a PTH shield: flag it through-hole so
+    # the packer keeps it front-side AND blocks back-side parts underneath it.
+    "usbc":      ("Connector_USB", "USB_C_Receptacle_HRO_TYPE-C-31-M-12", 10.7, 9.5, True),
+    "sot235":    ("Package_TO_SOT_SMD", "SOT-23-5", 4.2, 3.5, False),
+    "sot236":    ("Package_TO_SOT_SMD", "SOT-23-6", 4.2, 3.5, False),
+    "so4":       ("Package_SO", "SO-4_4.4x2.3mm_P1.27mm", 8.9, 3.0, False),
+    "relay_g5q": ("Relay_THT", "Relay_SPST_Omron-G5Q-1A", 22.0, 16.5, True),
+    "r0402":     ("Resistor_SMD", "R_0402_1005Metric", 1.9, 1.0, False),
+    "c0402":     ("Capacitor_SMD", "C_0402_1005Metric", 1.9, 1.0, False),
+    "r0603":     ("Resistor_SMD", "R_0603_1608Metric", 3.0, 1.6, False),
+    "c0603":     ("Capacitor_SMD", "C_0603_1608Metric", 3.0, 1.6, False),
+    "led0603":   ("LED_SMD", "LED_0603_1608Metric", 3.0, 1.6, False),
+    "sod123":    ("Diode_SMD", "D_SOD-123", 4.8, 2.4, False),
+    "sw_smd":    ("Button_Switch_SMD", "SW_SPST_SKQG_WithoutStem", 8.6, 5.8, False),
+    "term2_35":  ("TerminalBlock_Phoenix",
+                  "TerminalBlock_Phoenix_PT-1,5-2-3.5-H_1x02_P3.50mm_Horizontal", 9.0, 9.0, True),
+    "term3_35":  ("TerminalBlock_Phoenix",
+                  "TerminalBlock_Phoenix_PT-1,5-3-3.5-H_1x03_P3.50mm_Horizontal", 12.5, 9.0, True),
+    "jst2":      ("Connector_JST", "JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical", 8.0, 7.0, True),
 }
 
 # Distinct pad numbers per footprint (measured from the stock libraries).
@@ -142,6 +169,37 @@ PAD_COUNT = {
     "relay": 5, "rf_sma": 2, "sma": 2, "smb": 2, "soic8": 8, "sop": 8,
     "sot223": 3, "sot23": 3, "sw6mm": 2, "term2": 2, "term3": 3,
     "testpoint": 1, "to220": 3,
+    # compact SMD set
+    "esp32c3": 19, "sot235": 5, "sot236": 6, "so4": 4, "relay_g5q": 4,
+    "r0402": 2, "c0402": 2, "r0603": 2, "c0603": 2, "led0603": 2,
+    "sod123": 2, "sw_smd": 2, "term2_35": 2, "term3_35": 3, "jst2": 2,
+}
+
+# Footprints whose pads are not numbered 1..N. The list is authoritative for
+# both the completeness sweep and the "every pad lands on a net" fallback.
+PAD_NAMES = {
+    "usbc": ["A1", "A4", "A5", "A6", "A7", "A8", "A9", "A12",
+             "B1", "B4", "B5", "B6", "B7", "B8", "B9", "B12", "SH"],
+    # Omron G5Q-1A is a Form A part: pad 4 (NC) is simply not fitted.
+    "relay_g5q": [1, 2, 3, 5],
+}
+
+
+def pad_ids(key):
+    """Every pad identifier a footprint actually has, in a stable order."""
+    if key in PAD_NAMES:
+        return list(PAD_NAMES[key])
+    return list(range(1, PAD_COUNT.get(key, 2) + 1))
+
+
+# Exact BOM "Package" strings used only by the high-density boards. Matching on
+# the exact string keeps the legacy keyword heuristics completely untouched.
+COMPACT_PKG = {
+    "esp32-c3": "esp32c3", "usb-c": "usbc", "sot-23-5": "sot235",
+    "sot-23-6": "sot236", "so-4": "so4", "relay g5q": "relay_g5q",
+    "0402": "r0402", "0402c": "c0402", "0603": "r0603", "0603c": "c0603",
+    "0603led": "led0603", "sod-123": "sod123", "tactile smd": "sw_smd",
+    "term 3.5/2": "term2_35", "term 3.5/3": "term3_35", "jst-xh/2": "jst2",
 }
 
 # KiCad's pcbnew.FootprintLoad() re-guesses the plugin per call and can hand back
@@ -238,6 +296,12 @@ def resolve(ref, value, package, desc):
     pkg = (package or "").strip().lower()
     val = (value or "").lower()
     dsc = (desc or "").lower()
+
+    # 0. High-density SMD parts declare an exact package string, so they never
+    #    reach the keyword heuristics below. These names are unique to the
+    #    compact boards - the legacy BOMs use "SMD module", "0805", "THT" etc.
+    if pkg in COMPACT_PKG:
+        return COMPACT_PKG[pkg]
 
     # 1. Explicit part numbers win outright.
     if "esp32" in val:
@@ -391,7 +455,13 @@ _FP_PADS = {}
 # The ESP32 module needs a keep-out beyond its antenna end, and the placer may
 # rotate it, so reserve the keep-out on both axes rather than guessing which way
 # the antenna will end up facing.
-FP_PACK_SIZE = {"esp32": (20.5 + 2 * 7.0, 33.0 + 2 * 7.0)}
+FP_PACK_SIZE = {"esp32": (20.5 + 2 * 7.0, 33.0 + 2 * 7.0),
+                # Measured pad bbox of ESP32-C3-WROOM-02 is 19.0 x 12.9 mm.
+                # tame_esp32() draws the reduced antenna keep-out 7 mm out from
+                # that bbox, and the pack rotation is not known here, so the
+                # slot has to reserve 7 mm (+0.5 slack) on every side or the
+                # packer drops neighbours inside the keep-out polygon.
+                "esp32c3": (19.0 + 2 * 7.5, 12.9 + 2 * 7.5)}
 
 
 def fp_size(key, fallback_w, fallback_h):
@@ -966,12 +1036,30 @@ def parse_pinmap(folder):
 #   sot223  AMS1117 LDO        1=GND, 2=VOUT (tab tied), 3=VIN
 #   sot23   S8050 NPN          1=base, 2=emitter, 3=collector
 #   dip4    PC817 optocoupler  1=LED anode, 2=LED cathode, 3=emitter, 4=collector
-#   relay   SANYOU SRD Form C  1=COM, 2=NO, 5=NC, 3/4=coil
-#           (derived from the footprint geometry: pad 1 is the offset centre
-#            pole, pads 2/5 the contact corners, pads 3/4 the coil end)
+#   relay   SANYOU SRD Form C  1=COM, 3=NO, 4=NC, 2/5=coil
+#           Derived from the stock library itself, three independent ways that
+#           all agree:
+#             * drill size - pads 2/5 are 1.0 mm, pads 1/3/4 are 1.3 mm. Only
+#               the contacts carry load current, so the thin pair is the coil.
+#             * Form_A (NO only) drops pad 4  -> pad 4 is the NC contact.
+#             * Form_B (NC only) drops pad 3  -> pad 3 is the NO contact.
+#           Pad 1 survives in every variant, so it is COM.
+#   relay_g5q  Omron G5Q-1A Form A  1/5=coil, 2=COM, 3=NO
+#           Same method: the Form C part (G5Q-1) has pads 1..5 and the Form A
+#           part drops pad 4, so pad 4 is NC and pad 3 is NO. Pads 1 and 5 are
+#           the pair at the end furthest from the contacts - the coil.
 #   do41    1N4007             1=cathode, 2=anode
-#   led3    3 mm LED           1=anode, 2=cathode
+#   led3    3 mm LED           1=cathode (K), 2=anode (A)   [Device:LED symbol]
 #   term2/3 terminal block     numbered left to right
+#
+#   Compact-board parts (asserted from the manufacturer datasheets; the stock
+#   KiCad symbol libraries carry no symbol for these, so they need a reviewer):
+#   esp32c3 ESP32-C3-WROOM-02  taken from the RF_Module symbol, see ESP32C3_PADS
+#   sot235  AP2112K-3.3        1=VIN, 2=GND, 3=EN, 4=NC, 5=VOUT
+#   sot236  USBLC6-2SC6        1=IO1, 2=GND, 3=IO2, 4=IO2, 5=VBUS, 6=IO1
+#   so4     LTV-817S           1=LED anode, 2=LED cathode, 3=emitter, 4=collector
+#   sot23   AO3400A N-MOSFET   1=gate, 2=source, 3=drain
+#   usbc    USB-C receptacle   A/B pad names straight off the connector drawing
 #
 # Any pad with no documented function gets its own single-pad net named
 # N$<ref>.<pad> rather than being tied to a rail, so the generator can never
@@ -979,6 +1067,12 @@ def parse_pinmap(folder):
 # --------------------------------------------------------------------------
 GND, V5, V3 = "GND", "+5V", "+3V3"
 AC_L, AC_N, AC_LF, AC_LOAD, PE = "AC_L", "AC_N", "AC_L_FUSED", "AC_LOAD", "PE"
+
+# footprint key -> ((coil_a, coil_b), COM, NO, NC)   NC = None when absent.
+RELAY_PINS = {
+    "relay":     ((2, 5), 1, 3, 4),
+    "relay_g5q": ((1, 5), 2, 3, None),
+}
 
 # ESP32-WROOM-32E pads wired to the internal SPI flash - must stay unconnected.
 ESP32_FLASH_PADS = {17, 18, 19, 20, 21, 22}
@@ -1035,6 +1129,8 @@ class Netlist:
 
 def build_netlist(dev, parts):
     """Derive a complete netlist: every pad of every part lands on a net."""
+    if dev.get("compact"):
+        return build_netlist_compact(dev, parts)
     nl = Netlist()
     by_ref = {p["ref"]: p for p in parts}
     mains = bool(dev["mains"])
@@ -1050,8 +1146,7 @@ def build_netlist(dev, parts):
         return by_ref[r]["key"]
 
     def npads(r):
-        return PAD_COUNT.get(key_of(r), 2)
-
+        return len(pad_ids(key_of(r)))
     # ---------------- power input -------------------------------------
     if mains:
         nl.mark_mains(AC_L, AC_N, AC_LF, AC_LOAD, PE)
@@ -1161,13 +1256,17 @@ def build_netlist(dev, parts):
             k = take("relay", "K" + relays[0])
             if k:
                 coil = drive if drive != sig else series(sig, sig + "_COIL")
-                nl.tie_many(k, {3: V5, 4: coil})
+                cp, com, no, nc = RELAY_PINS[key_of(k)]
+                nl.tie_many(k, {cp[0]: V5, cp[1]: coil})
+                spare_nc = {nc: "N$%s.%d" % (k, nc)} if nc else {}
                 if mains:
-                    nl.tie_many(k, {1: hot, 2: sig + "_SW", 5: "N$%s.5" % k})
+                    nl.tie_many(k, {com: hot, no: sig + "_SW"})
+                    nl.tie_many(k, spare_nc)
                     # The unused NC contact still sits at line potential.
-                    nl.mark_mains(sig + "_SW", "N$%s.5" % k)
+                    nl.mark_mains(sig + "_SW", *spare_nc.values())
                 else:
-                    nl.tie_many(k, {1: V5, 2: sig + "_SW", 5: "N$%s.5" % k})
+                    nl.tie_many(k, {com: V5, no: sig + "_SW"})
+                    nl.tie_many(k, spare_nc)
                 out_nets.append(sig + "_SW")
                 used.add(k)
                 consumed_sigs.add(sig)
@@ -1178,7 +1277,9 @@ def build_netlist(dev, parts):
         for n in leds:
             led = take("led", "LED" + n)
             if led:
-                nl.tie_many(led, {1: series(sig, sig + "_A"), 2: GND})
+                # KiCad's LED footprints follow the Device:LED symbol:
+                # pad 1 is the cathode (K), pad 2 the anode (A).
+                nl.tie_many(led, {2: series(sig, sig + "_A"), 1: GND})
                 used.add(led)
                 consumed_sigs.add(sig)
         for n in btns:
@@ -1326,9 +1427,197 @@ def build_netlist(dev, parts):
 
     # Anything still untouched gets per-pad nets - never a silent rail tie.
     for ref, p in by_ref.items():
-        for pad in range(1, PAD_COUNT.get(p["key"], 2) + 1):
+        for pad in pad_ids(p["key"]):
             if (ref, str(pad)) not in nl.pads:
-                nl.tie(ref, pad, "N$%s.%d" % (ref, pad))
+                nl.tie(ref, pad, "N$%s.%s" % (ref, pad))
+    return nl
+
+
+# ESP32-C3-WROOM-02 pad -> function, read straight out of the stock
+# RF_Module symbol so the numbering is not guesswork. IO18/IO19 are the C3's
+# native USB D-/D+, which is why this board needs no USB-UART bridge.
+ESP32C3_PADS = {
+    1: V3, 2: "EN", 3: "IO4", 4: "IO5", 5: "IO6", 6: "IO7", 7: "IO8",
+    8: "IO9", 9: GND, 10: "IO10", 11: "IO20", 12: "IO21", 13: "IO18",
+    14: "IO19", 15: "IO3", 16: "IO2", 17: "IO1", 18: "IO0", 19: GND,
+}
+
+VBUS, USB_DP, USB_DM = "VBUS", "USB_D_P", "USB_D_N"
+LOAD_COM, LOAD_NO = "LOAD_COM", "LOAD_NO"
+
+
+def build_netlist_compact(dev, parts):
+    """Netlist for the high-density USB-C dual-channel load controller.
+
+    The topology is the one written down in SCHEMATIC.md; this routine only
+    binds it onto real pads. Unlike the mains boards there is no on-board
+    AC/DC converter: the only thing that leaves the SELV domain is the pair of
+    relay contacts, so the isolation barrier runs through K1 and nothing else.
+    """
+    nl = Netlist()
+    by_ref = {p["ref"]: p for p in parts}
+    taken = set()
+
+    def key_of(r):
+        return by_ref[r]["key"]
+
+    def pick(*keys):
+        """All parts of the given footprint types, in designator order."""
+        return [r for r in sorted(by_ref, key=lambda x: (len(x), x))
+                if key_of(r) in keys]
+
+    def one(*keys):
+        got = [r for r in pick(*keys) if r not in taken]
+        return got[0] if got else None
+
+    def wire(ref, mapping):
+        if ref:
+            nl.tie_many(ref, mapping)
+            taken.add(ref)
+
+    pin = parse_pinmap(dev["folder"])           # gpio -> documented net name
+
+    def sig(gpio, default):
+        return pin.get(gpio, default)
+
+    RELAY_CTL = sig(4, "RELAY_CTL")
+    PULSE_PWM = sig(5, "PULSE_PWM")
+    RELAY_IND = sig(6, "RELAY_LED")
+    PULSE_IND = sig(7, "PULSE_LED")
+    BOOT_SIG = sig(9, "BOOT_N")
+
+    nl.mark_mains(LOAD_COM, LOAD_NO, PE)
+
+    # ---- passive pools, addressed by designator so the BOM stays readable --
+    res = {r: None for r in pick("r0402", "r0603")}
+    cap = {c: None for c in pick("c0402", "c0603")}
+
+    def R(ref, a, b):
+        if ref in res:
+            wire(ref, {1: a, 2: b})
+            return True
+        return False
+
+    def C(ref, a, b=GND):
+        if ref in cap:
+            wire(ref, {1: a, 2: b})
+            return True
+        return False
+
+    # ---- USB-C receptacle: power, native USB and the two Rd pulldowns ------
+    usb = one("usbc")
+    if usb:
+        wire(usb, {"A1": GND, "A12": GND, "B1": GND, "B12": GND, "SH": GND,
+                   "A4": VBUS, "A9": VBUS, "B4": VBUS, "B9": VBUS,
+                   "A5": "CC1", "B5": "CC2",
+                   "A6": USB_DP, "B6": USB_DP,
+                   "A7": USB_DM, "B7": USB_DM,
+                   "A8": "N$%s.A8" % usb, "B8": "N$%s.B8" % usb})
+    R("R1", "CC1", GND)                 # 5.1k Rd - advertises a sink
+    R("R2", "CC2", GND)
+
+    # ---- 5 V rail: USB VBUS OR-ed with the screw-terminal input -----------
+    # Each source gets its own Schottky so neither can back-feed the other.
+    aux = one("term2_35")
+    if aux:
+        wire(aux, {1: "VIN_EXT", 2: GND})
+    dio = pick("sma", "smb", "sod123")
+    d_usb = dio[0] if len(dio) > 0 else None
+    d_aux = dio[1] if len(dio) > 1 else None
+    if d_usb:
+        wire(d_usb, {1: V5, 2: VBUS})           # 1 = cathode, 2 = anode
+    if d_aux:
+        wire(d_aux, {1: V5, 2: "VIN_EXT"})
+
+    # ---- ESD array on the USB data pair -----------------------------------
+    esd = one("sot236")
+    wire(esd, {1: USB_DM, 2: GND, 3: USB_DP, 4: USB_DP, 5: VBUS, 6: USB_DM})
+
+    # ---- 3.3 V LDO --------------------------------------------------------
+    ldo = one("sot235")
+    wire(ldo, {1: V5, 2: GND, 3: V5, 4: "N$%s.4" % ldo if ldo else None,
+               5: V3})
+
+    C("C1", V5)                          # 10 uF bulk on 5 V
+    C("C2", V5)                          # 100 nF
+    C("C3", V3)                          # 10 uF bulk on 3V3
+    C("C4", V3)                          # 100 nF at the LDO
+    C("C5", V3)                          # 100 nF at the module
+    C("C6", "EN")                        # 100 nF reset RC
+
+    # ---- MCU --------------------------------------------------------------
+    mcu = one("esp32c3")
+    if mcu:
+        wired = {}
+        for pad, fn in ESP32C3_PADS.items():
+            if fn in (GND, V3, "EN"):
+                wired[pad] = fn
+            elif fn == "IO18":
+                wired[pad] = USB_DM
+            elif fn == "IO19":
+                wired[pad] = USB_DP
+            else:
+                g = int(fn[2:])
+                wired[pad] = pin.get(g, "N$%s.%d" % (mcu, pad))
+        wire(mcu, wired)
+
+    # ---- reset / boot buttons --------------------------------------------
+    sws = pick("sw_smd")
+    if len(sws) > 0:
+        wire(sws[0], {1: "EN", 2: GND})          # RESET
+    if len(sws) > 1:
+        wire(sws[1], {1: BOOT_SIG, 2: GND})      # BOOT / flash
+    R("R3", V3, "EN")                            # 10k EN pull-up
+    R("R4", V3, BOOT_SIG)                        # 10k boot pull-up
+
+    # ---- channel 1: opto -> MOSFET -> relay coil --------------------------
+    opto = one("so4")
+    R("R5", RELAY_CTL, "RELAY_OPT")              # opto LED series resistor
+    wire(opto, {1: "RELAY_OPT", 2: GND, 3: "RELAY_GATE", 4: V3})
+    R("R6", "RELAY_GATE", GND)                   # gate pulldown
+    fets = pick("sot23")
+    q_relay = fets[0] if len(fets) > 0 else None
+    q_pulse = fets[1] if len(fets) > 1 else None
+    wire(q_relay, {1: "RELAY_GATE", 2: GND, 3: "RELAY_COIL"})
+
+    relay = one("relay_g5q", "relay")
+    if relay:
+        coil, com, no, nc = RELAY_PINS[key_of(relay)]
+        m = {coil[0]: V5, coil[1]: "RELAY_COIL", com: LOAD_COM, no: LOAD_NO}
+        if nc:
+            m[nc] = "N$%s.%d" % (relay, nc)
+            nl.mark_mains(m[nc])
+        wire(relay, m)
+    if len(dio) > 2:                             # coil flyback clamp
+        wire(dio[2], {1: V5, 2: "RELAY_COIL"})
+
+    load = one("term3_35")
+    wire(load, {1: LOAD_COM, 2: LOAD_NO, 3: PE})
+
+    # ---- channel 2: direct MOSFET gate drive for PWM ----------------------
+    R("R7", PULSE_PWM, "PULSE_GATE")             # gate series resistor
+    R("R8", "PULSE_GATE", GND)                   # gate pulldown
+    wire(q_pulse, {1: "PULSE_GATE", 2: GND, 3: "PULSE_OUT"})
+    if len(dio) > 3:                             # inductive-load clamp
+        wire(dio[3], {1: V5, 2: "PULSE_OUT"})
+    pulse_out = one("jst2")
+    wire(pulse_out, {1: V5, 2: "PULSE_OUT"})
+
+    # ---- indicators (pad 1 = cathode, pad 2 = anode) ----------------------
+    leds = pick("led0603")
+    if len(leds) > 0 and R("R9", V3, "PWR_LED_A"):
+        wire(leds[0], {2: "PWR_LED_A", 1: GND})
+    if len(leds) > 1 and R("R10", RELAY_IND, "RELAY_LED_A"):
+        wire(leds[1], {2: "RELAY_LED_A", 1: GND})
+    if len(leds) > 2 and R("R11", PULSE_IND, "PULSE_LED_A"):
+        wire(leds[2], {2: "PULSE_LED_A", 1: GND})
+
+    # ---- anything left over gets its own single-pad net -------------------
+    nl.spares = [r for r in res if r not in taken]
+    for ref, p in by_ref.items():
+        for pad in pad_ids(p["key"]):
+            if (ref, str(pad)) not in nl.pads:
+                nl.tie(ref, pad, "N$%s.%s" % (ref, pad))
     return nl
 
 
@@ -1361,6 +1650,27 @@ NETCLASS_DEFS = [
 ]
 POWER_NETS = {GND, V5, V3}
 
+# High-density boards use 0402/0603 passives whose pad gaps are smaller than
+# the 0.30 mm POWER clearance the through-hole boards can afford. These values
+# are still well inside a standard 2-layer service (0.127 mm trace/space), and
+# the MAINS row is deliberately identical - creepage is a safety limit, not a
+# density trade-off.
+NETCLASS_DEFS_COMPACT = [
+    ("MAINS",     1.50,  2.00,  2.00,  1.00,
+     "230 VAC switched load contacts, basic insulation"),
+    # Via geometry has to clear the 0.13 mm minimum annular ring:
+    # (diameter - drill) / 2 >= 0.13, so keep diameter - drill >= 0.26 mm.
+    ("POWER",     0.50,  0.20,  0.60,  0.30,
+     "+5V / +3V3 / GND SELV rails"),
+    ("Default",   0.20,  0.15,  0.60,  0.30,
+     "Logic, USB and control signals"),
+]
+
+
+def netclass_defs(dev=None):
+    return (NETCLASS_DEFS_COMPACT if dev and dev.get("compact")
+            else NETCLASS_DEFS)
+
 
 def netclass_of(name, mains_nets):
     if name in mains_nets:
@@ -1370,12 +1680,12 @@ def netclass_of(name, mains_nets):
     return "Default"
 
 
-def apply_netclasses(board, net_names, mains_nets):
+def apply_netclasses(board, net_names, mains_nets, dev=None):
     """Create the netclasses and bind every real net to one by exact name."""
     ds = board.GetDesignSettings()
     ns = ds.m_NetSettings
     tightest = None
-    for name, trk, clr, vd, vdr, desc in NETCLASS_DEFS:
+    for name, trk, clr, vd, vdr, desc in netclass_defs(dev):
         nc = (ns.GetDefaultNetclass() if name == "Default"
               else pcbnew.NETCLASS(name))
         nc.SetTrackWidth(MM(trk))
@@ -1418,6 +1728,15 @@ def apply_netclasses(board, net_names, mains_nets):
         ds.m_MinResolvedSpokes = 1
     except Exception:
         pass
+    if dev and dev.get("compact"):
+        # 0402 land patterns leave a mask web far thinner than the 0.25 mm
+        # default. Every fab tents these anyway, so the check is what is wrong
+        # here, not the layout - the pads themselves still meet clearance.
+        for attr in ("m_SolderMaskMinWidth", "m_SolderMaskToCopperClearance"):
+            try:
+                setattr(ds, attr, 0)
+            except Exception:
+                pass
     return assigned
 
 
@@ -1509,6 +1828,17 @@ def write_dru(path, dev, pkg_refs=()):
 BACK_SIDE_KEYS = {"r0805", "c0805", "r1206", "r2512", "sot23", "soic8",
                   "sma", "smb", "fuse1206"}
 
+# Castellated RF modules are nominally surface-mount, but they carry a plated
+# centre ground pad that pierces the board and an antenna keep-out that both
+# layers have to honour. Packing them like ordinary SMD parts let the module
+# flip to the back, which put front-side passives straight onto its through
+# pad and dropped six parts inside the keep-out band. Treat them like
+# through-hole parts: front side only, and reserve the slot on both layers.
+#
+# Tactile switches join the list for a different reason: a button the user has
+# to press cannot be on the underside of the board.
+BLOCKING_KEYS = {"esp32", "esp32c3", "sw_smd"}
+
 FILL = 0.62          # realistic shelf-packing efficiency (both board sides used)
 GROW = 1.05          # board growth step when the BOM does not fit
 MAX_GROW = 4.0       # never inflate a board beyond this multiple of target
@@ -1553,6 +1883,7 @@ def plan_parts(dev, mains_refs=None, bridge_refs=()):
             parts.append(dict(ref=ref, key=key, w=w + grow, h=h + grow,
                               bw=bw + grow, bh=bh + grow,
                               value=row["value"], mains=mains, tht=tht,
+                              block=tht or key in BLOCKING_KEYS,
                               bridge=ref in bridge_refs,
                               back=key in BACK_SIDE_KEYS))
     return parts, skipped
@@ -1615,7 +1946,8 @@ def regions_for(dev, parts, W, H):
 
 def _pack_order(parts):
     """Through-hole first (they claim both layers), then largest first."""
-    return sorted(parts, key=lambda q: (not q["tht"], -(q["w"] * q["h"]),
+    return sorted(parts, key=lambda q: (not (q["tht"] or q["block"]),
+                                        -(q["w"] * q["h"]),
                                         -min(q["w"], q["h"])))
 
 
@@ -1623,7 +1955,9 @@ def _side_options(p, regions):
     """Candidate (island, side) slots for a part, best first.
 
     A through-hole part always stays on the front: flipping it would not free
-    any copper, since its pads pierce both layers regardless.
+    any copper, since its pads pierce both layers regardless. The same is true
+    of the castellated RF modules - they carry a plated centre ground pad and
+    an antenna keep-out that both sides have to respect.
 
     A mains part is never offered the low-voltage island. Letting it spill
     there when the mains island is full silently destroys the isolation
@@ -1633,7 +1967,7 @@ def _side_options(p, regions):
     if p.get("bridge") and "bridge" in regions:
         return [("bridge", False)]
     island = "mains" if (p["mains"] and "mains" in regions) else "lv"
-    if p["tht"]:
+    if p["tht"] or p["block"]:
         return [(island, False)]
     return [(island, p["back"]), (island, not p["back"])]
 
@@ -1665,7 +1999,7 @@ def try_pack(dev, parts, W, H):
         for key in _side_options(p, regions):
             if key not in packers:
                 continue
-            pos = packers[key].place(p["w"], p["h"], blocking=p["tht"],
+            pos = packers[key].place(p["w"], p["h"], blocking=p["tht"] or p["block"],
                                      bw=p["bw"], bh=p["bh"])
             if pos is not None:
                 plan.append((p, pos[0], pos[1], pos[2], key[1]))
@@ -1687,7 +2021,7 @@ def try_pack_partial(dev, parts, W, H):
         for key in _side_options(p, regions):
             if key not in packers:
                 continue
-            pos = packers[key].place(p["w"], p["h"], blocking=p["tht"],
+            pos = packers[key].place(p["w"], p["h"], blocking=p["tht"] or p["block"],
                                      bw=p["bw"], bh=p["bh"])
             if pos is not None:
                 plan.append((p, pos[0], pos[1], pos[2], key[1]))
@@ -1772,7 +2106,7 @@ def build_board(dev):
     netlist = build_netlist(dev, parts)
     net_names = netlist.names()
     nets = build_nets(board, net_names)
-    ncls = apply_netclasses(board, net_names, netlist.mains)
+    ncls = apply_netclasses(board, net_names, netlist.mains, dev)
     routable = netlist.multi()
 
     # ---- regions: mains island (left) | isolation gap | LV island (right) ----
@@ -1794,7 +2128,7 @@ def build_board(dev):
             skipped.append((p["ref"], p["value"], "footprint load failed"))
             continue
         place_fp(fp, p["key"], cx, cy, rotated, back)
-        if p["key"] == "esp32":
+        if p["key"] in ("esp32", "esp32c3"):
             esp_fp = fp
             rf_keepout = tame_esp32(board, fp)
         fp_by_ref[p["ref"]] = fp
@@ -1986,32 +2320,71 @@ def build_board(dev):
                             sorted(hot), sorted(pn - netlist.mains)))
             bb = fp.GetBoundingBox(False, False)
             m, iu = MM(0.6), pcbnew.ToMM
-            bridge_spans.append((iu(bb.GetTop() - m), iu(bb.GetBottom() + m)))
+            # The hole punched in the barrier keepout has to sit strictly
+            # inside the ISO_BRIDGE area that suppresses the creepage rule.
+            # When the two are the same size a track can hug the edge of the
+            # hole without being "inside" the area, so the rule still fires -
+            # and the router has no way to know that. The pads plus 0.3 mm are
+            # the copper that genuinely must stay reachable; ISO_BRIDGE keeps
+            # the footprint bounding box plus 0.6 mm around it.
+            pbb = _pads_bbox(fp)
+            if pbb is None:
+                pbb = bb
+            pm = MM(0.3)
+            bridge_spans.append((iu(pbb.GetTop() - pm), iu(pbb.GetBottom() + pm),
+                                 iu(pbb.GetLeft() - pm),
+                                 iu(pbb.GetRight() + pm)))
             add_rule_area(board, [
                 (iu(bb.GetLeft() - m), iu(bb.GetTop() - m)),
                 (iu(bb.GetRight() + m), iu(bb.GetTop() - m)),
                 (iu(bb.GetRight() + m), iu(bb.GetBottom() + m)),
                 (iu(bb.GetLeft() - m), iu(bb.GetBottom() + m))], "ISO_BRIDGE")
 
-        # The barrier keepout runs the full height of the board except where a
-        # straddling part sits: there the isolation is provided by the part's
-        # own package, which is why every one of them is listed for review.
-        # A continuous strip would make every mains net unroutable.
+        # The barrier is a solid keepout except exactly where a straddling
+        # part's own body sits: there the isolation is provided by the part's
+        # package, which is why every one of them is listed for review.
+        # Cutting the whole band width across a part's height - rather than
+        # just the part - leaves a corridor beside it that is neither keepout
+        # nor covered by the part's ISO_BRIDGE rule area, and the router will
+        # use it to bring SELV copper inside the creepage distance of the line.
+        # Straddling parts can also overlap each other in y, so the exempt
+        # x-ranges have to be unioned per strip rather than handled one part at
+        # a time, or one part's keepout lands on another part's pads.
         y_top, y_bot = ORG_Y + 1.0, ORG_Y + H - 1.0
         cuts = sorted(bridge_spans)
         y = y_top
         segs = []
-        for a, b in cuts:
+        for a, b, _l, _r in cuts:
             if a - y > 1.0:
                 segs.append((y, min(a, y_bot)))
             y = max(y, b)
         if y_bot - y > 1.0:
             segs.append((y, y_bot))
         bx0 = bar_x + (band - creep) / 2.0
-        for a, b in segs:
-            add_keepout(board, [(bx0, a), (bx0 + creep, a),
-                                (bx0 + creep, b), (bx0, b)],
-                        name="MAINS_BARRIER", both_layers=True)
+        bx1 = bx0 + creep
+        edges = {y_top, y_bot}
+        for a, b, _l, _r in cuts:
+            for e in (a, b):
+                if y_top < e < y_bot:
+                    edges.add(e)
+        ys = sorted(edges)
+        for i in range(len(ys) - 1):
+            a, b = ys[i], ys[i + 1]
+            if b - a <= 0.05:
+                continue
+            mid = (a + b) / 2.0
+            spans = sorted((max(l, bx0), min(r, bx1))
+                           for t, u, l, r in cuts
+                           if t <= mid <= u and min(r, bx1) > max(l, bx0))
+            x = bx0
+            for l, r in spans:
+                if l - x > 0.2:
+                    add_keepout(board, [(x, a), (l, a), (l, b), (x, b)],
+                                name="MAINS_BARRIER", both_layers=True)
+                x = max(x, r)
+            if bx1 - x > 0.2:
+                add_keepout(board, [(x, a), (bx1, a), (bx1, b), (x, b)],
+                            name="MAINS_BARRIER", both_layers=True)
         # Milled isolation slots. One per barrier segment, inset from the board
         # edge and from each straddling part so the mill never touches a pad and
         # the board stays in one piece.
@@ -2080,7 +2453,7 @@ def build_board(dev):
         add_text(board, pcbnew.B_SilkS, sn[0], sn[1], "SN/QR", size=1.0, thick=0.15)
 
     out = os.path.join(HW_ROOT, dev["folder"], "pcb", dev["model"] + ".kicad_pcb")
-    bond_duplicate_pads(board, netlist.mains)
+    bond_duplicate_pads(board, netlist.mains, dev)
     # Stitch before routing, not after. Once the router has laid tracks the
     # pour erodes around them, and a GND pad stranded on a fragment then has
     # nowhere legal to put a via. Placing them first also means the router
@@ -2502,6 +2875,11 @@ def finish_copper(board):
         rescue_gnd_pads(board)
     except Exception as exc:
         print("        gnd rescue skipped: %s" % exc)
+    try:
+        if rescue_gnd_stubs(board, gnd, blocked=blocked):
+            pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+    except Exception as exc:
+        print("        gnd stub rescue skipped: %s" % exc)
     # The router's tracks carve the plane up after the grid stitching has run,
     # so the leftover fragments only become visible now.
     try:
@@ -2841,7 +3219,7 @@ def prune_dangling(board, rounds=12):
     return removed
 
 
-def bond_duplicate_pads(board, mains_nets):
+def bond_duplicate_pads(board, mains_nets, dev=None):
     """Tie together same-numbered pads within one footprint.
 
     Clip-style holders (the 5x20 mm fuse, for one) expose each terminal as two
@@ -2849,9 +3227,19 @@ def bond_duplicate_pads(board, mains_nets):
     router sees the pads as already on one net and never draws it. Laying the
     link down before export makes it pre-routed wiring the router works around.
     """
-    widths = {n: t for n, t, _c, _v, _d, _s in NETCLASS_DEFS}
+    widths = {n: t for n, t, _c, _v, _d, _s in netclass_defs(dev)}
     made = 0
     for fp in board_footprints(board):
+        # Tactile switches expose each terminal as two pads that the switch's
+        # own metal frame already ties together. Bonding those in copper lays a
+        # track straight under the body, over the part's own mask openings and
+        # across whatever neighbouring net happens to be there. GetFPIDAsString
+        # returns a bare footprint name here, with no library prefix.
+        try:
+            if str(fp.GetFPIDAsString()).rsplit(":", 1)[-1].startswith("SW_"):
+                continue
+        except Exception:
+            pass
         groups = {}
         for p in fp.Pads():
             if p.GetNumber():
@@ -2869,9 +3257,13 @@ def bond_duplicate_pads(board, mains_nets):
             for a, b in zip(pads, pads[1:]):
                 if a.GetPosition() == b.GetPosition():
                     continue
+                # A back-side SMD pad has to be bonded on B.Cu. GetAttribute()
+                # is not reliable enough to decide that on its own, so ask the
+                # pad which copper layer it actually sits on.
                 layer = pcbnew.F_Cu
-                if a.GetAttribute() == pcbnew.PAD_ATTRIB_SMD:
-                    layer = a.GetLayer()
+                if (a.IsOnLayer(pcbnew.B_Cu)
+                        and not a.IsOnLayer(pcbnew.F_Cu)):
+                    layer = pcbnew.B_Cu
                 t = pcbnew.PCB_TRACK(board)
                 t.SetStart(a.GetPosition())
                 t.SetEnd(b.GetPosition())
@@ -3025,6 +3417,189 @@ def _via_placer(board, front, back, net, blocked=None):
 
     return place, holes, drill_r
 
+
+def _seg_dist(ax, ay, bx, by, px, py):
+    """Distance from point (px, py) to segment (ax, ay)-(bx, by), all in mm."""
+    dx, dy = bx - ax, by - ay
+    span = dx * dx + dy * dy
+    if span <= 0:
+        return math.hypot(px - ax, py - ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / span))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
+def _shape_dist(shape, px, py):
+    """Distance in mm from a point to a copper shape, zero once inside it."""
+    if shape[0] == "seg":
+        _, ax, ay, bx, by, rad = shape
+        return max(0.0, _seg_dist(ax, ay, bx, by, px, py) - rad)
+    _, cx, cy, hw, hh, ang = shape
+    dx, dy = px - cx, py - cy
+    c, s = math.cos(-ang), math.sin(-ang)
+    lx, ly = dx * c - dy * s, dx * s + dy * c
+    return math.hypot(max(0.0, abs(lx) - hw), max(0.0, abs(ly) - hh))
+
+
+def _track_shape(t):
+    """(layers, shape) for a track or via. PCB_VIA::GetWidth() asserts in
+    KiCad 10's bindings, so vias take the widest via this generator places."""
+    if t.Type() == pcbnew.PCB_VIA_T:
+        x, y = pcbnew.ToMM(t.GetStartX()), pcbnew.ToMM(t.GetStartY())
+        return {pcbnew.F_Cu, pcbnew.B_Cu}, ("seg", x, y, x, y, 0.4)
+    return {t.GetLayer()}, ("seg", pcbnew.ToMM(t.GetStartX()),
+                            pcbnew.ToMM(t.GetStartY()),
+                            pcbnew.ToMM(t.GetEndX()), pcbnew.ToMM(t.GetEndY()),
+                            pcbnew.ToMM(t.GetWidth()) / 2.0)
+
+
+def _pad_shape(p):
+    """(layers, shape) for a pad, as a real rotated rectangle.
+
+    A circumscribed circle looks like the safe approximation but is not: on
+    0.95 mm-pitch SOT-23 pads it inflates every neighbour by its own half
+    diagonal and rejects links that have plenty of room.
+    """
+    sz = p.GetSize()
+    try:
+        ang = math.radians(p.GetOrientationDegrees())
+    except Exception:
+        ang = 0.0
+    # PAD::GetLayer() reports F.Cu even for a pad that lives on B.Cu, so a
+    # back-side part would otherwise be modelled as a phantom obstacle on the
+    # front - blocking legal paths there while hiding the real one behind.
+    # Only IsOnLayer() tells the truth.
+    lay = {l for l in (pcbnew.F_Cu, pcbnew.B_Cu) if p.IsOnLayer(l)}
+    if not lay:
+        lay = {pcbnew.F_Cu, pcbnew.B_Cu}
+    return lay, ("rect", pcbnew.ToMM(p.GetX()), pcbnew.ToMM(p.GetY()),
+                 pcbnew.ToMM(sz.x) / 2.0, pcbnew.ToMM(sz.y) / 2.0, ang)
+
+
+def foreign_copper(board, netcode):
+    """Every other net's copper as (layers, shape) pairs."""
+    out = []
+    for t in board_tracks(board):
+        if t.GetNetCode() != netcode:
+            out.append(_track_shape(t))
+    for f in board_footprints(board):
+        for p in f.Pads():
+            if p.GetNetCode() != netcode:
+                out.append(_pad_shape(p))
+    return out
+
+
+def path_clear(obstacles, layer, ax, ay, bx, by, keep):
+    """True when a track from (ax, ay) to (bx, by) clears every obstacle."""
+    steps = max(2, int(math.hypot(bx - ax, by - ay) / 0.1))
+    for i in range(steps + 1):
+        t = i / float(steps)
+        px, py = ax + (bx - ax) * t, ay + (by - ay) * t
+        for lays, shape in obstacles:
+            if layer not in lays:
+                continue
+            if _shape_dist(shape, px, py) < keep:
+                return False
+    return True
+
+
+def rescue_gnd_stubs(board, gnd_zones, blocked=None, width=0.3, clearance=0.2):
+    """Wire a walled-off GND pad back onto the plane.
+
+    rescue_gnd_pads() can only help a pad the pour already touches and merely
+    thermally isolates. A pad the routed tracks have fenced in completely has
+    no copper to relieve onto at all, so switching its zone connection changes
+    nothing. The honest fix is the one a layout engineer would make by hand:
+    run a short stub out of the fenced-in area, either straight onto the pour
+    on the pad's own layer or, failing that, to a fresh via down to the plane
+    on the other side.
+
+    Every candidate stub is checked against the other nets' copper before it is
+    kept, and any via whose stub turns out to be illegal is taken straight back
+    out again - reaching zero DRC and then quietly spending it on connectivity
+    would be a bad trade.
+    """
+    if len(gnd_zones) < 2:
+        return 0
+    front, back = _gnd_pair(gnd_zones)
+    if front is None or back is None:
+        return 0
+    net = gnd_zones[0].GetNet()
+    gnd_code = net.GetNetCode()
+    place, _holes, _drill = _via_placer(board, front, back, net, blocked)
+
+    try:
+        board.BuildConnectivity()
+        conn = board.GetConnectivity()
+    except Exception:
+        return 0
+    counts = []
+    for f in board_footprints(board):
+        for p in f.Pads():
+            if p.GetNetCode() != gnd_code or p.GetNetCode() <= 0:
+                continue
+            try:
+                counts.append((len(conn.GetConnectedItems(p)), p))
+            except Exception:
+                pass
+    if not counts:
+        return 0
+    main = max(n for n, _ in counts)
+    stranded = [p for n, p in counts if n < max(2, main // 4)]
+    if not stranded:
+        return 0
+
+    # Foreign copper the stub has to stay clear of.
+    obstacles = foreign_copper(board, gnd_code)
+    keep = width / 2.0 + clearance
+
+    def add_stub(pad, layer, tx, ty):
+        t = pcbnew.PCB_TRACK(board)
+        t.SetStart(pad.GetPosition())
+        t.SetEnd(V(tx, ty))
+        t.SetWidth(MM(width))
+        t.SetLayer(layer)
+        t.SetNet(pad.GetNet())
+        board.Add(t)
+
+    made = 0
+    for pad in stranded:
+        px, py = pcbnew.ToMM(pad.GetX()), pcbnew.ToMM(pad.GetY())
+        layer = pcbnew.F_Cu if pad.IsOnLayer(pcbnew.F_Cu) else pcbnew.B_Cu
+        pour = front if layer == pcbnew.F_Cu else back
+        done = False
+        # Cheapest repair first: reach the pour on the pad's own layer, which
+        # needs no via and no hole-to-hole budget at all.
+        for radius in [r / 100.0 for r in range(60, 500, 15)]:
+            for step in range(36):
+                ang = math.radians(step * 10.0)
+                tx, ty = px + radius * math.cos(ang), py + radius * math.sin(ang)
+                if not pour.HitTestFilledArea(layer, V(tx, ty)):
+                    continue
+                if not path_clear(obstacles, layer, px, py, tx, ty, keep):
+                    continue
+                add_stub(pad, layer, tx, ty)
+                made, done = made + 1, True
+                break
+            if done:
+                break
+        if done:
+            continue
+        # Otherwise drop a via down to the plane on the far side and stub to it.
+        for radius in [r / 100.0 for r in range(90, 500, 20)]:
+            for step in range(24):
+                ang = math.radians(step * 15.0)
+                vx, vy = px + radius * math.cos(ang), py + radius * math.sin(ang)
+                if not place(vx, vy):
+                    continue
+                via = board.GetTracks()[-1]
+                if path_clear(obstacles, layer, px, py, vx, vy, keep):
+                    add_stub(pad, layer, vx, vy)
+                    made, done = made + 1, True
+                    break
+                board.Remove(via)
+            if done:
+                break
+    return made
 
 def _gnd_pair(gnd_zones):
     front = next((z for z in gnd_zones if z.GetLayer() == pcbnew.F_Cu), None)

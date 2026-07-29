@@ -8,14 +8,14 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | --- | --- |
 | Board file | `aquaguard.kicad_pcb` |
 | Custom design rules | `aquaguard.kicad_dru` |
-| Board size | **109.3 x 83.2 mm** (doc target 80 x 60 mm) |
+| Board size | **107.8 x 83.2 mm** (doc target 80 x 60 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 31 of 31 BOM positions |
 | Nets | 53 total, 19 multi-pad (routable) |
 | Pads bound to nets | 138 of 138 |
 | Net classes | Default=14, MAINS=4, POWER=3 |
-| Routing | autorouted, 507 track/via segments |
-| DRC errors / unconnected | **0 / 10** |
+| Routing | autorouted, 373 track/via segments |
+| DRC errors / unconnected | **2 / 20** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -85,21 +85,31 @@ the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 10 connection(s) open. Each one is a real missing copper
+The autorouter left 20 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 2 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 3 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 4 | `+5V` | POWER | PTH pad 1 of J5 | Track on F.Cu, length 7.7589 mm |
-| 5 | `AC_L` | MAINS | Track on F.Cu, length 5.0000 mm | PTH pad 1 of J1 |
-| 6 | `AC_N` | MAINS | PTH pad 2 of J1 | PTH pad 3 of J5 |
-| 7 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of RV1 |
-| 8 | `AC_N` | MAINS | PTH pad 3 of J5 | PTH pad 2 of PS1 |
-| 9 | `MOTOR_RELAY_SW` | MAINS | PTH pad 2 of K1 | PTH pad 2 of J5 |
-| 10 | `+3V3` | POWER | Track on F.Cu, length 1.2681 mm | Track on B.Cu, length 2.0817 mm |
+| 1 | `+5V` | POWER | PTH pad 2 of K1 | PTH pad 1 of J5 |
+| 2 | `+5V` | POWER | PTH pad 4 of PS1 | PTH pad 1 of J5 |
+| 3 | `+5V` | POWER | PTH pad 1 of J5 | Track on B.Cu, length 15.3450 mm |
+| 4 | `+5V` | POWER | Pad 1 of TP1 on F.Cu | Track on B.Cu, length 15.3450 mm |
+| 5 | `+5V` | POWER | Track on B.Cu, length 2.7365 mm | Track on F.Cu, length 11.1888 mm |
+| 6 | `GND` | POWER | PTH pad 3 of PS1 | Zone on F.Cu, priority 0 |
+| 7 | `+3V3` | POWER | Pad 2 of U1 on F.Cu | Track on B.Cu, length 0.2556 mm |
+| 8 | `+3V3` | POWER | Track on B.Cu, length 8.0910 mm | Pad 2 of U1 on F.Cu |
+| 9 | `+3V3` | POWER | Pad 1 of R5 on B.Cu | Track on B.Cu, length 2.0311 mm |
+| 10 | `+3V3` | POWER | Track on B.Cu, length 0.8697 mm | Pad 1 of R5 on B.Cu |
+| 11 | `+3V3` | POWER | Track on B.Cu, length 2.3750 mm | Pad 1 of C6 on B.Cu |
+| 12 | `+3V3` | POWER | Pad 1 of C6 on B.Cu | Pad 1 of C5 on B.Cu |
+| 13 | `FLOAT_LOW` | Default | Track on B.Cu, length 1.0915 mm | PTH pad 2 of J4 |
+| 14 | `US_TRIG` | Default | PTH pad 3 of J1 | Pad 10 of U1 on F.Cu |
+| 15 | `US_ECHO` | Default | Pad 12 of U1 on F.Cu | Pad 2 of R4 on B.Cu |
+| 16 | `MOTOR_RELAY_SW` | MAINS | PTH pad 3 of K1 | PTH pad 2 of J5 |
+| 17 | `AC_N` | MAINS | PTH pad 2 of J1 | PTH pad 3 of J5 |
+| 18 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of RV1 |
+| 19 | `AC_N` | MAINS | PTH pad 3 of J5 | PTH pad 2 of PS1 |
+| 20 | `AC_L_FUSED` | MAINS | PTH pad 1 of K1 | PTH pad 1 of PS1 |
 
 The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
 path between them is blocked by the 8.0 mm mains clearance and the isolation
@@ -117,7 +127,7 @@ rating, and safety agency approval):
 | --- | --- | --- | --- |
 | `J1` | term3 | AC_L, AC_N | US_TRIG |
 | `J5` | hdr3 | AC_N, MOTOR_RELAY_SW | +5V |
-| `K1` | relay | AC_L_FUSED, MOTOR_RELAY_SW, N$K1.5 | +5V, MOTOR_RELAY_COIL |
+| `K1` | relay | AC_L_FUSED, MOTOR_RELAY_SW, N$K1.4 | +5V, MOTOR_RELAY_COIL |
 | `PS1` | hlk | AC_L_FUSED, AC_N | +5V, GND |
 
 An optocoupler or an isolated PSU is fine here. A metering front-end such as
@@ -129,7 +139,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 507 track/via segments)
+- [x] Copper routing (autorouted, 373 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

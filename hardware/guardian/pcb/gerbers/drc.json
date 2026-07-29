@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.kicad.org/drc.v1.json",
     "coordinate_units": "mm",
-    "date": "2026-07-29T02:29:01",
+    "date": "2026-07-29T10:53:10",
     "ignored_checks": [
         {
             "description": "Footprint has no courtyard defined",
@@ -31,6 +31,76 @@
     "kicad_version": "10.0.5",
     "schematic_parity": [],
     "source": "cv-sos.kicad_pcb",
-    "unconnected_items": [],
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Via [GND] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 137.38,
+                        "y": 110.965
+                    },
+                    "uuid": "d733e16f-e35f-44b6-881c-1ebe061fbff1"
+                },
+                {
+                    "description": "Pad 15 [GND] of U1 on F.Cu",
+                    "pos": {
+                        "x": 135.23,
+                        "y": 110.965
+                    },
+                    "uuid": "8240e2d3-f6f5-42f3-a07d-b79402a7e4e0"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 102.0,
+                        "y": 81.0
+                    },
+                    "uuid": "0e90bfb5-e32d-4e76-94e5-f295f289e0cf"
+                },
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 102.0,
+                        "y": 81.0
+                    },
+                    "uuid": "23004656-c5ca-4db5-bd0c-04e2687aeb9c"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 102.0,
+                        "y": 81.0
+                    },
+                    "uuid": "0e90bfb5-e32d-4e76-94e5-f295f289e0cf"
+                },
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 102.0,
+                        "y": 81.0
+                    },
+                    "uuid": "23004656-c5ca-4db5-bd0c-04e2687aeb9c"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
     "violations": []
 }

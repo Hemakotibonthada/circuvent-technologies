@@ -14,8 +14,8 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Nets | 68 total, 21 multi-pad (routable) |
 | Pads bound to nets | 150 of 150 |
 | Net classes | Default=13, MAINS=5, POWER=3 |
-| Routing | autorouted, 518 track/via segments |
-| DRC errors / unconnected | **0 / 1** |
+| Routing | autorouted, 513 track/via segments |
+| DRC errors / unconnected | **2 / 10** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -87,12 +87,27 @@ never invents a rail connection it cannot justify from the documentation.
 Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R6`, `R7`, `R8`, `R9`
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 1 connection(s) open. Each one is a real missing copper
+The autorouter left 10 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
+| 1 | `AC_N` | MAINS | PTH pad 2 of RV1 | PTH pad 3 of J2 |
+| 2 | `AC_N` | MAINS | PTH pad 2 of RV1 | PTH pad 2 of PS1 |
+| 3 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of J1 |
+| 4 | `RELAY2_SW` | MAINS | PTH pad 3 of J1 | PTH pad 3 of K2 |
+| 5 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
+| 6 | `GND` | POWER | Zone on F.Cu, priority 0 | Zone on F.Cu, priority 0 |
+| 7 | `GND` | POWER | Zone on F.Cu, priority 0 | Zone on B.Cu, priority 0 |
+| 8 | `AC_L_FUSED` | MAINS | Track on F.Cu, length 5.0000 mm | Track on B.Cu, length 12.0137 mm |
+| 9 | `AC_L_FUSED` | MAINS | Track on B.Cu, length 12.0137 mm | PTH pad 1 of PS1 |
+| 10 | `RELAY1_SW` | MAINS | PTH pad 2 of J2 | PTH pad 3 of K1 |
+
+The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
+path between them is blocked by the 8.0 mm mains clearance and the isolation
+band, because the parts involved sit on the barrier itself. They resolve when
+the open safety items below are resolved - typically by isolating the metering
+front end - not by re-running the router.
 
 ## OPEN SAFETY ITEM - parts that bridge the mains barrier
 These footprints have pads on both a MAINS net and a SELV net, so the isolation
@@ -103,8 +118,8 @@ rating, and safety agency approval):
 | Ref | Footprint | Mains-side nets | SELV-side nets |
 | --- | --- | --- | --- |
 | `J2` | term3 | AC_N, RELAY1_SW | +5V |
-| `K1` | relay | AC_L_FUSED, N$K1.5, RELAY1_SW | +5V, RELAY1_COIL |
-| `K2` | relay | AC_L_FUSED, N$K2.5, RELAY2_SW | +5V, RELAY2_COIL |
+| `K1` | relay | AC_L_FUSED, N$K1.4, RELAY1_SW | +5V, RELAY1_COIL |
+| `K2` | relay | AC_L_FUSED, N$K2.4, RELAY2_SW | +5V, RELAY2_COIL |
 | `PS1` | hlk | AC_L_FUSED, AC_N | +5V, GND |
 
 An optocoupler or an isolated PSU is fine here. A metering front-end such as
@@ -116,7 +131,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 518 track/via segments)
+- [x] Copper routing (autorouted, 513 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

@@ -14,8 +14,8 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Nets | 68 total, 18 multi-pad (routable) |
 | Pads bound to nets | 149 of 149 |
 | Net classes | Default=11, MAINS=4, POWER=3 |
-| Routing | autorouted, 429 track/via segments |
-| DRC errors / unconnected | **0 / 5** |
+| Routing | autorouted, 385 track/via segments |
+| DRC errors / unconnected | **5 / 10** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -87,16 +87,21 @@ never invents a rail connection it cannot justify from the documentation.
 Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R4`, `R5`, `R6`, `R7`, `R8`, `R9`
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 5 connection(s) open. Each one is a real missing copper
+The autorouter left 10 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `AC_L_FUSED` | MAINS | Track on F.Cu, length 3.0481 mm | PTH pad 1 of K1 |
-| 2 | `AC_L_FUSED` | MAINS | PTH pad 1 of K1 | Pad 1 of U3 on F.Cu |
-| 3 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | PTH pad 1 of K1 |
-| 4 | `AC_L` | MAINS | Track on F.Cu, length 5.0000 mm | PTH pad 1 of J1 |
-| 5 | `AC_N` | MAINS | Track on F.Cu, length 4.5471 mm | Track on B.Cu, length 2.3182 mm |
+| 1 | `AC_L_FUSED` | MAINS | PTH pad 1 of RV1 | PTH pad 1 of K1 |
+| 2 | `AC_L_FUSED` | MAINS | Track on F.Cu, length 5.0000 mm | PTH pad 1 of RV1 |
+| 3 | `AC_L_FUSED` | MAINS | PTH pad 1 of K1 | Pad 1 of U3 on F.Cu |
+| 4 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | PTH pad 1 of K1 |
+| 5 | `FAN_RELAY_SW` | MAINS | PTH pad 2 of J3 | PTH pad 3 of K1 |
+| 6 | `AC_L` | MAINS | Track on F.Cu, length 5.0000 mm | PTH pad 1 of J1 |
+| 7 | `AC_N` | MAINS | PTH pad 2 of J1 | PTH pad 3 of J3 |
+| 8 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of RV1 |
+| 9 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of J1 |
+| 10 | `SPEED_PWM_PIN_OUT` | Default | PTH pad 3 of J1 | PTH pad 3 of Qm |
 
 The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
 path between them is blocked by the 8.0 mm mains clearance and the isolation
@@ -114,7 +119,7 @@ rating, and safety agency approval):
 | --- | --- | --- | --- |
 | `J1` | term3 | AC_L, AC_N | SPEED_PWM_PIN_OUT |
 | `J3` | term3 | AC_N, FAN_RELAY_SW | +5V |
-| `K1` | relay | AC_L_FUSED, FAN_RELAY_SW, N$K1.5 | +5V, FAN_RELAY_COIL |
+| `K1` | relay | AC_L_FUSED, FAN_RELAY_SW, N$K1.4 | +5V, FAN_RELAY_COIL |
 | `PS1` | hlk | AC_L_FUSED, AC_N | +5V, GND |
 | `U3` | soic8 | AC_L_FUSED | +3V3, GND, N$U3.2, N$U3.3, N$U3.5, N$U3.6, N$U3.7 |
 
@@ -127,7 +132,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 429 track/via segments)
+- [x] Copper routing (autorouted, 385 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

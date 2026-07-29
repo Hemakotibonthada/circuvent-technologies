@@ -8,13 +8,13 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | --- | --- |
 | Board file | `cv-led.kicad_pcb` |
 | Custom design rules | `cv-led.kicad_dru` |
-| Board size | **95.7 x 68.0 mm** (doc target 55 x 40 mm) |
+| Board size | **84.7 x 63.2 mm** (doc target 55 x 40 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 39 of 39 BOM positions |
 | Nets | 74 total, 19 multi-pad (routable) |
 | Pads bound to nets | 152 of 152 |
 | Net classes | Default=21, POWER=3 |
-| Routing | autorouted, 676 track/via segments |
+| Routing | autorouted, 560 track/via segments |
 | DRC errors / unconnected | **0 / 1** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
@@ -98,7 +98,7 @@ connection and has to be drawn by hand (or designed out) before fabrication:
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 676 track/via segments)
+- [x] Copper routing (autorouted, 560 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

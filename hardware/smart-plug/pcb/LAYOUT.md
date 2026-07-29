@@ -14,7 +14,7 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Nets | 59 total, 21 multi-pad (routable) |
 | Pads bound to nets | 143 of 143 |
 | Net classes | Default=13, MAINS=5, POWER=3 |
-| Routing | autorouted, 473 track/via segments |
+| Routing | autorouted, 496 track/via segments |
 | DRC errors / unconnected | **0 / 8** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
@@ -92,14 +92,14 @@ connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `AC_L_FUSED` | MAINS | PTH pad 1 of RV1 | Pad 1 of U3 on F.Cu |
-| 2 | `AC_L_FUSED` | MAINS | Pad 1 of U3 on F.Cu | PTH pad 1 of K1 |
-| 3 | `AC_L_FUSED` | MAINS | Track on B.Cu, length 1.2021 mm | PTH pad 1 of K1 |
-| 4 | `RELAY_PIN_SW` | MAINS | Pad 2 of U3 on F.Cu | Track on B.Cu, length 20.7204 mm |
-| 5 | `AC_LOAD` | MAINS | Pad 2 of Rsh on B.Cu | Pad 3 of U3 on F.Cu |
-| 6 | `AC_LOAD` | MAINS | Pad 3 of U3 on F.Cu | PTH pad 3 of J1 |
-| 7 | `GND` | POWER | Pad 4 of U3 on F.Cu | Zone on F.Cu, priority 0 |
-| 8 | `AC_N` | MAINS | PTH pad 2 of RV1 | Track on B.Cu, length 3.6017 mm |
+| 1 | `GND` | POWER | Pad 4 of U3 on F.Cu | Zone on F.Cu, priority 0 |
+| 2 | `GND` | POWER | Zone on F.Cu, priority 0 | PTH pad 3 of JP |
+| 3 | `AC_L_FUSED` | MAINS | Track on B.Cu, length 9.3205 mm | Pad 1 of U3 on F.Cu |
+| 4 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | Track on B.Cu, length 9.3205 mm |
+| 5 | `RELAY_PIN_SW` | MAINS | Pad 2 of U3 on F.Cu | Pad 1 of Rsh on B.Cu |
+| 6 | `RELAY_PIN_SW` | MAINS | PTH pad 3 of K1 | Pad 2 of U3 on F.Cu |
+| 7 | `AC_N` | MAINS | PTH pad 2 of PS1 | Track on F.Cu, length 41.0528 mm |
+| 8 | `AC_LOAD` | MAINS | Track on B.Cu, length 4.5164 mm | Pad 3 of U3 on F.Cu |
 
 The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
 path between them is blocked by the 8.0 mm mains clearance and the isolation
@@ -115,7 +115,7 @@ rating, and safety agency approval):
 
 | Ref | Footprint | Mains-side nets | SELV-side nets |
 | --- | --- | --- | --- |
-| `K1` | relay | AC_L_FUSED, N$K1.5, RELAY_PIN_SW | +5V, RELAY_PIN_COIL |
+| `K1` | relay | AC_L_FUSED, N$K1.4, RELAY_PIN_SW | +5V, RELAY_PIN_COIL |
 | `PS1` | hlk | AC_L_FUSED, AC_N | +5V, GND |
 | `U3` | soic8 | AC_LOAD, AC_L_FUSED, RELAY_PIN_SW | +3V3, GND, MTR_CF, MTR_CF1, MTR_SEL |
 
@@ -128,7 +128,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 473 track/via segments)
+- [x] Copper routing (autorouted, 496 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

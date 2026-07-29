@@ -1,0 +1,1546 @@
+(session "cv-agri"
+  (base_design "cv-agri")
+  (placement
+    (resolution um 10)
+    (component PinHeader_1x04_P2.54mm_Vertical
+      (place M1 1536110 -1284550 front 0)
+      (place U3 2066010 -1242550 front 0)
+    )
+    (component "Fuseholder_Clip-5x20mm_Littelfuse_111_Inline_P20.00x5.00mm_D1.05mm_Horizontal"
+      (place F1 1091950 -1125450 front 90)
+    )
+    (component Buzzer_D14mm_H7mm_P10mm
+      (place FB1 1949922 -955450 front 0)
+    )
+    (component RV_Disc_D7mm_W3.4mm_P5mm
+      (place RV1 1204850 -975450 front 90)
+    )
+    (component PinHeader_1x03_P2.54mm_Vertical
+      (place SIM1 2066010 -1365050 front 0)
+      (place JP 2066010 -1462150 front 0)
+    )
+    (component CP_Radial_D10.0mm_P5.00mm
+      (place C1 1604898 -1410450 front 0)
+      (place Cs 1720798 -1410450 front 0)
+    )
+    (component MountingHole_3.2mm_M3
+      (place MH3 1039987 -1601000 front 0)
+      (place MH2 2076987 -840000 front 0)
+      (place MH4 2076987 -1601000 front 0)
+      (place MH1 1039987 -840000 front 0)
+    )
+    (component "DIP-4_W7.62mm"
+      (place PC1 1819810 -1373150 front 0)
+      (place PC4 1588010 -1489050 front 0)
+      (place PC2 1819810 -1439950 front 0)
+      (place PC3 1928010 -1478050 front 0)
+    )
+    (component Fiducial_1mm_Mask2mm
+      (place FID1 1134053 -832000 front 0)
+      (place FID2 1982973 -1609000 front 0)
+    )
+    (component LED_D3.0mm
+      (place LED1 1756410 -1495950 front 0)
+      (place LED0 1697110 -1495950 front 0)
+    )
+    (component SMA_Amphenol_132289_EdgeMount
+      (place ANT1 1983210 -1183550 front 90)
+    )
+    (component TestPoint_Pad_D1.5mm
+      (place TP2 1634473 -1595000 front 0)
+      (place TP3 1674473 -1595000 front 0)
+      (place TP1 1594473 -1595000 front 0)
+    )
+    (component "Converter_ACDC_Hi-Link_HLK-PMxx"
+      (place PS1 1396510 -1214850 front 90)
+    )
+    (component "D_DO-41_SOD81_P10.16mm_Horizontal"
+      (place D1 2065910 -1153950 front 90)
+    )
+    (component "ESP32-WROOM-32E"
+      (place U1 1746960 -1077300 front 0)
+    )
+    (component "TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal"
+      (place J3 1957410 -1400950 front 0)
+      (place J2 1957410 -1281950 front 0)
+    )
+    (component Relay_SPDT_SANYOU_SRD_Series_Form_C
+      (place K1 1322010 -1346350 front 0)
+    )
+    (component "TerminalBlock_Phoenix_MKDS-1,5-3_1x03_P5.00mm_Horizontal"
+      (place J1 1336510 -1493850 front 0)
+    )
+    (component C_0805_2012Metric
+      (place C4 1993910 -923250 back 0)
+      (place C7 1989310 -985700 back 0)
+      (place C5 2038810 -923250 back 0)
+      (place C3 2038810 -892750 back 0)
+      (place C2 1993910 -892750 back 0)
+      (place C6 1944410 -985700 back 0)
+    )
+    (component R_0805_2012Metric
+      (place R9 1944210 -1314900 back 0)
+      (place R4 1944210 -1015900 back 0)
+      (place R8 1988710 -1228900 back 0)
+      (place R10 1988710 -1314900 back 0)
+      (place R6 2060460 -1184900 back 0)
+      (place R5 1988710 -1015900 back 0)
+      (place R13 1988710 -1344800 back 0)
+      (place R7 1944210 -1228900 back 0)
+      (place R1 2034010 -985400 back 0)
+      (place R14 1594210 -1367450 back 0)
+      (place R12 1944210 -1344800 back 0)
+      (place R3 2034010 -1015300 back 0)
+    )
+    (component "SOT-23"
+      (place Q1 1946710 -899950 back 0)
+    )
+    (component R_0805_2012Metric::1
+      (place R2 2071210 -992700 back 270)
+      (place R11 2025910 -1322200 back 270)
+    )
+    (component "SOT-223-3_TabPin2"
+      (place U2 1845260 -1519900 back 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version 10.0.5)
+    )
+    (library_out 
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle F.Cu 6000 0 0)
+        )
+        (shape
+          (circle B.Cu 6000 0 0)
+        )
+        (attach off)
+      )
+      (padstack "Via[0-1]_800:400_um"
+        (shape
+          (circle F.Cu 8000 0 0)
+        )
+        (shape
+          (circle B.Cu 8000 0 0)
+        )
+        (attach off)
+      )
+      (padstack "Via[0-1]_2000:1000_um"
+        (shape
+          (circle F.Cu 20000 0 0)
+        )
+        (shape
+          (circle B.Cu 20000 0 0)
+        )
+        (attach off)
+      )
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle F.Cu 6000 0 0)
+        )
+        (shape
+          (circle B.Cu 6000 0 0)
+        )
+        (attach off)
+      )
+      (padstack "Via[0-1]_800:400_um"
+        (shape
+          (circle F.Cu 8000 0 0)
+        )
+        (shape
+          (circle B.Cu 8000 0 0)
+        )
+        (attach off)
+      )
+      (padstack "Via[0-1]_2000:1000_um"
+        (shape
+          (circle F.Cu 20000 0 0)
+        )
+        (shape
+          (circle B.Cu 20000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+      (net GND
+        (wire
+          (path B.Cu 8000
+            1346510 -924050
+            1346510 -939567
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1567985 -998320
+            1405263 -998320
+            1346510 -939567
+          )
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -967500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1492500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2029310 -871500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2071960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2007410 -1254950
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1918660 -985700
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1876760 -1477900
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2071960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1002500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1916630 -1207630
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2088510 -1512950
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2071960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2049790 -1207630
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1212500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1637960 -1024700
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -1212500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1422500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1212500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1002500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1979810 -964450
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2071960 -1212500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1002500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1212500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1855960 -1024700
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -967500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1422500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1422500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1422500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1212500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1695970 -1595000
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1212500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1422500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1966960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2071960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1422500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2029310 -944500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2034410 -1400950
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1826960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -967500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1841810 -1398550
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1527500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1072500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1037500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -967500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -827500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1282500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1906310 -1183550
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2001960 -1142500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1247500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1984410 -871500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1492500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1387500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1896960 -1177500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1686960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1597500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -897500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2025710 -1222950
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1721960 -1457500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1107500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1791960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1841810 -1465350
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -1352500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1756960 -1317500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1651960 -862500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 2036960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1931960 -932500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1861960 -1562500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1581960 -1002500
+          (type protect)
+        )
+        (via "Via[0-1]_800:400_um" 1616960 -1492500
+          (type protect)
+        )
+      )
+      (net +5V
+        (wire
+          (path F.Cu 8000
+            1604898 -1410450
+            1604898 -1322500
+            1496510 -1214112
+            1496510 -924050
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1594473 -1595000
+            1604898 -1584575
+            1604898 -1410450
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1604898 -1410450
+            1610392 -1410450
+            1679377 -1341465
+            1835118 -1341465
+            1866803 -1373150
+            1896010 -1373150
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1341510 -1406850
+            1380676 -1367684
+            1480871 -1367684
+            1523637 -1410450
+            1604898 -1410450
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1957410 -1281950
+            1957410 -1400950
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1917850 -1427501
+            1910115 -1427501
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1876760 -1542900
+            1932811 -1542900
+            1943217 -1532494
+            1943217 -1452868
+            1917850 -1427501
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1919835 -1400950
+            1919835 -1425516
+            1917850 -1427501
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1910115 -1427501
+            1908459 -1427501
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1908459 -1427501
+            1896010 -1439950
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1919835 -1398631
+            1919835 -1400950
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1919835 -1400950
+            1957410 -1400950
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1919835 -1396975
+            1919835 -1398631
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1896010 -1373150
+            1919835 -1396975
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            2065910 -1153950
+            2060943 -1158917
+            2060943 -1212918
+            2038127 -1235734
+            2003626 -1235734
+            1957410 -1281950
+          )
+        )
+      )
+      (net SIM_RX
+        (wire
+          (path F.Cu 2500
+            1834460 -1164400
+            1823693 -1164400
+          )
+        )
+        (wire
+          (path B.Cu 2500
+            1809202 -1070068
+            1820360 -1058910
+            1957681 -1058910
+            1979585 -1037006
+            1979585 -1015900
+          )
+        )
+        (via "Via[0-1]_600:300_um" 1809202 -1070068
+        )
+        (wire
+          (path F.Cu 2500
+            1823693 -1164400
+            1823693 -1084559
+            1809202 -1070068
+          )
+        )
+      )
+      (net AC_L
+        (wire
+          (path F.Cu 15000
+            1091950 -1075450
+            1091950 -1125450
+          )
+          (type protect)
+        )
+      )
+      (net AC_L_FUSED
+        (wire
+          (path B.Cu 15000
+            1204850 -975450
+            1091950 -975450
+          )
+        )
+        (wire
+          (path F.Cu 15000
+            1091950 -925450
+            1091950 -975450
+          )
+          (type protect)
+        )
+      )
+      (net PUMP_RELAY_DRV
+        (wire
+          (path F.Cu 2500
+            1925905 -958878
+            1927308 -960281
+            1927308 -1030461
+            1923592 -1034177
+            1923592 -1202496
+            1924909 -1203813
+            1924909 -1266221
+            1909158 -1281972
+            1909158 -1385402
+            1896010 -1398550
+          )
+        )
+        (via "Via[0-1]_600:300_um" 1925905 -958878
+        )
+        (wire
+          (path B.Cu 2500
+            1956085 -890450
+            1967733 -902098
+            1967733 -913404
+            1940385 -940752
+            1939215 -940752
+            1925905 -954062
+            1925905 -958878
+          )
+        )
+      )
+      (net +3V3
+        (wire
+          (path B.Cu 8000
+            2004656 -1009080
+            2004656 -1009079
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2010591 -1015015
+            2004656 -1009080
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1997835 -1015900
+            2004655 -1009080
+            2004656 -1009080
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2004656 -1009079
+            2012748 -1000987
+          )
+        )
+        (via "Via[0-1]_800:400_um" 2010591 -1015015
+        )
+        (wire
+          (path F.Cu 8000
+            1951423 -1043881
+            1951423 -1037106
+            1973514 -1015015
+            2010591 -1015015
+          )
+        )
+        (via "Via[0-1]_800:400_um" 1951423 -1043881
+        )
+        (wire
+          (path B.Cu 8000
+            1945398 -1040274
+            1953335 -1032337
+            1953335 -1015900
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1744959 -1050181
+            1935491 -1050181
+            1945398 -1040274
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1945398 -1040274
+            1947816 -1040274
+            1951423 -1043881
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2048310 -908576
+            2048310 -923250
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2048310 -908575
+            2048310 -908576
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2048310 -908576
+            2003410 -908576
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2003410 -908576
+            2003410 -892750
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2003410 -909150
+            2003410 -908576
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2048310 -908000
+            2048310 -908575
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2048310 -907302
+            2048310 -908000
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2048310 -905646
+            2048310 -907302
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2003410 -923250
+            2003410 -909150
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2048310 -892750
+            2048310 -905646
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1953910 -985700
+            1953335 -986275
+            1953335 -1015900
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2001854 -985700
+            2001854 -924806
+            2003410 -923250
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2001854 -987088
+            2001854 -985700
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2001854 -985700
+            1998810 -985700
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2001854 -988744
+            2001854 -987088
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2012748 -999638
+            2001854 -988744
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1674960 -1050181
+            1674960 -1038383
+            1673977 -1037400
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1674960 -1053937
+            1674960 -1050181
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1674960 -1050181
+            1744959 -1050181
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1674960 -1055593
+            1674960 -1053937
+          )
+        )
+        (via "Via[0-1]_800:400_um" 1744959 -1050181
+        )
+        (wire
+          (path F.Cu 8000
+            1674960 -1410450
+            1674960 -1055593
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1659460 -1037400
+            1673977 -1037400
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1674960 -1410450
+            1720798 -1410450
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            1634473 -1595000
+            1634473 -1497503
+            1674960 -1457016
+            1674960 -1410450
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1838802 -1519900
+            1798850 -1479948
+            1797880 -1479948
+            1728382 -1410450
+            1720798 -1410450
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            1840768 -1519900
+            1876760 -1519900
+          )
+          (type protect)
+        )
+        (wire
+          (path B.Cu 8000
+            1838802 -1519900
+            1840768 -1519900
+          )
+          (type protect)
+        )
+        (wire
+          (path B.Cu 8000
+            1813760 -1519900
+            1838802 -1519900
+          )
+          (type protect)
+        )
+        (wire
+          (path B.Cu 8000
+            2012748 -1000987
+            2012748 -999638
+          )
+        )
+        (wire
+          (path B.Cu 8000
+            2043135 -1015300
+            2043135 -1012409
+            2031713 -1000987
+            2012748 -1000987
+          )
+        )
+      )
+      (net MAINS_SENSE_OPT
+        (wire
+          (path B.Cu 2500
+            2053699 -984202
+            2070583 -984202
+            2071210 -983575
+          )
+        )
+        (via "Via[0-1]_600:300_um" 2053699 -984202
+        )
+        (wire
+          (path F.Cu 2500
+            1903988 -1414718
+            1917092 -1401614
+            1917092 -1284695
+            1972179 -1229608
+            1972179 -1156614
+            2019461 -1109332
+            2019461 -1018440
+            2053699 -984202
+          )
+        )
+        (via "Via[0-1]_600:300_um" 1903988 -1414718
+        )
+        (wire
+          (path B.Cu 2500
+            1819810 -1439950
+            1875651 -1439950
+            1900883 -1414718
+            1903988 -1414718
+          )
+        )
+      )
+      (net PUMP_RELAY_COIL
+        (wire
+          (path B.Cu 2500
+            2065910 -1052350
+            2042358 -1028798
+            1993518 -1028798
+            1988210 -1023490
+            1988210 -1008833
+            1980520 -1001143
+            1977835 -1001143
+            1965268 -988576
+            1965268 -979469
+            1957734 -971935
+            1929837 -971935
+            1919359 -961457
+            1919359 -917926
+            1937335 -899950
+          )
+        )
+      )
+      (net MAINS_SENSE
+        (wire
+          (path B.Cu 2500
+            1935085 -1015900
+            1852065 -1015900
+            1843208 -1024757
+            1655236 -1024757
+            1633908 -1046085
+          )
+        )
+        (wire
+          (path F.Cu 2500
+            1659460 -1088200
+            1648693 -1088200
+          )
+        )
+        (via "Via[0-1]_600:300_um" 1633908 -1046085
+        )
+        (wire
+          (path F.Cu 2500
+            1648693 -1088200
+            1648693 -1060870
+            1633908 -1046085
+          )
+        )
+      )
+      (net PUMP_RELAY
+        (wire
+          (path F.Cu 2500
+            1659460 -1151700
+            1648693 -1151700
+          )
+        )
+        (wire
+          (path F.Cu 2500
+            1633908 -1133292
+            1648693 -1148077
+            1648693 -1151700
+          )
+        )
+        (via "Via[0-1]_600:300_um" 1633908 -1133292
+        )
+        (wire
+          (path B.Cu 2500
+            2043135 -985400
+            2043135 -995509
+            2080470 -1032844
+            2080470 -1058353
+            2058056 -1080767
+            1796457 -1080767
+            1743932 -1133292
+            1633908 -1133292
+          )
+        )
+      )
+      (net UART_RX
+        (wire
+          (path F.Cu 2500
+            1845227 -1075500
+            1875393 -1105666
+            1875393 -1394985
+            1912855 -1432447
+            1959207 -1432447
+            1993538 -1466778
+            2045238 -1466778
+            2066010 -1487550
+          )
+        )
+        (wire
+          (path F.Cu 2500
+            1834460 -1075500
+            1845227 -1075500
+          )
+        )
+      )
+      (net UART_TX
+        (wire
+          (path F.Cu 2500
+            1834460 -1062800
+            1845227 -1062800
+          )
+        )
+        (wire
+          (path B.Cu 2500
+            2066010 -1462150
+            2054243 -1462150
+          )
+        )
+        (wire
+          (path F.Cu 2500
+            1895174 -1303336
+            1888554 -1296716
+            1888554 -1111788
+            1845227 -1068461
+            1845227 -1062800
+          )
+        )
+        (via "Via[0-1]_600:300_um" 1895174 -1303336
+        )
+        (wire
+          (path B.Cu 2500
+            2054243 -1462150
+            2037218 -1445125
+            2027166 -1445125
+            1988121 -1406080
+            1988121 -1400767
+            1944210 -1356856
+            1944210 -1338529
+            1933228 -1327547
+            1919385 -1327547
+            1895174 -1303336
+          )
+        )
+      )
+    )
+  )
+)
