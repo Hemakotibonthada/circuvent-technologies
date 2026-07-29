@@ -241,9 +241,10 @@ export default function AboutPage() {
             {/* Timeline line */}
             <div className="absolute left-8 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-cyan-500/30 via-violet-500/30 to-pink-500/30" />
 
+            <ol className="list-none">
             {timeline.map((item, i) => (
               <ScrollReveal key={item.phase} delay={i * 0.15}>
-                <div
+                <li
                   className={`relative flex flex-col md:flex-row items-start gap-6 sm:gap-8 mb-12 sm:mb-16 ${
                     i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"
                   }`}
@@ -283,13 +284,14 @@ export default function AboutPage() {
                     whileHover={{ scale: 1.2 }}
                     transition={{ type: "spring", stiffness: 300 }}
                   >
-                    <item.icon className="w-4 h-4" style={{ color: "var(--accent-cyan)" }} />
+                    <item.icon className="w-4 h-4" style={{ color: "var(--accent-cyan)" }} aria-hidden="true" />
                   </motion.div>
 
                   <div className="hidden md:block flex-1" />
-                </div>
+                </li>
               </ScrollReveal>
             ))}
+            </ol>
           </div>
         </div>
       </section>
@@ -423,7 +425,7 @@ export default function AboutPage() {
                   <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/0 to-transparent group-hover:via-cyan-400/30 transition-all duration-500" />
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className={`text-sm font-medium transition-colors group-hover:${tech.color}`} style={{ color: "var(--text-primary)" }}>
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                         {tech.name}
                       </p>
                       <p className="text-[10px] mt-0.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
@@ -434,7 +436,12 @@ export default function AboutPage() {
                       {tech.count}×
                     </span>
                   </div>
-                  <div className="mt-3 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border-primary)" }}>
+                  <div
+                    className="mt-3 h-1.5 rounded-full overflow-hidden"
+                    style={{ background: "var(--border-primary)" }}
+                    role="img"
+                    aria-label={`${tech.name} used in ${tech.count} projects`}
+                  >
                     <motion.div
                       className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500"
                       initial={{ width: 0 }}

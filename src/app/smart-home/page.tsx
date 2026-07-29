@@ -7,7 +7,9 @@ import ScrollReveal from "@/components/ScrollReveal";
 import CTASection from "@/components/CTASection";
 import SmartHomeShowcase from "@/components/SmartHomeShowcase";
 import { ShimmerText } from "@/components/AnimationEffects";
-import { products } from "@/lib/shop-data";
+import { products, formatINR } from "@/lib/shop-data";
+import { SMART_HOME_FAQS } from "@/lib/smart-home-faqs";
+import ProductMedia from "@/components/shop/ProductMedia";
 import {
   ArrowRight, QrCode, Wifi, CheckCircle2, Mic, Smartphone, LayoutGrid,
   Sparkles, BellRing, Gauge, Lock, Server,
@@ -29,21 +31,10 @@ const APP_FEATURES = [
 ];
 
 export default function SmartHomePage() {
-  const shopBy = new Map(products.map((p) => [p.id, p.slug]));
-  const family = [
-    { id: "smart-plug", glyph: "🔌", name: "Smart Plug" },
-    { id: "smart-switch", glyph: "🎚️", name: "Smart Switch" },
-    { id: "smart-light", glyph: "💡", name: "Smart Light" },
-    { id: "smart-fan", glyph: "🌀", name: "Smart Fan" },
-    { id: "smart-lock", glyph: "🔒", name: "Smart Lock" },
-    { id: "curtain", glyph: "🪟", name: "Smart Curtain" },
-    { id: "aquaguard", glyph: "💧", name: "AquaGuard" },
-    { id: "home-hub", glyph: "🏠", name: "Home Hub" },
-    { id: "energy-monitor", glyph: "⚡", name: "Energy Monitor" },
-    { id: "guardian", glyph: "🛡️", name: "Guardian" },
-    { id: "motion-sensor", glyph: "🚶", name: "Motion Sensor" },
-    { id: "agri-starter", glyph: "🌾", name: "Agri Starter" },
-  ];
+  // Derived from the shop catalogue rather than a duplicated hardcoded list, so
+  // new devices, price changes and artwork appear here automatically.
+  const family = products.filter((p) => p.available !== false);
+  const entryPrice = family.length ? Math.min(...family.map((p) => p.price)) : 0;
 
   return (
     <main className="relative min-h-screen overflow-hidden">
@@ -88,12 +79,12 @@ export default function SmartHomePage() {
               </p>
               <div className="grid sm:grid-cols-3 gap-4 mt-8 text-left">
                 {["“Alexa, turn on the living-room light.”", "“Hey Google, lock the front door.”", "“Alexa, set the fan to speed two.”"].map((q) => (
-                  <div key={q} className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>{q}</div>
+                  <div key={q} className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>{q}</div>
                 ))}
               </div>
               <div className="flex flex-wrap justify-center gap-3 mt-8">
-                <span className="px-4 py-2 rounded-full text-sm font-semibold" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Amazon Alexa</span>
-                <span className="px-4 py-2 rounded-full text-sm font-semibold" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Google Home</span>
+                <span className="px-4 py-2 rounded-full text-sm font-semibold" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Amazon Alexa</span>
+                <span className="px-4 py-2 rounded-full text-sm font-semibold" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Google Home</span>
               </div>
             </div>
           </ScrollReveal>
@@ -154,26 +145,74 @@ export default function SmartHomePage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="flex items-end justify-between mb-10 gap-4 flex-wrap">
-              <h2 className="text-4xl font-bold" style={{ color: "var(--text-primary)" }}>The device family</h2>
+              <div>
+                <h2 className="text-4xl font-bold" style={{ color: "var(--text-primary)" }}>The device family</h2>
+                <p className="mt-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
+                  {family.length} devices, all on the same app and control plane — from {formatINR(entryPrice)}.
+                </p>
+              </div>
               <Link href="/shop" className="text-sm font-semibold inline-flex items-center gap-1" style={{ color: "var(--accent-cyan)" }}>Shop all <ArrowRight className="w-4 h-4" /></Link>
             </div>
           </ScrollReveal>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {family.map((d, i) => {
-              const slug = shopBy.get(d.id);
-              const inner = (
-                <motion.div whileHover={{ y: -4 }} className="rounded-2xl p-6 h-full flex flex-col items-center text-center" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
-                  <span className="text-4xl">{d.glyph}</span>
-                  <div className="font-bold mt-3" style={{ color: "var(--text-primary)" }}>{d.name}</div>
-                  {slug && <span className="text-xs mt-1" style={{ color: "var(--accent-cyan)" }}>View →</span>}
-                </motion.div>
-              );
-              return (
-                <ScrollReveal key={d.id} delay={i * 0.04}>
-                  {slug ? <Link href={`/shop/${slug}`}>{inner}</Link> : inner}
-                </ScrollReveal>
-              );
-            })}
+          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {family.map((d, i) => (
+              <ScrollReveal key={d.id} delay={Math.min(i, 7) * 0.04}>
+                <li className="h-full list-none">
+                  <Link href={`/shop/${d.slug}`} className="block h-full">
+                    <motion.div
+                      whileHover={{ y: -4 }}
+                      className="rounded-2xl h-full flex flex-col overflow-hidden"
+                      style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}
+                    >
+                      <ProductMedia
+                        image={d.image}
+                        accent={d.accent}
+                        icon={d.icon}
+                        name={d.name}
+                        className="h-32 w-full"
+                        iconClass="text-4xl"
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      />
+                      <div className="p-5 flex flex-col flex-1">
+                        <div className="font-bold leading-snug" style={{ color: "var(--text-primary)" }}>{d.name}</div>
+                        <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--text-tertiary)" }}>{d.tagline}</p>
+                        <div className="mt-auto pt-3 flex items-center justify-between gap-2">
+                          <span className="font-bold" style={{ color: "var(--text-primary)" }}>{formatINR(d.price)}</span>
+                          <span className="text-xs font-semibold inline-flex items-center gap-0.5" style={{ color: "var(--accent-cyan)" }}>
+                            View <ArrowRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </Link>
+                </li>
+              </ScrollReveal>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="relative z-10 py-16" aria-labelledby="smart-home-faq">
+        <div className="max-w-3xl mx-auto px-6 lg:px-8">
+          <ScrollReveal>
+            <div className="text-center mb-10">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Questions</span>
+              <h2 id="smart-home-faq" className="text-4xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>Good to know</h2>
+            </div>
+          </ScrollReveal>
+          <div className="grid gap-3">
+            {SMART_HOME_FAQS.map((faq, i) => (
+              <ScrollReveal key={faq.question} delay={Math.min(i, 5) * 0.05}>
+                <details className="group rounded-2xl p-5" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
+                  <summary className="cursor-pointer list-none marker:hidden font-semibold flex items-center justify-between gap-3" style={{ color: "var(--text-primary)" }}>
+                    {faq.question}
+                    <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-open:rotate-90" style={{ color: "var(--accent-cyan)" }} />
+                  </summary>
+                  <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{faq.answer}</p>
+                </details>
+              </ScrollReveal>
+            ))}
           </div>
         </div>
       </section>

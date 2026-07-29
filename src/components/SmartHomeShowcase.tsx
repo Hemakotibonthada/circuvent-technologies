@@ -93,9 +93,9 @@ export default function SmartHomeShowcase() {
 
             <ScrollReveal delay={0.1}>
               <div className="flex flex-wrap items-center gap-3 mt-6">
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Works with Amazon Alexa</span>
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Works with Google Home</span>
-                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>iOS &amp; Android</span>
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Works with Amazon Alexa</span>
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>Works with Google Home</span>
+                <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }}>iOS &amp; Android</span>
               </div>
               <div className="flex flex-wrap gap-3 mt-6">
                 <Link href="/smart-home" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 font-semibold text-white group" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>

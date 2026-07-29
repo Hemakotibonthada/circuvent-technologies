@@ -138,6 +138,22 @@ export const pageMetadata: Record<string, PageMeta> = {
     path: "/shop",
     ogType: "website",
   },
+  smartHome: {
+    title: "Smart Home — One App for Every Device",
+    description:
+      "Control every Circuvent device from your phone, the web or your voice. Works with Amazon Alexa and Google Home, sets up in under a minute, and runs on a self-hosted control plane you own.",
+    keywords: [
+      "Smart Home",
+      "Home Automation",
+      "Alexa",
+      "Google Home",
+      "IoT App",
+      "MQTT",
+      "Made in India",
+    ],
+    path: "/smart-home",
+    ogType: "website",
+  },
   track: {
     title: "Track Your Order",
     description: "Track your Circuvent order in real time — enter your order number and email, or sign in to see all your orders and delivery status.",
@@ -399,6 +415,27 @@ export function getItemListJsonLd(
       name: p.name,
       url: `${SITE_URL}/shop/${p.slug}`,
     })),
+  };
+}
+
+/**
+ * AboutPage structured data. The root layout already emits the Organization
+ * node, so this describes the page itself and points back at that entity
+ * instead of duplicating it.
+ */
+export function getAboutPageJsonLd(opts: { description?: string } = {}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    name: `About ${SITE_NAME}`,
+    url: `${SITE_URL}/about`,
+    description: opts.description || SITE_DESCRIPTION,
+    mainEntity: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}${siteConfig.logo}`,
+    },
   };
 }
 

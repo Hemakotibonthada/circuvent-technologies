@@ -19,6 +19,10 @@ import {
   ShoppingCart,
   Trash2,
   Pencil,
+  AlertCircle,
+  LayoutDashboard,
+  Search,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
@@ -27,7 +31,26 @@ import { useWishlist } from "@/components/shop/WishlistProvider";
 import { useRouter } from "next/navigation";
 import AuthForm from "@/components/shop/AuthForm";
 import AccountExtras from "@/components/shop/AccountExtras";
+import AccountSectionNav, { type AccountSection } from "@/components/shop/AccountSectionNav";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatINR, products as CATALOG } from "@/lib/shop-data";
+
+// Module-level so the nav's IntersectionObserver isn't rebuilt every render.
+const ACCOUNT_SECTIONS: AccountSection[] = [
+  { id: "account-overview", label: "Overview", icon: LayoutDashboard },
+  { id: "account-orders", label: "Orders", icon: Package },
+  { id: "account-wallet", label: "Wallet", icon: Wallet },
+  { id: "account-personal", label: "Profile", icon: UserCog },
+  { id: "account-wishlist", label: "Wishlist", icon: Heart },
+  { id: "account-support", label: "Support", icon: LifeBuoy },
+];
+
+const ORDER_FILTERS: { id: string; label: string; match: (status: string) => boolean }[] = [
+  { id: "all", label: "All", match: () => true },
+  { id: "open", label: "In progress", match: (s) => !["delivered", "cancelled"].includes(s) },
+  { id: "delivered", label: "Delivered", match: (s) => s === "delivered" },
+  { id: "cancelled", label: "Cancelled", match: (s) => s === "cancelled" },
+];
 
 interface WalletTxn {
   at: string;
@@ -193,6 +216,9 @@ function SignedIn({
   const router = useRouter();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersError, setOrdersError] = useState(false);
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [orderQuery, setOrderQuery] = useState("");
   const [amount, setAmount] = useState("500");
   const [topupBusy, setTopupBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -221,22 +247,25 @@ function SignedIn({
 
   const loadOrders = useCallback(async () => {
     setLoadingOrders(true);
+    setOrdersError(false);
     try {
       const res = await fetch("/api/account/orders", { headers: authHeaders() });
       if (res.ok) {
         const d = await res.json();
         setOrders(d.orders || []);
+      } else {
+        setOrdersError(true);
       }
     } catch {
-      /* ignore */
+      // Surface the failure instead of leaving an indistinguishable empty list.
+      setOrdersError(true);
     }
     setLoadingOrders(false);
   }, [authHeaders]);
 
   useEffect(() => {
-    loadWallet();
-    loadOrders();
-    loadProfile();
+    // Independent endpoints — fetch together rather than in sequence.
+    void Promise.all([loadWallet(), loadOrders(), loadProfile()]);
   }, [loadWallet, loadOrders, loadProfile]);
 
   const topUp = async () => {
@@ -376,6 +405,19 @@ function SignedIn({
   const latest = sortedOrders[0];
   const openCount = orders.filter((o) => !["delivered", "cancelled"].includes(o.status)).length;
 
+  const visibleOrders = useMemo(() => {
+    const matcher = ORDER_FILTERS.find((f) => f.id === orderFilter) ?? ORDER_FILTERS[0];
+    const q = orderQuery.trim().toLowerCase();
+    return sortedOrders.filter((o) => {
+      if (!matcher.match(o.status)) return false;
+      if (!q) return true;
+      return (
+        o.orderNo.toLowerCase().includes(q) ||
+        o.items.some((it) => it.name.toLowerCase().includes(q))
+      );
+    });
+  }, [sortedOrders, orderFilter, orderQuery]);
+
   const displayName = (profile?.name || name || "").trim();
   const firstName = displayName.split(/\s+/)[0] || "there";
   const phone = profile?.phone?.trim();
@@ -446,8 +488,10 @@ function SignedIn({
         </div>
       </div>
 
+      <AccountSectionNav sections={ACCOUNT_SECTIONS} />
+
       {/* Keep track */}
-      <section className="mt-10">
+      <section id="account-overview" className="mt-8 scroll-mt-28">
         <SectionHeading>Keep track</SectionHeading>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
@@ -476,7 +520,7 @@ function SignedIn({
       </section>
 
       {/* Orders */}
-      <section id="account-orders" className="mt-10 scroll-mt-24">
+      <section id="account-orders" className="mt-10 scroll-mt-28">
         <SectionHeading
           action={
             <Link href="/shop" className="text-sm font-medium" style={{ color: "var(--accent-cyan)" }}>
@@ -487,9 +531,73 @@ function SignedIn({
           Orders
         </SectionHeading>
         <div className="rounded-2xl border p-6" style={surface}>
+          {/* Filter + search — only worth showing once there's something to sift. */}
+          {!loadingOrders && !ordersError && orders.length > 0 && (
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter orders by status">
+                {ORDER_FILTERS.map((f) => {
+                  const isActive = orderFilter === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setOrderFilter(f.id)}
+                      aria-pressed={isActive}
+                      className="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                      style={{
+                        borderColor: isActive ? "var(--border-accent)" : "var(--border-primary)",
+                        background: isActive ? "var(--accent-cyan-muted)" : "transparent",
+                        color: isActive ? "var(--accent-cyan)" : "var(--text-tertiary)",
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="relative sm:ml-auto sm:w-60">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  aria-hidden="true"
+                  style={{ color: "var(--text-muted)" }}
+                />
+                <input
+                  type="search"
+                  value={orderQuery}
+                  onChange={(e) => setOrderQuery(e.target.value)}
+                  placeholder="Order number or product"
+                  aria-label="Search your orders"
+                  className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm outline-none"
+                  style={{ borderColor: "var(--border-primary)", color: "var(--text-primary)" }}
+                />
+              </div>
+            </div>
+          )}
+
           {loadingOrders ? (
-            <div className="flex justify-center py-14">
-              <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
+            <ul className="space-y-3" aria-label="Loading orders">
+              {[0, 1, 2].map((i) => (
+                <li key={i} className="rounded-xl border p-4" style={{ borderColor: "var(--border-primary)" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <Skeleton variant="text" height={14} className="w-32" />
+                    <Skeleton variant="rounded" height={20} width={80} />
+                  </div>
+                  <Skeleton variant="text" height={11} className="mt-2 w-52" />
+                  <Skeleton variant="text" height={11} className="mt-3 w-40" />
+                </li>
+              ))}
+            </ul>
+          ) : ordersError ? (
+            <div className="py-10 text-center">
+              <AlertCircle className="mx-auto h-8 w-8" style={{ color: "#f59e0b" }} />
+              <p className="mt-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                We couldn&apos;t load your orders
+              </p>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-tertiary)" }}>
+                Check your connection and try again — nothing has been lost.
+              </p>
+              <button onClick={loadOrders} className={`mt-4 ${primaryBtn}`} style={accentBg}>
+                <RotateCcw className="h-4 w-4" /> Retry
+              </button>
             </div>
           ) : sortedOrders.length === 0 ? (
             <div className="py-10 text-center">
@@ -502,8 +610,32 @@ function SignedIn({
               </Link>
             </div>
           ) : (
-            <ul className="space-y-3">
-              {sortedOrders.map((o) => (
+            <>
+              <p aria-live="polite" className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                {visibleOrders.length === sortedOrders.length
+                  ? `${sortedOrders.length} order${sortedOrders.length === 1 ? "" : "s"}`
+                  : `${visibleOrders.length} of ${sortedOrders.length} orders`}
+              </p>
+              {visibleOrders.length === 0 ? (
+                <div className="py-10 text-center">
+                  <Search className="mx-auto h-7 w-7" style={{ color: "var(--text-muted)" }} />
+                  <p className="mt-3 text-sm" style={{ color: "var(--text-tertiary)" }}>
+                    No orders match this filter.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setOrderFilter("all");
+                      setOrderQuery("");
+                    }}
+                    className="mt-3 text-sm font-semibold underline underline-offset-2"
+                    style={{ color: "var(--accent-cyan)" }}
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {visibleOrders.map((o) => (
                 <li key={o.orderNo} className="rounded-xl border p-4" style={{ borderColor: "var(--border-primary)" }}>
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-mono text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -561,13 +693,15 @@ function SignedIn({
                   </div>
                 </li>
               ))}
-            </ul>
+                </ul>
+              )}
+            </>
           )}
         </div>
       </section>
 
       {/* Wallet */}
-      <section id="account-wallet" className="mt-10 scroll-mt-24">
+      <section id="account-wallet" className="mt-10 scroll-mt-28">
         <SectionHeading>Wallet</SectionHeading>
         <div className="rounded-2xl border p-6" style={surface}>
           <div className="flex flex-wrap items-end justify-between gap-5">
@@ -673,7 +807,7 @@ function WishlistSection({
 }) {
   const items = ids.map((id) => CATALOG.find((p) => p.id === id || p.slug === id)).filter(Boolean) as typeof CATALOG;
   return (
-    <section id="account-wishlist" className="mt-10 scroll-mt-24">
+    <section id="account-wishlist" className="mt-10 scroll-mt-28">
       <SectionHeading>Wishlist{items.length > 0 ? ` · ${items.length}` : ""}</SectionHeading>
       <div className="rounded-2xl border p-6" style={surface}>
         {items.length === 0 ? (
@@ -790,7 +924,7 @@ function SupportSection({ authHeaders }: { authHeaders: () => Record<string, str
   const field = "w-full rounded-xl border px-4 py-2.5 text-sm outline-none";
 
   return (
-    <section id="account-support" className="mt-10 scroll-mt-24">
+    <section id="account-support" className="mt-10 scroll-mt-28">
       <SectionHeading>Support</SectionHeading>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border p-6" style={surface}>

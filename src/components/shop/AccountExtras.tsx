@@ -162,7 +162,7 @@ function PersonalInfoCard() {
   };
 
   return (
-    <div id="account-personal" className="scroll-mt-24 rounded-2xl border p-6" style={card}>
+    <div id="account-personal" className="scroll-mt-28 rounded-2xl border p-6" style={card}>
       <h3 className="flex items-center gap-2 font-semibold" style={headingStyle}>
         <User className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Personal information
       </h3>
