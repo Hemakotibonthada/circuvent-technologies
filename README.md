@@ -84,7 +84,31 @@ npm run build    # Production build
 npm run start    # Start production server
 ```
 
-Deploys to Vercel via Git push. Firebase Hosting also supported.
+### Environments
+
+| Branch    | URL                 | Vercel env   |
+| --------- | ------------------- | ------------ |
+| `main`    | circuvent.com       | `production` |
+| `develop` | dev.circuvent.com   | `preview`    |
+| any other | generated `.vercel.app` preview URL | `preview` |
+
+Work lands on `develop` first, gets checked on dev.circuvent.com, then
+merges to `main` to go live. Both deploy automatically on push.
+
+`dev.circuvent.com` is bound to the `develop` branch in the project's domain
+settings, and `NEXT_PUBLIC_SITE_URL` is overridden for that branch so the dev
+site refers to itself rather than to production.
+
+**Only `main` is indexable.** Anything that is not `VERCEL_ENV=production`
+serves `Disallow: /` plus an `X-Robots-Tag: noindex, nofollow` header — a dev
+site that Google crawls competes with production for its own search terms and
+exposes unreleased work. See `IS_PUBLIC_SITE` in `src/lib/config.ts`. Vercel
+adds that header to `.vercel.app` URLs by itself but not to a custom domain
+pointed at a branch, which is why the app sets it.
+
+Note that deployment protection is set to `all_except_custom_domains`, so
+dev.circuvent.com is reachable without a Vercel login. Turn on password
+protection for the project if the dev site should not be public.
 
 ## Deploy on Vercel
 
