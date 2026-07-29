@@ -273,6 +273,14 @@ export interface AdminUser {
   twoFactorEnabled?: boolean;
   twoFactorMethod?: "email" | "totp"; // default "email" when 2FA is on
   totpSecret?: string; // base32; present only when method === "totp"
+  /** Last password change. Drives the 90-day rotation policy. */
+  passwordChangedAt?: string;
+  /** Previous credentials, newest first, so a password cannot be recycled. */
+  passwordHistory?: { hash: string; salt: string; at: string }[];
+  /** Bumped on every password change so existing session tokens stop verifying. */
+  tokenVersion?: number;
+  /** Forces a change at next sign-in regardless of age (e.g. after an admin reset). */
+  mustChangePassword?: boolean;
 }
 
 export interface OrderNote {
@@ -735,13 +743,65 @@ export function upsertAdminUser(u: AdminUser): AdminUser {
 /** Patches an existing staff account's mutable fields. */
 export function patchAdminUser(
   email: string,
-  patch: Partial<Pick<AdminUser, "name" | "role" | "active" | "hash" | "salt" | "lastLoginAt">>
+  patch: Partial<
+    Pick<
+      AdminUser,
+      | "name"
+      | "role"
+      | "active"
+      | "hash"
+      | "salt"
+      | "lastLoginAt"
+      | "passwordChangedAt"
+      | "passwordHistory"
+      | "tokenVersion"
+      | "mustChangePassword"
+    >
+  >
 ): AdminUser | null {
   const db = load();
   const key = normEmail(email);
   const existing = db.adminUsers[key];
   if (!existing) return null;
   db.adminUsers[key] = { ...existing, ...patch };
+  save();
+  return db.adminUsers[key];
+}
+
+/**
+ * Replaces a staff password, retaining the old credential in history and
+ * bumping tokenVersion so sessions minted with the previous password stop
+ * verifying. History is capped so the record cannot grow without bound.
+ *
+ * The *previous* hash is what gets pushed, not the new one — history exists to
+ * answer "has this been used before", and the current credential already lives
+ * in `hash`/`salt`.
+ */
+export function setAdminPassword(
+  email: string,
+  hash: string,
+  salt: string,
+  historyDepth: number
+): AdminUser | null {
+  const db = load();
+  const key = normEmail(email);
+  const existing = db.adminUsers[key];
+  if (!existing) return null;
+
+  const history = [
+    { hash: existing.hash, salt: existing.salt, at: existing.passwordChangedAt || existing.createdAt },
+    ...(existing.passwordHistory || []),
+  ].slice(0, Math.max(0, historyDepth));
+
+  db.adminUsers[key] = {
+    ...existing,
+    hash,
+    salt,
+    passwordHistory: history,
+    passwordChangedAt: new Date().toISOString(),
+    tokenVersion: (existing.tokenVersion || 0) + 1,
+    mustChangePassword: false,
+  };
   save();
   return db.adminUsers[key];
 }

@@ -44,6 +44,7 @@ import AuditLogPanel from "./AuditLogPanel";
 import MessagesPanel from "./MessagesPanel";
 import AdminAlerts from "./AdminAlerts";
 import Admin2fa from "./Admin2fa";
+import AdminPassword, { ForcePasswordChange } from "./AdminPassword";
 import { FileBarChart, Inbox, Cpu, Mail, Gauge } from "lucide-react";
 import DevicesPanel from "./DevicesPanel";
 import EmailsPanel from "./EmailsPanel";
@@ -231,6 +232,10 @@ export default function AdminDashboard() {
   const [otp, setOtp] = useState("");
   const [role, setRole] = useState<string>("superadmin");
   const [adminName, setAdminName] = useState<string>("");
+  // The signed-in identity, kept separate from the `email` login field: after a
+  // page reload the form state is empty but the session is still valid.
+  const [adminEmail, setAdminEmail] = useState<string>("");
+  const [mustChangePw, setMustChangePw] = useState(false);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [sseConnected, setSSEConnected] = useState(false);
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
@@ -276,6 +281,8 @@ export default function AdminDashboard() {
             const d = await res.json();
             setRole(d.role || "superadmin");
             setAdminName(d.name || "");
+            setAdminEmail(d.email || "");
+            setMustChangePw(!!d.mustChangePassword);
             setAuthenticated(true);
           }
           setChecking(false);
@@ -306,6 +313,8 @@ export default function AdminDashboard() {
         sessionStorage.setItem("admin-token", d.token);
         setRole(d.role || "superadmin");
         setAdminName(d.name || "");
+        setAdminEmail(d.email || email.trim().toLowerCase());
+        setMustChangePw(!!d.mustChangePassword);
         setAuthenticated(true);
       } else {
         const d = await res.json().catch(() => ({}));
@@ -330,6 +339,8 @@ export default function AdminDashboard() {
         sessionStorage.setItem("admin-token", d.token);
         setRole(d.role || "superadmin");
         setAdminName(d.name || "");
+        setAdminEmail(d.email || email.trim().toLowerCase());
+        setMustChangePw(!!d.mustChangePassword);
         setTwoFA(false);
         setAuthenticated(true);
       } else {
@@ -343,6 +354,7 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     sessionStorage.removeItem("admin-token");
     setAuthenticated(false);
+    setMustChangePw(false);
     setPassword("");
   };
 
@@ -526,6 +538,20 @@ export default function AdminDashboard() {
     );
   }
 
+  // Expired credential: the console is withheld until it is rotated. Every
+  // panel below fetches with the same token, so letting it render would be a
+  // policy that only asks nicely.
+  if (mustChangePw) {
+    return (
+      <ForcePasswordChange
+        email={adminEmail}
+        name={adminName}
+        onDone={() => setMustChangePw(false)}
+        onSignOut={handleLogout}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen py-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -548,6 +574,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <AdminAlerts onGoto={(t) => setTab(t as typeof tab)} />
             <Admin2fa />
+            <AdminPassword email={adminEmail} name={adminName} />
             {canSee("overview") && (
               <>
                 {/* SSE Status */}

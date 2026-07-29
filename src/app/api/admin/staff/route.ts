@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hashPassword } from "@/lib/account";
+import { checkPassword } from "@/lib/admin-password-policy";
 import {
   guard,
   ALL_ROLES,
@@ -56,7 +57,13 @@ export async function POST(request: NextRequest) {
   const role = body.role;
 
   if (!validEmail(email)) return NextResponse.json({ error: "Valid email required" }, { status: 400 });
-  if (password.length < 6) return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+  const strength = checkPassword(password, { email, name });
+  if (!strength.ok) {
+    return NextResponse.json(
+      { error: "Password does not meet the security policy", errors: strength.errors },
+      { status: 400 }
+    );
+  }
   if (!isRole(role)) return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   if (getAdminUser(email)) return NextResponse.json({ error: "A staff account with this email already exists" }, { status: 409 });
 
@@ -70,6 +77,11 @@ export async function POST(request: NextRequest) {
     active: true,
     createdAt: new Date().toISOString(),
     createdBy: me.email,
+    passwordChangedAt: new Date().toISOString(),
+    // Whoever created the account knows this password, so it is a transport
+    // credential, not the user's own. They must replace it at first sign-in.
+    mustChangePassword: true,
+    tokenVersion: 0,
   });
   logAudit("staff.create", `${me.email} created ${email} as ${role}`);
   return NextResponse.json({ ok: true, staff: publicStaff(user) });
@@ -110,10 +122,23 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (typeof body.password === "string" && body.password) {
-    if (body.password.length < 6) return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+    const strength = checkPassword(body.password, { email, name: target.name });
+    if (!strength.ok) {
+      return NextResponse.json(
+        { error: "Password does not meet the security policy", errors: strength.errors },
+        { status: 400 }
+      );
+    }
     const { salt, hash } = hashPassword(body.password);
     patch.salt = salt;
     patch.hash = hash;
+    patch.passwordChangedAt = new Date().toISOString();
+    // An admin reset is a temporary credential known to a second person, so it
+    // grants access exactly once and must then be replaced by the owner.
+    patch.mustChangePassword = true;
+    // Ends every session held under the old password, which is the point of a
+    // reset — otherwise a compromised session survives its own remediation.
+    patch.tokenVersion = (target.tokenVersion || 0) + 1;
   }
 
   const updated = patchAdminUser(email, patch);

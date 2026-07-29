@@ -7,6 +7,7 @@ import {
   adminFromRequest,
   signAdminToken,
   ensureSeeded,
+  adminPasswordAge,
   DEFAULT_ADMIN_EMAIL,
   TOTP_PENDING,
 } from "@/lib/admin-auth";
@@ -61,12 +62,19 @@ export async function POST(request: NextRequest) {
     }
 
     recordStaffLogin(user.email, request.headers.get("user-agent") || undefined);
+    // A token is still issued when the password is expired. It has to be: the
+    // change-password endpoint itself requires authentication. The console
+    // gates every other panel on `mustChangePassword` instead.
+    const age = adminPasswordAge(user);
     return NextResponse.json({
       ok: true,
       token: signAdminToken(user.email),
       email: user.email,
       name: user.name,
       role: user.role,
+      mustChangePassword: age.expired,
+      passwordExpiringSoon: age.expiringSoon,
+      passwordDaysLeft: age.daysLeft,
     });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -80,10 +88,14 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
+  const age = adminPasswordAge(user);
   return NextResponse.json({
     authenticated: true,
     email: user.email,
     name: user.name,
     role: user.role,
+    mustChangePassword: age.expired,
+    passwordExpiringSoon: age.expiringSoon,
+    passwordDaysLeft: age.daysLeft,
   });
 }

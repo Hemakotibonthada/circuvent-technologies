@@ -3,12 +3,22 @@ import { clientIp } from "@/lib/client-ip";
 import crypto from "crypto";
 import { rateLimit } from "@/lib/rate-limit";
 import { revalidate, getAdmin2faOtp, bumpAdmin2faAttempt, clearAdmin2faOtp, getAdminUser, flushNow } from "@/lib/store";
-import { signAdminToken, ensureSeeded } from "@/lib/admin-auth";
+import { signAdminToken, ensureSeeded, adminPasswordAge } from "@/lib/admin-auth";
 import { recordStaffLogin } from "@/lib/admin-staff-activity";
 import { verifyTotp } from "@/lib/totp";
 import { TOTP_PENDING } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
+
+/** Rotation flags returned alongside a freshly minted session token. */
+function passwordFlags(user: Parameters<typeof adminPasswordAge>[0]) {
+  const age = adminPasswordAge(user);
+  return {
+    mustChangePassword: age.expired,
+    passwordExpiringSoon: age.expiringSoon,
+    passwordDaysLeft: age.daysLeft,
+  };
+}
 
 function safeEqual(a: string, b: string): boolean {
   const ba = Buffer.from(a);
