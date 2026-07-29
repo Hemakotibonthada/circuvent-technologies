@@ -29,11 +29,33 @@ export function hashPassword(password: string, salt?: string): { salt: string; h
   return { salt: s, hash };
 }
 
+/**
+ * Checks a password against a stored salt and hash.
+ *
+ * Returns false for stored credentials that are missing or malformed rather
+ * than throwing. An account row without a usable password is a data problem,
+ * and letting scryptSync or Buffer.from raise on it turned a failed sign-in
+ * into a 500 from the route's catch-all — which reads to the user as "the site
+ * is broken" and gives an operator nothing to go on. Callers that need to tell
+ * "wrong password" apart from "no password on file" should use
+ * hasUsablePassword() first.
+ */
 export function verifyPassword(password: string, salt: string, hash: string): boolean {
-  const h = crypto.scryptSync(password, salt, 64).toString("hex");
-  const a = Buffer.from(h);
-  const b = Buffer.from(hash);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (typeof salt !== "string" || typeof hash !== "string" || !salt || !hash) return false;
+  try {
+    const h = crypto.scryptSync(password, salt, 64).toString("hex");
+    const a = Buffer.from(h);
+    const b = Buffer.from(hash);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+/** True when the stored credentials are complete enough to sign in with. */
+export function hasUsablePassword(acc: { salt?: string; hash?: string } | null | undefined): boolean {
+  return !!acc && typeof acc.salt === "string" && !!acc.salt
+    && typeof acc.hash === "string" && !!acc.hash;
 }
 
 /**
