@@ -1,0 +1,26 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"ANT1","GSM antenna (SMA/IPEX)","SMA_Amphenol_132289_EdgeMount",175.951000,-93.875000,0.000000,top
+"C1","470uF/10V","CP_Radial_D10.0mm_P5.00mm",175.659800,-105.795000,0.000000,top
+"Cs","1000uF/6.3V","CP_Radial_D10.0mm_P5.00mm",160.069800,-109.135000,0.000000,top
+"D1","1N4007","D_DO-41_SOD81_P10.16mm_Horizontal",205.201000,-99.805000,90.000000,top
+"F1","1A slow-blow","Fuseholder_Clip-5x20mm_Littelfuse_111_Inline_P20.00x5.00mm_D1.05mm_Horizontal",109.195000,-112.545000,90.000000,top
+"FB1","Buzzer 5V","Buzzer_D14mm_H7mm_P10mm",159.572200,-95.545000,0.000000,top
+"FID1","Fiducial","Fiducial_1mm_Mask2mm",113.225300,-83.200000,0.000000,top
+"FID2","Fiducial","Fiducial_1mm_Mask2mm",196.977300,-164.100000,0.000000,top
+"J1","2P 5.08mm","TerminalBlock_Phoenix_MKDS-1,5-3_1x03_P5.00mm_Horizontal",133.231000,-149.385000,0.000000,top
+"J2","2P 5.08mm","TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal",194.511000,-94.005000,0.000000,top
+"J3","4P 5.08mm","TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal",194.511000,-105.905000,0.000000,top
+"JP","3P 2.54mm","PinHeader_1x03_P2.54mm_Vertical",159.091000,-117.245000,0.000000,top
+"K1","SRD-05VDC-SL-C","Relay_SPDT_SANYOU_SRD_Series_Form_C",131.781000,-134.635000,0.000000,top
+"LED0","3mm","LED_D3.0mm",163.101000,-117.685000,0.000000,top
+"LED1","3mm","LED_D3.0mm",192.331000,-120.985000,0.000000,top
+"M1","SIM800L","PinHeader_1x04_P2.54mm_Vertical",153.191000,-128.455000,0.000000,top
+"PC1","PC817","DIP-4_W7.62mm",186.021000,-109.215000,90.000000,top
+"PC2","PC814 (AC input)","DIP-4_W7.62mm",186.021000,-120.035000,90.000000,top
+"PC3","PC814 (AC input)","DIP-4_W7.62mm",192.241000,-113.615000,0.000000,top
+"PC4","PC814 (AC input)","DIP-4_W7.62mm",169.971000,-113.655000,0.000000,top
+"PS1","HLK-PM01 (5V 3W)","Converter_ACDC_Hi-Link_HLK-PMxx",139.231000,-121.485000,90.000000,top
+"RV1","7D471K","RV_Disc_D7mm_W3.4mm_P5mm",120.485000,-97.545000,90.000000,top
+"SIM1","Micro-SIM holder","PinHeader_1x03_P2.54mm_Vertical",181.501000,-113.905000,0.000000,top
+"U2","AMS1117-3.3","SOT-223-3_TabPin2",172.281000,-122.415000,0.000000,top
+"U3","MP1584 buck (4V)","PinHeader_1x04_P2.54mm_Vertical",203.771000,-113.865000,0.000000,top

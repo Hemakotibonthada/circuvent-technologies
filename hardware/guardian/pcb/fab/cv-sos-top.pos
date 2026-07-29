@@ -1,0 +1,17 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"ANT1","GSM antenna (SMA/IPEX)","SMA_Amphenol_132289_EdgeMount",152.415000,-93.875000,0.000000,top
+"ANT2","GPS active antenna","SMA_Amphenol_132289_EdgeMount",171.015000,-93.875000,0.000000,top
+"BT1","18650 Li-ion + holder","BatteryHolder_Keystone_103_1x20mm",105.745000,-100.050000,0.000000,top
+"C1","1000uF/6.3V","CP_Radial_D10.0mm_P5.00mm",189.323800,-93.545000,0.000000,top
+"FB1","Magnetic buzzer 5V","Buzzer_D14mm_H7mm_P10mm",136.036200,-95.545000,0.000000,top
+"FID1","Fiducial","Fiducial_1mm_Mask2mm",112.049300,-83.200000,0.000000,top
+"FID2","Fiducial","Fiducial_1mm_Mask2mm",188.353300,-147.800000,0.000000,top
+"J1","USB-C 16P","TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal",152.375000,-106.255000,0.000000,top
+"JP","3P 2.54mm","PinHeader_1x03_P2.54mm_Vertical",181.755000,-102.315000,0.000000,top
+"LED0","3mm","LED_D3.0mm",134.935000,-106.095000,0.000000,top
+"LED1","3mm","LED_D3.0mm",140.865000,-106.095000,0.000000,top
+"M1","SIM800L","PinHeader_1x04_P2.54mm_Vertical",163.235000,-102.315000,0.000000,top
+"M2","NEO-6M / L80","PinHeader_1x04_P2.54mm_Vertical",167.865000,-102.315000,0.000000,top
+"SIM1","Micro-SIM holder","PinHeader_1x03_P2.54mm_Vertical",177.125000,-102.315000,0.000000,top
+"SW1","Tactile 6mm (guarded)","SW_PUSH_6mm_H5mm",188.075000,-101.385000,0.000000,top
+"U3","TP4056 + DW01/8205","PinHeader_1x04_P2.54mm_Vertical",172.495000,-102.315000,0.000000,top

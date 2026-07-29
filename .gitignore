@@ -54,3 +54,13 @@ next-env.d.ts
 
 # Shop runtime data (orders/products/wallets)
 .data/
+
+# KiCad: local per-user project state, KiCad's own local-history snapshot
+# repo, and fab output that gen-pcb.py regenerates from the .kicad_pcb in
+# seconds (3D models and IPC-2581)
+*.kicad_prl
+*.kicad_pro.lck
+hardware/*/pcb/.history/
+hardware/*/pcb/fab/*.step
+hardware/*/pcb/gerbers/*.xml
+hardware/__pycache__/

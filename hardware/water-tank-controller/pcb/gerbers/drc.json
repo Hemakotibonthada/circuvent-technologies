@@ -1,0 +1,267 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-07-29T02:33:24",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "aquaguard.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 155.774,
+                        "y": 81.0
+                    },
+                    "uuid": "1f62fc3a-6f21-4db3-ac45-fa5c38d0a3c5"
+                },
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 155.774,
+                        "y": 81.0
+                    },
+                    "uuid": "1f62fc3a-6f21-4db3-ac45-fa5c38d0a3c5"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 155.774,
+                        "y": 81.0
+                    },
+                    "uuid": "1f62fc3a-6f21-4db3-ac45-fa5c38d0a3c5"
+                },
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 155.774,
+                        "y": 81.0
+                    },
+                    "uuid": "1f62fc3a-6f21-4db3-ac45-fa5c38d0a3c5"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 155.774,
+                        "y": 81.0
+                    },
+                    "uuid": "1f62fc3a-6f21-4db3-ac45-fa5c38d0a3c5"
+                },
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 155.774,
+                        "y": 81.0
+                    },
+                    "uuid": "1f62fc3a-6f21-4db3-ac45-fa5c38d0a3c5"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [+5V] of J5",
+                    "pos": {
+                        "x": 152.939,
+                        "y": 128.455
+                    },
+                    "uuid": "29ea5c81-abf0-468e-807e-e183b32f4a91"
+                },
+                {
+                    "description": "Track [+5V] on F.Cu, length 7.7589 mm",
+                    "pos": {
+                        "x": 143.4926,
+                        "y": 126.7511
+                    },
+                    "uuid": "7ab37eaa-96b1-4f9b-8aff-e4cf17818613"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [AC_L] on F.Cu, length 5.0000 mm",
+                    "pos": {
+                        "x": 109.195,
+                        "y": 107.545
+                    },
+                    "uuid": "56e3d7bc-1000-4bed-9816-0329bc1eda4a"
+                },
+                {
+                    "description": "PTH pad 1 [AC_L] of J1",
+                    "pos": {
+                        "x": 132.979,
+                        "y": 149.385
+                    },
+                    "uuid": "f3e7afd4-caa6-4ec7-b577-4e768efa3867"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 2 [AC_N] of J1",
+                    "pos": {
+                        "x": 137.979,
+                        "y": 149.385
+                    },
+                    "uuid": "622eb77d-e094-4c5f-85bd-2518ec6e839c"
+                },
+                {
+                    "description": "PTH pad 3 [AC_N] of J5",
+                    "pos": {
+                        "x": 152.939,
+                        "y": 133.535
+                    },
+                    "uuid": "ee9d41ba-b35f-4eb2-929a-1c978a5a9a81"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 2 [AC_N] of PS1",
+                    "pos": {
+                        "x": 143.979,
+                        "y": 121.485
+                    },
+                    "uuid": "67ad463a-6b95-4e8f-8260-5fff6166cb88"
+                },
+                {
+                    "description": "PTH pad 2 [AC_N] of RV1",
+                    "pos": {
+                        "x": 121.785,
+                        "y": 92.545
+                    },
+                    "uuid": "3c8f662b-3589-4155-8a5e-1a449a13a000"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 3 [AC_N] of J5",
+                    "pos": {
+                        "x": 152.939,
+                        "y": 133.535
+                    },
+                    "uuid": "ee9d41ba-b35f-4eb2-929a-1c978a5a9a81"
+                },
+                {
+                    "description": "PTH pad 2 [AC_N] of PS1",
+                    "pos": {
+                        "x": 143.979,
+                        "y": 121.485
+                    },
+                    "uuid": "67ad463a-6b95-4e8f-8260-5fff6166cb88"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 2 [MOTOR_RELAY_SW] of K1",
+                    "pos": {
+                        "x": 133.479,
+                        "y": 140.685
+                    },
+                    "uuid": "c714ce45-d177-400e-87a6-e96bb1123efe"
+                },
+                {
+                    "description": "PTH pad 2 [MOTOR_RELAY_SW] of J5",
+                    "pos": {
+                        "x": 152.939,
+                        "y": 130.995
+                    },
+                    "uuid": "66f8fddc-a3c3-4e19-a88e-af2b31d6fa4f"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [+3V3] on F.Cu, length 1.2681 mm",
+                    "pos": {
+                        "x": 163.3509,
+                        "y": 115.53
+                    },
+                    "uuid": "bb47e736-6eee-4cde-99e8-509c7c5f0d95"
+                },
+                {
+                    "description": "Track [+3V3] on B.Cu, length 2.0817 mm",
+                    "pos": {
+                        "x": 166.141,
+                        "y": 87.803
+                    },
+                    "uuid": "f6fc2fb9-61ba-4379-8376-ff9c832f5a75"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": []
+}

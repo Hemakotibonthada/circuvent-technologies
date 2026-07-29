@@ -1,0 +1,221 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-07-29T02:33:11",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "cv-plug.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of RV1",
+                    "pos": {
+                        "x": 107.545,
+                        "y": 145.275
+                    },
+                    "uuid": "38abfa91-9d59-455c-9e25-a2f08a1e9dae"
+                },
+                {
+                    "description": "Pad 1 [AC_L_FUSED] of U3 on F.Cu",
+                    "pos": {
+                        "x": 125.464,
+                        "y": 144.47
+                    },
+                    "uuid": "701d2e75-87a4-417c-a7c2-299cdc6c4cd5"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 1 [AC_L_FUSED] of U3 on F.Cu",
+                    "pos": {
+                        "x": 125.464,
+                        "y": 144.47
+                    },
+                    "uuid": "701d2e75-87a4-417c-a7c2-299cdc6c4cd5"
+                },
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of K1",
+                    "pos": {
+                        "x": 125.789,
+                        "y": 134.635
+                    },
+                    "uuid": "13265f77-7207-47db-9277-a6cdaf0b185a"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [AC_L_FUSED] on B.Cu, length 1.2021 mm",
+                    "pos": {
+                        "x": 133.239,
+                        "y": 121.485
+                    },
+                    "uuid": "3ace9b27-e769-4d74-bd3a-698bb39ddc8e"
+                },
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of K1",
+                    "pos": {
+                        "x": 125.789,
+                        "y": 134.635
+                    },
+                    "uuid": "13265f77-7207-47db-9277-a6cdaf0b185a"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 2 [RELAY_PIN_SW] of U3 on F.Cu",
+                    "pos": {
+                        "x": 125.464,
+                        "y": 145.74
+                    },
+                    "uuid": "52bea75f-eb93-4d00-95c4-46ea8b4e05e0"
+                },
+                {
+                    "description": "Track [RELAY_PIN_SW] on B.Cu, length 20.7204 mm",
+                    "pos": {
+                        "x": 113.0875,
+                        "y": 156.35
+                    },
+                    "uuid": "f8f91bc3-a247-4777-baf2-921eab97d338"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 2 [AC_LOAD] of Rsh on B.Cu",
+                    "pos": {
+                        "x": 107.1625,
+                        "y": 156.35
+                    },
+                    "uuid": "639d090d-9696-46f4-bd58-8049427dcc0b"
+                },
+                {
+                    "description": "Pad 3 [AC_LOAD] of U3 on F.Cu",
+                    "pos": {
+                        "x": 125.464,
+                        "y": 147.01
+                    },
+                    "uuid": "d44f5d52-93e7-4cd2-9832-f2ba0b960840"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 3 [AC_LOAD] of U3 on F.Cu",
+                    "pos": {
+                        "x": 125.464,
+                        "y": 147.01
+                    },
+                    "uuid": "d44f5d52-93e7-4cd2-9832-f2ba0b960840"
+                },
+                {
+                    "description": "PTH pad 3 [AC_LOAD] of J1",
+                    "pos": {
+                        "x": 112.005,
+                        "y": 94.295
+                    },
+                    "uuid": "9d7af2a1-70a9-4d53-9b19-f0c88a85a171"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 4 [GND] of U3 on F.Cu",
+                    "pos": {
+                        "x": 125.464,
+                        "y": 148.28
+                    },
+                    "uuid": "021f923f-a2af-4a58-a673-3d299854740e"
+                },
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 150.034,
+                        "y": 81.0
+                    },
+                    "uuid": "e9cebfb6-52c9-4ff3-bec8-02c9d368e536"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 2 [AC_N] of RV1",
+                    "pos": {
+                        "x": 112.545,
+                        "y": 146.575
+                    },
+                    "uuid": "abc12b99-3d97-45c3-b222-5a37b3eccf06"
+                },
+                {
+                    "description": "Track [AC_N] on B.Cu, length 3.6017 mm",
+                    "pos": {
+                        "x": 138.239,
+                        "y": 121.485
+                    },
+                    "uuid": "c518afc7-b343-4afc-a83e-d65cc9a520a9"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": []
+}

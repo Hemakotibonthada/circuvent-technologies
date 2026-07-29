@@ -28,6 +28,7 @@ Legend: **[x]** done in this repo (code/design source) · **[~]** partial / need
 - [x] Single proprietary cloud protocol (`/api/devices/sync|claim|command`)
 - [x] This checklist + per‑device engineering folders
 - [x] Data-driven package generator (`hardware/gen-hardware.js`) regenerates the PCB / enclosure / listing sources for the 10 app-lineup devices
+- [x] Data-driven **PCB layout** generator (`hardware/gen-pcb.py`) builds real `.kicad_pcb` boards + Gerbers for all 12 devices from `SCHEMATIC.md` + `BOM.csv`
 - [ ] BOM costing → landed cost → MRP & margin sign‑off (finance)
 - [ ] Project plan / EVT → DVT → PVT gate reviews
 - [ ] Vendor selection: PCB fab, PCBA/EMS, enclosure tooling, box printer
@@ -45,7 +46,58 @@ Legend: **[x]** done in this repo (code/design source) · **[~]** partial / need
 - [x] Bill of Materials (`hardware/*/pcb/BOM.csv`)
 - [x] KiCad project stub + fab checklist (`hardware/*/pcb/`)
 - [x] Test points + programming/UART header defined
-- [ ] PCB layout → Gerbers/ODB++ → DFM review (EDA + fab)
+- [x] **Board layout generated** for all 12 devices — real `.kicad_pcb` with outline,
+      mounting holes, fiducials, test points, two-sided placement from the BOM, GND
+      pours, silkscreen and (mains devices) a mains/SELV island split with an
+      isolation band, keepout and milled slot
+      (`hardware/gen-pcb.py` → `hardware/*/pcb/<model>.kicad_pcb`, documented in `pcb/LAYOUT.md`)
+- [x] **Net classes + custom design rules** — MAINS / POWER / Default bound by net
+      name, plus a generated `<model>.kicad_dru` carrying reinforced mains-to-SELV
+      separation, mains-to-edge clearance, minimum mains track width and the fab's
+      annular-ring / drill limits
+- [x] **Copper routing** — every board autorouted (freerouting) and **DRC-clean:
+      zero errors and zero warnings on all 12**. Ground pours stitched on a 3.5 mm
+      via grid, duplicate and collinear-overlap segments removed, dangling stubs
+      pruned layer by layer, stranded ground pads given solid zone contact and
+      floating pour fragments stitched, then refilled.
+- [x] **Gerbers + Excellon drill exported** (`hardware/*/pcb/gerbers/`), 23-file
+      production package per board including IPC-D-356, ODB++ and IPC-2581
+- [ ] **Residual unconnected nets — 42 across the 12 boards.** Each one is listed
+      individually, with its net and both endpoints, in the "Residual unconnected
+      items" table of the board's `pcb/LAYOUT.md`. Four boards are completely
+      finished; the rest break down as:
+
+      | Board | Open | Mains barrier | GND pour fragment | Low-voltage |
+      | --- | ---: | ---: | ---: | ---: |
+      | guardian | 0 | 0 | 0 | 0 |
+      | home-automation | 0 | 0 | 0 | 0 |
+      | motion-sensor | 0 | 0 | 0 | 0 |
+      | smart-lock | 0 | 0 | 0 | 0 |
+      | curtain | 1 | 0 | 1 | 0 |
+      | smart-light | 1 | 0 | 1 | 0 |
+      | smart-switch | 1 | 0 | 1 | 0 |
+      | energy-monitor | 3 | 3 | 0 | 0 |
+      | smart-fan | 5 | 5 | 0 | 0 |
+      | smart-plug | 8 | 7 | 1 | 0 |
+      | water-tank-controller | 10 | 5 | 3 | 2 |
+      | agri-starter | 13 | 4 | 2 | 7 |
+      | **Total** | **42** | **24** | **9** | **9** |
+
+      *Mains barrier* (24) — blocked by the mains clearance and the isolation band
+      because the parts involved sit on the barrier itself. These resolve with the
+      isolation fix below, not by re-running the router.
+      *GND pour fragment* (9) — a ground pad left on a pour sliver too small to take
+      a 0.8 mm stitching via. Needs a small placement nudge by hand.
+      *Low-voltage* (9) — genuine routing shortfall, concentrated on the two densest
+      boards around the M1 modem module. Needs hand-routing.
+- [ ] Schematic review — the netlist is **derived by the generator** from
+      `SCHEMATIC.md`, not captured from a drawn schematic. Relay contact and metering
+      IC pinouts are documented inferences and must be checked against datasheets.
+- [ ] Radiated performance validation — the ESP32 antenna keep-out is reduced from
+      Espressif's 48 × 21 mm recommendation to an enforced 7 mm
+- [ ] Board sizes — every board grew past its marketing target to satisfy the
+      clearance rules; re-check the enclosure drawings against `pcb/LAYOUT.md`
+- [ ] ODB++ / IPC-356 netlist + external DFM review (fab)
 - [ ] Prototype assembly + bring‑up (EVT)
 - [ ] Mains isolation, creepage/clearance & fusing review (safety)
 
