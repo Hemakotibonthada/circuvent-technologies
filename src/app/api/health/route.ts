@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import nextPkg from "next/package.json";
 import { isDbConfigured, validateEnv } from "@/lib/config";
 
 export const runtime = "nodejs";
@@ -34,7 +35,7 @@ export async function GET() {
         rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
       },
       environment: process.env.NODE_ENV || "development",
-      nextVersion: "16.1.6",
+      nextVersion: nextPkg.version,
       database: {
         configured: dbConfigured,
         mode: dbConfigured ? "postgres" : "file",
