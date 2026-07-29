@@ -49,10 +49,19 @@ export const topics = {
   state: (deviceId: string) => `cv/${deviceId}/state`,
   telemetry: (deviceId: string) => `cv/${deviceId}/telemetry`,
   status: (deviceId: string) => `cv/${deviceId}/status`,
+  /**
+   * Live video frames (cameras). Deliberately NOT `telemetry`: every telemetry
+   * message is INSERTed into Postgres, so a 15fps camera would write ~54,000
+   * rows an hour holding whole JPEGs. Frames are raw binary, QoS 0, never
+   * retained and never persisted — they are fanned out to watching WebSocket
+   * clients and then dropped.
+   */
+  frame: (deviceId: string) => `cv/${deviceId}/frame`,
   // Wildcards the control-plane subscribes to.
   allState: "cv/+/state",
   allTelemetry: "cv/+/telemetry",
   allStatus: "cv/+/status",
+  allFrames: "cv/+/frame",
 };
 
 /** Extract the deviceId from an inbound topic like cv/<id>/state. */

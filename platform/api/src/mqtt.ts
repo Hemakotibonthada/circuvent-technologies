@@ -17,6 +17,19 @@ export interface DeviceUpdate {
   at: string;
 }
 
+/**
+ * A live camera frame. Kept off `DeviceUpdate` because it takes a different
+ * path through the system: never persisted, and only delivered to sockets that
+ * have explicitly asked to watch this camera.
+ */
+export interface DeviceFrame {
+  deviceId: string;
+  /** JPEG bytes, base64-encoded for JSON transport to the app. */
+  jpeg: string;
+  bytes: number;
+  at: string;
+}
+
 let client: MqttClient | null = null;
 
 /** Throttle watts->telemetry snapshots so the energy chart has history w/o bloat. */
@@ -52,6 +65,11 @@ export function connectMqtt(): Promise<void> {
       setTimeout(() => {
         client!.subscribe([topics.allState, topics.allTelemetry, topics.allStatus], { qos: 1 }, (err) => {
           if (err) logger.error({ err }, "MQTT subscribe failed");
+        });
+        // Frames at QoS 0: a dropped frame is worth far less than the delay
+        // and memory of retransmitting stale video.
+        client!.subscribe(topics.allFrames, { qos: 0 }, (err) => {
+          if (err) logger.error({ err }, "MQTT frame subscribe failed");
         });
       }, 1500);
       resolve();
@@ -122,7 +140,15 @@ function logDynsecResponse(buf: Buffer): void {
 async function handleMessage(topic: string, buf: Buffer): Promise<void> {
   const deviceId = deviceIdFromTopic(topic);
   if (!deviceId) return;
-  const kind = topic.split("/")[2] as DeviceUpdate["kind"];
+  const kind = topic.split("/")[2] as DeviceUpdate["kind"] | "frame";
+
+  // Frames are binary JPEG — they must be intercepted before any utf8 decode,
+  // and must never reach persistMessage.
+  if (kind === "frame") {
+    handleFrame(deviceId, buf);
+    return;
+  }
+
   const raw = buf.toString("utf8");
   let payload: unknown;
   try {
@@ -143,6 +169,37 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
   } catch (err) {
     logger.error({ err, deviceId, kind }, "Failed to persist device message");
   }
+}
+
+/** Hard ceiling per camera. Protects the broker and every watching socket from
+ *  a misconfigured or compromised device streaming as fast as it can. */
+const MAX_FPS = 30;
+const MAX_FRAME_BYTES = 512 * 1024;
+const lastFrameAt = new Map<string, number>();
+
+/**
+ * Device ids at least one WebSocket client is currently viewing, maintained by
+ * ws.ts. A camera that keeps streaming with nobody watching — a stale lease, a
+ * rogue command — would otherwise cost a base64 encode of every frame for an
+ * audience of zero.
+ */
+export const watchedDevices = new Set<string>();
+
+function handleFrame(deviceId: string, buf: Buffer): void {
+  if (!watchedDevices.has(deviceId)) return;
+  if (buf.length === 0 || buf.length > MAX_FRAME_BYTES) return;
+
+  const now = Date.now();
+  const prev = lastFrameAt.get(deviceId) ?? 0;
+  if (now - prev < 1000 / MAX_FPS) return;
+  lastFrameAt.set(deviceId, now);
+
+  bus.emit("device:frame", {
+    deviceId,
+    jpeg: buf.toString("base64"),
+    bytes: buf.length,
+    at: new Date(now).toISOString(),
+  } satisfies DeviceFrame);
 }
 
 async function persistMessage(

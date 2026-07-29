@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api, Device } from "./api";
-import { useLive } from "./live";
+import { useLive, refreshLiveSubscription } from "./live";
 
 interface DevicesCtx {
   devices: Device[];
@@ -24,7 +24,15 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     const r = await api.devices();
-    if (r.ok && mounted.current) setDevices(r.data.devices || []);
+    if (r.ok && mounted.current) {
+      setDevices((prev) => {
+        const next = r.data.devices || [];
+        // A device the socket doesn't know about yet gets no live pushes, so
+        // nudge the server to re-read ownership whenever the list changes.
+        if (next.length !== prev.length) refreshLiveSubscription();
+        return next;
+      });
+    }
     setLoading(false);
   }, []);
 
@@ -126,6 +134,12 @@ export function capabilities(type: string): Capability {
       return { metric: (d) => (d.state.sos ? "SOS" : d.state.armed ? "Armed" : "Disarmed") };
     case "motion-sensor":
       return { metric: (d) => (d.state.motion ? "Motion" : d.state.armed ? "Armed" : "Clear") };
+    case "camera":
+    case "cctv":
+    case "doorbell":
+      // No `power` field: a camera's primary tile action is "watch", not
+      // "toggle", and offering a switch that maps to nothing would lie.
+      return { metric: (d) => (d.state.motionActive ? "Motion" : d.state.streaming ? "Live" : "Idle") };
     // Dimmable / speed / motorised device types (match firmware type ids).
     case "smart-light":
     case "light":

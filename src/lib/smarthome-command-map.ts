@@ -205,6 +205,41 @@ export function projectCommand(type: string, cmd: CommandPayload): StatePatch {
       if (isBool(cmd.armed)) patch.armed = cmd.armed;
       return patch;
 
+    // ------------------------------------------------------------ camera --
+    // firmware/camera/camera.ino. Note the command keys deliberately differ
+    // from the state keys ({action:"stream", on} -> state.streaming), which is
+    // exactly the mismatch a default echo would get wrong.
+    case "camera":
+    case "cctv":
+    case "doorbell": {
+      if (action === "stream") {
+        patch.streaming = isBool(cmd.on) ? cmd.on : true;
+        if (isNum(cmd.fps)) patch.fps = clamp(Math.round(cmd.fps), 1, 15);
+        return patch;
+      }
+      if (action === "flash") {
+        patch.flash = isNum(cmd.level) ? clamp(Math.round(cmd.level), 0, 100) : cmd.on === true ? 100 : 0;
+        return patch;
+      }
+      // `snapshot` and `reboot` change nothing predictable — a snapshot's
+      // counter and a reboot's uptime both come back from the device.
+      if (action !== "set") return patch;
+
+      if (isStr(cmd.resolution)) patch.resolution = cmd.resolution;
+      if (isNum(cmd.quality)) patch.quality = clamp(Math.round(cmd.quality), 4, 63);
+      if (isNum(cmd.rotation)) patch.rotation = cmd.rotation === 180 ? 180 : 0;
+      if (isNum(cmd.fps)) patch.fps = clamp(Math.round(cmd.fps), 1, 15);
+      if (isNum(cmd.flash)) patch.flash = clamp(Math.round(cmd.flash), 0, 100);
+      if (isNum(cmd.sensitivity)) patch.sensitivity = clamp(Math.round(cmd.sensitivity), 1, 100);
+      if (isBool(cmd.motion)) {
+        patch.motion = cmd.motion;
+        // Disabling detection clears the live flag immediately in firmware.
+        if (!cmd.motion) patch.motionActive = false;
+      }
+      if (isBool(cmd.streaming)) patch.streaming = cmd.streaming;
+      return patch;
+    }
+
     // ------------------------------------------------------------- gate ---
     case "rfid-gate": {
       if (action === "open" || action === "grantOpen") patch.barrier = "open";

@@ -213,6 +213,35 @@ class CircuventDevice {
     _mqtt.publish(_topic("telemetry").c_str(), s.c_str(), false);
   }
 
+  // ---- live video frames (cv/<id>/frame) --------------------------------
+  /**
+   * Publishes a raw binary payload (a JPEG straight out of the camera driver)
+   * to cv/<id>/frame.
+   *
+   * Streamed with beginPublish/write/endPublish rather than publish(): a plain
+   * publish() would need the whole frame to fit inside PubSubClient's buffer,
+   * which would mean sizing that buffer for the largest possible frame (tens
+   * of KB) for the entire fleet. Streaming keeps the buffer small and copies
+   * nothing — the frame goes from the camera's DMA buffer to the socket.
+   *
+   * QoS 0 and not retained: a late frame is worthless, and a retained one would
+   * hand the last picture taken to anything that subscribes later.
+   */
+  bool publishFrame(const uint8_t *data, size_t len) {
+    if (!_mqttUp || !data || len == 0) return false;
+    if (!_mqtt.beginPublish(_topic("frame").c_str(), len, false)) return false;
+    size_t sent = 0;
+    while (sent < len) {
+      // Chunked so a large frame cannot stall the TCP write in one call.
+      size_t chunk = len - sent;
+      if (chunk > 1024) chunk = 1024;
+      size_t n = _mqtt.write(data + sent, chunk);
+      if (n == 0) { _mqtt.endPublish(); return false; }
+      sent += n;
+    }
+    return _mqtt.endPublish();
+  }
+
   // ---- lifecycle --------------------------------------------------------
   void begin(const char *ssid = nullptr, const char *pass = nullptr) {
     _cvInstance = this;

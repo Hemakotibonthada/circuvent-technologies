@@ -23,6 +23,7 @@ Device (ESP32/ESP8266) ──mqtts:8883──►  Circuvent broker (Mosquitto)  
 | `guardian/`       | Safety SOS beacon           | `guardian`        | `sos`, `battery`, `lat/lng`, `armed`|
 | `energy-monitor/` | Whole-home energy monitor   | `energy-monitor`  | `watts`, `amps`, `kwh`              |
 | `motion-sensor/`  | PIR motion sensor           | `motion-sensor`   | `motion`, `armed`                   |
+| `camera/`         | ESP32-CAM video node        | `camera`          | `streaming`, `motionActive`, `flash` · live view / snapshot |
 | `home-hub/`       | Automation hub              | `home-hub`        | `scene`, relays, `uptime`           |
 
 ## The protocol (MQTT)
@@ -34,6 +35,7 @@ Full contract in **`../platform/PROTOCOL.md`**. In short, each device uses:
 | `cv/<id>/cmd` | in | commands (`{"action":"set", ...}`) — handled by the sketch's `onCommand` |
 | `cv/<id>/state` | out | retained full state (published on a timer + on demand) |
 | `cv/<id>/telemetry` | out | one-off readings |
+| `cv/<id>/frame` | out | **raw binary JPEG** from camera devices — QoS 0, never retained, never stored |
 | `cv/<id>/status` | out | `{"online":true}` on connect; Last-Will `{"online":false}` on drop |
 
 Auth: MQTT **username = device id**, **password = device key**. TLS uses

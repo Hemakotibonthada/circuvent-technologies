@@ -2,8 +2,9 @@
 //  - "url":    an IP camera reachable by an HTTP snapshot/MJPEG URL (ESP32-CAM
 //              /capture, RTSP-to-HTTP gateways, etc.) — rendered by polling the
 //              snapshot into an <Image> (works without any native player).
-//  - "device": a Circuvent camera device on the control-plane — live frames are
-//              requested over MQTT (command) and read back from telemetry.
+//  - "device": a Circuvent camera device on the control-plane — the firmware is
+//              asked to stream over MQTT and frames arrive on the app's live
+//              WebSocket (see useCameraFrames in ./live).
 // User-added cameras persist locally; control-plane camera devices are merged in.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Device } from "./api";

@@ -178,6 +178,9 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   "rfid-gate": { glyph: "🚗", icon: "rfid-gate", accent: C.amber, grad: GRAD.amber, label: "RFID Gate" },
   facedoor: { glyph: "🚪", icon: "facedoor", accent: C.violet, grad: GRAD.violet, label: "Smart Door", toggle: { field: "locked", label: "Lock" } },
   touchboard: { glyph: "🎛️", icon: "touchboard", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board", toggle: { field: "g1", label: "Gang 1" } },
+  camera: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "Camera" },
+  cctv: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "CCTV Camera" },
+  doorbell: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "Video Doorbell" },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
 import { verifyUserToken } from "./auth";
-import { bus, type DeviceUpdate } from "./mqtt";
+import { bus, watchedDevices, type DeviceUpdate, type DeviceFrame } from "./mqtt";
 import { pool } from "./db";
 import { logger } from "./logger";
 
@@ -9,6 +9,35 @@ interface Client {
   ws: WebSocket;
   uid: number;
   deviceIds: Set<string>;
+  /** Cameras this socket is actively viewing. Empty for almost every client. */
+  watching: Set<string>;
+}
+
+/** A socket may watch a small number of cameras at once — a grid view, not the
+ *  whole estate. Caps the bandwidth any single client can ask the server for. */
+const MAX_WATCHED = 8;
+
+/**
+ * How many sockets are watching each camera. Refcounted rather than a plain
+ * set: with two phones on the same feed, one closing the view must not stop
+ * decoding frames for the other.
+ */
+const watchRefs = new Map<string, number>();
+
+function retainWatch(deviceId: string): void {
+  const n = (watchRefs.get(deviceId) ?? 0) + 1;
+  watchRefs.set(deviceId, n);
+  watchedDevices.add(deviceId);
+}
+
+function releaseWatch(deviceId: string): void {
+  const n = (watchRefs.get(deviceId) ?? 1) - 1;
+  if (n <= 0) {
+    watchRefs.delete(deviceId);
+    watchedDevices.delete(deviceId);
+  } else {
+    watchRefs.set(deviceId, n);
+  }
 }
 
 /**
@@ -30,6 +59,26 @@ export function attachWebSocket(server: Server): void {
   };
   bus.on("device:update", onUpdate);
 
+  /**
+   * Frames go only to sockets actively watching that camera. Serialising is
+   * deferred until we know at least one client wants it, so a camera streaming
+   * with nobody watching costs a Set lookup per frame instead of base64 JSON.
+   */
+  const onFrame = (f: DeviceFrame) => {
+    let msg: string | null = null;
+    for (const c of clients) {
+      if (!c.watching.has(f.deviceId)) continue;
+      if (!c.deviceIds.has(f.deviceId)) continue;
+      if (c.ws.readyState !== WebSocket.OPEN) continue;
+      // Never queue video behind a slow consumer — a backed-up socket would
+      // grow without bound and play frames late forever. Drop instead.
+      if (c.ws.bufferedAmount > 1_000_000) continue;
+      if (msg === null) msg = JSON.stringify({ type: "device:frame", ...f });
+      c.ws.send(msg);
+    }
+  };
+  bus.on("device:frame", onFrame);
+
   wss.on("connection", async (ws, req) => {
     const url = new URL(req.url ?? "", "http://localhost");
     const token = url.searchParams.get("token") ?? "";
@@ -39,7 +88,7 @@ export function attachWebSocket(server: Server): void {
       return;
     }
 
-    const client: Client = { ws, uid: claims.uid, deviceIds: new Set() };
+    const client: Client = { ws, uid: claims.uid, deviceIds: new Set(), watching: new Set() };
     clients.add(client);
 
     /**
@@ -51,6 +100,14 @@ export function attachWebSocket(server: Server): void {
       try {
         const { rows } = await pool.query<{ id: string }>(`SELECT id FROM devices WHERE owner_id = $1`, [claims.uid]);
         client.deviceIds = new Set(rows.map((r) => r.id));
+        // Losing a device mid-session must also drop its feed, not just stop it
+        // being delivered — otherwise the refcount pins the camera forever.
+        for (const id of [...client.watching]) {
+          if (!client.deviceIds.has(id)) {
+            client.watching.delete(id);
+            releaseWatch(id);
+          }
+        }
       } catch (err) {
         logger.error({ err }, "ws sync devices failed");
       }
@@ -64,13 +121,33 @@ export function attachWebSocket(server: Server): void {
     let syncing = false;
 
     ws.on("message", (data) => {
-      // Clients ask for a refresh after claiming or releasing a device.
-      let m: { type?: unknown };
+      // Clients ask for a refresh after claiming or releasing a device, and
+      // opt in/out of camera frames.
+      let m: { type?: unknown; deviceId?: unknown };
       try {
-        m = JSON.parse(data.toString()) as { type?: unknown };
+        m = JSON.parse(data.toString()) as { type?: unknown; deviceId?: unknown };
       } catch {
         return; // malformed frame
       }
+
+      // Camera viewing. Ownership is re-checked against the server-derived set
+      // on every frame too, so a stale watch can never leak video after a
+      // device is unclaimed.
+      if (m?.type === "watch" || m?.type === "unwatch") {
+        const id = typeof m.deviceId === "string" ? m.deviceId : "";
+        if (!id) return;
+        if (m.type === "unwatch") {
+          if (client.watching.delete(id)) releaseWatch(id);
+          return;
+        }
+        if (!client.deviceIds.has(id)) return;
+        if (client.watching.has(id)) return;
+        if (client.watching.size >= MAX_WATCHED) return;
+        client.watching.add(id);
+        retainWatch(id);
+        return;
+      }
+
       if (m?.type !== "subscribe") return;
       if (syncing || Date.now() - lastSync < 2000) return;
       syncing = true;
@@ -97,6 +174,10 @@ export function attachWebSocket(server: Server): void {
     const teardown = () => {
       clearInterval(ping);
       clearInterval(resync);
+      // A dropped socket must release its cameras, or the server keeps
+      // decoding frames for a viewer that no longer exists.
+      for (const id of client.watching) releaseWatch(id);
+      client.watching.clear();
       clients.delete(client);
     };
     ws.on("close", teardown);

@@ -18,6 +18,7 @@ export const FIRMWARE_CATALOG: FirmwareInfo[] = [
   { deviceType: "curtain", latestVersion: "1.3.1", changelog: [{ version: "1.3.1", notes: ["Improved stop-position accuracy"] }] },
   { deviceType: "smart-lock", latestVersion: "1.6.0", changelog: [{ version: "1.6.0", notes: ["Auto-lock timer configurable from app"] }] },
   { deviceType: "motion-sensor", latestVersion: "1.5.0", changelog: [{ version: "1.5.0", notes: ["Reduced false triggers in low light"] }] },
+  { deviceType: "camera", latestVersion: "1.0.0", changelog: [{ version: "1.0.0", notes: ["Live JPEG streaming over MQTT", "On-board motion detection without extra hardware", "Dimmable illuminator and 180° rotation"] }] },
   { deviceType: "energy-monitor", latestVersion: "1.7.0", changelog: [{ version: "1.7.0", notes: ["Higher sample rate for spikes"] }] },
   { deviceType: "aquaguard", latestVersion: "2.2.0", changelog: [{ version: "2.2.0", notes: ["Improved dry-run detection", "Dual-tank coordination fixes"] }] },
   { deviceType: "home-hub", latestVersion: "2.4.0", changelog: [{ version: "2.4.0", notes: ["Scene scheduling reliability improvements"] }] },
