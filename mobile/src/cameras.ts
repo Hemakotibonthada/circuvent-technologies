@@ -50,10 +50,20 @@ export async function updateCamera(id: string, patch: Partial<Camera>): Promise<
   return out;
 }
 
+/**
+ * Is this control-plane device a camera? Matched on the type name or on the
+ * device advertising a video source, so a "camera", "cctv" or "doorbell" board
+ * and anything reporting hasCamera all count. Shared so the camera list and the
+ * device detail screen can never disagree about what a camera is.
+ */
+export function isCameraDevice(d: Device): boolean {
+  return /cam|cctv|doorbell/i.test(d.type) || d.state?.hasCamera === true;
+}
+
 // Control-plane devices that are cameras (type contains "cam" or reports frames).
 export function deviceCameras(devices: Device[]): Camera[] {
   return devices
-    .filter((d) => /cam|cctv|doorbell/i.test(d.type) || d.state?.hasCamera === true)
+    .filter(isCameraDevice)
     .map((d) => ({ id: `dev-${d.id}`, name: d.name || d.id, kind: "device" as const, deviceId: d.id, room: d.room }));
 }
 

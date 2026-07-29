@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Pressable, Switch, StyleSheet, ScrollView, Alert, Animated, Easing, TextInput } from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { View, Text, Pressable, Switch, StyleSheet, ScrollView, Alert, Animated, Easing, TextInput, Image, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
-import { Device } from "../api";
+import { api, Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, useTheme, ArcGauge, PillSelector } from "../ui";
+import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
 import { deviceMeta, type Palette } from "../theme";
 import { useSwitchWidgets } from "../widgets";
-import { Icon } from "../icons";
+import { useCameraFrames } from "../live";
+import { isCameraDevice as isCamera } from "../cameras";
+import { Icon, type IconName } from "../icons";
 
 const COLORS = ["#ffffff", "#ffd27f", "#ff7f7f", "#7fd0ff", "#7fff9e", "#c79bff", "#ff9be0"];
 
@@ -62,11 +64,12 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
         {d.type === "rfid-gate" && <RfidGate d={d} send={send} c={c} />}
         {d.type === "facedoor" && <FaceDoor d={d} send={send} c={c} />}
         {d.type === "touchboard" && <TouchBoard d={d} send={send} c={c} />}
+        {isCamera(d) && <CameraDevice d={d} send={send} c={c} />}
 
         {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
         <GenericControls d={d} send={send} c={c} />
 
-        {!KNOWN.includes(d.type) && !cap.power && !cap.dimmer && !cap.fan && !cap.thermostat && (
+        {!KNOWN.includes(d.type) && !isCamera(d) && !cap.power && !cap.dimmer && !cap.fan && !cap.thermostat && (
           <Card padded>
             <Text style={{ color: c.textDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Raw state</Text>
             <Text style={{ color: c.faint, fontFamily: "monospace", fontSize: 12 }}>{JSON.stringify(d.state, null, 2)}</Text>
@@ -561,6 +564,210 @@ function TouchBoard({ d, send, c }: { d: Device; send: (p: Record<string, unknow
   );
 }
 
+/** The firmware clamps to 15fps; offering more would just look broken. */
+const CAM_FPS = [1, 5, 8, 10, 15] as const;
+/** Anything above VGA needs PSRAM for the frame buffer. */
+const CAM_RES_BASE = ["QQVGA", "QVGA", "CIF", "VGA"] as const;
+const CAM_RES_PSRAM = ["SVGA", "XGA", "SXGA", "UXGA"] as const;
+/** The device stops streaming unless it hears from us inside its 20s window. */
+const CAM_REARM_MS = 8000;
+/** Frames older than this mean a "streaming" camera has actually stalled. */
+const CAM_STALL_MS = 6000;
+
+function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const st = d.state as Record<string, unknown>;
+  const n = (k: string, dflt: number) => (typeof st[k] === "number" ? (st[k] as number) : dflt);
+  const bool = (k: string) => st[k] === true;
+
+  const ready = st.ready == null ? true : bool("ready");
+  const psram = bool("psram");
+  const fps = n("fps", 8);
+  const quality = n("quality", 12);
+  const rotation = n("rotation", 0);
+  const flash = n("flash", 0);
+  const sensitivity = n("sensitivity", 45);
+  const resolution = typeof st.resolution === "string" ? (st.resolution as string) : "VGA";
+
+  const [live, setLive] = useState(false);
+  const [uri, setUri] = useState<string | null>(null);
+  const [lastAt, setLastAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const [measured, setMeasured] = useState(0);
+  const stamps = useRef<number[]>([]);
+
+  // Watch whenever the device is online rather than only while streaming: a
+  // snapshot is published on the same frame topic, so a viewer that subscribed
+  // only during a live stream would never receive one.
+  useCameraFrames(d.online ? d.id : null, (f) => {
+    const t = Date.now();
+    stamps.current = [...stamps.current, t].filter((x) => t - x <= 3000);
+    setMeasured(stamps.current.length / 3);
+    setUri(`data:image/jpeg;base64,${f.jpeg}`);
+    setLastAt(t);
+  });
+
+  // Streaming is a lease. Keep renewing it while the view is open and drop it
+  // on the way out, so a backgrounded app never leaves a board streaming.
+  useEffect(() => {
+    if (!live || !d.online) return;
+    const id = d.id;
+    const arm = () => { void api.command(id, { action: "stream", on: true, fps }); };
+    arm();
+    const t = setInterval(arm, CAM_REARM_MS);
+    return () => {
+      clearInterval(t);
+      void api.command(id, { action: "stream", on: false });
+    };
+  }, [live, d.online, d.id, fps]);
+
+  // A clock, so "stalled" is real state that re-renders rather than a value
+  // read during render that would never update on its own.
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [live]);
+
+  useEffect(() => { if (!d.online) setLive(false); }, [d.online]);
+
+  const stalled = live && (lastAt === 0 || now - lastAt > CAM_STALL_MS);
+  const showingLive = live && !stalled && !!uri;
+  const resOptions = psram ? [...CAM_RES_BASE, ...CAM_RES_PSRAM] : [...CAM_RES_BASE];
+
+  const act = useCallback((cmd: Record<string, unknown>) => { void api.command(d.id, cmd); }, [d.id]);
+
+  const reboot = () => {
+    Alert.alert("Reboot camera", "The camera will be offline for about 15 seconds.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Reboot", style: "destructive", onPress: () => { tapLight(); act({ action: "reboot" }); } },
+    ]);
+  };
+
+  return (
+    <View>
+      <View style={s.camStage}>
+        {uri ? (
+          <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="contain" fadeDuration={0} />
+        ) : (
+          <View style={{ alignItems: "center", gap: 10 }}>
+            {live ? <ActivityIndicator color={c.accentHi} /> : <Icon name="camera" size={30} color={c.faint} />}
+            <Text style={{ color: c.faint, fontSize: 13 }}>
+              {!d.online ? "Camera is offline" : live ? "Waiting for the first frame…" : "Live view is off"}
+            </Text>
+          </View>
+        )}
+
+        <View style={s.camBadge}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: showingLive ? c.green : stalled ? c.amber : c.faint }} />
+          <Text style={{ color: showingLive ? c.green : stalled ? c.amber : c.faint, fontSize: 11, fontWeight: "800" }}>
+            {showingLive ? "LIVE" : stalled ? "STALLED" : uri ? "STILL" : "IDLE"}
+          </Text>
+        </View>
+
+        {bool("motionActive") && (
+          <View style={[s.camBadge, { right: undefined, left: 10 }]}>
+            <Icon name="motion" size={13} color={c.amber} />
+            <Text style={{ color: c.amber, fontSize: 11, fontWeight: "800" }}>MOTION</Text>
+          </View>
+        )}
+
+        {showingLive && (
+          <View style={[s.camBadge, { top: undefined, bottom: 10 }]}>
+            <Text style={{ color: c.text, fontSize: 11, fontWeight: "700" }}>{measured.toFixed(1)} fps</Text>
+          </View>
+        )}
+      </View>
+
+      {!ready && d.online && (
+        <Alertline c={c} text="The camera sensor is not responding. Check the ribbon cable seating, then reboot." />
+      )}
+      {ready && stalled && (
+        <Alertline c={c} text="Live view is on but no frames are arriving. Check the camera's signal, then try Reboot." />
+      )}
+
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 6 }}>
+        <CamAction c={c} icon={live ? "pause" : "play"} label={live ? "Stop" : "Live view"} primary={!live}
+          disabled={!d.online || !ready}
+          onPress={() => { tapLight(); setLive((v) => !v); }} />
+        <CamAction c={c} icon="camera" label="Snapshot"
+          disabled={!d.online || !ready}
+          onPress={() => { tapLight(); act({ action: "snapshot" }); }} />
+        <CamAction c={c} icon="refresh" label="Reboot" disabled={!d.online} onPress={reboot} />
+      </View>
+
+      <SectionLabel>Image</SectionLabel>
+      <Row label="Resolution" c={c}>
+        <PillSelector options={resOptions} value={resolution} onChange={(v) => send({ resolution: v })} />
+      </Row>
+      {!psram && (
+        <Text style={{ color: c.faint, fontSize: 12, marginTop: -4, marginBottom: 8 }}>
+          Higher resolutions need PSRAM, which this board does not report.
+        </Text>
+      )}
+      <Stepper label={`Quality ${quality} (lower is sharper)`} c={c}
+        onDown={() => send({ quality: Math.max(4, quality - 2) })}
+        onUp={() => send({ quality: Math.min(63, quality + 2) })} />
+      <Row label="Frame rate" c={c}>
+        <PillSelector options={CAM_FPS.map(String)} value={String(fps)} onChange={(v) => send({ fps: Number(v) })} />
+      </Row>
+      <Row label="Rotate 180°" c={c}>
+        <PillToggle value={rotation === 180} onChange={(v) => { toggleFeedback(v); send({ rotation: v ? 180 : 0 }); }} />
+      </Row>
+
+      <SectionLabel>Illumination</SectionLabel>
+      <Stepper label={`Flash ${flash}%`} c={c}
+        onDown={() => send({ flash: Math.max(0, flash - 10) })}
+        onUp={() => send({ flash: Math.min(100, flash + 10) })} />
+
+      <SectionLabel>Motion detection</SectionLabel>
+      <Row label="Enabled" c={c}>
+        <PillToggle value={bool("motion")} onChange={(v) => { toggleFeedback(v); send({ motion: v }); }} />
+      </Row>
+      {bool("motion") && (
+        <Stepper label={`Sensitivity ${sensitivity}`} c={c}
+          onDown={() => send({ sensitivity: Math.max(1, sensitivity - 5) })}
+          onUp={() => send({ sensitivity: Math.min(100, sensitivity + 5) })} />
+      )}
+
+      <SectionLabel>Health</SectionLabel>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+        <MiniStat label="Frames" value={String(n("frames", 0))} c={c} />
+        <MiniStat label="Dropped" value={String(n("dropped", 0))} c={c} />
+        <MiniStat label="Snapshots" value={String(n("snapshots", 0))} c={c} />
+      </View>
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <MiniStat label="Motion" value={String(n("motionCount", 0))} c={c} />
+        <MiniStat label="PSRAM" value={psram ? "Yes" : "No"} c={c} />
+        <MiniStat label="Sensor" value={ready ? "Ready" : "Fault"} c={c} />
+      </View>
+    </View>
+  );
+}
+
+function CamAction({ c, icon, label, onPress, primary, disabled }: {
+  c: Palette; icon: IconName; label: string; onPress: () => void; primary?: boolean; disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      style={{
+        flex: 1, minHeight: 52, borderRadius: 12, alignItems: "center", justifyContent: "center", gap: 4,
+        paddingVertical: 8,
+        backgroundColor: primary && !disabled ? c.accentHi : c.card,
+        borderWidth: 1, borderColor: primary && !disabled ? c.accentHi : c.border,
+        opacity: disabled ? 0.45 : 1,
+      }}
+    >
+      <Icon name={icon} size={18} color={primary && !disabled ? "#fff" : c.text} />
+      <Text style={{ color: primary && !disabled ? "#fff" : c.text, fontSize: 12, fontWeight: "700" }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function MiniStat({ label, value, c }: { label: string; value: string; c: Palette }) {
   return (
     <Card padded style={{ flex: 1, alignItems: "center" }}>
@@ -568,8 +775,7 @@ function MiniStat({ label, value, c }: { label: string; value: string; c: Palett
       <Text style={{ color: c.faint, fontSize: 12, marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>{label}</Text>
     </Card>
   );
-}
-function Alertline({ text, c }: { text: string; c: Palette }) {
+}function Alertline({ text, c }: { text: string; c: Palette }) {
   return <Text style={{ color: c.amber, backgroundColor: "rgba(245,158,11,0.12)", padding: 10, borderRadius: 10, marginBottom: 10 }}>{text}</Text>;
 }
 function Stepper({ label, onUp, onDown, c }: { label: string; onUp: () => void; onDown: () => void; c: Palette }) {
@@ -587,4 +793,12 @@ const s = StyleSheet.create({
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   hero: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 20 },
   heroPill: { width: 56, height: 56, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  camStage: {
+    aspectRatio: 4 / 3, backgroundColor: "#000", borderRadius: 16, overflow: "hidden",
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
+  },
+  camBadge: {
+    position: "absolute", top: 10, right: 10, flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+  },
 });

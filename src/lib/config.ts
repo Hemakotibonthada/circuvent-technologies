@@ -13,6 +13,37 @@ export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com"
 ).replace(/\/$/, "");
 
+/**
+ * Which deployment this build is serving.
+ *
+ * Vercel sets VERCEL_ENV to "production" for the production branch and
+ * "preview" for every other branch, so dev.circuvent.com (tracking `develop`)
+ * and one-off PR previews both land on "preview". NEXT_PUBLIC_DEPLOY_ENV lets a
+ * self-hosted or local run say so explicitly.
+ *
+ * This has to be inlined at build time to be readable in the browser, which is
+ * why the checks below read the literals rather than building a key.
+ */
+export const DEPLOY_ENV: "production" | "preview" | "development" =
+  process.env.NEXT_PUBLIC_DEPLOY_ENV === "production" ||
+  process.env.NEXT_PUBLIC_DEPLOY_ENV === "preview" ||
+  process.env.NEXT_PUBLIC_DEPLOY_ENV === "development"
+    ? process.env.NEXT_PUBLIC_DEPLOY_ENV
+    : process.env.VERCEL_ENV === "production"
+      ? "production"
+      : process.env.VERCEL_ENV === "preview"
+        ? "preview"
+        : process.env.NODE_ENV === "production"
+          ? "production"
+          : "development";
+
+/**
+ * Only the real production site may be indexed. A dev site that Google crawls
+ * competes with production for the same queries and leaks unreleased work, and
+ * it is very hard to undo once the URLs are in the index.
+ */
+export const IS_PUBLIC_SITE = DEPLOY_ENV === "production";
+
 export const siteConfig = {
   name: "Circuvent Technologies",
   shortName: "Circuvent",

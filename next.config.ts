@@ -21,6 +21,18 @@ const securityHeaders = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
 ];
 
+// Vercel adds X-Robots-Tag automatically for *.vercel.app preview URLs, but not
+// for a custom domain pointed at a branch — dev.circuvent.com would be indexed
+// like production. robots.txt alone is not enough: a disallowed URL can still
+// be indexed without being fetched, so send the header on every response too.
+const isProductionDeploy =
+  process.env.VERCEL_ENV === "production" ||
+  (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production");
+
+const robotsHeaders = isProductionDeploy
+  ? []
+  : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+
 const nextConfig: NextConfig = {
   // ── Production hardening ──
   poweredByHeader: false,
@@ -47,7 +59,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
-        headers: securityHeaders,
+        headers: [...securityHeaders, ...robotsHeaders],
       },
       {
         // Long-lived immutable cache for build assets.
