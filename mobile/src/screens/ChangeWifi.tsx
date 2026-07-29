@@ -174,7 +174,7 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
 
         {step === "intro" && (
           <View>
-            <SectionLabel>STEP 1 · RESET THE DEVICE</SectionLabel>
+            <SectionLabel>Step 1 · Reset the device</SectionLabel>
             <Card padded style={{ marginBottom: 12 }}>
               <Text style={{ color: c.text, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>{device.name || device.id}</Text>
               <Text style={{ color: c.textDim, fontSize: 14, lineHeight: 22 }}>
@@ -190,7 +190,7 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
 
         {step === "discover" && (
           <View>
-            <SectionLabel>STEP 2 · FIND YOUR DEVICE</SectionLabel>
+            <SectionLabel>Step 2 · Find your device</SectionLabel>
             <View style={{ height: 140, alignItems: "center", justifyContent: "center", marginVertical: 6 }}>
               <View style={{ position: "absolute", alignItems: "center", justifyContent: "center" }}>
                 <Animated.View style={{ position: "absolute", width: 130, height: 130, borderRadius: 65, borderWidth: 2, borderColor: c.accentHi, transform: [{ scale }], opacity }} />
@@ -224,7 +224,7 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
 
         {step === "connect" && (
           <View>
-            <SectionLabel>STEP 2 · CONNECT MANUALLY</SectionLabel>
+            <SectionLabel>Step 2 · Connect manually</SectionLabel>
             <Card padded style={{ marginBottom: 12 }}>
               <Text style={{ color: c.textDim, fontSize: 14, lineHeight: 22 }}>
                 1. Open Wi-Fi settings and join <Text style={{ color: c.text, fontWeight: "700" }}>Circuvent-Setup-…</Text> (no password).{"\n"}
@@ -239,7 +239,7 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
 
         {step === "wifi" && (
           <View>
-            <SectionLabel>STEP 3 · CHOOSE THE NEW WI-FI</SectionLabel>
+            <SectionLabel>Step 3 · Choose the new Wi-Fi</SectionLabel>
             {autoMode && <View style={{ backgroundColor: "rgba(34,197,94,0.12)", borderColor: "rgba(34,197,94,0.4)", borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 12 }}><Text style={{ color: c.green, fontSize: 13, fontWeight: "700" }}>✓ Connected to your device</Text></View>}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <Text style={{ color: c.text, fontWeight: "600" }}>Networks near the device {networks.length ? `(${networks.length})` : ""}</Text>

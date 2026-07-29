@@ -28,11 +28,46 @@ const ICON_KEYS: Record<string, true> = Object.fromEntries(Object.keys(ICONS).ma
 import {
   buildPalette,
   ACCENTS,
+  RADIUS,
+  SPACE,
+  TYPE,
+  ELEV,
+  MOTION,
   type Palette,
   type ThemeMode,
   type Scheme,
   type Grad,
 } from "./theme";
+import { tapLight, toggleFeedback } from "./haptics";
+
+/**
+ * Spring press-scale shared by every tappable surface.
+ *
+ * A flat 0.88-opacity fade was the old feedback and it reads as "disabled" for
+ * the ~100ms it lasts. A slight scale-down that springs back reads as physical
+ * depression instead, which is what makes a control feel responsive even when
+ * the device it commands is a network hop away.
+ */
+export function usePressScale(active = true) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = useCallback(
+    (v: number, bouncy: boolean) => {
+      if (!active) return;
+      Animated.spring(scale, {
+        toValue: v,
+        useNativeDriver: true,
+        speed: bouncy ? 20 : 40,
+        bounciness: bouncy ? 8 : 0,
+      }).start();
+    },
+    [scale, active]
+  );
+  return {
+    scale,
+    onPressIn: useCallback(() => to(MOTION.pressScale, false), [to]),
+    onPressOut: useCallback(() => to(1, true), [to]),
+  };
+}
 
 // --------------------------------------------------------------- provider ---
 
@@ -167,12 +202,20 @@ interface CardProps {
 /** Adaptive surface: frosted glass / neumorphic extrusion / solid aurora card. */
 export function Card({ children, style, onPress, hi, padded = true }: CardProps) {
   const { c, scheme } = useTheme();
-  const radius = 18;
-  const pad = padded ? 16 : 0;
+  const radius = RADIUS.card;
+  const pad = padded ? SPACE.lg : 0;
+  const press = usePressScale(!!onPress);
   const Wrapper: React.ComponentType<{ children: React.ReactNode; style?: StyleProp<ViewStyle> }> = onPress
     ? ({ children: ch, style: st }) => (
-        <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [st, pressed && { opacity: 0.88, transform: [{ scale: 0.985 }] }]}>
-          {ch}
+        <Pressable
+          onPress={onPress}
+          onPressIn={press.onPressIn}
+          onPressOut={press.onPressOut}
+          accessibilityRole="button"
+        >
+          {/* The visual style lives on the animated node so the whole surface
+              depresses, not just its contents. */}
+          <Animated.View style={[st, { transform: [{ scale: press.scale }] }]}>{ch}</Animated.View>
         </Pressable>
       )
     : ({ children: ch, style: st }) => <View style={st}>{ch}</View>;
@@ -248,28 +291,32 @@ export function PrimaryButton({
   icon?: string;
 }) {
   const { c } = useTheme();
+  const press = usePressScale(!disabled && !busy);
   const content = busy ? (
     <ActivityIndicator color={c.onAccent} />
   ) : (
-    <Text style={{ color: c.onAccent, fontWeight: "800", fontSize: 16 }}>
+    <Text style={{ color: c.onAccent, fontWeight: "800", fontSize: 16, letterSpacing: -0.2 }}>
       {icon ? `${icon}  ` : ""}
       {label}
     </Text>
   );
+  const fire = () => { tapLight(); onPress(); };
   if (c.isNeo) {
     return (
-      <Pressable onPress={disabled || busy ? undefined : onPress} style={({ pressed }) => [{ opacity: disabled ? 0.5 : 1 }, style]}>
-        <View style={{ borderRadius: 14, backgroundColor: c.accent, paddingVertical: 15, alignItems: "center", shadowColor: c.neoDark, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.6, shadowRadius: 7, elevation: 4 }}>
+      <Pressable onPress={disabled || busy ? undefined : fire} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityState={{ disabled: !!disabled, busy: !!busy }} style={({ pressed }) => [{ opacity: disabled ? 0.5 : 1 }, style]}>
+        <Animated.View style={{ transform: [{ scale: press.scale }], borderRadius: RADIUS.control, backgroundColor: c.accent, paddingVertical: 16, alignItems: "center", justifyContent: "center", minHeight: 52, shadowColor: c.neoDark, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.6, shadowRadius: 7, elevation: 4 }}>
           {content}
-        </View>
+        </Animated.View>
       </Pressable>
     );
   }
   return (
-    <Pressable onPress={disabled || busy ? undefined : onPress} style={({ pressed }) => [{ opacity: disabled ? 0.5 : pressed ? 0.9 : 1 }, style]}>
-      <LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 14, paddingVertical: 15, alignItems: "center" }}>
-        {content}
-      </LinearGradient>
+    <Pressable onPress={disabled || busy ? undefined : fire} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityState={{ disabled: !!disabled, busy: !!busy }} style={[{ opacity: disabled ? 0.5 : 1 }, style]}>
+      <Animated.View style={{ transform: [{ scale: press.scale }], borderRadius: RADIUS.control, overflow: "hidden" }}>
+        <LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: "center", justifyContent: "center", minHeight: 52 }}>
+          {content}
+        </LinearGradient>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -278,8 +325,8 @@ export function PrimaryButton({
 export function GhostButton({ label, onPress, style }: { label: string; onPress: () => void; style?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ borderRadius: 12, borderWidth: 1, borderColor: c.borderHi, paddingVertical: 13, alignItems: "center", opacity: pressed ? 0.85 : 1 }, style]}>
-      <Text style={{ color: c.textDim, fontWeight: "700", fontSize: 15 }}>{label}</Text>
+    <Pressable onPress={() => { tapLight(); onPress(); }} accessibilityRole="button" style={({ pressed }) => [{ borderRadius: RADIUS.control, borderWidth: 1, borderColor: c.borderHi, paddingVertical: 14, minHeight: 48, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1 }, style]}>
+      <Text style={{ color: c.text, fontWeight: "700", fontSize: 15 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -325,8 +372,8 @@ export function IconButton({
   const resolved = icon ?? (glyph ? LEGACY_GLYPH[glyph] : undefined);
   return (
     <Pressable
-      onPress={onPress}
-      hitSlop={8}
+      onPress={() => { tapLight(); onPress(); }}
+      hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel={label ?? (resolved ? resolved.replace(/-/g, " ") : undefined)}
       android_ripple={{ color: c.borderHi, borderless: true, radius: 24 }}
@@ -334,14 +381,14 @@ export function IconButton({
         {
           width: 44,
           height: 44,
-          borderRadius: 14,
+          borderRadius: RADIUS.pill,
           backgroundColor: c.card,
           borderColor: c.border,
           borderWidth: 1,
           alignItems: "center",
           justifyContent: "center",
-          opacity: pressed ? 0.7 : 1,
-          transform: [{ scale: pressed ? 0.94 : 1 }],
+          opacity: pressed ? 0.75 : 1,
+          transform: [{ scale: pressed ? MOTION.pressScale : 1 }],
         },
         style,
       ]}
@@ -358,20 +405,28 @@ export function IconButton({
 export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void }) {
   const { c } = useTheme();
   return (
-    <Pressable onPress={onPress} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}>
-      <Text style={{ color: active ? c.onAccent : c.textDim, fontWeight: "700", fontSize: 13 }}>{label}</Text>
+    <Pressable
+      onPress={onPress ? () => { tapLight(); onPress(); } : undefined}
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!active }}
+      hitSlop={6}
+      style={{ minHeight: 38, justifyContent: "center", paddingHorizontal: SPACE.lg, paddingVertical: 9, borderRadius: RADIUS.pill, backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}
+    >
+      <Text style={{ color: active ? c.onAccent : c.textDim, fontWeight: "700", fontSize: 14 }}>{label}</Text>
     </Pressable>
   );
 }
 
 export function SectionLabel({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
   const { c } = useTheme();
-  return <Text style={[{ color: c.faint, fontSize: 12, fontWeight: "700", letterSpacing: 1.5, marginBottom: 12 }, style]}>{children}</Text>;
+  // Was 12px uppercase with 1.5 letter-spacing. Micro-caps read as an admin
+  // panel; sentence case at a legible size reads as a home screen.
+  return <Text style={[{ color: c.text, ...TYPE.section, marginBottom: SPACE.md }, style]}>{children}</Text>;
 }
 
 export function Title({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
   const { c } = useTheme();
-  return <Text style={[{ color: c.text, fontSize: 26, fontWeight: "800" }, style]}>{children}</Text>;
+  return <Text style={[{ color: c.text, ...TYPE.title }, style]}>{children}</Text>;
 }
 
 /** Small labelled stat tile with a gradient icon pill. */
@@ -380,11 +435,11 @@ export function StatTile({ label, value, grad, glyph, icon }: { label: string; v
   const resolved = icon ?? (glyph && glyph in ICON_KEYS ? (glyph as IconName) : undefined);
   return (
     <Card style={{ flex: 1 }} padded>
-      <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-        {resolved ? <Icon name={resolved} size={16} color="#fff" /> : <Text style={{ fontSize: 13 }}>{glyph}</Text>}
+      <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 32, height: 32, borderRadius: RADIUS.chip, alignItems: "center", justifyContent: "center", marginBottom: SPACE.md }}>
+        {resolved ? <Icon name={resolved} size={17} color="#fff" /> : <Text style={{ fontSize: 13 }}>{glyph}</Text>}
       </LinearGradient>
-      <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }} adjustsFontSizeToFit numberOfLines={1}>{value}</Text>
-      <Text style={{ color: c.faint, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{label}</Text>
+      <Text style={{ color: c.text, fontSize: 24, fontWeight: "800", letterSpacing: -0.5 }} adjustsFontSizeToFit numberOfLines={1}>{value}</Text>
+      <Text style={{ color: c.textDim, ...TYPE.label, marginTop: 3 }}>{label}</Text>
     </Card>
   );
 }
@@ -425,7 +480,24 @@ export function ProgressBar({ value, max = 100, color }: { value: number; max?: 
 
 export function SegmentedControl<T extends string>({ options, value, onChange }: { options: readonly T[]; value: T; onChange: (v: T) => void }) {
   const { c } = useTheme();
-  return <View style={{ flexDirection: "row", padding: 4, borderRadius: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, gap: 4 }}>{options.map((o) => <Pressable key={o} onPress={() => onChange(o)} style={{ flex: 1, borderRadius: 11, paddingVertical: 9, alignItems: "center", backgroundColor: value === o ? c.accent : "transparent" }}><Text style={{ color: value === o ? c.onAccent : c.textDim, fontWeight: "800", textTransform: "capitalize" }}>{o}</Text></Pressable>)}</View>;
+  return (
+    <View style={{ flexDirection: "row", padding: 3, borderRadius: RADIUS.pill, backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.border, gap: 2 }}>
+      {options.map((o) => {
+        const on = value === o;
+        return (
+          <Pressable
+            key={o}
+            onPress={() => { if (!on) { tapLight(); onChange(o); } }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            style={{ flex: 1, borderRadius: RADIUS.pill, paddingVertical: 10, alignItems: "center", justifyContent: "center", backgroundColor: on ? c.accent : "transparent" }}
+          >
+            <Text numberOfLines={1} style={{ color: on ? c.onAccent : c.textDim, fontSize: 14, fontWeight: "700", textTransform: "capitalize" }}>{o}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
 export function Accordion({ title, children }: { title: string; children: React.ReactNode }) {
@@ -630,17 +702,32 @@ export function PillToggle({ value, onChange, size = "md", disabled, style }: { 
   const W = size === "sm" ? 50 : 60;
   const H = size === "sm" ? 28 : 34;
   const knob = H - 6;
+  const travel = W - knob - 6;
+  // Sliding the thumb instead of snapping it between flex alignments is what
+  // makes the control read as a physical switch rather than a redrawn image.
+  const pos = useRef(new Animated.Value(value ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.spring(pos, { toValue: value ? 1 : 0, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+  }, [value, pos]);
+  const translateX = pos.interpolate({ inputRange: [0, 1], outputRange: [0, travel] });
+
   return (
     <Pressable
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
-      onPress={() => onChange(!value)}
-      style={[{ width: W, height: H, borderRadius: H, padding: 3, opacity: disabled ? 0.5 : 1, backgroundColor: value ? c.accent : c.cardHi, borderWidth: value ? 0 : 1, borderColor: c.border, flexDirection: "row", justifyContent: value ? "flex-end" : "flex-start", alignItems: "center" }, style]}
+      hitSlop={8}
+      onPress={() => {
+        // Fires before the parent's state update so the tick lands with the
+        // tap, not after the command round-trips.
+        toggleFeedback(!value);
+        onChange(!value);
+      }}
+      style={[{ width: W, height: H, borderRadius: H, padding: 3, opacity: disabled ? 0.5 : 1, backgroundColor: value ? c.accent : c.cardHi, borderWidth: value ? 0 : 1, borderColor: c.border, justifyContent: "center" }, style]}
     >
-      <View style={{ width: knob, height: knob, borderRadius: knob / 2, backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ color: value ? c.accent : c.faint, fontSize: knob * 0.5, fontWeight: "900", marginTop: -1 }}>⏻</Text>
-      </View>
+      <Animated.View style={{ width: knob, height: knob, borderRadius: knob / 2, backgroundColor: "#ffffff", alignItems: "center", justifyContent: "center", transform: [{ translateX }] }}>
+        <Icon name="power" size={knob * 0.55} color={value ? c.accent : c.faint} />
+      </Animated.View>
     </Pressable>
   );
 }
@@ -653,7 +740,7 @@ export function PillSelector<T extends string>({ options, value, onChange, style
       {options.map((o) => {
         const sel = o === value;
         return (
-          <Pressable key={o} onPress={() => onChange(o)} style={{ flex: 1, borderRadius: 20, paddingVertical: 13, alignItems: "center", backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
+          <Pressable key={o} onPress={() => { if (o !== value) { tapLight(); onChange(o); } }} accessibilityRole="button" accessibilityState={{ selected: sel }} style={{ flex: 1, borderRadius: RADIUS.pill, paddingVertical: 13, minHeight: 46, alignItems: "center", justifyContent: "center", backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
             <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600", textTransform: "capitalize" }}>{o}</Text>
           </Pressable>
         );
@@ -670,7 +757,7 @@ export function RoomChips({ options, value, onChange, style }: { options: string
       {options.map((o, i) => {
         const sel = i === value;
         return (
-          <Pressable key={`${o}-${i}`} onPress={() => onChange(i)} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
+          <Pressable key={`${o}-${i}`} onPress={() => { if (i !== value) { tapLight(); onChange(i); } }} accessibilityRole="button" accessibilityState={{ selected: sel }} style={{ paddingHorizontal: 18, paddingVertical: 11, minHeight: 42, justifyContent: "center", borderRadius: RADIUS.pill, backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
             <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600" }}>{o}</Text>
           </Pressable>
         );

@@ -53,7 +53,7 @@ export default function ChartsGallery({ onBack }: { onBack: () => void }) {
           <Title>Charts & Widgets</Title>
         </View>
 
-        <SectionLabel>KPI TILES</SectionLabel>
+        <SectionLabel>Kpi tiles</SectionLabel>
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
           <StatCard label="Live Power" value={248} unit="W" delta={4.2} data={wave(16, 200, 60)} color={PALETTE[0]} glyph="⚡" />
           <StatCard label="Today" value={4.2} unit="kWh" delta={-2.1} data={wave(16, 4, 1)} color={PALETTE[4]} glyph="🔋" />
@@ -73,20 +73,20 @@ export default function ChartsGallery({ onBack }: { onBack: () => void }) {
           <MultiLineChart series={shown} labels={labels} unit=" W" height={200} />
         </Block>
 
-        <SectionLabel>LINE / AREA · BAR</SectionLabel>
+        <SectionLabel>Line / area · Bar</SectionLabel>
         <Block title="Single-series area line"><LineChart data={wave(30, 150, 70)} /></Block>
         <Block title="Bar chart"><BarChart data={[2, 5, 3, 8, 4, 6, 7, 5, 9, 4]} /></Block>
 
-        <SectionLabel>GROUPED · STACKED</SectionLabel>
+        <SectionLabel>Grouped · Stacked</SectionLabel>
         <Block title="Grouped bars — week vs last week (kWh)"><GroupedBar series={grouped} labels={weekLabels} /></Block>
         <Block title="Stacked bars — usage by category (kWh)"><StackedBar series={stacked} labels={weekLabels} /></Block>
 
-        <SectionLabel>DISTRIBUTION</SectionLabel>
+        <SectionLabel>Distribution</SectionLabel>
         <Block title="Donut"><Donut segments={[{ label: "AC", value: 48, color: PALETTE[0] }, { label: "Lights", value: 22, color: PALETTE[3] }, { label: "Appliances", value: 18, color: PALETTE[1] }, { label: "Others", value: 12, color: PALETTE[2] }]} /></Block>
         <Block title="Pie"><PieChart segments={[{ label: "Lights", value: 4 }, { label: "Sensors", value: 3 }, { label: "Energy", value: 2 }]} /></Block>
         <Block title="Ranked horizontal bars"><HBars items={[{ name: "Air Conditioner", value: 480 }, { name: "Geyser", value: 320 }, { name: "Fridge", value: 180 }, { name: "Lights", value: 90 }]} unit=" W" /></Block>
 
-        <SectionLabel>GAUGES & PROGRESS</SectionLabel>
+        <SectionLabel>Gauges & progress</SectionLabel>
         <Block title="Semicircular gauge"><View style={{ alignItems: "center" }}><Gauge value={248} max={500} unit="W" label="live power" /></View></Block>
         <Block title="Progress ring"><View style={{ alignItems: "center" }}><ProgressRing value={64} label="Comfort" /></View></Block>
         <Block title="Bullet — value vs target">
@@ -94,7 +94,7 @@ export default function ChartsGallery({ onBack }: { onBack: () => void }) {
           <Bullet label="Water" value={180} target={150} max={250} unit=" L" color={PALETTE[0]} />
         </Block>
 
-        <SectionLabel>RADAR · SPARKLINE · HEATMAP</SectionLabel>
+        <SectionLabel>Radar · Sparkline · Heatmap</SectionLabel>
         <Block title="Radar — Home vs Away profile"><RadarChart axes={["Comfort", "Energy", "Security", "Air", "Water", "Lights"]} series={radar} /></Block>
         <Block title="Sparklines">
           <View style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>

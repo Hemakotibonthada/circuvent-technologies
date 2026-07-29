@@ -5,6 +5,7 @@ import { Device } from "../api";
 import { useDevices } from "../store";
 import { useTheme, useBackHandler, useSafeArea } from "../ui";
 import { Icon, type IconName } from "../icons";
+import { tapLight } from "../haptics";
 import Home from "./Home";
 import Devices from "./Devices";
 import Automate from "./Automate";
@@ -111,7 +112,7 @@ export default function Shell() {
 
       <View style={[s.navWrap, { bottom: navBottom }]} pointerEvents="box-none">
         <Pressable
-          onPress={() => setTab("home")}
+          onPress={() => { if (tab !== "home") tapLight(); setTab("home"); }}
           hitSlop={8}
           accessibilityRole="tab"
           accessibilityLabel="Home"
@@ -152,7 +153,7 @@ export default function Shell() {
               <Pressable
                 key={t.key}
                 style={s.navItem}
-                onPress={() => setTab(t.key)}
+                onPress={() => { if (!active) tapLight(); setTab(t.key); }}
                 hitSlop={6}
                 accessibilityRole="tab"
                 accessibilityLabel={t.label}

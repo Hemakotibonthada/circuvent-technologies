@@ -19,7 +19,7 @@ import {
   useAppActive,
 } from "../ui";
 import { Icon, eventIcon, weatherIcon, type IconName } from "../icons";
-import { deviceMeta, greeting } from "../theme";
+import { deviceMeta, greeting, CATEGORY_TINTS, deviceCategory, RADIUS, SPACE, MOTION } from "../theme";
 import { Sparkline } from "../charts";
 import { getSavedLocation, getWeather, getWeatherByQuery, wmo, type WeatherBundle } from "../weather";
 
@@ -216,7 +216,7 @@ export default function Home({
         {/* scene shortcuts */}
         {favScenes.length > 0 && (
           <>
-            <SectionLabel>SCENES</SectionLabel>
+            <SectionLabel>Scenes</SectionLabel>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -248,7 +248,7 @@ export default function Home({
         {/* favorites */}
         {favorites.length > 0 && (
           <>
-            <SectionLabel>FAVORITES</SectionLabel>
+            <SectionLabel>Favorites</SectionLabel>
             <View style={s.grid}>
               {favorites.map((d, i) => (
                 <Stagger key={d.id} index={i}>
@@ -262,7 +262,7 @@ export default function Home({
         {/* room filter + device grid */}
         {devices.length > 0 && (
           <>
-            <SectionLabel>YOUR DEVICES</SectionLabel>
+            <SectionLabel>Your devices</SectionLabel>
             <RoomChips options={roomNames} value={roomIdx} onChange={setRoomIdx} style={{ marginBottom: 14 }} />
             {shownDevices.length === 0 ? (
               <Card padded>
@@ -283,7 +283,7 @@ export default function Home({
         {/* rooms */}
         {rooms.length > 0 && (
           <>
-            <SectionLabel>ROOMS</SectionLabel>
+            <SectionLabel>Rooms</SectionLabel>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -313,7 +313,7 @@ export default function Home({
         )}
 
         {/* recent activity */}
-        <SectionLabel>RECENT ACTIVITY</SectionLabel>
+        <SectionLabel>Recent activity</SectionLabel>
         <Card padded>
           {loading && activity.length === 0 ? (
             <View style={{ gap: 12, paddingVertical: 4 }}>
@@ -397,6 +397,14 @@ interface DeviceCardProps {
 /**
  * One tile in the device grid.
  *
+ * Modelled on a physical accessory button: when the device is ON the tile
+ * inverts to a bright category-tinted fill with dark text, so the state of the
+ * whole home is readable at a glance without reading a single label.
+ *
+ * Offline is rendered as its own state ("No response") rather than falling back
+ * to the OFF styling — a dark tile that actually means "unreachable" is the
+ * single most misleading thing a smart-home dashboard can show.
+ *
  * Memoised on the fields actually rendered rather than on object identity: the
  * 20s poll replaces every Device object, so a shallow compare would re-render
  * the whole grid on every tick even when nothing visibly changed.
@@ -407,35 +415,65 @@ const DeviceCard = React.memo(
     const meta = deviceMeta(d.type);
     const pf = capabilities(d.type).power?.field;
     const on = pf ? !!d.state[pf] : false;
-    const subtitle = `${showRoom ? d.room || meta.label : meta.label}${pf ? (on ? " · On" : " · Off") : ""}`;
+    const offline = !d.online;
+    const tint = CATEGORY_TINTS[deviceCategory(d.type)];
+    const lit = on && !offline;
+
+    const statusLine = offline ? "No response" : pf ? (on ? "On" : "Off") : meta.label;
+    const subtitle = showRoom && d.room ? `${d.room} · ${statusLine}` : statusLine;
+
+    const fg = lit ? "#1c1c1e" : offline ? c.faint : c.text;
+    const sub = lit ? "rgba(28,28,30,0.62)" : c.faint;
 
     return (
       <Pressable
-        style={({ pressed }) => [{ width }, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
         onPress={() => onOpen(d)}
         accessibilityRole="button"
-        accessibilityLabel={`${d.name || d.id}. ${subtitle}. ${d.online ? "Online" : "Offline"}`}
+        accessibilityLabel={`${d.name || d.id}. ${subtitle}`}
+        style={({ pressed }) => [{ width }, pressed && { transform: [{ scale: MOTION.pressScale }] }]}
       >
-        <Card padded>
+        <View
+          style={{
+            borderRadius: RADIUS.tile,
+            padding: SPACE.lg,
+            minHeight: 124,
+            justifyContent: "space-between",
+            backgroundColor: lit ? tint : c.card,
+            borderWidth: 1,
+            borderColor: lit ? tint : c.border,
+            opacity: offline ? 0.62 : 1,
+          }}
+        >
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}>
-              <Icon name={meta.icon} size={20} color="#fff" />
-            </LinearGradient>
-            {pf ? (
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: RADIUS.control,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: lit ? "rgba(28,28,30,0.12)" : offline ? c.cardHi : `${tint}22`,
+              }}
+            >
+              <Icon name={meta.icon} size={21} color={lit ? "#1c1c1e" : offline ? c.faint : tint} />
+            </View>
+            {pf && !offline ? (
               <View onStartShouldSetResponder={() => true}>
                 <PillToggle value={on} onChange={(v) => onToggle(d.id, pf, v)} size="sm" />
               </View>
             ) : (
-              <View style={[s.dot, { backgroundColor: d.online ? c.green : c.faint }]} />
+              <View style={[s.dot, { backgroundColor: offline ? c.faint : c.green }]} />
             )}
           </View>
-          <Text style={{ color: c.text, fontWeight: "700", marginTop: 10 }} numberOfLines={1}>
-            {d.name || d.id}
-          </Text>
-          <Text style={{ color: c.faint, fontSize: 12 }} numberOfLines={1}>
-            {subtitle}
-          </Text>
-        </Card>
+          <View style={{ marginTop: SPACE.md }}>
+            <Text style={{ color: fg, fontWeight: "700", fontSize: 15, letterSpacing: -0.2 }} numberOfLines={1}>
+              {d.name || d.id}
+            </Text>
+            <Text style={{ color: sub, fontSize: 13, marginTop: 1 }} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          </View>
+        </View>
       </Pressable>
     );
   },

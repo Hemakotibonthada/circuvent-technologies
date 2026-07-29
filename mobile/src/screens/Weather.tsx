@@ -124,7 +124,7 @@ export default function Weather({ onBack }: { onBack: () => void }) {
               {bundle.daily[0] && <Text style={{ color: c.faint, fontSize: 12, marginTop: 10 }}>☀️ {clock(bundle.daily[0].sunrise)}  ·  🌙 {clock(bundle.daily[0].sunset)}{aqi ? `  ·  Air: ${aqi.label}` : ""}</Text>}
             </Card>
 
-            <SectionLabel>HOURLY</SectionLabel>
+            <SectionLabel>Hourly</SectionLabel>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8 }}>
               {bundle.hourly.slice(0, 16).map((h, i) => {
                 const hw = wmo(h.weatherCode);
@@ -139,7 +139,7 @@ export default function Weather({ onBack }: { onBack: () => void }) {
               })}
             </ScrollView>
 
-            <SectionLabel>7-DAY FORECAST</SectionLabel>
+            <SectionLabel>7-day forecast</SectionLabel>
             <Card padded style={{ marginBottom: 14 }}>
               {bundle.daily.map((d, i) => {
                 const dw = wmo(d.weatherCode);
@@ -160,7 +160,7 @@ export default function Weather({ onBack }: { onBack: () => void }) {
               })}
             </Card>
 
-            <SectionLabel>SMART-HOME TIPS</SectionLabel>
+            <SectionLabel>Smart-home tips</SectionLabel>
             {tips.map((t) => (
               <Card key={t.id} padded style={{ marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Text style={{ fontSize: 22 }}>{t.icon}</Text>

@@ -64,7 +64,7 @@ export default function Energy() {
 
         {donut.length > 0 && (
           <>
-            <SectionLabel>DISTRIBUTION</SectionLabel>
+            <SectionLabel>Distribution</SectionLabel>
             <Card padded style={{ marginBottom: 14, alignItems: "center" }}>
               <Donut segments={donut} />
             </Card>
@@ -73,14 +73,14 @@ export default function Energy() {
 
         {consumers.length > 0 && (
           <>
-            <SectionLabel>TOP CONSUMERS</SectionLabel>
+            <SectionLabel>Top consumers</SectionLabel>
             <Card padded style={{ marginBottom: 14 }}>
               <HBars items={consumers.slice(0, 6).map((d, i) => ({ name: d.name, value: Math.round(d.watts), color: PALETTE[i % PALETTE.length] }))} unit=" W" />
             </Card>
           </>
         )}
 
-        <SectionLabel>HISTORY</SectionLabel>
+        <SectionLabel>History</SectionLabel>
         <Card padded style={{ marginBottom: 14 }}>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
             <Chip label="24 h" active={hours === 24} onPress={() => setHours(24)} />
@@ -93,7 +93,7 @@ export default function Energy() {
           </Text>
         </Card>
 
-        <SectionLabel>DEVICES</SectionLabel>
+        <SectionLabel>Devices</SectionLabel>
         {(summary?.byDevice ?? []).map((d) => {
           const meta = deviceMeta(d.type);
           const on = selected === d.id;

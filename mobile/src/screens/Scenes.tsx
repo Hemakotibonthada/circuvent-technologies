@@ -105,7 +105,7 @@ function SceneEditor({ scene, onDone }: { scene: Scene | null; onDone: () => voi
 
       <TextInput value={name} onChangeText={setName} placeholder="Scene name" placeholderTextColor={c.faint} style={[s.input, { color: c.text, borderColor: c.border, backgroundColor: c.card }]} />
 
-      <SectionLabel>ICON</SectionLabel>
+      <SectionLabel>Icon</SectionLabel>
       <View style={s.iconGrid}>
         {ICONS.map((ic) => (
           <Pressable key={ic} onPress={() => setIcon(ic)} style={[s.iconChip, { backgroundColor: icon === ic ? c.accent : c.card, borderColor: icon === ic ? c.accent : c.border }]}>
@@ -125,7 +125,7 @@ function SceneEditor({ scene, onDone }: { scene: Scene | null; onDone: () => voi
         </Card>
       </Pressable>
 
-      <SectionLabel>WHEN ACTIVATED</SectionLabel>
+      <SectionLabel>When activated</SectionLabel>
       {controllable.length === 0 && <Text style={{ color: c.faint }}>No controllable devices yet.</Text>}
       {controllable.map((d) => {
         const meta = deviceMeta(d.type);

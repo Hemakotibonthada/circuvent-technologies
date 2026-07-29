@@ -18,9 +18,9 @@ export default function Analytics({ onBack }: { onBack: () => void }) {
   return <Screen><ScrollView contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 90 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}><IconButton glyph="‹" onPress={onBack} /><Title>Analytics</Title></View>
     <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}><StatTile label="Live watts" value={String(Math.round(summary?.liveWatts || 0))} grad={GRAD.amber} glyph="⚡" /><StatTile label="Events" value={String(events.length)} grad={GRAD.violet} glyph="📜" /></View>
     <Card style={{ alignItems: "center", marginBottom: 14 }}><Gauge value={online} max={Math.max(devices.length, 1)} label="online rate" unit={`/${devices.length}`} /></Card>
-    <SectionLabel>ENERGY TREND</SectionLabel><Card style={{ marginBottom: 14 }}><LineChart data={(series?.series || []).map((p) => p.avg)} /><Text style={{ color: c.faint, marginTop: 8 }}>Top consumer trend from live energy data.</Text></Card>
-    <SectionLabel>DEVICE TYPES</SectionLabel><Card style={{ marginBottom: 14 }}>{typeSegments.length ? <Donut segments={typeSegments} /> : <Text style={{ color: c.faint }}>No devices yet.</Text>}</Card>
-    <SectionLabel>MOST ACTIVE</SectionLabel><Card style={{ marginBottom: 14 }}>{active.map(([id, n]) => <Text key={id} style={{ color: c.textDim, marginBottom: 6 }}>{devices.find((d) => d.id === id)?.name || id}: <Text style={{ color: c.text, fontWeight: "800" }}>{n}</Text></Text>)}{!active.length && <Text style={{ color: c.faint }}>No activity yet.</Text>}</Card>
-    <SectionLabel>COMMANDS / DAY</SectionLabel><Card><BarChart data={commandsByDay} /></Card>
+    <SectionLabel>Energy trend</SectionLabel><Card style={{ marginBottom: 14 }}><LineChart data={(series?.series || []).map((p) => p.avg)} /><Text style={{ color: c.faint, marginTop: 8 }}>Top consumer trend from live energy data.</Text></Card>
+    <SectionLabel>Device types</SectionLabel><Card style={{ marginBottom: 14 }}>{typeSegments.length ? <Donut segments={typeSegments} /> : <Text style={{ color: c.faint }}>No devices yet.</Text>}</Card>
+    <SectionLabel>Most active</SectionLabel><Card style={{ marginBottom: 14 }}>{active.map(([id, n]) => <Text key={id} style={{ color: c.textDim, marginBottom: 6 }}>{devices.find((d) => d.id === id)?.name || id}: <Text style={{ color: c.text, fontWeight: "800" }}>{n}</Text></Text>)}{!active.length && <Text style={{ color: c.faint }}>No activity yet.</Text>}</Card>
+    <SectionLabel>Commands / day</SectionLabel><Card><BarChart data={commandsByDay} /></Card>
   </ScrollView></Screen>;
 }

@@ -43,7 +43,7 @@ export default function Sensors({ onBack }: Props) {
   const sensorDevices = useMemo(() => devices.filter((d) => readings(d).length), [devices]);
   return <Screen><ScrollView contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 90 }}>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}><IconButton glyph="‹" onPress={onBack} /><Title>Sensors</Title></View>
-    <SectionLabel>LIVE SENSOR GRID</SectionLabel>
+    <SectionLabel>Live sensor grid</SectionLabel>
     {sensorDevices.map((d) => <DeviceSensors key={d.id} d={d} series={series[d.id] || {}} />)}
     {!sensorDevices.length && <Text style={{ color: c.faint }}>No numeric telemetry found yet.</Text>}
   </ScrollView></Screen>;

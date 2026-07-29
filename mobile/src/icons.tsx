@@ -96,6 +96,9 @@ export const ICONS = {
   aurora: mci("gradient-vertical"),
   glass: mci("cube-outline"),
   neo: mci("circle-opacity"),
+  moon: mci("weather-night"),
+  sun: mci("white-balance-sunny"),
+  vibrate: mci("vibrate"),
 
   // --- "More" hub / secondary navigation -----------------------------------
   sensors: mci("chart-line"),

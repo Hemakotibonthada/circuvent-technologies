@@ -1,11 +1,13 @@
 import React from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, Switch } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
 import { Screen, Card, SectionLabel, GhostButton, useTheme, useSafeArea } from "../ui";
 import { Icon, type IconName } from "../icons";
 import { ACCENTS, ThemeMode } from "../theme";
+import { tapLight, toggleFeedback, setHapticsEnabled, hapticsEnabled } from "../haptics";
+import { APP_VERSION, APP_BUILD } from "../version";
 
 const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = [
   { key: "aurora", label: "Aurora", sub: "Signature gradient", icon: "aurora" },
@@ -17,6 +19,13 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
   const { c, mode, scheme, accentKey, setMode, setScheme, setAccentKey } = useTheme();
   const insets = useSafeArea();
   const { account, logout } = useAuth();
+
+  const [haptics, setHapticsState] = React.useState(hapticsEnabled());
+  const setHaptics = (v: boolean) => {
+    setHapticsState(v);
+    setHapticsEnabled(v);
+    if (v) toggleFeedback(true);
+  };
 
   const setKioskPin = () => {
     Alert.prompt?.(
@@ -42,7 +51,7 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
           <View style={{ width: 54 }} />
         </View>
 
-        <SectionLabel>APPEARANCE · THEME</SectionLabel>
+        <SectionLabel>Appearance · Theme</SectionLabel>
         <View style={{ gap: 10, marginBottom: 16 }}>
           {MODES.map((m) => (
             <Pressable
@@ -68,18 +77,48 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
           ))}
         </View>
 
-        <SectionLabel>MODE</SectionLabel>
+        <SectionLabel>Mode</SectionLabel>
         <Card padded style={{ marginBottom: 16 }}>
           <View style={s.segRow}>
-            {(["dark", "light"] as const).map((sc) => (
-              <Pressable key={sc} onPress={() => setScheme(sc)} style={[s.seg, { backgroundColor: scheme === sc ? c.accent : "transparent" }]}>
-                <Text style={{ color: scheme === sc ? c.onAccent : c.textDim, fontWeight: "700", textTransform: "capitalize" }}>{sc === "dark" ? "🌙 Dark" : "☀️ Light"}</Text>
-              </Pressable>
-            ))}
+            {(["dark", "light"] as const).map((sc) => {
+              const sel = scheme === sc;
+              return (
+                <Pressable
+                  key={sc}
+                  onPress={() => { if (!sel) tapLight(); setScheme(sc); }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${sc} mode`}
+                  accessibilityState={{ selected: sel, checked: sel }}
+                  style={[s.seg, { backgroundColor: sel ? c.accent : "transparent", flexDirection: "row", gap: 8 }]}
+                >
+                  <Icon name={sc === "dark" ? "moon" : "sun"} size={17} color={sel ? c.onAccent : c.textDim} />
+                  <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: "700", textTransform: "capitalize" }}>{sc}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </Card>
 
-        <SectionLabel>ACCENT COLOR</SectionLabel>
+        <SectionLabel>Feedback</SectionLabel>
+        <Card padded style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <Icon name="vibrate" size={22} color={haptics ? c.accentHi : c.faint} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.text, fontWeight: "700", fontSize: 15 }}>Haptic feedback</Text>
+              <Text style={{ color: c.faint, fontSize: 12, marginTop: 1 }}>
+                A short tap when a control changes state.
+              </Text>
+            </View>
+            <Switch
+              value={haptics}
+              onValueChange={setHaptics}
+              trackColor={{ true: c.accent, false: "#334155" }}
+              thumbColor="#fff"
+            />
+          </View>
+        </Card>
+
+        <SectionLabel>Accent color</SectionLabel>
         <Card padded style={{ marginBottom: 16 }}>
           <View style={s.swatchRow}>
             {ACCENTS.map((a) => (
@@ -91,13 +130,13 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
           </View>
         </Card>
 
-        <SectionLabel>ACCOUNT</SectionLabel>
+        <SectionLabel>Account</SectionLabel>
         <Card padded style={{ marginBottom: 16 }}>
           <Row label="Name" value={account?.name || "—"} c={c} />
           <Row label="Email" value={account?.email || "—"} c={c} last />
         </Card>
 
-        <SectionLabel>WALL KIOSK</SectionLabel>
+        <SectionLabel>Wall kiosk</SectionLabel>
         <Card padded style={{ marginBottom: 16 }}>
           <Text style={{ color: c.textDim, fontSize: 13, lineHeight: 20, marginBottom: 12 }}>
             Turn this tablet into a locked wall panel: fullscreen dashboard, camera matrix and appliance controls, screen kept awake. A PIN is required to exit.
@@ -110,10 +149,10 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
           </Pressable>
         </Card>
 
-        <SectionLabel>ABOUT</SectionLabel>
+        <SectionLabel>About</SectionLabel>
         <Card padded style={{ marginBottom: 20 }}>
           <Row label="App" value="Circuvent" c={c} />
-          <Row label="Version" value="1.0.0" c={c} />
+          <Row label="Version" value={`${APP_VERSION} (${APP_BUILD})`} c={c} />
           <Row label="Control plane" value="api.circuvent.com" c={c} last />
         </Card>
 

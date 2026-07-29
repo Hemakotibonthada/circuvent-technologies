@@ -19,7 +19,7 @@ export default function ActivityLog({ onBack }: { onBack: () => void }) {
   return <Screen><ScrollView contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 90 }}>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}><IconButton glyph="‹" onPress={onBack} /><Title>Activity Log</Title></View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 14 }}>{kinds.map((k) => <Chip key={k} label={k} active={kind === k} onPress={() => setKind(k)} />)}</ScrollView>
-    <SectionLabel>TIMELINE</SectionLabel>{filtered.map((e) => <Card key={e.id} style={{ marginBottom: 10 }}><View style={{ flexDirection: "row", gap: 10 }}><Text style={{ fontSize: 20 }}>{e.kind.includes("alert") ? "🚨" : e.kind.includes("security") ? "🛡️" : "•"}</Text><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "800" }}>{e.title}</Text><Text style={{ color: c.textDim, marginTop: 3 }}>{e.body}</Text><Text style={{ color: c.faint, fontSize: 12, marginTop: 6 }}>{e.kind} • {rel(e.ts)}</Text></View></View></Card>)}
+    <SectionLabel>Timeline</SectionLabel>{filtered.map((e) => <Card key={e.id} style={{ marginBottom: 10 }}><View style={{ flexDirection: "row", gap: 10 }}><Text style={{ fontSize: 20 }}>{e.kind.includes("alert") ? "🚨" : e.kind.includes("security") ? "🛡️" : "•"}</Text><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "800" }}>{e.title}</Text><Text style={{ color: c.textDim, marginTop: 3 }}>{e.body}</Text><Text style={{ color: c.faint, fontSize: 12, marginTop: 6 }}>{e.kind} • {rel(e.ts)}</Text></View></View></Card>)}
     {!filtered.length && <Text style={{ color: c.faint }}>No events found.</Text>}
   </ScrollView></Screen>;
 }

@@ -70,7 +70,7 @@ export default function CommandPalette({
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingTop: 0, paddingBottom: 40 }}>
           {fDevices.length > 0 && (
             <>
-              <SectionLabel>DEVICES</SectionLabel>
+              <SectionLabel>Devices</SectionLabel>
               <Card padded={false} style={{ marginBottom: 16, overflow: "hidden" }}>
                 {fDevices.slice(0, 24).map((d, i) => {
                   const meta = deviceMeta(d.type);
@@ -97,7 +97,7 @@ export default function CommandPalette({
 
           {fScenes.length > 0 && (
             <>
-              <SectionLabel>SCENES</SectionLabel>
+              <SectionLabel>Scenes</SectionLabel>
               <Card padded={false} style={{ marginBottom: 16, overflow: "hidden" }}>
                 {fScenes.map((sc, i) => (
                   <Pressable key={sc.id} onPress={() => { api.activateScene(sc.id); onClose(); }} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
@@ -115,7 +115,7 @@ export default function CommandPalette({
 
           {fRooms.length > 0 && (
             <>
-              <SectionLabel>ROOMS</SectionLabel>
+              <SectionLabel>Rooms</SectionLabel>
               <Card padded={false} style={{ marginBottom: 16, overflow: "hidden" }}>
                 {fRooms.map((r, i) => (
                   <Pressable key={r.name} onPress={() => onOpenAutomate("rooms")} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
@@ -133,7 +133,7 @@ export default function CommandPalette({
 
           {fNav.length > 0 && (
             <>
-              <SectionLabel>GO TO</SectionLabel>
+              <SectionLabel>Go to</SectionLabel>
               <Card padded={false} style={{ overflow: "hidden" }}>
                 {fNav.map((n, i) => (
                   <Pressable key={n.key} onPress={n.run} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>

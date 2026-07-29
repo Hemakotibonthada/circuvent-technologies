@@ -101,7 +101,7 @@ function RoomDetail({ name, onBack, onChanged }: { name: string; onBack: () => v
 
       {managing && name ? (
         <>
-          <SectionLabel>ADD / REMOVE DEVICES</SectionLabel>
+          <SectionLabel>Add / remove devices</SectionLabel>
           {devices.map((d) => {
             const inThis = d.room === name;
             return (

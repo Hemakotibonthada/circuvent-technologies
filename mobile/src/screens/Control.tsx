@@ -6,6 +6,7 @@ import Slider from "@react-native-community/slider";
 import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector } from "../ui";
+import { tapLight, toggleFeedback } from "../haptics";
 import { deviceMeta, type Palette } from "../theme";
 import { useSwitchWidgets } from "../widgets";
 import { Icon } from "../icons";
@@ -103,7 +104,7 @@ function Row({ label, c, children }: { label: string; c: Palette; children: Reac
   );
 }
 function Section({ children, c }: { children: React.ReactNode; c: Palette }) {
-  return <Text style={{ color: c.faint, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginTop: 14, marginBottom: 8 }}>{children}</Text>;
+  return <Text style={{ color: c.text, fontSize: 19, fontWeight: "700", letterSpacing: -0.3, marginTop: 20, marginBottom: 10 }}>{children}</Text>;
 }
 function Big({ value, unit, caption, c }: { value: string; unit?: string; caption: string; c: Palette }) {
   return (
@@ -114,7 +115,14 @@ function Big({ value, unit, caption, c }: { value: string; unit?: string; captio
   );
 }
 function Sw({ v, on, c }: { v: boolean; on: (b: boolean) => void; c: Palette }) {
-  return <Switch value={v} onValueChange={on} trackColor={{ true: c.accent, false: "#334155" }} thumbColor="#fff" />;
+  return (
+    <Switch
+      value={v}
+      onValueChange={(b) => { toggleFeedback(b); on(b); }}
+      trackColor={{ true: c.accent, false: "#334155" }}
+      thumbColor="#fff"
+    />
+  );
 }
 
 function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
@@ -140,7 +148,7 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
           <Slider
             minimumValue={cap.dimmer.min} maximumValue={cap.dimmer.max} step={1}
             value={Number(d.state[cap.dimmer.field] ?? 0)}
-            onSlidingComplete={(v) => send({ [cap.dimmer!.field]: Math.round(v) })}
+            onSlidingComplete={(v) => { tapLight(); send({ [cap.dimmer!.field]: Math.round(v) }); }}
             minimumTrackTintColor={c.accent} maximumTrackTintColor={c.border} thumbTintColor={c.accentHi}
           />
         </Card>

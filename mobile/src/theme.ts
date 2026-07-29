@@ -34,6 +34,118 @@ export const GRAD = {
   screen: ["#0b1024", "#090d1f"] as Grad,
 };
 
+// ---------------------------------------------------------------------------
+// Design tokens.
+//
+// Before these existed, radii were written inline at every call site (18 here,
+// 14 there, 12 somewhere else) and vertical rhythm was whatever number the
+// screen author typed. Naming the scales is what makes ~150 screens look like
+// one app instead of one-hundred-and-fifty, and it means a change to the
+// visual language is a single-line edit here rather than a repo-wide sweep.
+// ---------------------------------------------------------------------------
+
+/** Corner radii. Nested controls step *down* one rung from their container. */
+export const RADIUS = {
+  tile: 22,
+  card: 18,
+  control: 14,
+  chip: 11,
+  pill: 999,
+} as const;
+
+/** 4pt spacing scale. */
+export const SPACE = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 28,
+} as const;
+
+/**
+ * Type scale.
+ *
+ * `label` deliberately replaced the old 11-12px uppercase + 1.5 letter-spacing
+ * treatment. Micro-caps read as an admin panel; sentence case at a legible size
+ * reads as a home. Same information, far less shouting.
+ */
+export const TYPE = {
+  large: { fontSize: 30, fontWeight: "800" as const, letterSpacing: -0.6 },
+  title: { fontSize: 24, fontWeight: "800" as const, letterSpacing: -0.4 },
+  section: { fontSize: 19, fontWeight: "700" as const, letterSpacing: -0.3 },
+  body: { fontSize: 15, fontWeight: "500" as const, letterSpacing: 0 },
+  label: { fontSize: 13, fontWeight: "600" as const, letterSpacing: 0 },
+  caption: { fontSize: 12, fontWeight: "500" as const, letterSpacing: 0 },
+} as const;
+
+/**
+ * Elevation presets. Wide and low-alpha — a soft lift off the canvas rather
+ * than a hard drop shadow, which is what reads as "premium" on a dark surface.
+ */
+export const ELEV = {
+  none: {},
+  low: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 2 },
+  mid: { shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.24, shadowRadius: 18, elevation: 6 },
+  high: { shadowColor: "#000", shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.32, shadowRadius: 32, elevation: 12 },
+} as const;
+
+/** Motion. Expo.out-equivalent bezier — fast start, long settle. */
+export const MOTION = {
+  bezier: [0.16, 1, 0.3, 1] as const,
+  fast: 160,
+  base: 220,
+  slow: 320,
+  /** Press-down scale used by every tappable surface. */
+  pressScale: 0.97,
+} as const;
+
+/**
+ * Functional grouping used for tile tinting, so a glance at the dashboard
+ * separates "lights" from "security" by hue before any label is read.
+ */
+export type CategoryKey = "lights" | "climate" | "security" | "water" | "entry" | "power" | "sensor" | "neutral";
+
+export const CATEGORY_TINTS: Record<CategoryKey, string> = {
+  lights: "#f0a020",
+  climate: "#32ade6",
+  security: "#ff453a",
+  water: "#0a84ff",
+  entry: "#bf5af2",
+  power: "#ffd60a",
+  sensor: "#30d158",
+  neutral: "#8e8e93",
+};
+
+const TYPE_CATEGORY: Record<string, CategoryKey> = {
+  "smart-light": "lights",
+  light: "lights",
+  "smart-fan": "climate",
+  fan: "climate",
+  "ceiling-fan": "climate",
+  thermostat: "climate",
+  ac: "climate",
+  guardian: "security",
+  "motion-sensor": "security",
+  aquaguard: "water",
+  watertank: "water",
+  "agri-starter": "water",
+  "smart-lock": "entry",
+  facedoor: "entry",
+  "rfid-gate": "entry",
+  curtain: "entry",
+  "smart-plug": "power",
+  "energy-monitor": "power",
+  "smart-switch": "power",
+  touchboard: "power",
+  "home-hub": "neutral",
+};
+
+/** Functional category for a device type — drives tile tinting. */
+export function deviceCategory(type: string): CategoryKey {
+  return TYPE_CATEGORY[type] ?? "neutral";
+}
+
 export interface DeviceMeta {
   /**
    * Emoji fallback, kept only for the few legacy screens that still render a

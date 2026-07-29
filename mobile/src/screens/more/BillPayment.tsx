@@ -71,7 +71,7 @@ export default function BillPayment({ onBack }: { onBack: () => void }) {
           </Card>
         ) : (
           <>
-            <SectionLabel>ACCOUNT</SectionLabel>
+            <SectionLabel>Account</SectionLabel>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8 }}>
               {accounts.map((a) => (
                 <Pressable key={a.id} onPress={() => setSelId(a.id)}>
@@ -127,7 +127,7 @@ export default function BillPayment({ onBack }: { onBack: () => void }) {
 
             {payments.length > 0 && (
               <>
-                <SectionLabel>PAYMENT HISTORY</SectionLabel>
+                <SectionLabel>Payment history</SectionLabel>
                 {payments.slice(0, 20).map((p) => (
                   <Card key={p.id} padded style={{ marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <Text style={{ fontSize: 20 }}>✅</Text>
@@ -182,7 +182,7 @@ function PayFlow({ c, account, bill, onCancel, onPay }: { c: ReturnType<typeof u
           <Text style={{ color: c.faint, fontSize: 12, marginTop: 4 }}>{account.provider} · #{account.consumerNumber}</Text>
           <Text style={{ color: c.faint, fontSize: 11 }}>Bill #{bill.billNumber}</Text>
         </Card>
-        <SectionLabel>PAYMENT METHOD</SectionLabel>
+        <SectionLabel>Payment method</SectionLabel>
         {PAY_METHODS.map((m) => (
           <Pressable key={m} onPress={() => setMethod(m)} disabled={processing}>
             <Card padded style={{ marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 12, borderColor: method === m ? c.accentHi : undefined, borderWidth: method === m ? 1 : 0 }}>
@@ -217,7 +217,7 @@ function AddAccount({ c, onDone }: { c: ReturnType<typeof useTheme>["c"]; onDone
 
   return (
     <Card padded style={{ marginBottom: 16 }}>
-      <SectionLabel>ADD CONSUMER ACCOUNT</SectionLabel>
+      <SectionLabel>Add consumer account</SectionLabel>
       <Text style={{ color: c.textDim, fontSize: 12, marginBottom: 6 }}>Provider (DISCOM)</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 8 }}>
         {PROVIDERS.map((p) => (

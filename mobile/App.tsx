@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth";
 import { ThemeProvider, useTheme } from "./src/ui";
 import { DevicesProvider } from "./src/store";
+import { initHaptics } from "./src/haptics";
 import Login from "./src/screens/Login";
 import Shell from "./src/screens/Shell";
 
@@ -33,6 +34,10 @@ function Root() {
 }
 
 export default function App() {
+  React.useEffect(() => {
+    initHaptics().catch(() => {});
+  }, []);
+
   return (
     <ThemeProvider>
       <AuthProvider>

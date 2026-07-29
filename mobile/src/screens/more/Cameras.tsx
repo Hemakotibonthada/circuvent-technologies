@@ -192,7 +192,7 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
             </Pressable>
           </View>
           <View>
-            <SectionLabel>FRAME RATE</SectionLabel>
+            <SectionLabel>Frame rate</SectionLabel>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {FPS_OPTIONS.map((f) => (
                 <Pressable key={f} onPress={() => setFps(f)} style={{ flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: fps === f ? c.accent : c.card, borderColor: fps === f ? c.accent : c.border, borderWidth: 1 }}>
@@ -224,7 +224,7 @@ function AddCamera({ devices, c, onDone }: { devices: ReturnType<typeof useDevic
 
   return (
     <Card padded style={{ marginBottom: 16 }}>
-      <SectionLabel>ADD CAMERA</SectionLabel>
+      <SectionLabel>Add camera</SectionLabel>
       <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
         {(["url", "device"] as const).map((k) => (
           <Pressable key={k} onPress={() => setKind(k)} style={{ flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center", backgroundColor: kind === k ? c.accent : c.card, borderColor: kind === k ? c.accent : c.border, borderWidth: 1 }}>
