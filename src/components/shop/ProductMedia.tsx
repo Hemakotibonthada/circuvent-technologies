@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface ProductMediaProps {
@@ -7,11 +8,18 @@ interface ProductMediaProps {
   name: string;
   className?: string;
   iconClass?: string;
+  /** Passed to next/image so the browser picks the right candidate. */
+  sizes?: string;
+  /** Set on the first above-the-fold product image to improve LCP. */
+  priority?: boolean;
 }
 
 /**
- * Product visual. Renders a photo when `image` is set, otherwise a
+ * Product visual. Renders an optimised photo when `image` is set, otherwise a
  * branded gradient panel with the product emoji — themed via CSS vars.
+ *
+ * The wrapper reserves the space (callers size it via `className`), so filling
+ * images never shift layout while loading.
  */
 export default function ProductMedia({
   image,
@@ -20,12 +28,26 @@ export default function ProductMedia({
   name,
   className,
   iconClass = "text-6xl",
+  sizes = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw",
+  priority = false,
 }: ProductMediaProps) {
+  // The Next image optimizer rejects SVG unless dangerouslyAllowSVG is on, so
+  // vector product art is served as-is while raster art is still optimised.
+  const isVector = !!image && image.toLowerCase().endsWith(".svg");
+
   return (
     <div className={cn("relative overflow-hidden", className)} style={{ background: "var(--bg-secondary)" }}>
       {image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={image} alt={name} loading="lazy" className="h-full w-full object-cover" />
+        <Image
+          src={image}
+          alt={name}
+          fill
+          sizes={sizes}
+          priority={priority}
+          loading={priority ? undefined : "lazy"}
+          unoptimized={isVector}
+          className="object-cover"
+        />
       ) : (
         <div
           className="grid h-full w-full place-items-center"
@@ -39,7 +61,10 @@ export default function ProductMedia({
               backgroundSize: "22px 22px",
             }}
           />
-          <span className={cn("relative drop-shadow-lg", iconClass)}>{icon}</span>
+          <span aria-hidden="true" className={cn("relative drop-shadow-lg", iconClass)}>
+            {icon}
+          </span>
+          {name && <span className="sr-only">{name}</span>}
         </div>
       )}
     </div>

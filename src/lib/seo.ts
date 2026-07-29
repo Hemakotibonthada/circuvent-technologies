@@ -381,6 +381,28 @@ export function getProductJsonLd(p: {
 }
 
 /**
+ * Collection-page structured data (schema.org/ItemList) for the storefront
+ * listing — lets search engines understand the product set and its ordering.
+ */
+export function getItemListJsonLd(
+  products: { name: string; slug: string; price: number; image?: string }[]
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Circuvent Store — smart home & IoT devices",
+    numberOfItems: products.length,
+    itemListOrder: "https://schema.org/ItemListOrderAscending",
+    itemListElement: products.map((p, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: p.name,
+      url: `${SITE_URL}/shop/${p.slug}`,
+    })),
+  };
+}
+
+/**
  * Organization structured data
  */
 export function getOrganizationJsonLd() {

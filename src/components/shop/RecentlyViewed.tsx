@@ -15,13 +15,19 @@ export default function RecentlyViewed({
   excludeId,
   title = "Recently viewed",
   limit = 4,
+  catalog: providedCatalog,
 }: {
   excludeId?: string;
   title?: string;
   limit?: number;
+  /** Supply the already-loaded catalog to avoid a duplicate network round-trip. */
+  catalog?: Product[];
 }) {
-  const [catalog, setCatalog] = useState<Product[]>(STATIC);
+  const [fetched, setFetched] = useState<Product[] | null>(null);
   const [ids, setIds] = useState<string[]>([]);
+
+  // Prefer the catalog handed down by the grid; only fall back to fetching.
+  const catalog = providedCatalog?.length ? providedCatalog : (fetched ?? STATIC);
 
   useEffect(() => {
     const read = () => setIds(getRecentlyViewedIds());
@@ -35,19 +41,20 @@ export default function RecentlyViewed({
   }, []);
 
   useEffect(() => {
+    if (providedCatalog?.length) return;
     let alive = true;
     fetch("/api/shop/products")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (alive && d?.success && Array.isArray(d.products) && d.products.length) {
-          setCatalog(d.products as Product[]);
+          setFetched(d.products as Product[]);
         }
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, []);
+  }, [providedCatalog]);
 
   const items = ids
     .filter((id) => id !== excludeId)

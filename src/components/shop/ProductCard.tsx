@@ -1,142 +1,298 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Check, ShoppingCart, ArrowRight, Star, Heart } from "lucide-react";
-import { type Product, formatINR } from "@/lib/shop-data";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Check, Eye, GitCompareArrows, Heart, ShoppingCart } from "lucide-react";
+import { formatINR, type Product } from "@/lib/shop-data";
+import { discountPct, isLowStock, isSoldOut, savingOf, type ViewMode } from "@/lib/shop-filters";
 import { useCart } from "./CartProvider";
 import { useWishlist } from "./WishlistProvider";
+import { useCompare, MAX_COMPARE } from "./CompareProvider";
+import { useToast } from "./ToastProvider";
 import ProductMedia from "./ProductMedia";
+import Stars from "./Stars";
 
-export default function ProductCard({ product, index = 0 }: { product: Product; index?: number }) {
+interface ProductCardProps {
+  product: Product;
+  index?: number;
+  view?: ViewMode;
+  onQuickView?: (product: Product) => void;
+  /** Marks the first cards so their images get fetch priority for LCP. */
+  priority?: boolean;
+}
+
+export default function ProductCard({
+  product,
+  index = 0,
+  view = "grid",
+  onQuickView,
+  priority = false,
+}: ProductCardProps) {
   const { add } = useCart();
-  const { has, toggle } = useWishlist();
-  const saved = has(product.id);
-  const saving = product.compareAt && product.compareAt > product.price ? product.compareAt - product.price : 0;
-  const discount = saving > 0 && product.compareAt ? Math.round((saving / product.compareAt) * 100) : 0;
-  const soldOut = product.available === false || (typeof product.stock === "number" && product.stock <= 0);
-  const lowStock = !soldOut && typeof product.stock === "number" && product.stock <= 5;
+  const { has: isSaved, toggle: toggleSaved } = useWishlist();
+  const compare = useCompare();
+  const { toast } = useToast();
+  const reduceMotion = useReducedMotion();
+
+  const saved = isSaved(product.id);
+  const comparing = compare.has(product.id);
+  const saving = savingOf(product);
+  const discount = discountPct(product);
+  const soldOut = isSoldOut(product);
+  const lowStock = isLowStock(product);
+  const href = `/shop/${product.slug}`;
+  const isList = view === "list";
+
+  const handleAdd = () => {
+    if (soldOut) return;
+    add(product, 1, { silent: true });
+    toast({
+      title: `${product.name} added to cart`,
+      description: formatINR(product.price),
+      action: { label: "View cart", href: "/cart" },
+    });
+  };
+
+  const handleSave = () => {
+    const nowSaved = !saved;
+    toggleSaved(product.id);
+    toast({
+      title: nowSaved ? "Saved to wishlist" : "Removed from wishlist",
+      description: product.name,
+      tone: "info",
+      duration: 2500,
+    });
+  };
+
+  const handleCompare = () => {
+    const accepted = compare.toggle(product.id);
+    if (!accepted) {
+      toast({
+        title: "Compare list is full",
+        description: `Remove a product to add another — up to ${MAX_COMPARE} at a time.`,
+        tone: "warning",
+      });
+      return;
+    }
+    toast({
+      title: comparing ? "Removed from comparison" : "Added to comparison",
+      description: product.name,
+      tone: "info",
+      duration: 2500,
+    });
+  };
+
+  const iconButton = (label: string, active: boolean, onClick: () => void, node: React.ReactNode) => (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={label}
+      title={label}
+      className="grid h-9 w-9 place-items-center rounded-full border backdrop-blur transition-transform hover:scale-110 active:scale-95"
+      style={{
+        background: "var(--bg-glass-strong)",
+        borderColor: active ? "var(--border-accent)" : "var(--border-primary)",
+      }}
+    >
+      {node}
+    </button>
+  );
+
+  const badges = (
+    <>
+      {discount > 0 && !soldOut && (
+        <span className="rounded-full bg-gradient-to-r from-rose-500 to-orange-500 px-2.5 py-1 text-[11px] font-bold text-white shadow">
+          {discount}% OFF
+        </span>
+      )}
+      {product.badge && !soldOut && (
+        <span
+          className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow"
+          style={{ background: "var(--accent-violet)" }}
+        >
+          {product.badge}
+        </span>
+      )}
+      {soldOut && (
+        <span className="rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-semibold text-white shadow">
+          Out of stock
+        </span>
+      )}
+    </>
+  );
+
+  const priceBlock = (
+    <div>
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="text-2xl font-extrabold" style={{ color: "var(--text-primary)" }}>
+          {formatINR(product.price)}
+        </span>
+        {saving > 0 && product.compareAt && (
+          <>
+            <span className="text-sm line-through" style={{ color: "var(--text-muted)" }}>
+              {formatINR(product.compareAt)}
+            </span>
+            <span className="text-sm font-semibold" style={{ color: "#10b981" }}>
+              Save {formatINR(saving)}
+            </span>
+          </>
+        )}
+      </div>
+      {lowStock ? (
+        <p className="mt-1 text-xs font-semibold" style={{ color: "#f59e0b" }}>
+          Only {product.stock} left — order soon
+        </p>
+      ) : (
+        !soldOut && (
+          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            In stock · ships in 24–48h
+          </p>
+        )
+      )}
+    </div>
+  );
+
+  const actions = (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={handleAdd}
+        disabled={soldOut}
+        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+      >
+        <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+        {soldOut ? "Out of stock" : "Add to cart"}
+        <span className="sr-only"> — {product.name}</span>
+      </button>
+      <Link
+        href={href}
+        aria-label={`View full details for ${product.name}`}
+        className="grid place-items-center rounded-xl border px-3 transition-colors"
+        style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+      >
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Link>
+    </div>
+  );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.35, delay: (index % 3) * 0.05 }}
-      whileHover={{ y: -4 }}
-      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300"
+    <motion.article
+      initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.3, delay: Math.min(index, 5) * 0.04 }}
+      className={`group relative flex overflow-hidden rounded-2xl border transition-shadow duration-300 hover:shadow-lg ${
+        isList ? "flex-col sm:flex-row" : "h-full flex-col"
+      }`}
       style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", boxShadow: "var(--shadow-sm)" }}
     >
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          toggle(product.id);
-        }}
-        aria-label={saved ? "Remove from wishlist" : "Save to wishlist"}
-        className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full backdrop-blur transition-transform hover:scale-110"
-        style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}
-      >
-        <Heart className="h-4 w-4" style={{ color: saved ? "#ef4444" : "var(--text-tertiary)", fill: saved ? "#ef4444" : "none" }} />
-      </button>
+      {/* Media */}
+      <div className={`relative shrink-0 ${isList ? "sm:w-56" : ""}`}>
+        <Link href={href} className="block" tabIndex={-1} aria-hidden="true">
+          <ProductMedia
+            image={product.image}
+            accent={product.accent}
+            icon={product.icon}
+            name={product.name}
+            priority={priority}
+            sizes={
+              isList
+                ? "(max-width: 640px) 100vw, 224px"
+                : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            }
+            className={isList ? "h-44 w-full sm:h-full sm:min-h-[200px]" : "h-48 w-full"}
+          />
+        </Link>
 
-      <Link href={`/shop/${product.slug}`} className="relative block">
-        <ProductMedia
-          image={product.image}
-          accent={product.accent}
-          icon={product.icon}
-          name={product.name}
-          className="h-44 w-full"
-        />
-        {discount > 0 && (
-          <span className="absolute left-3 top-3 rounded-full bg-gradient-to-r from-rose-500 to-orange-500 px-2.5 py-1 text-xs font-bold text-white shadow">
-            {discount}% OFF
-          </span>
-        )}
-        {product.badge && !soldOut && (
-          <span className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow" style={{ background: "var(--accent-violet, #8b5cf6)" }}>
-            {product.badge}
-          </span>
-        )}
-        {saving > 0 && (
-          <span className="absolute bottom-3 left-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 px-2.5 py-1 text-xs font-semibold text-white shadow">
-            Save {formatINR(saving)}
-          </span>
-        )}
-        {soldOut && (
-          <span className="absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white shadow">
-            Out of stock
-          </span>
-        )}
-      </Link>
+        <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">{badges}</div>
 
-      <div className="flex flex-1 flex-col p-5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {product.category}
-          </span>
-          <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-            <Star className="h-3 w-3 fill-current" style={{ color: "#f59e0b" }} /> {product.rating}
-            {product.reviewCount ? ` (${product.reviewCount})` : ""}
-          </span>
+        {/* Save / compare — always visible on touch, revealed on hover for pointers. */}
+        <div className="absolute right-3 top-3 flex flex-col gap-2 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+          {iconButton(
+            saved ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`,
+            saved,
+            handleSave,
+            <Heart
+              className="h-4 w-4"
+              aria-hidden="true"
+              style={{ color: saved ? "#ef4444" : "var(--text-tertiary)", fill: saved ? "#ef4444" : "none" }}
+            />
+          )}
+          {iconButton(
+            comparing ? `Remove ${product.name} from comparison` : `Add ${product.name} to comparison`,
+            comparing,
+            handleCompare,
+            <GitCompareArrows
+              className="h-4 w-4"
+              aria-hidden="true"
+              style={{ color: comparing ? "var(--accent-cyan)" : "var(--text-tertiary)" }}
+            />
+          )}
         </div>
 
-        <Link href={`/shop/${product.slug}`}>
-          <h3 className="mt-1 text-lg font-bold transition-opacity group-hover:opacity-80" style={{ color: "var(--text-primary)" }}>
+        {onQuickView && !isList && (
+          <button
+            type="button"
+            onClick={() => onQuickView(product)}
+            className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold backdrop-blur transition-all duration-200 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100"
+            style={{
+              background: "var(--bg-glass-strong)",
+              borderColor: "var(--border-primary)",
+              color: "var(--text-primary)",
+            }}
+          >
+            <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Quick view
+            <span className="sr-only"> of {product.name}</span>
+          </button>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+            {product.category}
+          </span>
+          <Stars rating={product.rating} reviewCount={product.reviewCount} />
+        </div>
+
+        <h3 className="mt-1 text-lg font-bold leading-snug" style={{ color: "var(--text-primary)" }}>
+          <Link href={href} className="transition-opacity hover:opacity-80">
             {product.name}
-          </h3>
-        </Link>
-        <p className="mt-1 text-sm" style={{ color: "var(--text-tertiary)" }}>
+          </Link>
+        </h3>
+        <p className="mt-1 line-clamp-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
           {product.tagline}
         </p>
 
         <ul className="mt-3 space-y-1">
-          {product.specs.slice(0, 3).map((s) => (
-            <li key={s} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-              <Check className="h-3 w-3 shrink-0" style={{ color: "var(--accent-cyan)" }} /> {s}
+          {product.specs.slice(0, isList ? 4 : 3).map((s) => (
+            <li key={s} className="flex items-start gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+              <Check className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" style={{ color: "var(--accent-cyan)" }} />{" "}
+              {s}
             </li>
           ))}
         </ul>
 
-        <div className="mt-auto pt-4">
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-extrabold" style={{ color: "var(--text-primary)" }}>
-              {formatINR(product.price)}
-            </span>
-            {saving > 0 && (
-              <span className="text-sm line-through" style={{ color: "var(--text-muted)" }}>
-                {formatINR(product.compareAt!)}
-              </span>
+        <div className={`mt-auto pt-4 ${isList ? "flex flex-wrap items-end justify-between gap-4" : ""}`}>
+          {priceBlock}
+          <div className={isList ? "min-w-[220px] flex-1" : "mt-3"}>
+            {actions}
+            {onQuickView && isList && (
+              <button
+                type="button"
+                onClick={() => onQuickView(product)}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold transition-colors"
+                style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+              >
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Quick view
+                <span className="sr-only"> of {product.name}</span>
+              </button>
             )}
-            {discount > 0 && (
-              <span className="text-sm font-semibold" style={{ color: "#10b981" }}>
-                {discount}% off
-              </span>
-            )}
-          </div>
-          {lowStock && (
-            <p className="mt-1 text-xs font-medium" style={{ color: "#f59e0b" }}>
-              Only {product.stock} left
-            </p>
-          )}
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => !soldOut && add(product)}
-              disabled={soldOut}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-            >
-              <ShoppingCart className="h-4 w-4" /> {soldOut ? "Out of stock" : "Add to cart"}
-            </button>
-            <Link
-              href={`/shop/${product.slug}`}
-              aria-label="View details"
-              className="grid place-items-center rounded-xl border px-3 transition-colors"
-              style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
-            >
-              <ArrowRight className="h-4 w-4" />
-            </Link>
           </div>
         </div>
       </div>
-    </motion.div>
+    </motion.article>
   );
 }
