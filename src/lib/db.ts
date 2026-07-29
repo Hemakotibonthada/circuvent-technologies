@@ -21,6 +21,7 @@
 //
 // SERVER ONLY.
 
+import crypto from "crypto";
 import type { DB, Account, AdminUser, PendingRegistration } from "./store";
 
 /** A minimal query interface satisfied by both the Neon driver and PGlite (tests). */
@@ -65,6 +66,55 @@ export function dbEnabled(): boolean {
   return !!process.env.DATABASE_URL;
 }
 
+/**
+ * Fingerprint of a connection string — a truncated SHA-256, never the URL.
+ *
+ * Exported so the value for PROD_DATA_FINGERPRINT can be generated with the
+ * same function that checks it, rather than by a one-off command that might
+ * hash something subtly different.
+ */
+export function dataFingerprint(url: string): string {
+  return crypto.createHash("sha256").update(url.trim()).digest("hex").slice(0, 16);
+}
+
+/**
+ * Refuses to open the production database from a non-production deployment.
+ *
+ * Vercel environment variables are scoped per target, and a variable added to
+ * "all environments" silently hands preview builds the production connection
+ * string. That is how dev.circuvent.com came to serve real customer accounts,
+ * orders and wallet balances on a publicly reachable URL — nothing in the code
+ * objected, because from the app's point of view it was simply a database.
+ *
+ * PROD_DATA_FINGERPRINT is set on every target and holds the fingerprint of
+ * the production connection string. A deployment that is not production and
+ * finds itself holding that exact string stops here. The fingerprint is a
+ * one-way hash, so publishing it to preview builds discloses nothing about the
+ * credentials it protects.
+ *
+ * This throws rather than falling back to the in-memory store: quietly serving
+ * an empty shop would look like data loss, and the operator needs to know the
+ * deployment is misconfigured.
+ */
+export function assertNotProductionData(url: string): void {
+  const expected = (process.env.PROD_DATA_FINGERPRINT || "").trim().toLowerCase();
+  if (!expected) return;
+
+  const isProduction =
+    process.env.VERCEL_ENV === "production" ||
+    (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production");
+  if (isProduction) return;
+
+  if (dataFingerprint(url) === expected) {
+    throw new Error(
+      "Refusing to use the production database from a non-production deployment. " +
+        "This environment needs its own DATABASE_URL. " +
+        "(Set one for the Preview target, or clear PROD_DATA_FINGERPRINT if the " +
+        "production database really has been replaced.)"
+    );
+  }
+}
+
 /** Allows tests to inject a PGlite-backed executor (bypasses the Neon driver). */
 export function __setQueryForTests(fn: QueryFn | null): void {
   _query = fn;
@@ -76,6 +126,7 @@ async function getQuery(): Promise<QueryFn> {
   if (_query) return _query;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
+  assertNotProductionData(url);
   const { neon } = await import("@neondatabase/serverless");
   const client = neon(url);
   _query = (text, params = []) =>

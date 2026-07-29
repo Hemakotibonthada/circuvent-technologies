@@ -99,6 +99,31 @@ merges to `main` to go live. Both deploy automatically on push.
 settings, and `NEXT_PUBLIC_SITE_URL` is overridden for that branch so the dev
 site refers to itself rather than to production.
 
+### Dev is a pre-production environment, not a copy of production
+
+Dev runs the same code and the same features as production — real database,
+working checkout, real email — but on **its own** infrastructure. Nothing
+sensitive is shared. Each side has its own:
+
+| Concern | Why it must not be shared |
+| ------- | ------------------------- |
+| `DATABASE_URL` | Dev is publicly reachable; sharing it publishes real customer accounts, orders and wallet balances |
+| `ACCOUNT_SECRET`, `JWT_SECRET`, `SESSION_SECRET` | A session minted on dev would otherwise authenticate against production |
+| Razorpay / Stripe keys | Dev must use **test-mode** keys so checkout works end to end without moving real money |
+| Twilio, SMTP, Resend | Dev must not send SMS or email to real customers |
+| `FRONTEND_URL`, `GOOGLE_CALLBACK_URL` | Callbacks and email links have to point back at dev |
+
+Only non-sensitive tuning knobs (rate limits, ports, log level, upload paths)
+are shared between the two.
+
+This separation was not always true: the production connection string had been
+scoped to "All Environments", so dev served live customer data on a public URL.
+Config hygiene alone regresses, so the app now enforces it. Set
+`PROD_DATA_FINGERPRINT` (a one-way hash of the production connection string) on
+every target, and any non-production deployment holding that exact string
+refuses to start instead of silently serving live data. See
+`assertNotProductionData` in `src/lib/db.ts`.
+
 **Only `main` is indexable.** Anything that is not `VERCEL_ENV=production`
 serves `Disallow: /` plus an `X-Robots-Tag: noindex, nofollow` header — a dev
 site that Google crawls competes with production for its own search terms and
