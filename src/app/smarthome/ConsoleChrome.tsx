@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Cpu, Home, LayoutGrid, Zap, LogOut, Bell, BellOff, Loader2, Radio, Sofa, Clapperboard, BatteryCharging, Settings, ShieldCheck, BarChart3, CloudSun, Map, LayoutDashboard, Layers, ShieldAlert, Wallet, Luggage, MapPin, Sparkles, Code2, FileText, Archive, Mic, Stethoscope, Building, Video, BellRing, Lock, Gauge, Wrench, CalendarDays, Rocket, Sun, Battery, History, ChevronDown } from "lucide-react";
+import { Cpu, Home, LayoutGrid, Zap, LogOut, Bell, BellOff, Loader2, Radio, Sofa, Clapperboard, BatteryCharging, Settings, ShieldCheck, BarChart3, CloudSun, Map, LayoutDashboard, Layers, ShieldAlert, Wallet, Luggage, MapPin, Sparkles, Code2, FileText, Archive, Mic, Stethoscope, Building, Video, BellRing, Lock, Gauge, Wrench, CalendarDays, Rocket, Sun, Battery, History, ChevronDown, UserRound } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import { useConsole } from "./ConsoleProvider";
+import ProfileAvatar from "./ProfileAvatar";
 import Login from "./Login";
 
 // Every nav item belongs to a category so the sidebar reads as collapsible
@@ -51,6 +52,7 @@ const NAV = [
   { href: "/smarthome/reports", label: "Reports & export", icon: FileText, exact: false, category: "advanced" },
   { href: "/smarthome/backup", label: "Backup & restore", icon: Archive, exact: false, category: "advanced" },
 
+  { href: "/smarthome/profile", label: "Profile", icon: UserRound, exact: false, category: "account" },
   { href: "/smarthome/notifications", label: "Notifications", icon: Bell, exact: false, badge: true, category: "account" },
   { href: "/smarthome/settings", label: "Settings", icon: Settings, exact: false, category: "account" },
 ];
@@ -208,7 +210,16 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
         </nav>
 
         <div className="border-t border-white/10 pt-4 mt-4">
-          <div className="px-3 text-xs text-slate-500 truncate">{user.email}</div>
+          <Link
+            href="/smarthome/profile"
+            className="flex items-center gap-2.5 rounded-xl px-3 py-2 transition hover:bg-white/5"
+          >
+            <ProfileAvatar name={user.name} email={user.email} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-white">{user.name || user.email}</span>
+              <span className="block truncate text-xs text-slate-500">{user.email}</span>
+            </span>
+          </Link>
           <button
             onClick={logout}
             className="mt-2 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-slate-400 hover:text-red-300 hover:bg-red-500/10 transition"

@@ -7,10 +7,10 @@
 // is fetched from /api/smarthome/prefs and written back on every change. That
 // keeps the UI instant and still syncs the account across browsers.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getToken } from "./control-plane";
 
-export type PrefScope = "channel-labels" | "dashboard" | "device-widgets" | "ui";
+export type PrefScope = "channel-labels" | "dashboard" | "device-widgets" | "profile" | "ui";
 
 const cacheKey = (scope: PrefScope) => `cv-prefs-${scope}`;
 
@@ -282,4 +282,67 @@ export function useChannelConfig(): ChannelConfigApi {
   const hasCustom = useCallback((deviceId: string) => Object.keys(value[deviceId] ?? {}).length > 0, [value]);
 
   return { configFor, setConfig, resetDevice, hasCustom, error };
+}
+
+// ---------------------------------------------------------------- profile ----
+
+/**
+ * Console profile card.
+ *
+ * The control plane owns identity (id / email / the name on the account) and
+ * exposes no endpoint to change it, so nothing here pretends to. These are
+ * presentation preferences that follow the account across browsers: how the
+ * user wants to be shown in this console, and how to reach them.
+ */
+export interface ProfilePrefs {
+  /** Preferred display name. Empty falls back to the account name. */
+  displayName: string;
+  /** Data URL of an uploaded picture. Empty falls back to initials. */
+  photo: string;
+  /** Hex colour behind the initials when there is no photo. */
+  avatarColor: string;
+  phone: string;
+  /** IANA zone, e.g. "Asia/Kolkata". Empty means follow the browser. */
+  timeZone: string;
+  /** Free-text note shown under the name, e.g. "Ground floor, Block B". */
+  headline: string;
+}
+
+export const DEFAULT_PROFILE: ProfilePrefs = {
+  displayName: "",
+  photo: "",
+  avatarColor: "",
+  phone: "",
+  timeZone: "",
+  headline: "",
+};
+
+export interface ProfileApi {
+  profile: ProfilePrefs;
+  loading: boolean;
+  error: string;
+  setProfile: (patch: Partial<ProfilePrefs>) => void;
+  reset: () => void;
+}
+
+export function useProfilePrefs(): ProfileApi {
+  const { value, update, save, loading, error } = useUserPrefs<Partial<ProfilePrefs>>("profile", {});
+  const profile = useMemo(() => ({ ...DEFAULT_PROFILE, ...value }), [value]);
+
+  const setProfile = useCallback(
+    (patch: Partial<ProfilePrefs>) => {
+      update((prev) => {
+        const merged = { ...prev, ...patch };
+        for (const k of Object.keys(merged) as (keyof ProfilePrefs)[]) {
+          if (merged[k] === DEFAULT_PROFILE[k]) delete merged[k];
+        }
+        return merged;
+      });
+    },
+    [update]
+  );
+
+  const reset = useCallback(() => save({}), [save]);
+
+  return { profile, loading, error, setProfile, reset };
 }

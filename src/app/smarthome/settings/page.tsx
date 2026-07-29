@@ -1,7 +1,9 @@
 "use client";
 
-import { Bell, LogOut, Moon, Sun } from "lucide-react";
+import { Bell, ChevronRight, LogOut, Moon, Sun } from "lucide-react";
+import Link from "next/link";
 import { useConsole } from "../ConsoleProvider";
+import ProfileAvatar from "../ProfileAvatar";
 import { ACCENTS, type Scheme, type ThemeMode, useConsoleTheme } from "../theme";
 
 const modes: { key: ThemeMode; label: string; blurb: string }[] = [
@@ -17,8 +19,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold text-white">Settings</h1>
-        <p className="text-sm text-slate-400 mt-1">Personalize the Circuvent console and manage your session.</p>
+        <h1 className="text-[28px] font-bold leading-tight text-white">Settings</h1>
+        <p className="mt-1 text-sm text-slate-400">Personalize how the Circuvent console looks on this account.</p>
       </div>
 
       <section className="rounded-2xl cv-card p-5">
@@ -68,11 +70,20 @@ export default function SettingsPage() {
 
       <section className="rounded-2xl cv-card p-5">
         <h2 className="font-bold text-white mb-4">Account</h2>
-        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-          <div className="text-sm text-slate-400">Signed in as</div>
-          <div className="text-white font-semibold">{user?.name || user?.email}</div>
-          <div className="text-xs text-slate-500">{user?.email}</div>
-        </div>
+        <Link
+          href="/smarthome/profile"
+          className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-4 transition hover:bg-white/5"
+        >
+          <ProfileAvatar name={user?.name || ""} email={user?.email || ""} size={44} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold text-white">{user?.name || user?.email}</span>
+            <span className="block truncate text-xs text-slate-500">{user?.email}</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+        </Link>
+        <p className="mt-2 text-xs text-slate-500">
+          Your picture, display name and security options live on your profile.
+        </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button onClick={enableNotifications} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10">
             <Bell className="h-4 w-4" /> {notifyPermission === "granted" ? "Notifications enabled" : "Enable notifications"}

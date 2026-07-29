@@ -12,7 +12,7 @@
 
 import { createFileStore } from "./data-file";
 
-export const SCOPES = ["channel-labels", "dashboard", "device-widgets", "ui"] as const;
+export const SCOPES = ["channel-labels", "dashboard", "device-widgets", "profile", "ui"] as const;
 export type Scope = (typeof SCOPES)[number];
 
 export function isScope(v: string): v is Scope {

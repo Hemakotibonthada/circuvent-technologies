@@ -222,6 +222,25 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
         .cv-theme.cv-light .text-slate-600 {
           color: var(--cv-muted);
         }
+        /* Status colours are authored at 300/400 for dark surfaces. On a white
+           card those are pale-on-pale, so they drop to the 600/700 ramp where
+           they keep the same meaning and pass contrast. */
+        .cv-theme.cv-light .text-red-300,
+        .cv-theme.cv-light .text-red-400 {
+          color: #b91c1c;
+        }
+        .cv-theme.cv-light .text-amber-300,
+        .cv-theme.cv-light .text-amber-400 {
+          color: #b45309;
+        }
+        .cv-theme.cv-light .text-emerald-300,
+        .cv-theme.cv-light .text-emerald-400 {
+          color: #047857;
+        }
+        .cv-theme.cv-light .text-cyan-300,
+        .cv-theme.cv-light .text-cyan-400 {
+          color: #0e7490;
+        }
         /* Tailwind's fractional-opacity class names contain "/", which cannot
            be backslash-escaped through styled-jsx's parser. [class~="..."]
            matches one whole class token instead, so it needs no escaping and
