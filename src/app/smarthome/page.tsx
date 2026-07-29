@@ -1,431 +1,503 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+/**
+ * Circuvent Console — Overview.
+ *
+ * The operations dashboard. It answers, in order: is the platform healthy, what
+ * needs attention, what is it costing, and what do I most often touch. Anything
+ * that is configuration rather than operations lives in a section instead.
+ *
+ * Every figure below is measured: device counts and states come from
+ * `/devices` merged with the live websocket, power from `/energy/summary`,
+ * history from the per-device rollups, alerts from `/events`, and the
+ * round-trip time from an actual timed request.
+ */
+
+import { useMemo } from "react";
 import Link from "next/link";
-import { Plus, Loader2, X, ChevronRight, Cpu, Search, Star } from "lucide-react";
-import { controlPlane, type AppEvent, type Device, type EnergySummary, type Room, type Scene } from "@/lib/control-plane";
-import { useOptimisticCommands, haptic, type FieldStatus } from "@/lib/smarthome-realtime";
-import { masterPower } from "@/lib/smarthome-command-map";
+import {
+  Activity,
+  ArrowRight,
+  BatteryCharging,
+  Bell,
+  CheckCircle2,
+  Cpu,
+  Gauge,
+  Plus,
+  Power,
+  RefreshCw,
+  Sofa,
+  Timer,
+  Zap,
+} from "lucide-react";
 import { useConsole } from "./ConsoleProvider";
-import { deviceMeta } from "./DeviceControls";
-import { DashboardWidgets } from "./DashboardWidgets";
+import {
+  Badge,
+  Button,
+  Callout,
+  EmptyState,
+  ErrorState,
+  Kpi,
+  KpiGrid,
+  PageHeader,
+  RelativeTime,
+  SectionTitle,
+  SEVERITY,
+  SeverityBadge,
+  Skeleton,
+  StatusDot,
+  Surface,
+  formatEnergy,
+  formatWatts,
+} from "./_kit/primitives";
+import { CHART_COLORS, LineChart, BarChart, Sparkline } from "./_kit/charts";
+import { DeviceTile } from "./_kit/device";
+import { useEnergy, useEvents, useFleet, useHomeEnergyHistory, useRooms, useScenes, useControlPlaneProbe } from "./_data/hooks";
 
-export default function DevicesPage() {
-  const { user, subscribe } = useConsole();
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [query, setQuery] = useState("");
-  const [energy, setEnergy] = useState<EnergySummary | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [scenes, setScenes] = useState<Scene[]>([]);
-  const [events, setEvents] = useState<AppEvent[]>([]);
-  const [unread, setUnread] = useState(0);
-  const [view, setView] = useState<"all" | "on" | "offline" | "favorites">("all");
-  const cmd = useOptimisticCommands(devices);
+export default function OverviewPage() {
+  const { user, liveStatus } = useConsole();
+  const fleet = useFleet();
+  const energy = useEnergy();
+  const events = useEvents(120);
+  const { rooms } = useRooms();
+  const { scenes, activate } = useScenes();
+  const probe = useControlPlaneProbe(45_000);
 
-  const load = useCallback(async () => {
-    const r = await controlPlane.devices();
-    if (r.ok) {
-      setDevices(r.data.devices ?? []);
-      setError(null);
-    } else if (r.status === 0) {
-      setError("Can't reach the control plane. Check your connection.");
-    } else {
-      setError("Failed to load devices.");
-    }
-    const [en, ro, sc, ev, un] = await Promise.all([
-      controlPlane.energySummary(),
-      controlPlane.rooms(),
-      controlPlane.scenes(),
-      controlPlane.events(5),
-      controlPlane.unreadCount(),
-    ]);
-    if (en.ok) setEnergy(en.data);
-    if (ro.ok) setRooms(ro.data.rooms ?? []);
-    if (sc.ok) setScenes(sc.data.scenes ?? []);
-    if (ev.ok) setEvents(ev.data.events ?? []);
-    if (un.ok) setUnread(un.data.count ?? 0);
-    setLoading(false);
-  }, []);
+  // Only devices that actually report power are worth charting.
+  const meteredIds = useMemo(
+    () => energy.byDevice.filter((d) => Number.isFinite(d.watts)).slice(0, 6).map((d) => d.id),
+    [energy.byDevice]
+  );
+  const history = useHomeEnergyHistory(meteredIds, 24);
 
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 20000);
-    return () => clearInterval(t);
-  }, [load]);
-
-  // Live merge: update online/state as pushes arrive.
-  useEffect(() => {
-    return subscribe((u) => {
-      setDevices((prev) =>
-        prev.map((d) => {
-          if (d.id !== u.deviceId) return d;
-          if (u.kind === "status") return { ...d, online: !!(u.payload as { online?: boolean }).online };
-          if (u.kind === "state") return { ...d, online: true, state: { ...d.state, ...u.payload } };
-          return { ...d, online: true };
+  const openAlerts = useMemo(
+    () =>
+      events.events
+        .filter((e) => {
+          const sev = events.severityOf(e);
+          return sev === "critical" || sev === "warning";
         })
-      );
-    });
-  }, [subscribe]);
+        .slice(0, 6),
+    [events]
+  );
 
-  const shown = useMemo(() => {
-    const q = query.toLowerCase();
-    return devices
-      .map(cmd.apply)
-      .filter((d) => `${d.name} ${d.id} ${d.type} ${d.room ?? ""}`.toLowerCase().includes(q))
-      .filter((d) => {
-        if (view === "favorites") return !!d.favorite;
-        if (view === "offline") return !d.online;
-        if (view === "on") return masterPower(d)?.on ?? false;
-        return true;
-      });
-  }, [devices, cmd, query, view]);
+  const favorites = useMemo(() => fleet.devices.filter((d) => d.favorite), [fleet.devices]);
+  const quickControl = useMemo(() => (favorites.length ? favorites : fleet.devices.slice(0, 6)), [favorites, fleet.devices]);
+  const favScenes = useMemo(() => scenes.filter((s) => s.favorite).slice(0, 6), [scenes]);
 
-  const favorites = devices.filter((d) => d.favorite);
-  const favScenes = scenes.filter((s) => s.favorite).slice(0, 4);
-  const onlineCount = devices.filter((d) => d.online).length;
+  const roomLoad = useMemo(() => {
+    const byId = new Map(energy.byDevice.map((d) => [d.id, d.watts] as const));
+    const acc = new Map<string, number>();
+    for (const d of fleet.devices) {
+      const w = byId.get(d.id);
+      if (typeof w !== "number" || !Number.isFinite(w)) continue;
+      const key = d.room || "Unassigned";
+      acc.set(key, (acc.get(key) ?? 0) + w);
+    }
+    return Array.from(acc, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }, [fleet.devices, energy.byDevice]);
 
-  const patchFavorite = async (device: Device) => {
-    setDevices((prev) => prev.map((d) => (d.id === device.id ? { ...d, favorite: !d.favorite } : d)));
-    await controlPlane.patchDevice(device.id, { favorite: !device.favorite });
-  };
+  const probeTone = probe.stats.p95 == null ? undefined : probe.stats.p95 < 300 ? "ok" : probe.stats.p95 < 900 ? "warning" : "critical";
+
+  const firstName = user?.name?.split(" ")[0];
+  const empty = !fleet.loading && fleet.devices.length === 0;
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-extrabold text-white sm:text-2xl">Home dashboard</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            {user?.name ? `Welcome back, ${user.name.split(" ")[0]}. ` : ""}
-            {devices.length} {devices.length === 1 ? "device" : "devices"} connected
-            {devices.length ? ` · ${onlineCount} online` : ""}.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white transition active:scale-95 sm:flex-none"
-          style={{ background: "var(--cv-gradient)" }}
-        >
-          <Plus className="h-4 w-4" /> Add device
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Operations"
+        title={firstName ? `Good to see you, ${firstName}` : "Overview"}
+        subtitle={
+          fleet.lastSync ? (
+            <span className="inline-flex flex-wrap items-center gap-x-2">
+              <StatusDot online={liveStatus === "live"} />
+              {liveStatus === "live" ? "Realtime channel connected" : liveStatus === "connecting" ? "Connecting to realtime channel" : "Realtime channel reconnecting"}
+              <span aria-hidden>·</span>
+              <span>
+                synced <RelativeTime iso={new Date(fleet.lastSync).toISOString()} />
+              </span>
+            </span>
+          ) : (
+            "Loading fleet…"
+          )
+        }
+        actions={
+          <>
+            <Button icon={RefreshCw} onClick={() => void Promise.all([fleet.refresh(), energy.refresh(), events.refresh(), probe.probe()])} busy={probe.busy}>
+              Refresh
+            </Button>
+            <Link href="/smarthome/devices?tab=onboarding">
+              <Button variant="primary" icon={Plus}>
+                Add device
+              </Button>
+            </Link>
+          </>
+        }
+      />
 
-      {loading ? (
-        <div className="flex items-center justify-center py-24 text-slate-400">
-          <Loader2 className="h-6 w-6 animate-spin" />
+      {fleet.error && (
+        <div className="mb-5">
+          <ErrorState message={fleet.error} onRetry={() => void fleet.refresh()} />
         </div>
-      ) : error ? (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-300 text-sm">{error}</div>
-      ) : devices.length === 0 ? (
-        <EmptyState onAdd={() => setShowAdd(true)} />
+      )}
+
+      {empty ? (
+        <EmptyState
+          icon={Cpu}
+          title="No devices claimed yet"
+          body="Pair your first Circuvent controller to start monitoring and controlling your home. You'll need the device ID and pairing key printed on the label."
+          action={
+            <Link href="/smarthome/devices?tab=onboarding">
+              <Button variant="primary" icon={Plus}>
+                Claim a device
+              </Button>
+            </Link>
+          }
+        />
       ) : (
         <>
-          <DashboardWidgets
-            energy={energy}
-            devices={devices}
-            favorites={favorites}
-            scenes={favScenes}
-            rooms={rooms}
-            events={events}
-            unread={unread}
-          />
-          <div className="mt-6 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="cv-card flex flex-1 items-center gap-3 rounded-2xl px-4 py-3">
-              <Search className="h-5 w-5 shrink-0 text-slate-500" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search devices, rooms or types"
-                className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
+          {/* ------------------------------------------------ health strip -- */}
+          <Surface className="mb-6" padded={false}>
+            <div className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-y-0" style={{ borderColor: "var(--cv-border)" }}>
+              <HealthCell
+                label="Realtime link"
+                value={liveStatus === "live" ? "Connected" : liveStatus === "connecting" ? "Connecting" : "Reconnecting"}
+                tone={liveStatus === "live" ? "ok" : liveStatus === "connecting" ? "warning" : "critical"}
+                icon={Activity}
+              />
+              <HealthCell
+                label="Control plane p95"
+                value={probe.stats.p95 == null ? "measuring…" : `${probe.stats.p95} ms`}
+                tone={probeTone}
+                icon={Timer}
+                detail={probe.stats.count ? `${probe.stats.count} samples · ${probe.stats.failures} failed` : undefined}
+              />
+              <HealthCell
+                label="Devices reachable"
+                value={`${fleet.online}/${fleet.devices.length}`}
+                tone={fleet.devices.length === 0 ? undefined : fleet.offline === 0 ? "ok" : fleet.online === 0 ? "critical" : "warning"}
+                icon={Cpu}
+              />
+              <HealthCell
+                label="Open alerts"
+                value={String(events.counts.critical + events.counts.warning)}
+                tone={events.counts.critical > 0 ? "critical" : events.counts.warning > 0 ? "warning" : "ok"}
+                icon={Bell}
+                detail={events.counts.critical ? `${events.counts.critical} critical` : undefined}
               />
             </div>
-            <div className="flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-black/20 p-1">
-              {([
-                ["all", `All ${devices.length}`],
-                ["on", "On"],
-                ["favorites", "Starred"],
-                ["offline", "Offline"],
-              ] as const).map(([v, label]) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={`min-h-9 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition ${
-                    view === v ? "text-white cv-gradient" : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+          </Surface>
+
+          {/* -------------------------------------------------------- KPIs -- */}
+          <KpiGrid>
+            <Kpi
+              label="Online"
+              value={fleet.online}
+              unit={`/ ${fleet.devices.length}`}
+              icon={Cpu}
+              tone={fleet.offline === 0 ? "ok" : "warning"}
+              hint={fleet.offline ? `${fleet.offline} offline` : "All reachable"}
+            />
+            <Kpi label="Powered on" value={fleet.poweredOn} unit="loads" icon={Power} hint={`${fleet.devices.length - fleet.poweredOn} idle`} />
+            <Kpi
+              label="Live draw"
+              value={energy.liveWatts == null ? "—" : formatWatts(energy.liveWatts).split(" ")[0]}
+              unit={energy.liveWatts == null ? "" : formatWatts(energy.liveWatts).split(" ")[1]}
+              icon={Zap}
+              hint={energy.liveWatts == null ? "No metered device reporting" : `${energy.byDevice.length} metered devices`}
+            />
+            <Kpi
+              label="Energy today"
+              value={energy.todayKwh == null ? "—" : energy.todayKwh.toFixed(2)}
+              unit={energy.todayKwh == null ? "" : "kWh"}
+              icon={BatteryCharging}
+              hint={energy.todayKwh == null ? "Awaiting metering" : "Since local midnight"}
+            />
+          </KpiGrid>
+
+          {/* ------------------------------------------- alerts + trend ----- */}
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <LineChart
+                title="Whole-home power · last 24 h"
+                unit=" W"
+                height={230}
+                series={
+                  history.points.length
+                    ? [{ name: "Measured draw", color: CHART_COLORS[0], points: history.points }]
+                    : []
+                }
+                right={
+                  <Link href="/smarthome/energy" className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                    Energy <ArrowRight className="h-3 w-3" />
+                  </Link>
+                }
+                footer={
+                  meteredIds.length > 0 ? (
+                    <p className="text-[11px]" style={{ color: "var(--cv-muted)" }}>
+                      Summed from server-side rollups for the {meteredIds.length} highest-draw metered devices.
+                    </p>
+                  ) : undefined
+                }
+              />
             </div>
+
+            <Surface padded={false} className="flex flex-col">
+              <div className="flex items-center justify-between gap-2 border-b px-4 py-3.5" style={{ borderColor: "var(--cv-border)" }}>
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+                  Needs attention
+                </h3>
+                <Link href="/smarthome/security?tab=alerts" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                  All alerts
+                </Link>
+              </div>
+              <div className="min-h-0 flex-1 divide-y overflow-y-auto" style={{ borderColor: "var(--cv-border)", maxHeight: 260 }}>
+                {events.loading && !events.events.length ? (
+                  <div className="space-y-2 p-4">
+                    <Skeleton className="h-10" />
+                    <Skeleton className="h-10" />
+                    <Skeleton className="h-10" />
+                  </div>
+                ) : openAlerts.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                    <CheckCircle2 className="h-8 w-8" style={{ color: SEVERITY.ok.fg }} />
+                    <span className="text-sm font-semibold">Nothing needs attention</span>
+                    <span className="text-[11px]" style={{ color: "var(--cv-muted)" }}>
+                      No critical or warning events in the last {events.events.length} records.
+                    </span>
+                  </div>
+                ) : (
+                  openAlerts.map((e) => (
+                    <div key={e.id} className="px-4 py-3" style={{ borderColor: "var(--cv-border)" }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 text-sm font-semibold">{e.title}</span>
+                        <SeverityBadge severity={events.severityOf(e)} />
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[11px]" style={{ color: "var(--cv-muted)" }}>
+                        {e.body}
+                      </p>
+                      <div className="mt-1 text-[10px]" style={{ color: "var(--cv-muted)" }}>
+                        <RelativeTime iso={e.ts} />
+                        {e.device_id ? ` · ${fleet.byId.get(e.device_id)?.name ?? e.device_id}` : ""}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {events.unread > 0 && (
+                <div className="border-t px-4 py-3" style={{ borderColor: "var(--cv-border)" }}>
+                  <Button full onClick={() => void events.markRead()}>
+                    Mark {events.unread} read
+                  </Button>
+                </div>
+              )}
+            </Surface>
           </div>
-          {shown.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center text-sm text-slate-400">
-              No devices match this filter.
+
+          {/* --------------------------------------------------- scenes ----- */}
+          {favScenes.length > 0 && (
+            <>
+              <SectionTitle
+                right={
+                  <Link href="/smarthome/automation?tab=scenes" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                    Manage
+                  </Link>
+                }
+              >
+                Quick scenes
+              </SectionTitle>
+              <div className="flex flex-wrap gap-2">
+                {favScenes.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => void activate(s.id)}
+                    className="cv-card flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-95"
+                  >
+                    <Zap className="h-4 w-4" style={{ color: "var(--cv-accent-hi)" }} />
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* -------------------------------------------- live control ------ */}
+          <SectionTitle
+            right={
+              <Link href="/smarthome/devices" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                All {fleet.devices.length} devices
+              </Link>
+            }
+          >
+            {favorites.length ? "Favourites" : "Live control"}
+          </SectionTitle>
+          {fleet.loading && fleet.devices.length === 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 3 }, (_, i) => (
+                <Skeleton key={i} className="h-32" rounded="rounded-2xl" />
+              ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {shown.map((d) => (
-                <DeviceCard
+              {quickControl.map((d) => (
+                <DeviceTile
                   key={d.id}
                   device={d}
-                  status={cmd.statusOf(d.id)}
-                  onFavorite={() => patchFavorite(d)}
-                  onQuickPower={(v) => {
-                    const qp = masterPower(d);
-                    if (qp) cmd.send(d, qp.cmd(v));
-                  }}
+                  status={fleet.cmd.statusOf(d.id)}
+                  onSend={(cmd) => void fleet.cmd.send(d, cmd)}
+                  onFavorite={() => void fleet.toggleFavorite(d)}
                 />
               ))}
             </div>
           )}
+          {favorites.length === 0 && fleet.devices.length > 6 && (
+            <p className="mt-3 text-[11px]" style={{ color: "var(--cv-muted)" }}>
+              Star a device to pin it here.
+            </p>
+          )}
+
+          {/* ---------------------------------------------- load by room ---- */}
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            {roomLoad.length > 0 ? (
+              <BarChart
+                title="Current draw by space"
+                horizontal
+                unit=" W"
+                height={200}
+                data={roomLoad.map((r, i) => ({ ...r, color: CHART_COLORS[i % CHART_COLORS.length] }))}
+              />
+            ) : (
+              <Surface>
+                <h3 className="mb-3 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+                  Current draw by space
+                </h3>
+                <Callout tone="info" title="No metered devices">
+                  Power readings appear here once a smart plug, energy monitor or metering switchboard reports watts.
+                </Callout>
+              </Surface>
+            )}
+
+            <Surface>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--cv-muted)" }}>
+                  Spaces
+                </h3>
+                <Link href="/smarthome/spaces" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                  Manage
+                </Link>
+              </div>
+              {rooms.length === 0 ? (
+                <Callout tone="info" title="No rooms yet">
+                  Group devices into rooms to control a whole space at once.
+                </Callout>
+              ) : (
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {rooms.map((r) => {
+                    const inRoom = fleet.devices.filter((d) => d.room === r.name);
+                    const on = inRoom.filter((d) => d.online).length;
+                    return (
+                      <Link
+                        key={r.name}
+                        href={`/smarthome/spaces?tab=rooms&room=${encodeURIComponent(r.name)}`}
+                        className="rounded-xl px-3 py-2.5 transition hover:brightness-110"
+                        style={{ background: "var(--cv-card-hi)" }}
+                      >
+                        <div className="flex items-center gap-1.5 text-sm font-bold">
+                          <Sofa className="h-3.5 w-3.5" style={{ color: "var(--cv-accent-hi)" }} />
+                          <span className="min-w-0 truncate">{r.name}</span>
+                        </div>
+                        <div className="mt-0.5 text-[11px]" style={{ color: "var(--cv-muted)" }}>
+                          {inRoom.length} device{inRoom.length === 1 ? "" : "s"} · {on} online
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </Surface>
+          </div>
+
+          {/* -------------------------------------------- latency footer ---- */}
+          <SectionTitle
+            right={
+              <Link href="/smarthome/insights?tab=latency" className="text-[11px] font-semibold" style={{ color: "var(--cv-accent-hi)" }}>
+                Latency lab
+              </Link>
+            }
+          >
+            Round-trip time to the control plane
+          </SectionTitle>
+          <Surface>
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-3">
+                <Gauge className="h-5 w-5" style={{ color: "var(--cv-accent-hi)" }} />
+                <div>
+                  <div className="text-2xl font-extrabold tabular-nums" style={{ color: probeTone ? SEVERITY[probeTone].fg : "var(--cv-text)" }}>
+                    {probe.stats.last?.ms ?? "—"}
+                    <span className="ml-1 text-sm font-semibold" style={{ color: "var(--cv-muted)" }}>
+                      ms
+                    </span>
+                  </div>
+                  <div className="text-[11px]" style={{ color: "var(--cv-muted)" }}>
+                    last measured request
+                  </div>
+                </div>
+              </div>
+              <Sparkline points={probe.samples.map((s) => s.ms ?? 0)} color={probeTone ? SEVERITY[probeTone].fg : "var(--cv-accent)"} width={180} height={40} />
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px]" style={{ color: "var(--cv-muted)" }}>
+                <span>
+                  p50 <b style={{ color: "var(--cv-text)" }}>{probe.stats.p50 ?? "—"} ms</b>
+                </span>
+                <span>
+                  p95 <b style={{ color: "var(--cv-text)" }}>{probe.stats.p95 ?? "—"} ms</b>
+                </span>
+                <span>
+                  worst <b style={{ color: "var(--cv-text)" }}>{probe.stats.max ?? "—"} ms</b>
+                </span>
+                {probe.stats.failures > 0 && (
+                  <Badge tone="warning">{probe.stats.failures} failed</Badge>
+                )}
+              </div>
+            </div>
+          </Surface>
         </>
       )}
-
-      {showAdd && (
-        <AddDeviceModal
-          onClose={() => setShowAdd(false)}
-          onAdded={() => {
-            setShowAdd(false);
-            setLoading(true);
-            load();
-          }}
-        />
-      )}
     </div>
   );
 }
 
-function metric(d: Device): string {
-  switch (d.type) {
-    case "aquaguard":
-      return `${Number(d.state.level ?? 0)}%`;
-    case "smart-plug":
-    case "energy-monitor":
-      return `${Number(d.state.watts ?? 0).toFixed(0)} W`;
-    case "guardian":
-      return d.state.sos ? "SOS" : d.state.armed ? "Armed" : "Disarmed";
-    case "motion-sensor":
-      return d.state.motion ? "Motion" : d.state.armed ? "Armed" : "Clear";
-    case "smart-switch":
-      return `${[d.state.power, d.state.power2].filter(Boolean).length}/2 on`;
-    case "home-hub":
-      return `${[d.state.power, d.state.power2, d.state.power3, d.state.power4].filter(Boolean).length}/4 on`;
-    case "touchboard":
-      return `${[d.state.g1, d.state.g2, d.state.g3].filter(Boolean).length}/3 on`;
-    case "watertank":
-      return `${Number(d.state.ohPct ?? 0)}%`;
-    case "facedoor":
-    case "smart-lock":
-      return d.state.locked ? "Locked" : "Unlocked";
-    case "rfid-gate":
-      return String(d.state.barrier ?? "—");
-    case "agri-starter":
-      return d.state.pump ? "Pump on" : "Pump off";
-    default:
-      return "";
-  }
-}
-
-
-function DeviceCard({
-  device,
-  status,
-  onFavorite,
-  onQuickPower,
+function HealthCell({
+  label,
+  value,
+  tone,
+  icon: Icon,
+  detail,
 }: {
-  device: Device;
-  status: FieldStatus;
-  onFavorite: () => void;
-  onQuickPower: (v: boolean) => void;
+  label: string;
+  value: string;
+  tone?: "critical" | "warning" | "info" | "ok";
+  icon: typeof Activity;
+  detail?: string;
 }) {
-  const meta = deviceMeta(device.type);
-  const Icon = meta.icon;
-  const m = metric(device);
-  const qp = masterPower(device);
+  const color = tone ? SEVERITY[tone].fg : "var(--cv-text)";
   return (
-    <Link
-      href={`/smarthome/device/${encodeURIComponent(device.id)}`}
-      className={`group relative overflow-hidden rounded-2xl border bg-white/[0.03] p-5 transition hover:bg-white/[0.05] ${
-        qp?.on ? "border-cyan-400/30" : "border-white/10 hover:border-white/20"
-      } ${status === "pending" ? "cv-pending" : ""} ${status === "confirmed" ? "cv-pop" : ""} ${
-        status === "failed" ? "ring-2 ring-red-500/50" : ""
-      }`}
-    >
-      <div className="flex items-start justify-between">
-        <div
-          className="flex h-11 w-11 items-center justify-center rounded-xl transition"
-          style={{
-            background: qp?.on ? `${meta.accent}33` : `${meta.accent}1a`,
-            color: meta.accent,
-            boxShadow: qp?.on ? `0 0 18px ${meta.accent}44` : undefined,
-          }}
-        >
-          <Icon className="h-6 w-6" />
+    <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderColor: "var(--cv-border)" }}>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: tone ? SEVERITY[tone].dim : "var(--cv-card-hi)" }}>
+        <Icon className="h-4 w-4" style={{ color }} />
+      </span>
+      <div className="min-w-0">
+        <div className="truncate text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--cv-muted)" }}>
+          {label}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              onFavorite();
-            }}
-            className="rounded-lg p-1.5 text-slate-500 transition hover:text-yellow-300"
-            aria-label={device.favorite ? "Remove from favourites" : "Add to favourites"}
-          >
-            <Star className={`h-4 w-4 ${device.favorite ? "fill-yellow-300 text-yellow-300" : ""}`} />
-          </button>
-          <span className="flex items-center gap-1.5 text-xs" style={{ color: device.online ? "#22c55e" : "#64748b" }}>
-            <span
-              className={`h-2 w-2 rounded-full ${device.online ? "animate-pulse" : ""}`}
-              style={{ background: device.online ? "#22c55e" : "#64748b" }}
-            />
-            {device.online ? "Online" : "Offline"}
-          </span>
+        <div className="truncate text-sm font-bold tabular-nums" style={{ color }}>
+          {value}
         </div>
-      </div>
-      <div className="mt-4">
-        <div className="truncate font-bold text-white">{device.name || device.id}</div>
-        <div className="text-xs text-slate-500">
-          {meta.label}
-          {device.room ? ` · ${device.room}` : ""}
-        </div>
-      </div>
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="text-lg font-extrabold" style={{ color: meta.accent }}>
-          {m}
-        </span>
-        {qp ? (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              haptic(qp.on ? 8 : 14);
-              onQuickPower(!qp.on);
-            }}
-            role="switch"
-            aria-checked={qp.on}
-            aria-busy={status === "pending"}
-            aria-label={`${qp.label} — ${qp.on ? "turn off" : "turn on"} ${device.name || device.id}`}
-            className={`relative h-8 w-14 shrink-0 overflow-hidden rounded-full border transition-colors ${
-              qp.on ? "border-cyan-300/50 bg-cyan-400" : "border-white/15 bg-white/10 hover:bg-white/20"
-            } ${status === "confirmed" ? "cv-pop" : ""} ${
-              status === "failed" ? "ring-2 ring-red-500/60" : ""
-            }`}
-          >
-            {status === "pending" && <span aria-hidden className="absolute inset-0 cv-sweep" />}
-            <span
-              className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white shadow transition-all duration-150 ${
-                qp.on ? "left-[calc(100%-1.625rem)]" : "left-1"
-              }`}
-            />
-          </button>
-        ) : (
-          <ChevronRight className="h-4 w-4 text-slate-600 transition group-hover:text-slate-300" />
+        {detail && (
+          <div className="truncate text-[10px]" style={{ color: "var(--cv-muted)" }}>
+            {detail}
+          </div>
         )}
       </div>
-    </Link>
-  );
-}
-
-function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] py-16 flex flex-col items-center text-center px-6">
-      <div className="h-14 w-14 rounded-2xl bg-white/5 flex items-center justify-center mb-4">
-        <Cpu className="h-7 w-7 text-slate-400" />
-      </div>
-      <h2 className="text-white font-bold text-lg">No devices yet</h2>
-      <p className="text-slate-400 text-sm mt-1 max-w-sm">
-        Power on a Circuvent device, then add it using the device ID and claim key printed on the label.
-      </p>
-      <button
-        onClick={onAdd}
-        className="mt-5 flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white"
-        style={{ background: "var(--cv-gradient)" }}
-      >
-        <Plus className="h-4 w-4" /> Add your first device
-      </button>
     </div>
-  );
-}
-
-function AddDeviceModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
-  const [id, setId] = useState("");
-  const [key, setKey] = useState("");
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const r = await controlPlane.claim(id.trim(), key.trim(), name.trim() || id.trim());
-    setBusy(false);
-    if (r.ok && r.data?.success) onAdded();
-    else setError(r.data?.error || "Could not claim this device. Check the ID and key.");
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f1629] p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-white font-bold text-lg">Add a device</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <form onSubmit={submit} className="space-y-3">
-          <ModalField label="Device ID">
-            <input className="cv-modal-input" value={id} onChange={(e) => setId(e.target.value)} placeholder="e.g. hub-a1b2c3" required />
-          </ModalField>
-          <ModalField label="Claim key">
-            <input className="cv-modal-input" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Key from the device label" required />
-          </ModalField>
-          <ModalField label="Name (optional)">
-            <input className="cv-modal-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Living Room Hub" />
-          </ModalField>
-          {error && (
-            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
-          )}
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-xl py-3 font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60"
-            style={{ background: "var(--cv-gradient)" }}
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Claim device
-          </button>
-        </form>
-      </div>
-      <style jsx global>{`
-        .cv-modal-input {
-          width: 100%;
-          background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 12px 14px;
-          color: #fff;
-          font-size: 15px;
-          outline: none;
-        }
-        .cv-modal-input:focus {
-          border-color: rgba(6, 182, 212, 0.5);
-        }
-        .cv-modal-input::placeholder {
-          color: #64748b;
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function ModalField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="text-xs text-slate-400 mb-1.5 block">{label}</span>
-      {children}
-    </label>
   );
 }

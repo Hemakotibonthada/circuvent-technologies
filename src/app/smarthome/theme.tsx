@@ -317,9 +317,31 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.18), transparent);
           animation: cvSweep 1.1s linear infinite;
         }
+        /* Loading placeholder for panels awaiting their first payload. */
+        @keyframes cvShimmer {
+          0% {
+            background-position: 200% 0;
+          }
+          100% {
+            background-position: -200% 0;
+          }
+        }
+        .cv-skeleton {
+          background: linear-gradient(
+            90deg,
+            var(--cv-card-hi) 25%,
+            color-mix(in srgb, var(--cv-card-hi) 55%, var(--cv-border)) 50%,
+            var(--cv-card-hi) 75%
+          );
+          background-size: 200% 100%;
+          animation: cvShimmer 1.4s ease-in-out infinite;
+        }
         @media (prefers-reduced-motion: reduce) {
           .cv-sweep,
           .cv-pop {
+            animation: none;
+          }
+          .cv-skeleton {
             animation: none;
           }
           .cv-pending::after {

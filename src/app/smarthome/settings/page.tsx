@@ -1,98 +1,36 @@
 "use client";
 
-import { Bell, ChevronRight, LogOut, Moon, Sun } from "lucide-react";
-import Link from "next/link";
-import { useConsole } from "../ConsoleProvider";
-import ProfileAvatar from "../ProfileAvatar";
-import { ACCENTS, type Scheme, type ThemeMode, useConsoleTheme } from "../theme";
+import { Bell, Code2, Database, Palette, User } from "lucide-react";
+import { SectionShell } from "../_kit/section";
+import type { TabDef } from "../_kit/primitives";
+import AccountPanel from "./AccountPanel";
+import AppearancePanel from "./AppearancePanel";
+import NotificationsPanel from "./NotificationsPanel";
+import DataPanel from "./DataPanel";
+import DeveloperPanel from "./DeveloperPanel";
 
-const modes: { key: ThemeMode; label: string; blurb: string }[] = [
-  { key: "aurora", label: "Aurora", blurb: "Classic dark smart-home panels." },
-  { key: "glass", label: "Glass", blurb: "Frosted cards over an accent glow." },
-  { key: "neo", label: "Neo", blurb: "Soft extruded surfaces and shadows." },
+const TABS: TabDef[] = [
+  { id: "account", label: "Account", icon: User },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "data", label: "Data & Export", icon: Database },
+  { id: "developer", label: "Developer", icon: Code2 },
 ];
 
 export default function SettingsPage() {
-  const { user, logout, enableNotifications, notifyPermission } = useConsole();
-  const theme = useConsoleTheme();
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-[28px] font-bold leading-tight text-white">Settings</h1>
-        <p className="mt-1 text-sm text-slate-400">Personalize how the Circuvent console looks on this account.</p>
-      </div>
-
-      <section className="rounded-2xl cv-card p-5">
-        <h2 className="font-bold text-white mb-4">Console theme</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {modes.map((m) => (
-            <button
-              key={m.key}
-              onClick={() => theme.setMode(m.key)}
-              className={`rounded-2xl border p-4 text-left transition ${theme.mode === m.key ? "border-cyan-400/70 bg-white/10" : "border-white/10 bg-black/10 hover:bg-white/5"}`}
-            >
-              <div className="font-bold text-white">{m.label}</div>
-              <div className="text-xs text-slate-400 mt-1">{m.blurb}</div>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          {(["dark", "light"] as Scheme[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => theme.setScheme(s)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${theme.scheme === s ? "border-transparent text-white" : "border-white/10 text-slate-300 bg-black/10"}`}
-              style={theme.scheme === s ? { background: "var(--cv-gradient)" } : undefined}
-            >
-              {s === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />} {s}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-5">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-3">Accent</div>
-          <div className="flex flex-wrap gap-3">
-            {ACCENTS.map((a) => (
-              <button
-                key={a.key}
-                onClick={() => theme.setAccentKey(a.key)}
-                className={`h-11 w-11 rounded-full border-2 ${theme.accent.key === a.key ? "border-white" : "border-white/20"}`}
-                style={{ background: `linear-gradient(135deg, ${a.grad[0]}, ${a.grad[1]})` }}
-                aria-label={a.label}
-                title={a.label}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl cv-card p-5">
-        <h2 className="font-bold text-white mb-4">Account</h2>
-        <Link
-          href="/smarthome/profile"
-          className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-4 transition hover:bg-white/5"
-        >
-          <ProfileAvatar name={user?.name || ""} email={user?.email || ""} size={44} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold text-white">{user?.name || user?.email}</span>
-            <span className="block truncate text-xs text-slate-500">{user?.email}</span>
-          </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
-        </Link>
-        <p className="mt-2 text-xs text-slate-500">
-          Your picture, display name and security options live on your profile.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button onClick={enableNotifications} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10">
-            <Bell className="h-4 w-4" /> {notifyPermission === "granted" ? "Notifications enabled" : "Enable notifications"}
-          </button>
-          <button onClick={logout} className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm text-red-300 hover:bg-red-500/20">
-            <LogOut className="h-4 w-4" /> Logout
-          </button>
-        </div>
-      </section>
-    </div>
+    <SectionShell
+      eyebrow="Settings"
+      title="Console Settings"
+      subtitle="Account, appearance, notifications, data portability and developer tools."
+      tabs={TABS}
+      panels={{
+        account: () => <AccountPanel />,
+        appearance: () => <AppearancePanel />,
+        notifications: () => <NotificationsPanel />,
+        data: () => <DataPanel />,
+        developer: () => <DeveloperPanel />,
+      }}
+    />
   );
 }

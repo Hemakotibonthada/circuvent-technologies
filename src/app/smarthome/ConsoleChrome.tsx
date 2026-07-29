@@ -1,84 +1,200 @@
 "use client";
 
+/**
+ * Circuvent Console — application shell.
+ *
+ * The previous shell exposed 36 top-level routes across 8 collapsible
+ * categories, and its first two entries ("Home" and "Devices") both pointed at
+ * `/smarthome` with `exact: true`, so both highlighted permanently. This
+ * replaces that with 8 operator destinations (plus an admin-only ninth); the
+ * depth those 36 pages carried now lives in tabs inside each section, reachable
+ * in one keystroke through the command palette.
+ */
+
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { Cpu, Home, LayoutGrid, Zap, LogOut, Bell, BellOff, Loader2, Radio, Sofa, Clapperboard, BatteryCharging, Settings, ShieldCheck, BarChart3, CloudSun, Map, LayoutDashboard, Layers, ShieldAlert, Wallet, Luggage, MapPin, Sparkles, Code2, FileText, Archive, Mic, Stethoscope, Building, Video, BellRing, Lock, Gauge, Wrench, CalendarDays, Rocket, Sun, Battery, History, ChevronDown, UserRound } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  BarChart3,
+  BatteryCharging,
+  Bell,
+  BellOff,
+  ChevronRight,
+  Command,
+  Cpu,
+  LayoutDashboard,
+  Loader2,
+  LogOut,
+  Moon,
+  MoreHorizontal,
+  Radio,
+  Settings,
+  ShieldAlert,
+  ShieldCheck,
+  Sofa,
+  Sun,
+  X,
+  Zap,
+} from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
+import { masterPower } from "@/lib/smarthome-command-map";
 import { useConsole } from "./ConsoleProvider";
+import { useConsoleTheme } from "./theme";
 import ProfileAvatar from "./ProfileAvatar";
 import Login from "./Login";
+import { CommandPalette, ToastHost, useCommandPaletteHotkey, type Command as PaletteCommand } from "./_kit/overlays";
+import { StatusDot } from "./_kit/primitives";
+import { useFleet, useScenes } from "./_data/hooks";
 
-// Every nav item belongs to a category so the sidebar reads as collapsible
-// sections instead of one long wall of 35 links.
-const NAV = [
-  { href: "/smarthome", label: "Home", icon: Home, exact: true, category: "home" },
-  { href: "/smarthome", label: "Devices", icon: LayoutGrid, exact: true, category: "home" },
-  { href: "/smarthome/command-center", label: "Command Center", icon: LayoutDashboard, exact: false, category: "home" },
-  { href: "/smarthome/widgets", label: "Widgets", icon: BarChart3, exact: false, category: "home" },
+export interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof Cpu;
+  exact?: boolean;
+  /** Sub-views inside the section, surfaced in the command palette. */
+  tabs?: { id: string; label: string }[];
+  adminOnly?: boolean;
+  /** Shown in the mobile bottom bar rather than the "More" sheet. */
+  primary?: boolean;
+}
 
-  { href: "/smarthome/scenes", label: "Scenes", icon: Clapperboard, exact: false, category: "automation" },
-  { href: "/smarthome/automations", label: "Automations", icon: Zap, exact: false, category: "automation" },
-  { href: "/smarthome/recipes", label: "Recipes", icon: Sparkles, exact: false, category: "automation" },
-  { href: "/smarthome/scene-scheduler", label: "Scene scheduler", icon: CalendarDays, exact: false, category: "automation" },
-  { href: "/smarthome/quick-actions", label: "Quick actions", icon: Rocket, exact: false, category: "automation" },
-  { href: "/smarthome/notification-rules", label: "Notification rules", icon: BellRing, exact: false, category: "automation" },
-
-  { href: "/smarthome/rooms", label: "Rooms", icon: Sofa, exact: false, category: "spaces" },
-  { href: "/smarthome/floorplan", label: "Floorplan", icon: Map, exact: false, category: "spaces" },
-  { href: "/smarthome/properties", label: "Properties", icon: Building, exact: false, category: "spaces" },
-  { href: "/smarthome/groups", label: "Device groups", icon: Layers, exact: false, category: "spaces" },
-
-  { href: "/smarthome/energy", label: "Energy", icon: BatteryCharging, exact: false, category: "energy" },
-  { href: "/smarthome/energy-budget", label: "Energy budget", icon: Wallet, exact: false, category: "energy" },
-  { href: "/smarthome/solar", label: "Solar offset", icon: Sun, exact: false, category: "energy" },
-  { href: "/smarthome/benchmark", label: "Benchmark", icon: Gauge, exact: false, category: "energy" },
-
-  { href: "/smarthome/security", label: "Security", icon: ShieldAlert, exact: false, category: "security" },
-  { href: "/smarthome/away-mode", label: "Away mode", icon: Luggage, exact: false, category: "security" },
-  { href: "/smarthome/presence", label: "Geofencing", icon: MapPin, exact: false, category: "security" },
-  { href: "/smarthome/kiosk", label: "Kiosk PIN lock", icon: Lock, exact: false, category: "security" },
-  { href: "/smarthome/cameras", label: "Cameras", icon: Video, exact: false, category: "security" },
-
-  { href: "/smarthome/weather", label: "Weather", icon: CloudSun, exact: false, category: "insights" },
-  { href: "/smarthome/diagnostics", label: "Diagnostics", icon: Stethoscope, exact: false, category: "insights" },
-  { href: "/smarthome/timeline", label: "Timeline", icon: History, exact: false, category: "insights" },
-  { href: "/smarthome/maintenance", label: "Maintenance", icon: Wrench, exact: false, category: "insights" },
-  { href: "/smarthome/lifecycle", label: "Device lifecycle", icon: Battery, exact: false, category: "insights" },
-  { href: "/smarthome/firmware", label: "Firmware", icon: Cpu, exact: false, category: "insights" },
-
-  { href: "/smarthome/assistants", label: "Voice & assistants", icon: Mic, exact: false, category: "advanced" },
-  { href: "/smarthome/developer", label: "Developer", icon: Code2, exact: false, category: "advanced" },
-  { href: "/smarthome/reports", label: "Reports & export", icon: FileText, exact: false, category: "advanced" },
-  { href: "/smarthome/backup", label: "Backup & restore", icon: Archive, exact: false, category: "advanced" },
-
-  { href: "/smarthome/profile", label: "Profile", icon: UserRound, exact: false, category: "account" },
-  { href: "/smarthome/notifications", label: "Notifications", icon: Bell, exact: false, badge: true, category: "account" },
-  { href: "/smarthome/settings", label: "Settings", icon: Settings, exact: false, category: "account" },
+export const NAV: NavItem[] = [
+  { href: "/smarthome", label: "Overview", icon: LayoutDashboard, exact: true, primary: true },
+  {
+    href: "/smarthome/devices",
+    label: "Devices",
+    icon: Cpu,
+    primary: true,
+    tabs: [
+      { id: "fleet", label: "Fleet" },
+      { id: "control", label: "Control" },
+      { id: "health", label: "Health" },
+      { id: "firmware", label: "Firmware" },
+      { id: "onboarding", label: "Onboarding" },
+    ],
+  },
+  {
+    href: "/smarthome/spaces",
+    label: "Spaces",
+    icon: Sofa,
+    tabs: [
+      { id: "rooms", label: "Rooms" },
+      { id: "groups", label: "Groups" },
+      { id: "floorplan", label: "Floorplan" },
+      { id: "sites", label: "Sites" },
+    ],
+  },
+  {
+    href: "/smarthome/automation",
+    label: "Automation",
+    icon: Zap,
+    primary: true,
+    tabs: [
+      { id: "rules", label: "Rules" },
+      { id: "scenes", label: "Scenes" },
+      { id: "schedules", label: "Schedules" },
+      { id: "alerts", label: "Alert routing" },
+    ],
+  },
+  {
+    href: "/smarthome/energy",
+    label: "Energy",
+    icon: BatteryCharging,
+    primary: true,
+    tabs: [
+      { id: "live", label: "Live" },
+      { id: "history", label: "History" },
+      { id: "devices", label: "By device" },
+      { id: "cost", label: "Cost" },
+    ],
+  },
+  {
+    href: "/smarthome/security",
+    label: "Security",
+    icon: ShieldAlert,
+    tabs: [
+      { id: "alerts", label: "Alerts" },
+      { id: "access", label: "Access" },
+      { id: "cameras", label: "Cameras" },
+      { id: "modes", label: "Modes" },
+    ],
+  },
+  {
+    href: "/smarthome/insights",
+    label: "Insights",
+    icon: BarChart3,
+    tabs: [
+      { id: "activity", label: "Activity" },
+      { id: "latency", label: "Latency" },
+      { id: "telemetry", label: "Telemetry" },
+      { id: "reports", label: "Reports" },
+    ],
+  },
+  {
+    href: "/smarthome/settings",
+    label: "Settings",
+    icon: Settings,
+    tabs: [
+      { id: "account", label: "Account" },
+      { id: "appearance", label: "Appearance" },
+      { id: "notifications", label: "Notifications" },
+      { id: "data", label: "Data" },
+      { id: "developer", label: "Developer" },
+    ],
+  },
+  { href: "/smarthome/admin", label: "Admin", icon: ShieldCheck, adminOnly: true },
 ];
 
-const NAV_CATEGORIES: { id: string; label: string }[] = [
-  { id: "home", label: "Home" },
-  { id: "automation", label: "Automation" },
-  { id: "spaces", label: "Spaces" },
-  { id: "energy", label: "Energy" },
-  { id: "security", label: "Security & Safety" },
-  { id: "insights", label: "Insights" },
-  { id: "advanced", label: "Advanced" },
-  { id: "account", label: "Account" },
-];
-
+/**
+ * Cached admin bit. Guarded on the cache object itself: if a stored session
+ * ever lacks `id`, `adminCache?.uid === user.id` compares undefined to
+ * undefined, passes, and then dereferences null — which previously took the
+ * whole console down.
+ */
 let adminCache: { uid: number; admin: boolean } | null = null;
 
 export default function ConsoleChrome({ children }: { children: React.ReactNode }) {
-  const { ready, user, liveStatus, logout, notifyPermission, enableNotifications } = useConsole();
+  const { ready, user } = useConsole();
   const pathname = usePathname();
+
+  // The enterprise admin dashboard owns the full screen with its own shell and
+  // its own auth/demo state, so it bypasses the consumer chrome entirely.
+  if (pathname?.startsWith("/smarthome/admin")) return <>{children}</>;
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" style={{ background: "#0b1020" }}>
+        <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+      </div>
+    );
+  }
+  if (!user) return <Login />;
+
+  return (
+    <ToastHost>
+      <ConsoleShell>{children}</ConsoleShell>
+    </ToastHost>
+  );
+}
+
+function ConsoleShell({ children }: { children: React.ReactNode }) {
+  const { user, liveStatus, logout, notifyPermission, enableNotifications } = useConsole();
+  const { scheme, setScheme } = useConsoleTheme();
+  const pathname = usePathname();
+  const router = useRouter();
+
   const [unread, setUnread] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // One shared fleet subscription for the whole console: the palette can toggle
+  // any device from any screen, and every section reuses the same poll.
+  const fleet = useFleet();
+  const { scenes, activate } = useScenes();
 
   const isActive = useCallback(
-    (href: string, exact: boolean) => (exact ? pathname === href : pathname === href || pathname?.startsWith(href + "/")),
+    (item: NavItem) => (item.exact ? pathname === item.href : pathname === item.href || (pathname?.startsWith(item.href + "/") ?? false)),
     [pathname]
   );
 
@@ -89,8 +205,10 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     if (!user) return;
-    loadUnread();
-    const t = setInterval(loadUnread, 20000);
+    void loadUnread();
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void loadUnread();
+    }, 30_000);
     return () => clearInterval(t);
   }, [user, loadUnread, pathname]);
 
@@ -99,9 +217,6 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
       setIsAdmin(false);
       return;
     }
-    // Guard on the cache object itself: if a stored session ever lacks `id`,
-    // `adminCache?.uid === user.id` compares undefined to undefined, passes,
-    // and then dereferences null — taking the whole console down.
     if (adminCache && adminCache.uid === user.id) {
       setIsAdmin(adminCache.admin);
       return;
@@ -117,202 +232,337 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
     };
   }, [user]);
 
-  // Auto-expand whichever nav category contains the current route (never
-  // auto-collapses a category the user already opened).
-  useEffect(() => {
-    const current = NAV.find((n) => isActive(n.href, n.exact));
-    if (current) {
-      setExpandedCategories((prev) => (prev[current.category] ? prev : { ...prev, [current.category]: true }));
+  useCommandPaletteHotkey(useCallback(() => setPaletteOpen(true), []));
+
+  // Close the mobile sheet on navigation.
+  useEffect(() => setMoreOpen(false), [pathname]);
+
+  const nav = useMemo(() => NAV.filter((n) => !n.adminOnly || isAdmin), [isAdmin]);
+  const current = useMemo(() => nav.find((n) => isActive(n)) ?? nav[0], [nav, isActive]);
+
+  const commands = useMemo<PaletteCommand[]>(() => {
+    const out: PaletteCommand[] = [];
+    for (const n of nav) {
+      out.push({
+        id: `nav:${n.href}`,
+        group: "Go to",
+        label: n.label,
+        icon: n.icon,
+        hint: n.href.replace("/smarthome", "") || "/",
+        run: () => router.push(n.href),
+      });
+      for (const t of n.tabs ?? []) {
+        out.push({
+          id: `nav:${n.href}#${t.id}`,
+          group: "Go to",
+          label: `${n.label} › ${t.label}`,
+          icon: n.icon,
+          keywords: `${n.label} ${t.label}`,
+          run: () => router.push(`${n.href}?tab=${t.id}`),
+        });
+      }
     }
-  }, [pathname, isActive]);
-
-  // The enterprise IoT admin dashboard owns the full screen with its own shell,
-  // so bypass the consumer console chrome (and its login/hydration gates) for
-  // /smarthome/admin. The admin shell manages its own auth/demo state, and its
-  // stores are SSR-safe, so it can render immediately without a loader flash.
-  const isAdminArea = pathname?.startsWith("/smarthome/admin") ?? false;
-  if (isAdminArea) return <>{children}</>;
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0b1020" }}>
-        <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
-      </div>
+    for (const d of fleet.devices) {
+      const mp = masterPower(d);
+      if (mp) {
+        out.push({
+          id: `dev:toggle:${d.id}`,
+          group: "Devices",
+          label: `${mp.on ? "Turn off" : "Turn on"} ${d.name}`,
+          hint: d.room || d.type,
+          icon: Cpu,
+          keywords: `${d.name} ${d.type} ${d.room ?? ""} power toggle`,
+          run: () => void fleet.cmd.send(d, mp.cmd(!mp.on)),
+        });
+      }
+      out.push({
+        id: `dev:open:${d.id}`,
+        group: "Devices",
+        label: `Open ${d.name}`,
+        hint: d.online ? "online" : "offline",
+        icon: Cpu,
+        keywords: `${d.name} ${d.id} ${d.type}`,
+        run: () => router.push(`/smarthome/device/${encodeURIComponent(d.id)}`),
+      });
+    }
+    for (const s of scenes) {
+      out.push({
+        id: `scene:${s.id}`,
+        group: "Scenes",
+        label: `Activate ${s.name}`,
+        icon: Zap,
+        keywords: `scene ${s.name}`,
+        run: () => void activate(s.id),
+      });
+    }
+    out.push(
+      {
+        id: "act:scheme",
+        group: "Actions",
+        label: scheme === "dark" ? "Switch to light theme" : "Switch to dark theme",
+        icon: scheme === "dark" ? Sun : Moon,
+        run: () => setScheme(scheme === "dark" ? "light" : "dark"),
+      },
+      { id: "act:refresh", group: "Actions", label: "Refresh fleet", icon: Radio, run: () => void fleet.refresh() },
+      { id: "act:logout", group: "Actions", label: "Sign out", icon: LogOut, run: logout }
     );
-  }
+    return out;
+  }, [nav, fleet, scenes, activate, router, scheme, setScheme, logout]);
 
-  if (!user) return <Login />;
-
-  const navItems = isAdmin ? [...NAV, { href: "/smarthome/admin", label: "Admin", icon: ShieldCheck, exact: false, category: "account" }] : NAV;
-  const toggleCategory = (id: string) => setExpandedCategories((prev) => ({ ...prev, [id]: !prev[id] }));
+  const primary = nav.filter((n) => n.primary);
+  const secondary = nav.filter((n) => !n.primary);
 
   return (
-    <div className="min-h-screen text-slate-100 md:flex">
-      {/* Sidebar (desktop) */}
-      <aside className="hidden md:flex md:sticky md:top-0 md:h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-black/25 backdrop-blur-xl px-4 py-5">
-        <div className="flex items-center gap-3 px-2 mb-8">
-          <div
-            className="h-9 w-9 rounded-lg flex items-center justify-center"
-            style={{ background: "var(--cv-gradient)" }}
-          >
+    <div className="min-h-screen md:flex" style={{ color: "var(--cv-text)" }}>
+      {/* ------------------------------------------------ desktop sidebar -- */}
+      <aside
+        className="hidden w-60 shrink-0 flex-col px-3 py-5 md:sticky md:top-0 md:flex md:h-screen"
+        style={{ borderRight: "1px solid var(--cv-border)", background: "color-mix(in srgb, var(--cv-card) 60%, transparent)" }}
+      >
+        <Link href="/smarthome" className="mb-7 flex items-center gap-3 px-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--cv-gradient)" }}>
             <Cpu className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <div className="font-extrabold leading-none">Circuvent</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-400">Console</div>
-          </div>
-        </div>
+          </span>
+          <span>
+            <span className="block text-sm font-extrabold leading-none">Circuvent</span>
+            <span className="block text-[10px] uppercase tracking-[0.2em]" style={{ color: "var(--cv-accent-hi)" }}>
+              Console
+            </span>
+          </span>
+        </Link>
 
-        <nav className="space-y-1 flex-1 overflow-y-auto pr-1">
-          {NAV_CATEGORIES.map((cat) => {
-            const items = navItems.filter((n) => n.category === cat.id);
-            if (items.length === 0) return null;
-            const isOpen = !!expandedCategories[cat.id];
-            const hasActive = items.some((n) => isActive(n.href, n.exact));
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="mb-5 flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 text-sm transition hover:brightness-110"
+          style={{ background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)", color: "var(--cv-muted)" }}
+        >
+          <Command className="h-4 w-4" />
+          <span className="flex-1 text-left">Search…</span>
+          <kbd className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "var(--cv-card-hi)" }}>
+            ⌘K
+          </kbd>
+        </button>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
+          {nav.map((n) => {
+            const active = isActive(n);
+            const Icon = n.icon;
             return (
-              <div key={cat.id} className="mb-1">
-                <button
-                  onClick={() => toggleCategory(cat.id)}
-                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition"
-                  style={{ color: hasActive ? "var(--cv-accent-hi)" : "#64748b" }}
-                >
-                  {cat.label}
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                </button>
-                {isOpen && (
-                  <div className="space-y-1">
-                    {items.map((n) => {
-                      const active = isActive(n.href, n.exact);
-                      const Icon = n.icon;
-                      return (
-                        <Link
-                          key={`${n.href}-${n.label}`}
-                          href={n.href}
-                          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                            active ? "text-white bg-white/10" : "text-slate-400 hover:text-slate-100 hover:bg-white/5"
-                          }`}
-                        >
-                          <Icon className="h-5 w-5" style={{ color: active ? "var(--cv-accent-hi)" : undefined }} />
-                          <span className="flex-1">{n.label}</span>
-                          {n.badge && unread > 0 && (
-                            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: "var(--cv-accent)" }}>
-                              {unread}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
+              <Link
+                key={n.href}
+                href={n.href}
+                aria-current={active ? "page" : undefined}
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition"
+                style={{
+                  background: active ? "var(--cv-card-hi)" : "transparent",
+                  color: active ? "var(--cv-text)" : "var(--cv-muted)",
+                  boxShadow: active ? "inset 3px 0 0 0 var(--cv-accent)" : undefined,
+                }}
+              >
+                <Icon className="h-[18px] w-[18px]" style={{ color: active ? "var(--cv-accent-hi)" : undefined }} />
+                <span className="flex-1">{n.label}</span>
+                {n.href === "/smarthome/security" && unread > 0 && (
+                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: "var(--cv-accent)" }}>
+                    {unread > 99 ? "99+" : unread}
+                  </span>
                 )}
-              </div>
+              </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-white/10 pt-4 mt-4">
-          <Link
-            href="/smarthome/profile"
-            className="flex items-center gap-2.5 rounded-xl px-3 py-2 transition hover:bg-white/5"
-          >
-            <ProfileAvatar name={user.name} email={user.email} />
+        <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--cv-border)" }}>
+          <div className="mb-2 flex items-center justify-between px-3 text-[11px]" style={{ color: "var(--cv-muted)" }}>
+            <span className="inline-flex items-center gap-1.5">
+              <StatusDot online={fleet.online > 0} pulse={false} />
+              {fleet.online}/{fleet.devices.length} online
+            </span>
+            <LiveBadge status={liveStatus} compact />
+          </div>
+          <Link href="/smarthome/settings" className="flex items-center gap-2.5 rounded-xl px-3 py-2 transition hover:brightness-110">
+            <ProfileAvatar name={user!.name} email={user!.email} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">{user.name || user.email}</span>
-              <span className="block truncate text-xs text-slate-500">{user.email}</span>
+              <span className="block truncate text-sm font-semibold">{user!.name || user!.email}</span>
+              <span className="block truncate text-xs" style={{ color: "var(--cv-muted)" }}>
+                {isAdmin ? "Administrator" : "Owner"}
+              </span>
             </span>
           </Link>
           <button
             onClick={logout}
-            className="mt-2 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-slate-400 hover:text-red-300 hover:bg-red-500/10 transition"
+            className="mt-1 flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-sm transition hover:brightness-125"
+            style={{ color: "var(--cv-muted)" }}
           >
             <LogOut className="h-4 w-4" /> Sign out
           </button>
         </div>
       </aside>
 
-      {/* Main column */}
-      <div className="flex-1 min-w-0">
-        {/* Topbar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 px-4 md:px-8 py-3 backdrop-blur-xl" style={{ background: "color-mix(in srgb, var(--cv-bg) 82%, transparent)" }}>
-          <div className="flex items-center gap-2 md:hidden">
-            <div
-              className="h-7 w-7 rounded-lg flex items-center justify-center"
-              style={{ background: "var(--cv-gradient)" }}
-            >
+      {/* -------------------------------------------------- main column --- */}
+      <div className="min-w-0 flex-1">
+        <header
+          className="sticky top-0 z-30 flex min-h-14 items-center gap-3 px-4 backdrop-blur-xl md:px-8"
+          style={{ borderBottom: "1px solid var(--cv-border)", background: "color-mix(in srgb, var(--cv-bg) 86%, transparent)" }}
+        >
+          <Link href="/smarthome" className="flex items-center gap-2 md:hidden" aria-label="Circuvent console home">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "var(--cv-gradient)" }}>
               <Cpu className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-bold">Circuvent</span>
-          </div>
+            </span>
+          </Link>
 
-          <div className="flex items-center gap-3 ml-auto">
-            <LiveBadge status={liveStatus} />
+          <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-sm md:flex">
+            <span style={{ color: "var(--cv-muted)" }}>Console</span>
+            <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--cv-muted)" }} />
+            <span className="font-semibold">{current?.label}</span>
+          </nav>
+
+          <span className="truncate text-sm font-bold md:hidden">{current?.label}</span>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Open command palette"
+              className="flex h-9 w-9 items-center justify-center rounded-xl transition hover:brightness-125 md:hidden"
+              style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
+            >
+              <Command className="h-4 w-4" />
+            </button>
+
+            <button
+              onClick={() => setScheme(scheme === "dark" ? "light" : "dark")}
+              aria-label={scheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              className="flex h-9 w-9 items-center justify-center rounded-xl transition hover:brightness-125"
+              style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
+            >
+              {scheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+
+            <Link
+              href="/smarthome/security?tab=alerts"
+              aria-label={`Alerts${unread ? ` (${unread} unread)` : ""}`}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl transition hover:brightness-125"
+              style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
+            >
+              <Bell className="h-4 w-4" />
+              {unread > 0 && (
+                <span
+                  className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white"
+                  style={{ background: "#ef4444" }}
+                >
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </Link>
+
             {notifyPermission !== "granted" && notifyPermission !== "unsupported" && (
               <button
                 onClick={enableNotifications}
-                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10"
                 title="Enable desktop alerts"
+                className="hidden h-9 items-center gap-1.5 rounded-xl px-2.5 text-xs sm:flex"
+                style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
               >
-                <Bell className="h-3.5 w-3.5" /> Alerts
+                <BellOff className="h-3.5 w-3.5" /> Enable alerts
               </button>
             )}
-            {notifyPermission === "granted" && (
-              <span className="hidden sm:flex items-center gap-1.5 text-xs text-emerald-400">
-                <Bell className="h-3.5 w-3.5" /> Alerts on
-              </span>
-            )}
-            {notifyPermission === "unsupported" && (
-              <span className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
-                <BellOff className="h-3.5 w-3.5" />
-              </span>
-            )}
+
+            <span className="hidden md:block">
+              <LiveBadge status={liveStatus} />
+            </span>
           </div>
         </header>
 
-        {/* Mobile nav */}
-        <nav className="md:hidden flex gap-2 border-b border-white/10 px-4 py-2 bg-black/20 overflow-x-auto">
-          {navItems.map((n) => {
-            const active = isActive(n.href, n.exact);
-            const Icon = n.icon;
-            return (
-              <Link
-                key={`${n.href}-${n.label}`}
-                href={n.href}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
-                  active ? "text-white bg-white/10" : "text-slate-400"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {n.label}
-                {n.badge && unread > 0 && <span className="text-[10px] text-cyan-300">{unread}</span>}
-              </Link>
-            );
-          })}
-          <button onClick={logout} className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-400">
-            <LogOut className="h-4 w-4" />
-          </button>
-        </nav>
-
-        <main className="px-4 md:px-8 py-6 max-w-6xl mx-auto">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 md:px-8 md:pb-10">{children}</main>
       </div>
+
+      {/* --------------------------------------------- mobile bottom bar -- */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
+        style={{
+          borderTop: "1px solid var(--cv-border)",
+          background: "color-mix(in srgb, var(--cv-bg) 94%, transparent)",
+          backdropFilter: "blur(12px)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        {primary.map((n) => {
+          const active = isActive(n);
+          const Icon = n.icon;
+          return (
+            <Link
+              key={n.href}
+              href={n.href}
+              className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold"
+              style={{ color: active ? "var(--cv-accent-hi)" : "var(--cv-muted)" }}
+            >
+              <Icon className="h-5 w-5" />
+              {n.label}
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setMoreOpen(true)}
+          className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold"
+          style={{ color: secondary.some(isActive) ? "var(--cv-accent-hi)" : "var(--cv-muted)" }}
+        >
+          <MoreHorizontal className="h-5 w-5" />
+          More
+        </button>
+      </nav>
+
+      {moreOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="More sections">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMoreOpen(false)} />
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-3xl px-4 pb-8 pt-4"
+            style={{ background: "var(--cv-bg)", borderTop: "1px solid var(--cv-border)" }}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-bold">More</span>
+              <button onClick={() => setMoreOpen(false)} aria-label="Close">
+                <X className="h-5 w-5" style={{ color: "var(--cv-muted)" }} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {secondary.map((n) => {
+                const Icon = n.icon;
+                return (
+                  <Link key={n.href} href={n.href} className="cv-card flex flex-col items-center gap-2 rounded-2xl px-2 py-4 text-center text-[11px] font-semibold">
+                    <Icon className="h-5 w-5" style={{ color: "var(--cv-accent-hi)" }} />
+                    {n.label}
+                  </Link>
+                );
+              })}
+              <button
+                onClick={logout}
+                className="cv-card flex flex-col items-center gap-2 rounded-2xl px-2 py-4 text-center text-[11px] font-semibold"
+                style={{ color: "#f87171" }}
+              >
+                <LogOut className="h-5 w-5" />
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
     </div>
   );
 }
 
-function LiveBadge({ status }: { status: "connecting" | "live" | "offline" }) {
+function LiveBadge({ status, compact }: { status: "connecting" | "live" | "offline"; compact?: boolean }) {
   const map = {
     live: { color: "#22c55e", label: "Live", pulse: true },
     connecting: { color: "#f59e0b", label: "Connecting", pulse: true },
-    offline: { color: "#64748b", label: "Reconnecting", pulse: false },
+    offline: { color: "#94a3b8", label: "Reconnecting", pulse: false },
   } as const;
   const s = map[status];
   return (
-    <span className="flex items-center gap-1.5 text-xs text-slate-300">
-      <Radio className="h-3.5 w-3.5" style={{ color: s.color }} />
+    <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--cv-muted)" }} title={`Realtime channel: ${s.label}`}>
+      {!compact && <Radio className="h-3.5 w-3.5" style={{ color: s.color }} />}
       <span className="relative flex h-2 w-2">
         {s.pulse && (
-          <span
-            className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
-            style={{ background: s.color }}
-          />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 motion-reduce:animate-none" style={{ background: s.color }} />
         )}
         <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: s.color }} />
       </span>
