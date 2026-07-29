@@ -173,6 +173,64 @@ export interface AdminEvent {
   owner_email: string | null;
 }
 
+/** One row of raw device telemetry (`/devices/:id/telemetry`). */
+export interface TelemetryRow {
+  ts: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * A time-boxed gate pass, exactly as returned by `platform/api/src/routes/gate.ts`.
+ * `status` and `qr` are computed server-side — never derive them on the client,
+ * or a revoked pass could render as active.
+ */
+export interface GatePass {
+  id: number;
+  device_id: string;
+  code: string;
+  label: string;
+  valid_from: string;
+  valid_to: string;
+  max_uses: number;
+  uses: number;
+  revoked: boolean;
+  last_used: string | null;
+  created_at: string;
+  status: "active" | "scheduled" | "expired" | "used" | "revoked";
+  qr: string;
+}
+
+export interface GatePassBody {
+  deviceId: string;
+  label?: string;
+  validToMinutes?: number;
+  validTo?: string;
+  validFrom?: string;
+  maxUses?: number;
+}
+
+/** Control-plane liveness (`/admin/health`). */
+export interface AdminHealth {
+  mqtt: boolean;
+  db: boolean;
+  uptimeSec: number;
+  node: string;
+}
+
+/** Full device record from `/admin/devices/:id` (superset of AdminDevice). */
+export interface AdminDeviceDetail extends AdminDevice {
+  favorite: boolean;
+  created_at: string;
+}
+
+/** Credentials minted by `/admin/devices/provision`. Shown once, never stored. */
+export interface ProvisionResult {
+  id: string;
+  key: string;
+  mqttUsername: string;
+  mqttPassword: string;
+}
+
 interface AuthResp {
   token: string;
   user: { id: number; email: string; name: string };
@@ -287,4 +345,42 @@ export const api = {
   adminDeleteDevice: (id: string) =>
     req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id), { method: "DELETE" }),
   adminEvents: (limit = 100) => req<{ events: AdminEvent[] }>("/admin/events?limit=" + limit),
+
+  // ---- gate access / guest passes -----------------------------------------
+  // Backed by platform/api/src/routes/gate.ts.
+  gatePasses: (deviceId?: string) =>
+    req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),
+  createGatePass: (body: GatePassBody) =>
+    req<{ pass: GatePass; error?: string }>("/gate/passes", { method: "POST", body: JSON.stringify(body) }),
+  revokeGatePass: (id: number) => req<{ success: boolean }>("/gate/passes/" + id + "/revoke", { method: "POST" }),
+  /**
+   * Redeem a pass code. Deliberately unauthenticated — the unguessable code is
+   * itself the credential, so a guard or guest can open the barrier without an
+   * account. Passing `auth = false` keeps the caller's own token off the wire.
+   */
+  redeemGatePass: (code: string) =>
+    req<{ ok: boolean; opened?: boolean; label?: string; usesLeft?: number; error?: string }>(
+      "/gate/redeem",
+      { method: "POST", body: JSON.stringify({ code }) },
+      false
+    ),
+
+  // ---- fleet operations (admin) -------------------------------------------
+  adminHealth: () => req<AdminHealth>("/admin/health"),
+  adminDevice: (id: string) => req<{ device: AdminDeviceDetail; error?: string }>("/admin/devices/" + encodeURIComponent(id)),
+  adminDeviceTelemetry: (id: string, limit = 100) =>
+    req<{ telemetry: TelemetryRow[] }>("/admin/devices/" + encodeURIComponent(id) + "/telemetry?limit=" + limit),
+  adminPatchDevice: (id: string, body: { name?: string; room?: string; owner_id?: number | null }) =>
+    req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(body) }),
+  adminProvision: (body: { type: string; name?: string; owner_id?: number }) =>
+    req<ProvisionResult & { error?: string }>("/admin/devices/provision", { method: "POST", body: JSON.stringify(body) }),
+  /** Fan a command out to every device, optionally narrowed by type / online state. */
+  adminBroadcast: (body: { type?: string; online?: boolean; command: Record<string, unknown> }) =>
+    req<{ success: boolean; sent: number; error?: string }>("/admin/broadcast", { method: "POST", body: JSON.stringify(body) }),
+  /** Push an OTA pointer to a whole cohort. `sent` is the number addressed, not the number that applied it. */
+  adminOtaBroadcast: (body: { type?: string; url: string; version?: string }) =>
+    req<{ success: boolean; sent: number; error?: string }>("/admin/ota-broadcast", { method: "POST", body: JSON.stringify(body) }),
+
+  // ---- device lifecycle ---------------------------------------------------
+  deleteDevice: (id: string) => req<{ success: boolean }>("/devices/" + encodeURIComponent(id), { method: "DELETE" }),
 };
