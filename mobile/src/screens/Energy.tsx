@@ -98,7 +98,7 @@ export default function Energy() {
           const meta = deviceMeta(d.type);
           const on = selected === d.id;
           return (
-            <Pressable key={d.id} onPress={() => setSelected(d.id)}>
+            <Pressable key={d.id} onPress={() => setSelected(d.id)} accessibilityRole="button" accessibilityLabel={`${d.name}, ${d.watts.toFixed(0)} watts, ${d.online ? "online" : "offline"}`} accessibilityState={{ selected: on }}>
               <Card padded hi={on} style={[{ marginBottom: 10 }, on && { borderColor: c.accent, borderWidth: 1.5 }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <Icon name={meta.icon} size={20} color={meta.accent} />

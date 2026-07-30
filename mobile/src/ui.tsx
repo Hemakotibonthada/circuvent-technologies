@@ -664,7 +664,7 @@ export function ErrorState({ text, onRetry }: { text: string; onRetry?: () => vo
 
 export function HelpTip({ text }: { text: string }) {
   const { c } = useTheme(); const [open, setOpen] = useState(false);
-  return <View style={{ alignSelf: "flex-start" }}><Pressable onPress={() => setOpen((v) => !v)} style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.borderHi }}><Text style={{ color: c.textDim, fontWeight: "900" }}>?</Text></Pressable>{open ? <View style={{ position: "absolute", top: 28, left: 0, width: 220, zIndex: 20, borderRadius: 12, padding: 10, backgroundColor: c.surfaceHi, borderWidth: 1, borderColor: c.borderHi }}><Text style={{ color: c.textDim, fontSize: 12 }}>{text}</Text></View> : null}</View>;
+  return <View style={{ alignSelf: "flex-start" }}><Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityLabel="Help" accessibilityHint={open ? "Hides the explanation" : "Shows an explanation"} accessibilityState={{ expanded: open }} hitSlop={10} style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.borderHi }}><Text style={{ color: c.textDim, fontWeight: "900" }}>?</Text></Pressable>{open ? <View accessibilityLiveRegion="polite" style={{ position: "absolute", top: 28, left: 0, width: 220, zIndex: 20, borderRadius: 12, padding: 10, backgroundColor: c.surfaceHi, borderWidth: 1, borderColor: c.borderHi }}><Text style={{ color: c.textDim, fontSize: 12 }}>{text}</Text></View> : null}</View>;
 }
 
 export interface ToastMsg { text: string; kind?: "info" | "success" | "warning" | "error" }
@@ -676,10 +676,51 @@ export function useToast() {
 }
 export function ToastHost({ toast, onHide }: { toast: ToastMsg | null; onHide: () => void }) {
   const { c } = useTheme();
-  useEffect(() => { if (!toast) return; const t = setTimeout(onHide, 2200); return () => clearTimeout(t); }, [toast, onHide]);
+  const insets = useSafeArea();
+  const urgent = toast?.kind === "error" || toast?.kind === "warning";
+
+  useEffect(() => {
+    if (!toast) return;
+    // A toast is the only confirmation most actions ever get, so it has to
+    // reach screen-reader users as well as sighted ones. Android picks the
+    // text up from `accessibilityLiveRegion` below; iOS ignores live regions
+    // on a view that is newly mounted rather than updated, so it needs an
+    // explicit announcement. Doing both on both platforms double-speaks.
+    if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(toast.text);
+    // Errors and warnings carry recovery information. 2.2s is not enough to
+    // read one, and nowhere near enough to hear one spoken.
+    const t = setTimeout(onHide, urgent ? 4600 : 2200);
+    return () => clearTimeout(t);
+  }, [toast, onHide, urgent]);
+
   if (!toast) return null;
   const color = toast.kind === "success" ? c.green : toast.kind === "warning" ? c.amber : toast.kind === "error" ? c.red : c.accent;
-  return <Pressable onPress={onHide} style={{ position: "absolute", left: 18, right: 18, bottom: 28, borderRadius: 16, backgroundColor: c.surfaceHi, borderWidth: 1, borderColor: color, padding: 14 }}><Text style={{ color: c.text, fontWeight: "800" }}>{toast.text}</Text></Pressable>;
+  return (
+    <Pressable
+      onPress={onHide}
+      accessibilityRole="alert"
+      accessibilityLabel={toast.text}
+      accessibilityHint="Dismisses this message"
+      accessibilityLiveRegion={urgent ? "assertive" : "polite"}
+      style={{
+        position: "absolute",
+        left: 18,
+        right: 18,
+        // Overlay screens render this with no tab bar beneath it, so a fixed
+        // inset would put a tappable surface inside the home-indicator area.
+        bottom: Math.max(28, insets.bottom + 12),
+        minHeight: 48,
+        justifyContent: "center",
+        borderRadius: 16,
+        backgroundColor: c.surfaceHi,
+        borderWidth: 1,
+        borderColor: color,
+        padding: 14,
+      }}
+    >
+      <Text style={{ color: c.text, fontWeight: "800" }}>{toast.text}</Text>
+    </Pressable>
+  );
 }
 
 
@@ -704,7 +745,7 @@ export function Carousel({ children }: { children: React.ReactNode }) {
 // --------------------------------------------------------------------------
 
 /** Rounded capsule power toggle with a white power-glyph thumb (mockup switch). */
-export function PillToggle({ value, onChange, size = "md", disabled, style }: { value: boolean; onChange: (v: boolean) => void; size?: "sm" | "md"; disabled?: boolean; style?: StyleProp<ViewStyle> }) {
+export function PillToggle({ value, onChange, size = "md", disabled, label, style }: { value: boolean; onChange: (v: boolean) => void; size?: "sm" | "md"; disabled?: boolean; label?: string; style?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
   const W = size === "sm" ? 50 : 60;
   const H = size === "sm" ? 28 : 34;
@@ -721,6 +762,10 @@ export function PillToggle({ value, onChange, size = "md", disabled, style }: { 
   return (
     <Pressable
       accessibilityRole="switch"
+      // Without a name a screen reader announces only "on, switch", which is
+      // useless on a screen holding several of them. Callers that render the
+      // control away from its text should pass `label`.
+      accessibilityLabel={label}
       accessibilityState={{ checked: value, disabled }}
       disabled={disabled}
       hitSlop={8}
@@ -777,9 +822,12 @@ export function RoomChips({ options, value, onChange, style }: { options: string
 export function SceneChip({ glyph, label, active, onPress }: { glyph: string; label: string; active?: boolean; onPress: () => void }) {
   const { c } = useTheme();
   return (
-    <Pressable onPress={onPress} style={{ alignItems: "center", width: 68 }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active }} style={{ alignItems: "center", width: 68 }}>
       <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: active ? c.accent : c.cardHi, borderWidth: active ? 0 : 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 22 }}>{glyph}</Text>
+        {/* The glyph is a user-picked scene avatar, so it stays an emoji — but
+            it is decorative next to the label, and a screen reader announcing
+            "crescent moon, Night" reads as noise. Hide it from the tree. */}
+        <Text importantForAccessibility="no" accessibilityElementsHidden style={{ fontSize: 22 }}>{glyph}</Text>
       </View>
       <Text numberOfLines={1} style={{ color: active ? c.text : c.textDim, fontSize: 11, fontWeight: active ? "800" : "600", marginTop: 6 }}>{label}</Text>
     </Pressable>

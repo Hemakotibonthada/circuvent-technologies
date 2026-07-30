@@ -402,7 +402,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             <StepTag>Step 1 of 3 · What are you setting up?</StepTag>
             <View style={s.typeGrid}>
               {TYPES.map((t) => (
-                <Pressable key={t.id} style={[s.typeChip, type === t.id && s.typeChipOn]} onPress={() => setType(t.id)}>
+                <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.label} accessibilityState={{ selected: type === t.id }} style={[s.typeChip, type === t.id && s.typeChipOn]} onPress={() => setType(t.id)}>
                   <Icon name={deviceMeta(t.id).icon as IconName} size={22} color={type === t.id ? "#06b6d4" : "#94a3b8"} />
                   <Text style={[s.typeLabel, type === t.id && { color: "#fff" }]}>{t.label}</Text>
                 </Pressable>

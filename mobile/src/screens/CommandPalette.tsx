@@ -4,7 +4,7 @@ import { api, Device, Scene, Room } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, SectionLabel, useTheme } from "../ui";
 import { deviceMeta } from "../theme";
-import { Icon } from "../icons";
+import { Icon, type IconName } from "../icons";
 
 type Seg = "scenes" | "rooms" | "automations";
 const row = { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, paddingVertical: 12, paddingHorizontal: 14 };
@@ -40,13 +40,13 @@ export default function CommandPalette({
   const match = (s: string) => !ql || s.toLowerCase().includes(ql);
 
   const navItems = useMemo(() => ([
-    { key: "energy", glyph: "⚡", label: "Energy", hint: "Live power & history", run: () => onOpenEnergy() },
-    { key: "devices", glyph: "📟", label: "All devices", hint: "Browse & control", run: () => onOpenDevices() },
-    { key: "scenes", glyph: "✨", label: "Scenes", hint: "One-tap routines", run: () => onOpenAutomate("scenes") },
-    { key: "rooms", glyph: "🏠", label: "Rooms", hint: "Grouped by room", run: () => onOpenAutomate("rooms") },
-    { key: "automations", glyph: "🔗", label: "Automations", hint: "Rules & triggers", run: () => onOpenAutomate("automations") },
-    { key: "add", glyph: "＋", label: "Add a device", hint: "Onboard new hardware", run: () => onAddDevice() },
-    { key: "settings", glyph: "⚙️", label: "Settings", hint: "Preferences & account", run: () => onOpenSettings() },
+    { key: "energy", icon: "energy" as IconName, label: "Energy", hint: "Live power & history", run: () => onOpenEnergy() },
+    { key: "devices", icon: "devices" as IconName, label: "All devices", hint: "Browse & control", run: () => onOpenDevices() },
+    { key: "scenes", icon: "scenes" as IconName, label: "Scenes", hint: "One-tap routines", run: () => onOpenAutomate("scenes") },
+    { key: "rooms", icon: "rooms" as IconName, label: "Rooms", hint: "Grouped by room", run: () => onOpenAutomate("rooms") },
+    { key: "automations", icon: "automate" as IconName, label: "Automations", hint: "Rules & triggers", run: () => onOpenAutomate("automations") },
+    { key: "add", icon: "add" as IconName, label: "Add a device", hint: "Onboard new hardware", run: () => onAddDevice() },
+    { key: "settings", icon: "settings" as IconName, label: "Settings", hint: "Preferences & account", run: () => onOpenSettings() },
   ]), [onOpenEnergy, onOpenDevices, onOpenAutomate, onAddDevice, onOpenSettings]);
 
   const fNav = navItems.filter((n) => match(n.label) || match(n.hint));
@@ -136,13 +136,13 @@ export default function CommandPalette({
               <SectionLabel>Go to</SectionLabel>
               <Card padded={false} style={{ overflow: "hidden" }}>
                 {fNav.map((n, i) => (
-                  <Pressable key={n.key} onPress={n.run} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
-                    <Text style={{ fontSize: 18 }}>{n.glyph}</Text>
+                  <Pressable key={n.key} onPress={n.run} accessibilityRole="button" accessibilityLabel={n.label} accessibilityHint={n.hint} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
+                    <Icon name={n.icon} size={20} color={c.textDim} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: c.text, fontWeight: "600" }}>{n.label}</Text>
                       <Text style={{ color: c.faint, fontSize: 12 }}>{n.hint}</Text>
                     </View>
-                    <Text style={{ color: c.faint, fontSize: 18 }}>›</Text>
+                    <Icon name="chevron" size={18} color={c.faint} />
                   </Pressable>
                 ))}
               </Card>

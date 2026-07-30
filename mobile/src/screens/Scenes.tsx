@@ -131,7 +131,7 @@ function SceneEditor({ scene, onDone }: { scene: Scene | null; onDone: () => voi
         const meta = deviceMeta(d.type);
         const st = sel[d.id] ?? "skip";
         return (
-          <Pressable key={d.id} onPress={() => cycle(d.id)}>
+          <Pressable key={d.id} onPress={() => cycle(d.id)} accessibilityRole="button" accessibilityLabel={d.name || d.id} accessibilityValue={{ text: st === "on" ? "Turn on" : st === "off" ? "Turn off" : "Skip" }} accessibilityHint="Cycles between turn on, turn off and skip">
             <Card padded style={{ marginBottom: 8 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Icon name={meta.icon} size={20} color={meta.accent} />
