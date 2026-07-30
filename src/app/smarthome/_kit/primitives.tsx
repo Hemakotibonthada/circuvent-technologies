@@ -412,7 +412,7 @@ export function SearchField({
 }) {
   return (
     <div
-      className="flex min-h-11 flex-1 items-center gap-2.5 px-3.5"
+      className="flex min-h-11 flex-1 items-center gap-2.5 px-3.5 focus-within:ring-2 focus-within:ring-[var(--cv-accent)]"
       style={{
         background: "var(--cv-input-bg)",
         border: "1px solid var(--cv-border)",

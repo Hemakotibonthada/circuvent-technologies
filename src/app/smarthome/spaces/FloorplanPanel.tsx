@@ -23,7 +23,7 @@ import {
   LoadingState,
 } from "../_kit/primitives";
 import { PowerButton, deviceMetric } from "../_kit/device";
-import { ConfirmDialog, useToast } from "../_kit/overlays";
+import { ConfirmDialog, useEscape, useFocusTrap, useToast } from "../_kit/overlays";
 import { usePersistentState } from "../_kit/primitives";
 import { deviceMeta } from "../DeviceControls";
 import type { FloorLayout, FloorPin, FloorRoom } from "./storage";
@@ -280,6 +280,12 @@ export default function FloorplanPanel() {
     setNamingRoom(null);
     toast.ok(`Room outline "${name}" added`);
   }, [namingRoom, roomNameInput, setLayout, toast]);
+
+  // Escape was bound to the input's own onKeyDown, so it stopped working the
+  // moment focus moved to Cancel or Add room. Bind it to the dialog instead.
+  const closeNaming = useCallback(() => setNamingRoom(null), []);
+  useEscape(!!namingRoom, closeNaming);
+  const namingTrapRef = useFocusTrap(!!namingRoom);
 
   const removePin = useCallback(
     (deviceId: string) => {
@@ -600,7 +606,7 @@ export default function FloorplanPanel() {
           aria-modal
           aria-label="Name new room outline"
         >
-          <div className="cv-card rounded-2xl p-6 w-full max-w-xs space-y-4">
+          <div ref={namingTrapRef} tabIndex={-1} className="cv-card rounded-2xl p-6 w-full max-w-xs space-y-4">
             <h2 className="text-base font-extrabold" style={{ color: "var(--cv-text)" }}>Name this room</h2>
             <input
               autoFocus

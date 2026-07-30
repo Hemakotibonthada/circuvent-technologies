@@ -115,7 +115,7 @@ export function ActivityPanel() {
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div
-          className="flex min-h-10 flex-1 items-center gap-2 rounded-xl px-3"
+          className="flex min-h-10 flex-1 items-center gap-2 rounded-xl px-3 focus-within:ring-2 focus-within:ring-[var(--cv-accent)]"
           style={{ background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)" }}
         >
           <Activity className="h-4 w-4 shrink-0" style={{ color: "var(--cv-muted)" }} />

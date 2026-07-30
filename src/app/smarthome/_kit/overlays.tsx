@@ -35,7 +35,7 @@ function Portal({ children }: { children: ReactNode }) {
 
 /** Body scroll lock that survives nested overlays via a reference count. */
 let scrollLocks = 0;
-function useScrollLock(active: boolean) {
+export function useScrollLock(active: boolean) {
   useEffect(() => {
     if (!active) return;
     scrollLocks += 1;
@@ -54,7 +54,12 @@ function useScrollLock(active: boolean) {
 const FOCUSABLE =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-function useFocusTrap(open: boolean) {
+/**
+ * Moves focus into an overlay, cycles Tab within it, and returns focus to
+ * whatever opened it. Exported because several screens hand-roll their own
+ * bottom sheet or palette; they should share this rather than reimplement it.
+ */
+export function useFocusTrap(open: boolean) {
   const ref = useRef<HTMLDivElement | null>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
 
@@ -91,7 +96,7 @@ function useFocusTrap(open: boolean) {
   return ref;
 }
 
-function useEscape(open: boolean, onClose: () => void) {
+export function useEscape(open: boolean, onClose: () => void) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -490,6 +495,9 @@ export function CommandPalette({
   const [cursor, setCursor] = useState(0);
   useScrollLock(open);
   useEscape(open, onClose);
+  // Modal and Drawer both trap focus; the palette did not, so Tab walked out
+  // into the page behind it and focus never came back on close.
+  const trapRef = useFocusTrap(open);
 
   useEffect(() => {
     if (open) {
@@ -535,8 +543,8 @@ export function CommandPalette({
     <Portal>
       <div className="fixed inset-0 z-[150] flex items-start justify-center px-3 pt-[8vh]" role="dialog" aria-modal="true" aria-label="Command palette">
         <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
-        <div className="cv-card relative flex max-h-[70vh] w-full max-w-xl cv-pop flex-col overflow-hidden rounded-[22px]" style={{ boxShadow: "var(--cv-shadow-3)" }}>
-          <div className="flex items-center gap-3 border-b px-4 py-3.5" style={{ borderColor: "var(--cv-border)" }}>
+        <div ref={trapRef} tabIndex={-1} className="cv-card relative flex max-h-[70vh] w-full max-w-xl cv-pop flex-col overflow-hidden rounded-[22px]" style={{ boxShadow: "var(--cv-shadow-3)" }}>
+          <div className="flex items-center gap-3 border-b px-4 py-3.5 focus-within:ring-2 focus-within:ring-inset focus-within:ring-[var(--cv-accent)]" style={{ borderColor: "var(--cv-border)" }}>
             <Search className="h-4 w-4 shrink-0" style={{ color: "var(--cv-muted)" }} />
             <input
               autoFocus

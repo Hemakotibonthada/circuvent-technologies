@@ -11,6 +11,7 @@ import {
 import { controlPlane } from "@/lib/control-plane";
 import { useConsole } from "../ConsoleProvider";
 import { useAdminDevices, useAdminStats, deviceHealth } from "./_lib/api";
+import { useFocusTrap } from "../_kit/overlays";
 
 interface NavItem { href: string; label: string; icon: typeof Cpu; group: string; desc: string; }
 
@@ -275,12 +276,14 @@ function UserMenu({ email, name, onLogout }: { email: string; name: string; onLo
 
 function CommandPalette({ onClose, onNavigate }: { onClose: () => void; onNavigate: (href: string) => void }) {
   const [q, setQ] = useState("");
+  // Rendered only while open, so the trap's lifetime is the dialog's lifetime.
+  const trapRef = useFocusTrap(true);
   const results = NAV.filter((n) => (n.label + n.desc + n.group).toLowerCase().includes(q.toLowerCase()));
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-[12vh]">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Command palette">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="ad-card relative w-full max-w-xl overflow-hidden rounded-2xl">
-        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+      <div ref={trapRef} tabIndex={-1} className="ad-card relative w-full max-w-xl overflow-hidden rounded-2xl">
+        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 focus-within:ring-2 focus-within:ring-inset focus-within:ring-[var(--cv-accent)]">
           <Search className="h-5 w-5 text-slate-500" />
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Jump to a module or action…" className="w-full bg-transparent text-white outline-none placeholder:text-slate-500" />
           <kbd className="rounded border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] text-slate-500">ESC</kbd>

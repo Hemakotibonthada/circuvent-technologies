@@ -42,7 +42,7 @@ import { useConsole } from "./ConsoleProvider";
 import { useConsoleTheme } from "./theme";
 import ProfileAvatar from "./ProfileAvatar";
 import Login from "./Login";
-import { CommandPalette, ToastHost, useCommandPaletteHotkey, type Command as PaletteCommand } from "./_kit/overlays";
+import { CommandPalette, ToastHost, useCommandPaletteHotkey, useEscape, useFocusTrap, useScrollLock, type Command as PaletteCommand } from "./_kit/overlays";
 import { StatusDot } from "./_kit/primitives";
 import { useFleet, useScenes } from "./_data/hooks";
 
@@ -187,6 +187,13 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const closeMore = useCallback(() => setMoreOpen(false), []);
+  // This sheet is marked aria-modal but was none of the things that implies:
+  // Escape did nothing, Tab walked into the page behind it, and the body kept
+  // scrolling under the scrim. Reuse the same hooks Modal and Drawer use.
+  useEscape(moreOpen, closeMore);
+  useScrollLock(moreOpen);
+  const moreTrapRef = useFocusTrap(moreOpen);
 
   // One shared fleet subscription for the whole console: the palette can toggle
   // any device from any screen, and every section reuses the same poll.
@@ -523,6 +530,8 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="More sections">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMoreOpen(false)} />
           <div
+            ref={moreTrapRef}
+            tabIndex={-1}
             className="absolute inset-x-0 bottom-0 rounded-t-[28px] px-4 pb-8 pt-3"
             style={{ background: "var(--cv-card)", borderTop: "1px solid var(--cv-border)" }}
           >
