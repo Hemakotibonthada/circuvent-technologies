@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent WaterTank Duo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#0ea5e9" stop-opacity="0.45"/><stop offset="1" stop-color="#0ea5e9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0ea5e9" stop-opacity="0.95"/><stop offset="1" stop-color="#0ea5e9" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <g transform="translate(400 360)">
+    <!-- overhead tank -->
+    <g transform="translate(-150 -120)">
+      <rect x="-95" y="-90" width="190" height="180" rx="18" fill="#1e293b" stroke="#475569" stroke-width="5"/>
+      <rect x="-83" y="-10" width="166" height="88" rx="10" fill="url(#accentFill)"/>
+      <path d="M-83 -10 q41 -16 83 0 q41 16 83 0 v14 h-166 z" fill="#38bdf8" opacity="0.85"/>
+      <text x="0" y="-40" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="26" font-weight="800" text-anchor="middle">OH</text>
+    </g>
+    <!-- sump -->
+    <g transform="translate(150 120)">
+      <rect x="-95" y="-70" width="190" height="150" rx="18" fill="#1e293b" stroke="#475569" stroke-width="5"/>
+      <rect x="-83" y="20" width="166" height="48" rx="10" fill="url(#accentFill)" opacity="0.8"/>
+      <text x="0" y="-20" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="26" font-weight="800" text-anchor="middle">SUMP</text>
+    </g>
+    <!-- pump + pipe -->
+    <path d="M150 40 V-30 H-150 V-20" fill="none" stroke="#64748b" stroke-width="12" stroke-linecap="round"/>
+    <g transform="translate(60 -30)">
+      <circle r="34" fill="#0f172a" stroke="#0ea5e9" stroke-width="6"/>
+      <path d="M-13 -13 L15 0 L-13 13 Z" fill="#0ea5e9"/>
+    </g>
+    <!-- ultrasonic pings -->
+    <g stroke="#0ea5e9" stroke-width="4" fill="none" opacity="0.65" stroke-linecap="round">
+      <path d="M-150 -196 q-26 20 0 40"/><path d="M-150 -206 q-40 30 0 60"/>
+    </g>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#0ea5e9" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">WaterTank Duo</text>
+</svg>

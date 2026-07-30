@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent Agri GSM Starter">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0.45"/><stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0.95"/><stop offset="1" stop-color="#34d399" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <g transform="translate(400 350)">
+    <!-- controller box -->
+    <rect x="-160" y="-140" width="320" height="230" rx="26" fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <rect x="-130" y="-110" width="260" height="96" rx="12" fill="#0f172a"/>
+    <text x="0" y="-46" fill="#34d399" font-family="ui-monospace,Menlo,monospace" font-size="34" font-weight="800" text-anchor="middle">PUMP ON</text>
+    <!-- gsm bars -->
+    <g transform="translate(-96 26)" fill="#34d399">
+      <rect x="0" y="18" width="14" height="18" rx="4"/><rect x="22" y="6" width="14" height="30" rx="4"/>
+      <rect x="44" y="-8" width="14" height="44" rx="4"/><rect x="66" y="-22" width="14" height="58" rx="4" opacity="0.4"/>
+    </g>
+    <circle cx="106" cy="34" r="22" fill="#34d399"/>
+    <!-- antenna: solid stroke, not url(#metal) — a vertical line has a
+         zero-width bounding box, so an objectBoundingBox gradient never paints -->
+    <path d="M150 -140 v-70" stroke="#cbd5e1" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="150" cy="-218" r="12" fill="#34d399"/>
+    <!-- crop rows -->
+    <g transform="translate(0 168)" stroke="#34d399" stroke-width="7" stroke-linecap="round" opacity="0.85" fill="none">
+      <path d="M-210 40 v-52 M-210 -4 l-22 -22 M-210 -4 l22 -22"/>
+      <path d="M-70 40 v-52 M-70 -4 l-22 -22 M-70 -4 l22 -22"/>
+      <path d="M70 40 v-52 M70 -4 l-22 -22 M70 -4 l22 -22"/>
+      <path d="M210 40 v-52 M210 -4 l-22 -22 M210 -4 l22 -22"/>
+    </g>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#34d399" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">Agri GSM Starter</text>
+</svg>

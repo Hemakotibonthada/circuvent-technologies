@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent Energy Monitor">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#f59e0b" stop-opacity="0.45"/><stop offset="1" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f59e0b" stop-opacity="0.95"/><stop offset="1" stop-color="#f59e0b" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <g transform="translate(400 350)">
+    <rect x="-190" y="-150" width="380" height="290" rx="26" fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <rect x="-160" y="-120" width="320" height="150" rx="14" fill="#0f172a"/>
+    <text x="0" y="-58" fill="#f59e0b" font-family="ui-monospace,Menlo,monospace" font-size="52" font-weight="800" text-anchor="middle">1.82 kW</text>
+    <!-- live trace -->
+    <path d="M-146 -6 L-104 -26 L-62 -14 L-20 -44 L22 -22 L64 -38 L106 -12 L146 -30"
+          fill="none" stroke="#f59e0b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- CT clamp -->
+    <g transform="translate(0 88)">
+      <circle r="46" fill="none" stroke="url(#metal)" stroke-width="16"/>
+      <rect x="-10" y="-64" width="20" height="34" rx="6" fill="#475569"/>
+      <path d="M-120 0 H-52 M52 0 H120" stroke="#64748b" stroke-width="12" stroke-linecap="round"/>
+    </g>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#f59e0b" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">Energy Monitor</text>
+</svg>

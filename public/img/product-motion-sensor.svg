@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent Motion Sensor">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity="0.45"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity="0.95"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <g transform="translate(400 340)">
+    <!-- dome -->
+    <path d="M-120 60 a120 120 0 0 1 240 0 z" fill="url(#metal)"/>
+    <path d="M-120 60 a120 120 0 0 1 240 0 z" fill="none" stroke="#cbd5e1" stroke-width="4"/>
+    <rect x="-132" y="60" width="264" height="34" rx="16" fill="#e2e8f0"/>
+    <circle cx="0" cy="18" r="34" fill="#0f172a"/>
+    <circle cx="0" cy="18" r="12" fill="#a78bfa"/>
+    <!-- detection cone -->
+    <path d="M0 94 L-210 300 L210 300 Z" fill="#a78bfa" opacity="0.14"/>
+    <g stroke="#a78bfa" stroke-width="4" opacity="0.5" fill="none">
+      <path d="M-96 180 q96 42 192 0"/><path d="M-150 240 q150 56 300 0"/>
+    </g>
+    <!-- walker -->
+    <g transform="translate(0 232)" fill="#a78bfa">
+      <circle cx="0" cy="-34" r="17"/>
+      <path d="M-4 -16 h10 l10 42 h-14 l-4 -20 l-10 22 h-14 z"/>
+    </g>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#a78bfa" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">Motion Sensor</text>
+</svg>

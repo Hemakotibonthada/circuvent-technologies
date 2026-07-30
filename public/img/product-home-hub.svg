@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent Home Hub">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#14b8a6" stop-opacity="0.45"/><stop offset="1" stop-color="#14b8a6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14b8a6" stop-opacity="0.95"/><stop offset="1" stop-color="#14b8a6" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <g transform="translate(400 350)">
+    <rect x="-170" y="-120" width="340" height="230" rx="34" fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <circle cx="0" cy="-16" r="62" fill="#0f172a"/>
+    <circle cx="0" cy="-16" r="62" fill="none" stroke="#14b8a6" stroke-width="6"/>
+    <circle cx="0" cy="-16" r="24" fill="url(#brand)"/>
+    <!-- linked nodes -->
+    <g stroke="#14b8a6" stroke-width="4" opacity="0.55">
+      <path d="M0 -16 L-210 -170 M0 -16 L210 -170 M0 -16 L-230 60 M0 -16 L230 60"/>
+    </g>
+    <g fill="#0f172a" stroke="#14b8a6" stroke-width="5">
+      <rect x="-244" y="-204" width="68" height="68" rx="16"/>
+      <rect x="176" y="-204" width="68" height="68" rx="16"/>
+      <rect x="-264" y="26" width="68" height="68" rx="16"/>
+      <rect x="196" y="26" width="68" height="68" rx="16"/>
+    </g>
+    <g transform="translate(0 74)" fill="#475569">
+      <rect x="-96" y="0" width="192" height="16" rx="8"/>
+    </g>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#14b8a6" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">Home Hub</text>
+</svg>

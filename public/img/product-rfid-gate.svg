@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent RFID Gate">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#f59e0b" stop-opacity="0.45"/><stop offset="1" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f59e0b" stop-opacity="0.95"/><stop offset="1" stop-color="#f59e0b" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <g transform="translate(400 380)">
+    <!-- posts -->
+    <rect x="-300" y="-160" width="34" height="240" rx="10" fill="url(#metal)"/>
+    <rect x="266" y="-160" width="34" height="240" rx="10" fill="url(#metal)"/>
+    <!-- boom, raised -->
+    <g transform="translate(-283 -140) rotate(-32)">
+      <rect x="0" y="-14" width="470" height="28" rx="12" fill="#f59e0b"/>
+      <g fill="#0f172a" opacity="0.85">
+        <rect x="60" y="-14" width="46" height="28"/><rect x="180" y="-14" width="46" height="28"/><rect x="300" y="-14" width="46" height="28"/>
+      </g>
+    </g>
+    <!-- reader -->
+    <g transform="translate(283 -190)">
+      <rect x="-40" y="-46" width="80" height="92" rx="12" fill="#0f172a" stroke="#f59e0b" stroke-width="5"/>
+      <g stroke="#f59e0b" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.8">
+        <path d="M-58 -18 q-22 18 0 36"/><path d="M-76 -32 q-36 32 0 64"/>
+      </g>
+    </g>
+    <!-- car -->
+    <g transform="translate(-60 40)">
+      <path d="M-130 30 l24 -56 h190 l30 56 z" fill="#334155"/>
+      <rect x="-140" y="30" width="290" height="46" rx="16" fill="#475569"/>
+      <circle cx="-78" cy="80" r="26" fill="#0f172a"/><circle cx="92" cy="80" r="26" fill="#0f172a"/>
+      <rect x="-40" y="-20" width="56" height="26" rx="6" fill="#f59e0b" opacity="0.9"/>
+    </g>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#f59e0b" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">RFID Gate</text>
+</svg>
