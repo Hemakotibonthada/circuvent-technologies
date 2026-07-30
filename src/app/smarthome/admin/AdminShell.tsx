@@ -7,6 +7,7 @@ import {
   LayoutDashboard, ShieldCheck, PackagePlus, Radar, Activity, LayoutGrid, Workflow,
   BellRing, DownloadCloud, ShieldAlert, Server, Search, Command as CmdIcon, ChevronLeft,
   Bell, LifeBuoy, ChevronsUpDown, Cpu, LogOut, Menu, CircleDot, ArrowRight, Timer,
+  Sparkles,
 } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import { useConsole } from "../ConsoleProvider";
@@ -24,6 +25,7 @@ const NAV: NavItem[] = [
   { href: "/smarthome/admin/latency", label: "Latency & Perf", icon: Timer, group: "Operations", desc: "Command round trips, per-hop attribution, SLO burn" },
   { href: "/smarthome/admin/ota", label: "OTA & Config", icon: DownloadCloud, group: "Operations", desc: "Firmware repo, campaigns, rollback, config editor" },
   { href: "/smarthome/admin/dashboards", label: "Dashboards", icon: LayoutGrid, group: "Intelligence", desc: "Drag-drop builder, widgets, floor plans, kiosk" },
+  { href: "/smarthome/admin/intelligence", label: "Fleet Intelligence", icon: Sparkles, group: "Intelligence", desc: "Correlated findings: bad releases, site outages, silent devices" },
   { href: "/smarthome/admin/rules", label: "Rules Engine", icon: Workflow, group: "Intelligence", desc: "Visual rules, CEP, schedules, edge deployment" },
   { href: "/smarthome/admin/alerts", label: "Alerts & Incidents", icon: BellRing, group: "Intelligence", desc: "Multi-channel alerts, escalation, incident console" },
   { href: "/smarthome/admin/security", label: "Security", icon: ShieldAlert, group: "Governance", desc: "PKI, certificates, CVE scanner, quarantine, compliance" },

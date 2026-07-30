@@ -25,6 +25,7 @@ something is unverified or inconsistent, it says so rather than guessing.
 | Keep it healthy | [13 — Maintenance](./13-maintenance.md) |
 | Handle growth | [14 — Scaling](./14-scaling.md) |
 | Fix something that is broken | [15 — Troubleshooting](./15-troubleshooting.md) |
+| Understand the AI assistant | [16 — AI assistant](./16-ai-assistant.md) |
 
 ## The system in one paragraph
 

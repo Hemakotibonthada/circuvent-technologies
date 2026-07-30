@@ -351,8 +351,18 @@ export function sumStateMetric(
   for (const d of devices) {
     const state = d.state ?? {};
     for (const k of keys) {
-      const v = Number(state[k]);
-      if (Number.isFinite(v)) {
+      // Number() is too permissive to use on raw device state. Number(true) is
+      // 1, so a plug reporting `power: true` would silently contribute 1 W of
+      // invented load; Number(null) and Number("") are 0, which would mark a
+      // device with no reading as "reporting". Only genuine numerics count.
+      const raw = state[k];
+      const v =
+        typeof raw === "number" && Number.isFinite(raw)
+          ? raw
+          : typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw))
+            ? Number(raw)
+            : null;
+      if (v !== null) {
         total += v;
         reporting += 1;
         break;

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable, TextInput, Animated, Easing, Switch 
 import { Screen, Card, SectionLabel, useTheme, IconButton, useBackHandler } from "../../ui";
 import { useDevices } from "../../store";
 import { parseCommand, VOICE_EXAMPLES } from "../../voice";
+import { sendChat, type ChatMessage } from "../../assistant";
 
 // TTS via expo-speech, loaded defensively so the screen still works if the
 // native module isn't linked (e.g. in Expo Go).
@@ -19,12 +20,17 @@ interface Turn { who: "you" | "cv"; text: string }
 export default function VoiceAssistant({ onBack }: { onBack: () => void }) {
   const { c } = useTheme();
   const { devices, command } = useDevices();
-  const [turns, setTurns] = useState<Turn[]>([{ who: "cv", text: "Hi! I'm your Circuvent assistant. Tell me what to do — like 'turn on the living room lights'." }]);
+  const [turns, setTurns] = useState<Turn[]>([{ who: "cv", text: "Hi! I'm your Circuvent assistant. Tell me what to do — like 'turn on the living room lights' — or ask me anything about your home, your energy use or our products." }]);
   const [text, setText] = useState("");
   const [speakOn, setSpeakOn] = useState(true);
   const [thinking, setThinking] = useState(false);
   const scroller = useRef<ScrollView | null>(null);
   const pulse = useRef(new Animated.Value(0)).current;
+
+  // The send handler runs inside a timeout, so a captured `turns` would be
+  // stale by the time the request is built. A ref always reads the latest.
+  const turnsRef = useRef(turns);
+  useEffect(() => { turnsRef.current = turns; }, [turns]);
 
   useBackHandler(() => { onBack(); return true; });
 
@@ -45,13 +51,40 @@ export default function VoiceAssistant({ onBack }: { onBack: () => void }) {
     setText("");
     setTurns((p) => [...p, { who: "you", text: q }]);
     setThinking(true);
-    setTimeout(() => {
+
+    setTimeout(async () => {
       const res = parseCommand(q, devices);
-      res.commands.forEach(({ id, cmd }) => command(id, cmd));
-      setTurns((p) => [...p, { who: "cv", text: res.reply }]);
-      say(res.reply);
-      setThinking(false);
-      setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+
+      // Device control stays local: it is instant, works without a network
+      // round trip, and — importantly — nothing is ever actuated as a side
+      // effect of a generated sentence. The parser is the only thing that can
+      // move a relay.
+      if (res.matched.length > 0) {
+        res.commands.forEach(({ id, cmd }) => command(id, cmd));
+        setTurns((p) => [...p, { who: "cv", text: res.reply }]);
+        say(res.reply);
+        setThinking(false);
+        setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+        return;
+      }
+
+      // Nothing matched a device, so this is a question rather than a command.
+      // Hand it to the assistant instead of answering "I couldn't find a
+      // matching device" to something like "how do I save electricity?".
+      try {
+        const history: ChatMessage[] = [...turnsRef.current, { who: "you", text: q }]
+          .map((t) => ({ role: t.who === "you" ? ("user" as const) : ("assistant" as const), content: t.text }));
+
+        const reply = await sendChat(history, "mobile");
+        const text = reply.ok ? reply.data.message : reply.error;
+        setTurns((p) => [...p, { who: "cv", text }]);
+        say(text);
+      } catch {
+        setTurns((p) => [...p, { who: "cv", text: res.reply }]);
+      } finally {
+        setThinking(false);
+        setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 80);
+      }
     }, 300);
   };
 
