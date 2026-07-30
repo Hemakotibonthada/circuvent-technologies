@@ -58,7 +58,7 @@ Three consequences of that principle show up throughout the code:
 | `src/lib/ai/useHomeAnalysis.ts` | Shared client hook so the two web surfaces can't diverge |
 | `src/app/api/ai/chat/route.ts` | One conversational turn |
 | `src/app/api/ai/analyze/route.ts` | Analysis only — never calls a model |
-| `src/components/ai/Assistant.tsx` | Floating chat panel (shop + console) |
+| `src/components/ai/Assistant.tsx` | Floating chat panel, mounted once in the root layout |
 | `src/components/ai/InsightsPanel.tsx` | Compact findings widget |
 | `src/app/smarthome/insights/AnalysisPanel.tsx` | Full console "Analysis" tab |
 | `src/app/smarthome/admin/intelligence/page.tsx` | Admin "Fleet Intelligence" page |
@@ -187,11 +187,16 @@ Two design details worth keeping if this code is edited:
 
 | Surface | Path | Uses a model? |
 | --- | --- | --- |
-| Shop + console chat | floating panel | Yes (falls back if absent) |
+| Chat, site-wide | floating panel on every page | Yes (falls back if absent) |
 | Console → Insights → **Analysis** | `/smarthome/insights` | **No** |
 | Admin → **Fleet Intelligence** | `/smarthome/admin/intelligence` | **No** |
 | Mobile → More → **AI insights** | `AiHub` | **No** |
 | Mobile → More → **Assistant** | `VoiceAssistant` | Only for unrecognised input |
+
+The chat panel is mounted **once**, in `src/app/layout.tsx`, and derives its
+surface (`site` / `shop` / `smarthome` / `admin`) from the pathname. Mounting it
+per-layout instead would give a user two assistants on `/shop`, because nested
+layouts each render their own copy.
 
 Both console findings surfaces show the **evidence** each finding fired on, so
 an operator can check the arithmetic instead of taking a sentence on faith.

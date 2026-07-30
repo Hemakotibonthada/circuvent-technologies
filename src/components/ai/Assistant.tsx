@@ -11,7 +11,8 @@
 //   • The tools that ran are named. If the assistant claims something about a
 //     device, you can see that it actually looked it up.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sparkles, X, Send, Loader2, ShieldCheck, Cpu } from "lucide-react";
 
 interface Msg {
@@ -30,7 +31,24 @@ const SUGGESTIONS: Record<Surface, string[]> = {
   site: ["What does Circuvent make?", "How does the water tank controller work?"],
 };
 
-export default function Assistant({ surface = "site" }: { surface?: Surface }) {
+/** Where the user is, which decides the opening suggestions and the prompt tone. */
+function surfaceFromPath(path: string | null): Surface {
+  if (!path) return "site";
+  if (path.startsWith("/smarthome/admin")) return "admin";
+  if (path.startsWith("/smarthome")) return "smarthome";
+  if (path.startsWith("/shop")) return "shop";
+  return "site";
+}
+
+/**
+ * Mounted once in the root layout. The surface is derived from the pathname
+ * rather than passed per-layout, because nested layouts would each mount their
+ * own copy and the user would get two assistants on /shop.
+ */
+export default function Assistant({ surface: surfaceProp }: { surface?: Surface } = {}) {
+  const pathname = usePathname();
+  const surface = useMemo(() => surfaceProp ?? surfaceFromPath(pathname), [surfaceProp, pathname]);
+
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");

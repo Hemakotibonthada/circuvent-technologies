@@ -3,7 +3,6 @@ import { ConsoleProvider } from "./ConsoleProvider";
 import ConsoleChrome from "./ConsoleChrome";
 import { ConsoleThemeProvider } from "./theme";
 import { CONTROL_PLANE_URL } from "@/lib/control-plane";
-import Assistant from "@/components/ai/Assistant";
 
 export const metadata: Metadata = {
   title: "Device Console | Circuvent",
@@ -21,7 +20,6 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
       <ConsoleProvider>
         <ConsoleThemeProvider>
           <ConsoleChrome>{children}</ConsoleChrome>
-          <Assistant surface="smarthome" />
         </ConsoleThemeProvider>
       </ConsoleProvider>
     </>

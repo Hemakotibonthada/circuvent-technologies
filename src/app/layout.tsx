@@ -14,6 +14,7 @@ import CartDrawer from "@/components/shop/CartDrawer";
 import AnalyticsGate from "@/components/AnalyticsGate";
 import CookieConsent from "@/components/CookieConsent";
 import VisitorTracker from "@/components/VisitorTracker";
+import Assistant from "@/components/ai/Assistant";
 import { SITE_URL, siteConfig } from "@/lib/config";
 import { getOrganizationJsonLd, getWebsiteJsonLd } from "@/lib/seo";
 import { jsonForScript } from "@/lib/json-script";
@@ -135,6 +136,7 @@ export default function RootLayout({
               {children}
             </SiteChrome>
             <CartDrawer />
+            <Assistant />
             </WishlistProvider>
             </AccountProvider>
           </CartProvider>
