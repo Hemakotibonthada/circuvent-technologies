@@ -1,4 +1,5 @@
 import type { Automation, AutomationAction, AutomationBody, AutomationTrigger, Device, SceneAction } from "../../../api";
+import { actionList } from "../../../api";
 
 export type TriggerType = "state" | "time";
 export type ActionType = "command" | "notify";
@@ -30,6 +31,12 @@ export interface RuleDraft {
   enabled: boolean;
   trigger: AutomationTrigger;
   action: AutomationAction;
+  /**
+   * Steps beyond the first, for rules authored as a sequence in the web
+   * console. This builder edits only the first action, so the rest are carried
+   * through untouched rather than being dropped on save.
+   */
+  extraSteps?: AutomationAction[];
 }
 
 export interface SceneDraft {
@@ -57,12 +64,20 @@ export function emptyDraft(): RuleDraft {
 }
 
 export function cloneAutomation(a: Automation): RuleDraft {
+  // The mobile rule builder edits one action. Cloning the first step keeps that
+  // contract, but a sequence must not be silently flattened here — callers that
+  // save a clone would drop the remaining steps.
+  const steps = actionList(a.action);
+  const first = steps[0];
   return {
     id: a.id,
     name: a.name,
     enabled: a.enabled,
     trigger: { ...a.trigger },
-    action: { ...a.action, command: a.action.command ? { ...a.action.command } : undefined },
+    action: first
+      ? { ...first, command: first.command ? { ...first.command } : undefined }
+      : { type: "notify" },
+    extraSteps: steps.length > 1 ? steps.slice(1).map((s) => ({ ...s })) : undefined,
   };
 }
 
@@ -78,7 +93,9 @@ export function toAutomationBody(d: RuleDraft): AutomationBody {
     name: d.name.trim(),
     enabled: d.enabled,
     trigger: d.trigger,
-    action: d.action,
+    // Re-attach any steps this builder could not show, so editing the first
+    // action of a sequence does not delete the rest of it.
+    action: d.extraSteps?.length ? [d.action, ...d.extraSteps] : d.action,
   };
 }
 

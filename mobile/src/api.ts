@@ -41,7 +41,7 @@ export interface Device {
 }
 
 export interface AutomationTrigger {
-  type: "state" | "time";
+  type: "state" | "time" | "event";
   deviceId?: string;
   field?: string;
   op?: "<" | "<=" | ">" | ">=" | "==" | "!=" | "truthy" | "falsy";
@@ -53,14 +53,37 @@ export interface AutomationTrigger {
    * as `at` — not in the phone's zone.
    */
   days?: number[];
+  /** Event triggers match a telemetry event: door access, RFID, doorbell. */
+  eventType?: string;
+  /** Every key here must equal the same key in the event payload. */
+  match?: Record<string, unknown>;
 }
 
 export interface AutomationAction {
-  type: "command" | "notify";
+  type: "command" | "notify" | "tts";
   deviceId?: string;
   command?: Record<string, unknown>;
   title?: string;
   body?: string;
+  /** Spoken text for `tts`. `{name}` is filled from the triggering event. */
+  text?: string;
+  /** Pause before this action runs, in milliseconds (control plane caps at 30s). */
+  delayMs?: number;
+}
+
+/**
+ * An automation runs either a single action or an ordered sequence.
+ *
+ * The control plane has always accepted both. The app declares both so a
+ * multi-step rule authored in the web console is displayed honestly here
+ * rather than being read as a single action.
+ */
+export type AutomationActions = AutomationAction | AutomationAction[];
+
+/** Always view an automation's action as a list, whichever shape was stored. */
+export function actionList(a: AutomationActions | undefined | null): AutomationAction[] {
+  if (!a) return [];
+  return Array.isArray(a) ? a : [a];
 }
 
 export interface Automation {
@@ -68,7 +91,7 @@ export interface Automation {
   name: string;
   enabled: boolean;
   trigger: AutomationTrigger;
-  action: AutomationAction;
+  action: AutomationActions;
   created_at?: string;
 }
 
@@ -76,7 +99,7 @@ export interface AutomationBody {
   name?: string;
   enabled?: boolean;
   trigger?: AutomationTrigger;
-  action?: AutomationAction;
+  action?: AutomationActions;
 }
 
 export interface Room {

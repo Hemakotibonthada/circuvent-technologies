@@ -6,6 +6,7 @@
  */
 
 import type { AppEvent, Device, Automation, Scene } from "@/lib/control-plane";
+import { actionList } from "@/lib/control-plane";
 import type { Severity } from "../_kit/primitives";
 import { eventSeverity } from "../_data/hooks";
 
@@ -198,10 +199,16 @@ export function eventsToCsvRows(events: AppEvent[]): (string | number | null)[][
 export const EVENTS_CSV_HEADERS = ["id", "kind", "severity", "title", "body", "device_id", "status", "ts"];
 
 export function automationsToCsvRows(automations: Automation[]): (string | number | null)[][] {
-  return automations.map((a) => [
-    a.id, a.name, a.enabled ? "enabled" : "disabled",
-    a.trigger?.type ?? "", a.trigger?.deviceId ?? "", a.action?.type ?? "",
-  ]);
+  return automations.map((a) => {
+    const steps = actionList(a.action);
+    return [
+      a.id, a.name, a.enabled ? "enabled" : "disabled",
+      a.trigger?.type ?? "", a.trigger?.deviceId ?? "",
+      // Sequences have no single action type; report the first and the count so
+      // the export does not silently describe a multi-step rule as one action.
+      steps[0]?.type ?? "", steps.length,
+    ];
+  });
 }
 
-export const AUTOMATIONS_CSV_HEADERS = ["id", "name", "status", "trigger_type", "trigger_device", "action_type"];
+export const AUTOMATIONS_CSV_HEADERS = ["id", "name", "status", "trigger_type", "trigger_device", "action_type", "action_steps"];

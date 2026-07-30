@@ -25,9 +25,11 @@ import {
 import { useAutomations, useAdminDevices } from "../_lib/api";
 import {
   controlPlane,
+  actionList,
   type Automation,
   type AutomationTrigger,
   type AutomationAction,
+  type AutomationActions,
   type AutomationBody,
   type AdminDevice,
 } from "@/lib/control-plane";
@@ -59,6 +61,15 @@ interface RuleForm {
   actionCommand: string;
   actionTitle: string;
   actionBody: string;
+  /**
+   * The stored action when it is a sequence this editor cannot represent.
+   *
+   * This screen edits one action; a rule built in the console's rule builder
+   * may have several. Saving would otherwise flatten the sequence back to a
+   * single step and silently discard the rest, so the original is carried
+   * through untouched and the action fields are shown read-only.
+   */
+  keepSequence?: AutomationAction[];
 }
 
 // ----------------------------------------------------------------- helpers ---
@@ -105,9 +116,18 @@ function triggerSummary(t: AutomationTrigger, deviceName: (id?: string) => strin
   return `${dev} · ${field} ${t.op ?? "?"} ${formatVal(t.value)}`;
 }
 
-function actionSummary(a: AutomationAction, deviceName: (id?: string) => string): string {
-  if (a.type === "notify") return `Notify — ${a.title || a.body || "message"}`;
-  return `Command ${deviceName(a.deviceId)} — ${a.command ? JSON.stringify(a.command) : "{}"}`;
+function actionSummary(a: AutomationActions, deviceName: (id?: string) => string): string {
+  const steps = actionList(a);
+  if (steps.length === 0) return "No action";
+  const one = (s: AutomationAction) =>
+    s.type === "notify"
+      ? `Notify — ${s.title || s.body || "message"}`
+      : s.type === "tts"
+        ? `Speak on ${deviceName(s.deviceId)} — ${s.text || s.body || ""}`
+        : `Command ${deviceName(s.deviceId)} — ${s.command ? JSON.stringify(s.command) : "{}"}`;
+  return steps.length === 1
+    ? one(steps[0])
+    : `${one(steps[0])} +${steps.length - 1} more`;
 }
 
 function coerceValue(raw: string): number | string | boolean {
@@ -120,7 +140,8 @@ function coerceValue(raw: string): number | string | boolean {
 
 function formFromRule(r: Automation | null): RuleForm {
   const t = r?.trigger;
-  const a = r?.action;
+  const steps = actionList(r?.action);
+  const a = steps[0];
   return {
     name: r?.name ?? "",
     enabled: r?.enabled ?? true,
@@ -135,6 +156,7 @@ function formFromRule(r: Automation | null): RuleForm {
     actionCommand: a?.command ? JSON.stringify(a.command, null, 2) : DEFAULT_COMMAND,
     actionTitle: a?.title ?? "",
     actionBody: a?.body ?? "",
+    keepSequence: steps.length > 1 ? steps : undefined,
   };
 }
 
@@ -155,8 +177,13 @@ function buildBody(f: RuleForm): { body?: AutomationBody; error?: string } {
     }
   }
 
-  let action: AutomationAction;
-  if (f.actionType === "notify") {
+  let action: AutomationActions;
+  if (f.keepSequence) {
+    // Multi-step rules are edited in the console's rule builder. Preserve the
+    // sequence exactly so saving a name or trigger change here cannot discard
+    // the steps this form has no way to show.
+    action = f.keepSequence;
+  } else if (f.actionType === "notify") {
     if (!f.actionTitle.trim() && !f.actionBody.trim()) return { error: "Enter a notification title or body." };
     action = { type: "notify", title: f.actionTitle.trim() || undefined, body: f.actionBody.trim() || undefined };
   } else {
@@ -227,7 +254,9 @@ export default function RulesPage() {
     const ids = new Set<string>();
     for (const r of rules) {
       if (r.trigger.deviceId) ids.add(r.trigger.deviceId);
-      if (r.action.deviceId) ids.add(r.action.deviceId);
+      // A sequence can touch several devices; every one of them should be
+      // filterable, not just the first step's.
+      for (const s of actionList(r.action)) if (s.deviceId) ids.add(s.deviceId);
     }
     return [{ value: "all", label: "All devices" }, ...[...ids].map((id) => ({ value: id, label: deviceName(id) }))];
   }, [rules, deviceName]);
@@ -235,10 +264,20 @@ export default function RulesPage() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rules.filter((r) => {
+      const steps = actionList(r.action);
       if (enabledFilter !== "all" && (enabledFilter === "enabled") !== r.enabled) return false;
-      if (deviceFilter !== "all" && r.trigger.deviceId !== deviceFilter && r.action.deviceId !== deviceFilter) return false;
+      if (
+        deviceFilter !== "all" &&
+        r.trigger.deviceId !== deviceFilter &&
+        !steps.some((s) => s.deviceId === deviceFilter)
+      ) {
+        return false;
+      }
       if (needle) {
-        const hay = `${r.name} ${r.trigger.field ?? ""} ${r.action.title ?? ""} ${r.action.body ?? ""} ${deviceName(r.trigger.deviceId)} ${deviceName(r.action.deviceId)}`.toLowerCase();
+        const stepText = steps
+          .map((s) => `${s.title ?? ""} ${s.body ?? ""} ${s.text ?? ""} ${deviceName(s.deviceId)}`)
+          .join(" ");
+        const hay = `${r.name} ${r.trigger.field ?? ""} ${stepText} ${deviceName(r.trigger.deviceId)}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;
@@ -313,22 +352,31 @@ export default function RulesPage() {
       render: (r) =>
         r.trigger.type === "time" ? (
           <Badge tone="blue"><Clock className="h-3 w-3" /> time</Badge>
+        ) : r.trigger.type === "event" ? (
+          <Badge tone="violet"><Bell className="h-3 w-3" /> event</Badge>
         ) : (
           <Badge tone="brand"><Zap className="h-3 w-3" /> state</Badge>
         ),
     },
     {
       key: "action", header: "Action",
-      render: (r) => (
-        <div className="flex min-w-0 items-center gap-2">
-          {r.action.type === "notify" ? (
-            <Badge tone="violet"><Bell className="h-3 w-3" /> notify</Badge>
-          ) : (
-            <Badge tone="amber"><Radio className="h-3 w-3" /> command</Badge>
-          )}
-          <span className="max-w-[220px] truncate text-[11px] ad-muted">{actionSummary(r.action, deviceName)}</span>
-        </div>
-      ),
+      render: (r) => {
+        const steps = actionList(r.action);
+        const first = steps[0];
+        return (
+          <div className="flex min-w-0 items-center gap-2">
+            {first?.type === "notify" ? (
+              <Badge tone="violet"><Bell className="h-3 w-3" /> notify</Badge>
+            ) : first?.type === "tts" ? (
+              <Badge tone="blue"><Radio className="h-3 w-3" /> speak</Badge>
+            ) : (
+              <Badge tone="amber"><Radio className="h-3 w-3" /> command</Badge>
+            )}
+            {steps.length > 1 && <Badge tone="slate">{steps.length} steps</Badge>}
+            <span className="max-w-[220px] truncate text-[11px] ad-muted">{actionSummary(r.action, deviceName)}</span>
+          </div>
+        );
+      },
     },
     {
       key: "enabled", header: "Enabled", align: "center",

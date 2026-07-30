@@ -52,7 +52,7 @@ export interface GatePass {
 }
 
 export interface AutomationTrigger {
-  type: "state" | "time";
+  type: "state" | "time" | "event";
   deviceId?: string;
   field?: string;
   op?: "<" | "<=" | ">" | ">=" | "==" | "!=" | "truthy" | "falsy";
@@ -64,14 +64,52 @@ export interface AutomationTrigger {
    * `at` — not in the browser's zone.
    */
   days?: number[];
+  /**
+   * Event triggers match a telemetry event rather than a state change — a
+   * face-door recognising someone, a gate reading an RFID tag, a doorbell
+   * press. `eventType` is compared against the payload's `type`.
+   */
+  eventType?: string;
+  /** Every key here must equal the same key in the event payload. */
+  match?: Record<string, unknown>;
 }
 
 export interface AutomationAction {
-  type: "command" | "notify";
+  type: "command" | "notify" | "tts";
   deviceId?: string;
   command?: Record<string, unknown>;
   title?: string;
   body?: string;
+  /** Spoken text for `tts`. `{name}` is filled from the triggering event. */
+  text?: string;
+  /**
+   * Pause before this action runs, in milliseconds. The control plane caps it
+   * at 30s per step, which is what makes "unlock, wait, announce, wait, lock"
+   * expressible as one automation.
+   */
+  delayMs?: number;
+}
+
+/**
+ * An automation runs either a single action or an ordered sequence.
+ *
+ * The control plane has always accepted both — `runActions` normalises with
+ * `Array.isArray` — but the client only ever declared the single form, so
+ * multi-step automations could be executed and never authored. Both shapes
+ * are declared here so existing single-action rules keep their exact stored
+ * form and are not rewritten into arrays on save.
+ */
+export type AutomationActions = AutomationAction | AutomationAction[];
+
+/** Always view an automation's action as a list, whichever shape was stored. */
+export function actionList(a: AutomationActions | undefined | null): AutomationAction[] {
+  if (!a) return [];
+  return Array.isArray(a) ? a : [a];
+}
+
+/** The action a summary line should describe: the first of a sequence. */
+export function primaryAction(a: AutomationActions | undefined | null): AutomationAction | undefined {
+  return actionList(a)[0];
 }
 
 export interface Automation {
@@ -79,7 +117,7 @@ export interface Automation {
   name: string;
   enabled: boolean;
   trigger: AutomationTrigger;
-  action: AutomationAction;
+  action: AutomationActions;
   created_at?: string;
 }
 
@@ -87,7 +125,7 @@ export interface AutomationBody {
   name?: string;
   enabled?: boolean;
   trigger?: AutomationTrigger;
-  action?: AutomationAction;
+  action?: AutomationActions;
 }
 
 export interface Room {

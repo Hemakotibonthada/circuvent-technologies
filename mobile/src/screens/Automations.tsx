@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { api, Automation, AutomationAction, AutomationTrigger, Device } from "../api";
+import { api, actionList, Automation, AutomationAction, AutomationActions, AutomationTrigger, Device } from "../api";
 
 type TriggerType = AutomationTrigger["type"];
 type ActionType = AutomationAction["type"];
@@ -401,10 +401,17 @@ function triggerSummary(trigger: AutomationTrigger, deviceName: Map<string, stri
   return `When ${name} ${trigger.field || "field"} ${suffix}`.trim();
 }
 
-function actionSummary(action: AutomationAction, deviceName: Map<string, string>): string {
-  if (action.type === "notify") return "→ notify";
-  const name = action.deviceId ? deviceName.get(action.deviceId) || action.deviceId : "device";
-  return `→ command ${name}`;
+function actionSummary(action: AutomationActions, deviceName: Map<string, string>): string {
+  const steps = actionList(action);
+  if (steps.length === 0) return "→ no action";
+  const one = (s: AutomationAction) => {
+    if (s.type === "notify") return "notify";
+    const name = s.deviceId ? deviceName.get(s.deviceId) || s.deviceId : "device";
+    return s.type === "tts" ? `speak on ${name}` : `command ${name}`;
+  };
+  return steps.length === 1
+    ? `→ ${one(steps[0])}`
+    : `→ ${one(steps[0])} +${steps.length - 1} more`;
 }
 
 function readError(data: unknown): string | null {

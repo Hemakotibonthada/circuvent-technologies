@@ -1,4 +1,5 @@
 import type { Device, AppEvent, Automation, Scene } from "../../../api";
+import { actionList } from "../../../api";
 import { createStore, severityOf, type Severity } from "../../../enterprise";
 import type { IconName } from "../../../icons";
 
@@ -261,15 +262,19 @@ export function isAccessEvent(e: AppEvent): boolean {
 const SECURITY_WORDS = ["security", "alarm", "intrusion", "motion", "tamper", "door", "window", "lock", "unlock", "siren", "access", "guardian", "camera", "face", "rfid", "keypad", "gate"];
 export function isSecurityAutomation(a: Automation, devices: Device[]): boolean {
   const secIds = new Set(devices.filter(isSecurityCapable).map((d) => d.id));
+  const steps = actionList(a.action);
   const triggerDevice = a.trigger.deviceId ? secIds.has(a.trigger.deviceId) : false;
-  const actionDevice = a.action.deviceId ? secIds.has(a.action.deviceId) : false;
-  const notify = a.action.type === "notify";
-  const text = `${a.name} ${a.trigger.field ?? ""} ${a.action.title ?? ""} ${a.action.body ?? ""}`.toLowerCase();
+  // Any step of a sequence can touch a security device or notify, so all of
+  // them are considered rather than only the first.
+  const actionDevice = steps.some((s) => (s.deviceId ? secIds.has(s.deviceId) : false));
+  const notify = steps.some((s) => s.type === "notify");
+  const stepText = steps.map((s) => `${s.title ?? ""} ${s.body ?? ""} ${s.text ?? ""}`).join(" ");
+  const text = `${a.name} ${a.trigger.field ?? ""} ${stepText}`.toLowerCase();
   return triggerDevice || actionDevice || notify || SECURITY_WORDS.some((w) => text.includes(w));
 }
 
 export function automationDeviceNames(a: Automation, devices: Device[]): string {
-  const ids = [a.trigger.deviceId, a.action.deviceId].filter(Boolean) as string[];
+  const ids = [a.trigger.deviceId, ...actionList(a.action).map((s) => s.deviceId)].filter(Boolean) as string[];
   const names = ids.map((id) => devices.find((d) => d.id === id)?.name ?? id);
   return [...new Set(names)].join(", ") || "No device";
 }

@@ -9,6 +9,7 @@
 // All destructive actions require explicit confirmation before executing.
 
 import { useEffect, useState } from "react";
+import { actionList } from "@/lib/control-plane";
 import {
   Download,
   FileJson,
@@ -145,15 +146,19 @@ export default function DataPanel() {
 
   const exportAutomationsCsv = () => {
     const csv = toCsv(
-      ["ID", "Name", "Enabled", "Trigger type", "Action type", "Created"],
-      automations.map((a) => [
-        a.id,
-        a.name,
-        a.enabled ? "Yes" : "No",
-        a.trigger.type,
-        a.action.type,
-        a.created_at ?? "",
-      ]),
+      ["ID", "Name", "Enabled", "Trigger type", "Action type", "Steps", "Created"],
+      automations.map((a) => {
+        const steps = actionList(a.action);
+        return [
+          a.id,
+          a.name,
+          a.enabled ? "Yes" : "No",
+          a.trigger.type,
+          steps[0]?.type ?? "",
+          steps.length,
+          a.created_at ?? "",
+        ];
+      }),
     );
     downloadCsv(`circuvent-automations-${new Date().toISOString().slice(0, 10)}.csv`, csv);
     toast.ok("Automations CSV downloaded");

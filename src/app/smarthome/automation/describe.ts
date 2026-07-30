@@ -1,6 +1,8 @@
 "use client";
 
-import type { AutomationTrigger, AutomationAction } from "@/lib/control-plane";
+import type { AutomationTrigger, AutomationAction, AutomationActions } from "@/lib/control-plane";
+import { actionList } from "@/lib/control-plane";
+import { daysText } from "@/lib/smarthome-switches";
 
 /* ------------------------------------------------------------------ */
 /* Operator display labels                                             */
@@ -26,7 +28,19 @@ export function triggerText(
   deviceName: (id?: string) => string,
 ): string {
   if (trigger.type === "time") {
-    return `Every day at ${trigger.at ?? "--:--"}`;
+    // Say which days it actually runs. This used to read "Every day" for every
+    // schedule, including ones restricted to weekdays — the summary contradicted
+    // the rule it was describing.
+    return `${daysText(trigger.days)} at ${trigger.at ?? "--:--"}`;
+  }
+  if (trigger.type === "event") {
+    const dev = deviceName(trigger.deviceId);
+    const kind = trigger.eventType ? `${trigger.eventType} event` : "any event";
+    const pairs = Object.entries(trigger.match ?? {});
+    const where = pairs.length
+      ? ` where ${pairs.map(([k, v]) => `${k} = ${String(v)}`).join(" and ")}`
+      : "";
+    return `On ${dev} · ${kind}${where}`;
   }
   const dev = deviceName(trigger.deviceId);
   const field = trigger.field ?? "unknown field";
@@ -37,13 +51,21 @@ export function triggerText(
   return `When ${dev} · ${field} ${op} ${String(trigger.value ?? "")}`;
 }
 
-export function actionText(
+/** Describes one step of an automation. */
+export function singleActionText(
   action: AutomationAction,
   deviceName: (id?: string) => string,
 ): string {
+  const wait = action.delayMs && action.delayMs > 0 ? `wait ${formatDelay(action.delayMs)}, then ` : "";
+
   if (action.type === "notify") {
     const title = action.title ? `"${action.title}"` : "a notification";
-    return `Send ${title}${action.body ? ` — ${action.body}` : ""}`;
+    return `${wait}Send ${title}${action.body ? ` — ${action.body}` : ""}`;
+  }
+  if (action.type === "tts") {
+    const dev = deviceName(action.deviceId);
+    const said = action.text || action.body || "";
+    return `${wait}Announce${said ? ` "${said}"` : ""} on ${dev}`;
   }
   const dev = deviceName(action.deviceId);
   const entries = action.command
@@ -51,10 +73,35 @@ export function actionText(
     : [];
   if (entries.length === 0) {
     const act = (action.command as Record<string, unknown> | undefined)?.action;
-    return act ? `${String(act)} ${dev}` : `Command ${dev}`;
+    return act ? `${wait}${String(act)} ${dev}` : `${wait}Command ${dev}`;
   }
   const desc = entries.map(([k, v]) => `${k} → ${String(v)}`).join(", ");
-  return `Set ${dev}: ${desc}`;
+  return `${wait}Set ${dev}: ${desc}`;
+}
+
+/** "1.5s" / "10s" / "2m" — short enough to sit inside a summary line. */
+export function formatDelay(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${Number.isInteger(s) ? s : s.toFixed(1)}s`;
+  const m = s / 60;
+  return `${Number.isInteger(m) ? m : m.toFixed(1)}m`;
+}
+
+/**
+ * Describes an automation's action, which may be a single action or an ordered
+ * sequence. A sequence is summarised by its first step plus a count, so a list
+ * row stays one line; the editor shows every step.
+ */
+export function actionText(
+  action: AutomationActions,
+  deviceName: (id?: string) => string,
+): string {
+  const list = actionList(action);
+  if (list.length === 0) return "Do nothing";
+  const first = singleActionText(list[0], deviceName);
+  if (list.length === 1) return first;
+  return `${first} +${list.length - 1} more step${list.length - 1 === 1 ? "" : "s"}`;
 }
 
 /**
@@ -63,7 +110,7 @@ export function actionText(
  */
 export function rulePreviewText(
   trigger: AutomationTrigger,
-  action: AutomationAction,
+  action: AutomationActions,
   deviceName: (id?: string) => string,
 ): string {
   return `${triggerText(trigger, deviceName)} → ${actionText(action, deviceName)}`;

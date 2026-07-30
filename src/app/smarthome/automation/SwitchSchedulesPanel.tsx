@@ -25,8 +25,8 @@ import {
   ToggleRight,
   Trash2,
 } from "lucide-react";
-import { controlPlane } from "@/lib/control-plane";
-import type { Automation } from "@/lib/control-plane";
+import { controlPlane, actionList } from "@/lib/control-plane";
+import type { Automation, AutomationAction } from "@/lib/control-plane";
 import {
   useSwitchIndex,
   daysText,
@@ -67,20 +67,36 @@ import {
  */
 const MARK = "⟨sw⟩";
 
+/**
+ * The single command step of a switch schedule.
+ *
+ * Switch timers are always authored as one command action, but the stored
+ * shape may be either a bare action or a one-element array, so read through
+ * the list form. A multi-step rule is not a switch timer and is left alone.
+ */
+function switchStep(a: Automation): AutomationAction | null {
+  const steps = actionList(a.action);
+  return steps.length === 1 ? steps[0] : null;
+}
+
 /** True when this automation is a single-switch time schedule we authored. */
 function isSwitchSchedule(a: Automation): boolean {
+  const step = switchStep(a);
   return (
     a.name.startsWith(MARK) &&
     a.trigger.type === "time" &&
-    a.action.type === "command" &&
-    !!a.action.deviceId &&
-    !!a.action.command
+    !!step &&
+    step.type === "command" &&
+    !!step.deviceId &&
+    !!step.command
   );
 }
 
 /** The one boolean key a switch schedule commands, or null if malformed. */
 function commandField(a: Automation): { field: string; on: boolean } | null {
-  const entries = Object.entries(a.action.command ?? {}).filter(([k]) => k !== "action");
+  const step = switchStep(a);
+  if (!step) return null;
+  const entries = Object.entries(step.command ?? {}).filter(([k]) => k !== "action");
   if (entries.length !== 1) return null;
   const [field, value] = entries[0];
   if (typeof value !== "boolean") return null;
@@ -131,7 +147,7 @@ export default function SwitchSchedulesPanel() {
       if (!isSwitchSchedule(a)) continue;
       const cmd = commandField(a);
       if (!cmd) continue;
-      const deviceId = a.action.deviceId!;
+      const deviceId = switchStep(a)!.deviceId!;
       const key = `${deviceId}::${cmd.field}`;
       let entry = byKey.get(key);
       if (!entry) {

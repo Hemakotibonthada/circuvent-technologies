@@ -12,6 +12,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
+import { actionList } from "@/lib/control-plane";
 import {
   FileText, Download, RefreshCw, ChevronDown,
 } from "lucide-react";
@@ -583,7 +584,10 @@ export function ReportsPanel() {
                               Trigger: {a.trigger?.type ?? "unknown"}
                               {a.trigger?.deviceId ? ` · ${a.trigger.deviceId}` : ""}
                               {" → "}
-                              Action: {a.action?.type ?? "unknown"}
+                              Action: {actionList(a.action)[0]?.type ?? "unknown"}
+                              {actionList(a.action).length > 1
+                                ? ` +${actionList(a.action).length - 1}`
+                                : ""}
                             </div>
                           </div>
                           <Badge tone={a.enabled ? "ok" : "neutral"}>
