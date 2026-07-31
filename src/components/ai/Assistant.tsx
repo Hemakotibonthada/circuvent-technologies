@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { getToken } from "@/lib/control-plane";
 import { Sparkles, X, Send, Loader2, ShieldCheck, Cpu } from "lucide-react";
 
 interface Msg {
@@ -90,8 +91,7 @@ export default function Assistant({ surface: surfaceProp }: { surface?: Surface 
         // The console token is the user's own control-plane credential. Sending
         // it lets the assistant read their devices with their permissions; the
         // server never substitutes a service account.
-        const consoleToken =
-          typeof window === "undefined" ? null : window.localStorage.getItem("cv-console-token");
+        const consoleToken = getToken();
 
         const res = await fetch("/api/ai/chat", {
           method: "POST",

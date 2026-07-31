@@ -11,9 +11,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { getToken } from "../control-plane";
 import type { HomeAnalysis } from "./analysis";
-
-export const CONSOLE_TOKEN_KEY = "cv-console-token";
 
 export interface HomeAnalysisState {
   analysis: HomeAnalysis | null;
@@ -36,8 +35,7 @@ export function useHomeAnalysis(autoLoad = true): HomeAnalysisState {
     setError(null);
     setNeedsAuth(false);
     try {
-      const consoleToken =
-        typeof window === "undefined" ? null : window.localStorage.getItem(CONSOLE_TOKEN_KEY);
+      const consoleToken = getToken();
       if (!consoleToken) {
         setNeedsAuth(true);
         setError("Sign in to the console to see insights.");

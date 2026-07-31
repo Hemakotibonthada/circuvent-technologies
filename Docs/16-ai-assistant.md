@@ -52,9 +52,12 @@ Three consequences of that principle show up throughout the code:
 | `src/lib/ai/console-identity.test.ts` | 7 tests pinning the privilege rules |
 | `src/lib/ai/types.ts` | `Persona`, `ChatMessage`, `AssistantContext`, tool types |
 | `src/lib/ai/provider.ts` | OpenAI-compatible client over plain `fetch`. No SDK dependency. |
+| `src/lib/ai/provider.test.ts` | 24 tests: wire format, error translation, malformed tool arguments |
 | `src/lib/ai/tools.ts` | The tool registry — **the trust boundary** |
+| `src/lib/ai/tools.test.ts` | 15 tests: what each persona may reach, and every refusal path |
 | `src/lib/ai/prompts.ts` | Per-persona system prompts |
 | `src/lib/ai/assistant.ts` | The tool loop, and the degraded fallback |
+| `src/lib/ai/assistant.test.ts` | 19 tests driving the loop against a stubbed provider |
 | `src/lib/ai/useHomeAnalysis.ts` | Shared client hook so the two web surfaces can't diverge |
 | `src/app/api/ai/chat/route.ts` | One conversational turn |
 | `src/app/api/ai/analyze/route.ts` | Analysis only — never calls a model |
@@ -258,8 +261,8 @@ or the console. `/api/ai/analyze` is unaffected — it never used a model.
 
 ```bash
 npx tsc --noEmit
-npx jest src/lib/ai                       # 81 tests
-npx jest                                  # full suite, 371 tests
+npx jest src/lib/ai                       # 139 tests
+npx jest                                  # full suite, 429 tests
 npm run build
 cd mobile && npx tsc --noEmit
 ```
@@ -308,10 +311,13 @@ between "reported zero" and "reported nothing".
 
 ## 10. Honest limitations
 
-- **The full tool loop has never run against a live model.** `OPENAI_API_KEY` is
-  production-scoped in Vercel, so only the degraded path has been exercised
-  end-to-end locally. The provider client, tool loop and prompts are covered by
-  types and review, not by a live conversation.
+- **The full loop has never run against a live model.** `OPENAI_API_KEY` is
+  production-scoped in Vercel, so no real conversation has been held. The tool
+  loop and the provider client are covered by tests with a **stubbed provider**
+  (`assistant.test.ts`, `provider.test.ts`) — which pins termination, tool
+  feed-back, error translation and malformed tool arguments — but a stub cannot
+  tell you whether a real model calls the right tool for a given question. That
+  remains unproven.
 - **No conversation is persisted.** History lives in the client only; there is no
   server-side transcript, and therefore no cross-session memory.
 - **`analysis.ts` reads the current snapshot**, not long-range history. Trends
