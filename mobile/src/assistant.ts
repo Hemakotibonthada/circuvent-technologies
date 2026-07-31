@@ -71,6 +71,13 @@ async function post<T>(path: string, body: Record<string, unknown>): Promise<Res
       if (res.status === 429) {
         return { ok: false, error: "Too many requests. Give it a moment." };
       }
+      if (res.status === 404) {
+        // The endpoint lives on the website. A 404 means this app build is
+        // newer than the deployed site, which is a release-ordering mistake
+        // rather than anything the user can act on — say so plainly instead of
+        // showing a generic failure.
+        return { ok: false, error: "This feature isn't available on the server yet." };
+      }
       return { ok: false, error: data?.message ?? "That did not work." };
     }
     return { ok: true, data: data as T };

@@ -36,7 +36,7 @@ Three consequences of that principle show up throughout the code:
   `deviceWatts()` deliberately skips boolean `power` values, because reporting
   1 W for every switched-on plug would be inventing a reading out of a switch
   position. The same bug was found and fixed in the admin console's
-  `sumStateMetric()` — see §9.
+  `sumStateMetric()` — see §10.
 
 ---
 
@@ -215,7 +215,38 @@ electricity?"*.
 
 ---
 
-## 6. Configuration
+## 6. Release ordering (read before shipping a mobile build)
+
+The mobile AI features call the **website**, not the control plane:
+
+```
+mobile app  ──POST──▶  https://circuvent.com/api/ai/chat
+                       https://circuvent.com/api/ai/analyze
+```
+
+`SITE_URL` in `mobile/src/config.ts` points at production and does not vary by
+build channel. So **the website must be deployed with these routes before an app
+build that uses them reaches users**, or every AI screen in the app will fail.
+
+At the time of writing, `POST https://circuvent.com/api/ai/chat` returns **404** —
+the routes exist only on the `feature/shopping` branch and have not been merged
+to the deployed branch yet. Verify before shipping:
+
+```bash
+curl.exe -s -o NUL -w "%{http_code}" -X POST https://circuvent.com/api/ai/chat `
+  -H "content-type: application/json" -d "{}"
+# 400 = deployed (rejecting an empty body, which is correct)
+# 404 = not deployed yet — do not ship the app build
+```
+
+A `400` is the healthy response to that probe: the route exists and is refusing
+a body with no messages. A `404` means the route is not there at all. The app
+translates a 404 into "This feature isn't available on the server yet" rather
+than a generic failure, so it is recognisable in the field.
+
+---
+
+## 7. Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -242,7 +273,7 @@ or the console. `/api/ai/analyze` is unaffected — it never used a model.
 
 ---
 
-## 7. Adding a tool
+## 8. Adding a tool
 
 1. Add a definition to `DEFS` in `src/lib/ai/tools.ts`. The description is read
    by the model, so say plainly when it must be used.
@@ -257,7 +288,7 @@ or the console. `/api/ai/analyze` is unaffected — it never used a model.
 
 ---
 
-## 8. Verifying a change
+## 9. Verifying a change
 
 ```bash
 npx tsc --noEmit
@@ -294,7 +325,7 @@ Expected results:
 
 ---
 
-## 9. A bug this work found
+## 10. A bug this work found
 
 `sumStateMetric()` in `src/app/smarthome/admin/_lib/api.ts` used
 `Number(state[k])` and accepted anything finite. That silently:
@@ -309,7 +340,7 @@ between "reported zero" and "reported nothing".
 
 ---
 
-## 10. Honest limitations
+## 11. Honest limitations
 
 - **The full loop has never run against a live model.** `OPENAI_API_KEY` is
   production-scoped in Vercel, so no real conversation has been held. The tool
