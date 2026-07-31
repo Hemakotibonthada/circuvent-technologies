@@ -60,13 +60,17 @@ Three consequences of that principle show up throughout the code:
 | `src/lib/ai/assistant.test.ts` | 19 tests driving the loop against a stubbed provider |
 | `src/lib/ai/useHomeAnalysis.ts` | Shared client hook so the two web surfaces can't diverge |
 | `src/app/api/ai/chat/route.ts` | One conversational turn |
-| `src/app/api/ai/analyze/route.ts` | Analysis only — never calls a model |
+| `src/app/api/ai/analyze/route.ts` | Per-home analysis — never calls a model |
+| `src/app/api/ai/fleet/route.ts` | Fleet correlation for admins — never calls a model |
 | `src/components/ai/Assistant.tsx` | Floating chat panel, mounted once in the root layout |
 | `src/components/ai/InsightsPanel.tsx` | Compact findings widget |
+| `src/app/smarthome/OverviewDiagnostics.tsx` | Findings on the console landing page |
+| `src/app/smarthome/OverviewDiagnostics.test.tsx` | 10 render tests |
 | `src/app/smarthome/insights/AnalysisPanel.tsx` | Full console "Analysis" tab |
 | `src/app/smarthome/admin/intelligence/page.tsx` | Admin "Fleet Intelligence" page |
-| `mobile/src/assistant.ts` | Mobile client for both endpoints |
+| `mobile/src/assistant.ts` | Mobile client for all three endpoints |
 | `mobile/src/screens/more/AiHub.tsx` | Mobile insights, server-computed |
+| `mobile/src/screens/enterprise/fleet/FleetIntelligence.tsx` | Mobile fleet correlation |
 | `mobile/src/screens/more/VoiceAssistant.tsx` | Local command parser, AI fallback |
 
 ---
@@ -191,9 +195,11 @@ Two design details worth keeping if this code is edited:
 | Surface | Path | Uses a model? |
 | --- | --- | --- |
 | Chat, site-wide | floating panel on every page | Yes (falls back if absent) |
+| Console → **Overview → Diagnostics** | `/smarthome` | **No** |
 | Console → Insights → **Analysis** | `/smarthome/insights` | **No** |
 | Admin → **Fleet Intelligence** | `/smarthome/admin/intelligence` | **No** |
 | Mobile → More → **AI insights** | `AiHub` | **No** |
+| Mobile → Enterprise → **Fleet intelligence** | `FleetIntelligence` | **No** |
 | Mobile → More → **Assistant** | `VoiceAssistant` | Only for unrecognised input |
 
 The chat panel is mounted **once**, in `src/app/layout.tsx`, and derives its
@@ -203,6 +209,28 @@ layouts each render their own copy.
 
 Both console findings surfaces show the **evidence** each finding fired on, so
 an operator can check the arithmetic instead of taking a sentence on faith.
+
+### Overview diagnostics vs. "Needs attention"
+
+The console landing page now carries both, and they are not the same thing:
+
+- **Needs attention** reads the *event log* — things that **happened**.
+- **Diagnostics** reads the *analysis* — things that are **true right now**.
+
+The distinction matters because several findings produce no event at all. A
+standby drain, a schedule conflict, or a device that quietly stopped reporting
+never fires an alert, so before this panel existed those findings were visible
+only to someone who thought to open Insights → Analysis. Most people never do,
+which made the most useful part of the analysis effectively invisible.
+
+### Why mobile fleet analysis is a server call
+
+`useFleetBundle()` in the app already holds `AdminDevice[]`, so the correlation
+could have run on the phone with no extra request. It is served from
+`/api/ai/fleet` instead: the thresholds in `fleet.ts` are covered by tests, and
+a second copy in the app would drift until the phone and the console disagreed
+about whether a firmware release is failing — and only one of them could be
+right. The extra round trip is worth a single source of truth.
 
 ### The mobile assistant split
 

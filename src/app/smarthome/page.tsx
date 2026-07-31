@@ -52,6 +52,7 @@ import {
 } from "./_kit/primitives";
 import { CHART_COLORS, LineChart, BarChart, Sparkline } from "./_kit/charts";
 import { DeviceTile } from "./_kit/device";
+import OverviewDiagnostics from "./OverviewDiagnostics";
 import { useEnergy, useEvents, useFleet, useHomeEnergyHistory, useRooms, useScenes, useControlPlaneProbe } from "./_data/hooks";
 
 export default function OverviewPage() {
@@ -293,6 +294,9 @@ export default function OverviewPage() {
               )}
             </Surface>
           </div>
+
+          {/* ---------------------------------------------- diagnostics ----- */}
+          <OverviewDiagnostics />
 
           {/* --------------------------------------------------- scenes ----- */}
           {favScenes.length > 0 && (

@@ -42,6 +42,20 @@ export interface HomeAnalysis {
   generatedAt: string;
 }
 
+export interface FleetAnalysis {
+  findings: Finding[];
+  counts: {
+    total: number;
+    online: number;
+    offline: number;
+    stale: number;
+    neverSeen: number;
+    owners: number;
+    firmwareVersions: number;
+  };
+  generatedAt: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -95,6 +109,18 @@ export async function fetchHomeAnalysis(): Promise<Result<HomeAnalysis>> {
   if (!token) return { ok: false, error: "Sign in to see insights.", needsAuth: true };
 
   const res = await post<{ analysis: HomeAnalysis }>("/api/ai/analyze", { consoleToken: token });
+  return res.ok ? { ok: true, data: res.data.analysis } : res;
+}
+
+/**
+ * Fleet-wide correlation. Administrators only — the control plane decides that,
+ * not this client, so a non-admin gets a clear refusal rather than empty data.
+ */
+export async function fetchFleetAnalysis(): Promise<Result<FleetAnalysis>> {
+  const token = await getToken();
+  if (!token) return { ok: false, error: "Sign in to see fleet analysis.", needsAuth: true };
+
+  const res = await post<{ analysis: FleetAnalysis }>("/api/ai/fleet", { consoleToken: token });
   return res.ok ? { ok: true, data: res.data.analysis } : res;
 }
 
