@@ -2,7 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { pool } from "../db";
-import { hashPassword, verifyPassword, signUserToken } from "../auth";
+import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from "../auth";
+import { revokeAllSessions } from "../sessions";
 import { sendOtpEmail } from "../mail";
 import { config } from "../config";
 import { logger } from "../logger";
@@ -107,7 +108,7 @@ authRouter.post("/verify-otp", async (req, res) => {
       uid = Number(u.rows[0].id);
       name = u.rows[0].name;
     }
-    res.json({ token: signUserToken({ uid, email }), user: { id: uid, email, name } });
+    res.json({ token: await signUserToken({ uid, email }), user: { id: uid, email, name } });
   } catch (err) {
     logger.error({ err }, "verify-otp failed");
     res.status(500).json({ error: "Verification failed." });
@@ -148,8 +149,8 @@ authRouter.post("/login", async (req, res) => {
   }
   const emailNorm = parsed.data.email.trim().toLowerCase();
   try {
-    const { rows } = await pool.query<{ id: number; name: string; password: string }>(
-      `SELECT id, name, password FROM users WHERE email = $1`,
+    const { rows } = await pool.query<{ id: number; name: string; password: string; blocked: boolean }>(
+      `SELECT id, name, password, blocked FROM users WHERE email = $1`,
       [emailNorm]
     );
     const user = rows[0];
@@ -157,7 +158,15 @@ authRouter.post("/login", async (req, res) => {
       res.status(401).json({ error: "Invalid email or password." });
       return;
     }
-    res.json({ token: signUserToken({ uid: Number(user.id), email: emailNorm }), user: { id: Number(user.id), email: emailNorm, name: user.name } });
+    // Checked after the password so a wrong password on a disabled account
+    // still reads as "invalid credentials" and does not reveal the account
+    // exists — but a correct password gets an honest answer rather than a token
+    // that every subsequent request would reject.
+    if (user.blocked) {
+      res.status(403).json({ error: "This account has been disabled." });
+      return;
+    }
+    res.json({ token: await signUserToken({ uid: Number(user.id), email: emailNorm }), user: { id: Number(user.id), email: emailNorm, name: user.name } });
   } catch {
     res.status(500).json({ error: "Login failed." });
   }
@@ -244,11 +253,36 @@ authRouter.post("/federated", async (req, res) => {
     }
 
     res.json({
-      token: signUserToken({ uid: Number(user.id), email }),
+      token: await signUserToken({ uid: Number(user.id), email }),
       user: { id: Number(user.id), email, name: user.name },
     });
   } catch (err) {
     logger.error({ err }, "federated sign-in failed");
     res.status(500).json({ error: "Could not create a session." });
+  }
+});
+
+/**
+ * POST /auth/sign-out-all — end every session for the signed-in account.
+ *
+ * The one recovery action a user can take themselves after losing a phone. JWTs
+ * cannot be individually withdrawn, so this bumps the account's token epoch,
+ * which invalidates every token ever issued to it — including the one making
+ * this request.
+ *
+ * A replacement token is returned so the caller is not signed out of the device
+ * it is asking from, which is what people actually want: "sign out everywhere
+ * else". It is minted after the bump, so it carries the new epoch.
+ */
+authRouter.post("/sign-out-all", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const uid = req.user!.uid;
+    await revokeAllSessions(uid);
+    const token = await signUserToken({ uid, email: req.user!.email });
+    logger.info({ uid }, "user revoked all sessions");
+    res.json({ success: true, token });
+  } catch (err) {
+    logger.error({ err }, "sign-out-all failed");
+    res.status(500).json({ error: "Could not end your other sessions." });
   }
 });

@@ -26,6 +26,7 @@ something is unverified or inconsistent, it says so rather than guessing.
 | Handle growth | [14 — Scaling](./14-scaling.md) |
 | Fix something that is broken | [15 — Troubleshooting](./15-troubleshooting.md) |
 | Understand the AI assistant | [16 — AI assistant](./16-ai-assistant.md) |
+| **Understand sessions, revocation and lockout** | [17 — Session security](./17-session-security.md) |
 
 ## The system in one paragraph
 

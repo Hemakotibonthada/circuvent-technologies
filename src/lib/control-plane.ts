@@ -199,6 +199,8 @@ export interface AdminUser {
   email: string;
   name: string;
   is_admin: boolean;
+  /** Disabled accounts cannot sign in, and their live sessions were revoked. */
+  blocked: boolean;
   created_at: string;
   devices: number;
 }
@@ -308,6 +310,13 @@ export const controlPlane = {
     req<AuthResp>("/auth/verify-otp", { method: "POST", body: JSON.stringify({ email, otp }) }, false),
   resendOtp: (email: string) =>
     req<{ pending: boolean; otpSent: boolean; error?: string }>("/auth/resend-otp", { method: "POST", body: JSON.stringify({ email }) }, false),
+  /**
+   * End every session for the signed-in account — the recovery action after a
+   * lost phone. Returns a fresh token so the browser making the request stays
+   * signed in; callers must store it, or they sign themselves out too.
+   */
+  signOutEverywhere: () =>
+    req<{ success: boolean; token: string }>("/auth/sign-out-all", { method: "POST" }),
   devices: () => req<{ devices: Device[] }>("/devices"),
   device: (id: string) => req<{ device: Device }>("/devices/" + encodeURIComponent(id)),
   claim: (id: string, key: string, name: string) =>
@@ -382,6 +391,15 @@ export const controlPlane = {
   adminUsers: () => req<{ users: AdminUser[] }>("/admin/users"),
   adminSetRole: (id: number, is_admin: boolean) =>
     req<{ success: boolean }>("/admin/users/" + id, { method: "PATCH", body: JSON.stringify({ is_admin }) }),
+  /** Disable or re-enable an account. Disabling also ends its live sessions. */
+  adminSetBlocked: (id: number, blocked: boolean) =>
+    req<{ success: boolean }>("/admin/users/" + id, { method: "PATCH", body: JSON.stringify({ blocked }) }),
+  /**
+   * End every session for an account without disabling it — the right action
+   * when a device is lost but the account itself is fine.
+   */
+  adminRevokeSessions: (id: number) =>
+    req<{ success: boolean }>("/admin/users/" + id + "/revoke-sessions", { method: "POST" }),
   adminDeleteUser: (id: number) => req<{ success: boolean }>("/admin/users/" + id, { method: "DELETE" }),
   adminDevices: () => req<{ devices: AdminDevice[] }>("/admin/devices"),
   adminCommand: (id: string, cmd: Record<string, unknown>) =>

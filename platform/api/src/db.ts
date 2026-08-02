@@ -109,6 +109,20 @@ export async function initDb(): Promise<void> {
     -- Admin role flag for the control-plane admin console.
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
+    -- Session revocation.
+    --
+    -- JWTs are stateless, so until these existed there was no way to end a
+    -- session early: a stolen phone kept control of the owner's locks and gates
+    -- for the full token lifetime, blocking an account did nothing, and there
+    -- was no "sign out everywhere". token_epoch is stamped into every token and
+    -- compared on each request, so bumping it invalidates every token that
+    -- account has ever been issued.
+    --
+    -- Default 0 matches the absent claim on tokens issued before this shipped,
+    -- so deploying it does not sign the whole user base out.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS token_epoch BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT false;
+
     -- Email-OTP sign-up: the account is only created after the code is verified.
     CREATE TABLE IF NOT EXISTS pending_registrations (
       email       TEXT PRIMARY KEY,

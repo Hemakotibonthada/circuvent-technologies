@@ -3,10 +3,19 @@ import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { config } from "./config";
+import { checkSession, currentEpoch } from "./sessions";
+import { logger } from "./logger";
 
 export interface UserClaims {
   uid: number;
   email: string;
+  /**
+   * Token epoch — the value of `users.token_epoch` when this token was minted.
+   * Tokens issued before session revocation existed carry no claim and are read
+   * as 0, which matches the column default, so they keep working until the
+   * first revocation.
+   */
+  te?: number;
 }
 
 export function hashPassword(pw: string): Promise<string> {
@@ -17,8 +26,19 @@ export function verifyPassword(pw: string, hash: string): Promise<boolean> {
   return bcrypt.compare(pw, hash);
 }
 
-export function signUserToken(claims: UserClaims): string {
-  return jwt.sign(claims, config.JWT_SECRET, { expiresIn: config.JWT_EXPIRES_IN } as jwt.SignOptions);
+/**
+ * Mints a session token, always stamped with the account's current epoch.
+ *
+ * Async on purpose. It could take the epoch as an argument and stay
+ * synchronous, but then every future caller would have to remember to pass it,
+ * and one that forgot would mint a token that silently ignores revocation.
+ * Reading it here makes that mistake impossible.
+ */
+export async function signUserToken(claims: { uid: number; email: string }): Promise<string> {
+  const te = await currentEpoch(claims.uid);
+  return jwt.sign({ ...claims, te }, config.JWT_SECRET, {
+    expiresIn: config.JWT_EXPIRES_IN,
+  } as jwt.SignOptions);
 }
 
 export function verifyUserToken(token: string): UserClaims | null {
@@ -27,7 +47,8 @@ export function verifyUserToken(token: string): UserClaims | null {
     // Postgres returns BIGINT ids as strings, so coerce the uid claim.
     const uid = Number(decoded.uid);
     if (Number.isFinite(uid) && typeof decoded.email === "string") {
-      return { uid, email: decoded.email };
+      const te = Number(decoded.te);
+      return { uid, email: decoded.email, te: Number.isFinite(te) ? te : 0 };
     }
     return null;
   } catch {
@@ -88,7 +109,19 @@ function tokenFrom(req: Request): string | null {
   return null;
 }
 
-/** Express middleware — requires a valid user JWT. */
+/**
+ * Express middleware — requires a valid, still-live user JWT.
+ *
+ * Signature verification alone is not enough: a JWT stays cryptographically
+ * valid until it expires, so without the session check a stolen token would
+ * keep opening doors for up to `JWT_EXPIRES_IN` and blocking an account would
+ * do nothing. `checkSession` is one memoised primary-key read.
+ *
+ * Express 4 does not catch rejections from async middleware, so everything here
+ * is inside a try/catch. A database failure must fail CLOSED — returning 401
+ * rather than letting the request through — because the alternative is that a
+ * revoked token starts working again the moment Postgres has a bad minute.
+ */
 export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): void {
   const token = tokenFrom(req);
   const claims = token ? verifyUserToken(token) : null;
@@ -96,6 +129,25 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  req.user = claims;
-  next();
+
+  void (async () => {
+    try {
+      const verdict = await checkSession(claims.uid, claims.te ?? 0);
+      if (verdict === "ok") {
+        req.user = claims;
+        next();
+        return;
+      }
+      // The distinction matters to the client: a blocked account should not be
+      // invited to sign in again, whereas a revoked session should.
+      if (verdict === "blocked") {
+        res.status(403).json({ error: "This account has been disabled." });
+        return;
+      }
+      res.status(401).json({ error: "Session ended. Please sign in again." });
+    } catch (err) {
+      logger.error({ err }, "requireAuth session check failed");
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  })();
 }

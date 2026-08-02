@@ -13,6 +13,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: &default-logging
+      # Docker's default json-file driver grows without bound. On a small VM the
+      # logs eventually fill the disk, and when the disk is full Postgres stops
+      # accepting writes and the broker stops persisting — an outage caused
+      # entirely by bookkeeping. Cap and rotate.
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     networks: [internal]
 
   mosquitto:
@@ -26,6 +35,16 @@ services:
       - mosquitto_pw:/mosquitto/pw
     ports:
       - "8883:8883"   # device MQTT over TLS (public)
+    healthcheck:
+      # The broker is the single point every device depends on, so a hung
+      # process should be restarted rather than left accepting TCP but serving
+      # nothing. mosquitto_sub ships in the image.
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/#' -C 1 -W 3 -i healthcheck -q 1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
     networks: [internal]
 
   api:
@@ -52,11 +71,19 @@ services:
       OTP_TTL_MIN: ${OTP_TTL_MIN:-10}
       OTP_DEBUG: ${OTP_DEBUG:-false}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      FEDERATION_SECRET: ${FEDERATION_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
       mosquitto:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
     networks: [internal]
 
   caddy:
@@ -70,6 +97,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [api]
+    logging: *default-logging
     networks: [internal]
 
 volumes:

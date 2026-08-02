@@ -36,6 +36,15 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the control-plane template must ship. `.env*` hid platform/.env.example
+# from the repository entirely, so nobody cloning it ever saw which variables the
+# control plane needs — which is how FEDERATION_SECRET stayed unset and single
+# sign-on returned 501 indefinitely. That file carries placeholders only.
+#
+# Scoped to this one path deliberately: a blanket `!**/.env.example` would also
+# start tracking the root template, which holds a real administrator address.
+# Opt other templates in individually after checking their contents.
+!/platform/.env.example
 
 # vercel
 .vercel

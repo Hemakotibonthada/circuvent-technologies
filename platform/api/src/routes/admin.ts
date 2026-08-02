@@ -5,6 +5,7 @@ import { config } from "../config";
 import { requireAuth, type AuthedRequest, generateDeviceKey, hashDeviceKey } from "../auth";
 import { publishCommand, provisionBrokerClient, deprovisionBrokerClient, getMqtt } from "../mqtt";
 import { invalidateOwnership, invalidateOwner } from "../ownership";
+import { revokeAllSessions, invalidateUser } from "../sessions";
 import { logger } from "../logger";
 
 export const adminRouter = Router();
@@ -70,7 +71,7 @@ adminRouter.get("/stats", async (_req, res) => {
 /** GET /admin/users — all users with device counts. */
 adminRouter.get("/users", async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.id, u.email, u.name, u.is_admin, u.created_at,
+    `SELECT u.id, u.email, u.name, u.is_admin, u.blocked, u.created_at,
             (SELECT COUNT(*)::int FROM devices d WHERE d.owner_id = u.id) AS devices
      FROM users u ORDER BY u.created_at DESC`
   );
@@ -79,16 +80,66 @@ adminRouter.get("/users", async (_req, res) => {
 
 /** PATCH /admin/users/:id — toggle admin role. */
 adminRouter.patch("/users/:id", async (req: AuthedRequest, res) => {
-  const parsed = z.object({ is_admin: z.boolean() }).safeParse(req.body);
+  const parsed = z
+    .object({ is_admin: z.boolean().optional(), blocked: z.boolean().optional() })
+    .refine((v) => v.is_admin !== undefined || v.blocked !== undefined, "Nothing to change")
+    .safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
     return;
   }
-  if (Number(req.params.id) === req.user!.uid && !parsed.data.is_admin) {
+  const targetId = Number(req.params.id);
+  const isSelf = targetId === req.user!.uid;
+
+  if (isSelf && parsed.data.is_admin === false) {
     res.status(400).json({ error: "You cannot remove your own admin role." });
     return;
   }
-  await pool.query(`UPDATE users SET is_admin = $2 WHERE id = $1`, [req.params.id, parsed.data.is_admin]);
+  // Locking yourself out of the console is not a mistake you can undo from
+  // inside the console.
+  if (isSelf && parsed.data.blocked === true) {
+    res.status(400).json({ error: "You cannot disable your own account." });
+    return;
+  }
+
+  if (parsed.data.is_admin !== undefined) {
+    await pool.query(`UPDATE users SET is_admin = $2 WHERE id = $1`, [targetId, parsed.data.is_admin]);
+  }
+
+  if (parsed.data.blocked !== undefined) {
+    await pool.query(`UPDATE users SET blocked = $2 WHERE id = $1`, [targetId, parsed.data.blocked]);
+    // Disabling an account has to end its live sessions, or the person keeps
+    // full control of their devices using the token already on their phone —
+    // which is precisely the situation the flag exists to stop.
+    if (parsed.data.blocked) {
+      await revokeAllSessions(targetId);
+      invalidateOwner(targetId);
+      logger.info({ targetId, by: req.user!.uid }, "admin disabled an account and revoked its sessions");
+    } else {
+      invalidateUser(targetId);
+    }
+  } else if (parsed.data.is_admin !== undefined) {
+    // A role change alters what adminGuard allows, so drop the cached row
+    // rather than serving a stale one for the next few seconds.
+    invalidateUser(targetId);
+  }
+
+  res.json({ success: true });
+});
+
+/**
+ * POST /admin/users/:id/revoke-sessions — end an account's sessions without
+ * disabling it. The right action when a device is lost but the account is
+ * fine, so the owner can simply sign in again.
+ */
+adminRouter.post("/users/:id/revoke-sessions", async (req: AuthedRequest, res) => {
+  const targetId = Number(req.params.id);
+  if (!Number.isFinite(targetId)) {
+    res.status(400).json({ error: "Invalid user id" });
+    return;
+  }
+  await revokeAllSessions(targetId);
+  logger.info({ targetId, by: req.user!.uid }, "admin revoked all sessions for an account");
   res.json({ success: true });
 });
 
@@ -102,6 +153,9 @@ adminRouter.delete("/users/:id", async (req: AuthedRequest, res) => {
   // Their devices' owner_id goes NULL — drop every cached grant immediately so
   // the deleted account's still-valid bearer token cannot keep sending commands.
   invalidateOwner(req.params.id);
+  // And drop the cached session row, so requireAuth re-reads, finds no user and
+  // rejects the token rather than serving it from a stale entry.
+  invalidateUser(req.params.id);
   res.json({ success: true });
 });
 

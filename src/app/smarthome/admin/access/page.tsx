@@ -24,6 +24,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   ShieldCheck, Users, ShieldAlert, KeyRound, ScrollText, Plus, Trash2, Check, X,
   RefreshCw, TriangleAlert, UserCog, UserRound, CircleUser, Cpu, ServerCog,
+  LogOut, Ban,
 } from "lucide-react";
 import {
   useAdminUsers, useAdminConfig, useAdminAudit, useAdminEvents, useResource,
@@ -282,7 +283,7 @@ function UsersTab({ usersRes, meRes }: { usersRes: Resource<AdminUser[]>; meRes:
   const operators = users.filter((u) => u.is_admin).length;
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "operators" | "members">("all");
-  const [confirm, setConfirm] = useState<{ kind: "promote" | "demote" | "delete"; user: AdminUser } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "promote" | "demote" | "delete" | "block" | "unblock" | "revoke"; user: AdminUser } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -307,7 +308,13 @@ function UsersTab({ usersRes, meRes }: { usersRes: Resource<AdminUser[]>; meRes:
     const res =
       kind === "delete"
         ? await controlPlane.adminDeleteUser(user.id)
-        : await controlPlane.adminSetRole(user.id, kind === "promote");
+        : kind === "block"
+          ? await controlPlane.adminSetBlocked(user.id, true)
+          : kind === "unblock"
+            ? await controlPlane.adminSetBlocked(user.id, false)
+            : kind === "revoke"
+              ? await controlPlane.adminRevokeSessions(user.id)
+              : await controlPlane.adminSetRole(user.id, kind === "promote");
     setBusy(false);
     if (res.ok) {
       setConfirm(null);
@@ -330,7 +337,17 @@ function UsersTab({ usersRes, meRes }: { usersRes: Resource<AdminUser[]>; meRes:
         </div>
       ),
     },
-    { key: "role", header: "Role", render: (u) => <RoleBadge isAdmin={u.is_admin} /> },
+    { key: "role", header: "Role", render: (u) => (
+      <div className="flex items-center gap-1.5">
+        <RoleBadge isAdmin={u.is_admin} />
+        {u.blocked && (
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>
+            Disabled
+          </span>
+        )}
+      </div>
+    ) },
     { key: "devices", header: "Devices", align: "right", sort: (a, b) => a.devices - b.devices, render: (u) => <span className="tabular-nums text-slate-300">{num(u.devices)}</span> },
     {
       key: "created", header: "Joined", align: "right",
@@ -350,6 +367,18 @@ function UsersTab({ usersRes, meRes }: { usersRes: Resource<AdminUser[]>; meRes:
             ) : (
               <button onClick={() => { setConfirm({ kind: "promote", user: u }); setErr(null); }} title="Make operator" className="rounded p-1 text-slate-500 transition hover:text-cyan-300">
                 <UserCog className="h-4 w-4" />
+              </button>
+            )}
+            <button onClick={() => { setConfirm({ kind: "revoke", user: u }); setErr(null); }} title="Sign this account out everywhere" className="rounded p-1 text-slate-500 transition hover:text-sky-300">
+              <LogOut className="h-4 w-4" />
+            </button>
+            {u.blocked ? (
+              <button onClick={() => { setConfirm({ kind: "unblock", user: u }); setErr(null); }} title="Re-enable account" className="rounded p-1 text-slate-500 transition hover:text-emerald-300">
+                <ShieldCheck className="h-4 w-4" />
+              </button>
+            ) : (
+              <button onClick={() => { setConfirm({ kind: "block", user: u }); setErr(null); }} title="Disable account" className="rounded p-1 text-slate-500 transition hover:text-amber-300">
+                <Ban className="h-4 w-4" />
               </button>
             )}
             <button onClick={() => { setConfirm({ kind: "delete", user: u }); setErr(null); }} title="Delete account" className="rounded p-1 text-slate-500 transition hover:text-red-300">
@@ -399,11 +428,11 @@ function UsersTab({ usersRes, meRes }: { usersRes: Resource<AdminUser[]>; meRes:
 
       <ConfirmDialog
         open={!!confirm}
-        title={kind === "delete" ? "Delete account" : kind === "promote" ? "Make operator" : "Revoke operator access"}
-        danger={kind !== "promote"}
+        title={CONFIRM_TITLE[kind ?? "promote"]}
+        danger={kind !== "promote" && kind !== "unblock"}
         busy={busy}
         error={err}
-        confirmLabel={kind === "delete" ? "Delete account" : kind === "promote" ? "Make operator" : "Revoke operator"}
+        confirmLabel={CONFIRM_LABEL[kind ?? "promote"]}
         message={confirm ? confirmMessage(confirm.kind, confirm.user) : ""}
         onClose={() => { setConfirm(null); setErr(null); }}
         onConfirm={runConfirm}
@@ -412,10 +441,33 @@ function UsersTab({ usersRes, meRes }: { usersRes: Resource<AdminUser[]>; meRes:
   );
 }
 
-function confirmMessage(kind: "promote" | "demote" | "delete", u: AdminUser): ReactNode {
+type ConfirmKind = "promote" | "demote" | "delete" | "block" | "unblock" | "revoke";
+
+const CONFIRM_TITLE: Record<ConfirmKind, string> = {
+  promote: "Make operator",
+  demote: "Revoke operator access",
+  delete: "Delete account",
+  block: "Disable account",
+  unblock: "Re-enable account",
+  revoke: "Sign out everywhere",
+};
+
+const CONFIRM_LABEL: Record<ConfirmKind, string> = {
+  promote: "Make operator",
+  demote: "Revoke operator",
+  delete: "Delete account",
+  block: "Disable account",
+  unblock: "Re-enable",
+  revoke: "Sign out everywhere",
+};
+
+function confirmMessage(kind: ConfirmKind, u: AdminUser): ReactNode {
   const who = <b className="text-slate-200">{u.email}</b>;
   if (kind === "promote") return <>Grant operator (admin) access to {who}? They will be able to manage every account and device in the control plane.</>;
   if (kind === "demote") return <>Remove operator access from {who}? They will keep only their own devices and lose this admin console.</>;
+  if (kind === "block") return <>Disable {who}? They will be signed out of every device immediately and will not be able to sign in again until you re-enable the account. Their devices are left untouched.</>;
+  if (kind === "unblock") return <>Re-enable {who}? They will be able to sign in again. Sessions from before the account was disabled stay revoked.</>;
+  if (kind === "revoke") return <>Sign {who} out of every device? Useful when a phone is lost. The account stays active and they can sign in again straight away.</>;
   return <>Permanently delete {who}? This removes the account from the control plane and unlinks its devices. This cannot be undone.</>;
 }
 
