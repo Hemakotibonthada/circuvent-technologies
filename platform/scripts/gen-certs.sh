@@ -3,6 +3,12 @@
 # The CA cert (ca.crt) is public and gets embedded in device firmware; the CA
 # key stays on this VM only. Re-running is a no-op if certs already exist.
 #
+# TO RENEW AN EXPIRING SERVER CERTIFICATE, USE renew-server-cert.sh.
+# This script cannot do it — it exits early when certs are present, so running
+# it against an expiring certificate renews nothing and silently reports
+# success. The server cert is only valid for 825 days; when it lapses every
+# device fails the TLS handshake and the whole fleet drops off.
+#
 # Usage:  ./gen-certs.sh <public-ip-or-blank>
 #   e.g.  ./gen-certs.sh 140.245.238.154
 set -e
@@ -12,6 +18,8 @@ mkdir -p "$CERTDIR"; cd "$CERTDIR"
 
 if [ -f ca.crt ] && [ -f server.crt ]; then
   echo "certs already exist in $CERTDIR — leaving them in place."
+  openssl x509 -in server.crt -noout -subject -enddate 2>/dev/null || true
+  echo "To renew the server certificate, run: ./renew-server-cert.sh"
   exit 0
 fi
 

@@ -288,6 +288,44 @@ Found while reading the deployment rather than the application code:
   deliberately rather than slipping into a release.
 - **The broker CA is embedded in firmware.** Rolling it over needs an OTA
   pushed *before* the old CA expires — the longest-lead-time risk in the system.
+  The CA is good for 10 years from generation.
+
+### Fixed since: the broker certificate had no renewal path
+
+The broker's **server** certificate is issued for 825 days. When it lapses,
+every device fails the TLS handshake and the entire fleet drops off — an outage
+whose date is knowable years in advance, which is exactly the kind that gets
+forgotten.
+
+`gen-certs.sh` could not help. It exits early when certificates exist, so
+running it against an expiring certificate renews nothing and reports success:
+
+```
+if [ -f ca.crt ] && [ -f server.crt ]; then
+  echo "certs already exist ... leaving them in place."
+  exit 0
+fi
+```
+
+`platform/scripts/renew-server-cert.sh` now does it. The important property is
+that renewal is **cheap and needs no OTA**: devices trust the CA, not the server
+certificate, so a new certificate signed by the same CA is accepted unchanged.
+The script therefore never touches `ca.crt` or `ca.key`, refuses to run if the
+CA is missing rather than helpfully generating a new one, verifies the new
+certificate against the CA *before* installing it, and keeps timestamped
+backups.
+
+Verified end-to-end against a throwaway CA: the new certificate verifies
+against the CA, the CA fingerprint is byte-identical before and after, key and
+certificate match, and with no CA present the script exits non-zero having
+created nothing.
+
+Expiry is now reported by `GET /admin/health` as `brokerCert`, including
+`daysRemaining` and an `expiringSoon` flag at 60 days, so the date lives
+somewhere an operator already looks. The API reads it by opening a TLS socket to
+the broker and inspecting the presented certificate — `rejectUnauthorized` is
+false there because the API container does not mount the CA and the connection
+authenticates nothing; it is an inspection, not a trust decision.
 
 ### Fixed since: the scheduler could fire twice
 

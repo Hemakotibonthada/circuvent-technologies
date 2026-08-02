@@ -7,6 +7,7 @@ import { publishCommand, provisionBrokerClient, deprovisionBrokerClient, getMqtt
 import { invalidateOwnership, invalidateOwner } from "../ownership";
 import { revokeAllSessions, invalidateUser } from "../sessions";
 import { revokeAllRefreshTokens } from "../refresh";
+import { readBrokerCertificate } from "../broker-cert";
 import { logger } from "../logger";
 
 export const adminRouter = Router();
@@ -232,7 +233,11 @@ adminRouter.get("/health", async (_req, res) => {
   } catch {
     db = false;
   }
-  res.json({ mqtt, db, uptimeSec: Math.round(process.uptime()), node: process.version });
+  // Included here because the broker certificate expires on a date that is
+  // knowable years ahead, and an expired one takes the whole fleet offline.
+  // Somewhere an operator already looks is the right place for that.
+  const brokerCert = await readBrokerCertificate();
+  res.json({ mqtt, db, uptimeSec: Math.round(process.uptime()), node: process.version, brokerCert });
 });
 
 /** GET /admin/devices/:id — full detail for one device. */
