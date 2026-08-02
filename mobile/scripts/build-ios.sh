@@ -122,6 +122,19 @@ if [ "$PREFLIGHT_OK" -ne 1 ]; then
   FAILED_STEP="preflight"
 fi
 
+# Not fatal, and not the cause of most failures — but CocoaPods and Xcode build
+# phases have a long history of mishandling spaces in paths, and when they do
+# the error never mentions the path. Cheap to say now, expensive to find later.
+case "$ROOT" in
+  *\ *)
+    note "NOTE: this project lives in a path containing a space:"
+    note "  $ROOT"
+    note "  That is a known source of CocoaPods and Xcode build-phase failures."
+    note "  If the build fails in a way that makes no sense, try moving the repo"
+    note "  somewhere without spaces before spending long on it."
+    ;;
+esac
+
 # ----------------------------------------------------------------- build ---
 
 if [ "$PREFLIGHT_OK" -eq 1 ]; then
@@ -149,6 +162,19 @@ if [ "$PREFLIGHT_OK" -eq 1 ]; then
   # build is the only way to exercise Siri.
   run "Generating the native iOS project (expo prebuild)" \
     npx expo prebuild --platform ios $([ "$CLEAN" -eq 1 ] && echo --clean)
+
+  # A prebuild that dies partway leaves ios/ half-written, and every later run
+  # says "reusing /ios" and trips over the wreckage — the pbxproj fails to parse
+  # and Xcode itself refuses to open the project. The directory is generated and
+  # gitignored, so there is nothing in it worth protecting: throw it away and
+  # try once more rather than making someone diagnose a corrupt project file.
+  if [ -n "$FAILED_STEP" ] && [ "$FAILED_STEP" = "Generating the native iOS project (expo prebuild)" ]; then
+    note "Prebuild failed. ios/ is generated, so discarding it and retrying once."
+    rm -rf ios
+    FAILED_STEP=""
+    run "Regenerating the native iOS project from scratch" \
+      npx expo prebuild --platform ios --clean
+  fi
 
   if [ -z "$FAILED_STEP" ]; then
     if [ "$DEVICE" -eq 1 ]; then
