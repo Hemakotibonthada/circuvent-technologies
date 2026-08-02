@@ -6,6 +6,11 @@
 #   ./scripts/build-ios.sh              # simulator
 #   ./scripts/build-ios.sh --device     # a plugged-in iPhone (needed for Siri)
 #   ./scripts/build-ios.sh --clean      # wipe ios/ and Pods first
+#   ./scripts/build-ios.sh --xcode      # prepare the project, then open Xcode
+#
+# --xcode stops after prebuild and CocoaPods and hands over to Xcode. Use it
+# when the Expo device flow will not cooperate: Expo SDK 51 predates Xcode 26
+# and cannot always read its device tooling, but Xcode itself always can.
 #
 # Produces two files in mobile/:
 #   buildlog.txt       small, redacted, errors first — this is the one to share
@@ -28,11 +33,13 @@ FULL="$ROOT/buildlog.full.txt"
 
 DEVICE=0
 CLEAN=0
+XCODE_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --device) DEVICE=1 ;;
     --clean)  CLEAN=1 ;;
-    -h|--help) sed -n '2,14p' "$SCRIPT"; exit 0 ;;
+    --xcode)  XCODE_ONLY=1 ;;
+    -h|--help) sed -n '2,16p' "$SCRIPT"; exit 0 ;;
     *) echo "Unknown option: $arg (try --help)"; exit 2 ;;
   esac
 done
@@ -93,7 +100,9 @@ PREFLIGHT_OK=1
 NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
 if [ "$NODE_MAJOR" -gt 22 ] 2>/dev/null; then
   note "WARNING: Node $(node --version) is newer than Expo SDK 51 supports (18 or 20)."
-  note "  If dependencies behave oddly, try: nvm install 20 && nvm use 20"
+  note "  If dependencies behave oddly, install Node 20 alongside it:"
+  note "    brew install node@20 && export PATH=\"/opt/homebrew/opt/node@20/bin:\$PATH\""
+  note "  (or nvm, if you use it)"
 fi
 
 if ! command -v xcodebuild >/dev/null 2>&1; then
@@ -177,10 +186,58 @@ if [ "$PREFLIGHT_OK" -eq 1 ]; then
   fi
 
   if [ -z "$FAILED_STEP" ]; then
-    if [ "$DEVICE" -eq 1 ]; then
+    if [ "$XCODE_ONLY" -eq 1 ]; then
+      WS="$(ls -d ios/*.xcworkspace 2>/dev/null | head -1)"
+      if [ -n "$WS" ]; then
+        say "Opening Xcode"
+        note "Project prepared. Finish in Xcode:"
+        note "  1. Pick your iPhone in the device menu at the top."
+        note "  2. Target Circuvent > Signing & Capabilities > tick"
+        note "     'Automatically manage signing' and choose your Team."
+        note "  3. Press the Run button."
+        open "$WS"
+      else
+        note "No .xcworkspace found in ios/ — prebuild may not have completed."
+        FAILED_STEP="opening Xcode"
+      fi
+    elif [ "$DEVICE" -eq 1 ]; then
       note "Building for a physical device. It must be plugged in, unlocked and trusted."
       note "A free Apple ID works, but the app expires after 7 days."
-      run "Building and installing on device" npx expo run:ios --device
+
+      # Expo needs to know which device, and asks interactively. Everything here
+      # is piped through tee, so stdout is not a terminal and Expo refuses to
+      # prompt ("Input is required, but 'npx expo' is in non-interactive mode").
+      # Resolving the UDID ourselves removes the question entirely, and is more
+      # reliable than a prompt anyway: Expo 51 predates Xcode 26 and warns that
+      # it cannot read the newer devicectl output.
+      DEVICE_ID=""
+      if command -v xcrun >/dev/null 2>&1; then
+        # xctrace lists physical devices with a UDID in parentheses. Simulators
+        # appear as "Simulator" and are filtered out.
+        DEVICES="$(xcrun xctrace list devices 2>/dev/null \
+          | sed -n '/^== Devices ==/,/^== /p' \
+          | grep -v Simulator \
+          | grep -oE '\([0-9A-Fa-f-]{25,}\)' \
+          | tr -d '()' || true)"
+        COUNT="$(printf '%s\n' "$DEVICES" | grep -c . || true)"
+        if [ "${COUNT:-0}" -eq 1 ]; then
+          DEVICE_ID="$(printf '%s\n' "$DEVICES" | head -1)"
+          note "Found one connected device: $DEVICE_ID"
+        elif [ "${COUNT:-0}" -gt 1 ]; then
+          note "More than one device is connected. Unplug the others, or run:"
+          note "  npx expo run:ios --device <udid>"
+          printf '%s\n' "$DEVICES" | sed 's/^/      /' | tee -a "$FULL"
+        else
+          note "No physical device detected. Check it is plugged in, unlocked,"
+          note "and that you tapped Trust on the phone."
+        fi
+      fi
+
+      if [ -n "$DEVICE_ID" ]; then
+        run "Building and installing on device" npx expo run:ios --device "$DEVICE_ID"
+      else
+        run "Building and installing on device" npx expo run:ios --device
+      fi
     else
       run "Building and launching in the simulator" npx expo run:ios
     fi
@@ -219,6 +276,19 @@ ELAPSED=$(( $(date +%s) - START_TS ))
     echo
     echo "--- last 120 lines ---"
     tail -120 "$FULL" | sed "s|$ROOT|.|g"
+
+    if [ "$DEVICE" -eq 1 ]; then
+      echo
+      echo "--- if the device step is what failed ---"
+      echo "Expo SDK 51 predates Xcode 26 and cannot always read its device"
+      echo "tooling. The project itself is fine by this point — prebuild and"
+      echo "CocoaPods both completed — so finish in Xcode instead:"
+      echo
+      echo "    ./scripts/build-ios.sh --xcode"
+      echo
+      echo "then pick your iPhone at the top of the Xcode window, set your Team"
+      echo "under Signing & Capabilities, and press Run."
+    fi
   else
     echo "The app built and launched."
     echo
