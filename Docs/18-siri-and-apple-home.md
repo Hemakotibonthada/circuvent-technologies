@@ -128,13 +128,44 @@ rather than an addition.
 
 Requires a **development build** — Expo Go cannot load a local native module.
 
+### The easy way
+
 ```bash
 cd mobile
-npx expo prebuild --platform ios --clean   # regenerates ios/ with the module
-npx expo run:ios                            # or open ios/*.xcworkspace in Xcode
+./scripts/build-ios.sh              # simulator
+./scripts/build-ios.sh --device     # a plugged-in iPhone (needed for spoken Siri)
+./scripts/build-ios.sh --clean      # wipe ios/ and start over
 ```
 
-Notes:
+It checks the environment, typechecks, runs `expo prebuild`, builds, launches,
+and writes two files:
+
+| File | Use |
+| --- | --- |
+| `buildlog.txt` | Small, redacted, errors first — **this is the one to share** |
+| `buildlog.full.txt` | Everything, for digging locally |
+
+Both are gitignored. `buildlog.txt` puts the failing step and the deduplicated
+errors at the top, so a failure is legible without scrolling an Xcode log, and
+it rewrites `$HOME` to `~` and redacts anything shaped like a token before you
+paste it anywhere.
+
+The preflight catches the two things that go wrong most often and says how to
+fix each:
+
+- `xcode-select` pointing at the Command Line Tools instead of Xcode — the usual
+  cause of "xcodebuild requires Xcode".
+- CocoaPods missing.
+
+### Or by hand
+
+```bash
+cd mobile
+npx expo prebuild --platform ios --clean
+npx expo run:ios
+```
+
+### Notes
 
 - **iOS 16+** for App Intents. Older devices simply see no Siri features;
   `siriAvailable()` returns false and every call is a no-op.
@@ -145,6 +176,8 @@ Notes:
 - Apple caps App Shortcuts at **10**.
 - Devices appear to Siri only **after signing in** and once the device list has
   loaded, since the cache is written from the app.
+- **Spoken Siri needs a real device.** The simulator exposes the actions in the
+  Shortcuts app but will not take dictation.
 
 ### Checking it works
 
