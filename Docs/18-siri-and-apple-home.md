@@ -214,6 +214,50 @@ The 7-day expiry is an Apple limit on free accounts, not something the project
 can change. When it lapses the app simply stops opening — reinstalling restores
 it, and your data is untouched.
 
+### A free Apple ID cannot sign this app as-is
+
+Xcode will refuse before it even builds:
+
+> Cannot create a iOS App Development provisioning profile for
+> `com.circuvent.app`. Personal development teams, including "…", do not support
+> the **Access WiFi Information, Hotspot, and Push Notifications** capabilities.
+
+The message blames the capabilities, so it reads like a project fault. It is
+not — a personal team simply cannot provision those three, and they come from
+dependencies the app genuinely uses:
+
+| Entitlement | Comes from |
+| --- | --- |
+| `com.apple.developer.networking.wifi-info` | `react-native-wifi-reborn` |
+| `com.apple.developer.networking.HotspotConfiguration` | `react-native-wifi-reborn` |
+| `aps-environment` | `expo-notifications` |
+
+Build with `--personal` to strip them:
+
+```bash
+./scripts/build-ios.sh --device --personal
+```
+
+That sets `CV_PERSONAL_TEAM=1`, which `app.config.js` reads and uses to delete
+those three entitlements after every other plugin has written its own. It also
+forces a clean prebuild, since a native project generated earlier still carries
+the old entitlements.
+
+**What stops working in that build:**
+
+- Wi-Fi device onboarding — joining a device's setup hotspot.
+- Push notifications.
+
+Siri and everything else are unaffected, which is what makes it a usable way to
+test voice control on a free account. Release builds go through EAS without the
+flag and keep every capability, so this changes nothing about what ships.
+
+If Xcode says the bundle identifier is unavailable, set your own:
+
+```bash
+CV_BUNDLE_ID=com.yourname.circuvent ./scripts/build-ios.sh --device --personal
+```
+
 ### Sharing it with other people
 
 A cable-installed build only works on phones plugged into that Mac. For anyone

@@ -5,8 +5,14 @@
 #   cd mobile
 #   ./scripts/build-ios.sh              # simulator
 #   ./scripts/build-ios.sh --device     # a plugged-in iPhone (needed for Siri)
+#   ./scripts/build-ios.sh --personal   # sign with a FREE Apple ID
 #   ./scripts/build-ios.sh --clean      # wipe ios/ and Pods first
 #   ./scripts/build-ios.sh --xcode      # prepare the project, then open Xcode
+#
+# --personal drops the three entitlements a free Apple ID cannot provision
+# (Access WiFi Information, Hotspot, Push Notifications). Without it Xcode
+# refuses to create a provisioning profile at all. Wi-Fi onboarding and push
+# stop working; Siri and everything else are unaffected. See Docs/18.
 #
 # --xcode stops after prebuild and CocoaPods and hands over to Xcode. Use it
 # when the Expo device flow will not cooperate: Expo SDK 51 predates Xcode 26
@@ -34,15 +40,24 @@ FULL="$ROOT/buildlog.full.txt"
 DEVICE=0
 CLEAN=0
 XCODE_ONLY=0
+PERSONAL=0
 for arg in "$@"; do
   case "$arg" in
-    --device) DEVICE=1 ;;
-    --clean)  CLEAN=1 ;;
-    --xcode)  XCODE_ONLY=1 ;;
-    -h|--help) sed -n '2,16p' "$SCRIPT"; exit 0 ;;
+    --device)   DEVICE=1 ;;
+    --clean)    CLEAN=1 ;;
+    --xcode)    XCODE_ONLY=1 ;;
+    --personal) PERSONAL=1 ;;
+    -h|--help) sed -n '2,22p' "$SCRIPT"; exit 0 ;;
     *) echo "Unknown option: $arg (try --help)"; exit 2 ;;
   esac
 done
+
+if [ "$PERSONAL" -eq 1 ]; then
+  # Read by app.config.js. Changing entitlements changes the generated project,
+  # so the native directory has to be rebuilt or the old one keeps the old ones.
+  export CV_PERSONAL_TEAM=1
+  CLEAN=1
+fi
 
 : > "$FULL"
 FAILED_STEP=""
@@ -255,6 +270,7 @@ ELAPSED=$(( $(date +%s) - START_TS ))
   echo "when     : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "duration : ${ELAPSED}s"
   echo "target   : $([ "$DEVICE" = 1 ] && echo 'physical device' || echo simulator)"
+  [ "$PERSONAL" = 1 ] && echo "signing  : personal team (Wi-Fi, Hotspot and Push entitlements removed)"
   if [ -z "$FAILED_STEP" ]; then
     echo "result   : SUCCESS"
   else
@@ -288,6 +304,22 @@ ELAPSED=$(( $(date +%s) - START_TS ))
       echo
       echo "then pick your iPhone at the top of the Xcode window, set your Team"
       echo "under Signing & Capabilities, and press Run."
+    fi
+
+    # The single most confusing failure for anyone using a free Apple ID: Xcode
+    # will not create a profile at all, and the message blames capabilities
+    # rather than the account type.
+    if grep -qE "Personal development teams|do not support the Access WiFi|No profiles for" "$FULL" 2>/dev/null; then
+      echo
+      echo "--- free Apple ID detected ---"
+      echo "A personal team cannot provision Access WiFi Information, Hotspot or"
+      echo "Push Notifications, so Xcode refuses to make a profile at all."
+      echo "Rebuild without them:"
+      echo
+      echo "    ./scripts/build-ios.sh --device --personal"
+      echo
+      echo "Wi-Fi onboarding and push stop working in that build. Siri and"
+      echo "everything else are unaffected."
     fi
   else
     echo "The app built and launched."
