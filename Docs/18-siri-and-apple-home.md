@@ -161,9 +161,72 @@ fix each:
 
 ```bash
 cd mobile
+npm install
 npx expo prebuild --platform ios --clean
 npx expo run:ios
 ```
+
+---
+
+## 5a. Installing on your own iPhone
+
+The simulator cannot take dictation, so real Siri testing needs the phone.
+
+### One-time setup
+
+1. **Plug the iPhone into the Mac**, unlock it, and tap **Trust** when asked.
+2. **Open the project in Xcode once** to set the signing team:
+   ```bash
+   npx expo prebuild --platform ios     # creates ios/ if not already there
+   open ios/Circuvent.xcworkspace
+   ```
+   Select the **Circuvent** target → **Signing & Capabilities** → tick
+   *Automatically manage signing* → pick your **Team**. A free Apple ID works;
+   add one under Xcode → Settings → Accounts.
+
+   If it complains the bundle identifier is unavailable, change
+   `expo.ios.bundleIdentifier` in `app.json` to something unique such as
+   `com.yourname.circuvent` and re-run prebuild. Free Apple IDs cannot reuse an
+   identifier someone else has registered.
+
+3. **Build and install**:
+   ```bash
+   ./scripts/build-ios.sh --device
+   ```
+
+4. **Trust the certificate on the phone.** The first launch will refuse with
+   "Untrusted Developer" until you do:
+   **Settings → General → VPN & Device Management → your Apple ID → Trust**
+
+### After that
+
+Re-running `./scripts/build-ios.sh --device` reinstalls over the top; there is
+no need to repeat any of the above.
+
+### How long it lasts
+
+| Account | App expires after | Notes |
+| --- | --- | --- |
+| **Free Apple ID** | **7 days** | Re-run the script to reinstall. Limited to 3 apps and 10 devices. |
+| **Apple Developer ($99/yr)** | 1 year | Also unlocks TestFlight, which installs over the air with no cable. |
+
+The 7-day expiry is an Apple limit on free accounts, not something the project
+can change. When it lapses the app simply stops opening — reinstalling restores
+it, and your data is untouched.
+
+### Sharing it with other people
+
+A cable-installed build only works on phones plugged into that Mac. For anyone
+else, use **TestFlight**, which needs the paid account:
+
+```bash
+npx eas build --platform ios --profile preview
+npx eas submit --platform ios
+```
+
+Testers then install from the TestFlight app with no cable and no Mac.
+
+---
 
 ### Notes
 

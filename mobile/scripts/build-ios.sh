@@ -64,6 +64,12 @@ run() {
 # ------------------------------------------------------------- preflight ---
 
 say "Environment"
+# `xcodebuild -version` prints two lines. Taking the first with `| head -1`
+# under `set -o pipefail` makes xcodebuild die of SIGPIPE, the pipeline report
+# failure, and the `|| echo missing` fire on a perfectly good Xcode — which is
+# exactly what the first log from this script showed. Capture first, trim after.
+XCODE_VER="$(xcodebuild -version 2>/dev/null || true)"
+XCODE_VER="${XCODE_VER%%$'\n'*}"
 {
   echo "date            : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "macOS           : $(sw_vers -productVersion 2>/dev/null || echo 'not macOS')"
@@ -71,7 +77,7 @@ say "Environment"
   echo "node            : $(node --version 2>/dev/null || echo missing)"
   echo "npm             : $(npm --version 2>/dev/null || echo missing)"
   echo "xcode-select    : $(xcode-select -p 2>/dev/null || echo missing)"
-  echo "xcodebuild      : $(xcodebuild -version 2>/dev/null | head -1 || echo missing)"
+  echo "xcodebuild      : ${XCODE_VER:-missing}"
   echo "pod             : $(pod --version 2>/dev/null || echo missing)"
   echo "ruby            : $(ruby --version 2>/dev/null | awk '{print $2}' || echo missing)"
   echo "watchman        : $(watchman --version 2>/dev/null || echo 'not installed (fine)')"
@@ -80,6 +86,15 @@ say "Environment"
 } | tee -a "$FULL"
 
 PREFLIGHT_OK=1
+
+# Expo SDK 51 is built and tested against Node 18 and 20. Newer majors mostly
+# work, but they are also the first suspect when an install completes without
+# actually installing everything.
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+if [ "$NODE_MAJOR" -gt 22 ] 2>/dev/null; then
+  note "WARNING: Node $(node --version) is newer than Expo SDK 51 supports (18 or 20)."
+  note "  If dependencies behave oddly, try: nvm install 20 && nvm use 20"
+fi
 
 if ! command -v xcodebuild >/dev/null 2>&1; then
   note "PROBLEM: xcodebuild not found. Install Xcode from the App Store."
@@ -111,11 +126,13 @@ fi
 
 if [ "$PREFLIGHT_OK" -eq 1 ]; then
 
-  if [ ! -d node_modules ]; then
-    run "Installing JavaScript dependencies" npm install
-  else
-    note "node_modules present — skipping npm install"
-  fi
+  # Always run it. An earlier version skipped this when node_modules existed,
+  # which was wrong: a partial or interrupted install leaves the directory in
+  # place but missing packages, and the failure then surfaces much later as
+  # "Cannot find module 'expo-haptics'" or a prebuild plugin error that looks
+  # like a config problem. npm install is idempotent and quick when there is
+  # nothing to do, so there is no reason to guess.
+  run "Installing JavaScript dependencies" npm install
 
   # Catches a broken TypeScript change before spending minutes in Xcode.
   run "Typechecking" npx tsc --noEmit
@@ -177,13 +194,24 @@ ELAPSED=$(( $(date +%s) - START_TS ))
     echo "--- last 120 lines ---"
     tail -120 "$FULL" | sed "s|$ROOT|.|g"
   else
-    echo "The app built and launched. Nothing further needed."
+    echo "The app built and launched."
     echo
+    if [ "$DEVICE" -eq 1 ]; then
+      echo "First install on this iPhone? iOS will refuse to open it until you trust"
+      echo "the certificate:"
+      echo "  Settings > General > VPN & Device Management > your Apple ID > Trust"
+      echo
+      echo "With a free Apple ID the app stops opening after 7 days. Re-run this"
+      echo "script to reinstall it; a paid Apple Developer account lasts a year."
+      echo
+    fi
     echo "To try Siri:"
     echo "  1. Sign in and let the device list load."
     echo "  2. Settings > Siri & Search > Circuvent — the shortcuts should be listed."
     echo "  3. Say: \"Turn on the porch light with Circuvent\""
-    echo "  Note: spoken Siri needs a real device; the simulator only shows Shortcuts."
+    if [ "$DEVICE" -eq 0 ]; then
+      echo "  Note: spoken Siri needs a real device. Re-run with --device for that."
+    fi
   fi
   echo
   echo "Full log: buildlog.full.txt ($(wc -l < "$FULL" | tr -d ' ') lines)"
