@@ -219,6 +219,21 @@ export function getCommandFields(type: string): CommandField[] {
         { key: "backlight", label: "Backlight", kind: "number", min: 0, max: 100, unit: "%" },
       ];
 
+    case "sentinel":
+      // Relays are r1..rN; four are listed because that is the standard board.
+      // The rule builder cannot know which board a rule will target, and a
+      // command for a relay that does not exist is ignored by the firmware
+      // rather than misapplied.
+      return [
+        { key: "r1", label: "Relay 1", kind: "bool" },
+        { key: "r2", label: "Relay 2", kind: "bool" },
+        { key: "r3", label: "Relay 3", kind: "bool" },
+        { key: "r4", label: "Relay 4", kind: "bool" },
+        { key: "all", label: "All relays", kind: "bool" },
+        { key: "away", label: "Away mode", kind: "bool" },
+        { key: "muted", label: "Buzzer muted", kind: "bool" },
+      ];
+
     case "aquaguard":
       return [
         { key: "pump", label: "Pump", kind: "bool" },

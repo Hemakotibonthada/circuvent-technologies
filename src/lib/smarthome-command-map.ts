@@ -43,6 +43,23 @@ export const HUB_CHANNEL_FIELDS = ["power", "power2", "power3", "power4"] as con
 /** Touch Board gangs — firmware/touchboard/touchboard.ino setRelay(): 'g' + (1+i). */
 export const TOUCHBOARD_GANG_FIELDS = ["g1", "g2", "g3"] as const;
 
+/** Highest relay index any Sentinel board exposes. */
+const SENTINEL_MAX_RELAYS = 8;
+
+/**
+ * How many relays a Sentinel actually has.
+ *
+ * The standard board has four; the camera board gives two of them up to the
+ * sensor bus. The firmware publishes `relays` on every boot precisely so this
+ * is never guessed. Returns 0 when the device has not reported yet, which
+ * makes bulk commands project nothing rather than invent relays.
+ */
+function sentinelRelayCount(state?: Record<string, unknown>): number {
+  const n = state?.relays;
+  if (typeof n === "number" && Number.isFinite(n)) return clamp(Math.round(n), 0, SENTINEL_MAX_RELAYS);
+  return 0;
+}
+
 /**
  * Deterministic relay outcome of each Home Hub scene.
  * firmware/home-hub/home-hub.ino applyScene(). Channels the scene does not
@@ -63,7 +80,7 @@ export const HUB_SCENE_EFFECTS: Record<string, StatePatch> = {
  * gate tag enrolment, door `pin`) yields no patch, so the UI keeps showing
  * real device state instead of an optimistic guess that may never arrive.
  */
-export function projectCommand(type: string, cmd: CommandPayload): StatePatch {
+export function projectCommand(type: string, cmd: CommandPayload, state?: Record<string, unknown>): StatePatch {
   const action = isStr(cmd.action) ? cmd.action : "set";
   const patch: StatePatch = {};
 
@@ -100,6 +117,41 @@ export function projectCommand(type: string, cmd: CommandPayload): StatePatch {
         for (const g of TOUCHBOARD_GANG_FIELDS) patch[g] = cmd.all;
       }
       if (isNum(cmd.backlight)) patch.backlight = clamp(cmd.backlight, 0, 100);
+      return patch;
+    }
+
+    // ---------------------------------------------------------- sentinel --
+    // firmware/sentinel/sentinel.ino onCommand(). Relays are r1..rN.
+    case "sentinel": {
+      for (let i = 1; i <= SENTINEL_MAX_RELAYS; i++) {
+        const k = `r${i}`;
+        if (isBool(cmd[k])) patch[k] = cmd[k];
+      }
+      const n = sentinelRelayCount(state);
+      // Bulk commands need to know how many relays exist. Without that we would
+      // be asserting r3/r4 on a two-relay board and waiting forever for an echo
+      // that cannot come.
+      if (isBool(cmd.all) && n > 0) {
+        for (let i = 1; i <= n; i++) patch[`r${i}`] = cmd.all;
+      }
+      if (isBool(cmd.away)) {
+        patch.away = cmd.away;
+        // Arming Away switches everything off — setAllRelays(false, "away-mode").
+        if (cmd.away && n > 0) for (let i = 1; i <= n; i++) patch[`r${i}`] = false;
+      }
+      if (isBool(cmd.muted)) patch.muted = cmd.muted;
+      if (isBool(cmd.streaming)) patch.streaming = cmd.streaming;
+      if (isNum(cmd.safetyCutMask) && n > 0) {
+        patch.safetyCutMask = Math.round(cmd.safetyCutMask) & ((1 << n) - 1);
+      }
+      if (isNum(cmd.exhaustRelay) && n > 0) {
+        const r = Math.round(cmd.exhaustRelay);
+        patch.exhaustRelay = r >= 0 && r < n ? r : -1;
+      }
+      if (action === "clearAlarm") patch.gasAlarm = false;
+      // calibrateGas, test, recalibrateTouch and snapshot all report values we
+      // cannot predict (a fresh baseline, a timestamp), so they get no patch
+      // and the UI waits for the device rather than guessing.
       return patch;
     }
 
@@ -280,8 +332,8 @@ export function projectCommand(type: string, cmd: CommandPayload): StatePatch {
 }
 
 /** The state keys a command is expected to change. */
-export function projectedFields(type: string, cmd: CommandPayload): string[] {
-  return Object.keys(projectCommand(type, cmd));
+export function projectedFields(type: string, cmd: CommandPayload, state?: Record<string, unknown>): string[] {
+  return Object.keys(projectCommand(type, cmd, state));
 }
 
 /**
@@ -350,6 +402,13 @@ export function masterPower(device: {
       };
     case "touchboard":
       return { on: any(s.g1, s.g2, s.g3), label: "All gangs", cmd: (v) => ({ all: v }) };
+    case "sentinel": {
+      const n = sentinelRelayCount(s);
+      // Without a reported relay count there is no honest "all" to offer.
+      if (n === 0) return null;
+      const keys = Array.from({ length: n }, (_, i) => `r${i + 1}`);
+      return { on: any(...keys.map((k) => s[k])), label: "All relays", cmd: (v) => ({ all: v }) };
+    }
     case "light":
     case "smart-light":
       return { on: !!s.power, label: "Light", cmd: (v) => ({ power: v }) };

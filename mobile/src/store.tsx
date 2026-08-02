@@ -126,6 +126,19 @@ export function capabilities(type: string): Capability {
       return { power: { field: "power", label: "Gang 1" } };
     case "home-hub":
       return { power: { field: "power", label: "Channel 1" } };
+    case "sentinel":
+      // Relay 1 is the primary toggle; the metric leads with whatever the
+      // person most needs to know, which is the alarm before the weather.
+      return {
+        power: { field: "r1", label: "Relay 1" },
+        metric: (d) => {
+          const s = d.state;
+          if (s.gasAlarm) return "Gas alarm";
+          if (s.hasGas && s.gasWarmingUp) return "Warming up";
+          if (s.climateOk) return `${Number(s.temp ?? 0).toFixed(0)}° · ${Number(s.humidity ?? 0).toFixed(0)}%`;
+          return "Monitoring";
+        },
+      };
     case "aquaguard":
       return { power: { field: "pump", label: "Pump" }, metric: (d) => `${Number(d.state.level ?? 0)}%` };
     case "agri-starter":

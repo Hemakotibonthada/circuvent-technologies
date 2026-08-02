@@ -19,6 +19,7 @@ const TYPE_WORDS: Record<string, string[]> = {
   "smart-plug": ["plug", "socket", "outlet"],
   "smart-switch": ["switch", "switchboard"],
   touchboard: ["board", "touchboard", "panel"],
+  sentinel: ["sentinel", "safety panel", "gas sensor", "gas detector"],
   curtain: ["curtain", "curtains", "blind", "blinds"],
   "smart-lock": ["lock", "door lock", "deadbolt"],
   facedoor: ["door", "front door", "entry"],

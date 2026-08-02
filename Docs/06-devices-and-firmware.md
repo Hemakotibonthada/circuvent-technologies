@@ -26,6 +26,7 @@ project. All of them speak the same protocol
 | `aquaguard` | AquaGuard | Single-tank pump controller |
 | `watertank` | WaterTank Duo | Sump + overhead, ultrasonic, dry-run trip |
 | `agri-starter` | Agri GSM Starter | GSM pump starter for fields |
+| `sentinel` | Sentinel | Gas + climate safety panel, touch relays, optional camera |
 
 `hardware/` holds the KiCad project, datasheet, manual, enclosure notes and
 marketplace listings for most of these.
@@ -80,6 +81,58 @@ build_flags =
     -DCV_CAM_BOARD=1     ; 1=AI-Thinker 2=WROVER-KIT 3=M5Stack-Wide 4=TTGO T-Journal
     -DPIR_GPIO_NUM=-1
 ```
+
+## Sentinel — the two-board split
+
+`firmware/sentinel` builds two different products from one source file:
+
+```bash
+pio run -e sentinel      -t upload   # ESP32 DevKit: 4 relays, 4 touch pads, gas, DHT, buzzer, PIR
+pio run -e sentinel-cam  -t upload   # ESP32-CAM:    camera, 2 relays, 2 pads, DHT — no gas
+```
+
+The camera build is not a stripped-down edition for pricing reasons. Gas sensing
+and a camera **cannot** coexist on this hardware:
+
+- An MQ-2 is an analog sensor, so it needs an ADC pin.
+- ADC2 stops converting the moment Wi-Fi starts, so the sensor must sit on ADC1
+  (GPIO 32–39).
+- The AI-Thinker ESP32-CAM already uses every ADC1 pin except GPIO 33, and that
+  one drives the on-board LED, which would bias the reading.
+
+Relays are on GPIO 19/21/22/23 and touch pads on 4/13/14/33, both chosen to
+avoid the strapping pins. A relay on GPIO 0/2/5/12/15 clicks on every boot,
+which on a mains board means the lights flick each time the power blinks; GPIO
+12 additionally selects the flash voltage at reset, so a hand resting on the
+panel during a power cut could stop the board coming back up.
+
+**The firmware never reports a gas concentration.** An MQ-2 cannot produce a
+calibrated ppm without a per-gas curve, a known load resistance and temperature
+compensation, so it publishes `gasRaw` (ADC counts), `gasPct` (relative to its
+own clean-air baseline) and the `gasAlarm` boolean. The UI shows those and
+nothing more. Related behaviour worth knowing before changing it:
+
+| Behaviour | Reason |
+| --- | --- |
+| 90 s warm-up before any alarm decision | MQ-2s read high until the heater settles — alarming during it means a false alarm after every power cut, which teaches people to ignore the panel |
+| Hysteresis (alarm 700, clear 450) + 3 s sustained | Stops an aerosol or a lighter emptying the house |
+| The alarm latches | Someone should look before it is dismissed |
+| The baseline never re-learns during an alarm | Otherwise the sensor is taught that a leak is normal |
+| Muting expires after 5 minutes | A permanently silenced gas alarm is worse than none, because it still looks like it works |
+| A single DHT checksum failure keeps the last good value | Those are routine; publishing NaN would hole every chart |
+
+`safetyCutMask` cuts the chosen appliances on alarm and `exhaustRelay` drives
+extraction — detection with no action is only a noise-maker.
+
+Every state change carries `lastSource` (`touch`, `cloud`, `schedule`,
+`gas-alarm`, `auto-off`, `restore`, `away-mode`) so the timeline can say *why* a
+relay moved. Touch presses call `publishStateNow()` rather than waiting for the
+next periodic publish, which is what makes a physical press show up in the app
+immediately.
+
+The standard board uses `min_spiffs.csv`. The default table leaves two 1.25 MB
+app slots and a 1.5 MB filesystem this firmware never touches, which put the
+image at ~80% of its slot; an OTA has to fit in the other one.
 
 ## Provisioning a device
 

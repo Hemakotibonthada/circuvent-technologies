@@ -64,6 +64,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
         {d.type === "rfid-gate" && <RfidGate d={d} send={send} c={c} />}
         {d.type === "facedoor" && <FaceDoor d={d} send={send} c={c} />}
         {d.type === "touchboard" && <TouchBoard d={d} send={send} c={c} />}
+        {d.type === "sentinel" && <Sentinel d={d} send={send} c={c} />}
         {isCamera(d) && <CameraDevice d={d} send={send} c={c} />}
 
         {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
@@ -92,7 +93,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
   );
 }
 
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -560,6 +561,206 @@ function TouchBoard({ d, send, c }: { d: Device; send: (p: Record<string, unknow
         <Pressable onPress={() => send({ all: false })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "700" }}>All off</Text></Pressable>
       </View>
       <Stepper label={`Backlight ${bl}%`} c={c} onDown={() => send({ backlight: Math.max(0, bl - 10) })} onUp={() => send({ backlight: Math.min(100, bl + 10) })} />
+    </View>
+  );
+}
+
+/** How the firmware describes what last moved a relay. */
+const SENTINEL_SOURCE: Record<string, string> = {
+  touch: "Touch panel",
+  cloud: "App",
+  schedule: "Schedule",
+  "gas-alarm": "Gas alarm",
+  "auto-off": "Auto-off timer",
+  restore: "Power restored",
+  "away-mode": "Away mode",
+};
+
+/**
+ * Sentinel — gas + climate safety panel with relays.
+ *
+ * Gas is shown the way the device reports it: raw counts and a percentage
+ * relative to its own clean-air baseline. An MQ-2 cannot produce a calibrated
+ * ppm without a per-gas curve, a known load resistance and temperature
+ * compensation, so a number labelled "ppm" here would be invented. Every
+ * control below maps to a command the firmware implements.
+ */
+function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const st = d.state as Record<string, unknown>;
+  const bool = (k: string) => st[k] === true;
+  const num = (k: string, dflt: number) => (typeof st[k] === "number" ? (st[k] as number) : dflt);
+
+  const hasGas = bool("hasGas");
+  const hasCamera = bool("hasCamera");
+  const alarm = bool("gasAlarm");
+  const warming = bool("gasWarmingUp");
+  const gasReady = bool("gasReady");
+  const climateOk = bool("climateOk");
+  const relays = Math.max(1, Math.min(8, num("relays", 4)));
+  const exhaust = num("exhaustRelay", -1);
+  const cutMask = num("safetyCutMask", 0);
+  const src = typeof st.lastSource === "string" ? (st.lastSource as string) : "";
+
+  const confirmTest = () =>
+    Alert.alert("Test the siren?", "The buzzer sounds three times, even if the panel is muted.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Sound it", onPress: () => { tapLight(); send({ action: "test" }); } },
+    ]);
+
+  // Calibration is destructive in a way that is not obvious: it makes the
+  // current air the new "normal". Doing it near a leak trains the sensor to
+  // ignore that leak, so the warning matters more than the convenience.
+  const confirmCalibrate = () =>
+    Alert.alert(
+      "Calibrate in clean air",
+      "Only calibrate when the room is well ventilated. Whatever the sensor smells right now becomes its idea of normal.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Calibrate", style: "destructive", onPress: () => { tapLight(); send({ action: "calibrateGas" }); } },
+      ]
+    );
+
+  return (
+    <View>
+      {alarm && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1, alignItems: "center" }}>
+          <Icon name="alert" size={26} color={c.red} />
+          <Text style={{ color: c.red, fontSize: 18, fontWeight: "800", marginTop: 6 }}>GAS DETECTED</Text>
+          <Text style={{ color: c.textDim, fontSize: 13, marginTop: 6, textAlign: "center" }}>
+            Ventilate the room and check for a leak before clearing. The alarm stays on until someone dismisses it.
+          </Text>
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+            <Pressable
+              onPress={() => { tapLight(); send({ muted: true }); }}
+              style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 18, borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border }}
+            >
+              <Text style={{ color: c.text, fontWeight: "700" }}>Silence 5 min</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { tapLight(); send({ action: "clearAlarm" }); }}
+              style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 18, borderRadius: 10, backgroundColor: c.red }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800" }}>Clear alarm</Text>
+            </Pressable>
+          </View>
+        </Card>
+      )}
+
+      {hasGas && warming && (
+        <Alertline text="Gas sensor is warming up. Readings are unreliable for the first 90 seconds after power-on, so the alarm is held off until then." c={c} />
+      )}
+
+      {climateOk ? (
+        <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+          <MiniStat label="Temperature" value={`${num("temp", 0).toFixed(1)}°`} c={c} />
+          <MiniStat label="Humidity" value={`${num("humidity", 0).toFixed(0)}%`} c={c} />
+          <MiniStat label="Feels like" value={`${num("heatIndex", 0).toFixed(1)}°`} c={c} />
+        </View>
+      ) : (
+        <Alertline text="No climate reading yet — the temperature and humidity sensor has not reported." c={c} />
+      )}
+
+      {hasGas && (
+        <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+          <MiniStat label="Gas level" value={gasReady ? `${num("gasPct", 0).toFixed(0)}%` : "—"} c={c} />
+          <MiniStat label="Raw" value={gasReady ? String(num("gasRaw", 0)) : "—"} c={c} />
+          <MiniStat label="Baseline" value={num("gasBaseline", 0) > 0 ? String(num("gasBaseline", 0)) : "Not set"} c={c} />
+        </View>
+      )}
+
+      {bool("motion") && <Alertline text="Motion detected." c={c} />}
+
+      <SwitchGangs d={d} send={send} c={c} />
+
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 2, marginBottom: 6 }}>
+        <Pressable onPress={() => { tapLight(); send({ all: true }); }} style={{ flex: 1, minHeight: 44, justifyContent: "center", backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, alignItems: "center" }}>
+          <Text style={{ color: c.text, fontWeight: "700" }}>All on</Text>
+        </Pressable>
+        <Pressable onPress={() => { tapLight(); send({ all: false }); }} style={{ flex: 1, minHeight: 44, justifyContent: "center", backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, alignItems: "center" }}>
+          <Text style={{ color: c.text, fontWeight: "700" }}>All off</Text>
+        </Pressable>
+      </View>
+
+      {!!src && (
+        <Text style={{ color: c.faint, fontSize: 12, marginBottom: 12 }}>
+          Last change by {SENTINEL_SOURCE[src] ?? src}
+        </Text>
+      )}
+
+      <Section c={c}>Modes</Section>
+      <Row label="Away mode" c={c}><Sw v={bool("away")} on={(v) => send({ away: v })} c={c} /></Row>
+      <Row label="Buzzer muted" c={c}><Sw v={bool("muted")} on={(v) => send({ muted: v })} c={c} /></Row>
+      <Text style={{ color: c.faint, fontSize: 12, marginTop: -4, marginBottom: 12 }}>
+        Muting expires by itself after five minutes. Turning everything off is what Away does — it does not disable the gas alarm.
+      </Text>
+
+      {hasGas && relays > 0 && (
+        <>
+          <Section c={c}>On gas alarm</Section>
+          <Text style={{ color: c.faint, fontSize: 12, marginBottom: 10 }}>
+            Choose which appliances are cut when gas is detected, and which relay drives an exhaust fan.
+          </Text>
+          {Array.from({ length: relays }, (_, i) => (
+            <Row key={`cut${i}`} label={`Cut relay ${i + 1}`} c={c}>
+              <Sw
+                v={(cutMask & (1 << i)) !== 0}
+                on={(v) => send({ safetyCutMask: v ? cutMask | (1 << i) : cutMask & ~(1 << i) })}
+                c={c}
+              />
+            </Row>
+          ))}
+          <Card padded style={{ marginBottom: 10 }}>
+            <Text style={{ color: c.text, fontSize: 16, marginBottom: 10 }}>Exhaust fan relay</Text>
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              {[-1, ...Array.from({ length: relays }, (_, i) => i)].map((r) => {
+                const sel = exhaust === r;
+                return (
+                  <Pressable
+                    key={r}
+                    onPress={() => { tapLight(); send({ exhaustRelay: r }); }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: sel }}
+                    style={{ minHeight: 44, minWidth: 64, justifyContent: "center", alignItems: "center", paddingHorizontal: 14, borderRadius: 10, backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}
+                  >
+                    <Text style={{ color: sel ? "#04121a" : c.textDim, fontWeight: sel ? "800" : "600" }}>{r < 0 ? "None" : `Relay ${r + 1}`}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
+        </>
+      )}
+
+      {hasCamera && (
+        <>
+          <Section c={c}>Camera</Section>
+          <Row label="Live stream" c={c}><Sw v={bool("streaming")} on={(v) => send({ streaming: v })} c={c} /></Row>
+          <Pressable
+            onPress={() => { tapLight(); send({ action: "snapshot" }); }}
+            disabled={!bool("cameraReady")}
+            style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, opacity: bool("cameraReady") ? 1 : 0.5, marginBottom: 10 }}
+          >
+            <Text style={{ color: c.text, fontWeight: "700" }}>Take snapshot</Text>
+          </Pressable>
+          {!bool("cameraReady") && <Alertline text="Camera did not initialise. Power-cycle the device; if it persists the module may be unseated." c={c} />}
+        </>
+      )}
+
+      <Section c={c}>Maintenance</Section>
+      <Pressable onPress={confirmTest} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, marginBottom: 10 }}>
+        <Text style={{ color: c.text, fontWeight: "700" }}>Test siren</Text>
+      </Pressable>
+      {hasGas && (
+        <Pressable onPress={confirmCalibrate} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, marginBottom: 10 }}>
+          <Text style={{ color: c.text, fontWeight: "700" }}>Calibrate gas sensor</Text>
+        </Pressable>
+      )}
+      <Pressable onPress={() => { tapLight(); send({ action: "recalibrateTouch" }); }} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, marginBottom: 10 }}>
+        <Text style={{ color: c.text, fontWeight: "700" }}>Recalibrate touch pads</Text>
+      </Pressable>
+      {num("lastTest", 0) > 0 && (
+        <Text style={{ color: c.faint, fontSize: 12, marginBottom: 6 }}>Siren last tested {Math.round(num("lastTest", 0) / 3600)} h into this uptime.</Text>
+      )}
     </View>
   );
 }

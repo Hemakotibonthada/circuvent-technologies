@@ -71,6 +71,62 @@ describe("projectCommand — touchboard", () => {
   });
 });
 
+// The Sentinel's relay count differs by board (the camera build gives two
+// relays up to the sensor bus), so bulk commands must be driven by the
+// `relays` count the firmware publishes rather than a constant.
+describe("projectCommand — sentinel", () => {
+  const four = { relays: 4 };
+  const two = { relays: 2 };
+
+  it("maps individual relays", () => {
+    expect(projectCommand("sentinel", { r3: true }, four)).toEqual({ r3: true });
+  });
+
+  it("expands `all` across exactly the relays the board reports", () => {
+    expect(projectCommand("sentinel", { all: true }, four)).toEqual({
+      r1: true, r2: true, r3: true, r4: true,
+    });
+    expect(projectCommand("sentinel", { all: true }, two)).toEqual({ r1: true, r2: true });
+  });
+
+  it("projects nothing for `all` when the relay count is unknown", () => {
+    // Better a late switch than a pin that waits forever for a relay that
+    // does not exist on this board.
+    expect(projectCommand("sentinel", { all: true })).toEqual({});
+  });
+
+  it("switches everything off when away mode is armed", () => {
+    expect(projectCommand("sentinel", { away: true }, two)).toEqual({
+      away: true, r1: false, r2: false,
+    });
+    expect(projectCommand("sentinel", { away: false }, two)).toEqual({ away: false });
+  });
+
+  it("clamps the safety-cut mask to the relays that exist", () => {
+    expect(projectCommand("sentinel", { safetyCutMask: 0b1111 }, two)).toEqual({ safetyCutMask: 0b11 });
+  });
+
+  it("rejects an out-of-range exhaust relay rather than storing it", () => {
+    expect(projectCommand("sentinel", { exhaustRelay: 1 }, four)).toEqual({ exhaustRelay: 1 });
+    expect(projectCommand("sentinel", { exhaustRelay: 7 }, four)).toEqual({ exhaustRelay: -1 });
+  });
+
+  it("clears the alarm optimistically but never predicts a calibration", () => {
+    expect(projectCommand("sentinel", { action: "clearAlarm" }, four)).toEqual({ gasAlarm: false });
+    // A new baseline and a test timestamp are values only the device knows.
+    expect(projectCommand("sentinel", { action: "calibrateGas" }, four)).toEqual({});
+    expect(projectCommand("sentinel", { action: "test" }, four)).toEqual({});
+    expect(projectCommand("sentinel", { action: "recalibrateTouch" }, four)).toEqual({});
+  });
+
+  it("offers a master power only once the board has reported its relays", () => {
+    expect(masterPower({ type: "sentinel", state: {} })).toBeNull();
+    const mp = masterPower({ type: "sentinel", state: { relays: 2, r1: true, r2: false } });
+    expect(mp?.on).toBe(true);
+    expect(mp?.cmd(false)).toEqual({ all: false });
+  });
+});
+
 describe("projectCommand — actions that rename the field", () => {
   it("maps gate actions to the barrier field", () => {
     expect(projectCommand("rfid-gate", { action: "open" })).toEqual({ barrier: "open" });

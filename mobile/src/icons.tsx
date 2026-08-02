@@ -77,6 +77,7 @@ export const ICONS = {
   "rfid-gate": mci("boom-gate"),
   facedoor: mci("door"),
   touchboard: mci("gesture-tap-button"),
+  sentinel: mci("smoke-detector-variant"),
   device: mci("chip"),
 
   // --- activity / status ---------------------------------------------------

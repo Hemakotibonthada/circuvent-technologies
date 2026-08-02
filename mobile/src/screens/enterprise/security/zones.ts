@@ -98,6 +98,9 @@ const FIELD_MAP: Record<string, Partial<Record<ZoneKind, string[]>>> = {
     tamper: ["tamper", "tampered"],
   },
   touchboard: { contact: ["door", "doorOpen"], tamper: ["tamper"] },
+  // A gas alarm is an alarm condition, and the firmware sounds its buzzer on
+  // it, so the security screen treats it as a siren zone rather than hiding it.
+  sentinel: { motion: ["motion"], siren: ["gasAlarm"] },
 };
 
 const GENERIC_FIELDS: Partial<Record<ZoneKind, string[]>> = {

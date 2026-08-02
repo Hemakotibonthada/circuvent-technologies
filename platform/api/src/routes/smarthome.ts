@@ -45,6 +45,8 @@ function onOff(type: string): { field: string; cmd: (v: boolean) => Record<strin
       return { field: "pump", cmd: (v) => ({ pump: v }) };
     case "home-hub":
       return { field: "power", cmd: (v) => ({ ch: 0, on: v }) };
+    case "sentinel":
+      return { field: "r1", cmd: (v) => ({ r1: v }) };
     default:
       return null;
   }

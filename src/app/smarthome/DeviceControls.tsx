@@ -72,6 +72,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   "rfid-gate": { label: "RFID Gate", icon: Car, accent: "#f59e0b", blurb: "Vehicle access barrier" },
   facedoor: { label: "Smart Door", icon: DoorOpen, accent: "#8b5cf6", blurb: "Face / fingerprint / PIN" },
   touchboard: { label: "Touch Board", icon: LayoutGrid, accent: "#06b6d4", blurb: "3-gang metered switch" },
+  sentinel: { label: "Sentinel", icon: ShieldAlert, accent: "#ef4444", blurb: "Gas, climate & relays" },
   camera: { label: "Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   cctv: { label: "CCTV Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   doorbell: { label: "Video Doorbell", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
@@ -242,6 +243,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <FaceDoor d={device} send={send} st={st} />;
     case "touchboard":
       return <TouchBoard d={device} send={send} st={st} />;
+    case "sentinel":
+      return <Sentinel d={device} send={send} st={st} />;
     case "camera":
     case "cctv":
     case "doorbell":
@@ -1003,6 +1006,198 @@ function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
     </div>
   );
 }
+
+// --------------------------------------------------------------------- sentinel --
+// firmware/sentinel/sentinel.ino — gas + climate safety panel with relays.
+// Gas is reported as raw ADC counts and a percentage of the device's own
+// clean-air baseline. An MQ-2 cannot yield a calibrated ppm without a per-gas
+// curve, a known load resistance and temperature compensation, so no ppm figure
+// is shown here: it would be a fabricated number on a safety device.
+
+function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const chan = useChannelGrid(d);
+  const s = d.state;
+  const relays = Math.max(0, Math.min(8, n(s.relays, 0)));
+  const hasGas = b(s.hasGas);
+  const hasCamera = b(s.hasCamera);
+  const alarm = b(s.gasAlarm);
+  const cutMask = n(s.safetyCutMask, 0);
+  const exhaust = n(s.exhaustRelay, -1);
+  const chans = Array.from({ length: relays }, (_, i) => ({ key: `r${i + 1}`, fallback: `Relay ${i + 1}` }));
+  const onCount = chans.filter((cch) => b(s[cch.key])).length;
+
+  return (
+    <div>
+      {alarm && (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-5 mb-4 flex flex-col items-center text-center">
+          <div className="text-red-400 font-extrabold text-lg">GAS DETECTED</div>
+          <p className="mt-2 text-sm text-slate-300">
+            Ventilate the room and check for a leak before clearing. The alarm latches until someone dismisses it.
+          </p>
+          <div className="mt-4 flex gap-2.5">
+            <button
+              onClick={() => send({ muted: true })}
+              className={`min-h-11 rounded-xl border border-white/15 bg-black/20 px-5 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("muted"))}`}
+            >
+              Silence 5 min
+            </button>
+            <button
+              onClick={() => send({ action: "clearAlarm" })}
+              className={`min-h-11 rounded-xl bg-red-500 px-5 text-sm font-semibold text-white hover:bg-red-600 active:scale-95 transition ${pendCls(st("gasAlarm"))}`}
+            >
+              Clear alarm
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hasGas && b(s.gasWarmingUp) && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-4 text-sm text-amber-200">
+          Gas sensor is warming up. An MQ-2 reads high until its heater settles, so the alarm is held off for the first 90 seconds.
+        </div>
+      )}
+
+      {b(s.climateOk) ? (
+        <div className="grid grid-cols-3 gap-3">
+          <StatTile label="Temperature" value={`${n(s.temp).toFixed(1)}°C`} accent="#f59e0b" />
+          <StatTile label="Humidity" value={`${n(s.humidity).toFixed(0)}%`} accent="#06b6d4" />
+          <StatTile label="Feels like" value={`${n(s.heatIndex).toFixed(1)}°C`} />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-400">
+          No climate reading yet — the temperature and humidity sensor has not reported.
+        </div>
+      )}
+
+      {hasGas && (
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <StatTile label="Gas level" value={b(s.gasReady) ? `${n(s.gasPct).toFixed(0)}%` : "—"} accent={alarm ? "#ef4444" : "#22c55e"} />
+          <StatTile label="Raw" value={b(s.gasReady) ? String(n(s.gasRaw)) : "—"} />
+          <StatTile label="Baseline" value={n(s.gasBaseline) > 0 ? String(n(s.gasBaseline)) : "Not set"} />
+        </div>
+      )}
+
+      {relays > 0 && (
+        <>
+          <SectionLabel right={chan.header(`${onCount}/${relays} on`)}>Relays</SectionLabel>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {chans.map((cch) =>
+              chan.tile({
+                field: cch.key,
+                fallback: cch.fallback,
+                on: b(s[cch.key]),
+                status: st(cch.key),
+                set: (v) => send({ [cch.key]: v }),
+              })
+            )}
+          </div>
+          <div className="mt-3 flex gap-2.5">
+            <button onClick={() => send({ all: true })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("r1"))}`}>All on</button>
+            <button onClick={() => send({ all: false })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("r1"))}`}>All off</button>
+          </div>
+        </>
+      )}
+
+      <SectionLabel>Modes</SectionLabel>
+      <ControlRow label="Away mode" hint="Switches every relay off. Does not disable the gas alarm.">
+        <Toggle checked={b(s.away)} onChange={(v) => send({ away: v })} status={st("away")} label="Away mode" />
+      </ControlRow>
+      <ControlRow label="Buzzer muted" hint="Expires by itself after five minutes.">
+        <Toggle checked={b(s.muted)} onChange={(v) => send({ muted: v })} status={st("muted")} label="Buzzer muted" />
+      </ControlRow>
+
+      {hasGas && relays > 0 && (
+        <>
+          <SectionLabel>On gas alarm</SectionLabel>
+          <p className="mb-3 text-sm text-slate-400">
+            Choose which appliances are cut when gas is detected, and which relay drives an exhaust fan.
+          </p>
+          {chans.map((cch, i) => (
+            <ControlRow key={`cut-${cch.key}`} label={`Cut ${cch.fallback}`}>
+              <Toggle
+                checked={(cutMask & (1 << i)) !== 0}
+                onChange={(v) => send({ safetyCutMask: v ? cutMask | (1 << i) : cutMask & ~(1 << i) })}
+                status={st("safetyCutMask")}
+                label={`Cut ${cch.fallback}`}
+              />
+            </ControlRow>
+          ))}
+          <ControlRow label="Exhaust fan relay">
+            <div className="flex flex-wrap gap-2">
+              {[-1, ...chans.map((_, i) => i)].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => send({ exhaustRelay: r })}
+                  aria-pressed={exhaust === r}
+                  className={`min-h-11 rounded-xl border px-4 text-sm font-semibold transition active:scale-95 ${
+                    exhaust === r
+                      ? "border-transparent bg-cyan-500 text-slate-950"
+                      : "border-white/15 bg-black/20 text-slate-200 hover:bg-white/10"
+                  }`}
+                >
+                  {r < 0 ? "None" : `Relay ${r + 1}`}
+                </button>
+              ))}
+            </div>
+          </ControlRow>
+        </>
+      )}
+
+      {hasCamera && (
+        <>
+          <SectionLabel>Camera</SectionLabel>
+          <ControlRow label="Live stream">
+            <Toggle checked={b(s.streaming)} onChange={(v) => send({ streaming: v })} status={st("streaming")} label="Live stream" />
+          </ControlRow>
+          {!b(s.cameraReady) && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+              Camera did not initialise. Power-cycle the device; if it persists the module may be unseated.
+            </div>
+          )}
+        </>
+      )}
+
+      <SectionLabel>Maintenance</SectionLabel>
+      <div className="flex flex-wrap gap-2.5">
+        <button onClick={() => send({ action: "test" })} className="min-h-11 rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition">
+          Test siren
+        </button>
+        {hasGas && (
+          <button
+            onClick={() => {
+              // Calibration makes the current air the new "normal". Doing it
+              // near a leak trains the sensor to ignore that leak, so this
+              // asks first rather than making it a one-tap mistake.
+              if (window.confirm("Only calibrate when the room is well ventilated. Whatever the sensor smells right now becomes its idea of normal. Continue?")) {
+                send({ action: "calibrateGas" });
+              }
+            }}
+            className="min-h-11 rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
+          >
+            Calibrate gas sensor
+          </button>
+        )}
+        <button onClick={() => send({ action: "recalibrateTouch" })} className="min-h-11 rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition">
+          Recalibrate touch pads
+        </button>
+      </div>
+      {typeof s.lastSource === "string" && s.lastSource && (
+        <p className="mt-3 text-xs text-slate-500">Last change by {SENTINEL_SOURCE[s.lastSource] ?? s.lastSource}</p>
+      )}
+    </div>
+  );
+}
+
+/** How the firmware describes what last moved a relay. */
+const SENTINEL_SOURCE: Record<string, string> = {
+  touch: "the touch panel",
+  cloud: "the app",
+  schedule: "a schedule",
+  "gas-alarm": "the gas alarm",
+  "auto-off": "an auto-off timer",
+  restore: "power being restored",
+  "away-mode": "away mode",
+};
 
 // ---------------------------------------------------------------------- camera --
 // ESP32-CAM (firmware/camera/camera.ino). Frames never touch telemetry — they

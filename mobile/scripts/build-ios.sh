@@ -227,24 +227,30 @@ if [ "$PREFLIGHT_OK" -eq 1 ]; then
       # it cannot read the newer devicectl output.
       DEVICE_ID=""
       if command -v xcrun >/dev/null 2>&1; then
-        # xctrace lists physical devices with a UDID in parentheses. Simulators
-        # appear as "Simulator" and are filtered out.
+        # xctrace lists the host Mac alongside any connected iPhone, so matching
+        # "anything in parentheses" found two devices and asked the user to
+        # unplug one of them — which is impossible when one is the Mac.
+        #
+        # The formats differ, so filter on shape instead of guessing at names:
+        #   iPhone (A12+) : 8 hex, a dash, 16 hex   00008150-000E3C8C1EA0C01C
+        #   iPhone (older): 40 hex
+        #   Mac           : a standard 5-group UUID 54ADDB39-AD2E-5ECA-89D7-...
         DEVICES="$(xcrun xctrace list devices 2>/dev/null \
           | sed -n '/^== Devices ==/,/^== /p' \
           | grep -v Simulator \
-          | grep -oE '\([0-9A-Fa-f-]{25,}\)' \
+          | grep -oE '\(([0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})\)' \
           | tr -d '()' || true)"
         COUNT="$(printf '%s\n' "$DEVICES" | grep -c . || true)"
         if [ "${COUNT:-0}" -eq 1 ]; then
           DEVICE_ID="$(printf '%s\n' "$DEVICES" | head -1)"
-          note "Found one connected device: $DEVICE_ID"
+          note "Found one connected iPhone: $DEVICE_ID"
         elif [ "${COUNT:-0}" -gt 1 ]; then
-          note "More than one device is connected. Unplug the others, or run:"
+          note "More than one iPhone is connected. Unplug the others, or run:"
           note "  npx expo run:ios --device <udid>"
           printf '%s\n' "$DEVICES" | sed 's/^/      /' | tee -a "$FULL"
         else
-          note "No physical device detected. Check it is plugged in, unlocked,"
-          note "and that you tapped Trust on the phone."
+          note "No iPhone detected. Check it is plugged in, unlocked, and that"
+          note "you tapped Trust on the phone."
         fi
       fi
 

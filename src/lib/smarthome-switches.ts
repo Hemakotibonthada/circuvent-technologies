@@ -45,7 +45,26 @@ export interface SwitchTarget {
  * locking a door is a mode, not a relay, and grouping them under "switches"
  * would make a schedule list read as if the front door were a lamp.
  */
-const NON_LOAD_FIELDS = new Set(["armed", "auto", "locked", "all"]);
+const NON_LOAD_FIELDS = new Set(["armed", "auto", "locked", "all", "away", "muted"]);
+
+/**
+ * Drops channels a *particular unit* does not have.
+ *
+ * `getCommandFields` is keyed on device type, but the Sentinel ships on two
+ * boards: the camera build gives two of its four relays up to the sensor bus.
+ * Listing r3/r4 for that unit would put two switches in the schedule list that
+ * can never turn anything on. The firmware publishes `relays` on every boot so
+ * this can be answered from data rather than assumed.
+ */
+function hasChannel(device: Device, field: string): boolean {
+  if (device.type !== "sentinel") return true;
+  const m = /^r(\d+)$/.exec(field);
+  if (!m) return true;
+  const n = device.state.relays;
+  // Before the device has reported, show nothing rather than guess a board.
+  if (typeof n !== "number" || !Number.isFinite(n)) return false;
+  return Number(m[1]) <= n;
+}
 
 /** Splits a device into its individually switchable outputs. */
 export function switchTargetsOf(
@@ -54,7 +73,7 @@ export function switchTargetsOf(
   kindFor: (deviceId: string, field: string) => ChannelKind
 ): SwitchTarget[] {
   return getCommandFields(device.type)
-    .filter((f) => f.kind === "bool" && !NON_LOAD_FIELDS.has(f.key))
+    .filter((f) => f.kind === "bool" && !NON_LOAD_FIELDS.has(f.key) && hasChannel(device, f.key))
     .map((f) => {
       const raw = device.state[f.key];
       return {

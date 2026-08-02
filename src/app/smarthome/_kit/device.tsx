@@ -57,6 +57,18 @@ export function deviceMetric(d: Device): string | null {
       return onOf("power", "power2", "power3", "power4");
     case "touchboard":
       return onOf("g1", "g2", "g3");
+    case "sentinel": {
+      if (s.gasAlarm) return "Gas alarm";
+      if (s.hasGas && s.gasWarmingUp) return "Warming up";
+      const t = num(s.temp);
+      const h = num(s.humidity);
+      if (s.climateOk && t != null && h != null) return `${t.toFixed(0)}° · ${h.toFixed(0)}%`;
+      // Relay count varies by board, so the denominator comes from what the
+      // device reported — a two-relay panel must not read "1/4 on".
+      const n = num(s.relays);
+      if (n == null) return null;
+      return onOf(...Array.from({ length: Math.max(0, Math.min(8, Math.round(n))) }, (_, i) => `r${i + 1}`));
+    }
     case "facedoor":
     case "smart-lock":
       return "locked" in s ? (s.locked ? "Locked" : "Unlocked") : null;

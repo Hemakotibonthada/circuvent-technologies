@@ -428,7 +428,7 @@ export function useLiveDevice(
   const send = useCallback(
     async (params: CommandPayload) => {
       const type = typeRef.current || device?.type || "";
-      const patch = projectCommand(type, params);
+      const patch = projectCommand(type, params, device?.state);
       const fields = Object.keys(patch);
       const sentAt = Date.now();
       const commandId = `c${++commandSeq}`;
@@ -636,7 +636,7 @@ export function useOptimisticCommands(devices: Device[]): OptimisticCommands {
   );
 
   const send = useCallback(async (device: Device, params: CommandPayload) => {
-    const patch = projectCommand(device.type, params);
+    const patch = projectCommand(device.type, params, device.state);
     const sentAt = Date.now();
     const hasPatch = Object.keys(patch).length > 0;
     haptic();

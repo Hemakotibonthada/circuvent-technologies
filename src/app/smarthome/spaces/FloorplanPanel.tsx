@@ -72,6 +72,15 @@ function pinColor(d: Device): { fill: string; active: boolean; label: string } {
       const on = [s.power, s.power2, s.power3, s.power4].filter(Boolean).length;
       return on ? { fill: "#22c55e", active: true, label: `${on}/4 on` } : { fill: "#475569", active: false, label: "off" };
     }
+    case "sentinel": {
+      if (s.gasAlarm) return { fill: "#ef4444", active: true, label: "gas alarm" };
+      const total = Math.max(0, Math.min(8, Number(s.relays ?? 0)));
+      if (!total) return { fill: "#475569", active: false, label: "—" };
+      const on = Array.from({ length: total }, (_, i) => s[`r${i + 1}`]).filter(Boolean).length;
+      return on
+        ? { fill: "#22c55e", active: true, label: `${on}/${total} on` }
+        : { fill: "#475569", active: false, label: "off" };
+    }
     default: {
       const on = !!(s.power ?? s.pump ?? s.on);
       return on ? { fill: "#22c55e", active: true, label: "on" } : { fill: "#475569", active: false, label: "off" };
@@ -90,6 +99,7 @@ function deviceGlyph(type: string): string {
     watertank: "🌊",
     aquaguard: "💧",
     touchboard: "🎛️",
+    sentinel: "🧯",
     "motion-sensor": "🚶",
     "energy-monitor": "⚡",
     "smart-plug": "🔌",

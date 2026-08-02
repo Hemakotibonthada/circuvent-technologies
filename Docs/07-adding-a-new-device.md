@@ -85,6 +85,14 @@ and the switch timers can offer them. Command keys and state keys are allowed to
 differ (a camera's `{action:"stream", on}` sets `state.streaming`); this map is
 where that is expressed.
 
+Only project fields whose value after the command is **deterministic**. Anything
+the firmware stores without echoing, or computes for itself (a fresh sensor
+baseline, a timestamp), must yield no patch — otherwise the optimistic pin waits
+forever for a confirmation that cannot arrive.
+
+If the type has a sensible "everything on/off", add it to `masterPower` too, or
+group and room power buttons will skip it.
+
 ### 3b. Device controls — `src/app/smarthome/DeviceControls.tsx`
 
 Two edits:
@@ -96,7 +104,20 @@ Two edits:
 **If you skip step 2 the device falls through to `default:` and renders a raw
 JSON state dump.** That is exactly what happened when cameras were added.
 
-### 3c. Anything else
+### 3c. Automation fields — `src/app/smarthome/automation/describe.ts`
+
+`getCommandFields` feeds two things: the rule builder, and — via
+`src/lib/smarthome-switches.ts` — the per-channel schedule list. A boolean here
+becomes a schedulable "switch", so a field that is a *mode* rather than a load
+(armed, auto, locked, away, muted) must also go in `NON_LOAD_FIELDS`, or the
+schedule list reads as if the front door were a lamp.
+
+### 3d. Smaller registries
+
+| File | What breaks without it |
+| --- | --- |
+| `src/app/smarthome/_kit/device.tsx` (`deviceMetric`) | Tiles show no readout |
+| `src/app/smarthome/spaces/FloorplanPanel.tsx` | Floorplan pin has no status or glyph |
 
 `GenericCapabilities` covers power/dimmer/fan/thermostat automatically, so a
 simple device may need nothing more.
@@ -107,16 +128,38 @@ simple device may need nothing more.
 
 Mirror the console:
 
-1. `mobile/src/theme.ts` — add to `deviceMeta` (icon, gradient, label).
-2. `mobile/src/screens/Control.tsx` — add the control component and render it,
+1. `mobile/src/theme.ts` — add to `DEVICE_META` (icon, gradient, label, and the
+   `toggle` field if it has a primary switch), and to `TYPE_CATEGORY` so the
+   tile is tinted.
+2. `mobile/src/icons.tsx` — add the glyph named by `DEVICE_META.icon`. Run
+   `npm run icons:check`: a wrong name is invisible to TypeScript and renders as
+   a blank box at runtime.
+3. `mobile/src/screens/Control.tsx` — add the control component and render it,
    and add the type to the `KNOWN` array.
 
 **The `KNOWN` array is the trap.** A type missing from it falls through to the
 raw-state card even if you wrote a control component. This is precisely how the
 camera shipped showing JSON on the phone.
 
-3. `mobile/src/store.tsx` — if the device has a primary on/off, add it to
+4. `mobile/src/store.tsx` — if the device has a primary on/off, add it to
    `capabilities()` so tiles and quick actions work.
+5. `mobile/src/widgets.ts` — multi-gang hardware only: list its switchable
+   fields in `defaultGangs` so each output can be renamed and hidden. Where the
+   output count varies by board, read it from published state rather than
+   hardcoding it.
+6. `mobile/src/voice.ts` — words a person would actually say for it.
+7. `mobile/src/screens/enterprise/security/zones.ts` — only if it reports
+   security-relevant state (motion, contact, tamper, alarm).
+
+Siri needs **no** Swift change: `mobile/src/siri-sync.ts` derives the field to
+toggle from `DEVICE_META.toggle` / `capabilities()`. Add a `kindOf` case only if
+the device is a lock, gate, curtain or armable alarm, where "on" and "off" would
+be the wrong words.
+
+### 4a. Google Home / Alexa — `platform/api/src/routes/smarthome.ts`
+
+`onOff()` decides what the voice assistants see. A type missing from it is
+simply absent from both, with no error.
 
 ---
 
@@ -176,10 +219,15 @@ under `pcb/`, plus `DATASHEET.md`, `MANUAL.md`, `enclosure/` and `listings/`.
 
 - [ ] `firmware/<type>/` compiles with `pio run`
 - [ ] Device connects, publishes `state`, honours `cmd`
-- [ ] Command map entry added
+- [ ] Every output publishes its state at boot, including the ones that are off
+- [ ] Command map entry added (+ `masterPower` if it has an "all")
+- [ ] `getCommandFields` added; mode-like booleans also in `NON_LOAD_FIELDS`
 - [ ] `DEVICE_META` + `case` in `DeviceControls.tsx`
-- [ ] `deviceMeta` + control + **`KNOWN` array** in mobile
+- [ ] `deviceMetric` + floorplan status
+- [ ] `deviceMeta` + `TYPE_CATEGORY` + icon + control + **`KNOWN` array** in mobile
+- [ ] `npm run icons:check` passes
 - [ ] `capabilities()` updated if it has a primary switch
+- [ ] `onOff()` in `smarthome.ts` if it should reach Google/Alexa
 - [ ] Product added to `shop-data.ts` with a unique id and slug
 - [ ] Artwork generated **and visually checked**
 - [ ] `npx tsc --noEmit` clean in both `/` and `mobile/`
@@ -195,3 +243,11 @@ under `pcb/`, plus `DATASHEET.md`, `MANUAL.md`, `enclosure/` and `listings/`.
    every save.
 
 None of these produce an error. All three have happened.
+
+## One more, if the board comes in variants
+
+If the same type ships with different output counts, publish the count from the
+firmware and read it everywhere instead of hardcoding the larger board. A
+two-relay unit that inherits a four-relay assumption shows two dead switches, a
+misleading "1/4 on" readout, and an optimistic toggle that hangs waiting for a
+relay it does not have.
