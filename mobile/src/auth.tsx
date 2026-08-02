@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { api, getToken, setToken, setRefreshToken, storeSession } from "./api";
+import { forgetSiri } from "./siri-sync";
 import { registerForPush } from "./push";
 
 interface Account {
@@ -29,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (t) {
         const r = await api.devices(); // token still valid if this succeeds (200)
         if (r.ok) setAccount({ email: "", name: "" });
-        else if (r.status === 401) { await setToken(null); await setRefreshToken(null); }
+        else if (r.status === 401) { await setToken(null); await setRefreshToken(null); forgetSiri(); }
         else setAccount({ email: "", name: "" }); // network hiccup: stay signed in
       }
       setReady(true);
@@ -75,6 +76,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setToken(null);
     setRefreshToken(null);
+    // Siri caches the device list natively; leaving it would keep offering
+    // accessories that can no longer be controlled.
+    forgetSiri();
     setAccount(null);
   };
 
