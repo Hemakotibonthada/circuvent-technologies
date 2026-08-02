@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { pool } from "../db";
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from "../auth";
 import { revokeAllSessions } from "../sessions";
-import { sendOtpEmail } from "../mail";
+import { sendOtpEmail, sendPasswordResetEmail } from "../mail";
 import { config } from "../config";
 import { logger } from "../logger";
 
@@ -284,5 +284,194 @@ authRouter.post("/sign-out-all", requireAuth, async (req: AuthedRequest, res) =>
   } catch (err) {
     logger.error({ err }, "sign-out-all failed");
     res.status(500).json({ error: "Could not end your other sessions." });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* Password management                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * POST /auth/change-password — for a signed-in user who knows their password.
+ *
+ * Ending sessions here is not a nicety. Revoking sessions without changing the
+ * password is nearly pointless if someone else knows it — they simply sign back
+ * in — and changing the password without revoking leaves their existing token
+ * working. The two only close the door together, so this does both.
+ */
+authRouter.post("/change-password", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = z
+    .object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(8).max(200) })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "A new password of at least 8 characters is required." });
+    return;
+  }
+  if (parsed.data.currentPassword === parsed.data.newPassword) {
+    res.status(400).json({ error: "The new password must be different from the current one." });
+    return;
+  }
+
+  const uid = req.user!.uid;
+  try {
+    const { rows } = await pool.query<{ password: string }>(`SELECT password FROM users WHERE id = $1`, [uid]);
+    const current = rows[0];
+    if (!current) {
+      res.status(404).json({ error: "Account not found." });
+      return;
+    }
+    if (!(await verifyPassword(parsed.data.currentPassword, current.password))) {
+      // Deliberately not "wrong password" plus a hint; this endpoint is a
+      // credential oracle if it says more than it must.
+      res.status(401).json({ error: "That is not your current password." });
+      return;
+    }
+
+    const hash = await hashPassword(parsed.data.newPassword);
+    await pool.query(`UPDATE users SET password = $2 WHERE id = $1`, [uid, hash]);
+    await revokeAllSessions(uid);
+
+    // Minted after the revoke, so it carries the new epoch and this device
+    // stays signed in while every other one is turned out.
+    const token = await signUserToken({ uid, email: req.user!.email });
+    logger.info({ uid }, "password changed; all sessions revoked");
+    res.json({ success: true, token });
+  } catch (err) {
+    logger.error({ err }, "change-password failed");
+    res.status(500).json({ error: "Could not change your password." });
+  }
+});
+
+/**
+ * POST /auth/forgot-password — start a reset.
+ *
+ * Always answers the same way whether or not the address has an account. The
+ * response would otherwise be a free account-enumeration oracle, and this
+ * endpoint needs no authentication to reach.
+ */
+authRouter.post("/forgot-password", async (req, res) => {
+  const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
+  // Even a malformed address gets the neutral answer, so probing with junk
+  // cannot be distinguished from probing with a real address.
+  const neutral = {
+    sent: true,
+    message: "If that email has a Circuvent account, a reset code is on its way.",
+    expiresInMin: config.OTP_TTL_MIN,
+  };
+  if (!parsed.success) {
+    res.json(neutral);
+    return;
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+
+  try {
+    const { rows } = await pool.query<{ id: number; name: string; blocked: boolean }>(
+      `SELECT id, name, blocked FROM users WHERE email = $1`,
+      [email]
+    );
+    const user = rows[0];
+
+    // A disabled account must not be recoverable by its former owner; that is
+    // the point of disabling it.
+    if (user && !user.blocked) {
+      const otp = genOtp();
+      const otpHash = await hashPassword(otp);
+      const expires = new Date(Date.now() + config.OTP_TTL_MIN * 60_000);
+      await pool.query(
+        `INSERT INTO password_resets (email, otp_hash, attempts, expires_at)
+         VALUES ($1, $2, 0, $3)
+         ON CONFLICT (email) DO UPDATE SET otp_hash = EXCLUDED.otp_hash,
+           attempts = 0, expires_at = EXCLUDED.expires_at, created_at = now()`,
+        [email, otpHash, expires]
+      );
+      const sent = await sendPasswordResetEmail(email, user.name, otp);
+      if (!sent && (config.NODE_ENV !== "production" || config.OTP_DEBUG === "true")) {
+        logger.warn({ email, otp }, "DEV password reset OTP (no email provider configured)");
+      }
+      logger.info({ email }, "password reset requested");
+    } else {
+      logger.info({ email }, "password reset requested for unknown or disabled account");
+    }
+
+    res.json(neutral);
+  } catch (err) {
+    logger.error({ err }, "forgot-password failed");
+    // Still neutral: an error here must not become the signal that
+    // distinguishes a real account from an absent one.
+    res.json(neutral);
+  }
+});
+
+/**
+ * POST /auth/reset-password — finish a reset with the emailed code.
+ *
+ * Mirrors the sign-up OTP flow: bounded attempts, hard expiry, and the row is
+ * destroyed the moment it is used so a code cannot be replayed.
+ */
+authRouter.post("/reset-password", async (req, res) => {
+  const parsed = z
+    .object({
+      email: z.string().email(),
+      otp: z.string().min(4).max(8),
+      newPassword: z.string().min(8).max(200),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input. The new password must be at least 8 characters." });
+    return;
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+
+  try {
+    const { rows } = await pool.query<{ otp_hash: string; attempts: number; expires_at: string }>(
+      `SELECT otp_hash, attempts, expires_at FROM password_resets WHERE email = $1`,
+      [email]
+    );
+    const reset = rows[0];
+    if (!reset) {
+      res.status(404).json({ error: "No reset in progress for this email. Request a new code." });
+      return;
+    }
+    if (new Date(reset.expires_at).getTime() < Date.now()) {
+      await pool.query(`DELETE FROM password_resets WHERE email = $1`, [email]);
+      res.status(410).json({ error: "That code has expired. Request a new one." });
+      return;
+    }
+    if (reset.attempts >= 6) {
+      await pool.query(`DELETE FROM password_resets WHERE email = $1`, [email]);
+      res.status(429).json({ error: "Too many attempts. Request a new code." });
+      return;
+    }
+    if (!(await verifyPassword(parsed.data.otp.trim(), reset.otp_hash))) {
+      await pool.query(`UPDATE password_resets SET attempts = attempts + 1 WHERE email = $1`, [email]);
+      res.status(400).json({ error: "Incorrect code. Please try again." });
+      return;
+    }
+
+    const { rows: userRows } = await pool.query<{ id: number; name: string; blocked: boolean }>(
+      `SELECT id, name, blocked FROM users WHERE email = $1`,
+      [email]
+    );
+    const user = userRows[0];
+    // The account can be deleted or disabled between requesting and redeeming.
+    if (!user || user.blocked) {
+      await pool.query(`DELETE FROM password_resets WHERE email = $1`, [email]);
+      res.status(403).json({ error: "This account is not available." });
+      return;
+    }
+
+    const hash = await hashPassword(parsed.data.newPassword);
+    await pool.query(`UPDATE users SET password = $2 WHERE id = $1`, [user.id, hash]);
+    // Whoever prompted the reset may already hold a session. Ending them all is
+    // the entire reason a reset is trustworthy.
+    await revokeAllSessions(Number(user.id));
+    await pool.query(`DELETE FROM password_resets WHERE email = $1`, [email]);
+
+    const token = await signUserToken({ uid: Number(user.id), email });
+    logger.info({ uid: user.id }, "password reset completed; all sessions revoked");
+    res.json({ success: true, token, user: { id: Number(user.id), email, name: user.name } });
+  } catch (err) {
+    logger.error({ err }, "reset-password failed");
+    res.status(500).json({ error: "Could not reset your password." });
   }
 });

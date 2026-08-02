@@ -6,9 +6,9 @@ import { Cpu, Loader2, Mail, Lock, User as UserIcon, ShieldCheck, Zap, Radio, Ar
 import { useConsole } from "./ConsoleProvider";
 
 export default function Login() {
-  const { login, register, verifyOtp, resendOtp } = useConsole();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [step, setStep] = useState<"form" | "otp">("form");
+  const { login, register, verifyOtp, resendOtp, forgotPassword, resetPassword } = useConsole();
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
+  const [step, setStep] = useState<"form" | "otp" | "reset">("form");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +22,14 @@ export default function Login() {
     setBusy(true);
     setError(null);
     setInfo(null);
-    if (mode === "login") {
+    if (mode === "forgot") {
+      const r = await forgotPassword(email.trim());
+      // Always advances, because the endpoint deliberately does not reveal
+      // whether the address has an account. Someone who mistypes their email
+      // finds out when no code arrives, not from this screen.
+      setInfo(r.message ?? "If that email has an account, a reset code is on its way.");
+      setStep("reset");
+    } else if (mode === "login") {
       const r = await login(email.trim(), password);
       if (!r.ok) setError(r.error || "Something went wrong");
     } else {
@@ -35,6 +42,24 @@ export default function Login() {
       }
     }
     setBusy(false);
+  };
+
+  const submitReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const r = await resetPassword(email.trim(), otp.trim(), password);
+    if (!r.ok) setError(r.error || "Could not reset your password.");
+    setBusy(false);
+  };
+
+  const backToLogin = () => {
+    setMode("login");
+    setStep("form");
+    setOtp("");
+    setPassword("");
+    setError(null);
+    setInfo(null);
   };
 
   const submitOtp = async (e: React.FormEvent) => {
@@ -53,13 +78,27 @@ export default function Login() {
     if (!r.ok) setError(r.error || "Could not resend code");
   };
 
-  const title = step === "otp" ? "Verify your email" : mode === "login" ? "Welcome back" : "Create your account";
+  const title =
+    step === "reset"
+      ? "Set a new password"
+      : step === "otp"
+        ? "Verify your email"
+        : mode === "login"
+          ? "Welcome back"
+          : mode === "forgot"
+            ? "Reset your password"
+            : "Create your account";
+
   const subtitle =
-    step === "otp"
-      ? `Enter the 6-digit code sent to ${email}.`
-      : mode === "login"
-      ? "Access and control your Circuvent devices."
-      : "One account controls every Circuvent device you own.";
+    step === "reset"
+      ? `Enter the code sent to ${email} and choose a new password.`
+      : step === "otp"
+        ? `Enter the 6-digit code sent to ${email}.`
+        : mode === "login"
+          ? "Access and control your Circuvent devices."
+          : mode === "forgot"
+            ? "We'll email you a code to set a new password."
+            : "One account controls every Circuvent device you own.";
 
   return (
     <div className="cvlogin relative min-h-screen overflow-hidden text-slate-100">
@@ -166,7 +205,39 @@ export default function Login() {
                 </motion.div>
               )}
 
-              {step === "otp" ? (
+              {step === "reset" ? (
+                <form onSubmit={submitReset} className="space-y-3">
+                  <Field icon={<Lock className="h-4 w-4" />}>
+                    <input
+                      className="cv-input tracking-[0.5em] text-center text-lg"
+                      placeholder="000000"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                      required
+                    />
+                  </Field>
+                  <Field icon={<Lock className="h-4 w-4" />}>
+                    <input
+                      className="cv-input"
+                      placeholder="New password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                    />
+                  </Field>
+                  {error && <ErrorBox msg={error} />}
+                  <SubmitButton busy={busy} label="Set new password" />
+                  <p className="text-xs text-slate-500">
+                    Resetting your password signs out every device, so an old session
+                    cannot keep access.
+                  </p>
+                </form>
+              ) : step === "otp" ? (
                 <form onSubmit={submitOtp} className="space-y-3">
                   <Field icon={<Lock className="h-4 w-4" />}>
                     <input
@@ -218,25 +289,75 @@ export default function Login() {
                       required
                     />
                   </Field>
-                  <Field icon={<Lock className="h-4 w-4" />}>
-                    <input
-                      className="cv-input"
-                      placeholder="Password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete={mode === "login" ? "current-password" : "new-password"}
-                      minLength={8}
-                      required
-                    />
-                  </Field>
+                  <AnimatePresence initial={false}>
+                    {mode !== "forgot" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25 }}
+                        style={{ overflow: "hidden" }}
+                      >
+                        <Field icon={<Lock className="h-4 w-4" />}>
+                          <input
+                            className="cv-input"
+                            placeholder="Password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            autoComplete={mode === "login" ? "current-password" : "new-password"}
+                            minLength={8}
+                            required
+                          />
+                        </Field>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {mode === "login" && (
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode("forgot");
+                          setError(null);
+                          setInfo(null);
+                          setPassword("");
+                        }}
+                        className="text-xs text-slate-400 hover:text-cyan-300 transition"
+                      >
+                        Forgot your password?
+                      </button>
+                    </div>
+                  )}
 
                   {error && <ErrorBox msg={error} />}
-                  <SubmitButton busy={busy} label={mode === "login" ? "Sign in" : "Create account"} />
+                  <SubmitButton
+                    busy={busy}
+                    label={mode === "login" ? "Sign in" : mode === "forgot" ? "Send reset code" : "Create account"}
+                  />
                 </form>
               )}
 
-              {step === "otp" ? (
+              {step === "reset" ? (
+                <div className="mt-6 text-center text-sm text-slate-400">
+                  <button
+                    onClick={() => {
+                      setStep("form");
+                      setOtp("");
+                      setPassword("");
+                      setError(null);
+                    }}
+                    className="text-cyan-400 font-semibold hover:text-cyan-300 transition"
+                  >
+                    Send another code
+                  </button>
+                  <span className="mx-2 text-slate-600">·</span>
+                  <button onClick={backToLogin} className="text-slate-400 hover:text-white transition">
+                    Back to sign in
+                  </button>
+                </div>
+              ) : step === "otp" ? (
                 <div className="mt-6 text-center text-sm text-slate-400">
                   <button onClick={resend} className="text-cyan-400 font-semibold hover:text-cyan-300 transition">
                     Resend code
@@ -252,6 +373,12 @@ export default function Login() {
                     className="text-slate-400 hover:text-white transition"
                   >
                     Back
+                  </button>
+                </div>
+              ) : mode === "forgot" ? (
+                <div className="mt-6 text-center text-sm text-slate-400">
+                  <button onClick={backToLogin} className="text-cyan-400 font-semibold hover:text-cyan-300 transition">
+                    Back to sign in
                   </button>
                 </div>
               ) : (

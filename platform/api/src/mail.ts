@@ -67,6 +67,31 @@ export async function sendOtpEmail(email: string, name: string, otp: string): Pr
   return sendMail(email, `${otp} is your Circuvent verification code`, otpEmailHtml(name, otp));
 }
 
+export function passwordResetEmailHtml(name: string, otp: string): string {
+  const who = name ? `Hi ${escapeHtml(name)},` : "Hi,";
+  return `<!doctype html><html><body style="margin:0;background:#0b1020;font-family:system-ui,Segoe UI,Roboto,sans-serif">
+  <div style="max-width:460px;margin:0 auto;padding:32px 20px;color:#e5e7eb">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#06b6d4,#8b5cf6)"></div>
+      <div style="font-size:20px;font-weight:800;color:#fff">Circuvent</div>
+    </div>
+    <p style="font-size:15px">${who}</p>
+    <p style="font-size:15px;color:#9aa6c0">Use this code to reset your Circuvent password:</p>
+    <div style="font-size:34px;font-weight:800;letter-spacing:8px;color:#fff;background:#131a30;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px;text-align:center;margin:18px 0">${otp}</div>
+    <p style="font-size:13px;color:#64748b">This code expires in ${config.OTP_TTL_MIN} minutes.</p>
+    <p style="font-size:13px;color:#64748b">If you did not ask to reset your password, ignore this email — your password has not changed. Resetting it also signs out every device, so nobody can keep access using an old session.</p>
+  </div></body></html>`;
+}
+
+/**
+ * Worded distinctly from the sign-up code on purpose: someone who receives a
+ * reset code they did not request needs to recognise what it is, rather than
+ * reading a generic "verification code" and assuming it is routine.
+ */
+export async function sendPasswordResetEmail(email: string, name: string, otp: string): Promise<boolean> {
+  return sendMail(email, `${otp} is your Circuvent password reset code`, passwordResetEmailHtml(name, otp));
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] as string));
 }

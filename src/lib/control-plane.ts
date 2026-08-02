@@ -317,6 +317,31 @@ export const controlPlane = {
    */
   signOutEverywhere: () =>
     req<{ success: boolean; token: string }>("/auth/sign-out-all", { method: "POST" }),
+  /**
+   * Change a known password. Also ends every other session, because revoking
+   * sessions without changing the password is pointless if someone else knows
+   * it. Returns a replacement token for this browser.
+   */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req<{ success: boolean; token: string }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+  /**
+   * Start a password reset. Always succeeds, whether or not the address has an
+   * account — the response is deliberately not an account-existence oracle.
+   */
+  forgotPassword: (email: string) =>
+    req<{ sent: boolean; message: string; expiresInMin: number }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }, false),
+  /** Finish a reset with the emailed code. Ends every existing session. */
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    req<{ success: boolean; token: string; user: { id: number; email: string; name: string } }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, otp, newPassword }),
+    }, false),
   devices: () => req<{ devices: Device[] }>("/devices"),
   device: (id: string) => req<{ device: Device }>("/devices/" + encodeURIComponent(id)),
   claim: (id: string, key: string, name: string) =>

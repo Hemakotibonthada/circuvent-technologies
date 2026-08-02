@@ -28,6 +28,10 @@ interface ConsoleContextValue {
   register: (name: string, email: string, password: string) => Promise<{ ok: boolean; pending?: boolean; otpSent?: boolean; error?: string }>;
   verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; error?: string }>;
   resendOtp: (email: string) => Promise<{ ok: boolean; otpSent?: boolean; error?: string }>;
+  /** Sends a reset code. Always reports success — the answer is not an account oracle. */
+  forgotPassword: (email: string) => Promise<{ ok: boolean; message?: string }>;
+  /** Redeems a reset code, sets the new password and signs in. */
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   subscribe: (fn: (u: DeviceUpdate) => void) => () => void;
   enableNotifications: () => Promise<void>;
@@ -177,6 +181,27 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     return { ok: false, error: (r.data as { error?: string })?.error || "Invalid email or password" };
   }, []);
 
+  const forgotPassword = useCallback(async (email: string) => {
+    const r = await controlPlane.forgotPassword(email.trim().toLowerCase());
+    // The endpoint answers the same way whether or not the account exists, so
+    // there is nothing here worth branching on — surfacing a failure would
+    // reintroduce exactly the signal the endpoint avoids giving.
+    return { ok: true, message: r.data?.message };
+  }, []);
+
+  const resetPassword = useCallback(async (email: string, otp: string, newPassword: string) => {
+    const r = await controlPlane.resetPassword(email.trim().toLowerCase(), otp.trim(), newPassword);
+    if (r.ok && r.data?.token) {
+      // The reset revoked every session and issued this token; storing it is
+      // what signs the user in on this device.
+      setToken(r.data.token);
+      setStoredUser(r.data.user);
+      setUser(r.data.user);
+      return { ok: true };
+    }
+    return { ok: false, error: (r.data as { error?: string })?.error || "Could not reset your password." };
+  }, []);
+
   const register = useCallback(async (name: string, email: string, password: string) => {
     const r = await controlPlane.register(name, email, password);
     if (r.ok && r.data?.pending) {
@@ -227,8 +252,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<ConsoleContextValue>(
-    () => ({ user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, logout, subscribe, enableNotifications }),
-    [user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, logout, subscribe, enableNotifications]
+    () => ({ user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications }),
+    [user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications]
   );
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;

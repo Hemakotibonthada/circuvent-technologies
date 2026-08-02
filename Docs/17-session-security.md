@@ -86,6 +86,48 @@ All three are available in the console under **Admin → Access & Users**.
 
 ---
 
+## 3a. Passwords
+
+Revocation and passwords only work as a pair. Each alone is close to useless:
+
+- Ending sessions while someone else knows the password just means they sign
+  back in.
+- Changing the password while their session stays alive means they never had to.
+
+So every password path revokes sessions as part of the same operation.
+
+| Endpoint | Auth | Behaviour |
+| --- | --- | --- |
+| `POST /auth/change-password` | Yes | Verifies the current password, stores the new one, revokes **all** sessions, returns a replacement token so the caller stays signed in. |
+| `POST /auth/forgot-password` | No | Emails a 6-digit code. **Always answers identically**, whether or not the address has an account. |
+| `POST /auth/reset-password` | No | Redeems the code, sets the password, revokes all sessions, signs in. |
+
+Details worth preserving if this is edited:
+
+- **`forgot-password` is not an account oracle.** Unknown address, disabled
+  account, malformed input and internal error all return the same body and
+  status. A different answer for any of them would let anyone enumerate
+  customers, and the endpoint needs no authentication to reach.
+- **Disabled accounts cannot self-recover.** No reset code is issued, and a code
+  issued before the account was disabled is refused at redemption.
+- **Codes are stored only as bcrypt hashes**, in their own `password_resets`
+  table. It is separate from `pending_registrations` on purpose: one holds an
+  account that does not exist yet, the other proves control of an address for
+  an account that does, and sharing the table would let a reset overwrite a
+  sign-up in progress.
+- **Codes are bounded and single-use** — six attempts, hard expiry at
+  `OTP_TTL_MIN`, and the row is destroyed on success so a code cannot be
+  replayed.
+- The reset email is **worded differently from the sign-up code**, so someone
+  who receives one they did not request recognises what it is rather than
+  reading a generic "verification code" and assuming it is routine.
+
+In the apps: **Settings → Account → Password** for a signed-in change and
+"sign out all other devices"; **Forgot your password?** on the console sign-in
+screen for the reset flow.
+
+---
+
 ## 4. Performance, and the caching caveat
 
 `requireAuth` runs on every authenticated request and used to be pure signature
@@ -138,7 +180,7 @@ built-in runner via `tsx` — no new dependencies:
 
 ```bash
 cd platform/api
-npm test          # 32 tests
+npm test          # 52 tests
 npm run typecheck
 ```
 
@@ -184,9 +226,6 @@ Found while reading the deployment rather than the application code:
 
 ## 8. Known gaps
 
-- **No password-change endpoint exists**, so there is nothing to hook a
-  "changing your password signs out other devices" rule into. When one is added,
-  it should call `revokeAllSessions`.
 - **No refresh-token rotation** (see §5).
 - **Rate limiting is per process**, like the session cache.
 - **Devices authenticate with username/password over TLS, not mutual TLS**

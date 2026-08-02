@@ -123,6 +123,23 @@ export async function initDb(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS token_epoch BIGINT NOT NULL DEFAULT 0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked BOOLEAN NOT NULL DEFAULT false;
 
+    -- Password reset codes.
+    --
+    -- Separate from pending_registrations because the two mean different
+    -- things: one holds an account that does not exist yet, this one proves
+    -- control of an address for an account that does. Sharing the table would
+    -- make it possible for a reset to overwrite a sign-up in progress.
+    --
+    -- Only a bcrypt hash of the code is stored, so a database read does not
+    -- hand over the ability to reset anyone's password.
+    CREATE TABLE IF NOT EXISTS password_resets (
+      email       TEXT PRIMARY KEY,
+      otp_hash    TEXT NOT NULL,
+      attempts    INT NOT NULL DEFAULT 0,
+      expires_at  TIMESTAMPTZ NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     -- Email-OTP sign-up: the account is only created after the code is verified.
     CREATE TABLE IF NOT EXISTS pending_registrations (
       email       TEXT PRIMARY KEY,

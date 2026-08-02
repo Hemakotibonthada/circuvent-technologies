@@ -18,6 +18,7 @@ import {
 import { ConfirmDialog, useToast } from "../_kit/overlays";
 import ProfileAvatar from "../ProfileAvatar";
 import ProfileEditor from "./ProfileEditor";
+import PasswordSection from "./PasswordSection";
 
 export default function AccountPanel() {
   const { user, ready, liveStatus, notifyPermission, enableNotifications, logout } = useConsole();
@@ -219,6 +220,9 @@ export default function AccountPanel() {
           </div>
         )}
       </Surface>
+
+      {/* ── Password & other devices ──────────────────── */}
+      <PasswordSection />
 
       {/* ── Sign out ──────────────────────────────────── */}
       <SectionTitle>Session actions</SectionTitle>
