@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE } from "./config";
 
 const TOKEN_KEY = "cv-token";
+const REFRESH_KEY = "cv-refresh";
 
 export async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem(TOKEN_KEY);
@@ -10,10 +11,69 @@ export async function setToken(t: string | null): Promise<void> {
   if (t) await AsyncStorage.setItem(TOKEN_KEY, t);
   else await AsyncStorage.removeItem(TOKEN_KEY);
 }
+export async function getRefreshToken(): Promise<string | null> {
+  return AsyncStorage.getItem(REFRESH_KEY);
+}
+export async function setRefreshToken(t: string | null): Promise<void> {
+  if (t) await AsyncStorage.setItem(REFRESH_KEY, t);
+  else await AsyncStorage.removeItem(REFRESH_KEY);
+}
+
+/** Stores whatever an auth response returned, tolerating an older server. */
+export async function storeSession(data: { token?: string; refreshToken?: string } | null | undefined): Promise<void> {
+  if (data?.token) await setToken(data.token);
+  if (data?.refreshToken) await setRefreshToken(data.refreshToken);
+}
 
 type Res<T = any> = { ok: boolean; status: number; data: T };
 
-async function req<T = any>(path: string, opts: RequestInit = {}, auth = true): Promise<Res<T>> {
+/**
+ * One in-flight refresh at a time.
+ *
+ * The home screen fires several requests at once, so an expired access token
+ * produces a burst of 401s. Refresh tokens are single-use, so letting each
+ * retry rotate independently would mean all but one present a spent token — and
+ * the server reads a spent token as replay and tears the family down. The user
+ * would be signed out for doing nothing wrong.
+ */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  const stored = await getRefreshToken();
+  if (!stored) return false;
+  try {
+    const res = await fetch(API_BASE + "/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: stored }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.token || !data?.refreshToken) {
+      // Expired, revoked, or destroyed after a replay. Clearing it stops every
+      // later request retrying a chain that cannot work.
+      await setToken(null);
+      await setRefreshToken(null);
+      return false;
+    }
+    await storeSession(data);
+    return true;
+  } catch {
+    // A network failure is not proof the chain is dead; leave it for next time
+    // rather than signing the user out over a dropped connection.
+    return false;
+  }
+}
+
+function withRefreshLock(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshSession().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function req<T = any>(path: string, opts: RequestInit = {}, auth = true, allowRetry = true): Promise<Res<T>> {
   const headers: Record<string, string> = { "Content-Type": "application/json", ...(opts.headers as any) };
   if (auth) {
     const t = await getToken();
@@ -21,6 +81,15 @@ async function req<T = any>(path: string, opts: RequestInit = {}, auth = true): 
   }
   try {
     const res = await fetch(API_BASE + path, { ...opts, headers });
+
+    // A 401 on an authenticated call may just mean the access token aged out.
+    // Rotate once and replay the request; `allowRetry` stops this recursing.
+    if (res.status === 401 && auth && allowRetry && (await getRefreshToken())) {
+      if (await withRefreshLock()) {
+        return req<T>(path, opts, auth, false);
+      }
+    }
+
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data };
   } catch {

@@ -57,6 +57,7 @@ services:
       MQTT_USERNAME: control-plane
       MQTT_PASSWORD: ${MQTT_CONTROL_PLANE_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30d}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       NODE_ENV: production
       SMARTHOME_CLIENT_ID: ${SMARTHOME_CLIENT_ID:-circuvent-smarthome}

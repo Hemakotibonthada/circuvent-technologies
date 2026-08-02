@@ -157,19 +157,69 @@ costs.
 
 ---
 
-## 5. Token lifetime
+## 5. Token lifetime and refresh rotation
 
 `JWT_EXPIRES_IN` defaults to **30 days**.
 
-That is long, and it stays long on purpose: with revocation available, the
-expiry is now a ceiling on an *undetected* compromise rather than the only
-control. Shortening it to hours would sign people out of their home constantly
-and buys little that `sign-out-all` does not already buy. Shorten it if the
-threat model changes — a fleet of shared or kiosk devices, say.
+Epochs can end a session, but they cannot tell a thief's use of a token from the
+owner's — both present a valid signature, and nothing distinguishes them. That
+is what refresh rotation adds.
 
-The genuinely missing piece is **refresh-token rotation**: short access tokens
-plus a rotating refresh token would detect replay, which epochs do not. That is
-a larger change and has not been made.
+### How rotation works
+
+Every sign-in now returns a `refreshToken` alongside the access token. It is
+**single-use**: redeeming it at `POST /auth/refresh` marks it spent and issues a
+replacement in the same *family*.
+
+So if a token is ever presented twice, either it was copied or a client retried.
+Both are treated as compromise, because there is no way to tell which. On reuse
+the entire family is destroyed **and** every session for the account is revoked.
+That signs the genuine user out too — deliberately. Being signed out is an
+inconvenience; leaving an attacker with a working chain is not.
+
+| Property | Choice | Why |
+| --- | --- | --- |
+| Storage | SHA-256 hash | Lookup is *by* the hash; bcrypt's per-row salt would force a full-table scan. Safe only because the token is 256 bits of CSPRNG output — never store a user-chosen secret this way. |
+| Claim | `UPDATE ... WHERE used_at IS NULL RETURNING` | The database decides a concurrent race, not a read-then-write in the application. |
+| Lifetime | 60 days | Longer than the access token, since it is the thing that keeps a user signed in. |
+| Pruning | Used tokens kept 7 days | Deleting them immediately would turn a replay into a plain "unknown" and lose the signal. |
+
+### Revocation must kill both
+
+Every path that revokes sessions also deletes refresh tokens — sign-out-all,
+change-password, reset-password, admin revoke, admin block. A surviving chain
+could mint new access tokens on demand, which would defeat revocation entirely.
+`revokeEverything()` in `routes/auth.ts` exists so a future caller cannot do
+half the job.
+
+The paths that revoke and then keep the caller signed in issue a **new pair**,
+not just a new access token. Handing back an access token whose chain had just
+been deleted would strand that device at the next rotation.
+
+### The clients rotate too
+
+Both `src/lib/control-plane.ts` and `mobile/src/api.ts` retry once on a `401`,
+rotating first. Each holds a **single in-flight refresh promise**, which matters
+more than it looks: a dashboard fires several requests on mount, so an expired
+access token produces a burst of 401s. Without the lock each retry would rotate
+independently, all but one would present an already-spent token, and the server
+would read that as replay and sign the user out for doing nothing wrong.
+
+A network failure during refresh does **not** clear the stored token — that is
+not proof the chain is dead, and discarding it would sign people out over a
+dropped connection. A rejection from the server does clear it.
+
+### Getting the full benefit
+
+The access token is still long-lived by default, so today rotation mainly buys
+**replay detection**. Once you are satisfied every client in the field
+understands refresh (web and mobile both do as of this change), set
+`JWT_EXPIRES_IN=15m`. Short access tokens plus rotation is the combination that
+makes a stolen credential both short-lived and detectable.
+
+`JWT_EXPIRES_IN` is now passed through `docker-compose.yml`. It was not before —
+the same omission that made `FEDERATION_SECRET` unsettable, so the value could
+not actually be tuned on a deployed system.
 
 ---
 
@@ -180,7 +230,7 @@ built-in runner via `tsx` — no new dependencies:
 
 ```bash
 cd platform/api
-npm test          # 52 tests
+npm test          # 86 tests
 npm run typecheck
 ```
 
@@ -226,12 +276,36 @@ Found while reading the deployment rather than the application code:
 
 ## 8. Known gaps
 
-- **No refresh-token rotation** (see §5).
-- **Rate limiting is per process**, like the session cache.
+- **Rate limiting is per process**, like the session cache. Time-triggered
+  automations are no longer affected — see below — but request rate limits
+  still count per replica, so N replicas allow N times the intended rate.
 - **Devices authenticate with username/password over TLS, not mutual TLS**
   (`require_certificate false`). Reasonable for ESP32-class hardware, and the
   Dynamic Security plugin scopes each device to its own `cv/<deviceId>/#`
   topics, but it is worth knowing that a leaked device credential is not
-  bound to a certificate.
+  bound to a certificate. Moving to mutual TLS means per-device certificates,
+  a provisioning change and an OTA to every unit in the field — worth planning
+  deliberately rather than slipping into a release.
 - **The broker CA is embedded in firmware.** Rolling it over needs an OTA
   pushed *before* the old CA expires — the longest-lead-time risk in the system.
+
+### Fixed since: the scheduler could fire twice
+
+Time-triggered automations were de-duplicated by a variable inside the scheduler
+closure. That failed in two ways, and the second one bites a single-replica
+deployment:
+
+- Across replicas, each process kept its own copy, so every schedule ran once
+  per replica.
+- On one replica the variable resets when the process restarts. A deploy at
+  07:30 therefore re-ran every 07:30 automation — pumps and lights switching a
+  second time because we shipped.
+
+The claim now lives in Postgres. `scheduler_ticks` has the minute as its primary
+key, so `INSERT ... ON CONFLICT DO NOTHING` either wins or loses atomically and
+exactly one process runs each tick. Because the claim is in the database rather
+than in memory, it also survives the restart that used to defeat it.
+
+The key includes the IST date, not just `HH:MM` — keying on the clock alone
+would let today's 07:30 block tomorrow's. There is a test for that, and for the
+near-midnight case where the IST date and the UTC date differ.

@@ -18,7 +18,7 @@
 
 import { useCallback, useState } from "react";
 import { KeyRound, LogOut, ShieldCheck } from "lucide-react";
-import { controlPlane, setToken } from "@/lib/control-plane";
+import { controlPlane, setToken, setRefreshToken } from "@/lib/control-plane";
 import {
   Button, Callout, Field, SectionTitle, Surface, TextInput,
 } from "../_kit/primitives";
@@ -64,9 +64,11 @@ export default function PasswordSection() {
       setError(apiError(res.data, "Could not change your password."));
       return;
     }
-    // The server ended every session including this one, and handed back a
-    // replacement. Storing it is what keeps this tab signed in.
+    // The server ended every session and chain including this one, and handed
+    // back replacements. Storing both is what keeps this tab signed in — saving
+    // only the access token would strand it when that token expires.
     if (res.data?.token) setToken(res.data.token);
+    if (res.data?.refreshToken) setRefreshToken(res.data.refreshToken);
     setCurrent("");
     setNext("");
     setConfirm("");
@@ -83,6 +85,7 @@ export default function PasswordSection() {
       return;
     }
     if (res.data?.token) setToken(res.data.token);
+    if (res.data?.refreshToken) setRefreshToken(res.data.refreshToken);
     setRevokeMsg("Every other device has been signed out. This one is still signed in.");
   }, []);
 

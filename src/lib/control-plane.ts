@@ -15,6 +15,7 @@ export const CONTROL_PLANE_WS =
   CONTROL_PLANE_URL.replace(/^http/i, "ws") + "/ws";
 
 const TOKEN_KEY = "cv-console-token";
+const REFRESH_KEY = "cv-console-refresh";
 const USER_KEY = "cv-console-user";
 
 export interface ControlUser {
@@ -235,6 +236,8 @@ export interface AdminHealth {
 
 interface AuthResp {
   token: string;
+  /** Present from every sign-in path; absent only from an out-of-date server. */
+  refreshToken?: string;
   user: ControlUser;
 }
 
@@ -255,6 +258,15 @@ export function setToken(t: string | null): void {
   if (t) window.localStorage.setItem(TOKEN_KEY, t);
   else window.localStorage.removeItem(TOKEN_KEY);
 }
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_KEY);
+}
+export function setRefreshToken(t: string | null): void {
+  if (typeof window === "undefined") return;
+  if (t) window.localStorage.setItem(REFRESH_KEY, t);
+  else window.localStorage.removeItem(REFRESH_KEY);
+}
 export function getStoredUser(): ControlUser | null {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(USER_KEY);
@@ -273,10 +285,64 @@ export function setStoredUser(u: ControlUser | null): void {
 
 // -------------------------------------------------------------- core fetch --
 
+/**
+ * One in-flight refresh at a time.
+ *
+ * Several requests routinely fail with 401 together — a dashboard fires half a
+ * dozen on mount. Without this they would each try to rotate, and because
+ * rotation is single-use, all but one would present an already-spent token.
+ * The server would read that as replay and destroy the family, signing the user
+ * out for doing nothing wrong.
+ */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  const stored = getRefreshToken();
+  if (!stored) return false;
+
+  try {
+    const res = await fetch(CONTROL_PLANE_URL + "/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: stored }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      token?: string;
+      refreshToken?: string;
+      user?: ControlUser;
+    };
+    if (!res.ok || !data.token || !data.refreshToken) {
+      // The chain is finished — expired, revoked, or torn down after a replay.
+      // Clearing it stops every later request retrying a token that cannot work.
+      setToken(null);
+      setRefreshToken(null);
+      return false;
+    }
+    setToken(data.token);
+    setRefreshToken(data.refreshToken);
+    if (data.user) setStoredUser(data.user);
+    return true;
+  } catch {
+    // A network failure is not proof the chain is dead, so it is left in place
+    // to try again rather than signing the user out over a flaky connection.
+    return false;
+  }
+}
+
+function withRefreshLock(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshSession().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
 async function req<T = unknown>(
   path: string,
   opts: RequestInit = {},
-  auth = true
+  auth = true,
+  allowRetry = true
 ): Promise<ApiResult<T>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -288,6 +354,15 @@ async function req<T = unknown>(
   }
   try {
     const res = await fetch(CONTROL_PLANE_URL + path, { ...opts, headers });
+
+    // A 401 on an authenticated call may just mean the access token aged out.
+    // Rotate once and replay the request; `allowRetry` stops this recursing.
+    if (res.status === 401 && auth && allowRetry && getRefreshToken()) {
+      if (await withRefreshLock()) {
+        return req<T>(path, opts, auth, false);
+      }
+    }
+
     const data = (await res.json().catch(() => ({}))) as T;
     return { ok: res.ok, status: res.status, data };
   } catch {
@@ -316,14 +391,14 @@ export const controlPlane = {
    * signed in; callers must store it, or they sign themselves out too.
    */
   signOutEverywhere: () =>
-    req<{ success: boolean; token: string }>("/auth/sign-out-all", { method: "POST" }),
+    req<{ success: boolean; token: string; refreshToken?: string }>("/auth/sign-out-all", { method: "POST" }),
   /**
    * Change a known password. Also ends every other session, because revoking
    * sessions without changing the password is pointless if someone else knows
    * it. Returns a replacement token for this browser.
    */
   changePassword: (currentPassword: string, newPassword: string) =>
-    req<{ success: boolean; token: string }>("/auth/change-password", {
+    req<{ success: boolean; token: string; refreshToken?: string }>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
@@ -338,7 +413,7 @@ export const controlPlane = {
     }, false),
   /** Finish a reset with the emailed code. Ends every existing session. */
   resetPassword: (email: string, otp: string, newPassword: string) =>
-    req<{ success: boolean; token: string; user: { id: number; email: string; name: string } }>("/auth/reset-password", {
+    req<{ success: boolean; token: string; refreshToken?: string; user: { id: number; email: string; name: string } }>("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({ email, otp, newPassword }),
     }, false),

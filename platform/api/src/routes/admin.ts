@@ -6,6 +6,7 @@ import { requireAuth, type AuthedRequest, generateDeviceKey, hashDeviceKey } fro
 import { publishCommand, provisionBrokerClient, deprovisionBrokerClient, getMqtt } from "../mqtt";
 import { invalidateOwnership, invalidateOwner } from "../ownership";
 import { revokeAllSessions, invalidateUser } from "../sessions";
+import { revokeAllRefreshTokens } from "../refresh";
 import { logger } from "../logger";
 
 export const adminRouter = Router();
@@ -113,6 +114,9 @@ adminRouter.patch("/users/:id", async (req: AuthedRequest, res) => {
     // which is precisely the situation the flag exists to stop.
     if (parsed.data.blocked) {
       await revokeAllSessions(targetId);
+      // A surviving refresh chain would let a disabled account mint new access
+      // tokens on demand, which is the whole thing blocking is meant to stop.
+      await revokeAllRefreshTokens(targetId);
       invalidateOwner(targetId);
       logger.info({ targetId, by: req.user!.uid }, "admin disabled an account and revoked its sessions");
     } else {
@@ -139,6 +143,7 @@ adminRouter.post("/users/:id/revoke-sessions", async (req: AuthedRequest, res) =
     return;
   }
   await revokeAllSessions(targetId);
+  await revokeAllRefreshTokens(targetId);
   logger.info({ targetId, by: req.user!.uid }, "admin revoked all sessions for an account");
   res.json({ success: true });
 });

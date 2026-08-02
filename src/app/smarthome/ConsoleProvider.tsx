@@ -15,6 +15,7 @@ import {
   getToken,
   setStoredUser,
   setToken,
+  setRefreshToken,
   type ControlUser,
 } from "@/lib/control-plane";
 import { useControlLive, type DeviceUpdate, type LiveStatus } from "@/lib/control-plane-live";
@@ -102,6 +103,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
             const data = await res.json();
             if (res.ok && data?.token && data?.user) {
               setToken(data.token);
+              setRefreshToken(data.refreshToken ?? null);
               setStoredUser(data.user);
               if (!cancelled) setUser(data.user);
             }
@@ -174,6 +176,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     const r = await controlPlane.login(email, password);
     if (r.ok && r.data?.token) {
       setToken(r.data.token);
+      setRefreshToken(r.data.refreshToken ?? null);
       setStoredUser(r.data.user);
       setUser(r.data.user);
       return { ok: true };
@@ -195,6 +198,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       // The reset revoked every session and issued this token; storing it is
       // what signs the user in on this device.
       setToken(r.data.token);
+      setRefreshToken(r.data.refreshToken ?? null);
       setStoredUser(r.data.user);
       setUser(r.data.user);
       return { ok: true };
@@ -214,6 +218,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     const r = await controlPlane.verifyOtp(email, otp);
     if (r.ok && r.data?.token) {
       setToken(r.data.token);
+      setRefreshToken(r.data.refreshToken ?? null);
       setStoredUser(r.data.user);
       setUser(r.data.user);
       return { ok: true };
@@ -229,6 +234,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     setToken(null);
+    setRefreshToken(null);
     setStoredUser(null);
     setUser(null);
     lastFlags.current.clear();

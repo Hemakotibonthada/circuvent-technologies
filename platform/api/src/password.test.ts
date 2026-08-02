@@ -31,6 +31,9 @@ interface Db {
   resetDeleted: boolean;
   passwordUpdatedTo: string | null;
   epochBumped: boolean;
+  /** True once every refresh chain for the account has been deleted. */
+  refreshRevoked: boolean;
+  refreshIssued: number;
 }
 
 let db: Db;
@@ -42,6 +45,8 @@ function freshDb(over: Partial<Db> = {}): Db {
     resetDeleted: false,
     passwordUpdatedTo: null,
     epochBumped: false,
+    refreshRevoked: false,
+    refreshIssued: 0,
     ...over,
   };
 }
@@ -83,6 +88,17 @@ function installStub(): void {
       db.resetDeleted = true;
       db.reset = null;
       return { rows: [], rowCount: 1 };
+    }
+    if (q.startsWith("INSERT INTO refresh_tokens")) {
+      db.refreshIssued += 1;
+      return { rows: [], rowCount: 1 };
+    }
+    if (q.startsWith("DELETE FROM refresh_tokens WHERE user_id")) {
+      db.refreshRevoked = true;
+      return { rows: [], rowCount: 1 };
+    }
+    if (q.startsWith("SELECT email, name, blocked FROM users WHERE id")) {
+      return { rows: db.user ? [{ email: db.user.email, name: db.user.name, blocked: db.user.blocked }] : [], rowCount: db.user ? 1 : 0 };
     }
     throw new Error(`Unstubbed query: ${q.slice(0, 90)}`);
   };
@@ -161,6 +177,18 @@ describe("POST /auth/change-password", () => {
     assert.ok(db.passwordUpdatedTo, "password should have been written");
     assert.ok(await bcrypt.compare("new-password", db.passwordUpdatedTo!), "stored value must be a hash of the new password");
     assert.equal(db.epochBumped, true, "changing a password without revoking leaves old tokens working");
+  });
+
+  test("also destroys refresh chains, which would otherwise mint new tokens", async () => {
+    db.user!.password = await bcrypt.hash("old-password", 4);
+    await post("/auth/change-password", { currentPassword: "old-password", newPassword: "new-password" }, await tokenForUser());
+    assert.equal(db.refreshRevoked, true, "a surviving refresh chain defeats the revocation entirely");
+  });
+
+  test("returns a working refresh token so the caller can keep rotating", async () => {
+    db.user!.password = await bcrypt.hash("old-password", 4);
+    const r = await post("/auth/change-password", { currentPassword: "old-password", newPassword: "new-password" }, await tokenForUser());
+    assert.equal(typeof r.body?.refreshToken, "string", "revoking the caller's own chain without replacing it would sign them out at the next refresh");
   });
 
   test("returns a replacement token so the caller is not signed out too", async () => {
@@ -265,6 +293,7 @@ describe("POST /auth/reset-password", () => {
     assert.equal(r.status, 200);
     assert.ok(await bcrypt.compare("new-password", db.passwordUpdatedTo!));
     assert.equal(db.epochBumped, true, "a reset that leaves existing sessions alive is not a reset");
+    assert.equal(db.refreshRevoked, true, "nor is one that leaves a refresh chain alive");
     assert.equal(db.resetDeleted, true, "the code must not be replayable");
   });
 

@@ -162,16 +162,67 @@ function istWeekday(now: Date): number {
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
 }
 
+/** HH:MM in IST — the form stored in `trigger.at`. */
+export function istClock(now: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(now);
+}
+
+/**
+ * A globally unique key for one minute, in IST.
+ *
+ * The date has to be part of it. Keying on HH:MM alone would let today's 07:30
+ * claim block tomorrow's.
+ */
+export function tickKey(now: Date): string {
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  return `${date}T${istClock(now)}`;
+}
+
+/**
+ * Claims a minute for exactly one process.
+ *
+ * Returns true only for the caller that inserted the row. The primary key makes
+ * this atomic, so N replicas racing on the same minute produce exactly one
+ * winner — and because the claim is in the database rather than in memory, a
+ * process that restarts mid-minute cannot re-run a tick it already ran.
+ */
+export async function claimTick(key: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `INSERT INTO scheduler_ticks (tick_key) VALUES ($1) ON CONFLICT DO NOTHING`,
+    [key],
+  );
+  return rowCount === 1;
+}
+
+/** Keeps the claim table from growing without bound. */
+async function pruneTicks(): Promise<void> {
+  await pool.query(`DELETE FROM scheduler_ticks WHERE ran_at < now() - interval '2 days'`);
+}
+
 /** Time-triggered automations — checked once a minute (times are IST). */
 export function startAutomationScheduler(): void {
-  let lastMinute = "";
   setInterval(async () => {
     const at = new Date();
-    const now = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(at);
-    if (now === lastMinute) return;
-    lastMinute = now;
-    const weekday = istWeekday(at);
+    const now = istClock(at);
+    const key = tickKey(at);
+
     try {
+      // The claim replaces the process-local `lastMinute` that used to guard
+      // this. It also serves as the once-a-minute gate, since the interval runs
+      // more often than once a minute on purpose (so a missed tick is retried).
+      if (!(await claimTick(key))) return;
+
+      const weekday = istWeekday(at);
       const { rows } = await pool.query<AutomationRow>(
         `SELECT id, owner_id, name, enabled, trigger, action FROM automations
          WHERE enabled AND trigger->>'type' = 'time' AND trigger->>'at' = $1`,
@@ -184,6 +235,10 @@ export function startAutomationScheduler(): void {
         if (Array.isArray(days) && days.length > 0 && !days.includes(weekday)) continue;
         await runActions(a);
       }
+
+      // Cheap, and only on a claimed tick, so it runs about once a minute
+      // across the whole deployment rather than once per replica per interval.
+      if (at.getUTCMinutes() === 0) await pruneTicks();
     } catch (err) {
       logger.error({ err }, "automation time tick failed");
     }

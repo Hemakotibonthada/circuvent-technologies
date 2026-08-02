@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
-import { api, getToken, setToken } from "./api";
+import { api, getToken, setToken, setRefreshToken, storeSession } from "./api";
 import { registerForPush } from "./push";
 
 interface Account {
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (t) {
         const r = await api.devices(); // token still valid if this succeeds (200)
         if (r.ok) setAccount({ email: "", name: "" });
-        else if (r.status === 401) await setToken(null);
+        else if (r.status === 401) { await setToken(null); await setRefreshToken(null); }
         else setAccount({ email: "", name: "" }); // network hiccup: stay signed in
       }
       setReady(true);
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login: AuthValue["login"] = async (email, password) => {
     const r = await api.login(email, password);
     if (r.ok && r.data?.token) {
-      await setToken(r.data.token);
+      await storeSession(r.data);
       setAccount({ email: r.data.user.email, name: r.data.user.name });
       registerPushToken();
       return { ok: true };
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const verifyOtp: AuthValue["verifyOtp"] = async (email, otp) => {
     const r = await api.verifyOtp(email, otp);
     if (r.ok && r.data?.token) {
-      await setToken(r.data.token);
+      await storeSession(r.data);
       setAccount({ email: r.data.user.email, name: r.data.user.name });
       registerPushToken();
       return { ok: true };
@@ -74,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setToken(null);
+    setRefreshToken(null);
     setAccount(null);
   };
 

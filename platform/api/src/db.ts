@@ -140,6 +140,47 @@ export async function initDb(): Promise<void> {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- Scheduler tick claims.
+    --
+    -- Time-triggered automations were de-duplicated by a variable inside the
+    -- scheduler closure, which fails in two ways. Across replicas each process
+    -- keeps its own copy, so every schedule fires once per replica. And on a
+    -- single replica the variable resets when the process restarts, so a deploy
+    -- at 07:30 re-runs every 07:30 automation — lights and pumps switching a
+    -- second time because we shipped.
+    --
+    -- The primary key makes claiming a minute atomic: the insert either wins or
+    -- conflicts, and only the winner runs the tick.
+    CREATE TABLE IF NOT EXISTS scheduler_ticks (
+      tick_key    TEXT PRIMARY KEY,
+      ran_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_scheduler_ticks_ran_at ON scheduler_ticks(ran_at);
+
+    -- Refresh tokens, for detecting replay.
+    --
+    -- token_epoch can revoke a session but cannot tell a thief's use of a token
+    -- from the owner's — both present a valid signature. Refresh tokens are
+    -- single-use and rotate, so a stolen one being presented twice is a signal
+    -- rather than a guess, and the whole family is torn down.
+    --
+    -- Stored as a SHA-256 hash rather than bcrypt on purpose: lookup is BY the
+    -- hash, and bcrypt's per-row salt would force a full-table scan. A fast
+    -- hash is safe here because the token is 256 bits of randomness, so there
+    -- is no dictionary to attack.
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      family_id   TEXT NOT NULL,
+      token_hash  TEXT NOT NULL UNIQUE,
+      used_at     TIMESTAMPTZ,
+      expires_at  TIMESTAMPTZ NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_refresh_family ON refresh_tokens(family_id);
+    CREATE INDEX IF NOT EXISTS idx_refresh_expires ON refresh_tokens(expires_at);
+
     -- Email-OTP sign-up: the account is only created after the code is verified.
     CREATE TABLE IF NOT EXISTS pending_registrations (
       email       TEXT PRIMARY KEY,

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { pool } from "../db";
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from "../auth";
 import { revokeAllSessions } from "../sessions";
+import { issueRefreshToken, rotateRefreshToken, revokeAllRefreshTokens } from "../refresh";
 import { sendOtpEmail, sendPasswordResetEmail } from "../mail";
 import { config } from "../config";
 import { logger } from "../logger";
@@ -18,6 +19,31 @@ const credsSchema = z.object({
 
 function genOtp(): string {
   return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+}
+
+/**
+ * The response every successful sign-in returns.
+ *
+ * Centralised so a new sign-in path cannot forget the refresh token and
+ * silently leave that client unable to rotate.
+ */
+async function sessionResponse(uid: number, email: string, name: string) {
+  const [token, refresh] = await Promise.all([
+    signUserToken({ uid, email }),
+    issueRefreshToken(uid),
+  ]);
+  return { token, refreshToken: refresh.token, user: { id: uid, email, name } };
+}
+
+/**
+ * Ends every way back in: sessions *and* refresh chains.
+ *
+ * Revoking only the sessions would leave a refresh token able to mint fresh
+ * access tokens on demand, which defeats the entire point of revoking.
+ */
+async function revokeEverything(uid: number): Promise<void> {
+  await revokeAllSessions(uid);
+  await revokeAllRefreshTokens(uid);
 }
 
 /**
@@ -108,7 +134,7 @@ authRouter.post("/verify-otp", async (req, res) => {
       uid = Number(u.rows[0].id);
       name = u.rows[0].name;
     }
-    res.json({ token: await signUserToken({ uid, email }), user: { id: uid, email, name } });
+    res.json(await sessionResponse(uid, email, name));
   } catch (err) {
     logger.error({ err }, "verify-otp failed");
     res.status(500).json({ error: "Verification failed." });
@@ -166,7 +192,7 @@ authRouter.post("/login", async (req, res) => {
       res.status(403).json({ error: "This account has been disabled." });
       return;
     }
-    res.json({ token: await signUserToken({ uid: Number(user.id), email: emailNorm }), user: { id: Number(user.id), email: emailNorm, name: user.name } });
+    res.json(await sessionResponse(Number(user.id), emailNorm, user.name));
   } catch {
     res.status(500).json({ error: "Login failed." });
   }
@@ -252,10 +278,7 @@ authRouter.post("/federated", async (req, res) => {
       logger.info({ email }, "federated sign-in created a console account");
     }
 
-    res.json({
-      token: await signUserToken({ uid: Number(user.id), email }),
-      user: { id: Number(user.id), email, name: user.name },
-    });
+    res.json(await sessionResponse(Number(user.id), email, user.name));
   } catch (err) {
     logger.error({ err }, "federated sign-in failed");
     res.status(500).json({ error: "Could not create a session." });
@@ -277,10 +300,12 @@ authRouter.post("/federated", async (req, res) => {
 authRouter.post("/sign-out-all", requireAuth, async (req: AuthedRequest, res) => {
   try {
     const uid = req.user!.uid;
-    await revokeAllSessions(uid);
-    const token = await signUserToken({ uid, email: req.user!.email });
+    await revokeEverything(uid);
+    // Issued after the revoke, so the caller keeps a working access token *and*
+    // a working refresh chain; every other device loses both.
+    const fresh = await sessionResponse(uid, req.user!.email, "");
     logger.info({ uid }, "user revoked all sessions");
-    res.json({ success: true, token });
+    res.json({ success: true, token: fresh.token, refreshToken: fresh.refreshToken });
   } catch (err) {
     logger.error({ err }, "sign-out-all failed");
     res.status(500).json({ error: "Could not end your other sessions." });
@@ -329,13 +354,13 @@ authRouter.post("/change-password", requireAuth, async (req: AuthedRequest, res)
 
     const hash = await hashPassword(parsed.data.newPassword);
     await pool.query(`UPDATE users SET password = $2 WHERE id = $1`, [uid, hash]);
-    await revokeAllSessions(uid);
+    await revokeEverything(uid);
 
     // Minted after the revoke, so it carries the new epoch and this device
     // stays signed in while every other one is turned out.
-    const token = await signUserToken({ uid, email: req.user!.email });
+    const fresh = await sessionResponse(uid, req.user!.email, "");
     logger.info({ uid }, "password changed; all sessions revoked");
-    res.json({ success: true, token });
+    res.json({ success: true, token: fresh.token, refreshToken: fresh.refreshToken });
   } catch (err) {
     logger.error({ err }, "change-password failed");
     res.status(500).json({ error: "Could not change your password." });
@@ -462,16 +487,72 @@ authRouter.post("/reset-password", async (req, res) => {
 
     const hash = await hashPassword(parsed.data.newPassword);
     await pool.query(`UPDATE users SET password = $2 WHERE id = $1`, [user.id, hash]);
-    // Whoever prompted the reset may already hold a session. Ending them all is
-    // the entire reason a reset is trustworthy.
-    await revokeAllSessions(Number(user.id));
+    // Whoever prompted the reset may already hold a session or a refresh chain.
+    // Ending both is the entire reason a reset is trustworthy.
+    await revokeEverything(Number(user.id));
     await pool.query(`DELETE FROM password_resets WHERE email = $1`, [email]);
 
-    const token = await signUserToken({ uid: Number(user.id), email });
+    const fresh = await sessionResponse(Number(user.id), email, user.name);
     logger.info({ uid: user.id }, "password reset completed; all sessions revoked");
-    res.json({ success: true, token, user: { id: Number(user.id), email, name: user.name } });
+    res.json({ success: true, ...fresh });
   } catch (err) {
     logger.error({ err }, "reset-password failed");
     res.status(500).json({ error: "Could not reset your password." });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* Refresh tokens                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * POST /auth/refresh — exchange a refresh token for a new pair.
+ *
+ * Single-use: the token presented here is spent, and a replacement is returned.
+ * Presenting a spent token means it was copied, so the whole family is
+ * destroyed and every session for the account ends. That signs the genuine user
+ * out too, which is the intended trade — being signed out is an inconvenience,
+ * leaving an attacker with a working chain is not.
+ */
+authRouter.post("/refresh", async (req, res) => {
+  const parsed = z.object({ refreshToken: z.string().min(20).max(200) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "A refresh token is required." });
+    return;
+  }
+
+  try {
+    const out = await rotateRefreshToken(parsed.data.refreshToken);
+    if (!out.ok) {
+      // Reuse is reported separately so a client can tell the user their
+      // session was ended for a reason, rather than showing a generic expiry.
+      const message =
+        out.reason === "reused"
+          ? "This session was ended for security. Please sign in again."
+          : "Your session has expired. Please sign in again.";
+      res.status(401).json({ error: message, reason: out.reason });
+      return;
+    }
+
+    const { rows } = await pool.query<{ email: string; name: string; blocked: boolean }>(
+      `SELECT email, name, blocked FROM users WHERE id = $1`,
+      [out.uid]
+    );
+    const user = rows[0];
+    if (!user || user.blocked) {
+      await revokeAllRefreshTokens(out.uid);
+      res.status(403).json({ error: "This account is not available." });
+      return;
+    }
+
+    const token = await signUserToken({ uid: out.uid, email: user.email });
+    res.json({
+      token,
+      refreshToken: out.next.token,
+      user: { id: out.uid, email: user.email, name: user.name },
+    });
+  } catch (err) {
+    logger.error({ err }, "refresh failed");
+    res.status(500).json({ error: "Could not refresh your session." });
   }
 });
