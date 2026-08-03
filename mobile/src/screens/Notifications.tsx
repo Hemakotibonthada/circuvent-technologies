@@ -2,18 +2,25 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { api, AppEvent } from "../api";
 import { useDevices } from "../store";
-import { Screen, Card, useTheme, BackButton } from "../ui";
+import { Screen, Card, useTheme, BackButton, ListSkeleton } from "../ui";
 import { timeAgo } from "./Home";
 
 export default function Notifications({ onBack }: { onBack: () => void }) {
   const { c } = useTheme();
   const { refreshUnread } = useDevices();
   const [events, setEvents] = useState<AppEvent[]>([]);
+  // An empty array cannot tell "still fetching" from "nothing to show", and
+  // defaulting to the latter meant a cold start always flashed "No
+  // notifications" — including when there were unread alerts about to appear.
+  const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     const r = await api.events(200);
     if (r.ok) setEvents(r.data.events || []);
+    // Set regardless of outcome: a failed fetch has still finished, and leaving
+    // the skeleton up forever would be a worse lie than an empty list.
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -50,7 +57,9 @@ export default function Notifications({ onBack }: { onBack: () => void }) {
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accentHi} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
       >
-        {events.length === 0 ? (
+        {!loaded ? (
+          <ListSkeleton rows={5} height={72} />
+        ) : events.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 60 }}>
             <Text style={{ fontSize: 40 }}>🔕</Text>
             <Text style={{ color: c.textDim, marginTop: 12 }}>No notifications</Text>

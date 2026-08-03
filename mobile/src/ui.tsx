@@ -199,6 +199,47 @@ const blob = StyleSheet.create({
   base: { position: "absolute", width: 220, height: 220, borderRadius: 130, opacity: 0.4 },
 });
 
+/**
+ * Placeholder rows for a list that has not loaded yet.
+ *
+ * Screens that only had an empty state showed "No devices yet" for the whole
+ * first fetch, so a working app looked like an empty one every cold start and a
+ * slow network made it look broken. Showing the shape of the content instead
+ * says "this is arriving" without claiming anything about what will be there.
+ *
+ * Marked as a busy element for assistive tech, so a screen reader announces
+ * that the list is loading rather than reading out a row of blank boxes.
+ */
+export function ListSkeleton({
+  rows = 4,
+  height = 76,
+  columns = 1,
+}: {
+  rows?: number;
+  height?: number;
+  columns?: number;
+}) {
+  const items = Array.from({ length: rows * columns });
+  return (
+    <View
+      accessible
+      accessibilityLabel="Loading"
+      accessibilityState={{ busy: true }}
+      style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 }}
+    >
+      {items.map((_, i) => (
+        <Skeleton
+          key={i}
+          height={height}
+          width={columns > 1 ? `${Math.floor(100 / columns) - 2}%` : "100%"}
+          radius={18}
+          style={{ marginBottom: 12, opacity: 0.5 }}
+        />
+      ))}
+    </View>
+  );
+}
+
 /* ------------------------------------------------------- screen headers --- */
 
 /**

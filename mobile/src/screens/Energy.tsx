@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { api, EnergySummary, EnergySeries } from "../api";
-import { Screen, Card, SectionLabel, useTheme, Chip } from "../ui";
+import { Screen, Card, SectionLabel, useTheme, Chip, ListSkeleton } from "../ui";
 import { Gauge, LineChart, Donut, Sparkline, HBars } from "../charts";
 import { deviceMeta } from "../theme";
 import { Icon } from "../icons";
@@ -112,7 +112,16 @@ export default function Energy() {
             </Pressable>
           );
         })}
-        {(summary?.byDevice ?? []).length === 0 && <Text style={{ color: c.faint }}>No devices yet.</Text>}
+        {/* `summary === null` means the first fetch has not returned, which is
+            not the same thing as a home with no metered devices. Collapsing the
+            two showed "No devices yet." on every cold start. */}
+        {summary === null ? (
+          <ListSkeleton rows={3} height={64} />
+        ) : (
+          summary.byDevice.length === 0 && (
+            <Text style={{ color: c.faint }}>No metered devices reporting yet.</Text>
+          )
+        )}
       </ScrollView>
     </Screen>
   );

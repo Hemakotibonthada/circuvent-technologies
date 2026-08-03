@@ -3,13 +3,13 @@ import { View, Text, FlatList, Pressable, TextInput, Switch, RefreshControl, Sty
 import { LinearGradient } from "expo-linear-gradient";
 import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, StatTile, useTheme } from "../ui";
+import { Screen, Card, StatTile, useTheme, ListSkeleton } from "../ui";
 import { GRAD, deviceMeta } from "../theme";
 import { Icon } from "../icons";
 
 export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void; onAdd: () => void }) {
   const { c } = useTheme();
-  const { devices, refresh, toggle, patch } = useDevices();
+  const { devices, loading, refresh, toggle, patch } = useDevices();
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState("");
 
@@ -57,11 +57,20 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
         ListHeaderComponent={listHeader}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accentHi} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} />}
         ListEmptyComponent={
-          <View style={{ alignItems: "center", paddingVertical: 50 }}>
-            <Text style={{ fontSize: 40 }}>📡</Text>
-            <Text style={{ color: c.textDim, marginTop: 12 }}>{q ? "No matches" : "No devices yet"}</Text>
-            {!q && <Pressable onPress={onAdd} style={{ marginTop: 16 }}><LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 12, paddingVertical: 13, paddingHorizontal: 24 }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>＋ Add your first device</Text></LinearGradient></Pressable>}
-          </View>
+          // Gated on `loading`: without it the first fetch renders "No devices
+          // yet" and an invitation to add one, which is a confident lie about a
+          // home that may be full of devices, on every cold start.
+          loading ? (
+            <View style={{ paddingVertical: 10 }}>
+              <ListSkeleton rows={3} columns={2} height={132} />
+            </View>
+          ) : (
+            <View style={{ alignItems: "center", paddingVertical: 50 }}>
+              <Text style={{ fontSize: 40 }}>📡</Text>
+              <Text style={{ color: c.textDim, marginTop: 12 }}>{q ? "No matches" : "No devices yet"}</Text>
+              {!q && <Pressable onPress={onAdd} style={{ marginTop: 16 }}><LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 12, paddingVertical: 13, paddingHorizontal: 24 }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>＋ Add your first device</Text></LinearGradient></Pressable>}
+            </View>
+          )
         }
         renderItem={({ item }) => (
           <View style={{ width: "48%", marginBottom: 12 }}>
