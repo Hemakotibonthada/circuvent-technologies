@@ -78,6 +78,22 @@ export const ICONS = {
   facedoor: mci("door"),
   touchboard: mci("gesture-tap-button"),
   sentinel: mci("smoke-detector-variant"),
+
+  // --- channel kinds ------------------------------------------------------
+  // What a relay on a multi-gang board is actually wired to. Distinct from the
+  // device-type icons above: one Touch Switchboard can be a light, a fan and a
+  // geyser at once, and the tile should show what the channel does rather than
+  // what the board is.
+  chLight: mci("lightbulb-on"),
+  chFan: mci("fan"),
+  chSocket: mci("power-socket"),
+  chGeyser: mci("water-boiler"),
+  chPump: mci("water-pump"),
+  chTv: mci("television"),
+  chAc: mci("air-conditioner"),
+  chCurtain: mci("curtains"),
+  chGate: mci("boom-gate"),
+  chGeneric: mci("toggle-switch-outline"),
   device: mci("chip"),
 
   // --- activity / status ---------------------------------------------------

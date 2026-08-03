@@ -5,10 +5,10 @@ import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction } from "../ui";
+import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
 import { deviceMeta, type Palette } from "../theme";
-import { useSwitchWidgets } from "../widgets";
+import { useSwitchWidgets, CHANNEL_KINDS, channelKind, type Gang } from "../widgets";
 import { useCameraFrames } from "../live";
 import { isCameraDevice as isCamera } from "../cameras";
 import { Icon, type IconName } from "../icons";
@@ -244,18 +244,22 @@ function AquaGuard({ d, send, c }: { d: Device; send: (p: Record<string, unknown
 }
 
 function HomeHub({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const channels = [
-    { key: "power", ch: 0, label: "Channel 1" },
-    { key: "power2", ch: 1, label: "Channel 2" },
-    { key: "power3", ch: 2, label: "Channel 3" },
-    { key: "power4", ch: 3, label: "Channel 4" },
-  ];
+  // firmware/home-hub/home-hub.ino writeRelay(): "power%s", i == 0 ? "" : i + 1.
+  // The hub takes { ch, on } rather than { field: value }, so the field-to-index
+  // mapping lives here and the shared channel UI is reused rather than copied.
+  const HUB_INDEX: Record<string, number> = { power: 0, power2: 1, power3: 2, power4: 3 };
   const scenes = ["home", "away", "night", "movie"];
   return (
     <View>
-      {channels.map((ch) => (
-        <Row key={ch.key} label={ch.label} c={c}><Sw v={!!d.state[ch.key]} on={(v) => send({ ch: ch.ch, on: v })} c={c} /></Row>
-      ))}
+      <SwitchGangs
+        d={d}
+        send={send}
+        c={c}
+        sendFor={(field, v) => {
+          const ch = HUB_INDEX[field];
+          if (ch != null) send({ ch, on: v });
+        }}
+      />
       <Section c={c}>Scenes</Section>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
         {scenes.map((sc) => {
@@ -280,44 +284,149 @@ function SmartPlug({ d, send, c }: { d: Device; send: (p: Record<string, unknown
   );
 }
 
+/**
+ * One channel of a multi-gang board, drawn as a tile rather than a row.
+ *
+ * A relay board cannot know whether channel 2 feeds a ceiling fan or a geyser,
+ * so the user says — and once they have, the tile stops being an anonymous
+ * "Channel 3" with a switch and starts showing what it controls: the right
+ * icon, an accent that matches, and the same on-state treatment as the device
+ * grid. A fan spins, a lamp glows.
+ *
+ * The whole tile is the switch. These get used dozens of times a day, and
+ * hunting a small toggle at the right edge is the wrong target for a thumb.
+ */
+function ChannelTile({ gang, on, onToggle, c }: { gang: Gang; on: boolean; onToggle: (v: boolean) => void; c: Palette }) {
+  const meta = channelKind(gang.kind);
+  const spin = useSpin(meta.motion === "spin" && on);
+  const glow = useGlowPulse(meta.motion === "glow" && on);
+
+  return (
+    <Pressable
+      onPress={() => { toggleFeedback(!on); onToggle(!on); }}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: on }}
+      accessibilityLabel={`${gang.label}, ${meta.label}, ${on ? "on" : "off"}`}
+      style={({ pressed }) => [
+        ch.tile,
+        {
+          backgroundColor: on ? meta.accent + "1F" : c.card,
+          borderColor: on ? meta.accent : c.border,
+          opacity: pressed ? 0.85 : 1,
+          shadowColor: meta.accent,
+          shadowOpacity: on ? 0.35 : 0,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: on ? 6 : 0,
+        },
+      ]}
+    >
+      <Animated.View style={[ch.iconWrap, { backgroundColor: on ? meta.accent : c.cardHi, opacity: meta.motion === "glow" && on ? glow : 1 }]}>
+        <Animated.View style={meta.motion === "spin" && on ? { transform: [{ rotate: spin }] } : undefined}>
+          <Icon name={meta.icon} size={22} color={on ? "#fff" : c.faint} />
+        </Animated.View>
+      </Animated.View>
+
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: c.text, fontSize: 16, fontWeight: "700" }} numberOfLines={1}>{gang.label}</Text>
+        <Text style={{ color: on ? meta.accent : c.faint, fontSize: 12, fontWeight: "600" }}>
+          {on ? "On" : "Off"}{gang.kind !== "generic" ? ` · ${meta.label}` : ""}
+        </Text>
+      </View>
+
+      <Sw v={on} on={onToggle} c={c} />
+    </Pressable>
+  );
+}
+
+const ch = StyleSheet.create({
+  tile: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 10, minHeight: 68 },
+  iconWrap: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  kindChip: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 19, borderWidth: 1 },
+});
+
 function SmartSwitch({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   return <SwitchGangs d={d} send={send} c={c} />;
 }
 
-// Reusable multi-gang control with per-device widget customization (rename +
-// show/hide). Used by smart-switch, and available to any boolean-field device.
-function SwitchGangs({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const { gangs, visible, rename, setVisible, reset } = useSwitchWidgets(d);
+// Reusable multi-gang control with per-device widget customization (name, what
+// it is wired to, and show/hide). Used by smart-switch, home-hub, touchboard and
+// sentinel, and available to any boolean-field device.
+function SwitchGangs({ d, send, c, sendFor }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette; sendFor?: (field: string, v: boolean) => void }) {
+  const { gangs, visible, rename, setVisible, setKind, reset } = useSwitchWidgets(d);
   const [editing, setEditing] = useState(false);
+  // Most boards take { field: value }. The Home Hub takes { ch, on } instead,
+  // so it passes its own mapping rather than having a second copy of this UI.
+  const emit = (field: string, v: boolean) => (sendFor ? sendFor(field, v) : send({ [field]: v }));
   return (
     <View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <Section c={c}>Controls</Section>
-        <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}><Text style={{ color: c.accentHi, fontWeight: "700", fontSize: 13 }}>{editing ? "Done" : "Customize"}</Text></Pressable>
+        <Pressable
+          onPress={() => setEditing((e) => !e)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={editing ? "Finish customising channels" : "Customise channels"}
+          style={{ minHeight: 44, justifyContent: "center" }}
+        >
+          <Text style={{ color: c.accentHi, fontWeight: "700", fontSize: 13 }}>{editing ? "Done" : "Customize"}</Text>
+        </Pressable>
       </View>
+
       {editing ? (
         <View>
+          <Text style={{ color: c.faint, fontSize: 12, marginBottom: 10 }}>
+            Name each channel and say what it switches. The icon, colour and animation follow from that.
+          </Text>
           {gangs.map((g) => (
-            <Card key={g.field} padded style={{ marginBottom: 8 }}>
+            <Card key={g.field} padded style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <TextInput
                   value={g.label}
                   onChangeText={(t) => rename(g.field, t)}
                   placeholder={g.field}
                   placeholderTextColor={c.faint}
-                  style={{ flex: 1, color: c.text, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}
+                  accessibilityLabel={`Name for ${g.field}`}
+                  style={{ flex: 1, color: c.text, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 44 }}
                 />
                 <Sw v={g.visible} on={(v) => setVisible(g.field, v)} c={c} />
               </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
+                {CHANNEL_KINDS.map((k) => {
+                  const sel = (g.kind ?? "generic") === k.id;
+                  return (
+                    <Pressable
+                      key={k.id}
+                      onPress={() => { tapLight(); setKind(g.field, k.id); }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: sel }}
+                      accessibilityLabel={`${g.label}: ${k.label}`}
+                      style={[ch.kindChip, { borderColor: sel ? k.accent : c.border, backgroundColor: sel ? k.accent + "22" : c.card }]}
+                    >
+                      <Icon name={k.icon} size={16} color={sel ? k.accent : c.faint} />
+                      <Text style={{ color: sel ? k.accent : c.textDim, fontWeight: sel ? "800" : "600", fontSize: 13 }}>{k.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </Card>
           ))}
-          <Pressable onPress={reset} style={{ alignSelf: "flex-start", marginTop: 2 }}><Text style={{ color: c.faint }}>Reset to defaults</Text></Pressable>
+          <Pressable onPress={reset} hitSlop={8} accessibilityRole="button" style={{ alignSelf: "flex-start", minHeight: 44, justifyContent: "center" }}>
+            <Text style={{ color: c.faint }}>Reset to defaults</Text>
+          </Pressable>
         </View>
       ) : (
         <View>
-          {visible.length === 0 && <Text style={{ color: c.faint }}>All widgets hidden. Tap Customize to show some.</Text>}
+          {visible.length === 0 && <Text style={{ color: c.faint }}>All channels hidden. Tap Customize to show some.</Text>}
           {visible.map((g) => (
-            <Row key={g.field} label={g.label} c={c}><Sw v={!!d.state[g.field]} on={(v) => send({ [g.field]: v })} c={c} /></Row>
+            <ChannelTile
+              key={g.field}
+              gang={g}
+              on={!!d.state[g.field]}
+              onToggle={(v) => emit(g.field, v)}
+              c={c}
+            />
           ))}
         </View>
       )}
