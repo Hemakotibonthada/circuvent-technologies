@@ -8,14 +8,14 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | --- | --- |
 | Board file | `cv-fan.kicad_pcb` |
 | Custom design rules | `cv-fan.kicad_dru` |
-| Board size | **88.7 x 94.8 mm** (doc target 55 x 45 mm) |
+| Board size | **103.0 x 81.3 mm** (doc target 55 x 45 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 34 of 34 BOM positions |
-| Nets | 68 total, 18 multi-pad (routable) |
+| Nets | 66 total, 19 multi-pad (routable) |
 | Pads bound to nets | 149 of 149 |
-| Net classes | Default=11, MAINS=4, POWER=3 |
-| Routing | autorouted, 385 track/via segments |
-| DRC errors / unconnected | **5 / 10** |
+| Net classes | Default=12, MAINS=5, POWER=3 |
+| Routing | autorouted, 413 track/via segments |
+| DRC errors / unconnected | **0 / 7** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -84,24 +84,21 @@ Nets named `N$<ref>.<pad>` are deliberate single-pad stubs: unused pins,
 the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
-Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R4`, `R5`, `R6`, `R7`, `R8`, `R9`
+Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R5`, `R6`, `R7`, `R8`, `R9`
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 10 connection(s) open. Each one is a real missing copper
+The autorouter left 7 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `AC_L_FUSED` | MAINS | PTH pad 1 of RV1 | PTH pad 1 of K1 |
-| 2 | `AC_L_FUSED` | MAINS | Track on F.Cu, length 5.0000 mm | PTH pad 1 of RV1 |
-| 3 | `AC_L_FUSED` | MAINS | PTH pad 1 of K1 | Pad 1 of U3 on F.Cu |
-| 4 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | PTH pad 1 of K1 |
-| 5 | `FAN_RELAY_SW` | MAINS | PTH pad 2 of J3 | PTH pad 3 of K1 |
-| 6 | `AC_L` | MAINS | Track on F.Cu, length 5.0000 mm | PTH pad 1 of J1 |
-| 7 | `AC_N` | MAINS | PTH pad 2 of J1 | PTH pad 3 of J3 |
-| 8 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of RV1 |
-| 9 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of J1 |
-| 10 | `SPEED_PWM_PIN_OUT` | Default | PTH pad 3 of J1 | PTH pad 3 of Qm |
+| 1 | `AC_L` | MAINS | PTH pad 1 of J1 | Track on F.Cu, length 2.5000 mm |
+| 2 | `AC_L_FUSED` | MAINS | Pad 1 of U3 on F.Cu | PTH pad 1 of K1 |
+| 3 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | PTH pad 1 of K1 |
+| 4 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | Track on B.Cu, length 5.6450 mm |
+| 5 | `AC_N` | MAINS | PTH pad 2 of J2 | Track on F.Cu, length 10.5925 mm |
+| 6 | `AC_N` | MAINS | Track on F.Cu, length 10.5925 mm | PTH pad 2 of PS1 |
+| 7 | `FAN_RELAY_SW` | MAINS | PTH pad 1 of J2 | PTH pad 3 of K1 |
 
 The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
 path between them is blocked by the 8.0 mm mains clearance and the isolation
@@ -117,8 +114,6 @@ rating, and safety agency approval):
 
 | Ref | Footprint | Mains-side nets | SELV-side nets |
 | --- | --- | --- | --- |
-| `J1` | term3 | AC_L, AC_N | SPEED_PWM_PIN_OUT |
-| `J3` | term3 | AC_N, FAN_RELAY_SW | +5V |
 | `K1` | relay | AC_L_FUSED, FAN_RELAY_SW, N$K1.4 | +5V, FAN_RELAY_COIL |
 | `PS1` | hlk | AC_L_FUSED, AC_N | +5V, GND |
 | `U3` | soic8 | AC_L_FUSED | +3V3, GND, N$U3.2, N$U3.3, N$U3.5, N$U3.6, N$U3.7 |
@@ -132,7 +127,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 385 track/via segments)
+- [x] Copper routing (autorouted, 413 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

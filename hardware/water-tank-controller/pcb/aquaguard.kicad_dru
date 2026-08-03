@@ -12,9 +12,9 @@
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_J1') && B.insideArea('PKG_J1')"))
 
-(rule "pkg_internal_J5"
+(rule "pkg_internal_J2"
     (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_J5') && B.insideArea('PKG_J5')"))
+    (condition "A.insideArea('PKG_J2') && B.insideArea('PKG_J2')"))
 
 (rule "pkg_internal_K1"
     (constraint clearance (min 0.2mm))

@@ -11,11 +11,11 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Board size | **84.7 x 63.2 mm** (doc target 55 x 40 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 39 of 39 BOM positions |
-| Nets | 74 total, 19 multi-pad (routable) |
+| Nets | 71 total, 21 multi-pad (routable) |
 | Pads bound to nets | 152 of 152 |
-| Net classes | Default=21, POWER=3 |
-| Routing | autorouted, 560 track/via segments |
-| DRC errors / unconnected | **0 / 1** |
+| Net classes | Default=22, POWER=3 |
+| Routing | autorouted, 570 track/via segments |
+| DRC errors / unconnected | **0 / 0** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -84,21 +84,13 @@ Nets named `N$<ref>.<pad>` are deliberate single-pad stubs: unused pins,
 the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
-Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R11`, `R12`, `R7`, `R8`, `R9`
-
-## Residual unconnected items - hand-finish list
-The autorouter left 1 connection(s) open. Each one is a real missing copper
-connection and has to be drawn by hand (or designed out) before fabrication:
-
-| # | Net | Class | From | To |
-| --- | --- | --- | --- | --- |
-| 1 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on B.Cu, priority 0 |
+Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R11`, `R12`, `R8`, `R9`
 
 ## Status
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 560 track/via segments)
+- [x] Copper routing (autorouted, 570 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

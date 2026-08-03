@@ -359,6 +359,10 @@
       },
       {
         "netclass": "MAINS",
+        "pattern": "PE"
+      },
+      {
+        "netclass": "MAINS",
         "pattern": "PUMP_RELAY_SW"
       }
     ]

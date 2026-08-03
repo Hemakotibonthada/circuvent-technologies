@@ -11,10 +11,10 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Board size | **76.1 x 59.0 mm** (doc target 45 x 35 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 22 of 22 BOM positions |
-| Nets | 60 total, 9 multi-pad (routable) |
+| Nets | 57 total, 10 multi-pad (routable) |
 | Pads bound to nets | 114 of 114 |
-| Net classes | Default=6, POWER=3 |
-| Routing | autorouted, 383 track/via segments |
+| Net classes | Default=7, POWER=3 |
+| Routing | autorouted, 401 track/via segments |
 | DRC errors / unconnected | **0 / 0** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
@@ -72,13 +72,13 @@ Nets named `N$<ref>.<pad>` are deliberate single-pad stubs: unused pins,
 the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
-Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R4`, `R5`, `R6`
+Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R5`, `R6`
 
 ## Status
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 383 track/via segments)
+- [x] Copper routing (autorouted, 401 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

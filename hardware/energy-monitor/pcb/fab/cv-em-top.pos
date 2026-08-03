@@ -4,7 +4,7 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "CT1","SCT-013-030","PinHeader_1x04_P2.54mm_Vertical",168.879000,-137.565000,0.000000,top
 "FID1","Fiducial","Fiducial_1mm_Mask2mm",110.657300,-83.200000,0.000000,top
 "FID2","Fiducial","Fiducial_1mm_Mask2mm",178.145300,-153.900000,0.000000,top
-"J3","3.5mm jack","TerminalBlock_Phoenix_MKDS-1,5-3_1x03_P5.00mm_Horizontal",127.239000,-132.395000,0.000000,top
+"J3","3.5mm jack","TerminalBlock_Phoenix_MKDS-1,5-3_1x03_P5.00mm_Horizontal",112.005000,-104.295000,90.000000,top
 "JP","3P 2.54mm","PinHeader_1x03_P2.54mm_Vertical",178.139000,-137.565000,0.000000,top
 "LED0","Green 3mm","LED_D3.0mm",183.209000,-139.485000,90.000000,top
 "PS1","HLK-PM01 (5V 3W)","Converter_ACDC_Hi-Link_HLK-PMxx",133.239000,-121.485000,90.000000,top
@@ -14,7 +14,7 @@ Ref,Val,Package,PosX,PosY,Rot,Side
 "R4","10k/330","R_0805_2012Metric",178.049000,-146.455000,0.000000,top
 "R5","10k/330","R_0805_2012Metric",153.009000,-147.625000,0.000000,top
 "R6","10k/330","R_0805_2012Metric",157.459000,-147.625000,0.000000,top
-"RV1","7D471K","RV_Disc_D7mm_W3.4mm_P5mm",107.545000,-92.595000,0.000000,top
+"RV1","7D471K","RV_Disc_D7mm_W3.4mm_P5mm",107.545000,-115.685000,0.000000,top
 "Rbias1","10k 0.1%","R_0805_2012Metric",182.679000,-142.675000,0.000000,top
 "Rbias2","10k 0.1%","R_0805_2012Metric",153.009000,-144.635000,0.000000,top
 "U1","ESP32-WROOM-32E (4MB)","ESP32-WROOM-32E",168.284000,-107.730000,0.000000,top

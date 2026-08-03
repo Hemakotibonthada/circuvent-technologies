@@ -1,0 +1,40 @@
+Circuvent is the companion app for Circuvent smart home hardware. Set your devices up over Wi-Fi, control them from anywhere, and see what your home is actually doing.
+
+CONTROL EVERYTHING IN ONE PLACE
+Lights, fans, plugs, switchboards, curtains, locks, water pumps, gates, doors, cameras and safety sensors all live on one screen. Group them by room, or pin the ones you use most to the top.
+
+SET UP WITHOUT A MANUAL
+New hardware joins your Wi-Fi from inside the app. Scan the QR label, pick your network, done. Moved house or changed router? Push new Wi-Fi credentials to a device without factory-resetting it.
+
+SCENES AND SCHEDULES
+Build a scene once — "Good night", "Leaving" — and run it with one tap. Schedule any switch by time and day, with per-channel control on multi-gang boards. Automations react to what your devices report: tank level, motion, temperature, gas.
+
+WATER AND PUMPS
+AquaGuard and WaterTank Duo show live tank levels, run the pump automatically between thresholds you set, and cut it if it ever runs dry.
+
+SAFETY THAT ACTS
+The Sentinel panel watches for combustible gas and smoke. On detection it does more than beep: it cuts the appliances you nominate and starts an exhaust fan. Guardian and motion sensors report intrusion and SOS.
+
+ENERGY YOU CAN READ
+See live wattage per device, daily and monthly totals, and which appliances are actually costing you money. Metered plugs and switchboards report voltage, current, power factor and units.
+
+LIVE VIDEO
+View Circuvent cameras and video doorbells in the app, take a snapshot, and get told when they see motion.
+
+WORKS WHEN THE INTERNET DOESN'T
+Touch panels and wall switches keep working with no network at all — the relay is local. When the connection comes back the app catches up. A tap on a physical panel shows up in the app straight away, not on the next refresh.
+
+BUILT FOR REAL HOMES
+· Light and dark themes, and a glass theme if you like it
+· Rename any channel — "Gang 2" becomes "Porch light"
+· Kiosk mode for a wall-mounted tablet
+· Weather, with advice tied to your devices
+· Voice commands processed on the device, no cloud transcription
+· Full timeline of what changed, when, and what changed it
+
+ABOUT PERMISSIONS
+Location and nearby-devices permissions are used only to find and join your device's temporary setup hotspot during onboarding. Android requires them for any app that scans or connects to Wi-Fi networks. Your location is never collected, stored or shared. The camera is used to scan the QR label on your hardware.
+
+You need Circuvent hardware and an account to use this app.
+
+circuvent.com

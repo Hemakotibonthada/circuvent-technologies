@@ -14,8 +14,8 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Nets | 37 total, 25 multi-pad (routable) |
 | Pads bound to nets | 139 of 150 |
 | Net classes | Default=20, MAINS=3, POWER=3 |
-| Routing | autorouted, 504 track/via segments |
-| DRC errors / unconnected | **0 / 8** |
+| Routing | autorouted, 487 track/via segments |
+| DRC errors / unconnected | **0 / 9** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -85,19 +85,20 @@ the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 8 connection(s) open. Each one is a real missing copper
+The autorouter left 9 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `+3V3` | POWER | Pad 1 of U1 on F.Cu | Track on F.Cu, length 1.7884 mm |
-| 2 | `GND` | POWER | Zone on F.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 3 | `GND` | POWER | Zone on F.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 4 | `GND` | POWER | Pad 2 of U3 on F.Cu | Zone on F.Cu, priority 0 |
+| 1 | `+5V` | POWER | Pad 1 of C1 on F.Cu | Track on B.Cu, length 3.1131 mm |
+| 2 | `+5V` | POWER | Pad 1 of C1 on F.Cu | Pad 1 of C2 on B.Cu |
+| 3 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
+| 4 | `GND` | POWER | Zone on F.Cu, priority 0 | Pad 2 of U3 on F.Cu |
 | 5 | `GND` | POWER | Pad 2 of R1 on F.Cu | Zone on F.Cu, priority 0 |
 | 6 | `GND` | POWER | Zone on F.Cu, priority 0 | Zone on F.Cu, priority 0 |
-| 7 | `LOAD_COM` | MAINS | PTH pad 1 of J3 | PTH pad 2 of K1 |
-| 8 | `LOAD_NO` | MAINS | PTH pad 2 of J3 | PTH pad 3 of K1 |
+| 7 | `+3V3` | POWER | Pad 1 of U1 on F.Cu | Track on F.Cu, length 4.4786 mm |
+| 8 | `LOAD_COM` | MAINS | PTH pad 1 of J3 | PTH pad 2 of K1 |
+| 9 | `LOAD_NO` | MAINS | PTH pad 2 of J3 | PTH pad 3 of K1 |
 
 The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
 path between them is blocked by the 8.0 mm mains clearance and the isolation
@@ -124,7 +125,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 504 track/via segments)
+- [x] Copper routing (autorouted, 487 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

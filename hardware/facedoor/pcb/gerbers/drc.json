@@ -1,0 +1,268 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-08-03T01:45:08",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "cv-door.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of RV1",
+                    "pos": {
+                        "x": 107.545,
+                        "y": 145.275
+                    },
+                    "uuid": "a5d6c890-6fc1-4704-9e05-806e53b93d49"
+                },
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of K1",
+                    "pos": {
+                        "x": 128.785,
+                        "y": 134.635
+                    },
+                    "uuid": "91da96a0-6340-410d-b661-22f7b11061dd"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [AC_L_FUSED] on F.Cu, length 5.0000 mm",
+                    "pos": {
+                        "x": 109.195,
+                        "y": 115.635
+                    },
+                    "uuid": "91030114-654f-4ba8-8519-1661142ddfa1"
+                },
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of K1",
+                    "pos": {
+                        "x": 128.785,
+                        "y": 134.635
+                    },
+                    "uuid": "91da96a0-6340-410d-b661-22f7b11061dd"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of K1",
+                    "pos": {
+                        "x": 128.785,
+                        "y": 134.635
+                    },
+                    "uuid": "91da96a0-6340-410d-b661-22f7b11061dd"
+                },
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of PS1",
+                    "pos": {
+                        "x": 136.235,
+                        "y": 121.485
+                    },
+                    "uuid": "ab2365dc-1bbc-4936-ac9c-cbdcc81d67f9"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [AC_N] on F.Cu, length 40.2573 mm",
+                    "pos": {
+                        "x": 116.5011,
+                        "y": 142.6189
+                    },
+                    "uuid": "4439c693-5146-4ce8-8d95-0ab7677e2171"
+                },
+                {
+                    "description": "PTH pad 3 [AC_N] of J2",
+                    "pos": {
+                        "x": 140.235,
+                        "y": 149.385
+                    },
+                    "uuid": "bf859bd8-6eb1-4911-93dd-476b265351dc"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 3 [AC_N] of J2",
+                    "pos": {
+                        "x": 140.235,
+                        "y": 149.385
+                    },
+                    "uuid": "bf859bd8-6eb1-4911-93dd-476b265351dc"
+                },
+                {
+                    "description": "PTH pad 2 [AC_N] of PS1",
+                    "pos": {
+                        "x": 141.235,
+                        "y": 121.485
+                    },
+                    "uuid": "35b725ec-d7dc-4af8-b492-b9a79d9bc1f5"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 3 [GND] of PS1",
+                    "pos": {
+                        "x": 131.235,
+                        "y": 92.405
+                    },
+                    "uuid": "e3d340f2-d14c-4544-8a76-8fac182389b3"
+                },
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 153.03,
+                        "y": 81.0
+                    },
+                    "uuid": "fe44223b-4ac2-4474-aae5-3afaa8618d5c"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 153.03,
+                        "y": 81.0
+                    },
+                    "uuid": "fe44223b-4ac2-4474-aae5-3afaa8618d5c"
+                },
+                {
+                    "description": "Pad 2 [GND] of C8 on B.Cu",
+                    "pos": {
+                        "x": 194.05,
+                        "y": 127.56
+                    },
+                    "uuid": "783db77f-99a3-4bd2-8641-bac06c27d490"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 2 [LOCK_RELAY_SW] of J2",
+                    "pos": {
+                        "x": 135.235,
+                        "y": 149.385
+                    },
+                    "uuid": "a9dd7301-cbdb-46b0-b96c-fe789d675977"
+                },
+                {
+                    "description": "PTH pad 3 [LOCK_RELAY_SW] of K1",
+                    "pos": {
+                        "x": 142.935,
+                        "y": 140.685
+                    },
+                    "uuid": "c7975074-3bb9-4cf0-8ec3-126b0effcb2a"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": [
+        {
+            "description": "Silkscreen clipped by board edge",
+            "items": [
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 138.934999,
+                        "y": 156.0
+                    },
+                    "uuid": "1c97697c-b1a5-4ff6-9b66-cd4ecba86656"
+                },
+                {
+                    "description": "Segment of J2 on F.Silkscreen",
+                    "pos": {
+                        "x": 127.615,
+                        "y": 153.485
+                    },
+                    "uuid": "7309bfce-fc02-41a9-8600-4ebc0f264964"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_edge_clearance"
+        },
+        {
+            "description": "Silkscreen clipped by board edge",
+            "items": [
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 138.934999,
+                        "y": 156.0
+                    },
+                    "uuid": "1c97697c-b1a5-4ff6-9b66-cd4ecba86656"
+                },
+                {
+                    "description": "Segment of J2 on F.Silkscreen",
+                    "pos": {
+                        "x": 142.855,
+                        "y": 154.105
+                    },
+                    "uuid": "ff4022e6-3fe8-4f72-a023-57a75b58e404"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_edge_clearance"
+        }
+    ]
+}

@@ -1,8 +1,8 @@
 # Circuvent — Production Readiness Checklist
 
 A full 12-product smart-home line, taken from working prototype to **enterprise, retail‑ready** units
-sold on **circuvent.com**, **Amazon.in** and **Flipkart**, plus one hardware-only
-OEM board (no firmware folder of its own):
+sold on **circuvent.com**, **Amazon.in** and **Flipkart**, plus hardware-only
+OEM boards:
 
 | Product | Firmware type id | Folder |
 | --- | --- | --- |
@@ -19,6 +19,10 @@ OEM board (no firmware folder of its own):
 | **Circuvent Guardian** (GPS + GSM SOS) | `guardian` | `firmware/guardian`, `hardware/guardian` |
 | **Circuvent Agri Pump Starter** (GSM) | `agri-starter` | `firmware/agri-starter`, `hardware/agri-starter` |
 | **Circuvent Dual-Channel Load Controller** (USB-C, high-density) | `load-controller` | `hardware/load-controller` |
+| **Circuvent Touch Switchboard** (3-gang capacitive + metering) | `touchboard` | `firmware/touchboard`, `hardware/touchboard` |
+| **Circuvent FaceDoor** (PIN / fingerprint / face entry) | `facedoor` | `firmware/facedoor`, `hardware/facedoor` |
+| **Circuvent RFID Gate** (UHF vehicle access) | `rfid-gate` | `firmware/rfid-gate`, `hardware/rfid-gate` |
+| **Circuvent Sentinel** (gas + climate safety panel) | `sentinel` | `firmware/sentinel`, `hardware/sentinel` |
 
 Legend: **[x]** done in this repo (code/design source) · **[~]** partial / needs review ·
 **[ ]** requires an external vendor, lab, physical process, or account (cannot be produced in code).
@@ -30,7 +34,7 @@ Legend: **[x]** done in this repo (code/design source) · **[~]** partial / need
 - [x] Single proprietary cloud protocol (`/api/devices/sync|claim|command`)
 - [x] This checklist + per‑device engineering folders
 - [x] Data-driven package generator (`hardware/gen-hardware.js`) regenerates the PCB / enclosure / listing sources for the 10 app-lineup devices
-- [x] Data-driven **PCB layout** generator (`hardware/gen-pcb.py`) builds real `.kicad_pcb` boards + Gerbers for all 13 devices from `SCHEMATIC.md` + `BOM.csv`
+- [x] Data-driven **PCB layout** generator (`hardware/gen-pcb.py`) builds real `.kicad_pcb` boards + Gerbers for all 17 devices from `SCHEMATIC.md` + `BOM.csv`
 - [ ] BOM costing → landed cost → MRP & margin sign‑off (finance)
 - [ ] Project plan / EVT → DVT → PVT gate reviews
 - [ ] Vendor selection: PCB fab, PCBA/EMS, enclosure tooling, box printer
@@ -48,7 +52,7 @@ Legend: **[x]** done in this repo (code/design source) · **[~]** partial / need
 - [x] Bill of Materials (`hardware/*/pcb/BOM.csv`)
 - [x] KiCad project stub + fab checklist (`hardware/*/pcb/`)
 - [x] Test points + programming/UART header defined
-- [x] **Board layout generated** for all 13 devices — real `.kicad_pcb` with outline,
+- [x] **Board layout generated** for all 17 devices — real `.kicad_pcb` with outline,
       mounting holes, fiducials, test points, two-sided placement from the BOM, GND
       pours, silkscreen and (mains devices) a mains/SELV island split with an
       isolation band, keepout and milled slot
@@ -58,13 +62,13 @@ Legend: **[x]** done in this repo (code/design source) · **[~]** partial / need
       separation, mains-to-edge clearance, minimum mains track width and the fab's
       annular-ring / drill limits
 - [x] **Copper routing** — every board autorouted (freerouting) and **DRC-clean:
-      zero errors on all 13**. The only remaining warnings are 18
-      `silk_edge_clearance` (silkscreen clipped at the board edge), which the fab
-      trims. Ground pours stitched on a 3.5 mm via grid, duplicate and
-      collinear-overlap segments removed, dangling stubs pruned layer by layer,
-      stranded ground pads given solid zone contact — including pads the routed
-      tracks fence off completely, which are wired back to the plane through a
-      via — and floating pour fragments stitched, then refilled.
+      zero errors on all 17**. The only remaining warnings are 6
+      `silk_edge_clearance` (silkscreen clipped at the board edge, which the fab
+      trims) and 2 `track_dangling`. Ground pours stitched on a 3.5 mm via grid,
+      duplicate and collinear-overlap segments removed, dangling stubs pruned
+      layer by layer, stranded ground pads given solid zone contact — including
+      pads the routed tracks fence off completely, which are wired back to the
+      plane through a via — and floating pour fragments stitched, then refilled.
 - [x] **Mains isolation barrier gaps closed.** The barrier keepout is cut where a
       component straddles it, because there the isolation is the part's package.
       Three linked defects made those cuts unsafe: the cut spanned the full band
@@ -77,39 +81,64 @@ Legend: **[x]** done in this repo (code/design source) · **[~]** partial / need
       the part's pad bbox + 0.3 mm, strictly inside `ISO_BRIDGE`.
 - [x] **Gerbers + Excellon drill exported** (`hardware/*/pcb/gerbers/`), 23-file
       production package per board including IPC-D-356, ODB++ and IPC-2581
-- [ ] **Residual unconnected nets — 89 across the 13 boards.** Each one is listed
+- [x] **Netlist defects found while adding the four new boards, fixed for every
+      board.** Each was silent: the file generated, the router ran, DRC passed,
+      and the board would have been fabricated with the fault in place.
+      *Capacitive touch pads were never connected.* `TP` parts landed on per-pad
+      nets, so smart-switch shipped two touch pads wired to nothing — the headline
+      feature of the product. Pads named in the I/O table now tie straight to their
+      GPIO, and are excluded from the pull-up sweep, because a resistor to 3V3
+      swamps the charge-time measurement `touchRead()` depends on.
+      *A switched mains output came out of the mains input connector.* The inlet's
+      third pole took `spare[0]`, whichever signal happened to be unassigned. On
+      smart-switch that was gang 2's switched live; on sentinel it would have been
+      a low-voltage gas-sensor line sitting on the mains terminal at line
+      potential. The third pole is now a mains net or PE, never a signal.
+      *Load connectors were budgeted one signal short*, leaving relay outputs on
+      single-pad nets — a fitted relay driving nothing. Connectors named explicitly
+      in the I/O table now carry every signal that names them.
+      *Power LEDs were fitted but dead*, on per-pad nets because no GPIO drives
+      them. Unclaimed indicators now tie across 3V3 through a series resistor.
+      *A low-side transistor drain was given a mains-neutral return* because any
+      transistor output counted as a switched mains output. LV drains are tracked
+      separately from relay poles.
+- [ ] **Residual unconnected nets — 97 across the 17 boards.** Each one is listed
       individually, with its net and both endpoints, in the "Residual unconnected
-      items" table of the board's `pcb/LAYOUT.md`. Two boards are completely
+      items" table of the board's `pcb/LAYOUT.md`. Three boards are completely
       finished; the rest break down as:
 
       | Board | Open | Mains barrier | GND pour fragment | Low-voltage |
       | --- | ---: | ---: | ---: | ---: |
       | motion-sensor | 0 | 0 | 0 | 0 |
       | smart-lock | 0 | 0 | 0 | 0 |
-      | smart-light | 1 | 0 | 1 | 0 |
+      | smart-light | 0 | 0 | 0 | 0 |
+      | guardian | 1 | 0 | 1 | 0 |
       | home-automation | 2 | 1 | 0 | 1 |
-      | guardian | 3 | 0 | 3 | 0 |
-      | energy-monitor | 6 | 3 | 0 | 3 |
-      | curtain | 7 | 2 | 0 | 5 |
-      | load-controller | 8 | 2 | 5 | 1 |
-      | smart-plug | 8 | 1 | 2 | 5 |
-      | smart-fan | 10 | 4 | 0 | 6 |
-      | smart-switch | 10 | 3 | 3 | 4 |
-      | agri-starter | 14 | 4 | 0 | 10 |
-      | water-tank-controller | 20 | 3 | 1 | 16 |
-      | **Total** | **89** | **23** | **15** | **51** |
+      | agri-starter | 3 | 2 | 0 | 1 |
+      | water-tank-controller | 3 | 2 | 0 | 1 |
+      | smart-switch | 4 | 3 | 0 | 1 |
+      | energy-monitor | 4 | 2 | 0 | 2 |
+      | rfid-gate | 5 | 3 | 1 | 1 |
+      | smart-fan | 7 | 4 | 0 | 3 |
+      | curtain | 7 | 3 | 3 | 1 |
+      | facedoor | 8 | 3 | 2 | 3 |
+      | load-controller | 9 | 2 | 7 | 0 |
+      | sentinel | 11 | 5 | 4 | 2 |
+      | smart-plug | 12 | 5 | 2 | 5 |
+      | touchboard | 21 | 12 | 5 | 4 |
+      | **Total** | **97** | **47** | **25** | **25** |
 
-      This total rose from 42 when the isolation barrier was tightened. That is a
-      deliberate trade: the tighter exemption leaves mains nets less room to reach
-      the pads of a straddling part, so more connections are left open — but an
-      open connection is a documented hand-routing item, whereas a creepage
-      shortfall is a safety defect.
-      *Mains barrier* (23) — blocked by the mains clearance and the isolation band
+      The 13 original boards fell from 89 opens to 52 when the netlist defects in
+      section 2a were fixed: signals that previously terminated on a single pad now
+      reach a connector, so the router has something to connect them to. The
+      remaining 45 belong to the four new boards.
+      *Mains barrier* (47) — blocked by the mains clearance and the isolation band
       because the parts involved sit on the barrier itself. These resolve by
-      isolating the metering front end, not by re-running the router.
-      *GND pour fragment* (15) — a ground pad left on a pour sliver too small to take
+      isolating the metering front end, not by re-running the router. Touchboard
+      dominates because its HLW8012 shunt sits in the switched-load path.
+      *GND pour fragment* (25) — a ground pad left on a pour sliver too small to take
       a 0.8 mm stitching via. Needs a small placement nudge by hand.
-      *Low-voltage* (51) — genuine routing shortfall, concentrated on the densest
+      *Low-voltage* (25) — genuine routing shortfall, concentrated on the densest
       boards. Needs hand-routing. Routing is stochastic, so re-running
       `gen-pcb.py <board>` will shift these counts.
 - [ ] Schematic review — the netlist is **derived by the generator** from

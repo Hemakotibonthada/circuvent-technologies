@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.kicad.org/drc.v1.json",
     "coordinate_units": "mm",
-    "date": "2026-07-29T14:23:39",
+    "date": "2026-08-03T03:26:49",
     "ignored_checks": [
         {
             "description": "Footprint has no courtyard defined",
@@ -36,20 +36,66 @@
             "description": "Missing connection between items",
             "items": [
                 {
-                    "description": "Pad 1 [+3V3] of U1 on F.Cu",
+                    "description": "Pad 1 [+5V] of C1 on F.Cu",
                     "pos": {
-                        "x": 144.84,
-                        "y": 95.95
+                        "x": 172.09,
+                        "y": 114.215
                     },
-                    "uuid": "2da2a6ab-82cc-4022-ad05-8f80505acd99"
+                    "uuid": "5fef3f60-bfaf-41a7-bfc8-68e63cda32ed"
                 },
                 {
-                    "description": "Track [+3V3] on F.Cu, length 1.7884 mm",
+                    "description": "Track [+5V] on B.Cu, length 3.1131 mm",
                     "pos": {
-                        "x": 172.2,
-                        "y": 91.3334
+                        "x": 172.795,
+                        "y": 128.035
                     },
-                    "uuid": "1e4acd6e-940a-4624-97c6-180aa646ecac"
+                    "uuid": "1b4e0cab-0b9c-46d0-9ea2-102f897dcedf"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 1 [+5V] of C1 on F.Cu",
+                    "pos": {
+                        "x": 172.09,
+                        "y": 114.215
+                    },
+                    "uuid": "5fef3f60-bfaf-41a7-bfc8-68e63cda32ed"
+                },
+                {
+                    "description": "Pad 1 [+5V] of C2 on B.Cu",
+                    "pos": {
+                        "x": 172.775,
+                        "y": 90.785
+                    },
+                    "uuid": "782feee2-87d3-49bb-b5cf-efbd49cb3ada"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 135.59,
+                        "y": 81.0
+                    },
+                    "uuid": "65d03622-1a53-4bbe-93af-44f628cac057"
+                },
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 135.59,
+                        "y": 81.0
+                    },
+                    "uuid": "b1b95131-d446-4bf0-b3ae-a85dff4149bf"
                 }
             ],
             "severity": "error",
@@ -64,61 +110,15 @@
                         "x": 135.59,
                         "y": 81.0
                     },
-                    "uuid": "7b0a65dd-eab6-46e3-9df8-10561b8b9682"
+                    "uuid": "b1b95131-d446-4bf0-b3ae-a85dff4149bf"
                 },
-                {
-                    "description": "Zone [GND] on B.Cu, priority 0",
-                    "pos": {
-                        "x": 135.59,
-                        "y": 81.0
-                    },
-                    "uuid": "26e0e63f-02e6-4b90-83db-b1272c01a8ce"
-                }
-            ],
-            "severity": "error",
-            "type": "unconnected_items"
-        },
-        {
-            "description": "Missing connection between items",
-            "items": [
-                {
-                    "description": "Zone [GND] on F.Cu, priority 0",
-                    "pos": {
-                        "x": 135.59,
-                        "y": 81.0
-                    },
-                    "uuid": "7b0a65dd-eab6-46e3-9df8-10561b8b9682"
-                },
-                {
-                    "description": "Zone [GND] on B.Cu, priority 0",
-                    "pos": {
-                        "x": 135.59,
-                        "y": 81.0
-                    },
-                    "uuid": "26e0e63f-02e6-4b90-83db-b1272c01a8ce"
-                }
-            ],
-            "severity": "error",
-            "type": "unconnected_items"
-        },
-        {
-            "description": "Missing connection between items",
-            "items": [
                 {
                     "description": "Pad 2 [GND] of U3 on F.Cu",
                     "pos": {
                         "x": 149.5275,
                         "y": 128.085
                     },
-                    "uuid": "9044b90b-7715-4ee1-a396-beea920948ab"
-                },
-                {
-                    "description": "Zone [GND] on F.Cu, priority 0",
-                    "pos": {
-                        "x": 135.59,
-                        "y": 81.0
-                    },
-                    "uuid": "7b0a65dd-eab6-46e3-9df8-10561b8b9682"
+                    "uuid": "691ba19c-5fb7-473f-a692-55e08b7d5083"
                 }
             ],
             "severity": "error",
@@ -133,7 +133,7 @@
                         "x": 155.245,
                         "y": 126.855
                     },
-                    "uuid": "8d961fc6-0fd7-4375-9294-57f288b23dd3"
+                    "uuid": "06236c2e-f784-4524-9fc7-fb756df8082a"
                 },
                 {
                     "description": "Zone [GND] on F.Cu, priority 0",
@@ -141,7 +141,7 @@
                         "x": 135.59,
                         "y": 81.0
                     },
-                    "uuid": "7b0a65dd-eab6-46e3-9df8-10561b8b9682"
+                    "uuid": "b1b95131-d446-4bf0-b3ae-a85dff4149bf"
                 }
             ],
             "severity": "error",
@@ -156,7 +156,7 @@
                         "x": 135.59,
                         "y": 81.0
                     },
-                    "uuid": "7b0a65dd-eab6-46e3-9df8-10561b8b9682"
+                    "uuid": "b1b95131-d446-4bf0-b3ae-a85dff4149bf"
                 },
                 {
                     "description": "Zone [GND] on F.Cu, priority 0",
@@ -164,7 +164,30 @@
                         "x": 135.59,
                         "y": 81.0
                     },
-                    "uuid": "7b0a65dd-eab6-46e3-9df8-10561b8b9682"
+                    "uuid": "b1b95131-d446-4bf0-b3ae-a85dff4149bf"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 1 [+3V3] of U1 on F.Cu",
+                    "pos": {
+                        "x": 144.84,
+                        "y": 95.95
+                    },
+                    "uuid": "c998ebbc-4f5d-4d12-8549-7065343bc4d8"
+                },
+                {
+                    "description": "Track [+3V3] on F.Cu, length 4.4786 mm",
+                    "pos": {
+                        "x": 167.9523,
+                        "y": 99.61
+                    },
+                    "uuid": "2040a0a6-88c9-4c4e-aab4-23d2dd8836b0"
                 }
             ],
             "severity": "error",
@@ -179,7 +202,7 @@
                         "x": 109.895,
                         "y": 100.545
                     },
-                    "uuid": "23149712-f86f-4dd4-93c7-942d8f9eec68"
+                    "uuid": "b2769e89-f55b-4569-9071-5d472b8f75c3"
                 },
                 {
                     "description": "PTH pad 2 [LOAD_COM] of K1",
@@ -187,7 +210,7 @@
                         "x": 130.845,
                         "y": 97.835
                     },
-                    "uuid": "45d2fab8-5d82-4069-a311-34b75fa091ba"
+                    "uuid": "bd454063-e281-4e2f-aa53-6092cb47698b"
                 }
             ],
             "severity": "error",
@@ -202,7 +225,7 @@
                         "x": 109.895,
                         "y": 97.045
                     },
-                    "uuid": "23ee718d-76aa-4719-a5f2-e0a9d4f71b5d"
+                    "uuid": "44309b09-3586-455a-b392-1564908bf7a3"
                 },
                 {
                     "description": "PTH pad 3 [LOAD_NO] of K1",
@@ -210,7 +233,7 @@
                         "x": 130.845,
                         "y": 90.215
                     },
-                    "uuid": "b1c344e0-2bc8-44f1-b7e6-41f76748a42f"
+                    "uuid": "68451148-a2b9-4b09-859a-7f90efeb1299"
                 }
             ],
             "severity": "error",

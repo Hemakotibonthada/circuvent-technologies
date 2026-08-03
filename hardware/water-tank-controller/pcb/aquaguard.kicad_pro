@@ -360,6 +360,10 @@
       {
         "netclass": "MAINS",
         "pattern": "MOTOR_RELAY_SW"
+      },
+      {
+        "netclass": "MAINS",
+        "pattern": "PE"
       }
     ]
   },

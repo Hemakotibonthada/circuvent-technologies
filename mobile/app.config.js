@@ -1,5 +1,6 @@
 const { withEntitlementsPlist } = require("expo/config-plugins");
 const withAndroidSigning = require("./plugins/withAndroidSigning");
+const withNeverForLocation = require("./plugins/withNeverForLocation");
 
 /**
  * Dynamic Expo config.
@@ -52,7 +53,7 @@ module.exports = ({ config }) => {
   // Without it `expo prebuild` emits a release build signed with React Native's
   // published debug key, which Google Play rejects after the upload rather than
   // at build time.
-  const base = withAndroidSigning(config);
+  const base = withNeverForLocation(withAndroidSigning(config));
 
   if (process.env.CV_PERSONAL_TEAM !== "1") return base;
 

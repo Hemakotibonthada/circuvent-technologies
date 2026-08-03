@@ -8,14 +8,14 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | --- | --- |
 | Board file | `cv-agri.kicad_pcb` |
 | Custom design rules | `cv-agri.kicad_dru` |
-| Board size | **111.7 x 84.1 mm** (doc target 80 x 60 mm) |
+| Board size | **111.5 x 84.1 mm** (doc target 80 x 60 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 45 of 45 BOM positions |
-| Nets | 87 total, 18 multi-pad (routable) |
+| Nets | 82 total, 20 multi-pad (routable) |
 | Pads bound to nets | 175 of 175 |
-| Net classes | Default=13, MAINS=4, POWER=3 |
-| Routing | autorouted, 441 track/via segments |
-| DRC errors / unconnected | **2 / 14** |
+| Net classes | Default=15, MAINS=5, POWER=3 |
+| Routing | autorouted, 549 track/via segments |
+| DRC errors / unconnected | **0 / 3** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -84,28 +84,17 @@ Nets named `N$<ref>.<pad>` are deliberate single-pad stubs: unused pins,
 the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
-Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R11`, `R12`, `R13`, `R14`, `R6`, `R7`, `R8`, `R9`
+Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R11`, `R12`, `R13`, `R14`, `R8`, `R9`
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 14 connection(s) open. Each one is a real missing copper
+The autorouter left 3 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `+5V` | POWER | Track on F.Cu, length 8.7950 mm | PTH pad 1 of M1 |
-| 2 | `PUMP_RELAY_SW` | MAINS | PTH pad 3 of K1 | PTH pad 2 of M1 |
-| 3 | `SIM_RX` | Default | PTH pad 3 of M1 | Track on F.Cu, length 1.0767 mm |
-| 4 | `AC_N` | MAINS | PTH pad 2 of J1 | PTH pad 4 of M1 |
-| 5 | `AC_N` | MAINS | PTH pad 2 of PS1 | PTH pad 2 of RV1 |
-| 6 | `AC_N` | MAINS | PTH pad 4 of M1 | PTH pad 2 of PS1 |
-| 7 | `AC_L` | MAINS | Track on F.Cu, length 5.0000 mm | PTH pad 1 of J1 |
-| 8 | `AC_L_FUSED` | MAINS | PTH pad 1 of K1 | PTH pad 1 of PS1 |
-| 9 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | Track on B.Cu, length 11.2900 mm |
-| 10 | `PUMP_RELAY_OPT` | Default | PTH pad 1 of PC1 | Pad 2 of R1 on B.Cu |
-| 11 | `PUMP_RELAY_COIL` | Default | Track on B.Cu, length 1.4818 mm | PTH pad 5 of K1 |
-| 12 | `EN` | Default | Pad 3 of U1 on F.Cu | Pad 2 of R3 on B.Cu |
-| 13 | `MAINS_SENSE` | Default | Pad 1 of R2 on B.Cu | Track on B.Cu, length 8.3020 mm |
-| 14 | `SIM_TX` | Default | PTH pad 3 of J1 | Pad 28 of U1 on F.Cu |
+| 1 | `AC_L_FUSED` | MAINS | Track on F.Cu, length 16.4897 mm | PTH pad 1 of PS1 |
+| 2 | `AC_N` | MAINS | Track on F.Cu, length 7.4900 mm | PTH pad 2 of PS1 |
+| 3 | `PUMP_RELAY_SW` | MAINS | PTH pad 1 of J2 | PTH pad 3 of K1 |
 
 The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
 path between them is blocked by the 8.0 mm mains clearance and the isolation
@@ -121,9 +110,7 @@ rating, and safety agency approval):
 
 | Ref | Footprint | Mains-side nets | SELV-side nets |
 | --- | --- | --- | --- |
-| `J1` | term3 | AC_L, AC_N | SIM_TX |
 | `K1` | relay | AC_L_FUSED, N$K1.4, PUMP_RELAY_SW | +5V, PUMP_RELAY_COIL |
-| `M1` | module_sm | AC_N, PUMP_RELAY_SW | +5V, SIM_RX |
 | `PS1` | hlk | AC_L_FUSED, AC_N | +5V, GND |
 
 An optocoupler or an isolated PSU is fine here. A metering front-end such as
@@ -135,7 +122,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 441 track/via segments)
+- [x] Copper routing (autorouted, 549 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

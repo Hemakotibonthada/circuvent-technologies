@@ -364,6 +364,10 @@
       {
         "netclass": "MAINS",
         "pattern": "MOTOR_OPEN_PIN_SW"
+      },
+      {
+        "netclass": "MAINS",
+        "pattern": "PE"
       }
     ]
   },

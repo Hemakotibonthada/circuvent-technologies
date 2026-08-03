@@ -360,6 +360,10 @@
       {
         "netclass": "POWER",
         "pattern": "GND"
+      },
+      {
+        "netclass": "MAINS",
+        "pattern": "PE"
       }
     ]
   },

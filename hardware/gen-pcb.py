@@ -75,6 +75,14 @@ DEVICES = [
          w=90, h=65, mounts=4, mains=True, creepage=8.0),
     dict(folder="water-tank-controller", model="aquaguard", title="Circuvent AquaGuard",
          w=80, h=60, mounts=4, mains=True, creepage=8.0),
+    dict(folder="touchboard", model="cv-tb3", title="Circuvent Touch Switchboard",
+         w=80, h=60, mounts=4, mains=True, creepage=8.0),
+    dict(folder="facedoor", model="cv-door", title="Circuvent FaceDoor",
+         w=70, h=55, mounts=4, mains=True, creepage=8.0),
+    dict(folder="rfid-gate", model="cv-gate", title="Circuvent RFID Gate",
+         w=75, h=60, mounts=4, mains=True, creepage=8.0),
+    dict(folder="sentinel", model="cv-sent", title="Circuvent Sentinel Safety Panel",
+         w=90, h=70, mounts=4, mains=True, creepage=8.0),
     # High-density USB-C board. `compact` selects build_netlist_compact() and
     # the 0402/0603 SMD footprint set; everything downstream is shared.
     dict(folder="load-controller", model="cv-duo",
@@ -1224,7 +1232,8 @@ def build_netlist(dev, parts):
         return None
 
     diodes = [r for r in of("D") if key_of(r) in ("do41", "do201", "sma", "smb")]
-    consumed_sigs, out_nets = set(), []
+    consumed_sigs, out_nets, touch_sigs = set(), [], set()
+    lv_outs = []
 
     for gpio, sig, note in rows:
         optos = re.findall(r"\bPC(\d+)", note)
@@ -1233,7 +1242,25 @@ def build_netlist(dev, parts):
         leds = re.findall(r"\bLED(\d+)", note)
         btns = re.findall(r"\bSW(\d+)", note)
         buzz = re.findall(r"\bFB(\d+)", note)
+        pads = re.findall(r"\bTP(\d+)", note)
         drive = sig
+
+        # Capacitive touch pads. The pad *is* the sensor: touchRead() measures
+        # how long the copper takes to charge, so it connects straight to the
+        # GPIO with nothing in between - no series part, and emphatically no
+        # pull-up, which would swamp the very signal being measured.
+        #
+        # Matched by exact designator only. The generator adds its own TP
+        # footprints for the +5V/+3V3/GND probe points further down, and a
+        # positional fallback here would happily bond a touch input to a power
+        # rail.
+        for n in pads:
+            tp = "TP" + n
+            if tp in by_ref and tp not in used and key_of(tp) == "testpoint":
+                nl.tie(tp, 1, sig)
+                used.add(tp)
+                consumed_sigs.add(sig)
+                touch_sigs.add(sig)
 
         if optos:
             pc = take("opto", "PC" + optos[0])
@@ -1251,7 +1278,12 @@ def build_netlist(dev, parts):
                 used.add(q)
                 drive, _ = tail, consumed_sigs.add(sig)
                 if not relays:
-                    out_nets.append(tail)
+                    # A transistor with no relay behind it is a low-side switch
+                    # on the LV side - an LED string, a buzzer, a fan. It still
+                    # has to reach a connector, but it must not be treated as a
+                    # switched *mains* output, or the connector logic below
+                    # hands it a mains-neutral return.
+                    lv_outs.append(tail)
         if relays:
             k = take("relay", "K" + relays[0])
             if k:
@@ -1365,7 +1397,7 @@ def build_netlist(dev, parts):
     # ---------------- signals not consumed by an explicit chain --------
     # Switched outputs come first: a relay pole or FET drain has to reach a
     # connector or the board cannot actually drive anything.
-    spare = out_nets + [s for _, s, _ in rows if s not in consumed_sigs]
+    spare = out_nets + lv_outs + [s for _, s, _ in rows if s not in consumed_sigs]
     note_of = {s: n for _, s, n in rows}
 
     def wire_connector(ref, sigs):
@@ -1385,9 +1417,22 @@ def build_netlist(dev, parts):
     for ref in of("J", "M", "MOD", "BT", "CN"):
         if ref in used:
             continue
-        want = max(npads(ref) - 2, 0)
+        # A switched mains output that reaches no connector is a dead channel,
+        # so a load connector is allowed to fill every pole but the return.
+        # Sensor modules keep the conservative budget, which leaves a pole free
+        # for the +5V feed they expect.
+        pending_out = [s for s in spare if s in out_nets]
         named = [s for s in spare
                  if re.search(r"\b%s\b" % re.escape(ref), note_of.get(s, ""))]
+        if named:
+            # The I/O table named this connector explicitly, which is a
+            # documented intent rather than a guess - honour all of it, leaving
+            # one pole for the return.
+            want = min(len(named), max(npads(ref) - 1, 0))
+        elif pending_out:
+            want = min(max(npads(ref) - 1, 0), len(pending_out))
+        else:
+            want = max(npads(ref) - 2, 0)
         picks = (named or spare)[:want]
         for s in picks:
             spare.remove(s)
@@ -1397,8 +1442,17 @@ def build_netlist(dev, parts):
     # its third pole brings the switched live back out to the load.
     if mains and inlet and key_of(inlet) == "term3":
         have = set(nl.pads.values())
-        load = AC_LOAD if AC_LOAD in have else (spare[0] if spare else PE)
+        # Only ever a mains net. This used to fall back to spare[0], which on a
+        # board whose loads have their own terminal block is simply the next
+        # unassigned signal - landing a low-voltage sensor line on the mains
+        # input terminal, inside the barrier, at line potential.
+        if AC_LOAD in have:
+            load = AC_LOAD
+        else:
+            load = next((s for s in spare if s in out_nets), PE)
         nl.tie(inlet, 3, load)
+        if load != PE:
+            nl.mark_mains(load)
         if load in spare:
             spare.remove(load)
 
@@ -1408,12 +1462,31 @@ def build_netlist(dev, parts):
             nl.tie_many(r, {1: "ANT", 2: GND})
             used.add(r)
 
+    # A power/online LED has no GPIO behind it, so no drive chain names it and
+    # it used to be left on per-pad nets - a fitted, stuffed, permanently dark
+    # part. Any LED still unclaimed is an indicator for a rail: tie it across
+    # 3V3 through a pooled series resistor.
+    for r in of("LED"):
+        if r in used or key_of(r) != "led3":
+            continue
+        if not r_pool:
+            break
+        rr = r_pool.pop(0)
+        nl.tie_many(rr, {1: V3, 2: r + "_A"})
+        nl.tie_many(r, {2: r + "_A", 1: GND})
+        used.add(rr)
+        used.add(r)
+
     # Remaining resistors become pull-ups on documented inputs (notes with a
     # '<-' arrow or an explicit INPUT_PULLUP), which is what the BOM calls them.
     for _, s, n in rows:
         if not r_pool:
             break
         if "<-" not in n and "PULLUP" not in n.upper():
+            continue
+        # A capacitive pad is read by timing its charge curve; a resistor to
+        # 3V3 holds it high and the reading never moves.
+        if s in touch_sigs:
             continue
         if s not in set(nl.pads.values()):
             continue

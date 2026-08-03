@@ -1,0 +1,28 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+U1,1,ESP32-WROOM-32E (4MB),SMD module,Wi-Fi/BLE MCU module,Main controller
+PS1,1,HLK-PM03 (5V 3W),SIP,230VAC -> 5VDC isolated PSU,3 relay coils + logic
+U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
+U3-U5,3,PC817,DIP-4,Opto-isolators,One per gang
+U6,1,BL0937 / HLW8012,SOP,Energy metering front-end,V/A/W/PF/kWh
+Q1-Q3,3,S8050,SOT-23,NPN relay drivers,
+Q4,1,S8050,SOT-23,LED backlight driver,PWM from IO5
+D1-D3,3,1N4007,DO-41,Flyback diodes,Across each coil
+K1-K3,3,SRD-05VDC-SL-C,THT relay,5V SPDT 10A,Switch mains loads (<=6A/gang)
+TP1-TP3,3,Copper pad + decal,-,Capacitive touch,Under the switch plate
+Rsh,1,1mR 2W,2512,Current shunt,Metering (switched-load path)
+RV1,1,7D471K,disc,MOV 470V,Mains surge clamp
+F1,1,6A slow-blow,5x20 holder,Mains fuse,
+LED0,1,Green 3mm,THT,Power/online,
+LED1-LED3,3,Blue 3mm,THT,Gang status,
+SW1,1,6mm tactile,THT,Reset / BOOT,IO0
+J1,1,2P 5.08mm,terminal,Mains input L/N,
+J2,1,3P 5.08mm,terminal,Switched-L outputs + common N,Loads
+J3,1,3P 5.08mm,terminal,Switched-L outputs + common N,Loads
+J4,1,3P 2.54mm,header,LED backlight string (5V/drain/GND),PWM low-side via Q4
+JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
+R1-R12,12,10k/1k/330,0805,Pull-ups/base/LED resistors,
+C1,1,470uF/10V,electrolytic,5V bulk,
+C2,1,100uF/6.3V,electrolytic,3.3V rail,
+C3-C8,6,100nF,0805,Decoupling,
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm mains-LV creepage; 2oz Cu
+ENC,1,ABS module (UL94 V-0),-,Fit-behind-switch box,Touch pads face the plate

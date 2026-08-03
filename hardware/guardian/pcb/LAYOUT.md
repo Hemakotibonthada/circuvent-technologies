@@ -11,11 +11,11 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Board size | **95.9 x 62.2 mm** (doc target 60 x 40 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 27 of 27 BOM positions |
-| Nets | 55 total, 13 multi-pad (routable) |
+| Nets | 49 total, 15 multi-pad (routable) |
 | Pads bound to nets | 127 of 127 |
-| Net classes | Default=11, POWER=3 |
-| Routing | autorouted, 538 track/via segments |
-| DRC errors / unconnected | **0 / 3** |
+| Net classes | Default=13, POWER=3 |
+| Routing | autorouted, 609 track/via segments |
+| DRC errors / unconnected | **1 / 1** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -72,23 +72,21 @@ Nets named `N$<ref>.<pad>` are deliberate single-pad stubs: unused pins,
 the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
-Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R6`, `R7`, `R8`
+Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R8`
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 3 connection(s) open. Each one is a real missing copper
+The autorouter left 1 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `GND` | POWER | Via on F.Cu - B.Cu | Pad 15 of U1 on F.Cu |
-| 2 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
-| 3 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
+| 1 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on F.Cu, priority 0 |
 
 ## Status
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 538 track/via segments)
+- [x] Copper routing (autorouted, 609 track/via segments)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

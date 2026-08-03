@@ -1,0 +1,9 @@
+New in 1.10.0
+
+· Sentinel safety panel support — gas and smoke detection, temperature and
+  humidity, and relays that cut appliances automatically when gas is found.
+· Swipe from the left edge to go back, anywhere in the app.
+· Screens no longer say "nothing here" while they are still loading.
+· Bigger, properly labelled back and header buttons, so they are easier to hit
+  and work correctly with screen readers.
+· Faster, steadier device status updates.

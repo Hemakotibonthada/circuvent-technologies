@@ -359,6 +359,10 @@
       },
       {
         "netclass": "MAINS",
+        "pattern": "PE"
+      },
+      {
+        "netclass": "MAINS",
         "pattern": "RELAY1_SW"
       },
       {
