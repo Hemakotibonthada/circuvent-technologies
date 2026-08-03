@@ -266,6 +266,37 @@ ${plate(320, 340)}
       <path d="M210 40 v-52 M210 -4 l-22 -22 M210 -4 l22 -22"/>
     </g>
   </g>`,
+
+  // The Sentinel leads with the gas grille, because that is the part that makes
+  // it a different product from the Touch Switchboard rather than a variant.
+  sentinel: `  <g transform="translate(400 350)">
+${plate(380, 330)}
+    <g transform="translate(-108 -78)">
+      <circle cx="0" cy="0" r="62" fill="#0f172a"/>
+      <circle cx="0" cy="0" r="62" fill="none" stroke="${"#ef4444"}" stroke-width="5"/>
+      <g stroke="${"#ef4444"}" stroke-width="4" stroke-linecap="round" opacity="0.75">
+        <path d="M-34 -14H34M-34 0H34M-34 14H34"/>
+      </g>
+    </g>
+    <g transform="translate(84 -92)">
+      <text x="0" y="0" fill="#0f172a" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="58" font-weight="800" text-anchor="middle">24°</text>
+      <text x="0" y="42" fill="#475569" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="28" font-weight="600" text-anchor="middle">55% RH</text>
+    </g>
+    <g transform="translate(0 62)">
+      <rect x="-152" y="-34" width="68" height="68" rx="20" fill="#0f172a"/>
+      <rect x="-152" y="-34" width="68" height="68" rx="20" fill="none" stroke="${"#ef4444"}" stroke-width="5"/>
+      <rect x="-58" y="-34" width="68" height="68" rx="20" fill="#0f172a"/>
+      <rect x="-58" y="-34" width="68" height="68" rx="20" fill="none" stroke="${"#ef4444"}" stroke-width="5" opacity="0.4"/>
+      <rect x="36" y="-34" width="68" height="68" rx="20" fill="#0f172a"/>
+      <rect x="36" y="-34" width="68" height="68" rx="20" fill="none" stroke="${"#ef4444"}" stroke-width="5" opacity="0.4"/>
+      <rect x="130" y="-34" width="68" height="68" rx="20" fill="#0f172a"/>
+      <rect x="130" y="-34" width="68" height="68" rx="20" fill="none" stroke="${"#ef4444"}" stroke-width="5" opacity="0.4"/>
+    </g>
+    <g transform="translate(0 148)">
+      <rect x="-150" y="-7" width="300" height="14" rx="7" fill="#e2e8f0"/>
+      <rect x="-150" y="-7" width="112" height="14" rx="7" fill="${"#ef4444"}"/>
+    </g>
+  </g>`,
 };
 
 const LABELS = {
@@ -279,6 +310,7 @@ const LABELS = {
   "smart-switch": ["Smart Switch", "#22d3ee"],
   "motion-sensor": ["Motion Sensor", "#a78bfa"],
   "agri-starter": ["Agri GSM Starter", "#34d399"],
+  sentinel: ["Sentinel", "#ef4444"],
 };
 
 fs.mkdirSync(OUT, { recursive: true });

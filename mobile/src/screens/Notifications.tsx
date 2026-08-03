@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { api, AppEvent } from "../api";
 import { useDevices } from "../store";
-import { Screen, Card, useTheme } from "../ui";
+import { Screen, Card, useTheme, BackButton } from "../ui";
 import { timeAgo } from "./Home";
 
 export default function Notifications({ onBack }: { onBack: () => void }) {
@@ -34,9 +34,17 @@ export default function Notifications({ onBack }: { onBack: () => void }) {
   return (
     <Screen>
       <View style={s.top}>
-        <Pressable onPress={onBack} hitSlop={10}><Text style={{ color: c.textDim, fontSize: 16 }}>‹ Back</Text></Pressable>
+        <BackButton onPress={onBack} />
         <Text style={{ color: c.text, fontSize: 18, fontWeight: "800" }}>Notifications</Text>
-        <Pressable onPress={clearAll} hitSlop={10}><Text style={{ color: c.faint, fontSize: 13 }}>Clear</Text></Pressable>
+        <Pressable
+          onPress={clearAll}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Clear all notifications"
+          style={{ minHeight: 44, minWidth: 44, alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <Text style={{ color: c.faint, fontSize: 13 }}>Clear</Text>
+        </Pressable>
       </View>
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}

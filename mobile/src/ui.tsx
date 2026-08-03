@@ -13,6 +13,7 @@ import {
   StyleProp,
   Platform,
   BackHandler,
+  PanResponder,
   StatusBar,
   useWindowDimensions,
   AppState,
@@ -198,6 +199,214 @@ const blob = StyleSheet.create({
   base: { position: "absolute", width: 220, height: 220, borderRadius: 130, opacity: 0.4 },
 });
 
+/* ------------------------------------------------------- screen headers --- */
+
+/**
+ * The standard "go back" control.
+ *
+ * Screens each rolled their own — a bare `‹` glyph in a Text with `hitSlop={8}`,
+ * or the string "‹ Devices". Two problems came with that. The tap target was
+ * roughly 20pt where the platform guidance is 44, which is genuinely hard to
+ * hit one-handed at the top of a tall phone; and a screen reader announced the
+ * glyph itself, so the control was read out as "left single angle quotation
+ * mark" instead of "Back".
+ *
+ * The label is optional and shown next to the chevron when present, which keeps
+ * the useful "‹ Devices" affordance without it being the only thing that makes
+ * the button findable.
+ */
+export function BackButton({
+  onPress,
+  label,
+  accessibilityLabel,
+}: {
+  onPress: () => void;
+  label?: string;
+  accessibilityLabel?: string;
+}) {
+  const { c } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? (label ? `Back to ${label}` : "Back")}
+      hitSlop={8}
+      style={({ pressed }) => [
+        hdr.back,
+        { opacity: pressed ? 0.55 : 1, paddingRight: label ? 12 : 0 },
+      ]}
+    >
+      <Icon name="back" size={24} color={c.textDim} />
+      {!!label && (
+        <Text style={{ color: c.textDim, fontSize: 16, marginLeft: 2 }} numberOfLines={1}>
+          {label}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+/**
+ * A round icon button for a screen header.
+ *
+ * `accessibilityLabel` is required rather than optional: an icon-only control
+ * with no label is invisible to a screen reader, and making it easy to omit is
+ * how every one of them ended up unlabelled.
+ */
+export function HeaderAction({
+  icon,
+  onPress,
+  accessibilityLabel,
+  tint,
+  selected,
+}: {
+  icon: IconName;
+  onPress: () => void;
+  accessibilityLabel: string;
+  tint?: string;
+  selected?: boolean;
+}) {
+  const { c } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={selected == null ? undefined : { selected }}
+      hitSlop={6}
+      style={({ pressed }) => [hdr.action, { opacity: pressed ? 0.55 : 1 }]}
+    >
+      <Icon name={icon} size={22} color={tint ?? c.textDim} />
+    </Pressable>
+  );
+}
+
+const hdr = StyleSheet.create({
+  // 44pt is the documented minimum comfortable target on both platforms, and
+  // these sit in the top corners where reach is worst.
+  back: { minHeight: 44, minWidth: 44, flexDirection: "row", alignItems: "center" },
+  action: { minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center" },
+});
+
+/* ------------------------------------------------------------ swipe back --- */
+
+/** How far in from the left edge a drag has to start to count as "go back". */
+const EDGE_WIDTH = 28;
+/** Fraction of the screen to cross before the release completes the dismissal. */
+const COMMIT_FRACTION = 0.32;
+/** A fast flick counts even if it never crossed that distance. */
+const COMMIT_VELOCITY = 0.4;
+
+/**
+ * Edge-swipe to go back, for iOS.
+ *
+ * Navigation in this app is hand-rolled state in Shell.tsx rather than a
+ * navigator, so nothing provided this for free. Android was fine because
+ * `useBackHandler` catches the hardware and gesture back the OS already sends;
+ * iOS has no such button and no system-wide equivalent, so every sub-screen was
+ * a dead end unless the user found the on-screen back arrow. That is the
+ * feature gap between the two platforms.
+ *
+ * Built on the core PanResponder rather than react-native-gesture-handler: this
+ * project has neither gesture-handler nor reanimated installed, and adding
+ * native modules to a bare workflow means another prebuild and another round of
+ * signing — a poor trade when the phone build has only just started working.
+ *
+ * Only armed for drags that BEGIN within EDGE_WIDTH of the left edge and are
+ * clearly horizontal. Anything looser would fight the horizontal ScrollViews on
+ * Home, the brightness and speed sliders on Control, and the camera viewport.
+ *
+ * Android is deliberately excluded: its own back gesture already reaches
+ * `useBackHandler`, and reacting to both would go back twice from one swipe.
+ */
+export function SwipeBack({
+  onBack,
+  enabled = true,
+  children,
+  style,
+}: {
+  onBack: () => void;
+  enabled?: boolean;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { width } = useWindowDimensions();
+  const tx = useRef(new Animated.Value(0)).current;
+  const active = Platform.OS === "ios" && enabled;
+
+  // Held in a ref so the responder callbacks, which are created once, always
+  // call the current handler rather than the one captured on first render.
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const widthRef = useRef(width);
+  widthRef.current = width;
+
+  const responder = useMemo(
+    () =>
+      PanResponder.create({
+        // Never claim the touch on start: that would swallow taps on anything
+        // sitting near the left edge.
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_e, g) => {
+          if (!activeRef.current) return false;
+          return (
+            g.x0 <= EDGE_WIDTH &&
+            g.dx > 6 &&
+            Math.abs(g.dx) > Math.abs(g.dy) * 1.5
+          );
+        },
+        // Once the gesture is ours, keep it. Otherwise a ScrollView underneath
+        // can take it back part-way through and the screen sticks half-open.
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderMove: (_e, g) => {
+          // Clamped at 0: dragging left must not lift the screen off the right
+          // edge and reveal whatever is behind it.
+          tx.setValue(Math.max(0, g.dx));
+        },
+        onPanResponderRelease: (_e, g) => {
+          const w = widthRef.current;
+          const commit = g.dx > w * COMMIT_FRACTION || g.vx > COMMIT_VELOCITY;
+          if (commit) {
+            Animated.timing(tx, {
+              toValue: w,
+              duration: 180,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }).start(() => {
+              tx.setValue(0);        // reset before unmount so a reused instance starts clean
+              onBackRef.current();
+            });
+          } else {
+            Animated.spring(tx, {
+              toValue: 0,
+              useNativeDriver: true,
+              bounciness: 0,
+              speed: 18,
+            }).start();
+          }
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(tx, { toValue: 0, useNativeDriver: true, bounciness: 0, speed: 18 }).start();
+        },
+      }),
+    [tx]
+  );
+
+  if (!active) return <View style={[{ flex: 1 }, style]}>{children}</View>;
+
+  return (
+    <Animated.View
+      style={[{ flex: 1, transform: [{ translateX: tx }] }, style]}
+      {...responder.panHandlers}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+
 interface CardProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -360,6 +569,27 @@ const LEGACY_GLYPH: Record<string, IconName> = {
   "🔄": "refresh",
 };
 
+/**
+ * Human wording for an icon-only button, used when the caller gives no label.
+ *
+ * The fallback before this was the icon's own name, which reads acceptably for
+ * "search" or "close" and badly for the rest — a screen reader announcing
+ * "chevron" tells the user what the picture is, not what the button does.
+ */
+const ICON_LABEL: Partial<Record<IconName, string>> = {
+  back: "Back",
+  chevron: "Open",
+  close: "Close",
+  search: "Search",
+  add: "Add",
+  bell: "Notifications",
+  settings: "Settings",
+  refresh: "Refresh",
+  edit: "Edit",
+  star: "Remove from favourites",
+  starOff: "Add to favourites",
+};
+
 export function IconButton({
   icon,
   glyph,
@@ -382,7 +612,7 @@ export function IconButton({
       onPress={() => { tapLight(); onPress(); }}
       hitSlop={10}
       accessibilityRole="button"
-      accessibilityLabel={label ?? (resolved ? resolved.replace(/-/g, " ") : undefined)}
+      accessibilityLabel={label ?? (resolved ? ICON_LABEL[resolved] ?? resolved.replace(/-/g, " ") : undefined)}
       android_ripple={{ color: c.borderHi, borderless: true, radius: 24 }}
       style={({ pressed }) => [
         {

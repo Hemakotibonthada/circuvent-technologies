@@ -6,8 +6,14 @@
 #   ./scripts/build-ios.sh              # simulator
 #   ./scripts/build-ios.sh --device     # a plugged-in iPhone (needed for Siri)
 #   ./scripts/build-ios.sh --personal   # sign with a FREE Apple ID
+#   ./scripts/build-ios.sh --dev        # Debug build, attached to Metro
 #   ./scripts/build-ios.sh --clean      # wipe ios/ and Pods first
 #   ./scripts/build-ios.sh --xcode      # prepare the project, then open Xcode
+#
+# Builds Release by default. A Debug build does not contain the JavaScript — it
+# streams it from the Metro server on this Mac — so it dies with "No bundle URL
+# present" the moment the phone is unplugged. Use --dev only when you want live
+# reload and are staying attached.
 #
 # --personal drops the three entitlements a free Apple ID cannot provision
 # (Access WiFi Information, Hotspot, Push Notifications). Without it Xcode
@@ -41,16 +47,35 @@ DEVICE=0
 CLEAN=0
 XCODE_ONLY=0
 PERSONAL=0
+DEV_BUILD=0
 for arg in "$@"; do
   case "$arg" in
     --device)   DEVICE=1 ;;
     --clean)    CLEAN=1 ;;
     --xcode)    XCODE_ONLY=1 ;;
     --personal) PERSONAL=1 ;;
-    -h|--help) sed -n '2,22p' "$SCRIPT"; exit 0 ;;
+    --dev)      DEV_BUILD=1 ;;
+    -h|--help) sed -n '2,26p' "$SCRIPT"; exit 0 ;;
     *) echo "Unknown option: $arg (try --help)"; exit 2 ;;
   esac
 done
+
+# A phone install is meant to be carried around, so it defaults to Release.
+#
+# A Debug build does not contain the JavaScript at all — it fetches it from the
+# Metro server on the development Mac every launch. Unplug the phone, or close
+# the terminal, and the app dies on open with:
+#
+#     No bundle URL present.
+#
+# which reads like a broken app rather than a build that was never meant to
+# leave the desk. Release runs the "Bundle React Native code and images" phase
+# and embeds main.jsbundle, so the app works on its own.
+if [ "$DEV_BUILD" -eq 1 ]; then
+  CONFIGURATION="Debug"
+else
+  CONFIGURATION="Release"
+fi
 
 if [ "$PERSONAL" -eq 1 ]; then
   # Read by app.config.js. Changing entitlements changes the generated project,
@@ -255,15 +280,46 @@ if [ "$PREFLIGHT_OK" -eq 1 ]; then
       fi
 
       if [ -n "$DEVICE_ID" ]; then
-        run "Building and installing on device" npx expo run:ios --device "$DEVICE_ID"
+        run "Building and installing on device" npx expo run:ios --device "$DEVICE_ID" --configuration "$CONFIGURATION"
       else
-        run "Building and installing on device" npx expo run:ios --device
+        run "Building and installing on device" npx expo run:ios --device --configuration "$CONFIGURATION"
       fi
     else
-      run "Building and launching in the simulator" npx expo run:ios
+      run "Building and launching in the simulator" npx expo run:ios --configuration "$CONFIGURATION"
     fi
   else
     note "Skipping the Xcode build because an earlier step failed."
+  fi
+fi
+
+# ------------------------------------------------------ bundle assertion ---
+#
+# A Release build is supposed to embed main.jsbundle. When the "Bundle React
+# Native code and images" phase is skipped or fails quietly, the build still
+# succeeds and installs — and the app then dies on launch with "No bundle URL
+# present", on the phone, away from the Mac, with a stack trace that points at
+# RCTFatal rather than at the build. Checking the artifact here turns that into
+# a build failure with a name.
+
+if [ -z "$FAILED_STEP" ] && [ "$XCODE_ONLY" -eq 0 ] && [ "$CONFIGURATION" = "Release" ]; then
+  say "Checking the JavaScript bundle is inside the app"
+  APP_PATH="$(find ios/build -type d -name '*.app' 2>/dev/null | grep -v '\.dSYM' | head -1)"
+  if [ -z "$APP_PATH" ]; then
+    APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -name 'Circuvent.app' 2>/dev/null | head -1)"
+  fi
+
+  if [ -z "$APP_PATH" ]; then
+    note "WARNING: could not locate the built .app, so the bundle was not verified."
+    note "  If the app shows 'No bundle URL present' on launch, that is why."
+  elif [ -f "$APP_PATH/main.jsbundle" ]; then
+    note "main.jsbundle present ($(du -h "$APP_PATH/main.jsbundle" | awk '{print $1}'))"
+  else
+    note "PROBLEM: no main.jsbundle in $(basename "$APP_PATH")."
+    note "  This build will fail on launch with 'No bundle URL present' as soon"
+    note "  as it cannot reach Metro on this Mac."
+    note "  The 'Bundle React Native code and images' build phase did not run."
+    note "  Try a clean rebuild:  ./scripts/build-ios.sh --device --clean"
+    FAILED_STEP="Checking the JavaScript bundle is inside the app"
   fi
 fi
 
@@ -276,6 +332,7 @@ ELAPSED=$(( $(date +%s) - START_TS ))
   echo "when     : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "duration : ${ELAPSED}s"
   echo "target   : $([ "$DEVICE" = 1 ] && echo 'physical device' || echo simulator)"
+  echo "config   : $CONFIGURATION$([ "$CONFIGURATION" = "Debug" ] && echo '  (needs Metro running — will not work unplugged)')"
   [ "$PERSONAL" = 1 ] && echo "signing  : personal team (Wi-Fi, Hotspot and Push entitlements removed)"
   if [ -z "$FAILED_STEP" ]; then
     echo "result   : SUCCESS"
@@ -315,8 +372,7 @@ ELAPSED=$(( $(date +%s) - START_TS ))
     # The single most confusing failure for anyone using a free Apple ID: Xcode
     # will not create a profile at all, and the message blames capabilities
     # rather than the account type.
-    if grep -qE "Personal development teams|do not support the Access WiFi|No profiles for" "$FULL" 2>/dev/null; then
-      echo
+    if grep -qE "Personal development teams|do not support the Access WiFi|No profiles for" "$FULL" 2>/dev/null; then      echo
       echo "--- free Apple ID detected ---"
       echo "A personal team cannot provision Access WiFi Information, Hotspot or"
       echo "Push Notifications, so Xcode refuses to make a profile at all."

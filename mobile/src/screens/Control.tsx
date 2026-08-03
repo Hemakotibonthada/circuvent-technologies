@@ -5,7 +5,7 @@ import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel } from "../ui";
+import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
 import { deviceMeta, type Palette } from "../theme";
 import { useSwitchWidgets } from "../widgets";
@@ -33,10 +33,16 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 52, paddingBottom: 40 }}>
         <View style={s.topBar}>
-          <Pressable onPress={onBack} hitSlop={8}><Text style={{ color: c.textDim, fontSize: 16 }}>‹ Devices</Text></Pressable>
-          <View style={{ flexDirection: "row", gap: 14 }}>
-            <Pressable onPress={() => patch(d.id, { favorite: !d.favorite })} hitSlop={8}><Text style={{ fontSize: 18 }}>{d.favorite ? "⭐" : "☆"}</Text></Pressable>
-            <Pressable onPress={rename} hitSlop={8}><Text style={{ color: c.textDim, fontSize: 16 }}>✎</Text></Pressable>
+          <BackButton onPress={onBack} label="Devices" />
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            <HeaderAction
+              icon={d.favorite ? "star" : "starOff"}
+              onPress={() => patch(d.id, { favorite: !d.favorite })}
+              accessibilityLabel={d.favorite ? "Remove from favourites" : "Add to favourites"}
+              tint={d.favorite ? c.amber : undefined}
+              selected={!!d.favorite}
+            />
+            <HeaderAction icon="edit" onPress={rename} accessibilityLabel="Rename device" />
           </View>
         </View>
 

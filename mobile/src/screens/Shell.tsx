@@ -3,7 +3,7 @@ import { View, Pressable, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
 import { Device } from "../api";
 import { useDevices } from "../store";
-import { useTheme, useBackHandler, useSafeArea } from "../ui";
+import { useTheme, useBackHandler, useSafeArea, SwipeBack } from "../ui";
 import { Icon, type IconName } from "../icons";
 import { tapLight } from "../haptics";
 import Home from "./Home";
@@ -51,20 +51,34 @@ export default function Shell() {
 
   // Android hardware/gesture back: dismiss an overlay, else return to Home,
   // else let the OS exit the app (prevents an accidental one-swipe exit).
-  useBackHandler(() => {
+  //
+  // goBack is shared with the iOS edge swipe below so the two can never drift
+  // into doing different things from the same intent.
+  const goBack = () => {
     if (overlay) { setOverlay(null); return true; }
     if (tab !== "home") { setTab("home"); return true; }
     return false;
-  });
+  };
+  useBackHandler(goBack);
 
-  if (overlay?.kind === "control") return <Control device={overlay.device} onBack={() => setOverlay(null)} onChangeWifi={(d) => setOverlay({ kind: "changewifi", device: d })} />;
-  if (overlay?.kind === "changewifi") return <ChangeWifi device={overlay.device} onBack={() => { setOverlay(null); refresh(); }} />;
-  if (overlay?.kind === "add") return <AddDevice onClose={(added) => { setOverlay(null); if (added) refresh(); }} />;
-  if (overlay?.kind === "notifications") return <Notifications onBack={() => setOverlay(null)} />;
-  if (overlay?.kind === "weather") return <Weather onBack={() => setOverlay(null)} />;
+  // iOS has no back button and no system back gesture, so without this every
+  // overlay is a dead end unless the on-screen arrow is found. `canGoBack`
+  // keeps the gesture inert on Home, where there is nowhere to go.
+  const canGoBack = overlay !== null || tab !== "home";
+  const swipe = (node: React.ReactNode) => (
+    <SwipeBack onBack={() => goBack()} enabled={canGoBack}>{node}</SwipeBack>
+  );
+
+  if (overlay?.kind === "control") return swipe(<Control device={overlay.device} onBack={() => setOverlay(null)} onChangeWifi={(d) => setOverlay({ kind: "changewifi", device: d })} />);
+  if (overlay?.kind === "changewifi") return swipe(<ChangeWifi device={overlay.device} onBack={() => { setOverlay(null); refresh(); }} />);
+  if (overlay?.kind === "add") return swipe(<AddDevice onClose={(added) => { setOverlay(null); if (added) refresh(); }} />);
+  if (overlay?.kind === "notifications") return swipe(<Notifications onBack={() => setOverlay(null)} />);
+  if (overlay?.kind === "weather") return swipe(<Weather onBack={() => setOverlay(null)} />);
+  // Kiosk is deliberately excluded: it is a wall-mounted display mode, and a
+  // stray swipe from someone walking past should not drop it back to the app.
   if (overlay?.kind === "kiosk") return <Kiosk onExit={() => setOverlay(null)} />;
   if (overlay?.kind === "search")
-    return (
+    return swipe(
       <CommandPalette
         onClose={() => setOverlay(null)}
         onOpenDevice={(d) => setOverlay({ kind: "control", device: d })}
@@ -81,7 +95,7 @@ export default function Shell() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <View style={{ flex: 1, paddingBottom: navSpace }}>
+      <SwipeBack onBack={() => goBack()} enabled={canGoBack} style={{ paddingBottom: navSpace }}>
         {tab === "home" && (
           <Home
             onOpenDevice={openControl}
@@ -108,7 +122,7 @@ export default function Shell() {
             onOpenDevices={() => setTab("devices")}
           />
         )}
-      </View>
+      </SwipeBack>
 
       <View style={[s.navWrap, { bottom: navBottom }]} pointerEvents="box-none">
         <Pressable
