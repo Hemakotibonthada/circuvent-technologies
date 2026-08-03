@@ -269,7 +269,60 @@ export function ListSkeleton({
   );
 }
 
-/* ------------------------------------------------------------ glow tiles --- */
+/* ------------------------------------------------------- neumorphism --- */
+
+/**
+ * Blends two hex colours. `t` of 0 returns `a`, 1 returns `b`.
+ *
+ * Used to derive neumorphic surface gradients from the palette's existing
+ * shadow pair, so a new accent or scheme needs no extra colours defined.
+ */
+function mixHex(a: string, b: string, t: number): string {
+  const parse = (h: string) => {
+    const s = h.replace("#", "");
+    const full = s.length === 3 ? s.split("").map((ch) => ch + ch).join("") : s;
+    return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)];
+  };
+  const [r1, g1, b1] = parse(a);
+  const [r2, g2, b2] = parse(b);
+  const k = Math.max(0, Math.min(1, t));
+  const to2 = (n: number) => Math.round(n).toString(16).padStart(2, "0");
+  return `#${to2(r1 + (r2 - r1) * k)}${to2(g1 + (g2 - g1) * k)}${to2(b1 + (b2 - b1) * k)}`;
+}
+
+/**
+ * The surface gradient that gives an Android neumorphic card its curve.
+ *
+ * WHY ANDROID NEEDS THIS AND iOS DOES NOT
+ *
+ * Neumorphism is two shadows: a light one up and to the left, a dark one down
+ * and to the right. Together they read as a surface extruded from the
+ * background. iOS renders arbitrary `shadowColor` and `shadowOffset`, so
+ * nesting two views produces both.
+ *
+ * Android has only `elevation`, which draws a single shadow, downward, and
+ * cannot be light. The previous fallback substituted a 1px border for the
+ * highlight — so Android got one grey drop shadow and a flat outline, with none
+ * of the extrusion. That is the difference in depth between the platforms.
+ *
+ * Android does render gradients well, and the illusion does not actually depend
+ * on shadows: it depends on the surface being lit from one corner. A diagonal
+ * gradient across the card face — lighter at the top-left, darker at the
+ * bottom-right — produces the same read, and pairs with `elevation` for the
+ * cast shadow underneath.
+ *
+ * Kept subtle on purpose. Neumorphism fails in both directions: too flat and it
+ * is invisible, too strong and every card looks like a button.
+ */
+function neoSurface(c: Palette): readonly [string, string, string] {
+  return [
+    mixHex(c.surface, c.neoLight, 0.55),
+    c.surface,
+    mixHex(c.surface, c.neoDark, 0.4),
+  ] as const;
+}
+
+
 
 /**
  * A circular, glowing icon button.
@@ -898,6 +951,44 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
   }
 
   if (c.isNeo) {
+    // iOS gets the real thing: two shadows, light from the top-left and dark
+    // from the bottom-right, on nested views.
+    if (Platform.OS === "ios") {
+      return (
+        <Wrapper style={style}>
+          <View
+            style={{
+              borderRadius: radius,
+              backgroundColor: c.surface,
+              shadowColor: c.neoDark,
+              shadowOffset: { width: 5, height: 5 },
+              shadowOpacity: 1,
+              shadowRadius: 8,
+            }}
+          >
+            <View
+              style={{
+                borderRadius: radius,
+                backgroundColor: c.surface,
+                padding: pad,
+                shadowColor: c.neoLight,
+                shadowOffset: { width: -5, height: -5 },
+                shadowOpacity: 1,
+                shadowRadius: 8,
+              }}
+            >
+              {children}
+            </View>
+          </View>
+        </Wrapper>
+      );
+    }
+
+    // Android cannot draw a light shadow at all — `elevation` is one dark
+    // shadow, downward. The extrusion is faked with a diagonal surface
+    // gradient instead, which Android renders well, plus a hairline highlight
+    // along the top edge where the light would catch. See neoSurface().
+    const grad = neoSurface(c);
     return (
       <Wrapper style={style}>
         <View
@@ -905,24 +996,28 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
             borderRadius: radius,
             backgroundColor: c.surface,
             shadowColor: c.neoDark,
-            shadowOffset: { width: 5, height: 5 },
-            shadowOpacity: 1,
-            shadowRadius: 8,
-            elevation: 5,
+            elevation: 6,
           }}
         >
-          <View
+          <LinearGradient
+            colors={grad}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            // 0.45 rather than 0.5 puts the mid stop slightly early, so the lit
+            // face is a little larger than the shaded one — which is what a
+            // rounded surface under a top-left light actually looks like.
+            locations={[0, 0.45, 1]}
             style={{
               borderRadius: radius,
-              backgroundColor: c.surface,
               padding: pad,
-              ...(Platform.OS === "ios"
-                ? { shadowColor: c.neoLight, shadowOffset: { width: -5, height: -5 }, shadowOpacity: 1, shadowRadius: 8 }
-                : { borderWidth: 1, borderColor: c.borderHi }),
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderLeftWidth: StyleSheet.hairlineWidth,
+              borderTopColor: mixHex(c.surface, c.neoLight, 0.8),
+              borderLeftColor: mixHex(c.surface, c.neoLight, 0.55),
             }}
           >
             {children}
-          </View>
+          </LinearGradient>
         </View>
       </Wrapper>
     );
@@ -969,10 +1064,25 @@ export function PrimaryButton({
   );
   const fire = () => { tapLight(); onPress(); };
   if (c.isNeo) {
+    // Same platform split as Card: iOS can offset a coloured shadow to make the
+    // button look raised; Android cannot, so the raise comes from a diagonal
+    // gradient over the accent plus a lit top edge.
+    const raised =
+      Platform.OS === "ios"
+        ? { shadowColor: c.neoDark, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.6, shadowRadius: 7 }
+        : { elevation: 5, shadowColor: c.neoDark };
     return (
       <Pressable onPress={disabled || busy ? undefined : fire} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityState={{ disabled: !!disabled, busy: !!busy }} style={({ pressed }) => [{ opacity: disabled ? 0.5 : 1 }, style]}>
-        <Animated.View style={{ transform: [{ scale: press.scale }], borderRadius: RADIUS.control, backgroundColor: c.accent, paddingVertical: 16, alignItems: "center", justifyContent: "center", minHeight: 52, shadowColor: c.neoDark, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.6, shadowRadius: 7, elevation: 4 }}>
-          {content}
+        <Animated.View style={{ transform: [{ scale: press.scale }], borderRadius: RADIUS.control, overflow: "hidden", ...raised }}>
+          <LinearGradient
+            colors={[mixHex(c.accent, "#ffffff", 0.22), c.accent, mixHex(c.accent, "#000000", 0.18)]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            locations={[0, 0.45, 1]}
+            style={{ paddingVertical: 16, alignItems: "center", justifyContent: "center", minHeight: 52 }}
+          >
+            {content}
+          </LinearGradient>
         </Animated.View>
       </Pressable>
     );

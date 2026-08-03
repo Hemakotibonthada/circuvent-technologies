@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api, Device } from "./api";
+import { projectCommand } from "./command-map";
 import { useLive, refreshLiveSubscription } from "./live";
 
 interface DevicesCtx {
@@ -76,9 +77,13 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
     setDevices((prev) =>
       prev.map((d) => {
         if (d.id !== id) return d;
-        const next = { ...d.state };
-        for (const [k, v] of Object.entries(cmd)) if (k !== "action") next[k] = v;
-        return { ...d, state: next };
+        // Projected rather than merged. A raw merge wrote the command's own
+        // addressing into state — a Home Hub's { ch, on } became state.ch and
+        // state.on while `power` never moved, so the switch snapped back and
+        // stayed wrong until the device echoed. See command-map.ts.
+        const patch = projectCommand(d.type, cmd, d.state);
+        if (!Object.keys(patch).length) return d;
+        return { ...d, state: { ...d.state, ...patch } };
       })
     );
     api.command(id, cmd);
