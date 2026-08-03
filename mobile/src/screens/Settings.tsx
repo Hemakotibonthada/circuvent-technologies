@@ -13,7 +13,12 @@ const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = 
   { key: "glass", label: "Glass", sub: "Frosted glassmorphism", icon: "glass" },
   { key: "aurora", label: "Aurora", sub: "Signature gradient", icon: "aurora" },
   { key: "neo", label: "Neo", sub: "Soft neumorphism", icon: "neo" },
+  { key: "oled", label: "OLED", sub: "True black · saves battery", icon: "oled" },
+  { key: "neon", label: "Neon", sub: "Glowing tiles on violet", icon: "neon" },
 ];
+
+/** Themes that only exist in the dark. A "light OLED" is a contradiction. */
+const DARK_ONLY: ThemeMode[] = ["oled", "neon"];
 
 export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onKiosk?: () => void }) {
   const { c, mode, scheme, accentKey, setMode, setScheme, setAccentKey } = useTheme();
@@ -78,6 +83,17 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
         </View>
 
         <SectionLabel>Mode</SectionLabel>
+        {DARK_ONLY.includes(mode) ? (
+          // Hidden rather than disabled: OLED and Neon are defined only in the
+          // dark, and leaving a light/dark switch on screen that silently does
+          // nothing is worse than not offering it.
+          <Card padded style={{ marginBottom: 16 }}>
+            <Text style={{ color: c.textDim, fontSize: 13 }}>
+              {MODES.find((m) => m.key === mode)?.label} is a dark-only theme. Pick Glass, Aurora or Neo
+              for a light mode.
+            </Text>
+          </Card>
+        ) : (
         <Card padded style={{ marginBottom: 16 }}>
           <View style={s.segRow}>
             {(["dark", "light"] as const).map((sc) => {
@@ -98,6 +114,7 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
             })}
           </View>
         </Card>
+        )}
 
         <SectionLabel>Feedback</SectionLabel>
         <Card padded style={{ marginBottom: 16 }}>

@@ -13,7 +13,7 @@ export const C = {
   borderHi: "rgba(255,255,255,0.12)",
   text: "#eef1f8",
   textDim: "#9aa6c0",
-  faint: "#64748b",
+  faint: "#7c8aa5",
   cyan: "#06b6d4",
   cyanHi: "#22d3ee",
   violet: "#8b5cf6",
@@ -206,7 +206,7 @@ export const statusBarStyle = () => StatusBar.setBarStyle("light-content");
 // plus a light/dark scheme (where meaningful) and an accent-color preset.
 // ---------------------------------------------------------------------------
 
-export type ThemeMode = "aurora" | "glass" | "neo";
+export type ThemeMode = "aurora" | "glass" | "neo" | "oled" | "neon";
 export type Scheme = "dark" | "light";
 
 export interface Accent {
@@ -280,14 +280,57 @@ export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string)
     isNeo: mode === "neo",
   };
 
-  if (mode === "neo") {
-    if (scheme === "light") {
+  /*
+   * OLED — the black-card dashboards in the references.
+   *
+   * True black rather than a dark navy: on an OLED panel those pixels are off,
+   * which is both the look and a real power saving on a phone that sits on a
+   * wall dock all day. Dark-only by design — a "light OLED" is a contradiction,
+   * and the scheme toggle is hidden for it rather than quietly ignored.
+   *
+   * Text at #f8fafc on #000 is far past WCAG AAA, which matters here because
+   * this is the theme people will use in a dark room at 3am.
+   */
+  if (mode === "oled") {
+    return {
+      ...base, mode, scheme: "dark",
+      screenGrad: ["#000000", "#050505"],
+      bg: "#000000", surface: "#0c0c0f", surfaceHi: "#141419", card: "#0c0c0f", cardHi: "#16161c",
+      border: "rgba(255,255,255,0.08)", borderHi: "rgba(255,255,255,0.16)",
+      text: "#f8fafc", textDim: "#a1a1aa", faint: "#7e7e8a",
+      onAccent: "#ffffff", neoLight: "#1a1a20", neoDark: "#000000",
+      glassTint: "dark", glassFill: "rgba(255,255,255,0.04)", glassBorder: "rgba(255,255,255,0.1)",
+    };
+  }
+
+  /*
+   * Neon — the glowing-tile dashboards in the references.
+   *
+   * A deep violet-black ground so the accent halos on tiles have something to
+   * bloom against; on pure black a glow has no midtone to fall off through and
+   * reads as a hard ring instead. Text stays near-white rather than tinted,
+   * because coloured text on a coloured ground is where neon designs usually
+   * lose their contrast.
+   */
+  if (mode === "neon") {
+    return {
+      ...base, mode, scheme: "dark",
+      screenGrad: ["#0b0718", "#170c31"],
+      bg: "#0b0718", surface: "#16102b", surfaceHi: "#1e1640", card: "#16102b", cardHi: "#1e1640",
+      border: "rgba(168,132,255,0.22)", borderHi: "rgba(168,132,255,0.4)",
+      text: "#f4f1ff", textDim: "#b3a9d9", faint: "#8d84b8",
+      onAccent: "#ffffff", neoLight: "#241a4a", neoDark: "#08040f",
+      glassTint: "dark", glassFill: "rgba(168,132,255,0.08)", glassBorder: "rgba(168,132,255,0.3)",
+    };
+  }
+
+  if (mode === "neo") {    if (scheme === "light") {
       return {
         ...base, mode, scheme,
         screenGrad: ["#e8ebf3", "#dfe3ee"],
         bg: "#e6e9f2", surface: "#e6e9f2", surfaceHi: "#eef1f8", card: "#e6e9f2", cardHi: "#eef1f8",
         border: "rgba(255,255,255,0.7)", borderHi: "rgba(255,255,255,0.9)",
-        text: "#2a3350", textDim: "#5b6488", faint: "#8b93ad",
+        text: "#2a3350", textDim: "#5b6488", faint: "#5f6784",
         onAccent: "#ffffff", neoLight: "#ffffff", neoDark: "#c3c9da",
         glassTint: "light", glassFill: "rgba(255,255,255,0.5)", glassBorder: "rgba(255,255,255,0.7)",
       };
@@ -297,7 +340,7 @@ export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string)
       screenGrad: ["#232a3d", "#1c2233"],
       bg: "#20263a", surface: "#20263a", surfaceHi: "#262d45", card: "#20263a", cardHi: "#262d45",
       border: "rgba(255,255,255,0.05)", borderHi: "rgba(255,255,255,0.1)",
-      text: "#e7ecff", textDim: "#9aa6c8", faint: "#6b76a0",
+      text: "#e7ecff", textDim: "#9aa6c8", faint: "#868fbb",
       onAccent: "#ffffff", neoLight: "#2b3350", neoDark: "#141a2b",
       glassTint: "dark", glassFill: "rgba(255,255,255,0.06)", glassBorder: "rgba(255,255,255,0.12)",
     };
@@ -311,7 +354,7 @@ export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string)
         bg: "#eef2ff", surface: "rgba(255,255,255,0.5)", surfaceHi: "rgba(255,255,255,0.62)",
         card: "rgba(255,255,255,0.5)", cardHi: "rgba(255,255,255,0.62)",
         border: "rgba(255,255,255,0.6)", borderHi: "rgba(255,255,255,0.85)",
-        text: "#0b1020", textDim: "#33405e", faint: "#64748b",
+        text: "#0b1020", textDim: "#33405e", faint: "#7c8aa5",
         onAccent: "#ffffff", neoLight: "#ffffff", neoDark: "#c3c9da",
         glassTint: "light", glassFill: "rgba(255,255,255,0.35)", glassBorder: "rgba(255,255,255,0.6)",
       };
@@ -335,7 +378,7 @@ export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string)
       screenGrad: ["#f6f8ff", "#eef2fb"],
       bg: "#f3f6ff", surface: "#ffffff", surfaceHi: "#ffffff", card: "#ffffff", cardHi: "#f7f9ff",
       border: "rgba(15,23,42,0.08)", borderHi: "rgba(15,23,42,0.14)",
-      text: "#0b1020", textDim: "#475569", faint: "#94a3b8",
+      text: "#0b1020", textDim: "#475569", faint: "#6b7280",
       onAccent: "#ffffff", neoLight: "#ffffff", neoDark: "#c3c9da",
       glassTint: "light", glassFill: "rgba(255,255,255,0.6)", glassBorder: "rgba(255,255,255,0.8)",
     };
@@ -345,7 +388,7 @@ export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string)
     screenGrad: ["#0b1024", "#090d1f"],
     bg: "#090d1f", surface: "#131a30", surfaceHi: "#1c2547", card: "#161d38", cardHi: "#1c2547",
     border: "rgba(255,255,255,0.06)", borderHi: "rgba(255,255,255,0.12)",
-    text: "#eef1f8", textDim: "#9aa6c0", faint: "#64748b",
+    text: "#eef1f8", textDim: "#9aa6c0", faint: "#7c8aa5",
     onAccent: "#ffffff", neoLight: "#2b3350", neoDark: "#141a2b",
     glassTint: "dark", glassFill: "rgba(255,255,255,0.06)", glassBorder: "rgba(255,255,255,0.12)",
   };

@@ -113,6 +113,8 @@ export const ICONS = {
   aurora: mci("gradient-vertical"),
   glass: mci("cube-outline"),
   neo: mci("circle-opacity"),
+  oled: mci("contrast-circle"),
+  neon: mci("led-on"),
   moon: mci("weather-night"),
   sun: mci("white-balance-sunny"),
   vibrate: mci("vibrate"),
