@@ -300,9 +300,35 @@ fi
 if [ -z "$FAILED_STEP" ] && [ -d android ]; then
   export ANDROID_HOME="$SDK"
   export ANDROID_SDK_ROOT="$SDK"
-  printf 'sdk.dir=%s\n' "$SDK" > android/local.properties
+  # Escaped before writing. local.properties is a Java properties file, where a
+  # backslash starts an escape sequence — so a Windows SDK path written raw is
+  # silently misread and Gradle fails with "The filename, directory name, or
+  # volume label syntax is incorrect", which sounds like a broken SDK rather
+  # than a quoting bug. A macOS path contains neither character, so this is a
+  # no-op there.
+  printf 'sdk.dir=%s\n' "$(printf '%s' "$SDK" | sed -e 's/\\/\\\\/g' -e 's/:/\\:/g')" > android/local.properties
 
   if [ "$DEBUG_BUILD" -eq 0 ] && [ -f "$KEYPROPS" ]; then
+    # The keystore is copied next to the module and referenced by bare
+    # filename, which is what the React Native template already does for
+    # debug.keystore.
+    #
+    # Passing a path instead does not survive contact with Gradle: `file()`
+    # resolves anything it does not consider absolute against android/app, so a
+    # Git-bash style /c/... path became
+    # android/app/c/cvbuild/credentials/... and the build failed at
+    # validateSigningRelease. A bare filename has no such ambiguity on either
+    # platform. android/ is generated and git-ignored, so the key does not
+    # enter the tracked tree.
+    SRC_KEYSTORE="$(grep '^CV_UPLOAD_STORE_FILE=' "$KEYPROPS" | cut -d= -f2-)"
+    if [ -f "$SRC_KEYSTORE" ]; then
+      cp "$SRC_KEYSTORE" "android/app/$(basename "$SRC_KEYSTORE")"
+    else
+      note "PROBLEM: keystore named in upload-keystore.properties does not exist:"
+      note "  $SRC_KEYSTORE"
+      FAILED_STEP="Preparing the signing keystore"
+    fi
+
     # Rewritten rather than appended. `expo prebuild` reuses an existing
     # android/, so a plain >> stacked another copy of every property on each
     # run — Gradle takes the last one so it still worked, which is exactly why
@@ -311,7 +337,9 @@ if [ -z "$FAILED_STEP" ] && [ -d android ]; then
       grep -v '^CV_UPLOAD_' android/gradle.properties > android/gradle.properties.tmp \
         && mv android/gradle.properties.tmp android/gradle.properties
     fi
-    grep -v '^#' "$KEYPROPS" | grep -v '^[[:space:]]*$' >> android/gradle.properties
+    grep -v '^#' "$KEYPROPS" | grep -v '^[[:space:]]*$' \
+      | sed "s|^CV_UPLOAD_STORE_FILE=.*|CV_UPLOAD_STORE_FILE=$(basename "$SRC_KEYSTORE")|" \
+      >> android/gradle.properties
     note "Signing properties written into android/gradle.properties (generated, git-ignored)."
   fi
 fi
@@ -350,8 +378,7 @@ fi
 # a local failure.
 
 SIGNER=""
-if [ "$DEBUG_BUILD" -eq 0 ] && [ -z "$FAILED_STEP" ]; then
-  CHECK_TARGET=""
+if [ "$DEBUG_BUILD" -eq 0 ] && [ -z "$FAILED_STEP" ]; then  CHECK_TARGET=""
   [ -n "$AAB_PATH" ] && [ -f "$AAB_PATH" ] && CHECK_TARGET="$AAB_PATH"
   [ -z "$CHECK_TARGET" ] && [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ] && CHECK_TARGET="$APK_PATH"
 
@@ -374,8 +401,38 @@ fi
 
 # ---------------------------------------------------------------- install ---
 
-if [ "$INSTALL" -eq 1 ] && [ -z "$FAILED_STEP" ] && [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
-  if command -v adb >/dev/null 2>&1; then
+# ------------------------------------------------------ bundle assertion ---
+#
+# The Android counterpart of the iOS "No bundle URL present" crash. A release
+# APK is supposed to carry the JavaScript at assets/index.android.bundle; when
+# the bundling task is skipped the build still succeeds and still installs, and
+# the app dies on launch on someone else's phone. Reading it out of the archive
+# is cheap and removes the guesswork.
+
+if [ -z "$FAILED_STEP" ] && [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+  say "Checking the JavaScript bundle is inside the app"
+  if ! command -v unzip >/dev/null 2>&1; then
+    note "WARNING: unzip not available, so the bundle was not verified."
+  else
+    # Listed into a variable first, then searched. Piping straight into `grep -q`
+    # makes grep exit on the first match, unzip die of SIGPIPE, and — because
+    # pipefail is set — the pipeline report failure on a perfectly good APK.
+    # This is the same trap that made the iOS script call a working Xcode
+    # "missing"; it is easy to write and gives a confident wrong answer.
+    APK_LIST="$(unzip -l "$APK_PATH" 2>/dev/null || true)"
+    BUNDLE_LINE="$(printf '%s\n' "$APK_LIST" | grep 'assets/index\.android\.bundle' || true)"
+    if [ -n "$BUNDLE_LINE" ]; then
+      note "index.android.bundle present ($(printf '%s' "$BUNDLE_LINE" | awk '{print int($1/1024)}') KB)"
+    else
+      note "PROBLEM: no assets/index.android.bundle in the APK."
+      note "  This build will crash on launch as soon as it cannot reach Metro."
+      note "  Try a clean rebuild:  ./scripts/build-android.sh --clean"
+      FAILED_STEP="Checking the JavaScript bundle is inside the app"
+    fi
+  fi
+fi
+
+if [ "$INSTALL" -eq 1 ] && [ -z "$FAILED_STEP" ] && [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then  if command -v adb >/dev/null 2>&1; then
     DEVICES="$(adb devices | awk 'NR>1 && $2=="device" {print $1}')"
     COUNT="$(printf '%s\n' "$DEVICES" | grep -c . || true)"
     if [ "${COUNT:-0}" -ge 1 ]; then
