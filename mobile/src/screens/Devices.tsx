@@ -3,7 +3,7 @@ import { View, Text, FlatList, Pressable, TextInput, Switch, RefreshControl, Sty
 import { LinearGradient } from "expo-linear-gradient";
 import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse } from "../ui";
+import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse, RoomChips } from "../ui";
 import { GRAD, deviceMeta } from "../theme";
 import { Icon } from "../icons";
 import { toggleFeedback } from "../haptics";
@@ -13,12 +13,28 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
   const { devices, loading, refresh, toggle, patch } = useDevices();
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState("");
+  const [roomIdx, setRoomIdx] = useState(0);
+
+  // "All" first, then every room that actually has a device. Derived rather
+  // than configured, so a room appears the moment something is put in it and
+  // disappears when the last device leaves.
+  const rooms = useMemo(() => {
+    const found = [...new Set(devices.map((d) => d.room).filter((r): r is string => !!r))].sort();
+    return ["All", ...found];
+  }, [devices]);
+
+  // A room can vanish while it is selected (last device moved out), which would
+  // otherwise leave the list filtered to a room that no longer exists.
+  const room = rooms[Math.min(roomIdx, rooms.length - 1)] ?? "All";
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return devices;
-    return devices.filter((d) => (d.name || d.id).toLowerCase().includes(s) || d.type.includes(s) || (d.room || "").toLowerCase().includes(s));
-  }, [devices, q]);
+    let list = room === "All" ? devices : devices.filter((d) => d.room === room);
+    if (s) {
+      list = list.filter((d) => (d.name || d.id).toLowerCase().includes(s) || d.type.includes(s) || (d.room || "").toLowerCase().includes(s));
+    }
+    return list;
+  }, [devices, q, room]);
 
   const online = devices.filter((d) => d.online).length;
 
@@ -46,6 +62,11 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
           <TextInput value={q} onChangeText={setQ} placeholder="Search devices, rooms…" placeholderTextColor={c.faint} style={{ flex: 1, color: c.text, paddingVertical: 8 }} autoCorrect={false} />
           {q ? <Pressable onPress={() => setQ("")}><Text style={{ color: c.faint }}>✕</Text></Pressable> : null}
         </View>
+        {rooms.length > 1 && (
+          <View style={{ marginBottom: 10 }}>
+            <RoomChips options={rooms} value={Math.min(roomIdx, rooms.length - 1)} onChange={setRoomIdx} />
+          </View>
+        )}
       </View>
 
       <FlatList
@@ -68,8 +89,10 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
           ) : (
             <View style={{ alignItems: "center", paddingVertical: 50 }}>
               <Text style={{ fontSize: 40 }}>📡</Text>
-              <Text style={{ color: c.textDim, marginTop: 12 }}>{q ? "No matches" : "No devices yet"}</Text>
-              {!q && <Pressable onPress={onAdd} style={{ marginTop: 16 }}><LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 12, paddingVertical: 13, paddingHorizontal: 24 }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>＋ Add your first device</Text></LinearGradient></Pressable>}
+              <Text style={{ color: c.textDim, marginTop: 12 }}>
+                {q ? "No matches" : room !== "All" ? `Nothing in ${room} yet` : "No devices yet"}
+              </Text>
+              {!q && room === "All" && <Pressable onPress={onAdd} style={{ marginTop: 16 }}><LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 12, paddingVertical: 13, paddingHorizontal: 24 }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>＋ Add your first device</Text></LinearGradient></Pressable>}
             </View>
           )
         }

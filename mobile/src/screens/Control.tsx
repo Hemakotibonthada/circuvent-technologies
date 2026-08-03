@@ -5,7 +5,7 @@ import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse } from "../ui";
+import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
 import { deviceMeta, type Palette } from "../theme";
 import { useSwitchWidgets, CHANNEL_KINDS, channelKind, type Gang } from "../widgets";
@@ -150,12 +150,29 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
         </Card>
       )}
       {cap.dimmer && (
-        <Card padded style={{ marginBottom: 10 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <Text style={{ color: c.text, fontSize: 16 }}>{cap.dimmer.label}</Text>
-            <Text style={{ color: c.accent, fontWeight: "800" }}>{Number(d.state[cap.dimmer.field] ?? 0)}%</Text>
+        <Card padded style={{ marginBottom: 10, alignItems: "center" }}>
+          {/* The dial is the primary control — it is the one thing on this
+              screen people came to change, and a 240pt target beats a 4pt
+              slider track. The slider stays underneath for fine adjustment. */}
+          <ArcGauge
+            value={Number(d.state[cap.dimmer.field] ?? 0)}
+            min={cap.dimmer.min}
+            max={cap.dimmer.max}
+            unit="%"
+            caption={cap.dimmer.label}
+            size={230}
+            onChange={(v) => send({ [cap.dimmer!.field]: Math.round(v) })}
+          />
+          <View style={{ width: "100%", marginTop: 14 }}>
+            <PresetRow
+              values={[25, 50, 75, 100]}
+              current={Number(d.state[cap.dimmer.field] ?? 0)}
+              onPick={(v) => send({ [cap.dimmer!.field]: v })}
+              accent={c.accent}
+            />
           </View>
           <Slider
+            style={{ width: "100%", marginTop: 6 }}
             minimumValue={cap.dimmer.min} maximumValue={cap.dimmer.max} step={1}
             value={Number(d.state[cap.dimmer.field] ?? 0)}
             onSlidingComplete={(v) => { tapLight(); send({ [cap.dimmer!.field]: Math.round(v) }); }}
@@ -419,6 +436,34 @@ function SwitchGangs({ d, send, c, sendFor }: { d: Device; send: (p: Record<stri
       ) : (
         <View>
           {visible.length === 0 && <Text style={{ color: c.faint }}>All channels hidden. Tap Customize to show some.</Text>}
+
+          {/* Quick row: every channel as a glowing tile, the shape the whole
+              board can be read from at a glance. Duplicating the toggles below
+              is the point — this is for "turn the fan on" without reading, the
+              list below is for knowing which is which. */}
+          {visible.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6, paddingVertical: 6, paddingRight: 8 }}
+              style={{ marginBottom: 6 }}
+            >
+              {visible.map((g) => {
+                const km = channelKind(g.kind);
+                return (
+                  <GlowTile
+                    key={g.field}
+                    icon={km.icon}
+                    label={g.label}
+                    on={!!d.state[g.field]}
+                    accent={km.accent}
+                    onPress={() => emit(g.field, !d.state[g.field])}
+                  />
+                );
+              })}
+            </ScrollView>
+          )}
+
           {visible.map((g) => (
             <ChannelTile
               key={g.field}

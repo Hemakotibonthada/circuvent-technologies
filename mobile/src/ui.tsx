@@ -269,6 +269,140 @@ export function ListSkeleton({
   );
 }
 
+/* ------------------------------------------------------------ glow tiles --- */
+
+/**
+ * A circular, glowing icon button.
+ *
+ * The shape the reference designs lean on: a ring of these, one per light or
+ * per device, where the lit one is unmistakable from across a room. It reads
+ * faster than a list because state is carried by the whole shape — fill, ring,
+ * halo — rather than by a small switch at the edge.
+ */
+export function GlowTile({
+  icon,
+  label,
+  sub,
+  on,
+  accent,
+  onPress,
+  size = 62,
+  disabled,
+}: {
+  icon: IconName;
+  label?: string;
+  sub?: string;
+  on: boolean;
+  accent: string;
+  onPress: () => void;
+  size?: number;
+  disabled?: boolean;
+}) {
+  const { c } = useTheme();
+  return (
+    <View style={{ alignItems: "center", width: size + 18 }}>
+      <Pressable
+        onPress={() => { if (!disabled) { toggleFeedback(!on); onPress(); } }}
+        disabled={disabled}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: on, disabled: !!disabled }}
+        accessibilityLabel={`${label ?? "Device"}, ${on ? "on" : "off"}`}
+        style={({ pressed }) => [
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 2,
+            borderColor: on ? accent : c.border,
+            backgroundColor: on ? accent + "26" : c.card,
+            // The halo is what makes a lit tile read as lit rather than merely
+            // selected. Android needs elevation for any shadow at all.
+            shadowColor: accent,
+            shadowOpacity: on ? 0.6 : 0,
+            shadowRadius: 14,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: on ? 8 : 0,
+            opacity: pressed ? 0.75 : disabled ? 0.45 : 1,
+            transform: [{ scale: pressed ? 0.94 : 1 }],
+          },
+        ]}
+      >
+        <Icon name={icon} size={size * 0.42} color={on ? accent : c.faint} />
+      </Pressable>
+      {!!label && (
+        <Text numberOfLines={1} style={{ color: on ? c.text : c.textDim, fontSize: 12, fontWeight: "700", marginTop: 7 }}>
+          {label}
+        </Text>
+      )}
+      {!!sub && (
+        <Text numberOfLines={1} style={{ color: c.faint, fontSize: 10, marginTop: 1 }}>{sub}</Text>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Preset percentages for a dimmable output.
+ *
+ * A slider is precise and slow. Almost every real adjustment is one of a
+ * handful of levels, so those get one tap each and the slider stays underneath
+ * for the times it genuinely matters.
+ */
+export function PresetRow({
+  values,
+  current,
+  onPick,
+  accent,
+  suffix = "%",
+}: {
+  values: number[];
+  current: number;
+  onPick: (v: number) => void;
+  accent: string;
+  suffix?: string;
+}) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      {values.map((v) => {
+        // Nearest-preset highlighting: an exact match almost never happens once
+        // the slider has been touched, and highlighting nothing looks broken.
+        const sel = values.reduce((best, x) => (Math.abs(x - current) < Math.abs(best - current) ? x : best), values[0]) === v;
+        return (
+          <Pressable
+            key={v}
+            onPress={() => { tapLight(); onPick(v); }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: sel }}
+            accessibilityLabel={`Set to ${v}${suffix}`}
+            style={({ pressed }) => [
+              {
+                flex: 1,
+                minHeight: 46,
+                borderRadius: 14,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: sel ? accent : c.border,
+                backgroundColor: sel ? accent + "22" : c.card,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: sel ? accent : c.textDim, fontWeight: sel ? "800" : "600", fontSize: 14 }}>
+              {v}{suffix}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Room filter chips already exist further down as `RoomChips` (index-based). */
+
 /* ------------------------------------------------------- device motion --- */
 
 /**
