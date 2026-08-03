@@ -1,4 +1,5 @@
 const { withEntitlementsPlist } = require("expo/config-plugins");
+const withAndroidSigning = require("./plugins/withAndroidSigning");
 
 /**
  * Dynamic Expo config.
@@ -46,17 +47,24 @@ function withoutPersonalTeamBlockers(config) {
 }
 
 module.exports = ({ config }) => {
-  if (process.env.CV_PERSONAL_TEAM !== "1") return config;
+  // Applied unconditionally: it only adds a signing config that activates when
+  // upload credentials are present, so a plain `expo run:android` is unchanged.
+  // Without it `expo prebuild` emits a release build signed with React Native's
+  // published debug key, which Google Play rejects after the upload rather than
+  // at build time.
+  const base = withAndroidSigning(config);
+
+  if (process.env.CV_PERSONAL_TEAM !== "1") return base;
 
   // A free Apple ID cannot claim an identifier another team has registered.
   // Overridable so two people can each build on their own account.
   const bundleIdentifier =
-    process.env.CV_BUNDLE_ID || config.ios?.bundleIdentifier || "com.circuvent.app";
+    process.env.CV_BUNDLE_ID || base.ios?.bundleIdentifier || "com.circuvent.app";
 
   const personal = {
-    ...config,
+    ...base,
     ios: {
-      ...config.ios,
+      ...base.ios,
       bundleIdentifier,
     },
   };
