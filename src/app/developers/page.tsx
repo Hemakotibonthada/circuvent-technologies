@@ -49,6 +49,9 @@ const ENDPOINTS: { method: string; path: string; scope: string; desc: string }[]
   { method: "GET", path: "/v1/scenes", scope: "scenes:read", desc: "Scenes and the actions they perform." },
   { method: "POST", path: "/v1/scenes/{id}/activate", scope: "scenes:run", desc: "Run a scene. Returns how many commands went out." },
   { method: "GET", path: "/v1/automations", scope: "automations:read", desc: "Automation rules with their triggers and actions." },
+  { method: "POST", path: "/v1/automations", scope: "automations:write", desc: "Create a rule. Every device it names must be in your account." },
+  { method: "PATCH", path: "/v1/automations/{id}", scope: "automations:write", desc: "Update or enable/disable a rule." },
+  { method: "DELETE", path: "/v1/automations/{id}", scope: "automations:write", desc: "Delete a rule." },
   { method: "GET", path: "/v1/events", scope: "events:read", desc: "Event feed. ?limit= (max 500) and ?since=<ISO-8601>." },
 ];
 
@@ -61,6 +64,7 @@ const ERRORS: { status: string; code: string; meaning: string }[] = [
   { status: "401", code: "key_blocked", meaning: "The account that owns the key is disabled." },
   { status: "403", code: "insufficient_scope", meaning: "Valid key, but it lacks the scope this endpoint needs. The response lists both required and granted." },
   { status: "403", code: "origin_not_allowed", meaning: "Called from a browser on an origin the key does not permit." },
+  { status: "403", code: "device_not_owned", meaning: "An automation named a device that is not in this account — checked on the trigger as well as the actions." },
   { status: "404", code: "not_found", meaning: "No such device, scene or endpoint — or it belongs to another account." },
   { status: "429", code: "rate_limited", meaning: "More than 600 requests in a minute for this key." },
 ];
@@ -324,7 +328,7 @@ export default function DevelopersPage() {
         titleHighlight="Circuvent"
         description="A REST API and signed webhooks for the same control plane our own console and apps run on. Read device state, send commands, and stream events straight into your dashboard."
         stats={[
-          { value: "13", label: "Endpoints" },
+          { value: "16", label: "Endpoints" },
           { value: "10", label: "Scopes" },
           { value: "4", label: "Webhook events" },
           { value: "600/min", label: "Rate limit" },

@@ -28,7 +28,7 @@ const actionSchema = z.object({
   text: z.string().max(300).optional(),
   delayMs: z.number().int().min(0).max(30000).optional(),
 });
-const createSchema = z.object({
+export const createSchema = z.object({
   name: z.string().min(1).max(120),
   enabled: z.boolean().optional(),
   trigger: triggerSchema,
@@ -36,7 +36,7 @@ const createSchema = z.object({
 });
 
 /** PATCH accepts the same shapes, all optional — never raw JSON from the body. */
-const patchSchema = z.object({
+export const patchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   enabled: z.boolean().optional(),
   trigger: triggerSchema.optional(),
@@ -56,7 +56,7 @@ type Action = z.infer<typeof actionSchema>;
  * pipeline into a cross-tenant surveillance channel, and an `event` trigger's
  * `match` map into a field-value oracle over another household's telemetry.
  */
-async function ownsReferencedDevices(
+export async function ownsReferencedDevices(
   uid: number,
   trigger?: Trigger,
   action?: Action | Action[]

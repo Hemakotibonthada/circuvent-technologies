@@ -6,6 +6,11 @@ import { ownsDevice } from "../ownership";
 import { requireApiAccess, developerCors, type ApiRequest } from "../api-auth";
 import { API_SCOPES, SCOPE_DESCRIPTIONS } from "../api-keys";
 import { WEBHOOK_EVENTS } from "../webhooks";
+import {
+  createSchema as createAutomationSchema,
+  patchSchema as patchAutomationSchema,
+  ownsReferencedDevices,
+} from "./automations";
 import { logger } from "../logger";
 
 /**
@@ -64,6 +69,7 @@ const route = {
   get: (path: string, ...h: Handler[]) => v1Router.get(path, ...h.map(safe)),
   post: (path: string, ...h: Handler[]) => v1Router.post(path, ...h.map(safe)),
   patch: (path: string, ...h: Handler[]) => v1Router.patch(path, ...h.map(safe)),
+  delete: (path: string, ...h: Handler[]) => v1Router.delete(path, ...h.map(safe)),
 };
 
 /* ------------------------------------------------------------------ */
@@ -133,6 +139,9 @@ route.get("/", (_req, res) => {
       { method: "GET", path: "/v1/scenes", scope: "scenes:read" },
       { method: "POST", path: "/v1/scenes/{id}/activate", scope: "scenes:run" },
       { method: "GET", path: "/v1/automations", scope: "automations:read" },
+      { method: "POST", path: "/v1/automations", scope: "automations:write" },
+      { method: "PATCH", path: "/v1/automations/{id}", scope: "automations:write" },
+      { method: "DELETE", path: "/v1/automations/{id}", scope: "automations:write" },
       { method: "GET", path: "/v1/events", scope: "events:read" },
     ],
   });
@@ -421,6 +430,137 @@ route.get("/automations", requireApiAccess("automations:read"), async (req: ApiR
       createdAt: a.created_at.toISOString(),
     })),
   });
+});
+
+/* ------------------------------------------------------------------ */
+/* Automations — write                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The schemas and the ownership guard are imported from the console's
+ * automation route rather than restated here.
+ *
+ * `ownsReferencedDevices` is security-critical: it checks the *trigger* side as
+ * well as the action side, because pointing a trigger at somebody else's device
+ * and pairing it with a `notify` action (which names no device at all) turns
+ * the notification pipeline into a cross-tenant surveillance channel. A second
+ * copy of that reasoning here would be one copy to forget to update.
+ */
+route.post("/automations", requireApiAccess("automations:write"), async (req: ApiRequest, res) => {
+  const p = createAutomationSchema.safeParse(req.body ?? {});
+  if (!p.success) {
+    res.status(400).json({
+      error: "Invalid automation.",
+      code: "invalid_body",
+      details: p.error.flatten().fieldErrors,
+    });
+    return;
+  }
+  const { name, enabled, trigger, action } = p.data;
+  if (!(await ownsReferencedDevices(req.user!.uid, trigger, action))) {
+    res.status(403).json({
+      error: "That automation references a device this account does not own.",
+      code: "device_not_owned",
+    });
+    return;
+  }
+  const { rows } = await pool.query<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    trigger: unknown;
+    action: unknown;
+    created_at: Date;
+  }>(
+    `INSERT INTO automations (owner_id, name, enabled, trigger, action) VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, name, enabled, trigger, action, created_at`,
+    [req.user!.uid, name, enabled ?? true, trigger, action]
+  );
+  const a = rows[0];
+  res.status(201).json({
+    automation: {
+      id: Number(a.id),
+      name: a.name,
+      enabled: a.enabled,
+      trigger: a.trigger,
+      action: a.action,
+      createdAt: a.created_at.toISOString(),
+    },
+  });
+});
+
+route.patch("/automations/:id", requireApiAccess("automations:write"), async (req: ApiRequest, res) => {
+  const p = patchAutomationSchema.safeParse(req.body ?? {});
+  if (!p.success) {
+    res.status(400).json({
+      error: "Invalid automation.",
+      code: "invalid_body",
+      details: p.error.flatten().fieldErrors,
+    });
+    return;
+  }
+  const body = p.data;
+  const { rowCount } = await pool.query(`SELECT 1 FROM automations WHERE id = $1 AND owner_id = $2`, [
+    Number(req.params.id),
+    req.user!.uid,
+  ]);
+  if (!rowCount) {
+    res.status(404).json({ error: "No such automation.", code: "not_found" });
+    return;
+  }
+  if (!(await ownsReferencedDevices(req.user!.uid, body.trigger, body.action))) {
+    res.status(403).json({
+      error: "That automation references a device this account does not own.",
+      code: "device_not_owned",
+    });
+    return;
+  }
+  const { rows } = await pool.query<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    trigger: unknown;
+    action: unknown;
+    created_at: Date;
+  }>(
+    `UPDATE automations SET
+       name    = COALESCE($2, name),
+       enabled = COALESCE($3, enabled),
+       trigger = COALESCE($4, trigger),
+       action  = COALESCE($5, action)
+     WHERE id = $1
+     RETURNING id, name, enabled, trigger, action, created_at`,
+    [
+      Number(req.params.id),
+      body.name ?? null,
+      typeof body.enabled === "boolean" ? body.enabled : null,
+      body.trigger ? JSON.stringify(body.trigger) : null,
+      body.action ? JSON.stringify(body.action) : null,
+    ]
+  );
+  const a = rows[0];
+  res.json({
+    automation: {
+      id: Number(a.id),
+      name: a.name,
+      enabled: a.enabled,
+      trigger: a.trigger,
+      action: a.action,
+      createdAt: a.created_at.toISOString(),
+    },
+  });
+});
+
+route.delete("/automations/:id", requireApiAccess("automations:write"), async (req: ApiRequest, res) => {
+  const { rowCount } = await pool.query(`DELETE FROM automations WHERE id = $1 AND owner_id = $2`, [
+    Number(req.params.id),
+    req.user!.uid,
+  ]);
+  if (!rowCount) {
+    res.status(404).json({ error: "No such automation.", code: "not_found" });
+    return;
+  }
+  res.json({ deleted: true });
 });
 
 /** GET /v1/events?limit=50&since=<iso> */

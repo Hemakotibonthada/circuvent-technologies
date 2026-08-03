@@ -419,25 +419,113 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "automations": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": { "type": "integer" },
-                          "name": { "type": "string" },
-                          "enabled": { "type": "boolean" },
-                          "trigger": { "type": "object", "additionalProperties": true },
-                          "action": { "type": "object", "additionalProperties": true },
-                          "createdAt": { "type": "string", "format": "date-time" }
-                        }
-                      }
-                    }
+                    "automations": { "type": "array", "items": { "$ref": "#/components/schemas/Automation" } }
                   }
                 }
               }
             }
           }
+        }
+      },
+      "post": {
+        "tags": ["Organisation"],
+        "operationId": "createAutomation",
+        "summary": "Create an automation rule",
+        "description": "Every device the rule names — in the trigger as well as the actions — must belong to the calling account, or the request is refused with 403 device_not_owned.",
+        "security": [{ "ApiKeyAuth": ["automations:write"] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AutomationInput" },
+              "examples": {
+                "sunsetLights": {
+                  "summary": "Switch a light on at 18:30 on weekdays",
+                  "value": {
+                    "name": "Porch light at dusk",
+                    "trigger": { "type": "time", "at": "18:30", "days": [1, 2, 3, 4, 5] },
+                    "action": { "type": "command", "deviceId": "light-01", "command": { "power": true } }
+                  }
+                },
+                "leakAlert": {
+                  "summary": "Notify when a sensor reports a leak",
+                  "value": {
+                    "name": "Leak alert",
+                    "trigger": { "type": "state", "deviceId": "aqua-01", "field": "leak", "op": "truthy" },
+                    "action": { "type": "notify", "title": "Leak detected", "body": "Check the utility room." }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "automation": { "$ref": "#/components/schemas/Automation" } }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/automations/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+      "patch": {
+        "tags": ["Organisation"],
+        "operationId": "updateAutomation",
+        "summary": "Update or enable/disable a rule",
+        "security": [{ "ApiKeyAuth": ["automations:write"] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AutomationInput" },
+              "examples": {
+                "disable": { "summary": "Turn a rule off", "value": { "enabled": false } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "automation": { "$ref": "#/components/schemas/Automation" } }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Organisation"],
+        "operationId": "deleteAutomation",
+        "summary": "Delete a rule",
+        "security": [{ "ApiKeyAuth": ["automations:write"] }],
+        "responses": {
+          "200": {
+            "description": "Deleted.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "deleted": { "type": "boolean" } } }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },
@@ -570,6 +658,69 @@
               }
             }
           }
+        }
+      },
+      "AutomationTrigger": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["state", "time", "event"] },
+          "deviceId": { "type": "string" },
+          "field": { "type": "string", "description": "State field to watch, for type=state." },
+          "op": { "type": "string", "enum": ["<", "<=", ">", ">=", "==", "!=", "truthy", "falsy"] },
+          "value": { "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "boolean" }] },
+          "at": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "description": "HH:MM for type=time, evaluated in IST." },
+          "days": {
+            "type": "array",
+            "maxItems": 7,
+            "items": { "type": "integer", "minimum": 0, "maximum": 6 },
+            "description": "Day filter for time triggers. 0 = Sunday. Omit to run daily."
+          },
+          "eventType": { "type": "string" },
+          "match": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "AutomationAction": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["command", "notify", "tts"] },
+          "deviceId": { "type": "string" },
+          "command": { "type": "object", "additionalProperties": true },
+          "title": { "type": "string", "maxLength": 120 },
+          "body": { "type": "string", "maxLength": 300 },
+          "text": { "type": "string", "maxLength": 300 },
+          "delayMs": { "type": "integer", "minimum": 0, "maximum": 30000 }
+        }
+      },
+      "AutomationInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "enabled": { "type": "boolean" },
+          "trigger": { "$ref": "#/components/schemas/AutomationTrigger" },
+          "action": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/AutomationAction" },
+              { "type": "array", "maxItems": 12, "items": { "$ref": "#/components/schemas/AutomationAction" } }
+            ]
+          }
+        }
+      },
+      "Automation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "enabled": { "type": "boolean" },
+          "trigger": { "$ref": "#/components/schemas/AutomationTrigger" },
+          "action": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/AutomationAction" },
+              { "type": "array", "items": { "$ref": "#/components/schemas/AutomationAction" } }
+            ]
+          },
+          "createdAt": { "type": "string", "format": "date-time" }
         }
       },
       "Error": {

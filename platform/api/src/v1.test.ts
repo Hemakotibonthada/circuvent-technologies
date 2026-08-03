@@ -112,6 +112,18 @@ describe("GET /v1 index", () => {
       assert.ok(paths.includes(expected), `index is missing ${expected}`);
     }
   });
+
+  test("every advertised scope is actually usable by some endpoint", async () => {
+    // A scope that grants access to nothing is worse than no scope at all: a
+    // developer grants it, gets 403s, and has no way to tell whether they
+    // misconfigured the key or we shipped a dead permission. This caught
+    // automations:write being advertised with no write endpoint behind it.
+    const r = await get("/v1");
+    const advertised = (r.body.scopes as { scope: string }[]).map((s) => s.scope);
+    const used = new Set((r.body.endpoints as { scope: string }[]).map((e) => e.scope));
+    const dead = advertised.filter((s) => !used.has(s));
+    assert.deepEqual(dead, [], `scopes granting access to nothing: ${dead.join(", ")}`);
+  });
 });
 
 describe("authentication over HTTP", () => {
