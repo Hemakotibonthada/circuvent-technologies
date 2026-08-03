@@ -148,6 +148,47 @@ export interface Scene {
   favorite: boolean;
   created_at?: string;
 }
+
+/* ---- developer API ------------------------------------------------------ */
+
+export interface ApiScopeInfo {
+  scope: string;
+  description: string;
+}
+
+export interface ApiKey {
+  id: number;
+  name: string;
+  env: "live" | "test";
+  /**
+   * The only part of the secret we hold. The full key is returned once, at
+   * creation, and stored as a SHA-256 hash — there is no endpoint that can
+   * show it again.
+   */
+  prefix: string;
+  scopes: string[];
+  allowedOrigins: string[];
+  expiresAt: string | null;
+  revokedAt: string | null;
+  lastUsedAt: string | null;
+  requestCount: number;
+  createdAt: string;
+}
+
+export interface Webhook {
+  id: number;
+  url: string;
+  /** HMAC signing secret — the receiver needs it to verify our signature. */
+  secret?: string;
+  events: string[];
+  deviceIds: string[];
+  enabled: boolean;
+  failures: number;
+  lastStatus: number | null;
+  lastError: string | null;
+  lastAt: string | null;
+  createdAt: string;
+}
 export interface SceneBody {
   name?: string;
   icon?: string;
@@ -524,8 +565,36 @@ export const controlPlane = {
     }),
   adminBroadcast: (body: { type?: string; online?: boolean; command: Record<string, unknown> }) =>
     req<{ success: boolean; sent: number }>("/admin/broadcast", { method: "POST", body: JSON.stringify(body) }),
+  // ---- OTA -----------------------------------------------------------------
   adminOtaBroadcast: (body: { type?: string; url: string; version?: string }) =>
     req<{ success: boolean; sent: number }>("/admin/ota-broadcast", { method: "POST", body: JSON.stringify(body) }),
+
+  // ---- developer: API keys + webhooks -------------------------------------
+  // Deliberately session-authenticated. The control plane refuses these
+  // endpoints to API keys so a leaked key cannot mint itself a broader one.
+  devScopes: () => req<{ scopes: ApiScopeInfo[]; webhookEvents: string[] }>("/developer/scopes"),
+  apiKeys: () => req<{ keys: ApiKey[] }>("/developer/keys"),
+  createApiKey: (body: {
+    name: string;
+    env?: "live" | "test";
+    scopes: string[];
+    allowedOrigins?: string[];
+    expiresInDays?: number | null;
+  }) => req<{ key: ApiKey; secret: string }>("/developer/keys", { method: "POST", body: JSON.stringify(body) }),
+  updateApiKey: (id: number, body: { name?: string; scopes?: string[]; allowedOrigins?: string[] }) =>
+    req<{ key: ApiKey }>("/developer/keys/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  revokeApiKey: (id: number) => req<{ success: boolean }>("/developer/keys/" + id, { method: "DELETE" }),
+
+  webhooks: () => req<{ webhooks: Webhook[] }>("/developer/webhooks"),
+  createWebhook: (body: { url: string; events?: string[]; deviceIds?: string[] }) =>
+    req<{ webhook: Webhook }>("/developer/webhooks", { method: "POST", body: JSON.stringify(body) }),
+  updateWebhook: (id: number, body: { enabled?: boolean; events?: string[]; deviceIds?: string[] }) =>
+    req<{ webhook: Webhook }>("/developer/webhooks/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteWebhook: (id: number) => req<{ success: boolean }>("/developer/webhooks/" + id, { method: "DELETE" }),
+  testWebhook: (id: number) =>
+    req<{ delivered: boolean; status?: number; ms: number; error?: string }>("/developer/webhooks/" + id + "/test", {
+      method: "POST",
+    }),
 };
 
 export type { AuthResp };

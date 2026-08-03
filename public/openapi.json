@@ -1,0 +1,609 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Circuvent Device API",
+    "version": "1.0.0",
+    "summary": "Read device state, send commands, and receive signed webhooks from Circuvent smart-home hardware.",
+    "description": "The public API for the Circuvent control plane — the same one our own console and mobile apps use.\n\nAuthenticate with an API key created in Console → Settings → Developer. Keys are scoped; a scope does not imply any other scope. Full guide at https://circuvent.com/developers",
+    "contact": { "name": "Circuvent Technologies", "url": "https://circuvent.com/contact" },
+    "license": { "name": "Proprietary", "identifier": "LicenseRef-Circuvent" }
+  },
+  "servers": [{ "url": "https://api.circuvent.com", "description": "Production" }],
+  "security": [{ "ApiKeyAuth": [] }],
+  "tags": [
+    { "name": "Discovery", "description": "Index and credential introspection." },
+    { "name": "Devices", "description": "Read state and send commands." },
+    { "name": "Telemetry", "description": "Historical series." },
+    { "name": "Organisation", "description": "Rooms, scenes, automations and events." }
+  ],
+  "paths": {
+    "/v1": {
+      "get": {
+        "tags": ["Discovery"],
+        "operationId": "getIndex",
+        "summary": "API index",
+        "description": "Scopes, webhook events and the endpoint list. No authentication required — use it to confirm the base URL is reachable before debugging a credential.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Index document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": { "type": "string" },
+                    "documentation": { "type": "string", "format": "uri" },
+                    "openapi": { "type": "string", "format": "uri" },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scope": { "type": "string" },
+                          "description": { "type": "string" }
+                        }
+                      }
+                    },
+                    "webhookEvents": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "tags": ["Discovery"],
+        "operationId": "getMe",
+        "summary": "Identify this credential",
+        "description": "Returns the account the key belongs to and the scopes it actually holds. The fastest way to diagnose a 403.",
+        "security": [{ "ApiKeyAuth": ["devices:read"] }],
+        "responses": {
+          "200": {
+            "description": "Credential details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account": {
+                      "type": ["object", "null"],
+                      "properties": {
+                        "id": { "type": "integer" },
+                        "email": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    },
+                    "deviceCount": { "type": "integer" },
+                    "auth": {
+                      "type": "object",
+                      "properties": {
+                        "method": { "type": "string", "enum": ["api_key", "session"] },
+                        "keyName": { "type": "string" },
+                        "env": { "type": "string", "enum": ["live", "test"] },
+                        "scopes": { "type": "array", "items": { "type": "string" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/devices": {
+      "get": {
+        "tags": ["Devices"],
+        "operationId": "listDevices",
+        "summary": "List devices",
+        "security": [{ "ApiKeyAuth": ["devices:read"] }],
+        "parameters": [
+          { "name": "room", "in": "query", "schema": { "type": "string" }, "description": "Exact room name." },
+          { "name": "type", "in": "query", "schema": { "type": "string" }, "description": "Device type, e.g. home-hub." },
+          { "name": "online", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's devices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "devices": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/devices/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "get": {
+        "tags": ["Devices"],
+        "operationId": "getDevice",
+        "summary": "Get one device",
+        "security": [{ "ApiKeyAuth": ["devices:read"] }],
+        "responses": {
+          "200": {
+            "description": "The device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "device": { "$ref": "#/components/schemas/Device" } }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Devices"],
+        "operationId": "updateDevice",
+        "summary": "Rename, assign a room, or set favourite",
+        "security": [{ "ApiKeyAuth": ["devices:write"] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "maxLength": 120 },
+                  "room": { "type": "string", "maxLength": 80 },
+                  "favorite": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "device": { "$ref": "#/components/schemas/Device" } }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/devices/{id}/commands": {
+      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "post": {
+        "tags": ["Devices"],
+        "operationId": "sendCommand",
+        "summary": "Send a command",
+        "description": "The body is forwarded to the device unchanged; the accepted fields are defined by that product's firmware. Responds 202 — the broker has accepted the command for delivery, not that the relay has closed. Observe the result by re-reading the device or taking a webhook.",
+        "security": [{ "ApiKeyAuth": ["devices:control"] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "additionalProperties": true },
+              "examples": {
+                "hubChannel": { "summary": "Hub channel 1 on", "value": { "ch": 0, "on": true } },
+                "allRelays": { "summary": "All four channels on", "value": { "relays": [true, true, true, true] } },
+                "singleRelay": { "summary": "Plug or light", "value": { "power": true } },
+                "dimmer": { "summary": "Dimmable light at 60%", "value": { "power": true, "brightness": 60 } },
+                "fan": { "summary": "Fan speed 3", "value": { "speed": 3 } },
+                "scene": { "summary": "Named hub scene", "value": { "scene": "movie" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted for delivery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": { "type": "boolean" },
+                    "deviceId": { "type": "string" },
+                    "command": { "type": "object", "additionalProperties": true }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/v1/devices/{id}/telemetry": {
+      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "get": {
+        "tags": ["Telemetry"],
+        "operationId": "getTelemetry",
+        "summary": "Telemetry history",
+        "security": [{ "ApiKeyAuth": ["telemetry:read"] }],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } },
+          { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Samples, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deviceId": { "type": "string" },
+                    "telemetry": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": { "type": "string", "format": "date-time" },
+                          "data": { "type": "object", "additionalProperties": true }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/devices/{id}/energy": {
+      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "get": {
+        "tags": ["Telemetry"],
+        "operationId": "getEnergy",
+        "summary": "Bucketed energy series",
+        "description": "Buckets hourly for windows up to 48 hours, daily beyond that. kWh is the integral of the averaged metric across the buckets.",
+        "security": [{ "ApiKeyAuth": ["telemetry:read"] }],
+        "parameters": [
+          { "name": "hours", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 2160, "default": 24 } },
+          { "name": "metric", "in": "query", "schema": { "type": "string", "default": "watts" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Series and total.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deviceId": { "type": "string" },
+                    "metric": { "type": "string" },
+                    "granularity": { "type": "string", "enum": ["hour", "day"] },
+                    "kwh": { "type": "number" },
+                    "series": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": { "type": "string", "format": "date-time" },
+                          "avg": { "type": "number" },
+                          "max": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/rooms": {
+      "get": {
+        "tags": ["Organisation"],
+        "operationId": "listRooms",
+        "summary": "List rooms",
+        "security": [{ "ApiKeyAuth": ["rooms:read"] }],
+        "responses": {
+          "200": {
+            "description": "Rooms with device counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rooms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "icon": { "type": "string" },
+                          "sort": { "type": "integer" },
+                          "deviceCount": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/scenes": {
+      "get": {
+        "tags": ["Organisation"],
+        "operationId": "listScenes",
+        "summary": "List scenes",
+        "security": [{ "ApiKeyAuth": ["scenes:read"] }],
+        "responses": {
+          "200": {
+            "description": "Scenes and their actions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scenes": { "type": "array", "items": { "$ref": "#/components/schemas/Scene" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/scenes/{id}/activate": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+      ],
+      "post": {
+        "tags": ["Organisation"],
+        "operationId": "activateScene",
+        "summary": "Run a scene",
+        "description": "Actions naming a device the caller no longer owns are skipped rather than failing the whole scene, and are listed in `skipped`.",
+        "security": [{ "ApiKeyAuth": ["scenes:run"] }],
+        "responses": {
+          "202": {
+            "description": "Commands dispatched.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": { "type": "boolean" },
+                    "scene": { "type": "string" },
+                    "sent": { "type": "integer" },
+                    "skipped": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/automations": {
+      "get": {
+        "tags": ["Organisation"],
+        "operationId": "listAutomations",
+        "summary": "List automation rules",
+        "security": [{ "ApiKeyAuth": ["automations:read"] }],
+        "responses": {
+          "200": {
+            "description": "Automation rules.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "automations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "enabled": { "type": "boolean" },
+                          "trigger": { "type": "object", "additionalProperties": true },
+                          "action": { "type": "object", "additionalProperties": true },
+                          "createdAt": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "tags": ["Organisation"],
+        "operationId": "listEvents",
+        "summary": "Event and activity feed",
+        "security": [{ "ApiKeyAuth": ["events:read"] }],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 } },
+          { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "deviceId": { "type": ["string", "null"] },
+                          "kind": { "type": "string" },
+                          "title": { "type": "string" },
+                          "body": { "type": "string" },
+                          "read": { "type": "boolean" },
+                          "at": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "deviceEvent": {
+      "post": {
+        "summary": "Device event delivery",
+        "description": "POSTed to the URL you register in Console → Settings → Developer. Verify `X-Circuvent-Signature` before trusting the body: it is `t=<unix>,v1=<hex>` where v1 is HMAC-SHA256 of `\"<t>.<raw body>\"` using your webhook signing secret. Reject deliveries whose timestamp is more than a few minutes old. We wait 5 s for a 2xx; 20 consecutive failures disable the webhook. Redirects are not followed.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["id", "event", "deviceId", "data", "at"],
+                "properties": {
+                  "id": { "type": "string", "description": "Unique delivery id — use it to de-duplicate." },
+                  "event": {
+                    "type": "string",
+                    "enum": ["device.state", "device.telemetry", "device.online", "device.offline"]
+                  },
+                  "deviceId": { "type": "string" },
+                  "data": { "type": "object", "additionalProperties": true },
+                  "at": { "type": "string", "format": "date-time" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Acknowledged. Any 2xx counts as success." }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "cvk_live_… / cvk_test_…",
+        "description": "An API key from Console → Settings → Developer. `X-API-Key: <key>` is accepted as an alternative header. Keys are refused from a browser origin unless that origin is registered on the key."
+      }
+    },
+    "parameters": {
+      "DeviceId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "The device id, as shown in the console and used in its MQTT topics."
+      }
+    },
+    "schemas": {
+      "Device": {
+        "type": "object",
+        "required": ["id", "name", "type", "online", "state"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "examples": ["home-hub", "smart-plug", "camera", "sentinel"] },
+          "room": { "type": ["string", "null"] },
+          "favorite": { "type": "boolean" },
+          "online": { "type": "boolean" },
+          "lastSeen": { "type": ["string", "null"], "format": "date-time" },
+          "firmware": { "type": ["string", "null"] },
+          "state": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Whatever the firmware last published. Keys vary by device type — e.g. a four-channel hub reports power, power2, power3, power4."
+          }
+        }
+      },
+      "Scene": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "icon": { "type": "string" },
+          "favorite": { "type": "boolean" },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "deviceId": { "type": "string" },
+                "command": { "type": "object", "additionalProperties": true }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string", "description": "Human-readable. Wording may change — do not match on it." },
+          "code": { "type": "string", "description": "Stable machine-readable code. Branch on this." },
+          "required": { "type": "string", "description": "On insufficient_scope: the scope needed." },
+          "granted": { "type": "array", "items": { "type": "string" }, "description": "On insufficient_scope: the scopes the key holds." }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed request.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Unauthorized": {
+        "description": "Missing, invalid, expired or revoked key. `code` is one of key_invalid, key_expired, key_revoked, key_blocked.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Forbidden": {
+        "description": "The key is valid but lacks the required scope (insufficient_scope) or was used from a disallowed browser origin (origin_not_allowed).",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "NotFound": {
+        "description": "No such resource, or it belongs to another account. Returned instead of 403 so an id cannot be confirmed to exist.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "RateLimited": {
+        "description": "More than 600 requests in a minute for this key. RateLimit-* headers describe the window.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    }
+  }
+}

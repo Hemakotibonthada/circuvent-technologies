@@ -45,6 +45,19 @@ export function getMqtt(): MqttClient {
   return client;
 }
 
+/**
+ * Test seam: installs a fake broker client.
+ *
+ * Refuses to run outside NODE_ENV=test, so it cannot be reached in production
+ * even by accident. It exists because the alternative — running a real
+ * Mosquitto in the unit suite — would make the tests slow and flaky for no
+ * additional assurance about our own code.
+ */
+export function __setMqttClientForTests(fake: MqttClient | null): void {
+  if (config.NODE_ENV !== "test") throw new Error("test-only");
+  client = fake;
+}
+
 export function connectMqtt(): Promise<void> {
   return new Promise((resolve) => {
     client = mqtt.connect(config.MQTT_URL, {

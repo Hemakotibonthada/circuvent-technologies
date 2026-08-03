@@ -1,4 +1,5 @@
 import http from "node:http";
+import { createHash } from "node:crypto";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -23,7 +24,10 @@ import { eventsRouter } from "./routes/events";
 import { energyRouter } from "./routes/energy";
 import { adminRouter } from "./routes/admin";
 import { gateRouter } from "./routes/gate";
+import { v1Router } from "./routes/v1";
+import { developerRouter } from "./routes/developer";
 import { startAutomationScheduler } from "./automations";
+import { startWebhooks } from "./webhooks";
 
 async function main(): Promise<void> {
   await initDb();
@@ -44,12 +48,48 @@ async function main(): Promise<void> {
 
   // Abuse protection. Auth/OTP endpoints are the sensitive ones (brute-force,
   // OTP-email flooding), so they get a tighter bucket than the general API.
-  const apiLimiter = rateLimit({ windowMs: 60_000, max: 240, standardHeaders: true, legacyHeaders: false });
+  const apiLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 240,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // /v1 has its own per-key bucket below. Leaving the IP limiter in front of
+    // it would mean two developers behind one NAT — or one developer's whole
+    // server — sharing a budget with every browser on that address.
+    skip: (req) => req.path.startsWith("/v1"),
+  });
   const authLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: "Too many attempts — please wait a minute." } });
+
+  /**
+   * Developer API budget, counted per key rather than per IP.
+   *
+   * An integration runs from one server, so every call it makes shares a
+   * source address; per-IP counting would make one busy customer throttle
+   * themselves while telling us nothing about who was actually spending the
+   * budget. Requests with no key fall back to the IP so an unauthenticated
+   * flood is still bounded.
+   */
+  const v1Limiter = rateLimit({
+    windowMs: 60_000,
+    max: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const h = req.headers.authorization;
+      const raw = h?.startsWith("Bearer ") ? h.slice(7).trim() : (req.headers["x-api-key"] as string | undefined);
+      // Bucket by a hash of the key, never the key itself — rate-limiter state
+      // is held in memory and shows up in dumps and metrics.
+      if (raw) return "k:" + createHash("sha256").update(raw).digest("hex").slice(0, 32);
+      return "ip:" + (req.ip ?? "unknown");
+    },
+    message: { error: "Rate limit exceeded — 600 requests per minute per key.", code: "rate_limited" },
+  });
   app.use(apiLimiter);
 
   app.use("/health", healthRouter);
   app.use("/auth", authLimiter, authRouter);
+  app.use("/v1", v1Limiter, v1Router);
+  app.use("/developer", developerRouter);
   app.use("/devices", deviceRouter);
   app.use("/account", accountRouter);
   app.use("/automations", automationRouter);
@@ -69,6 +109,7 @@ async function main(): Promise<void> {
   attachWebSocket(server);
 
   startAutomationScheduler();
+  startWebhooks();
 
   server.listen(config.PORT, () => logger.info(`Control plane listening on :${config.PORT}`));
 

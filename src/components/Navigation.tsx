@@ -48,6 +48,7 @@ const navItems: NavItem[] = [
       { label: "Case Studies", href: "/case-studies", description: "In-depth project breakdowns", icon: <Code2 className="w-4 h-4" /> },
       { label: "Open Source", href: "/open-source", description: "MIT-licensed GitHub repos", icon: <GitBranch className="w-4 h-4" />, badge: "53+" },
       { label: "Architecture", href: "/architecture", description: "System design & patterns", icon: <Terminal className="w-4 h-4" /> },
+      { label: "Developer API", href: "/developers", description: "Control your devices from your own app", icon: <Code2 className="w-4 h-4" />, badge: "v1" },
     ],
     featured: {
       title: "NEXUS AI OS",

@@ -20,9 +20,19 @@ import {
 } from "../_kit/primitives";
 import { Sparkline } from "../_kit/charts";
 import RequestInspector from "./RequestInspector";
+import ApiKeysPanel from "./ApiKeysPanel";
 
 // Every endpoint the console uses, derived from control-plane.ts.
 const ENDPOINTS: { path: string; method: string; desc: string }[] = [
+  { path: "/v1", method: "GET", desc: "Public API index — scopes, events, endpoints" },
+  { path: "/v1/me", method: "GET", desc: "Identify the credential and its scopes" },
+  { path: "/v1/devices", method: "GET", desc: "Public: list devices (devices:read)" },
+  { path: "/v1/devices/:id/commands", method: "POST", desc: "Public: send a command (devices:control)" },
+  { path: "/v1/devices/:id/telemetry", method: "GET", desc: "Public: telemetry history (telemetry:read)" },
+  { path: "/v1/scenes/:id/activate", method: "POST", desc: "Public: run a scene (scenes:run)" },
+  { path: "/developer/keys", method: "GET", desc: "List API keys (session only)" },
+  { path: "/developer/keys", method: "POST", desc: "Create an API key (session only)" },
+  { path: "/developer/webhooks", method: "POST", desc: "Register a webhook (session only)" },
   { path: "/auth/login", method: "POST", desc: "Authenticate and receive a JWT" },
   { path: "/auth/register", method: "POST", desc: "Create account, initiate OTP flow" },
   { path: "/auth/verify-otp", method: "POST", desc: "Complete OTP verification" },
@@ -78,6 +88,9 @@ export default function DeveloperPanel() {
 
   return (
     <div className="space-y-6 pt-1">
+      {/* ── API keys + webhooks ───────────────────────── */}
+      <ApiKeysPanel />
+
       {/* ── Connection ────────────────────────────────── */}
       <SectionTitle>Control-plane connection</SectionTitle>
       <Surface padded={false}>

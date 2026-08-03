@@ -110,4 +110,5 @@ reload so it picks up renewed certs:
 | `postgres` | users, devices, telemetry, commands, automations | internal |
 | `caddy` | automatic HTTPS reverse proxy | `:80`, `:443` |
 
-See `PROTOCOL.md` for the device/app message contract, and `api/` for the code.
+See `PROTOCOL.md` for the device/app message contract, `API.md` for the public
+developer API (keys, scopes, `/v1`, webhooks), and `api/` for the code.

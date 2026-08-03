@@ -20,6 +20,7 @@ const footerLinks = {
     { label: "Open Source", href: "/open-source" },
     { label: "Blog", href: "/blog" },
     { label: "Docs", href: "/docs" },
+    { label: "Developer API", href: "/developers" },
   ],
   company: [
     { label: "About", href: "/about" },

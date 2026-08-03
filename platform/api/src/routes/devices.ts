@@ -151,7 +151,16 @@ deviceRouter.post("/:id/command", requireAuth, async (req: AuthedRequest, res) =
     res.status(400).json({ error: "Command body must be a JSON object." });
     return;
   }
-  publishCommand(req.params.id, payload);
+  // publishCommand throws while the broker is restarting. Express 4 does not
+  // catch rejections from async handlers, so letting it propagate means the
+  // app's toggle never gets a response at all — it spins until its own
+  // timeout instead of showing that the command failed.
+  try {
+    publishCommand(req.params.id, payload);
+  } catch {
+    res.status(503).json({ error: "The device broker is temporarily unavailable — please retry." });
+    return;
+  }
   // Audit log is best-effort — do NOT block the command response on the DB
   // write; the command is already on its way to the device via MQTT.
   void pool

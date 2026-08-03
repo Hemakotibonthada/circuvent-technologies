@@ -209,6 +209,62 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_gate_passes_owner ON gate_passes(owner_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_gate_passes_code ON gate_passes(code);
+
+    -- Developer API keys.
+    --
+    -- Long-lived, independently revocable, scoped credentials for third-party
+    -- integrations. See api-keys.ts for why these exist rather than handing a
+    -- developer a login JWT, and why the secret is SHA-256 and not bcrypt.
+    --
+    -- token_hash is UNIQUE so authentication is a single index probe.
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id              BIGSERIAL PRIMARY KEY,
+      owner_id        BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL DEFAULT '',
+      env             TEXT NOT NULL DEFAULT 'live',
+      token_hash      TEXT NOT NULL UNIQUE,
+      prefix          TEXT NOT NULL,
+      scopes          TEXT[] NOT NULL DEFAULT '{}',
+      -- Empty means server-to-server only: a request carrying any Origin
+      -- header is refused. See originAllowed() for what this does and does
+      -- not guarantee.
+      allowed_origins TEXT[] NOT NULL DEFAULT '{}',
+      expires_at      TIMESTAMPTZ,
+      revoked_at      TIMESTAMPTZ,
+      last_used_at    TIMESTAMPTZ,
+      request_count   BIGINT NOT NULL DEFAULT 0,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_api_keys_owner ON api_keys(owner_id, created_at DESC);
+
+    -- Outbound webhooks.
+    --
+    -- Without these the only way for a developer's backend to learn that a
+    -- sensor tripped is to poll, which is both slower than the event and more
+    -- load than delivering it once. Deliveries are HMAC-signed so the receiver
+    -- can prove the request came from us; see webhooks.ts.
+    --
+    -- The secret is stored in plaintext on purpose and unusually: unlike an API
+    -- key, we are the party that must COMPUTE the HMAC on every delivery, so a
+    -- one-way hash would make it useless. It is a signing key, not a
+    -- credential that authenticates anyone to us.
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id            BIGSERIAL PRIMARY KEY,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      url           TEXT NOT NULL,
+      secret        TEXT NOT NULL,
+      events        TEXT[] NOT NULL DEFAULT '{}',
+      -- Empty means every device the account owns.
+      device_ids    TEXT[] NOT NULL DEFAULT '{}',
+      enabled       BOOLEAN NOT NULL DEFAULT true,
+      failures      INT NOT NULL DEFAULT 0,
+      last_status   INT,
+      last_error    TEXT NOT NULL DEFAULT '',
+      last_at       TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhooks_owner ON webhooks(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled) WHERE enabled;
   `);
 }
 

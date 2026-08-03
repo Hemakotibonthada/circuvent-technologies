@@ -92,14 +92,21 @@ scenesRouter.post("/:id/activate", requireAuth, async (req: AuthedRequest, res) 
   const owned = await pool.query<{ id: string }>(`SELECT id FROM devices WHERE owner_id = $1`, [req.user!.uid]);
   const ownedIds = new Set(owned.rows.map((r) => r.id));
   let sent = 0;
-  for (const a of scene.actions ?? []) {
-    if (a && typeof a.deviceId === "string" && ownedIds.has(a.deviceId) && a.command && typeof a.command === "object") {
-      publishCommand(a.deviceId, a.command);
-      sent++;
-      void pool
-        .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [a.deviceId, req.user!.uid, a.command])
-        .catch((err) => logger.error({ err }, "scene command audit failed"));
+  try {
+    for (const a of scene.actions ?? []) {
+      if (a && typeof a.deviceId === "string" && ownedIds.has(a.deviceId) && a.command && typeof a.command === "object") {
+        publishCommand(a.deviceId, a.command);
+        sent++;
+        void pool
+          .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [a.deviceId, req.user!.uid, a.command])
+          .catch((err) => logger.error({ err }, "scene command audit failed"));
+      }
     }
+  } catch {
+    // Broker down mid-scene. Report what did go out rather than pretending the
+    // whole scene ran — and answer at all, which an uncaught rejection would not.
+    res.status(503).json({ error: "The device broker is temporarily unavailable — please retry.", sent });
+    return;
   }
   await recordEvent(req.user!.uid, "activity", "Scene activated", `${scene.name} — ${sent} device${sent === 1 ? "" : "s"}.`);
   res.json({ success: true, sent });

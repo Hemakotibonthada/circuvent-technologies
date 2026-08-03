@@ -125,6 +125,12 @@ export const pageMetadata: Record<string, PageMeta> = {
     keywords: ["Documentation", "Developer Guide", "API Reference", "Setup"],
     path: "/docs",
   },
+  developers: {
+    title: "Developer Platform — API & Webhooks",
+    description: "Integrate Circuvent smart-home devices into your own dashboard. REST API, scoped API keys, signed webhooks, and copy-paste examples in cURL, Node.js and Python.",
+    keywords: ["IoT API", "Smart Home API", "Developer Platform", "Webhooks", "REST API", "API Keys", "Device Control API"],
+    path: "/developers",
+  },
   domains: {
     title: "Technology Domains",
     description: "Explore our 6 core technology domains — AI & Agents, IoT & Smart Home, FinTech, HealthTech, Enterprise, and Education.",
