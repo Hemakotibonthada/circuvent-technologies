@@ -15,7 +15,7 @@ import AnalyticsGate from "@/components/AnalyticsGate";
 import CookieConsent from "@/components/CookieConsent";
 import VisitorTracker from "@/components/VisitorTracker";
 import Assistant from "@/components/ai/Assistant";
-import { SITE_URL, siteConfig } from "@/lib/config";
+import { SITE_URL, siteConfig, IS_PUBLIC_SITE } from "@/lib/config";
 import { getOrganizationJsonLd, getWebsiteJsonLd } from "@/lib/seo";
 import { jsonForScript } from "@/lib/json-script";
 
@@ -59,7 +59,14 @@ export const metadata: Metadata = {
     description: "Engineering What's Next — AI, IoT, Full-Stack",
     creator: siteConfig.twitterHandle,
   },
-  robots: { index: true, follow: true },
+  // Mirrors robots.ts. Those two disagreeing is the kind of thing that only
+  // surfaces once dev.circuvent.com is already in Google's index, which is very
+  // hard to undo: robots.txt stops the crawl, but a page linked from anywhere
+  // else can still be indexed on the strength of that link, and a meta tag
+  // saying "index" is exactly the wrong thing for it to find if it ever looks.
+  robots: IS_PUBLIC_SITE
+    ? { index: true, follow: true }
+    : { index: false, follow: false, nocache: true },
 };
 
 export const viewport: Viewport = {
