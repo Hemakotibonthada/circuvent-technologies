@@ -111,4 +111,6 @@ reload so it picks up renewed certs:
 | `caddy` | automatic HTTPS reverse proxy | `:80`, `:443` |
 
 See `PROTOCOL.md` for the device/app message contract, `API.md` for the public
-developer API (keys, scopes, `/v1`, webhooks), and `api/` for the code.
+developer API (keys, scopes, `/v1`, webhooks), `DEVICE_REGISTRY.md` for internal
+device operations (serials, labels, reports, credential reissue), and `api/` for
+the code.
