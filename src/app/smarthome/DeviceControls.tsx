@@ -455,6 +455,34 @@ const CHANNEL_KINDS: { key: ChannelKind; label: string; icon: LucideIcon }[] = [
 const KIND_ICON = new Map(CHANNEL_KINDS.map((k) => [k.key, k.icon]));
 
 /**
+ * Per-kind accent and motion, mirroring the app's CHANNEL_KINDS so a home reads
+ * the same on both.
+ *
+ * Every channel used to be cyan whatever it was wired to, which threw away the
+ * one thing the user had already told us. Colour carries the kind now, and the
+ * motion matches what the hardware does — a fan spins, a lamp breathes, a gate
+ * does neither because a gate does not idle.
+ *
+ * Tailwind classes are written out in full rather than composed at runtime;
+ * the JIT compiler only sees literals, and a template-built class name silently
+ * produces no CSS at all.
+ */
+const KIND_STYLE: Record<string, { ring: string; fill: string; text: string; glow: string; motion: "spin" | "breathe" | "none" }> = {
+  light:   { ring: "border-amber-400/50",   fill: "bg-amber-500/15",   text: "text-amber-300",   glow: "shadow-[0_0_22px_-4px_rgba(245,158,11,0.55)]", motion: "breathe" },
+  fan:     { ring: "border-cyan-400/50",    fill: "bg-cyan-500/15",    text: "text-cyan-300",    glow: "shadow-[0_0_22px_-4px_rgba(34,211,238,0.55)]",  motion: "spin" },
+  socket:  { ring: "border-sky-400/50",     fill: "bg-sky-500/15",     text: "text-sky-300",     glow: "shadow-[0_0_22px_-4px_rgba(56,189,248,0.55)]",  motion: "breathe" },
+  geyser:  { ring: "border-red-400/50",     fill: "bg-red-500/15",     text: "text-red-300",     glow: "shadow-[0_0_22px_-4px_rgba(239,68,68,0.55)]",   motion: "breathe" },
+  pump:    { ring: "border-blue-400/50",    fill: "bg-blue-500/15",    text: "text-blue-300",    glow: "shadow-[0_0_22px_-4px_rgba(59,130,246,0.55)]",  motion: "spin" },
+  tv:      { ring: "border-violet-400/50",  fill: "bg-violet-500/15",  text: "text-violet-300",  glow: "shadow-[0_0_22px_-4px_rgba(139,92,246,0.55)]",  motion: "breathe" },
+  ac:      { ring: "border-teal-400/50",    fill: "bg-teal-500/15",    text: "text-teal-300",    glow: "shadow-[0_0_22px_-4px_rgba(45,212,191,0.55)]",  motion: "none" },
+  curtain: { ring: "border-purple-400/50",  fill: "bg-purple-500/15",  text: "text-purple-300",  glow: "shadow-[0_0_22px_-4px_rgba(168,85,247,0.55)]",  motion: "none" },
+  gate:    { ring: "border-amber-400/50",   fill: "bg-amber-500/15",   text: "text-amber-300",   glow: "shadow-[0_0_22px_-4px_rgba(245,158,11,0.55)]",  motion: "none" },
+  generic: { ring: "border-cyan-400/40",    fill: "bg-cyan-500/10",    text: "text-cyan-300",    glow: "shadow-[0_0_18px_-6px_rgba(34,211,238,0.5)]",   motion: "none" },
+};
+
+const kindStyle = (kind: string) => KIND_STYLE[kind] ?? KIND_STYLE.generic;
+
+/**
  * One relay channel, rendered according to the model the user picked for it.
  *
  * `toggle` latches like a wall switch, `button` is an appliance-style power
@@ -484,15 +512,16 @@ function ChannelTile({
   const Icon = KIND_ICON.get(config.kind) ?? ToggleRight;
   const momentary = config.style === "momentary";
   const active = momentary ? status === "pending" : on;
+  const ks = kindStyle(config.kind);
 
   const shell = `group relative flex min-h-[76px] items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left transition active:scale-[0.98] ${
-    active ? "border-cyan-400/40 bg-cyan-500/10" : "border-white/10 bg-black/20 hover:bg-white/5"
+    active ? `${ks.ring} ${ks.fill} ${ks.glow}` : "border-white/10 bg-black/20 hover:bg-white/5"
   } ${status === "pending" ? "cv-pending" : ""} ${status === "confirmed" ? "cv-pop" : ""} ${
     status === "failed" ? "ring-2 ring-red-500/60" : ""
   }`;
 
   const caption = (
-    <span className={`mt-0.5 flex items-center gap-1.5 text-xs font-medium ${active ? "text-cyan-300" : "text-slate-500"}`}>
+    <span className={`mt-0.5 flex items-center gap-1.5 text-xs font-medium ${active ? ks.text : "text-slate-500"}`}>
       {status === "failed" ? (
         <span className="text-red-300">Failed — tap to retry</span>
       ) : momentary ? (
@@ -517,11 +546,18 @@ function ChannelTile({
     <span className="flex min-w-0 flex-1 items-center gap-3">
       <span
         className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${
-          active ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-300" : "border-white/10 bg-white/5 text-slate-400"
+          active ? `${ks.ring} ${ks.fill} ${ks.text}` : "border-white/10 bg-white/5 text-slate-400"
         }`}
         aria-hidden
       >
-        <Icon className="h-5 w-5" />
+        {/* Motion only while the output is actually on, and only where it
+            mirrors the hardware. Both keyframes are disabled under
+            prefers-reduced-motion in globals.css. */}
+        <Icon
+          className={`h-5 w-5 ${active && ks.motion === "spin" ? "cv-spin" : ""} ${
+            active && ks.motion === "breathe" ? "cv-breathe" : ""
+          }`}
+        />
       </span>
       <span className="min-w-0">
         <span className="block truncate text-[15px] font-semibold text-white">{label}</span>

@@ -482,3 +482,16 @@ body {
   backdrop-filter: blur(20px) saturate(var(--glass-saturate, 1.3)) !important;
   -webkit-backdrop-filter: blur(20px) saturate(var(--glass-saturate, 1.3)) !important;
 }
+
+/* Channel tile motion — mirrors what the hardware does.
+   A fan spins, a lamp breathes. Applied only while the output is actually on,
+   because motion nobody can see still costs a repaint on every frame.
+   The prefers-reduced-motion block above neutralises both. */
+@keyframes cv-spin-kf { to { transform: rotate(360deg); } }
+.cv-spin { animation: cv-spin-kf 2.6s linear infinite; transform-origin: 50% 50%; }
+
+@keyframes cv-breathe-kf {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.cv-breathe { animation: cv-breathe-kf 2.8s ease-in-out infinite; }
