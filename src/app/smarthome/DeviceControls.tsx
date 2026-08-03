@@ -39,7 +39,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Device } from "@/lib/control-plane";
+import { controlPlane, type Device } from "@/lib/control-plane";
 import type { FieldStatus } from "@/lib/smarthome-realtime";
 import { haptic } from "@/lib/smarthome-realtime";
 import { useCameraFrames, useNow } from "@/lib/control-plane-live";
@@ -1255,6 +1255,13 @@ const RESOLUTIONS: { id: string; label: string; psram?: boolean }[] = [
 /** Seconds without a frame before a "streaming" camera is called stalled. */
 const STALL_AFTER_MS = 5000;
 
+/**
+ * How often to re-arm a live stream. The firmware's window is 20 s
+ * (STREAM_TTL_MS in firmware/camera/camera.ino); re-arming at 7 s survives two
+ * lost commands before the picture drops.
+ */
+const STREAM_REARM_MS = 7000;
+
 function uptimeLabel(sec: number): string {
   if (sec <= 0) return "—";
   const d = Math.floor(sec / 86400);
@@ -1308,6 +1315,21 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   const age = frame ? now - frame.at : Infinity;
   const stalled = streaming && age > STALL_AFTER_MS;
   const showingLive = streaming && !stalled && !!frame;
+
+  // Keep-alive. The firmware arms the stream for STREAM_TTL_MS (20 s) and then
+  // shuts it off on its own, deliberately, so a closed tab or a dead phone
+  // cannot leave a board streaming until it browns out. That makes re-arming
+  // the viewer's job: without this the picture simply stops after 20 seconds
+  // and never comes back. Mobile has always done this; the web never did.
+  useEffect(() => {
+    if (!d.online || !streaming) return;
+    const arm = () => {
+      void controlPlane.command(d.id, { action: "stream", on: true });
+    };
+    arm();
+    const t = setInterval(arm, STREAM_REARM_MS);
+    return () => clearInterval(t);
+  }, [d.online, d.id, streaming]);
 
   const download = () => {
     if (!frame) return;

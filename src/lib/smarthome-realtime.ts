@@ -276,8 +276,9 @@ export function useLiveDevice(
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [lastRttMs, setLastRttMs] = useState<number | null>(null);
-  // Bumped whenever pins/flashes mutate so the component re-renders.
-  const [, forceRender] = useState(0);
+  // Bumped whenever pins/flashes mutate so the component re-renders. The value
+  // is read by the overlay memo below so a pin change actually recomputes it.
+  const [forceTick, forceRender] = useState(0);
 
   const pins = useRef(new Map<string, Pin>());
   const flashes = useRef(new Map<string, Flash>());
@@ -433,13 +434,19 @@ export function useLiveDevice(
       const sentAt = Date.now();
       const commandId = `c${++commandSeq}`;
 
-      // 1. Pin + paint immediately — this is what removes the perceived lag.
+      // 1. Pin immediately — this is what removes the perceived lag.
+      //
+      // The pin is an *overlay*, never a write into device.state. Writing it in
+      // would be undone by the very next confirmation poll: load() replaces the
+      // whole device with the server row, which has not yet seen the device's
+      // echo, so the tile would snap back to the old value while the pin sat
+      // there doing nothing. Overlaying at render time survives every refresh
+      // until the device genuinely reports the new value (or the pin expires).
       if (fields.length) {
         for (const [field, value] of Object.entries(patch)) {
           pins.current.set(field, { value, sentAt, commandId });
           flashes.current.delete(field);
         }
-        setDevice((prev) => (prev ? { ...prev, state: { ...prev.state, ...patch } } : prev));
       }
 
       const sample: LatencySample = {
@@ -508,8 +515,19 @@ export function useLiveDevice(
     return flashes.current.get(field)?.status ?? "idle";
   }, []);
 
+  // Authoritative state with unconfirmed commands painted over the top. Every
+  // consumer reads this, so a poll landing mid-flight can no longer flip a
+  // control back to its old value.
+  const shown = useMemo(() => {
+    if (!device || !pins.current.size) return device;
+    const state = { ...device.state };
+    for (const [field, pin] of pins.current) state[field] = pin.value;
+    return { ...device, state };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [device, pins.current.size, lastRttMs, forceTick]);
+
   return {
-    device,
+    device: shown,
     loading,
     notFound,
     pending,

@@ -925,28 +925,50 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
   const radius = RADIUS.card;
   const pad = padded ? SPACE.lg : 0;
   const press = usePressScale(!!onPress);
-  const Wrapper: React.ComponentType<{ children: React.ReactNode; style?: StyleProp<ViewStyle> }> = onPress
-    ? ({ children: ch, style: st }) => (
-        <Pressable
-          onPress={onPress}
-          onPressIn={press.onPressIn}
-          onPressOut={press.onPressOut}
-          accessibilityRole="button"
-        >
-          {/* The visual style lives on the animated node so the whole surface
-              depresses, not just its contents. */}
-          <Animated.View style={[st, { transform: [{ scale: press.scale }] }]}>{ch}</Animated.View>
-        </Pressable>
-      )
-    : ({ children: ch, style: st }) => <View style={st}>{ch}</View>;
+
+  /**
+   * Wraps the card body, as a plain function rather than a component.
+   *
+   * This was `const Wrapper = onPress ? (props) => ... : (props) => ...` used as
+   * `<Wrapper>`. Defining a component inside a render creates a new function
+   * identity on every pass, so React treats it as a different component type
+   * and unmounts and remounts the entire subtree — every render, for every card
+   * in the app.
+   *
+   * The visible symptom was a keyboard that closed after each keystroke while
+   * renaming a channel: the TextInput was inside a Card, so it was destroyed
+   * and rebuilt the moment its own onChange caused a render. It was also
+   * throwing away and rebuilding the view tree of every card on screen for
+   * nothing, which is its own reason to fix it.
+   *
+   * A function that returns JSX is fine — it produces elements, not a new
+   * component type.
+   */
+  const wrap = (wrapStyle: StyleProp<ViewStyle>, body: React.ReactNode) =>
+    onPress ? (
+      <Pressable
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        accessibilityRole="button"
+      >
+        {/* The visual style lives on the animated node so the whole surface
+            depresses, not just its contents. */}
+        <Animated.View style={[wrapStyle, { transform: [{ scale: press.scale }] }]}>{body}</Animated.View>
+      </Pressable>
+    ) : (
+      <View style={wrapStyle}>{body}</View>
+    );
 
   if (c.isGlass) {
     return (
-      <Wrapper style={[{ borderRadius: radius, overflow: "hidden", borderWidth: 1, borderColor: c.glassBorder }, style]}>
-        <BlurView intensity={scheme === "dark" ? 40 : 55} tint={c.glassTint} style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: hi ? c.surfaceHi : c.glassFill }]} />
-        <View style={{ padding: pad }}>{children}</View>
-      </Wrapper>
+      wrap([{ borderRadius: radius, overflow: "hidden", borderWidth: 1, borderColor: c.glassBorder }, style], (
+        <>
+          <BlurView intensity={scheme === "dark" ? 40 : 55} tint={c.glassTint} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: hi ? c.surfaceHi : c.glassFill }]} />
+          <View style={{ padding: pad }}>{children}</View>
+        </>
+      ))
     );
   }
 
@@ -955,7 +977,7 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
     // from the bottom-right, on nested views.
     if (Platform.OS === "ios") {
       return (
-        <Wrapper style={style}>
+        wrap(style, (
           <View
             style={{
               borderRadius: radius,
@@ -980,7 +1002,7 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
               {children}
             </View>
           </View>
-        </Wrapper>
+        ))
       );
     }
 
@@ -990,7 +1012,7 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
     // along the top edge where the light would catch. See neoSurface().
     const grad = neoSurface(c);
     return (
-      <Wrapper style={style}>
+      wrap(style, (
         <View
           style={{
             borderRadius: radius,
@@ -1019,20 +1041,19 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
             {children}
           </LinearGradient>
         </View>
-      </Wrapper>
+      ))
     );
   }
 
   // aurora
   return (
-    <Wrapper
-      style={[
+    wrap(
+      [
         { borderRadius: radius, backgroundColor: hi ? c.cardHi : c.card, borderWidth: 1, borderColor: c.border, padding: pad },
         style,
-      ]}
-    >
-      {children}
-    </Wrapper>
+      ],
+      children
+    )
   );
 }
 
