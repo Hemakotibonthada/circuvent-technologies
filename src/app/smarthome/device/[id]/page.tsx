@@ -9,6 +9,7 @@ import { useLiveDevice } from "@/lib/smarthome-realtime";
 import { useConsole } from "../../ConsoleProvider";
 import { DeviceControls, deviceMeta } from "../../DeviceControls";
 import { GatePasses } from "../../GatePasses";
+import DeviceReportCard from "./DeviceReportCard";
 import { LatencyBadge } from "../../ui";
 import {
   Badge,
@@ -207,6 +208,11 @@ export default function DevicePage() {
 
       {/* RFID gate passes */}
       {device.type === "rfid-gate" && <GatePasses deviceId={device.id} />}
+
+      {/* Full record — identity, activity, control history, exportable */}
+      <div className="mt-6">
+        <DeviceReportCard deviceId={device.id} />
+      </div>
     </div>
   );
 }

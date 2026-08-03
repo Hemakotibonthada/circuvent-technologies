@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShieldCheck, PackagePlus, Radar, Activity, LayoutGrid, Workflow,
   BellRing, DownloadCloud, ShieldAlert, Server, Search, Command as CmdIcon, ChevronLeft,
   Bell, LifeBuoy, ChevronsUpDown, Cpu, LogOut, Menu, CircleDot, ArrowRight, Timer,
-  Sparkles,
+  Sparkles, QrCode,
 } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import { useConsole } from "../ConsoleProvider";
@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { href: "/smarthome/admin", label: "Overview", icon: LayoutDashboard, group: "Overview", desc: "Fleet-wide status, KPIs and live activity" },
   { href: "/smarthome/admin/access", label: "Access & Users", icon: ShieldCheck, group: "Governance", desc: "Operator roles, accounts, API keys and audit trail" },
   { href: "/smarthome/admin/provisioning", label: "Provisioning", icon: PackagePlus, group: "Operations", desc: "Onboard devices: manual, bulk, QR, JIT, templates" },
+  { href: "/smarthome/admin/registry", label: "Device Registry", icon: QrCode, group: "Operations", desc: "Look up by serial, full device record, labels, credentials, ownership" },
   { href: "/smarthome/admin/fleet", label: "Fleet", icon: Radar, group: "Operations", desc: "Device fleet, health, map, groups, digital twin" },
   { href: "/smarthome/admin/telemetry", label: "Telemetry", icon: Activity, group: "Operations", desc: "Streams, schema, retention, ingestion, metrics" },
   { href: "/smarthome/admin/latency", label: "Latency & Perf", icon: Timer, group: "Operations", desc: "Command round trips, per-hop attribution, SLO burn" },

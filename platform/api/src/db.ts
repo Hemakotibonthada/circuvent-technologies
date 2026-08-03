@@ -1,5 +1,7 @@
 import { Pool } from "pg";
 import { config } from "./config";
+import { generateSerial } from "./serial";
+import { logger } from "./logger";
 
 export const pool = new Pool({ connectionString: config.DATABASE_URL, max: 10 });
 
@@ -265,7 +267,128 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_webhooks_owner ON webhooks(owner_id);
     CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled) WHERE enabled;
+
+    -- Device registry.
+    --
+    -- serial is the customer-facing identifier printed on the unit. devices.id
+    -- is derived from the chip id and is fine as a key but poor on a label —
+    -- see serial.ts. NULL is allowed because rows created before this existed
+    -- have no serial until they are backfilled; the partial UNIQUE index means
+    -- those NULLs do not collide with each other.
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS serial TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_serial ON devices(serial) WHERE serial IS NOT NULL;
+
+    -- The hardware id the device reported at provisioning. Kept so a unit that
+    -- is factory reset can be recognised as the same physical board, and so a
+    -- serial can be regenerated identically rather than a second one issued
+    -- while the label on the case still shows the first.
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS hwid TEXT NOT NULL DEFAULT '';
+
+    -- Credential lifecycle.
+    --
+    -- The claim key is bcrypt-hashed, so it cannot be read back — not by an
+    -- admin, not by us. These columns are what can honestly be shown instead:
+    -- when the credential was issued, when it was last replaced, and how often.
+    -- Support answering "what is my device key" has to reissue, and reissuing
+    -- needs to be visible.
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS key_issued_at TIMESTAMPTZ NOT NULL DEFAULT now();
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS key_rotated_at TIMESTAMPTZ;
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS key_rotations INT NOT NULL DEFAULT 0;
+
+    -- Notes the internal team keeps against a unit (RMA, batch, customer case).
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '';
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS batch TEXT NOT NULL DEFAULT '';
+
+    -- Administrative audit trail for devices.
+    --
+    -- The activity feed in the events table belongs to the customer and
+    -- answers "what did my house do". This answers a different question —
+    -- "who inside the company changed this unit's ownership or reissued its
+    -- credential, and why" — and it must not be mixed into a feed the
+    -- customer can clear.
+    --
+    -- actor_id is nullable and ON DELETE SET NULL: an audit entry has to
+    -- survive the departure of the operator who made it, which is precisely
+    -- when it is most likely to be read.
+    CREATE TABLE IF NOT EXISTS device_audit (
+      id          BIGSERIAL PRIMARY KEY,
+      device_id   TEXT NOT NULL,
+      actor_id    BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      actor_email TEXT NOT NULL DEFAULT '',
+      action      TEXT NOT NULL,
+      detail      JSONB NOT NULL DEFAULT '{}'::jsonb,
+      note        TEXT NOT NULL DEFAULT '',
+      ts          TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_device_audit_device ON device_audit(device_id, ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_device_audit_actor ON device_audit(actor_id, ts DESC);
   `);
+
+  await backfillSerials();
+}
+
+/**
+ * Gives existing devices a serial.
+ *
+ * Runs once in practice — the UPDATE matches nothing on every later boot — but
+ * has to exist, because without it the registry's whole premise ("read the
+ * number off the unit and find it") would work for devices sold after this
+ * shipped and fail for every device already in the field.
+ *
+ * Serials are derived from the hardware id embedded in the device id, so they
+ * are stable: running this twice cannot produce a different answer, and a
+ * device that is later re-provisioned keeps the number on its label.
+ */
+async function backfillSerials(): Promise<void> {
+  const { rows } = await pool.query<{ id: string; type: string }>(
+    `SELECT id, type FROM devices WHERE serial IS NULL`
+  );
+  if (!rows.length) return;
+
+  let filled = 0;
+  for (const d of rows) {
+    // The chip id is the tail of `${type}-${hwid}`; fall back to the whole id
+    // for anything that does not follow that shape.
+    const hwid = d.id.startsWith(`${d.type}-`) ? d.id.slice(d.type.length + 1) : d.id;
+    let serial = generateSerial(d.type, hwid);
+    // A collision is possible in principle (7 payload characters, derived).
+    // Retry with a random payload rather than leave the row without a serial.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const clash = await pool.query(`SELECT 1 FROM devices WHERE serial = $1 AND id <> $2`, [serial, d.id]);
+      if (!clash.rowCount) break;
+      serial = generateSerial(d.type);
+    }
+    try {
+      await pool.query(`UPDATE devices SET serial = $2, hwid = COALESCE(NULLIF(hwid,''), $3) WHERE id = $1`, [
+        d.id,
+        serial,
+        hwid,
+      ]);
+      filled++;
+    } catch {
+      /* a concurrent boot won the race for this serial — it has one either way */
+    }
+  }
+  if (filled) logger.info({ filled }, "backfilled device serials");
+}
+
+/** Records an administrative action against a device (best-effort). */
+export async function recordDeviceAudit(
+  deviceId: string,
+  actor: { uid: number; email: string } | null,
+  action: string,
+  detail: Record<string, unknown> = {},
+  note = ""
+): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO device_audit (device_id, actor_id, actor_email, action, detail, note)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [deviceId, actor?.uid ?? null, actor?.email ?? "", action, detail, note]
+    );
+  } catch (err) {
+    logger.error({ err, deviceId, action }, "device audit insert failed");
+  }
 }
 
 /** Record an event for the notification center / activity log (best-effort). */

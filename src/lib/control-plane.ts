@@ -149,6 +149,76 @@ export interface Scene {
   created_at?: string;
 }
 
+/* ---- device registry ---------------------------------------------------- */
+
+export interface AdminDeviceRecord {
+  id: string;
+  serial: string | null;
+  name: string;
+  type: string;
+  room: string;
+  online: boolean;
+  last_seen: string | null;
+  fw_version: string;
+  created_at: string;
+  batch: string;
+  owner_email: string | null;
+  owner_id: number | null;
+}
+
+/**
+ * The full record for one device.
+ *
+ * Assembled server-side by device-report.ts and redacted there by audience,
+ * so the owner's copy is genuinely missing the internal fields rather than
+ * merely not rendering them.
+ */
+export interface DeviceReport {
+  generatedAt: string;
+  audience: "owner" | "admin";
+  identity: {
+    id: string;
+    serial: string | null;
+    name: string;
+    type: string;
+    room: string | null;
+    firmware: string | null;
+    registeredAt: string | null;
+    hwid?: string | null;
+    batch?: string | null;
+    notes?: string | null;
+  };
+  ownership: { claimed: boolean; ownerId?: number | null; ownerEmail?: string | null; ownerName?: string | null };
+  credentials: {
+    issuedAt: string | null;
+    lastRotatedAt: string | null;
+    rotations: number;
+    recoverable: false;
+    note: string;
+  };
+  connectivity: {
+    online: boolean;
+    lastSeen: string | null;
+    firstTelemetryAt: string | null;
+    telemetryRecords: number;
+    commandsIssued: number;
+  };
+  state: Record<string, unknown>;
+  qr: { label: string; serialText: string; deviceId: string };
+  telemetry: Array<{ at: string; data: Record<string, unknown> }>;
+  controlLog: Array<{ at: string; by: string | null; command: Record<string, unknown> }>;
+  events: Array<{ at: string; kind: string; title: string; body: string }>;
+  auditLog: Array<{ at: string; actor: string; action: string; detail: Record<string, unknown>; note: string }>;
+  summary: {
+    historyLimit: number;
+    telemetryReturned: number;
+    commandsReturned: number;
+    eventsReturned: number;
+    auditReturned: number;
+    truncated: boolean;
+  };
+}
+
 /* ---- developer API ------------------------------------------------------ */
 
 export interface ApiScopeInfo {
@@ -568,6 +638,43 @@ export const controlPlane = {
   // ---- OTA -----------------------------------------------------------------
   adminOtaBroadcast: (body: { type?: string; url: string; version?: string }) =>
     req<{ success: boolean; sent: number }>("/admin/ota-broadcast", { method: "POST", body: JSON.stringify(body) }),
+
+  // ---- device registry (internal team) ------------------------------------
+  adminDeviceLookup: (q: string) =>
+    req<{ matchedBy: "serial" | "search"; normalized: string | null; devices: AdminDeviceRecord[]; error?: string; code?: string }>(
+      "/admin/devices/lookup?q=" + encodeURIComponent(q)
+    ),
+  adminDeviceReport: (id: string, limit = 100) =>
+    req<{ report: DeviceReport }>("/admin/devices/" + encodeURIComponent(id) + "/report?limit=" + limit),
+  /**
+   * Reissues a device key. The old one cannot be recovered — only a bcrypt
+   * hash is stored — so this replaces it, and the device must be set up again
+   * with the new key. The returned secret is shown once.
+   */
+  adminReissueKey: (id: string, note: string) =>
+    req<{ success: boolean; key: string; mqttUsername: string; mqttPassword: string; error?: string }>(
+      "/admin/devices/" + encodeURIComponent(id) + "/reissue-key",
+      { method: "POST", body: JSON.stringify({ note }) }
+    ),
+  adminAssignDevice: (id: string, ownerEmail: string | null, note: string) =>
+    req<{ success: boolean; ownerEmail: string | null; error?: string }>(
+      "/admin/devices/" + encodeURIComponent(id) + "/assign",
+      { method: "POST", body: JSON.stringify({ ownerEmail, note }) }
+    ),
+  adminClaimForUser: (body: { device: string; key: string; ownerEmail: string; note?: string }) =>
+    req<{ success: boolean; deviceId: string; ownerEmail: string; error?: string; code?: string }>(
+      "/admin/devices/claim-for-user",
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  adminUpdateDevice: (id: string, body: { name?: string; room?: string; notes?: string; batch?: string }) =>
+    req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  /** The owner's own report for their own device — no secrets, no internal data. */
+  deviceReport: (id: string, limit = 100) =>
+    req<{ report: DeviceReport }>("/devices/" + encodeURIComponent(id) + "/report?limit=" + limit),
 
   // ---- developer: API keys + webhooks -------------------------------------
   // Deliberately session-authenticated. The control plane refuses these

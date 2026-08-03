@@ -10,6 +10,7 @@ import {
   hashDeviceKey,
 } from "../auth";
 import { provisionBrokerClient } from "../mqtt";
+import { generateSerial } from "../serial";
 import { logger } from "../logger";
 
 export const provisioningRouter = Router();
@@ -59,13 +60,14 @@ provisioningRouter.post("/self", async (req, res) => {
     if (exists.rowCount) id = `${id}-${Math.random().toString(16).slice(2, 6)}`;
     const key = generateDeviceKey();
     const keyHash = await hashDeviceKey(key);
+    const serial = generateSerial(claims.type, hwid);
     await pool.query(
-      `INSERT INTO devices (id, key_hash, owner_id, name, type) VALUES ($1, $2, $3, $4, $5)`,
-      [id, keyHash, claims.uid, claims.name || claims.type, claims.type]
+      `INSERT INTO devices (id, key_hash, owner_id, name, type, serial, hwid) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, keyHash, claims.uid, claims.name || claims.type, claims.type, serial, hwid]
     );
     provisionBrokerClient(id, key);
-    logger.info({ id, uid: claims.uid, type: claims.type }, "device self-provisioned");
-    res.json({ id, key, broker: "mqtt.circuvent.com" });
+    logger.info({ id, serial, uid: claims.uid, type: claims.type }, "device self-provisioned");
+    res.json({ id, key, serial, broker: "mqtt.circuvent.com" });
   } catch (err) {
     logger.error({ err }, "self-provision failed");
     res.status(500).json({ error: "Could not provision device" });

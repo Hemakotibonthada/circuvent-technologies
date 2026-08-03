@@ -1,3 +1,16 @@
+// ─────────────────────────────────────────────────────────────
+// In-process rate limiter.
+//
+// SCOPE LIMITATION: this Map lives in a single serverless instance. On Vercel
+// each concurrent lambda gets its own copy, and the counters reset on cold
+// start, so an attacker spread across instances sees an effective limit of
+// (limit x instance count). It raises the cost of casual abuse but is not a
+// hard guarantee.
+//
+// Treat it as defence in depth, not the control of record. For an enforceable
+// global limit, back this with a shared store (Vercel KV / Upstash Redis) and
+// keep this Map only as a local fast path.
+// ─────────────────────────────────────────────────────────────
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 const WINDOW_MS = 60_000; // 1 minute

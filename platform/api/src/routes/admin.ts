@@ -1,10 +1,18 @@
 import { Router, type Response, type NextFunction } from "express";
 import { z } from "zod";
-import { pool } from "../db";
+import { pool, recordEvent, recordDeviceAudit } from "../db";
 import { config } from "../config";
-import { requireAuth, type AuthedRequest, generateDeviceKey, hashDeviceKey } from "../auth";
+import {
+  requireAuth,
+  type AuthedRequest,
+  generateDeviceKey,
+  hashDeviceKey,
+  verifyDeviceKey,
+} from "../auth";
 import { publishCommand, provisionBrokerClient, deprovisionBrokerClient, getMqtt } from "../mqtt";
 import { invalidateOwnership, invalidateOwner } from "../ownership";
+import { normalizeSerial, generateSerial } from "../serial";
+import { buildDeviceReport, reportToCsv } from "../device-report";
 import { revokeAllSessions, invalidateUser } from "../sessions";
 import { revokeAllRefreshTokens } from "../refresh";
 import { readBrokerCertificate } from "../broker-cert";
@@ -168,12 +176,304 @@ adminRouter.delete("/users/:id", async (req: AuthedRequest, res) => {
 /** GET /admin/devices — every device with owner + last-seen. */
 adminRouter.get("/devices", async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT d.id, d.name, d.type, d.room, d.online, d.last_seen, d.fw_version, d.state,
+    `SELECT d.id, d.serial, d.name, d.type, d.room, d.online, d.last_seen, d.fw_version, d.state,
             u.email AS owner_email, u.id AS owner_id
      FROM devices d LEFT JOIN users u ON u.id = d.owner_id
      ORDER BY d.online DESC, d.last_seen DESC NULLS LAST`
   );
   res.json({ devices: rows });
+});
+
+/* ------------------------------------------------------------------ */
+/* Device registry — internal team                                     */
+/*                                                                     */
+/* NOTE ON ROUTE ORDER: every literal path below must stay above the   */
+/* `/devices/:id` handlers. Express matches in registration order, so  */
+/* a `/devices/lookup` declared later would be swallowed by `:id` and  */
+/* silently 404 as a device named "lookup".                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * GET /admin/devices/lookup?q=
+ *
+ * The support desk's entry point: somebody reads a number off a unit and we
+ * find it. Accepts a serial in any casing or spacing, a device id, a name
+ * fragment, or an owner's email address, because the person calling does not
+ * know which of those they are holding.
+ */
+adminRouter.get("/devices/lookup", async (req, res) => {
+  const raw = String(req.query.q ?? "").trim();
+  if (raw.length < 2) {
+    res.status(400).json({ error: "Enter at least two characters to search." });
+    return;
+  }
+
+  // An exact serial is the strongest signal we can get, so it is tried first
+  // and short-circuits: a support call should not return a list when the
+  // number on the label matches exactly one unit.
+  const serial = normalizeSerial(raw);
+  if (serial) {
+    const { rows } = await pool.query(
+      `SELECT d.id, d.serial, d.name, d.type, d.room, d.online, d.last_seen, d.fw_version,
+              d.created_at, d.batch, u.email AS owner_email, u.id AS owner_id
+         FROM devices d LEFT JOIN users u ON u.id = d.owner_id
+        WHERE d.serial = $1`,
+      [serial]
+    );
+    res.json({ matchedBy: "serial", normalized: serial, devices: rows });
+    return;
+  }
+
+  // Not a valid serial. If it *looks* like one — right length, right prefix —
+  // say the check character failed rather than returning an empty list, or the
+  // caller goes looking for a device that never existed instead of re-reading
+  // the label.
+  const looksLikeSerial = /^cv[\s-]?[a-z]{3}[\s-]?[a-z0-9]{4}[\s-]?[a-z0-9]{4}$/i.test(raw);
+  if (looksLikeSerial) {
+    res.status(400).json({
+      error: "That looks like a serial but the check character does not match — please re-read the label.",
+      code: "bad_serial_checksum",
+    });
+    return;
+  }
+
+  const like = `%${raw.toLowerCase()}%`;
+  const { rows } = await pool.query(
+    `SELECT d.id, d.serial, d.name, d.type, d.room, d.online, d.last_seen, d.fw_version,
+            d.created_at, d.batch, u.email AS owner_email, u.id AS owner_id
+       FROM devices d LEFT JOIN users u ON u.id = d.owner_id
+      WHERE LOWER(d.id) LIKE $1 OR LOWER(d.name) LIKE $1 OR LOWER(u.email) LIKE $1
+         OR LOWER(COALESCE(d.serial,'')) LIKE $1 OR LOWER(COALESCE(d.hwid,'')) LIKE $1
+      ORDER BY d.online DESC, d.last_seen DESC NULLS LAST
+      LIMIT 50`,
+    [like]
+  );
+  res.json({ matchedBy: "search", normalized: null, devices: rows });
+});
+
+/**
+ * POST /admin/devices/claim-for-user
+ *
+ * A customer has a unit and its claim key but cannot complete the claim
+ * themselves — a failed app onboarding, a replacement handset, a bulk
+ * deployment done by an installer. This performs the same check the customer's
+ * own claim would: the key must verify against the stored hash. An admin can
+ * assign a device (see /assign below) without the key; this route is for when
+ * the key is present and should be verified, so the audit trail can record
+ * that the credential really was produced.
+ */
+adminRouter.post("/devices/claim-for-user", async (req: AuthedRequest, res) => {
+  const parsed = z
+    .object({
+      device: z.string().min(2),
+      key: z.string().min(1),
+      ownerEmail: z.string().email(),
+      note: z.string().max(300).optional(),
+    })
+    .safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "device, key and ownerEmail are required." });
+    return;
+  }
+  const { device, key, ownerEmail, note } = parsed.data;
+
+  const serial = normalizeSerial(device);
+  const { rows } = await pool.query<{ id: string; key_hash: string; owner_id: string | null }>(
+    serial
+      ? `SELECT id, key_hash, owner_id FROM devices WHERE serial = $1`
+      : `SELECT id, key_hash, owner_id FROM devices WHERE id = $1`,
+    [serial ?? device]
+  );
+  const d = rows[0];
+  if (!d) {
+    res.status(404).json({ error: "No device found for that serial or id." });
+    return;
+  }
+  if (!(await verifyDeviceKey(key, d.key_hash))) {
+    // Deliberately does not say whether the device exists — this endpoint is
+    // reachable by any operator, and confirming a key is wrong for a device
+    // that does exist is a different disclosure from "no such device".
+    res.status(400).json({ error: "That key does not match this device.", code: "key_mismatch" });
+    return;
+  }
+
+  const { rows: users } = await pool.query<{ id: string; email: string }>(
+    `SELECT id, email FROM users WHERE LOWER(email) = LOWER($1)`,
+    [ownerEmail]
+  );
+  const user = users[0];
+  if (!user) {
+    res.status(404).json({ error: "No account with that email address." });
+    return;
+  }
+
+  const previousOwner = d.owner_id ? Number(d.owner_id) : null;
+  await pool.query(`UPDATE devices SET owner_id = $2 WHERE id = $1`, [d.id, Number(user.id)]);
+  provisionBrokerClient(d.id, key);
+  invalidateOwnership(d.id);
+
+  await recordDeviceAudit(
+    d.id,
+    { uid: req.user!.uid, email: req.user!.email },
+    "claim-for-user",
+    { previousOwner, newOwner: Number(user.id), ownerEmail: user.email, keyVerified: true },
+    note ?? ""
+  );
+  // The customer is told, in their own feed, that their account changed.
+  void recordEvent(Number(user.id), "security", "Device added to your account", `${d.id} was linked by Circuvent support.`, d.id);
+
+  res.json({ success: true, deviceId: d.id, ownerEmail: user.email });
+});
+
+/**
+ * POST /admin/devices/:id/assign — move a device to an account without its key.
+ *
+ * Separate from claim-for-user on purpose. This is the stronger action: it
+ * transfers a unit on the operator's authority alone, which is what an RMA or
+ * a mis-shipped order needs, and exactly what should be hardest to do quietly.
+ * It therefore requires a reason, and both the losing and gaining accounts are
+ * told.
+ */
+adminRouter.post("/devices/:id/assign", async (req: AuthedRequest, res) => {
+  const parsed = z
+    .object({
+      ownerEmail: z.string().email().nullable(),
+      note: z.string().min(3, "Give a reason — this is an audited transfer.").max(300),
+    })
+    .safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "ownerEmail and a note explaining the transfer are required." });
+    return;
+  }
+  const { ownerEmail, note } = parsed.data;
+
+  const { rows } = await pool.query<{ id: string; owner_id: string | null }>(
+    `SELECT id, owner_id FROM devices WHERE id = $1`,
+    [req.params.id]
+  );
+  const d = rows[0];
+  if (!d) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  let newOwner: { id: number; email: string } | null = null;
+  if (ownerEmail) {
+    const { rows: users } = await pool.query<{ id: string; email: string }>(
+      `SELECT id, email FROM users WHERE LOWER(email) = LOWER($1)`,
+      [ownerEmail]
+    );
+    if (!users[0]) {
+      res.status(404).json({ error: "No account with that email address." });
+      return;
+    }
+    newOwner = { id: Number(users[0].id), email: users[0].email };
+  }
+
+  const previousOwner = d.owner_id ? Number(d.owner_id) : null;
+  await pool.query(`UPDATE devices SET owner_id = $2 WHERE id = $1`, [d.id, newOwner?.id ?? null]);
+  invalidateOwnership(d.id);
+  if (previousOwner) invalidateOwner(previousOwner);
+
+  await recordDeviceAudit(
+    d.id,
+    { uid: req.user!.uid, email: req.user!.email },
+    newOwner ? "assign" : "unassign",
+    { previousOwner, newOwner: newOwner?.id ?? null, ownerEmail: newOwner?.email ?? null },
+    note
+  );
+  if (newOwner) {
+    void recordEvent(newOwner.id, "security", "Device added to your account", `${d.id} was assigned by Circuvent support.`, d.id);
+  }
+  if (previousOwner && previousOwner !== newOwner?.id) {
+    void recordEvent(previousOwner, "security", "Device removed from your account", `${d.id} was transferred by Circuvent support.`, d.id);
+  }
+
+  res.json({ success: true, deviceId: d.id, ownerEmail: newOwner?.email ?? null });
+});
+
+/**
+ * POST /admin/devices/:id/reissue-key
+ *
+ * The honest answer to "the customer lost their device key".
+ *
+ * We store bcrypt, so the original cannot be read back — not by support, not
+ * by an admin, not by us. The only thing that can be done is to issue a new
+ * one, which is a real change with real consequences: the device must be
+ * re-claimed or re-flashed with it, and until then it cannot reconnect to the
+ * broker under the old credential.
+ *
+ * That is why this records an audit entry and notifies the owner, and why the
+ * console spells out the consequence before the button does anything. A route
+ * that quietly minted a replacement would let a support call take a customer's
+ * device offline with nothing on the record explaining why.
+ */
+adminRouter.post("/devices/:id/reissue-key", async (req: AuthedRequest, res) => {
+  const parsed = z
+    .object({ note: z.string().min(3, "Give a reason — this disconnects the device.").max(300) })
+    .safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "A note explaining why the key is being reissued is required." });
+    return;
+  }
+
+  const { rows } = await pool.query<{ id: string; owner_id: string | null; key_rotations: number }>(
+    `SELECT id, owner_id, key_rotations FROM devices WHERE id = $1`,
+    [req.params.id]
+  );
+  const d = rows[0];
+  if (!d) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const key = generateDeviceKey();
+  const keyHash = await hashDeviceKey(key);
+  await pool.query(
+    `UPDATE devices SET key_hash = $2, key_rotated_at = now(), key_rotations = key_rotations + 1 WHERE id = $1`,
+    [d.id, keyHash]
+  );
+  // Re-point the broker client at the new secret. Without this the device
+  // would be holding a key the API accepts and the broker rejects.
+  provisionBrokerClient(d.id, key);
+
+  await recordDeviceAudit(
+    d.id,
+    { uid: req.user!.uid, email: req.user!.email },
+    "reissue-key",
+    { rotation: d.key_rotations + 1 },
+    parsed.data.note
+  );
+  if (d.owner_id) {
+    void recordEvent(
+      Number(d.owner_id),
+      "security",
+      "Device credentials reissued",
+      `${d.id} was given a new key by Circuvent support. It must be set up again with the new key.`,
+      d.id
+    );
+  }
+
+  logger.warn({ deviceId: d.id, by: req.user!.email }, "device key reissued");
+  // Shown exactly once. It is not stored anywhere it can be read back.
+  res.json({ success: true, deviceId: d.id, key, mqttUsername: d.id, mqttPassword: key });
+});
+
+/** GET /admin/devices/:id/report — the full record for one unit. */
+adminRouter.get("/devices/:id/report", async (req, res) => {
+  const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 100));
+  const report = await buildDeviceReport(req.params.id, "admin", { limit });
+  if (!report) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (String(req.query.format).toLowerCase() === "csv") {
+    res.setHeader("content-type", "text/csv; charset=utf-8");
+    res.setHeader("content-disposition", `attachment; filename="device-${req.params.id}-report.csv"`);
+    res.send(reportToCsv(report));
+    return;
+  }
+  res.json({ report });
 });
 
 /** POST /admin/devices/:id/command — force a command to any device. */
@@ -268,7 +568,13 @@ adminRouter.get("/devices/:id/telemetry", async (req, res) => {
 /** PATCH /admin/devices/:id — rename / re-room / reassign owner. */
 adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
   const parsed = z
-    .object({ name: z.string().max(120).optional(), room: z.string().max(80).optional(), owner_id: z.number().int().nullable().optional() })
+    .object({
+      name: z.string().max(120).optional(),
+      room: z.string().max(80).optional(),
+      owner_id: z.number().int().nullable().optional(),
+      notes: z.string().max(2000).optional(),
+      batch: z.string().max(60).optional(),
+    })
     .safeParse(req.body ?? {});
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -280,10 +586,20 @@ adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
   let i = 2;
   if (d.name !== undefined) { sets.push(`name = $${i++}`); vals.push(d.name); }
   if (d.room !== undefined) { sets.push(`room = $${i++}`); vals.push(d.room); }
+  if (d.notes !== undefined) { sets.push(`notes = $${i++}`); vals.push(d.notes); }
+  if (d.batch !== undefined) { sets.push(`batch = $${i++}`); vals.push(d.batch); }
   if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "owner_id")) { sets.push(`owner_id = $${i++}`); vals.push(d.owner_id ?? null); }
   if (sets.length) await pool.query(`UPDATE devices SET ${sets.join(", ")} WHERE id = $1`, vals);
   // Reassigning an owner must revoke the previous one's cached command rights.
   invalidateOwnership(req.params.id);
+  // An ownership change made through the generic patch is still an ownership
+  // change, and has to reach the audit trail like the dedicated route does.
+  if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "owner_id")) {
+    void recordDeviceAudit(req.params.id, { uid: req.user!.uid, email: req.user!.email }, "assign", {
+      newOwner: d.owner_id ?? null,
+      via: "patch",
+    });
+  }
   res.json({ success: true });
 });
 
@@ -304,15 +620,18 @@ adminRouter.post("/devices/provision", async (req: AuthedRequest, res) => {
     const key = generateDeviceKey();
     const keyHash = await hashDeviceKey(key);
     const owner = parsed.data.owner_id ?? req.user!.uid;
-    await pool.query(`INSERT INTO devices (id, key_hash, owner_id, name, type) VALUES ($1, $2, $3, $4, $5)`, [
-      id,
-      keyHash,
-      owner,
-      parsed.data.name || parsed.data.type,
-      parsed.data.type,
-    ]);
+    const serial = generateSerial(parsed.data.type, hwid);
+    await pool.query(
+      `INSERT INTO devices (id, key_hash, owner_id, name, type, serial, hwid) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, keyHash, owner, parsed.data.name || parsed.data.type, parsed.data.type, serial, hwid]
+    );
     provisionBrokerClient(id, key);
-    res.json({ id, key, mqttUsername: id, mqttPassword: key });
+    void recordDeviceAudit(id, { uid: req.user!.uid, email: req.user!.email }, "provision", {
+      type: parsed.data.type,
+      serial,
+      owner,
+    });
+    res.json({ id, key, serial, mqttUsername: id, mqttPassword: key });
   } catch (err) {
     logger.error({ err }, "admin provision failed");
     res.status(500).json({ error: "Could not provision device" });

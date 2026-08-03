@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { requireAuth, type AuthedRequest, verifyDeviceKey, generateDeviceKey, hashDeviceKey } from "../auth";
 import { publishCommand, provisionBrokerClient, deprovisionBrokerClient } from "../mqtt";
 import { ownsDevice, invalidateOwnership } from "../ownership";
+import { buildDeviceReport, reportToCsv } from "../device-report";
 import { logger } from "../logger";
 
 export const deviceRouter = Router();
@@ -88,7 +89,7 @@ deviceRouter.post("/claim", requireAuth, async (req: AuthedRequest, res) => {
 /** GET /devices — the caller's devices with live-ish state. */
 deviceRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
-    `SELECT id, name, type, room, favorite, online, last_seen, state, fw_version
+    `SELECT id, serial, name, type, room, favorite, online, last_seen, state, fw_version
      FROM devices WHERE owner_id = $1 ORDER BY created_at`,
     [req.user!.uid]
   );
@@ -103,7 +104,7 @@ deviceRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
 /** GET /devices/:id — single device detail. */
 deviceRouter.get("/:id", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
-    `SELECT id, name, type, room, favorite, online, last_seen, state, fw_version
+    `SELECT id, serial, name, type, room, favorite, online, last_seen, state, fw_version
      FROM devices WHERE id = $1 AND owner_id = $2`,
     [req.params.id, req.user!.uid]
   );
@@ -218,6 +219,34 @@ deviceRouter.get("/:id/energy", requireAuth, async (req: AuthedRequest, res) => 
   }));
   const kwh = series.reduce((s, p) => s + (p.avg * bucketHours) / 1000, 0);
   res.json({ metric, gran, series, kwh: Math.round(kwh * 1000) / 1000 });
+});
+
+/**
+ * GET /devices/:id/report — the owner's full record for their own device.
+ *
+ * Same assembler as the operator report, with `audience: "owner"` doing the
+ * redaction: no manufacturing data, no other account's details, and no
+ * administrative audit trail. It cannot leak a credential because none is
+ * stored in recoverable form.
+ */
+deviceRouter.get("/:id/report", requireAuth, async (req: AuthedRequest, res) => {
+  if (!(await ownsDevice(req.user!.uid, req.params.id))) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 100));
+  const report = await buildDeviceReport(req.params.id, "owner", { limit });
+  if (!report) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (String(req.query.format).toLowerCase() === "csv") {
+    res.setHeader("content-type", "text/csv; charset=utf-8");
+    res.setHeader("content-disposition", `attachment; filename="device-${req.params.id}-report.csv"`);
+    res.send(reportToCsv(report));
+    return;
+  }
+  res.json({ report });
 });
 
 /** DELETE /devices/:id — unclaim/remove from the account. */

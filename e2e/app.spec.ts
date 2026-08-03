@@ -96,12 +96,18 @@ test.describe("Contact Page", () => {
 });
 
 test.describe("SEO", () => {
+  // Derived from the same source as the app (src/lib/config.ts) rather than a
+  // hardcoded literal. This assertion previously expected "circuvent.tech",
+  // which is not the configured origin, so the test failed on every run.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
+  const siteHost = new URL(siteUrl).hostname;
+
   test("sitemap.xml is accessible", async ({ page }) => {
     const response = await page.goto("/sitemap.xml");
     expect(response?.status()).toBe(200);
     const content = await page.content();
     expect(content).toContain("urlset");
-    expect(content).toContain("circuvent.tech");
+    expect(content).toContain(siteHost);
   });
 
   test("robots.txt is accessible", async ({ page }) => {
