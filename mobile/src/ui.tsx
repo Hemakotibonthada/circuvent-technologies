@@ -16,6 +16,7 @@ import {
   PanResponder,
   StatusBar,
   useWindowDimensions,
+  Dimensions,
   AppState,
   AccessibilityInfo,
 } from "react-native";
@@ -169,16 +170,44 @@ export function useBackHandler(handler: () => boolean) {
  * iPhone.
  */
 export function useSafeArea(): { top: number; bottom: number } {
-  const { height, width } = useWindowDimensions();
-  return useMemo(() => {
-    if (Platform.OS === "android") {
-      return { top: StatusBar.currentHeight ?? 24, bottom: 0 };
-    }
-    // iPhone X and later are >= 812pt tall in portrait (or wide in landscape).
-    const notched = Math.max(height, width) >= 812;
-    return notched ? { top: 44, bottom: 34 } : { top: 20, bottom: 0 };
-  }, [height, width]);
+  return useSafeAreaImpl();
 }
+
+/**
+ * Android: the answer does not depend on the window at all.
+ *
+ * This matters more than it looks. `useSafeArea` is called by Shell, which
+ * wraps the whole app — and on Android the soft keyboard resizes the window.
+ * Subscribing to window dimensions here therefore re-rendered every screen on
+ * every keyboard open, close, and height change (the suggestion strip alone
+ * changes it twice per word), which made typing visibly unsmooth in every text
+ * field in the app.
+ *
+ * Splitting the implementation at module load rather than branching inside one
+ * hook keeps the hook order consistent while letting Android subscribe to
+ * nothing.
+ */
+function useSafeAreaAndroid(): { top: number; bottom: number } {
+  return useMemo(() => ({ top: StatusBar.currentHeight ?? 24, bottom: 0 }), []);
+}
+
+/**
+ * iOS: depends only on whether the device has a notch, which the keyboard
+ * cannot change — iOS overlays the keyboard instead of resizing the window.
+ * Memoised on that boolean rather than on the raw dimensions so the returned
+ * object keeps its identity across rotation-free re-renders.
+ */
+function useSafeAreaIOS(): { top: number; bottom: number } {
+  const { height, width } = useWindowDimensions();
+  // iPhone X and later are >= 812pt tall in portrait (or wide in landscape).
+  const notched = Math.max(height, width) >= 812;
+  return useMemo(
+    () => (notched ? { top: 44, bottom: 34 } : { top: 20, bottom: 0 }),
+    [notched]
+  );
+}
+
+const useSafeAreaImpl = Platform.OS === "android" ? useSafeAreaAndroid : useSafeAreaIOS;
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
@@ -610,9 +639,19 @@ export function SwipeBack({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { width } = useWindowDimensions();
   const tx = useRef(new Animated.Value(0)).current;
   const active = Platform.OS === "ios" && enabled;
+
+  // Deliberately NOT useWindowDimensions().
+  //
+  // This component wraps every screen in the app, and on Android the soft
+  // keyboard resizes the window — so subscribing here re-rendered the entire
+  // screen each time the keyboard opened, closed, or changed height for a
+  // suggestion strip. Typing became visibly unsmooth everywhere there was a
+  // text field, which is exactly the regression that followed adding this.
+  //
+  // The width is only needed once, when a drag is released, so it is read then.
+  const widthAt = () => Dimensions.get("window").width;
 
   // Held in a ref so the responder callbacks, which are created once, always
   // call the current handler rather than the one captured on first render.
@@ -620,8 +659,6 @@ export function SwipeBack({
   onBackRef.current = onBack;
   const activeRef = useRef(active);
   activeRef.current = active;
-  const widthRef = useRef(width);
-  widthRef.current = width;
 
   const responder = useMemo(
     () =>
@@ -646,7 +683,7 @@ export function SwipeBack({
           tx.setValue(Math.max(0, g.dx));
         },
         onPanResponderRelease: (_e, g) => {
-          const w = widthRef.current;
+          const w = widthAt();
           const commit = g.dx > w * COMMIT_FRACTION || g.vx > COMMIT_VELOCITY;
           if (commit) {
             Animated.timing(tx, {

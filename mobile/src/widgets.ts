@@ -1,7 +1,7 @@
 // Per-device widget customization for multi-gang controls (smart-switch,
 // touchboard, home-hub). Lets the user name each channel, say what it is wired
 // to, and hide the ones they don't use. Stored locally per device id.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Device } from "./api";
 import type { IconName } from "./icons";
@@ -113,24 +113,58 @@ export function useSwitchWidgets(device: Device) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device.id, device.type]);
 
-  const persist = useCallback(async (next: Gang[]) => {
-    setGangs(next);
-    try { await AsyncStorage.setItem(key(device.id), JSON.stringify(next)); } catch { /* ignore */ }
+  /**
+   * Applies a change and saves it.
+   *
+   * Two things were wrong with doing this directly from `gangs`.
+   *
+   * The update is functional because `rename` closed over `gangs`, so two
+   * keystrokes landing before a re-render both computed from the same stale
+   * array and the first character was lost. Typing a channel name at speed
+   * silently dropped letters.
+   *
+   * The write is debounced because it wrote the whole array to AsyncStorage on
+   * every keystroke — a bridge hop and a disk write per character, which is
+   * exactly the kind of per-keystroke work that makes a keyboard feel like it
+   * is fighting back. State still updates immediately, so the field stays
+   * responsive; only the save waits.
+   */
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const update = useCallback((fn: (prev: Gang[]) => Gang[]) => {
+    setGangs((prev) => {
+      const next = fn(prev);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        AsyncStorage.setItem(key(device.id), JSON.stringify(next)).catch(() => { /* ignore */ });
+      }, 400);
+      return next;
+    });
   }, [device.id]);
 
+  // A pending save must not be lost because the user navigated away, which is
+  // the obvious way for a debounce to eat someone's work.
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+  }, []);
+
   const rename = useCallback((field: string, label: string) => {
-    persist(gangs.map((g) => (g.field === field ? { ...g, label } : g)));
-  }, [gangs, persist]);
+    update((prev) => prev.map((g) => (g.field === field ? { ...g, label } : g)));
+  }, [update]);
 
   const setVisible = useCallback((field: string, visible: boolean) => {
-    persist(gangs.map((g) => (g.field === field ? { ...g, visible } : g)));
-  }, [gangs, persist]);
+    update((prev) => prev.map((g) => (g.field === field ? { ...g, visible } : g)));
+  }, [update]);
 
   const setKind = useCallback((field: string, kind: ChannelKind) => {
-    persist(gangs.map((g) => (g.field === field ? { ...g, kind } : g)));
-  }, [gangs, persist]);
+    update((prev) => prev.map((g) => (g.field === field ? { ...g, kind } : g)));
+  }, [update]);
 
-  const reset = useCallback(() => persist(defaultGangs(device)), [device, persist]);
+  const reset = useCallback(() => {
+    const defaults = defaultGangs(device);
+    setGangs(defaults);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    AsyncStorage.setItem(key(device.id), JSON.stringify(defaults)).catch(() => { /* ignore */ });
+  }, [device]);
 
   return { gangs, visible: gangs.filter((g) => g.visible), rename, setVisible, setKind, reset };
 }
