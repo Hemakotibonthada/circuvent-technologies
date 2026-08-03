@@ -21,7 +21,7 @@ export function defaultGangs(d: Device): Gang[] {
     case "sentinel": {
       // Relay count differs by board (the camera build gives up two relays to
       // the sensor bus), so trust what the firmware reports over a constant.
-      const n = Math.max(1, Math.min(8, Number(s.relays ?? 4)));
+      const n = Math.max(1, Math.min(32, Number(s.relays ?? 4)));
       return Array.from({ length: n }, (_, i) => mk(`r${i + 1}`, `Relay ${i + 1}`));
     }
     default: {

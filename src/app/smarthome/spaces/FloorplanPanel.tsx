@@ -74,7 +74,7 @@ function pinColor(d: Device): { fill: string; active: boolean; label: string } {
     }
     case "sentinel": {
       if (s.gasAlarm) return { fill: "#ef4444", active: true, label: "gas alarm" };
-      const total = Math.max(0, Math.min(8, Number(s.relays ?? 0)));
+      const total = Math.max(0, Math.min(32, Number(s.relays ?? 0)));
       if (!total) return { fill: "#475569", active: false, label: "—" };
       const on = Array.from({ length: total }, (_, i) => s[`r${i + 1}`]).filter(Boolean).length;
       return on

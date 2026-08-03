@@ -1017,7 +1017,7 @@ function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
 function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const chan = useChannelGrid(d);
   const s = d.state;
-  const relays = Math.max(0, Math.min(8, n(s.relays, 0)));
+  const relays = Math.max(0, Math.min(32, n(s.relays, 0)));
   const hasGas = b(s.hasGas);
   const hasCamera = b(s.hasCamera);
   const alarm = b(s.gasAlarm);

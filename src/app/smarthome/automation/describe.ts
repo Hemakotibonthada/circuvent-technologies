@@ -220,15 +220,16 @@ export function getCommandFields(type: string): CommandField[] {
       ];
 
     case "sentinel":
-      // Relays are r1..rN; four are listed because that is the standard board.
-      // The rule builder cannot know which board a rule will target, and a
-      // command for a relay that does not exist is ignored by the firmware
-      // rather than misapplied.
+      // Relays are r1..rN. Sixteen are listed because that is the expander
+      // board's count; a four-relay unit simply ignores commands for relays it
+      // does not have, and the schedule list filters by the count the device
+      // reports (see switchTargetsOf in lib/smarthome-switches.ts).
       return [
-        { key: "r1", label: "Relay 1", kind: "bool" },
-        { key: "r2", label: "Relay 2", kind: "bool" },
-        { key: "r3", label: "Relay 3", kind: "bool" },
-        { key: "r4", label: "Relay 4", kind: "bool" },
+        ...Array.from({ length: 16 }, (_, i) => ({
+          key: `r${i + 1}`,
+          label: `Relay ${i + 1}`,
+          kind: "bool" as const,
+        })),
         { key: "all", label: "All relays", kind: "bool" },
         { key: "away", label: "Away mode", kind: "bool" },
         { key: "muted", label: "Buzzer muted", kind: "bool" },

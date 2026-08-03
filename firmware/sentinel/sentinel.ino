@@ -48,6 +48,9 @@
 #include <CircuventDevice.h>
 #include <Preferences.h>
 #include <DHT.h>
+#if defined(CV_BOARD_MAX) && CV_BOARD_MAX
+#include <Wire.h>
+#endif
 
 /* ==================================================================== */
 /*  Board profile                                                        */
@@ -56,6 +59,12 @@
 // Set by platformio.ini. Default is the full panel.
 #ifndef CV_BOARD_CAM
 #define CV_BOARD_CAM 0
+#endif
+#ifndef CV_BOARD_MAX
+#define CV_BOARD_MAX 0
+#endif
+#if CV_BOARD_CAM && CV_BOARD_MAX
+  #error "CV_BOARD_CAM and CV_BOARD_MAX are different boards; pick one."
 #endif
 
 #if CV_BOARD_CAM
@@ -66,6 +75,7 @@
   #define CV_HAS_GAS      0   // see the header: ADC1 is gone
   #define CV_HAS_PIR      0
   #define CV_HAS_BUZZER   0
+  #define CV_HAS_EXPANDER 0
   #define NUM_RELAY       2
   #define NUM_TOUCH       2
 
@@ -95,6 +105,41 @@
   const uint8_t RELAY_PIN[NUM_RELAY] = { 14, 15 };
   const uint8_t TOUCH_PIN[NUM_TOUCH] = { 13 /*T4*/, 2 /*T2*/ };
 
+#elif CV_BOARD_MAX
+  // ---- ESP32 DevKit + MCP23017 expanders --------------------------------
+  // A distribution-board unit rather than a wall plate: 16 relays on an I²C
+  // expander, optional momentary override buttons on a second one.
+  //
+  // Relays 1-4 keep the four native capacitive pads so the most-used loads
+  // still have local control; the rest are driven from the app, schedules or
+  // the button expander. Everything else (gas, DHT, buzzer, PIR, LED) keeps the
+  // standard board's pinout exactly, because the relays moved off GPIO and
+  // freed 19/21/22/23.
+  #define CV_HAS_CAMERA   0
+  #define CV_HAS_GAS      1
+  #define CV_HAS_PIR      1
+  #define CV_HAS_BUZZER   1
+  #define CV_HAS_EXPANDER 1
+  #ifndef NUM_RELAY
+  #define NUM_RELAY       16          // one MCP23017; 32 with a second
+  #endif
+  #define NUM_TOUCH       4
+
+  #define DHT_PIN         18
+  #define GAS_ANALOG_PIN  34
+  #define GAS_DIGITAL_PIN 35
+  #define BUZZER_PIN      27
+  #define PIR_PIN         39
+  #define STATUS_LED       2
+  #define STATUS_LED_ON   HIGH
+  #define CV_RESET_BTN     0
+
+  #define I2C_SDA_PIN     21          // freed: relays moved to the expander
+  #define I2C_SCL_PIN     22
+  #define BTN_INT_PIN     23          // MCP23017 INT from the input expander
+
+  const uint8_t TOUCH_PIN[NUM_TOUCH] = { 4 /*T0*/, 13 /*T4*/, 14 /*T6*/, 33 /*T8*/ };
+
 #else
   // ---- ESP32 DevKit (WROOM-32) ------------------------------------------
   // Relays deliberately avoid GPIO 0, 2, 5, 12 and 15: those are strapping pins
@@ -105,6 +150,7 @@
   #define CV_HAS_GAS      1
   #define CV_HAS_PIR      1
   #define CV_HAS_BUZZER   1
+  #define CV_HAS_EXPANDER 0
   #define NUM_RELAY       4
   #define NUM_TOUCH       4
 
@@ -121,6 +167,41 @@
   // Pads skip GPIO 12 (MTDI): it selects the flash voltage at boot, and a hand
   // resting on the panel during a power cut could stop it booting at all.
   const uint8_t TOUCH_PIN[NUM_TOUCH] = { 4 /*T0*/, 13 /*T4*/, 14 /*T6*/, 33 /*T8*/ };
+#endif
+
+/*
+ * Relay board polarity.
+ *
+ * Most opto-isolated relay boards are active LOW. Direct-GPIO builds default to
+ * active HIGH because that is what the units already in the field are wired
+ * for — changing that default would invert every deployed panel.
+ */
+#ifndef CV_RELAY_ACTIVE_LOW
+#define CV_RELAY_ACTIVE_LOW 0
+#endif
+
+/*
+ * Expander configuration.
+ *
+ * Two MCP23017s: 0x20 drives the relays, 0x21 reads momentary override
+ * buttons. Both address pins A0-A2 must be tied — a floating address line
+ * makes the chip answer intermittently, which looks exactly like a bad solder
+ * joint. RESET must be tied high or the chip never leaves reset.
+ */
+#ifndef CV_RELAY_EXPANDERS
+#define CV_RELAY_EXPANDERS 1            // 1 = 16 relays, 2 = 32
+#endif
+#ifndef CV_MCP_RELAY_ADDR
+#define CV_MCP_RELAY_ADDR 0x20
+#endif
+#ifndef CV_HAS_BUTTONS
+#define CV_HAS_BUTTONS 0                // second MCP23017 for override buttons
+#endif
+#ifndef CV_MCP_BTN_ADDR
+#define CV_MCP_BTN_ADDR 0x21
+#endif
+#ifndef NUM_BUTTON
+#define NUM_BUTTON 16
 #endif
 
 // Swap the sensor with -DCV_DHT_TYPE=DHT22.
@@ -153,6 +234,23 @@
   // on the bench and returns garbage in the field.
   #error "GAS_ANALOG_PIN must be on ADC1 (GPIO 32-39); ADC2 is unusable while Wi-Fi is active."
 #endif
+#if NUM_RELAY > 32
+  // The relay bitmasks (safetyCutMask, the desired-output word) are 32-bit.
+  #error "NUM_RELAY cannot exceed 32 without widening the relay bitmasks."
+#endif
+#if CV_HAS_EXPANDER && (NUM_RELAY > 16 * CV_RELAY_EXPANDERS)
+  #error "NUM_RELAY exceeds what the configured number of MCP23017s can drive."
+#endif
+
+/*
+ * Mask of every valid relay, computed without ever evaluating `1 << 32`.
+ *
+ * Shifting by the full width of the type is undefined behaviour, and on Xtensa
+ * it quietly yields 1 rather than 0 — which would leave this mask as 0 and
+ * silently disable every safety cut. The condition below is folded at compile
+ * time, so the bad shift is never generated.
+ */
+#define RELAY_MASK_ALL ((NUM_RELAY >= 32) ? 0xFFFFFFFFul : ((1ul << NUM_RELAY) - 1ul))
 
 /* ==================================================================== */
 /*  Tunables                                                             */
@@ -198,9 +296,37 @@ uint16_t relayAutoOffMin[NUM_RELAY];  // configured minutes, 0 = disabled
 
 // Relays cut when gas is detected, as a bitmask over relay index. A gas
 // solenoid or a hob feed belongs here; an exhaust fan does not.
-uint8_t safetyCutMask = 0;
+//
+// 32-bit, not 8: an 8-bit mask truncates silently past relay 8, so on a
+// 16-relay board the second half would never be cut and nothing would say so.
+uint32_t safetyCutMask = 0;
 // Relay driven ON during an alarm, to clear the air. -1 = none.
 int8_t exhaustRelay = -1;
+
+/*
+ * Publish coalescing.
+ *
+ * setRelay() publishes immediately, which is what makes a touch appear in the
+ * app at once. But a bulk change calls it once per relay, so "all off" on a
+ * 16-relay board would be 16 MQTT publishes describing 16 intermediate states
+ * nobody asked for. Bulk operations hold the publish and emit one final state.
+ * Counted rather than boolean so nesting (a safety cut inside an away-mode
+ * change) cannot release the hold early.
+ */
+int publishHold = 0;
+bool publishPending = false;
+
+void publishStateCoalesced() {
+  if (publishHold > 0) { publishPending = true; return; }
+  cv.publishStateNow();
+}
+void holdPublish() { publishHold++; }
+void releasePublish() {
+  if (publishHold > 0 && --publishHold == 0 && publishPending) {
+    publishPending = false;
+    cv.publishStateNow();
+  }
+}
 
 // ---- gas ----
 #if CV_HAS_GAS
@@ -226,6 +352,13 @@ int  touchBase[NUM_TOUCH];
 uint32_t lastTouchAt = 0;
 uint32_t lastTouchRecal = 0;
 
+// ---- override buttons (expander boards only) ----
+#if CV_HAS_EXPANDER && CV_HAS_BUTTONS
+uint16_t btnPrev = 0xFFFF;            // pull-ups: released reads high
+uint32_t lastBtnAt = 0;
+uint32_t lastBtnPoll = 0;
+#endif
+
 // ---- misc ----
 bool muted = false;
 uint32_t muteUntil = 0;
@@ -241,6 +374,169 @@ Schedule schedules[MAX_SCHEDULES];
 void setStreaming(bool on);
 void sendFrame(bool force);
 #endif
+
+/* ==================================================================== */
+/*  Relay output layer                                                   */
+/*                                                                       */
+/*  Two backends behind one call: direct GPIO for the 2/4-relay boards,   */
+/*  and MCP23017 expanders for the 16/32-relay one. Everything above this */
+/*  section works in logical relay indices and never knows which is in    */
+/*  use.                                                                  */
+/* ==================================================================== */
+
+// Desired output, one bit per relay, 1 = energised. The single source of truth
+// for what the hardware should be doing.
+uint32_t relayWord = 0;
+
+#if CV_HAS_EXPANDER
+
+/* MCP23017 registers, IOCON.BANK = 0 (the reset default). */
+static const uint8_t MCP_IODIRA   = 0x00;
+static const uint8_t MCP_GPINTENA = 0x04;
+static const uint8_t MCP_INTCONA  = 0x08;
+static const uint8_t MCP_IOCON    = 0x0A;
+static const uint8_t MCP_GPPUA    = 0x0C;
+static const uint8_t MCP_GPIOA    = 0x12;
+static const uint8_t MCP_OLATA    = 0x14;
+
+bool expanderOk = false;
+#if CV_HAS_BUTTONS
+bool buttonsOk = false;
+#endif
+
+/**
+ * Writes a 16-bit value to a register pair.
+ *
+ * With IOCON.SEQOP at its default the address pointer auto-increments, so two
+ * data bytes land in reg and reg+1 — port A and port B in one transaction.
+ * That matters: it makes a 16-relay change one bus operation rather than
+ * sixteen, so the relays move together instead of rippling.
+ */
+bool mcpWrite16(uint8_t addr, uint8_t reg, uint16_t v) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  Wire.write((uint8_t)(v & 0xFF));         // port A
+  Wire.write((uint8_t)(v >> 8));           // port B
+  return Wire.endTransmission() == 0;
+}
+
+bool mcpWrite8(uint8_t addr, uint8_t reg, uint8_t v) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  Wire.write(v);
+  return Wire.endTransmission() == 0;
+}
+
+bool mcpRead16(uint8_t addr, uint8_t reg, uint16_t &out) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;   // repeated start
+  if (Wire.requestFrom((int)addr, 2) != 2) return false;
+  uint8_t lo = Wire.read();
+  uint8_t hi = Wire.read();
+  out = (uint16_t)lo | ((uint16_t)hi << 8);
+  return true;
+}
+
+/** Logical "relay on" bits to the levels the board actually wants. */
+static inline uint16_t toElectrical(uint16_t logical) {
+#if CV_RELAY_ACTIVE_LOW
+  return (uint16_t)~logical;
+#else
+  return logical;
+#endif
+}
+
+/**
+ * Brings one relay expander up with every output off.
+ *
+ * The register order here is the whole point. After reset IODIR is 0xFF — all
+ * pins are inputs, so nothing is driven yet. Writing the output latch first
+ * and the direction second means the input-to-output transition drives the
+ * already-correct level. Doing it the other way round drives whatever OLAT
+ * happened to hold (0x00 from reset), which on an active-low relay board is
+ * every relay closing at once, on mains, before the firmware has decided
+ * anything. Boot-time relay chatter is the exact failure the GPIO pin choice
+ * on the other boards was made to avoid; it would be careless to reintroduce
+ * it through the expander.
+ */
+bool mcpBeginRelays(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  if (Wire.endTransmission() != 0) return false;        // nobody home
+
+  if (!mcpWrite16(addr, MCP_OLATA, toElectrical(0))) return false;
+  if (!mcpWrite16(addr, MCP_IODIRA, 0x0000)) return false;
+
+  // Read the direction back rather than trusting the write. An address ACK
+  // only proves something answered; this proves it is an MCP23017 that kept
+  // the configuration. A relay driver that is not really there must not be
+  // reported as working.
+  uint16_t dir = 0xFFFF;
+  if (!mcpRead16(addr, MCP_IODIRA, dir) || dir != 0x0000) return false;
+  return true;
+}
+
+#if CV_HAS_BUTTONS
+/**
+ * Brings the input expander up with pull-ups and interrupt-on-change.
+ *
+ * MIRROR ties INTA and INTB together so both ports reach the ESP32 on one
+ * wire. INTCON = 0 compares each pin against its previous value, so any edge
+ * interrupts rather than only a match against a reference.
+ */
+bool mcpBeginButtons(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  if (Wire.endTransmission() != 0) return false;
+
+  if (!mcpWrite16(addr, MCP_IODIRA, 0xFFFF)) return false;   // inputs
+  if (!mcpWrite16(addr, MCP_GPPUA, 0xFFFF)) return false;    // pull-ups
+  if (!mcpWrite8(addr, MCP_IOCON, 0x40)) return false;       // MIRROR
+  if (!mcpWrite16(addr, MCP_INTCONA, 0x0000)) return false;  // on change
+  if (!mcpWrite16(addr, MCP_GPINTENA, 0xFFFF)) return false; // all enabled
+
+  uint16_t pu = 0;
+  if (!mcpRead16(addr, MCP_GPPUA, pu) || pu != 0xFFFF) return false;
+  return true;
+}
+#endif  // CV_HAS_BUTTONS
+#endif  // CV_HAS_EXPANDER
+
+/** Pushes `relayWord` to whichever backend this board has. */
+void relayHwWrite() {
+#if CV_HAS_EXPANDER
+  if (!expanderOk) return;
+  bool ok = true;
+  for (int chip = 0; chip < CV_RELAY_EXPANDERS; chip++) {
+    uint16_t logical = (uint16_t)((relayWord >> (16 * chip)) & 0xFFFF);
+    ok &= mcpWrite16(CV_MCP_RELAY_ADDR + chip, MCP_OLATA, toElectrical(logical));
+  }
+  // A write that stops being acknowledged means the bus or the chip has gone.
+  // Saying so beats leaving the app showing relays that no longer move.
+  if (!ok && expanderOk) {
+    expanderOk = false;
+    cv.set("expanderOk", false);
+    cv.publishStateNow();
+  }
+#else
+  for (int i = 0; i < NUM_RELAY; i++) {
+    bool on = (relayWord >> i) & 1u;
+  #if CV_RELAY_ACTIVE_LOW
+    digitalWrite(RELAY_PIN[i], on ? LOW : HIGH);
+  #else
+    digitalWrite(RELAY_PIN[i], on ? HIGH : LOW);
+  #endif
+  }
+#endif
+}
+
+/** True when relays can actually be driven right now. */
+static inline bool relaysUsable() {
+#if CV_HAS_EXPANDER
+  return expanderOk;
+#else
+  return true;
+#endif
+}
 
 /* ==================================================================== */
 /*  Buzzer                                                               */
@@ -281,7 +577,7 @@ void alarmTone() {}
 /* ==================================================================== */
 
 const char *relayKey(int i) {
-  static char k[4];
+  static char k[5];                    // "r16" plus the terminator
   snprintf(k, sizeof(k), "r%d", i + 1);
   return k;
 }
@@ -295,7 +591,9 @@ const char *relayKey(int i) {
  * investigate.
  *
  * Publishing immediately is the whole point of the panel: a physical tap has to
- * appear in the app at once, not on the next heartbeat.
+ * appear in the app at once, not on the next heartbeat. Bulk callers wrap
+ * themselves in holdPublish()/releasePublish() so one command produces one
+ * message rather than one per relay.
  */
 void setRelay(int i, bool on, const char *source, bool persist = true) {
   if (i < 0 || i >= NUM_RELAY) return;
@@ -312,7 +610,10 @@ void setRelay(int i, bool on, const char *source, bool persist = true) {
   }
 
   relayOn[i] = on;
-  digitalWrite(RELAY_PIN[i], on ? HIGH : LOW);
+  if (on) relayWord |= (1ul << i);
+  else    relayWord &= ~(1ul << i);
+  relayHwWrite();
+
   cv.set(relayKey(i), on);
   cv.set("lastSource", source);
 
@@ -329,11 +630,13 @@ void setRelay(int i, bool on, const char *source, bool persist = true) {
     relaySaved[i] = on;
   }
 
-  cv.publishStateNow();
+  publishStateCoalesced();
 }
 
 void setAllRelays(bool on, const char *source) {
+  holdPublish();
   for (int i = 0; i < NUM_RELAY; i++) setRelay(i, on, source);
+  releasePublish();
 }
 
 /* ==================================================================== */
@@ -367,12 +670,16 @@ void calibrateGas() {
 
 /** Cuts appliances and starts the exhaust. Called once, on the alarm edge. */
 void engageSafety() {
+  // One publish for the whole interlock. Held across both loops so the app is
+  // never shown a half-applied safety action.
+  holdPublish();
   for (int i = 0; i < NUM_RELAY; i++) {
-    if (safetyCutMask & (1 << i)) setRelay(i, false, "gas-alarm");
+    if (safetyCutMask & (1ul << i)) setRelay(i, false, "gas-alarm");
   }
   if (exhaustRelay >= 0 && exhaustRelay < NUM_RELAY) {
     setRelay(exhaustRelay, true, "gas-alarm");
   }
+  releasePublish();
 }
 
 void sampleGas() {
@@ -529,6 +836,53 @@ void pollTouch() {
 }
 
 /* ==================================================================== */
+/*  Override buttons (expander boards)                                   */
+/* ==================================================================== */
+
+#if CV_HAS_EXPANDER && CV_HAS_BUTTONS
+/**
+ * Reads the button expander and toggles the matching relay.
+ *
+ * Driven by the MCP23017's interrupt line when it is wired, and by a slow poll
+ * when it is not. The poll is not just a convenience: an interrupt can be
+ * missed if the line glitches while the ESP32 is busy, and the MCP will then
+ * hold INT asserted forever waiting to be read, so the panel would go
+ * permanently deaf to its own buttons. Reading periodically regardless costs
+ * one I²C transaction and makes that unrecoverable state impossible.
+ */
+void pollButtons() {
+  if (!buttonsOk) return;
+  uint32_t now = millis();
+
+  bool intAsserted = (digitalRead(BTN_INT_PIN) == LOW);
+  if (!intAsserted && now - lastBtnPoll < 250) return;
+  lastBtnPoll = now;
+
+  uint16_t cur;
+  if (!mcpRead16(CV_MCP_BTN_ADDR, MCP_GPIOA, cur)) {
+    buttonsOk = false;
+    cv.set("buttonsOk", false);
+    cv.publishStateNow();
+    return;
+  }
+
+  // Pull-ups mean a pressed button reads low, so a press is a falling edge.
+  uint16_t pressed = (uint16_t)(btnPrev & ~cur);
+  btnPrev = cur;
+  if (!pressed) return;
+  if (now - lastBtnAt < TOUCH_DEBOUNCE_MS) return;
+  lastBtnAt = now;
+
+  holdPublish();
+  for (int i = 0; i < NUM_BUTTON && i < NUM_RELAY; i++) {
+    if (pressed & (1u << i)) setRelay(i, !relayOn[i], "button");
+  }
+  releasePublish();
+  chirp();
+}
+#endif
+
+/* ==================================================================== */
 /*  Schedules                                                            */
 /* ==================================================================== */
 
@@ -574,10 +928,14 @@ void applySchedules() {
 
 void onCommand(const String &action, JsonObjectConst p) {
   if (action == "set") {
+    // A single command may name several relays. Held so a multi-relay payload
+    // produces one state message instead of one per relay.
+    holdPublish();
     for (int i = 0; i < NUM_RELAY; i++) {
       const char *k = relayKey(i);
       if (p[k].is<bool>()) setRelay(i, p[k].as<bool>(), "cloud");
     }
+    releasePublish();
     if (p["all"].is<bool>()) setAllRelays(p["all"].as<bool>(), "cloud");
 
     if (p["away"].is<bool>()) {
@@ -611,10 +969,12 @@ void onCommand(const String &action, JsonObjectConst p) {
       }
     }
 
-    if (p["safetyCutMask"].is<int>()) {
-      safetyCutMask = (uint8_t)(p["safetyCutMask"].as<int>() & ((1 << NUM_RELAY) - 1));
-      store.putUChar("cutMask", safetyCutMask);
-      cv.set("safetyCutMask", (int)safetyCutMask);
+    // Read as uint32: a 16-relay mask does not fit in the signed int the app
+    // would otherwise be limited to, and JSON has no unsigned type of its own.
+    if (p["safetyCutMask"].is<uint32_t>()) {
+      safetyCutMask = p["safetyCutMask"].as<uint32_t>() & RELAY_MASK_ALL;
+      store.putUInt("cutMask32", safetyCutMask);
+      cv.set("safetyCutMask", (long)safetyCutMask);
     }
     if (p["exhaustRelay"].is<int>()) {
       int r = p["exhaustRelay"].as<int>();
@@ -761,9 +1121,8 @@ bool startCamera() {
 void setup() {
   Serial.begin(115200);
 
+  relayWord = 0;
   for (int i = 0; i < NUM_RELAY; i++) {
-    pinMode(RELAY_PIN[i], OUTPUT);
-    digitalWrite(RELAY_PIN[i], LOW);      // known-off before anything else runs
     relayOn[i] = false;
     relaySaved[i] = false;
     relayOnSince[i] = 0;
@@ -771,6 +1130,31 @@ void setup() {
     relayAutoOffMin[i] = 0;
     relayRuntimeS[i] = 0;
   }
+
+#if CV_HAS_EXPANDER
+  // Brought up before anything else that could take time. Until this succeeds
+  // the relay outputs are whatever the expander's reset state leaves them, so
+  // the sooner they are driven to a known-off level the better.
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 400000);
+  expanderOk = true;
+  for (int chip = 0; chip < CV_RELAY_EXPANDERS; chip++) {
+    if (!mcpBeginRelays(CV_MCP_RELAY_ADDR + chip)) expanderOk = false;
+  }
+  #if CV_HAS_BUTTONS
+  buttonsOk = mcpBeginButtons(CV_MCP_BTN_ADDR);
+  if (buttonsOk) {
+    pinMode(BTN_INT_PIN, INPUT_PULLUP);   // MCP INT is active low
+    uint16_t discard;
+    mcpRead16(CV_MCP_BTN_ADDR, MCP_GPIOA, discard);   // clear a pending INT
+    btnPrev = discard;
+  }
+  #endif
+#else
+  for (int i = 0; i < NUM_RELAY; i++) {
+    pinMode(RELAY_PIN[i], OUTPUT);
+  }
+  relayHwWrite();                         // known-off before anything else runs
+#endif
 
   pinMode(STATUS_LED, OUTPUT);
 #if CV_HAS_BUZZER
@@ -799,7 +1183,10 @@ void setup() {
     relayAutoOffMin[i] = store.getUShort(ak, 0);
   }
   awayMode      = store.getBool("away", false);
-  safetyCutMask = store.getUChar("cutMask", 0);
+  // A distinct key from the 8-bit mask this replaced. NVS entries are typed, so
+  // reading a u8 key as u32 fails and silently hands back the default — which
+  // for a safety-cut mask means "cut nothing", with nothing to say it happened.
+  safetyCutMask = store.getUInt("cutMask32", 0) & RELAY_MASK_ALL;
   exhaustRelay  = (int8_t)store.getChar("exhaust", -1);
 #if CV_HAS_GAS
   gasBaseline   = store.getInt("gasBase", 0);
@@ -828,11 +1215,19 @@ void setup() {
   cv.set("pads", NUM_TOUCH);
   cv.set("away", awayMode);
   cv.set("muted", false);
-  cv.set("safetyCutMask", (int)safetyCutMask);
+  cv.set("safetyCutMask", (long)safetyCutMask);
   cv.set("exhaustRelay", (int)exhaustRelay);
   cv.set("hasGas", (bool)CV_HAS_GAS);
   cv.set("hasCamera", (bool)CV_HAS_CAMERA);
   cv.set("fw", CV_FW_VERSION);
+#if CV_HAS_EXPANDER
+  // Published so the app can say "the relay driver is not responding" instead
+  // of showing sixteen switches that quietly do nothing.
+  cv.set("expanderOk", expanderOk);
+  #if CV_HAS_BUTTONS
+  cv.set("buttonsOk", buttonsOk);
+  #endif
+#endif
   // Every relay is published, including the off ones. Omitting them would make
   // a freshly-booted panel report no relay keys at all, and anything reading
   // state to decide which controls exist would show none.
@@ -849,11 +1244,13 @@ void setup() {
 #endif
 
   // Applied after begin() so the restored state is published rather than
-  // silently assumed.
+  // silently assumed. Held so a 16-relay restore is one message.
   if (!awayMode) {
+    holdPublish();
     for (int i = 0; i < NUM_RELAY; i++) {
       if (relaySaved[i]) setRelay(i, true, "restore", false);
     }
+    releasePublish();
   }
 }
 
@@ -868,6 +1265,9 @@ void loop() {
   // Wi-Fi, no broker and no cloud — a wall switch that depends on the internet
   // is a worse wall switch.
   pollTouch();
+#if CV_HAS_EXPANDER && CV_HAS_BUTTONS
+  pollButtons();
+#endif
 
 #if CV_HAS_GAS
   sampleGas();
@@ -891,13 +1291,16 @@ void loop() {
     cv.set("muted", false);
   }
 
-  // Auto-off timers.
+  // Auto-off timers. Several can expire on the same tick, so they share one
+  // publish rather than sending a message per relay.
+  holdPublish();
   for (int i = 0; i < NUM_RELAY; i++) {
     if (relayAutoOffAt[i] > 0 && now >= relayAutoOffAt[i]) {
       relayAutoOffAt[i] = 0;
       setRelay(i, false, "auto-off");
     }
   }
+  releasePublish();
 
   applySchedules();
 
@@ -905,6 +1308,15 @@ void loop() {
 #if CV_HAS_GAS
   if (gasAlarm) {
     digitalWrite(STATUS_LED, ((now / 150) % 2) ? STATUS_LED_ON : !STATUS_LED_ON);
+  } else
+#endif
+#if CV_HAS_EXPANDER
+  // A dead relay driver looks identical to a working panel from the outside,
+  // which is the worst way for it to fail. Double-blink says the board is
+  // running but cannot switch anything.
+  if (!expanderOk) {
+    digitalWrite(STATUS_LED, ((now % 1000) < 120 || ((now % 1000) > 240 && (now % 1000) < 360))
+                               ? STATUS_LED_ON : !STATUS_LED_ON);
   } else
 #endif
   if (!cv.online()) {

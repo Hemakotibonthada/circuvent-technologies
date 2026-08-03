@@ -44,7 +44,7 @@ export const HUB_CHANNEL_FIELDS = ["power", "power2", "power3", "power4"] as con
 export const TOUCHBOARD_GANG_FIELDS = ["g1", "g2", "g3"] as const;
 
 /** Highest relay index any Sentinel board exposes. */
-const SENTINEL_MAX_RELAYS = 8;
+const SENTINEL_MAX_RELAYS = 32;
 
 /**
  * How many relays a Sentinel actually has.

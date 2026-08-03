@@ -596,7 +596,7 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
   const warming = bool("gasWarmingUp");
   const gasReady = bool("gasReady");
   const climateOk = bool("climateOk");
-  const relays = Math.max(1, Math.min(8, num("relays", 4)));
+  const relays = Math.max(1, Math.min(32, num("relays", 4)));
   const exhaust = num("exhaustRelay", -1);
   const cutMask = num("safetyCutMask", 0);
   const src = typeof st.lastSource === "string" ? (st.lastSource as string) : "";

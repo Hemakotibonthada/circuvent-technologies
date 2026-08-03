@@ -67,7 +67,7 @@ export function deviceMetric(d: Device): string | null {
       // device reported — a two-relay panel must not read "1/4 on".
       const n = num(s.relays);
       if (n == null) return null;
-      return onOf(...Array.from({ length: Math.max(0, Math.min(8, Math.round(n))) }, (_, i) => `r${i + 1}`));
+      return onOf(...Array.from({ length: Math.max(0, Math.min(32, Math.round(n))) }, (_, i) => `r${i + 1}`));
     }
     case "facedoor":
     case "smart-lock":
