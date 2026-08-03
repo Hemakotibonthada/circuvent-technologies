@@ -11,11 +11,12 @@
     "web": "expo start --web",
     "icons:check": "node scripts/check-icons.js",
     "version:check": "node scripts/version-check.js",
-    "typecheck": "node scripts/version-check.js && tsc --noEmit",
+    "typecheck": "node scripts/version-check.js && node scripts/check-device-types.js && tsc --noEmit",
     "postinstall": "node scripts/patch-expo-sdk35.js && node scripts/patch-expo-android-publishing.js",
     "build:ios": "bash scripts/build-ios.sh",
     "build:android": "bash scripts/build-android.sh",
-    "android:signing:check": "node scripts/check-android-signing.js"
+    "android:signing:check": "node scripts/check-android-signing.js",
+    "devicetypes:check": "node scripts/check-device-types.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",

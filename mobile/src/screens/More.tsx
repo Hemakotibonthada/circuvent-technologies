@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { api, Device } from "../api";
-import { Card, Screen, SectionLabel, Title, useTheme, useBackHandler, useSafeArea } from "../ui";
+import { Card, Screen, SectionLabel, Title, useTheme, useBackHandler, useSafeArea, SwipeBack } from "../ui";
 import { RADIUS, SPACE, TYPE } from "../theme";
 import { Icon, type IconName } from "../icons";
 import Sensors from "./more/Sensors";
@@ -143,8 +143,22 @@ export default function More({ onOpenDevice, onOpenAutomate, onAddDevice, onOpen
     return order.map((title) => ({ title, items: byGroup.get(title)! }));
   }, [isAdmin]);
   const ent = entKey ? ENTERPRISE.find((s) => s.key === entKey) : undefined;
+
+  // Every sub-screen goes through one wrapper so the iOS edge swipe reaches
+  // them. Shell's swipe only knows about tabs and overlays; this screen keeps
+  // its own stack, so without this a swipe from "About" jumped straight to Home
+  // instead of back to the More list. Android was already correct because its
+  // system back reaches the useBackHandler above.
+  const subScreen = (() => {
   if (ent) return ent.render({ onBack: entBack });
   if (screen === "sensors") return <Sensors onBack={back} />; if (screen === "cameras") return <Cameras onBack={back} />; if (screen === "weather") return <Weather onBack={back} />; if (screen === "analytics") return <Analytics onBack={back} />; if (screen === "deviceHub") return <DeviceHub onBack={back} onOpenDevice={onOpenDevice} onAdd={onAddDevice} />; if (screen === "activity") return <ActivityLog onBack={back} />; if (screen === "maintenance") return <Maintenance onBack={back} onOpenDevice={onOpenDevice} />; if (screen === "safety") return <SafetyCenter onBack={back} />; if (screen === "security") return <SecurityDashboard onBack={back} />; if (screen === "system") return <SystemManagement onBack={back} />; if (screen === "ai") return <AiHub onBack={back} onOpenEnergy={() => onOpenEnergy?.()} onOpenAutomate={() => onOpenAutomate("automations")} onOpenDevices={() => onOpenDevices?.()} onOpenSuggestions={() => setScreen("suggestions")} />; if (screen === "aiFeatures") return <AiFeaturesHub onBack={back} onOpenSuggestions={() => setScreen("suggestions")} onOpenAutomate={() => onOpenAutomate("automations")} onOpenSecurity={() => setScreen("security")} onOpenEnergy={() => onOpenEnergy?.()} />; if (screen === "aiModels") return <AiModels onBack={back} />; if (screen === "lifestyle") return <LifestyleHub onBack={back} />; if (screen === "suggestions") return <SmartSuggestions onBack={back} onOpenAutomate={() => onOpenAutomate("automations")} onOpenDevices={() => onOpenDevices?.()} onOpenSettings={() => onOpenSettings?.()} />; if (screen === "export") return <DataExport onBack={back} />; if (screen === "mqtt") return <MqttSettings onBack={back} />; if (screen === "admin") return <AdminConsole onBack={back} />; if (screen === "schedules") return <Schedules onBack={back} />; if (screen === "billpay") return <BillPayment onBack={back} />; if (screen === "voice") return <VoiceAssistant onBack={back} />; if (screen === "profile") return <Profile onBack={back} />; if (screen === "notifications") return <NotificationSettings onBack={back} />; if (screen === "securitySettings") return <SecuritySettings onBack={back} />; if (screen === "connections") return <ConnectionSettings onBack={back} />; if (screen === "backup") return <DataBackup onBack={back} />; if (screen === "help") return <HelpSupport onBack={back} />; if (screen === "about") return <About onBack={back} />; if (screen === "uiKit") return <UiKit onBack={back} />; if (screen === "dashboard") return <CustomDashboard onBack={back} />; if (screen === "charts") return <ChartsGallery onBack={back} />;
+    return null;
+  })();
+
+  if (subScreen) {
+    return <SwipeBack onBack={entKey ? entBack : back}>{subScreen}</SwipeBack>;
+  }
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: PAGE_PAD, paddingTop: insets.top + SPACE.md, paddingBottom: 90 }}>

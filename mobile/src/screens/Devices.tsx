@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, FlatList, Pressable, TextInput, Switch, RefreshControl, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Switch, RefreshControl, StyleSheet, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
-import { Screen, Card, StatTile, useTheme, ListSkeleton } from "../ui";
+import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse } from "../ui";
 import { GRAD, deviceMeta } from "../theme";
 import { Icon } from "../icons";
+import { toggleFeedback } from "../haptics";
 
 export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void; onAdd: () => void }) {
   const { c } = useTheme();
@@ -82,35 +83,123 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
   );
 }
 
+/**
+ * A device tile.
+ *
+ * The state of a device is readable from across the room without reading any
+ * text: an appliance that is on gets an accent-tinted surface, a lit border and
+ * a coloured shadow, and its icon carries motion that matches what the hardware
+ * is doing — a fan spins, a light breathes. Off is flat and grey.
+ *
+ * The icon itself is the switch. Two taps used to be needed to turn something
+ * on from this grid (open the device, find the control); the common case is now
+ * one tap on the thing you were already looking at, with the card body still
+ * opening the full controls.
+ */
 function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpen: (d: Device) => void; onToggle: (id: string, f: string, v: boolean) => void; onFav: (v: boolean) => void }) {
   const { c } = useTheme();
   const meta = deviceMeta(device.type);
   const cap = capabilities(device.type);
+
+  const field = cap.power?.field ?? meta.toggle?.field ?? "";
+  const isOn = field ? !!device.state[field] : false;
+  const canToggle = !!field && device.online;
+
+  const motion = deviceMotion(device.type);
+  const spin = useSpin(motion === "spin" && isOn);
+  const glow = useGlowPulse(motion === "glow" && isOn);
+
+  const toggle = () => {
+    if (!canToggle) return;
+    toggleFeedback(!isOn);
+    onToggle(device.id, field, !isOn);
+  };
+
   return (
-    <Card onPress={() => onOpen(device)} padded>
+    <Card
+      onPress={() => onOpen(device)}
+      padded
+      style={
+        isOn
+          ? {
+              borderColor: meta.accent,
+              // A coloured shadow is what makes a lit tile read as lit rather
+              // than merely selected. Android needs elevation for any shadow.
+              shadowColor: meta.accent,
+              shadowOpacity: 0.45,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 7,
+            }
+          : undefined
+      }
+    >
+      {/* Tinted wash behind the content, so "on" colours the whole tile rather
+          than just the icon. Non-interactive so it cannot eat the card press. */}
+      {isOn && (
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: meta.accent, opacity: 0.1, borderRadius: 18 }]}
+        />
+      )}
+
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}><Icon name={meta.icon} size={22} color="#fff" /></LinearGradient>
-        <Pressable onPress={() => onFav(!device.favorite)} hitSlop={8}>
-          <Text style={{ fontSize: 16 }}>{device.favorite ? "⭐" : "☆"}</Text>
+        <Pressable
+          onPress={toggle}
+          disabled={!canToggle}
+          hitSlop={10}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: isOn, disabled: !canToggle }}
+          accessibilityLabel={`${device.name || device.id}${canToggle ? (isOn ? ", on" : ", off") : ", not controllable"}`}
+          style={({ pressed }) => [s.pillTap, { opacity: pressed ? 0.75 : 1 }]}
+        >
+          {isOn ? (
+            <Animated.View style={{ opacity: motion === "glow" ? glow : 1 }}>
+              <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}>
+                <Animated.View style={motion === "spin" ? { transform: [{ rotate: spin }] } : undefined}>
+                  <Icon name={meta.icon} size={22} color="#fff" />
+                </Animated.View>
+              </LinearGradient>
+            </Animated.View>
+          ) : (
+            <View style={[s.pill, { backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.border }]}>
+              <Icon name={meta.icon} size={22} color={canToggle ? c.textDim : c.faint} />
+            </View>
+          )}
+        </Pressable>
+
+        <Pressable
+          onPress={() => onFav(!device.favorite)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={device.favorite ? "Remove from favourites" : "Add to favourites"}
+          style={{ minWidth: 36, minHeight: 36, alignItems: "flex-end" }}
+        >
+          <Icon name={device.favorite ? "star" : "starOff"} size={18} color={device.favorite ? c.amber : c.faint} />
         </Pressable>
       </View>
+
       <Text style={{ color: c.text, fontWeight: "700", fontSize: 15, marginTop: 10 }} numberOfLines={1}>{device.name || device.id}</Text>
       <Text style={{ color: c.faint, fontSize: 12 }} numberOfLines={1}>{device.room || meta.label}</Text>
+
       <View style={s.bottom}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
           <View style={[s.dot, { backgroundColor: device.online ? c.green : c.faint }]} />
-          <Text style={{ color: meta.accent, fontWeight: "800", fontSize: 14 }}>{cap.metric ? cap.metric(device) : device.online ? "online" : "offline"}</Text>
+          <Text style={{ color: isOn ? meta.accent : c.textDim, fontWeight: "800", fontSize: 13 }} numberOfLines={1}>
+            {cap.metric ? cap.metric(device) : device.online ? (field ? (isOn ? "On" : "Off") : "Online") : "Offline"}
+          </Text>
         </View>
-        {cap.power ? (
+        {canToggle ? (
           <Switch
-            value={!!device.state[cap.power.field]}
-            onValueChange={(v) => onToggle(device.id, cap.power!.field, v)}
-            trackColor={{ true: c.accent, false: "#334155" }}
+            value={isOn}
+            onValueChange={(v) => { toggleFeedback(v); onToggle(device.id, field, v); }}
+            trackColor={{ true: meta.accent, false: "#334155" }}
             thumbColor="#fff"
             style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
+            accessibilityLabel={`Toggle ${device.name || device.id}`}
           />
         ) : (
-          <Text style={{ color: c.faint, fontSize: 18 }}>›</Text>
+          <Icon name="chevron" size={16} color={c.faint} />
         )}
       </View>
     </Card>
@@ -122,7 +211,8 @@ const s = StyleSheet.create({
   addBtn: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9 },
   search: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, marginBottom: 14 },
   stats: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  pill: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  pillTap: { minWidth: 46, minHeight: 46, alignItems: "flex-start", justifyContent: "center" },
+    pill: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   bottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12, minHeight: 30 },
   dot: { width: 9, height: 9, borderRadius: 5 },
 });

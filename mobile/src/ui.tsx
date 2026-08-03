@@ -240,7 +240,245 @@ export function ListSkeleton({
   );
 }
 
+/* ------------------------------------------------------- device motion --- */
+
+/**
+ * How a device type should animate while it is on.
+ *
+ * Tied to what the thing physically does, not to decoration: a fan spins
+ * because the real fan spins, and a light glows because the real light glows.
+ * Motion that means something is worth the battery; motion that is only
+ * pretty is not.
+ */
+export type DeviceMotion = "spin" | "glow" | "none";
+
+export function deviceMotion(type: string): DeviceMotion {
+  switch (type) {
+    case "smart-fan":
+    case "fan":
+    case "ceiling-fan":
+      return "spin";
+    case "smart-light":
+    case "light":
+    case "smart-plug":
+    case "smart-switch":
+    case "touchboard":
+    case "home-hub":
+    case "sentinel":
+      return "glow";
+    default:
+      return "none";
+  }
+}
+
+/**
+ * A continuous rotation, running only while `active`.
+ *
+ * Stopped and reset when inactive rather than left looping behind an opacity
+ * of zero: an animation nobody can see still wakes the UI thread, and a grid of
+ * device tiles would keep a phone busy for nothing.
+ *
+ * Honours the OS "reduce motion" setting, which people enable because spinning
+ * things make them ill — a spinning fan icon is exactly what that setting is
+ * for.
+ */
+export function useSpin(active: boolean, durationMs = 2600) {
+  const spin = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
+
+  useEffect(() => {
+    if (!active || reduceMotion) {
+      spin.stopAnimation();
+      spin.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: durationMs,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, reduceMotion, durationMs, spin]);
+
+  return spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+}
+
+/**
+ * A slow breathing opacity for lights that are on.
+ *
+ * Deliberately shallow (0.55 to 1) and slow. A hard blink reads as an alert;
+ * this should read as "lit".
+ */
+export function useGlowPulse(active: boolean) {
+  const v = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReduceMotion();
+
+  useEffect(() => {
+    if (!active || reduceMotion) {
+      v.stopAnimation();
+      v.setValue(active ? 1 : 0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 0.55, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(v, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, reduceMotion, v]);
+
+  return v;
+}
+
+/* ------------------------------------------------------------ time picker --- */
+
+/** "07:05" → 425. Returns null for anything that is not HH:MM. */
+function parseHm(v: string): number | null {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(v);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+const toHm = (mins: number) => {
+  const m = ((mins % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
+/** 425 → "7:05 AM". The 24-hour string stays the stored value. */
+export function friendlyTime(v: string): string {
+  const mins = parseHm(v);
+  if (mins == null) return v;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const suffix = h < 12 ? "AM" : "PM";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+/**
+ * A time field you can use with a thumb.
+ *
+ * It replaced a bare TextInput that wanted "HH:MM" in 24-hour. That asks the
+ * user to know the format, to do the 24-hour conversion in their head, and to
+ * type accurately on a numeric keyboard — for setting a lamp to come on in the
+ * evening. It also failed validation silently often enough to be irritating.
+ *
+ * Steps rather than free text, so an invalid time cannot be entered at all.
+ * Minutes move in fives because nobody schedules a porch light for 18:37, and
+ * five-minute steps make crossing an hour two taps instead of twelve.
+ *
+ * The value stays a 24-hour "HH:MM" string, because that is what the automation
+ * API and the firmware already speak; only the display is 12-hour.
+ */
+export function TimePicker({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label?: string;
+}) {
+  const { c } = useTheme();
+  const mins = parseHm(value) ?? 7 * 60;
+  const bump = (delta: number) => { tapLight(); onChange(toHm(mins + delta)); };
+
+  const Step = ({ dir, amount, a11y }: { dir: "up" | "down"; amount: number; a11y: string }) => (
+    <Pressable
+      onPress={() => bump(dir === "up" ? amount : -amount)}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      hitSlop={6}
+      style={({ pressed }) => [tp.step, { backgroundColor: c.card, borderColor: c.border, opacity: pressed ? 0.6 : 1 }]}
+    >
+      <Icon name={dir === "up" ? "collapse" : "expand"} size={18} color={c.textDim} />
+    </Pressable>
+  );
+
+  return (
+    <View>
+      {!!label && <Text style={{ color: c.textDim, fontSize: 13, marginBottom: 8 }}>{label}</Text>}
+      <View style={[tp.row, { backgroundColor: c.cardHi, borderColor: c.border }]}>
+        <View style={tp.col}>
+          <Step dir="up" amount={60} a11y="Later by one hour" />
+          <Text style={[tp.num, { color: c.text }]}>{String(Math.floor(mins / 60) % 12 || 12).padStart(2, "0")}</Text>
+          <Step dir="down" amount={60} a11y="Earlier by one hour" />
+        </View>
+        <Text style={[tp.num, { color: c.faint, marginHorizontal: 2 }]}>:</Text>
+        <View style={tp.col}>
+          <Step dir="up" amount={5} a11y="Later by five minutes" />
+          <Text style={[tp.num, { color: c.text }]}>{String(mins % 60).padStart(2, "0")}</Text>
+          <Step dir="down" amount={5} a11y="Earlier by five minutes" />
+        </View>
+        <Pressable
+          onPress={() => bump(720)}
+          accessibilityRole="button"
+          accessibilityLabel={`Switch to ${Math.floor(mins / 60) < 12 ? "PM" : "AM"}`}
+          style={({ pressed }) => [tp.ampm, { backgroundColor: c.accent, opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Text style={{ color: c.onAccent, fontWeight: "800", fontSize: 15 }}>
+            {Math.floor(mins / 60) < 12 ? "AM" : "PM"}
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        {[
+          ["Morning", 7 * 60],
+          ["Evening", 18 * 60 + 30],
+          ["Night", 22 * 60],
+        ].map(([name, m]) => (
+          <Pressable
+            key={String(name)}
+            onPress={() => { tapLight(); onChange(toHm(Number(m))); }}
+            accessibilityRole="button"
+            accessibilityLabel={`Set to ${friendlyTime(toHm(Number(m)))}`}
+            style={({ pressed }) => [
+              tp.preset,
+              { borderColor: mins === m ? c.accent : c.border, backgroundColor: mins === m ? c.accent + "22" : c.card, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={{ color: mins === m ? c.accentHi : c.textDim, fontWeight: "700", fontSize: 13 }}>{name}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const tp = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderRadius: 16, paddingVertical: 12 },
+  col: { alignItems: "center", gap: 4 },
+  // 44pt targets: these get tapped repeatedly, often one-handed.
+  step: { width: 52, height: 44, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  num: { fontSize: 34, fontWeight: "800", fontVariant: ["tabular-nums"], minWidth: 52, textAlign: "center" },
+  ampm: { marginLeft: 10, minHeight: 44, minWidth: 56, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  preset: { minHeight: 40, justifyContent: "center", paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
+});
+
 /* ------------------------------------------------------- screen headers --- */
+
+/**
+ * Whether screens draw their own back control.
+ *
+ * Turned off: navigation is by gesture. Android sends its system back to
+ * `useBackHandler`, and iOS gets the left-edge swipe from `SwipeBack`, which is
+ * wired at every level that keeps a stack — Shell for tabs and overlays, More
+ * for its own sub-screens. A drawn back arrow on top of that is redundant
+ * chrome in the hardest corner of a tall phone to reach.
+ *
+ * The components still exist and still take their props, so this is one line to
+ * reverse. Nothing was deleted from thirty screens to make it happen.
+ *
+ * The cost, stated plainly: gesture-only navigation is weaker for assistive
+ * tech. Android's system back is exposed to accessibility services, and iOS
+ * VoiceOver has the two-finger scrub, so there is a route on both — but a
+ * labelled button is easier than either. If that becomes a complaint, flip
+ * this back on.
+ */
+export const SHOW_BACK_BUTTONS = false;
 
 /**
  * The standard "go back" control.
@@ -266,6 +504,7 @@ export function BackButton({
   accessibilityLabel?: string;
 }) {
   const { c } = useTheme();
+  if (!SHOW_BACK_BUTTONS) return null;
   return (
     <Pressable
       onPress={onPress}
@@ -648,6 +887,10 @@ export function IconButton({
 }) {
   const { c } = useTheme();
   const resolved = icon ?? (glyph ? LEGACY_GLYPH[glyph] : undefined);
+  // Roughly thirty screens use this as their back arrow via glyph="‹". Hiding
+  // it here removes all of them at once, and only the back arrow — every other
+  // icon button is untouched.
+  if (resolved === "back" && !SHOW_BACK_BUTTONS) return null;
   return (
     <Pressable
       onPress={() => { tapLight(); onPress(); }}

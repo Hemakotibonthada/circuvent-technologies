@@ -25,6 +25,8 @@ import {
   SectionLabel,
   SegmentedControl,
   Title,
+  TimePicker,
+  friendlyTime,
   useTheme,
 } from "../../ui";
 
@@ -209,7 +211,7 @@ export default function Schedules({ onBack }: { onBack: () => void }) {
             <ListRow
               icon={"\u23F1\uFE0F"}
               title={displayName(a.name)}
-              subtitle={`${a.trigger.at || "--:--"} IST \u00B7 ${daysText(a.trigger.days)} \u00B7 ${
+              subtitle={`${a.trigger.at ? friendlyTime(a.trigger.at) : "--:--"} IST \u00B7 ${daysText(a.trigger.days)} \u00B7 ${
                 a.enabled ? "enabled" : "paused"
               }`}
               right={
@@ -351,23 +353,7 @@ function TimeBox({
   const { c } = useTheme();
   return (
     <View style={{ flex: 1 }}>
-      <FieldLabel>{label}</FieldLabel>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder="HH:MM"
-        placeholderTextColor={c.faint}
-        keyboardType="numbers-and-punctuation"
-        accessibilityLabel={label}
-        style={{
-          color: c.text,
-          borderWidth: 1,
-          borderColor: c.borderHi,
-          borderRadius: 12,
-          padding: 12,
-          minHeight: 44,
-        }}
-      />
+      <TimePicker label={label} value={value} onChange={onChange} />
     </View>
   );
 }

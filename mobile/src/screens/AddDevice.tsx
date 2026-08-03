@@ -19,7 +19,7 @@ import { sealToDevice } from "../crypto";
 import { parseSetupQr } from "../qr";
 import { useBackHandler } from "../ui";
 import { Icon, type IconName } from "../icons";
-import { deviceMeta } from "../theme";
+import { deviceMeta, DEVICE_META } from "../theme";
 import {
   wifiAutoSupported, ensureWifiPermissions, discoverDeviceAPs, connectToDeviceAP,
   leaveDeviceAP, rssiBars, type DeviceAP,
@@ -38,25 +38,36 @@ import {
 
 const BASE = "http://192.168.4.1";
 
-// Icons are derived from DEVICE_META rather than listed here. A second parallel
-// mapping is exactly how the tile for a new device type ends up blank.
-const TYPES = [
-  { id: "smart-plug", label: "Smart Plug" },
-  { id: "smart-switch", label: "Smart Switch" },
-  { id: "aquaguard", label: "AquaGuard tank" },
-  { id: "home-hub", label: "Home Hub" },
-  { id: "energy-monitor", label: "Energy Monitor" },
-  { id: "guardian", label: "Guardian SOS" },
-  { id: "motion-sensor", label: "Motion Sensor" },
-  { id: "agri-starter", label: "Agri Starter" },
-  { id: "smart-light", label: "Smart Light" },
-  { id: "smart-fan", label: "Smart Fan" },
-  { id: "curtain", label: "Curtain" },
-  { id: "smart-lock", label: "Smart Lock" },
-  { id: "camera", label: "Camera" },
-  { id: "cctv", label: "CCTV Camera" },
-  { id: "doorbell", label: "Video Doorbell" },
+// Derived from DEVICE_META rather than listed here.
+//
+// Icons were already taken from there, with a comment warning that a second
+// parallel mapping is how a new device type ends up blank — but the list of
+// types was still hand-maintained, and five shipped types had gone missing from
+// it: the Touch Switchboard, WaterTank Duo, RFID Gate, FaceDoor and Sentinel.
+// All five have firmware, a control panel, and a page in the shop; none of them
+// could be added from the app that sells them.
+//
+// ORDER is presentation only. Anything in DEVICE_META and not named there still
+// appears, at the end — so the next device type is offered the day it is
+// defined, whether or not anyone remembers to touch this file.
+const ORDER = [
+  "smart-plug", "smart-switch", "touchboard", "home-hub",
+  "smart-light", "smart-fan", "curtain", "smart-lock",
+  "facedoor", "rfid-gate",
+  "aquaguard", "watertank", "agri-starter",
+  "sentinel", "guardian", "motion-sensor", "energy-monitor",
+  "camera", "cctv", "doorbell",
 ];
+
+const TYPES: { id: string; label: string }[] = (() => {
+  const all = Object.keys(DEVICE_META);
+  const ranked = [...all].sort((a, b) => {
+    const ia = ORDER.indexOf(a);
+    const ib = ORDER.indexOf(b);
+    return (ia < 0 ? ORDER.length : ia) - (ib < 0 ? ORDER.length : ib);
+  });
+  return ranked.map((id) => ({ id, label: DEVICE_META[id].label }));
+})();
 
 type Step = "mode" | "qr" | "details" | "prep" | "discover" | "connect" | "wifi" | "sending" | "reconnect" | "waiting" | "done" | "fail" | "manual";
 type LogState = "run" | "ok" | "err";
