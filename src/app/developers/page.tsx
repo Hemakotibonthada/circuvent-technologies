@@ -287,11 +287,12 @@ function P({ children }: { children: React.ReactNode }) {
 }
 
 function Code({ children }: { children: React.ReactNode }) {
+  // No background here on purpose: globals.css tints code surfaces from
+  // currentColor, so the chip follows the text into whichever theme it lands
+  // in. Setting --bg-elevated inline pinned it to white in light mode and put
+  // the accent text at 3.68:1.
   return (
-    <code
-      className="rounded px-1.5 py-0.5 font-mono text-[13px]"
-      style={{ background: "var(--bg-elevated)", color: "var(--accent-cyan)" }}
-    >
+    <code className="rounded px-1.5 py-0.5 font-mono text-[13px]" style={{ color: "var(--code-accent)" }}>
       {children}
     </code>
   );
@@ -453,7 +454,7 @@ Authorization: Bearer cvk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`}
                   >
                     <code
                       className="w-48 shrink-0 font-mono text-[12.5px] font-bold"
-                      style={{ color: "var(--accent-cyan)" }}
+                      style={{ color: "var(--code-accent)" }}
                     >
                       {s.scope}
                     </code>
@@ -655,7 +656,7 @@ Authorization: Bearer cvk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`}
                   >
                     <code
                       className="w-44 shrink-0 font-mono text-[12.5px] font-bold"
-                      style={{ color: "var(--accent-cyan)" }}
+                      style={{ color: "var(--code-accent)" }}
                     >
                       {e.event}
                     </code>
@@ -734,7 +735,7 @@ X-Circuvent-Signature: t=1785312764,v1=8f3c…
                         >
                           {e.status}
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[12px]" style={{ color: "var(--accent-cyan)" }}>
+                        <td className="px-4 py-2.5 font-mono text-[12px]" style={{ color: "var(--code-accent)" }}>
                           {e.code}
                         </td>
                         <td className="px-4 py-2.5 text-[13px]" style={{ color: "var(--text-secondary)" }}>

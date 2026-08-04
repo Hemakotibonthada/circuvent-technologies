@@ -25,6 +25,9 @@
 
   --accent-cyan: #0891b2;
   --accent-violet: #7c3aed;
+  /* Accent for inline code. --accent-cyan is 3.68:1 on white — fine for a
+     border or an icon, below AA for the text inside a code chip. */
+  --code-accent: #0e7490;
   --accent-pink: #db2777;
   --accent-cyan-muted: rgba(8, 145, 178, 0.08);
   --accent-violet-muted: rgba(124, 58, 237, 0.07);
@@ -70,6 +73,7 @@
 
   --accent-cyan: #06b6d4;
   --accent-violet: #8b5cf6;
+  --code-accent: #22d3ee;
   --accent-pink: #ec4899;
   --accent-cyan-muted: rgba(6, 182, 212, 0.1);
   --accent-violet-muted: rgba(139, 92, 246, 0.1);
@@ -456,10 +460,51 @@ body {
   border-color: var(--accent-cyan) !important;
 }
 
-/* Light mode code blocks — only affects inline code, not editor components */
-:root :not([style*="1e1e2e"]) > pre,
-:root :not([style*="1e1e2e"]) > code {
-  background: #f3f4f6;
+/* Code surfaces.
+ *
+ * The rule that used to live here was prefixed `:root`, which matches <html>
+ * in BOTH themes — the theme switch adds a `.dark` class, it does not change
+ * what `:root` matches. So its hardcoded light grey was painted onto every
+ * <pre> and <code> in dark mode too, leaving light text on a near-white panel
+ * at roughly 1.3:1. That is what made the terminal cards unreadable.
+ *
+ * The replacement is not a second hardcoded colour behind `.dark`. The console
+ * under /smarthome carries its own five-theme `--cv-*` system that is
+ * independent of the site's `.dark` class, so a token keyed to `.dark` would
+ * still be wrong there, and wrong again inside `.cv-tile-on`, which is a
+ * bright surface in dark mode.
+ *
+ * Deriving the tint from `currentColor` makes the surface relative to the text
+ * that will sit on it: dark text yields a subtle dark tint, light text a subtle
+ * light one. It cannot invert, in any theme, present or future.
+ *
+ * `:where()` gives the whole thing ZERO specificity, which is the other half of
+ * the fix. This is a default for code that has no opinion of its own; anything
+ * that does — a Tailwind `bg-*` utility, the `.cv-light` shim, an inline style
+ * on a deliberate dark terminal — outranks it and is left alone. The previous
+ * rule sat at (0,2,1) and would have quietly overridden all three.
+ *
+ * That also retires the old `:not([style*="1e1e2e"])` escape hatch: a tint
+ * derived from the text can never fight the text, so the deliberate terminals
+ * no longer need to opt out.
+ */
+:where(pre, code) {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+/* A <code> inside a <pre> would otherwise tint twice over the same panel. */
+:where(pre > code) {
+  background: transparent;
+}
+
+/* Fallback for engines without color-mix(). Same zero-specificity layering. */
+@supports not (background: color-mix(in srgb, currentColor 8%, transparent)) {
+  :where(pre, code) {
+    background: rgba(127, 127, 127, 0.14);
+  }
+  :where(pre > code) {
+    background: transparent;
+  }
 }
 
 /* Subtle gradient on light mode body */
