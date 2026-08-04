@@ -215,6 +215,31 @@ const SCHEMA_STATEMENTS: string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS request_metrics_ts_idx ON request_metrics (ts DESC)`,
   `CREATE INDEX IF NOT EXISTS request_metrics_endpoint_idx ON request_metrics (endpoint)`,
+  // Page views.
+  //
+  // One row per view. No IP and no cookie id: visitor_hash is a salted digest
+  // whose salt rotates daily, so a row cannot be traced to a person and two
+  // days of rows cannot be joined into a history of one. See lib/traffic.ts.
+  //
+  // Raw rows rather than pre-aggregated counters because "top pages last
+  // week" and "where did Tuesday's spike come from" are the questions this
+  // exists to answer, and a counter cannot be re-cut after the fact. Rows are
+  // pruned on a retention window; if the volume ever outgrows that, add a
+  // daily rollup table beside this rather than widening the retention.
+  `CREATE TABLE IF NOT EXISTS page_views (
+     id BIGSERIAL PRIMARY KEY,
+     ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+     path TEXT NOT NULL,
+     visitor_hash TEXT NOT NULL,
+     referrer_host TEXT,
+     device TEXT NOT NULL DEFAULT 'desktop',
+     browser TEXT NOT NULL DEFAULT 'Unknown',
+     country TEXT
+   )`,
+  // Every dashboard query is "since <cutoff>", so ts leads each index.
+  `CREATE INDEX IF NOT EXISTS page_views_ts_idx ON page_views (ts DESC)`,
+  `CREATE INDEX IF NOT EXISTS page_views_ts_path_idx ON page_views (ts DESC, path)`,
+  `CREATE INDEX IF NOT EXISTS page_views_ts_visitor_idx ON page_views (ts DESC, visitor_hash)`,
 ];
 
 let _initPromise: Promise<void> | null = null;
@@ -372,8 +397,142 @@ export async function dbLatencySamples(hours: number, limit = 5000): Promise<Lat
   return rows as unknown as LatencySample[];
 }
 
-function recordFromRows(rows: Record<string, unknown>[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
+// --------------------------------------------------------------- page views
+export interface PageViewInput {
+  path: string;
+  visitorHash: string;
+  referrerHost?: string | null;
+  device?: string;
+  browser?: string;
+  country?: string | null;
+}
+
+export interface TrafficPoint {
+  bucket: string;
+  views: number;
+  visitors: number;
+}
+
+export interface TrafficBreakdown {
+  key: string;
+  views: number;
+  visitors: number;
+}
+
+export interface TrafficSummary {
+  views: number;
+  visitors: number;
+  series: TrafficPoint[];
+  topPages: TrafficBreakdown[];
+  referrers: TrafficBreakdown[];
+  devices: TrafficBreakdown[];
+  browsers: TrafficBreakdown[];
+}
+
+/** Appends page views. Best-effort — the caller must never block a page on it. */
+export async function dbRecordPageViews(views: PageViewInput[]): Promise<void> {
+  if (!views.length) return;
+  await initDb();
+  const q = await getQuery();
+  const values: string[] = [];
+  const params: unknown[] = [];
+  views.forEach((v, i) => {
+    const b = i * 6;
+    values.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6})`);
+    params.push(
+      v.path,
+      v.visitorHash,
+      v.referrerHost ?? null,
+      v.device ?? "desktop",
+      v.browser ?? "Unknown",
+      v.country ?? null
+    );
+  });
+  await q(
+    `INSERT INTO page_views (path, visitor_hash, referrer_host, device, browser, country) VALUES ${values.join(",")}`,
+    params
+  );
+}
+
+/**
+ * The whole traffic report for a window, in one round-trip per section.
+ *
+ * `visitors` is a COUNT(DISTINCT visitor_hash), which is a per-day figure by
+ * construction: the hash salt rotates at midnight, so the same person on two
+ * days counts twice. That is the honest number given we deliberately cannot
+ * link a visitor across days, and the dashboard labels it as such rather than
+ * implying a de-duplicated monthly audience.
+ *
+ * Bots are excluded from the headline numbers but still counted, so the panel
+ * can show how much of the raw traffic they were.
+ */
+export async function dbTrafficSummary(days: number, includeBots = false): Promise<TrafficSummary> {
+  await initDb();
+  const q = await getQuery();
+  const d = Math.min(365, Math.max(1, Math.floor(days)));
+  const cutoff = new Date(Date.now() - d * 86400_000).toISOString();
+  // Hourly buckets for a single day, daily beyond that — a 90-day chart with
+  // hourly points is 2160 items nobody can read.
+  const gran = d <= 2 ? "hour" : "day";
+  const botFilter = includeBots ? "" : ` AND device <> 'bot'`;
+
+  const [totals, series, pages, refs, devices, browsers] = await Promise.all([
+    q(`SELECT COUNT(*)::int AS views, COUNT(DISTINCT visitor_hash)::int AS visitors
+         FROM page_views WHERE ts > $1${botFilter}`, [cutoff]),
+    q(`SELECT date_trunc('${gran}', ts) AS bucket, COUNT(*)::int AS views,
+              COUNT(DISTINCT visitor_hash)::int AS visitors
+         FROM page_views WHERE ts > $1${botFilter}
+         GROUP BY 1 ORDER BY 1`, [cutoff]),
+    q(`SELECT path AS key, COUNT(*)::int AS views, COUNT(DISTINCT visitor_hash)::int AS visitors
+         FROM page_views WHERE ts > $1${botFilter}
+         GROUP BY 1 ORDER BY views DESC LIMIT 20`, [cutoff]),
+    q(`SELECT COALESCE(referrer_host,'(direct)') AS key, COUNT(*)::int AS views,
+              COUNT(DISTINCT visitor_hash)::int AS visitors
+         FROM page_views WHERE ts > $1${botFilter}
+         GROUP BY 1 ORDER BY views DESC LIMIT 15`, [cutoff]),
+    q(`SELECT device AS key, COUNT(*)::int AS views, COUNT(DISTINCT visitor_hash)::int AS visitors
+         FROM page_views WHERE ts > $1
+         GROUP BY 1 ORDER BY views DESC`, [cutoff]),
+    q(`SELECT browser AS key, COUNT(*)::int AS views, COUNT(DISTINCT visitor_hash)::int AS visitors
+         FROM page_views WHERE ts > $1${botFilter}
+         GROUP BY 1 ORDER BY views DESC LIMIT 10`, [cutoff]),
+  ]);
+
+  const num = (v: unknown) => Number(v) || 0;
+  const asBreakdown = (rows: Record<string, unknown>[]): TrafficBreakdown[] =>
+    rows.map((r) => ({ key: String(r.key ?? ""), views: num(r.views), visitors: num(r.visitors) }));
+
+  return {
+    views: num(totals[0]?.views),
+    visitors: num(totals[0]?.visitors),
+    series: series.map((r) => ({
+      bucket: new Date(r.bucket as string).toISOString(),
+      views: num(r.views),
+      visitors: num(r.visitors),
+    })),
+    topPages: asBreakdown(pages),
+    referrers: asBreakdown(refs),
+    devices: asBreakdown(devices),
+    browsers: asBreakdown(browsers),
+  };
+}
+
+/**
+ * Deletes views older than the retention window.
+ *
+ * Analytics that only ever grows is a liability rather than an asset: the
+ * table gets slower, the backups get bigger, and we end up holding behavioural
+ * data far longer than anyone will ever look at it.
+ */
+export async function dbPrunePageViews(retentionDays = 400): Promise<number> {
+  await initDb();
+  const q = await getQuery();
+  const cutoff = new Date(Date.now() - retentionDays * 86400_000).toISOString();
+  const rows = await q(`DELETE FROM page_views WHERE ts < $1 RETURNING 1`, [cutoff]);
+  return rows.length;
+}
+
+function recordFromRows(rows: Record<string, unknown>[]): Record<string, unknown> {  const out: Record<string, unknown> = {};
   for (const r of rows) {
     const data = r.data as { email?: string } | null;
     if (data && data.email) out[data.email] = data;

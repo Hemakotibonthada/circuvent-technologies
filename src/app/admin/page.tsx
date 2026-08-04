@@ -37,6 +37,7 @@ import ReturnsPanel from "./ReturnsPanel";
 import SupportPanel from "./SupportPanel";
 import StaffPanel from "./StaffPanel";
 import AnalyticsPanel from "./AnalyticsPanel";
+import TrafficPanel from "./TrafficPanel";
 import MonitoringPanel from "./MonitoringPanel";
 import ReportsPanel from "./ReportsPanel";
 import AlertRulesPanel from "./AlertRulesPanel";
@@ -670,7 +671,12 @@ export default function AdminDashboard() {
         </div>
 
         {tab === "orders" && <OrdersPanel />}
-        {tab === "analytics" && <AnalyticsPanel />}
+        {tab === "analytics" && (
+          <>
+            <TrafficPanel />
+            <AnalyticsPanel />
+          </>
+        )}
         {tab === "emails" && <EmailsPanel />}
         {tab === "latency" && <LatencyPanel />}
         {tab === "monitoring" && (
