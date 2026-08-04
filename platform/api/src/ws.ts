@@ -1,4 +1,4 @@
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer, WebSocket, type RawData } from "ws";
 import type { Server } from "node:http";
 import { verifyUserToken } from "./auth";
 import { bus, watchedDevices, type DeviceUpdate, type DeviceFrame } from "./mqtt";
@@ -113,14 +113,35 @@ export function attachWebSocket(server: Server): void {
       }
     };
 
-    await syncDeviceIds();
+    /**
+     * Start the first read, but do NOT await it before attaching the message
+     * listener below.
+     *
+     * Clients send `{type:"watch"}` from their onopen handler, which fires the
+     * instant the WebSocket handshake completes. Awaiting a Postgres round-trip
+     * before `ws.on("message")` exists meant that message arrived at an
+     * EventEmitter with no listener and was dropped with nothing logged — so a
+     * camera's frames were never relayed while state, telemetry and status kept
+     * flowing, because none of those need the client to say anything. The
+     * device looked perfectly healthy and only the video never started.
+     */
+    const initialSync = syncDeviceIds();
+
+    ws.on("message", (data) => {
+      // Ownership is read asynchronously, so a message that arrives during the
+      // first read has to wait for it rather than be judged against an empty
+      // set. Queuing here rather than dropping is the whole fix.
+      void initialSync.then(() => handleClientMessage(data));
+    });
+
+    await initialSync;
     ws.send(JSON.stringify({ type: "ready", devices: [...client.deviceIds] }));
 
     // Re-reading owned devices hits Postgres, so a client cannot spin it.
     let lastSync = Date.now();
     let syncing = false;
 
-    ws.on("message", (data) => {
+    function handleClientMessage(data: RawData): void {
       // Clients ask for a refresh after claiming or releasing a device, and
       // opt in/out of camera frames.
       let m: { type?: unknown; deviceId?: unknown };
@@ -158,7 +179,7 @@ export function attachWebSocket(server: Server): void {
           ws.send(JSON.stringify({ type: "ready", devices: [...client.deviceIds] }));
         }
       });
-    });
+    }
 
     const ping = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) ws.ping();

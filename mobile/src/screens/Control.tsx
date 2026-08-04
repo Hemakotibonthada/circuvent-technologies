@@ -1042,9 +1042,7 @@ function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unkn
       {!ready && d.online && (
         <Alertline c={c} text="The camera sensor is not responding. Check the ribbon cable seating, then reboot." />
       )}
-      {ready && stalled && (
-        <Alertline c={c} text="Live view is on but no frames are arriving. Check the camera's signal, then try Reboot." />
-      )}
+      {ready && stalled && <StallHint c={c} frames={n("frames", 0)} dropped={n("dropped", 0)} />}
 
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 6 }}>
         <CamAction c={c} icon={live ? "pause" : "play"} label={live ? "Stop" : "Live view"} primary={!live}
@@ -1129,8 +1127,37 @@ function CamAction({ c, icon, label, onPress, primary, disabled }: {
   );
 }
 
-function MiniStat({ label, value, c }: { label: string; value: string; c: Palette }) {
-  return (
+/**
+ * What to say when live view is on and nothing is arriving.
+ *
+ * The board publishes its own `frames` and `dropped` counters, which separate
+ * two faults that look identical on screen but need opposite actions. The old
+ * message assumed the camera was at fault and told the user to reboot it —
+ * which was exactly wrong when the board was streaming fine and the frames
+ * were being dropped upstream. Reading the counters is the difference between
+ * a hint and a guess.
+ */
+function StallHint({ c, frames, dropped }: { c: Palette; frames: number; dropped: number }) {
+  if (frames > 0) {
+    return (
+      <Alertline
+        c={c}
+        text={`The camera has sent ${frames} frames, so it is working — they are not reaching this app. Check your connection, or pull to refresh to reconnect.`}
+      />
+    );
+  }
+  if (dropped > 0) {
+    return (
+      <Alertline
+        c={c}
+        text={`The camera captured nothing on ${dropped} attempts. Check the ribbon cable seating, lower the resolution, then reboot.`}
+      />
+    );
+  }
+  return <Alertline c={c} text="Live view is on but the camera has not sent anything yet. Give it a few seconds, then try Reboot." />;
+}
+
+function MiniStat({ label, value, c }: { label: string; value: string; c: Palette }) {  return (
     <Card padded style={{ flex: 1, alignItems: "center" }}>
       <Text style={{ color: c.text, fontSize: 20, fontWeight: "800" }}>{value}</Text>
       <Text style={{ color: c.faint, fontSize: 12, marginTop: 4, textTransform: "uppercase", letterSpacing: 1 }}>{label}</Text>
