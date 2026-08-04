@@ -13,7 +13,8 @@
     "test:db": "tsx scripts/test-db.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "audit:contrast": "node scripts/audit-code-contrast.mjs"
+    "audit:contrast": "node scripts/audit-code-contrast.mjs",
+    "audit:perf": "node scripts/perf-probe.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

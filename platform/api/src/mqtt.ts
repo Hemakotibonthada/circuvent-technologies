@@ -1,6 +1,7 @@
 import mqtt, { type MqttClient } from "mqtt";
 import { EventEmitter } from "node:events";
 import { config, topics, deviceIdFromTopic } from "./config";
+import { withDeviceLock } from "./device-lock";
 import { pool, recordEvent } from "./db";
 import { logger } from "./logger";
 import { onStateChange, onEvent } from "./automations";
@@ -178,7 +179,13 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
   bus.emit("device:update", { deviceId, kind, payload, at } satisfies DeviceUpdate);
 
   try {
-    await persistMessage(deviceId, kind, payload, raw);
+    // Serialised per device. persistMessage reads the previous state, writes
+    // the new one, then diffs them to decide which alerts and automations to
+    // fire — and every await in that sequence yields. Two messages from the
+    // same device would otherwise both read the same "previous" value, firing
+    // a false->true edge twice, and could land their writes out of order.
+    // Different devices still run concurrently.
+    await withDeviceLock(deviceId, () => persistMessage(deviceId, kind, payload, raw));
   } catch (err) {
     logger.error({ err, deviceId, kind }, "Failed to persist device message");
   }
