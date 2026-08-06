@@ -12,7 +12,19 @@
  *
  * Deps: CircuventDevice, ArduinoJson.  Board: ESP32.
  */
-#define CV_FW_VERSION "2.0.0"
+/*
+ * Version history — bump this whenever behaviour changes, not just features.
+ *
+ * 2.1.0  State is published the instant a command is handled
+ *        (CircuventDevice::_dispatch -> publishStateNow), instead of waiting
+ *        for the next 10s heartbeat. That behaviour landed on 2026-07-28 but
+ *        the version was left at 2.0.0, so a unit reporting "2.0.0" could be
+ *        either build and there was no way to tell from telemetry which
+ *        devices still had ~5s average command echo. Worse, an OTA campaign
+ *        filtered on version skipped exactly the units that needed it.
+ * 2.0.0  Production hardening: 4 channels, schedules, NVS boot restore.
+ */
+#define CV_FW_VERSION "2.1.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 #include <time.h>

@@ -235,9 +235,21 @@ async function persistMessage(
       );
       const row = prev.rows[0];
       const prevState = row?.state ?? null;
+      // Keep fw_version in step with what the device reports.
+      //
+      // It was read in ten places — the registry, device reports, the public
+      // /v1 API, the admin fleet list and OTA targeting — and written in none,
+      // so every device showed a blank firmware and an OTA campaign filtered
+      // by version matched nothing. The value lives in the state payload the
+      // firmware already sends on every publish; it just was never lifted out.
+      const reportedFw = (payload as Record<string, unknown>)?.fw;
+      const fw = typeof reportedFw === "string" ? reportedFw.slice(0, 40) : null;
       await pool.query(
-        `UPDATE devices SET state = $2, online = true, last_seen = now() WHERE id = $1`,
-        [deviceId, payload as object]
+        `UPDATE devices
+            SET state = $2, online = true, last_seen = now(),
+                fw_version = COALESCE(NULLIF($3, ''), fw_version)
+          WHERE id = $1`,
+        [deviceId, payload as object, fw]
       );
       if (row?.owner_id != null) {
         await notifyStateEvents(row.owner_id, row.name || deviceId, prevState, payload as Record<string, unknown>);

@@ -574,6 +574,16 @@ adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
       owner_id: z.number().int().nullable().optional(),
       notes: z.string().max(2000).optional(),
       batch: z.string().max(60).optional(),
+      // Correcting a mistyped device.
+      //
+      // Nothing validates the type chosen in Add Device against the firmware
+      // that actually boots, so a sentinel board can be registered as a
+      // camera. Until this existed there was no way to fix that: the owner
+      // PATCH covers name/room/favorite only, so the unit rendered the wrong
+      // controls forever — a camera panel waiting for a first frame from a
+      // board with no camera fitted — and the only remedy was to delete and
+      // re-provision, which loses the device's history.
+      type: z.string().min(1).max(40).optional(),
     })
     .safeParse(req.body ?? {});
   if (!parsed.success) {
@@ -588,6 +598,7 @@ adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
   if (d.room !== undefined) { sets.push(`room = $${i++}`); vals.push(d.room); }
   if (d.notes !== undefined) { sets.push(`notes = $${i++}`); vals.push(d.notes); }
   if (d.batch !== undefined) { sets.push(`batch = $${i++}`); vals.push(d.batch); }
+  if (d.type !== undefined) { sets.push(`type = $${i++}`); vals.push(d.type); }
   if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "owner_id")) { sets.push(`owner_id = $${i++}`); vals.push(d.owner_id ?? null); }
   if (sets.length) await pool.query(`UPDATE devices SET ${sets.join(", ")} WHERE id = $1`, vals);
   // Reassigning an owner must revoke the previous one's cached command rights.
@@ -598,6 +609,13 @@ adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
     void recordDeviceAudit(req.params.id, { uid: req.user!.uid, email: req.user!.email }, "assign", {
       newOwner: d.owner_id ?? null,
       via: "patch",
+    });
+  }
+  // A type change alters which controls the apps render and which commands the
+  // projection map produces, so it belongs on the record too.
+  if (d.type !== undefined) {
+    void recordDeviceAudit(req.params.id, { uid: req.user!.uid, email: req.user!.email }, "retype", {
+      newType: d.type,
     });
   }
   res.json({ success: true });

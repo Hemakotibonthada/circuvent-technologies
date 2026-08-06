@@ -942,6 +942,15 @@ function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unkn
 
   const ready = st.ready == null ? true : bool("ready");
   const psram = bool("psram");
+  /**
+   * Whether this unit actually has a camera.
+   *
+   * Sentinel firmware reports hasCamera:false on a board with no sensor
+   * fitted. Registered as type "camera" — which Add Device never validated —
+   * this screen would wait for a first frame forever while the device looked
+   * healthy, and the hardware would be the last thing suspected.
+   */
+  const hasCamera = st.hasCamera == null ? true : bool("hasCamera");
   const fps = n("fps", 8);
   const quality = n("quality", 12);
   const rotation = n("rotation", 0);
@@ -1039,10 +1048,16 @@ function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unkn
         )}
       </View>
 
-      {!ready && d.online && (
+      {!hasCamera && (
+        <Alertline
+          c={c}
+          text="This board reports no camera fitted — it is running gas/relay firmware. It was most likely added as the wrong device type. No video will arrive from this unit."
+        />
+      )}
+      {hasCamera && !ready && d.online && (
         <Alertline c={c} text="The camera sensor is not responding. Check the ribbon cable seating, then reboot." />
       )}
-      {ready && stalled && <StallHint c={c} frames={n("frames", 0)} dropped={n("dropped", 0)} />}
+      {hasCamera && ready && stalled && <StallHint c={c} frames={n("frames", 0)} dropped={n("dropped", 0)} />}
 
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 6 }}>
         <CamAction c={c} icon={live ? "pause" : "play"} label={live ? "Stop" : "Live view"} primary={!live}

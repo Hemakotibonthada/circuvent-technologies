@@ -1295,6 +1295,18 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   const motionActive = b(d.state.motionActive);
   const flash = n(d.state.flash);
 
+  /**
+   * Whether this unit actually has a camera.
+   *
+   * A board flashed with sentinel firmware reports hasCamera:false — it is a
+   * gas/relay unit with no sensor fitted. If it was registered as type
+   * "camera" (a wrong pick in Add Device, which nothing validated), this panel
+   * would sit on "Waiting for the first frame…" forever while the device
+   * looked perfectly healthy, and every layer in between would be blamed
+   * before the hardware was. The device tells us; we should listen.
+   */
+  const hasCamera = d.state.hasCamera == null ? true : b(d.state.hasCamera);
+
   const [frame, setFrame] = useState<LiveFrame | null>(null);
   const [fps, setFps] = useState(0);
   const stamps = useRef<number[]>([]);
@@ -1426,12 +1438,17 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
         )}
       </div>
 
-      {stalled && ready && (
+      {!hasCamera && (
+        <div className="mt-3">
+          <AlertBanner text="This board reports that it has no camera fitted — it is running gas/relay firmware. It was most likely registered as the wrong device type; change the type in Settings and the correct controls will appear. No video will ever arrive from this unit." />
+        </div>
+      )}
+      {hasCamera && stalled && ready && (
         <div className="mt-3">
           <AlertBanner text="Streaming is on but no frames are arriving. Check the camera's signal, then try Reboot." />
         </div>
       )}
-      {!ready && d.online && (
+      {hasCamera && !ready && d.online && (
         <div className="mt-3">
           <AlertBanner text="The camera sensor is not responding. Check the ribbon cable seating, then reboot." />
         </div>
