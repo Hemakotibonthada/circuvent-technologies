@@ -39,7 +39,27 @@ const BUDGET = { fcp: 1800, cls: 0.1, jsKb: 400 };
 const browser = await chromium.launch();
 const rows = [];
 
+/**
+ * Samples per page.
+ *
+ * A single navigation is not a measurement. The first page loaded in a fresh
+ * browser pays DNS, TLS and process warm-up, and CDN edge latency varies
+ * enough on its own that one sample of /shop produced 5436ms while six samples
+ * of the same page had a median of 684ms. Reporting the former sends you
+ * optimising a page that is already fast, and a tool that raises false alarms
+ * stops being read — which costs more than not having it.
+ */
+const SAMPLES = Number(process.env.PERF_SAMPLES ?? 3);
+
+const median = (xs) => {
+  const s = xs.filter((v) => v != null).sort((a, b) => a - b);
+  return s.length ? s[Math.floor(s.length / 2)] : null;
+};
+
 for (const path of PAGES) {
+  const runs = [];
+
+  for (let i = 0; i < SAMPLES; i++) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
 
@@ -67,7 +87,6 @@ for (const path of PAGES) {
   const started = Date.now();
   const res = await page.goto(BASE + path, { waitUntil: "load", timeout: 45000 }).catch(() => null);
   if (!res) {
-    rows.push({ path, error: "failed to load" });
     await ctx.close();
     continue;
   }
@@ -106,8 +125,36 @@ for (const path of PAGES) {
     };
   });
 
-  rows.push({ path, status: res.status(), loadMs, ...m });
+  runs.push({ status: res.status(), loadMs, ...m });
   await ctx.close();
+  }
+
+  if (runs.length === 0) {
+    rows.push({ path, error: "failed to load" });
+    continue;
+  }
+
+  // Timings are medianed because they vary run to run; byte counts and element
+  // counts are deterministic, so the last run is representative. CLS takes the
+  // worst observed rather than the median — a shift that happens sometimes is
+  // still a shift users see.
+  const last = runs[runs.length - 1];
+  rows.push({
+    path,
+    status: last.status,
+    samples: runs.length,
+    loadMs: median(runs.map((r) => r.loadMs)),
+    ttfb: median(runs.map((r) => r.ttfb)),
+    fcp: median(runs.map((r) => r.fcp)),
+    cls: Math.max(...runs.map((r) => r.cls)),
+    worstShifters: last.worstShifters,
+    requests: last.requests,
+    totalKb: last.totalKb,
+    jsKb: last.jsKb,
+    cssKb: last.cssKb,
+    imgKb: last.imgKb,
+    imgCount: last.imgCount,
+  });
 }
 
 await browser.close();
