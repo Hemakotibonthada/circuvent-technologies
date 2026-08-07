@@ -322,6 +322,98 @@ function neoSurface(c: Palette): readonly [string, string, string] {
   ] as const;
 }
 
+/**
+ * The soft double shadow that makes a neumorphic surface look extruded, drawn
+ * for Android.
+ *
+ * WHY THIS IS NECESSARY AT ALL
+ *
+ * Neumorphism is two shadows: a light one up-left, a dark one down-right, as
+ * if a single lamp sits above and to the left. iOS renders that directly —
+ * shadowColor/shadowOffset accept any colour, so two nested Views give the
+ * real effect.
+ *
+ * Android has no equivalent. `elevation` draws exactly one shadow, always
+ * downward, and its colour is fixed by the platform on every version before
+ * 28 (and only partially settable after). There is no way to ask it for a
+ * light shadow, which is the half that actually reads as "raised" — a dark
+ * shadow alone just looks like a card sitting on a page, which is why the
+ * Android build has never had the depth the iPhone one does.
+ *
+ * So the shadows are painted rather than cast. Two rounded gradient layers sit
+ * behind the surface, each offset diagonally and fading to transparent, which
+ * Android composites cheaply and correctly. It is not a blur — it is a ramp —
+ * but at these radii the eye reads them the same way, and unlike `elevation`
+ * it respects the palette, so the effect survives every theme.
+ */
+const NEO_DEPTH = 7;
+
+function NeoShadow({
+  radius,
+  c,
+  children,
+  style,
+}: {
+  radius: number;
+  c: Palette;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const light = mixHex(c.surface, c.neoLight, 0.92);
+  const dark = mixHex(c.surface, c.neoDark, 0.85);
+  return (
+    <View style={style}>
+      {/* Dark shadow, down-right. Drawn first so the light one wins where they
+          overlap, which is what a single top-left light produces.
+          The rect is the card's, shifted outward: negative right/bottom push
+          it past the card's edge, which is the only part that stays visible
+          once the opaque face is drawn on top. */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          left: NEO_DEPTH,
+          top: NEO_DEPTH,
+          right: -NEO_DEPTH,
+          bottom: -NEO_DEPTH,
+          borderRadius: radius,
+          overflow: "hidden",
+        }}
+      >
+        <LinearGradient
+          colors={[dark, dark, "transparent"]}
+          locations={[0, 0.55, 1]}
+          start={{ x: 0.25, y: 0.25 }}
+          end={{ x: 1, y: 1 }}
+          style={{ flex: 1, borderRadius: radius }}
+        />
+      </View>
+      {/* Light shadow, up-left — the half Android cannot cast. */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          left: -NEO_DEPTH,
+          top: -NEO_DEPTH,
+          right: NEO_DEPTH,
+          bottom: NEO_DEPTH,
+          borderRadius: radius,
+          overflow: "hidden",
+        }}
+      >
+        <LinearGradient
+          colors={[light, light, "transparent"]}
+          locations={[0, 0.55, 1]}
+          start={{ x: 0.75, y: 0.75 }}
+          end={{ x: 0, y: 0 }}
+          style={{ flex: 1, borderRadius: radius }}
+        />
+      </View>
+      {children}
+    </View>
+  );
+}
+
 
 
 /**
@@ -1006,21 +1098,16 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
       );
     }
 
-    // Android cannot draw a light shadow at all — `elevation` is one dark
-    // shadow, downward. The extrusion is faked with a diagonal surface
-    // gradient instead, which Android renders well, plus a hairline highlight
-    // along the top edge where the light would catch. See neoSurface().
+    // Android cannot cast a light shadow — `elevation` is one dark shadow,
+    // always downward, with a platform-fixed colour. NeoShadow paints both
+    // halves instead, which is what actually reads as extruded; the surface
+    // gradient and top-left hairline then round the face off. Dropping
+    // elevation entirely is deliberate: its dark, downward-only shadow fought
+    // the painted one and flattened the result.
     const grad = neoSurface(c);
     return (
       wrap(style, (
-        <View
-          style={{
-            borderRadius: radius,
-            backgroundColor: c.surface,
-            shadowColor: c.neoDark,
-            elevation: 6,
-          }}
-        >
+        <NeoShadow radius={radius} c={c}>
           <LinearGradient
             colors={grad}
             start={{ x: 0, y: 0 }}
@@ -1040,7 +1127,7 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
           >
             {children}
           </LinearGradient>
-        </View>
+        </NeoShadow>
       ))
     );
   }
