@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { publishCommand } from "../mqtt";
 import { logger } from "../logger";
 import { verifySmartHomeToken } from "./oauth";
+import { onlineColumn } from "../device-online";
 
 export const smarthomeRouter = Router();
 
@@ -26,7 +27,7 @@ interface Dev {
 
 async function ownerDevices(uid: number): Promise<Dev[]> {
   const { rows } = await pool.query<Dev>(
-    `SELECT id, name, type, room, online, state FROM devices WHERE owner_id = $1 ORDER BY created_at`,
+    `SELECT id, name, type, room, ${onlineColumn()}, state FROM devices WHERE owner_id = $1 ORDER BY created_at`,
     [uid]
   );
   return rows;

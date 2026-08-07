@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "audit:contrast": "node scripts/audit-code-contrast.mjs",
-    "audit:perf": "node scripts/perf-probe.mjs"
+    "audit:perf": "node scripts/perf-probe.mjs",
+    "audit:live": "node scripts/audit-live.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

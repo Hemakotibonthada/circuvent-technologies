@@ -12,6 +12,7 @@ import {
   ownsReferencedDevices,
 } from "./automations";
 import { logger } from "../logger";
+import { onlineColumn, onlineSql } from "../device-online";
 
 /**
  * The public, versioned developer API.
@@ -107,7 +108,7 @@ function deviceShape(r: DeviceRow) {
   };
 }
 
-const DEVICE_COLUMNS = `id, name, type, room, favorite, online, last_seen, state, fw_version`;
+const DEVICE_COLUMNS = `id, name, type, room, favorite, ${onlineColumn()}, last_seen, state, fw_version`;
 
 /* ------------------------------------------------------------------ */
 /* Discovery                                                           */
@@ -186,7 +187,7 @@ route.get("/devices", requireApiAccess("devices:read"), async (req: ApiRequest, 
       WHERE owner_id = $1
         AND ($2::text IS NULL OR room = $2)
         AND ($3::text IS NULL OR type = $3)
-        AND ($4::bool IS NULL OR online = $4)
+        AND ($4::bool IS NULL OR ${onlineSql()} = $4)
       ORDER BY created_at`,
     [req.user!.uid, room, type, online]
   );

@@ -28,6 +28,7 @@ import { v1Router } from "./routes/v1";
 import { developerRouter } from "./routes/developer";
 import { startAutomationScheduler } from "./automations";
 import { startWebhooks } from "./webhooks";
+import { startLivenessSweeper } from "./liveness";
 
 async function main(): Promise<void> {
   await initDb();
@@ -110,6 +111,7 @@ async function main(): Promise<void> {
 
   startAutomationScheduler();
   startWebhooks();
+  startLivenessSweeper();
 
   server.listen(config.PORT, () => logger.info(`Control plane listening on :${config.PORT}`));
 

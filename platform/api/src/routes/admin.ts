@@ -17,6 +17,7 @@ import { revokeAllSessions, invalidateUser } from "../sessions";
 import { revokeAllRefreshTokens } from "../refresh";
 import { readBrokerCertificate } from "../broker-cert";
 import { logger } from "../logger";
+import { onlineColumn, onlineSql } from "../device-online";
 
 export const adminRouter = Router();
 
@@ -61,7 +62,7 @@ adminRouter.get("/stats", async (_req, res) => {
   const [users, devices, online, events, pending] = await Promise.all([
     pool.query<{ c: string }>(`SELECT COUNT(*)::int c FROM users`),
     pool.query<{ c: string }>(`SELECT COUNT(*)::int c FROM devices`),
-    pool.query<{ c: string }>(`SELECT COUNT(*)::int c FROM devices WHERE online = true`),
+    pool.query<{ c: string }>(`SELECT COUNT(*)::int c FROM devices WHERE ${onlineSql()}`),
     pool.query<{ c: string }>(`SELECT COUNT(*)::int c FROM events WHERE ts > now() - interval '7 days'`),
     pool.query<{ c: string }>(`SELECT COUNT(*)::int c FROM pending_registrations`),
   ]);
@@ -176,10 +177,10 @@ adminRouter.delete("/users/:id", async (req: AuthedRequest, res) => {
 /** GET /admin/devices — every device with owner + last-seen. */
 adminRouter.get("/devices", async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT d.id, d.serial, d.name, d.type, d.room, d.online, d.last_seen, d.fw_version, d.state,
+    `SELECT d.id, d.serial, d.name, d.type, d.room, ${onlineColumn("d.")}, d.last_seen, d.fw_version, d.state,
             u.email AS owner_email, u.id AS owner_id
      FROM devices d LEFT JOIN users u ON u.id = d.owner_id
-     ORDER BY d.online DESC, d.last_seen DESC NULLS LAST`
+     ORDER BY ${onlineSql("d.")} DESC, d.last_seen DESC NULLS LAST`
   );
   res.json({ devices: rows });
 });
@@ -214,7 +215,7 @@ adminRouter.get("/devices/lookup", async (req, res) => {
   const serial = normalizeSerial(raw);
   if (serial) {
     const { rows } = await pool.query(
-      `SELECT d.id, d.serial, d.name, d.type, d.room, d.online, d.last_seen, d.fw_version,
+      `SELECT d.id, d.serial, d.name, d.type, d.room, ${onlineColumn("d.")}, d.last_seen, d.fw_version,
               d.created_at, d.batch, u.email AS owner_email, u.id AS owner_id
          FROM devices d LEFT JOIN users u ON u.id = d.owner_id
         WHERE d.serial = $1`,
@@ -239,12 +240,12 @@ adminRouter.get("/devices/lookup", async (req, res) => {
 
   const like = `%${raw.toLowerCase()}%`;
   const { rows } = await pool.query(
-    `SELECT d.id, d.serial, d.name, d.type, d.room, d.online, d.last_seen, d.fw_version,
+    `SELECT d.id, d.serial, d.name, d.type, d.room, ${onlineColumn("d.")}, d.last_seen, d.fw_version,
             d.created_at, d.batch, u.email AS owner_email, u.id AS owner_id
        FROM devices d LEFT JOIN users u ON u.id = d.owner_id
       WHERE LOWER(d.id) LIKE $1 OR LOWER(d.name) LIKE $1 OR LOWER(u.email) LIKE $1
          OR LOWER(COALESCE(d.serial,'')) LIKE $1 OR LOWER(COALESCE(d.hwid,'')) LIKE $1
-      ORDER BY d.online DESC, d.last_seen DESC NULLS LAST
+      ORDER BY ${onlineSql("d.")} DESC, d.last_seen DESC NULLS LAST
       LIMIT 50`,
     [like]
   );
@@ -543,7 +544,7 @@ adminRouter.get("/health", async (_req, res) => {
 /** GET /admin/devices/:id — full detail for one device. */
 adminRouter.get("/devices/:id", async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT d.id, d.name, d.type, d.room, d.favorite, d.online, d.last_seen, d.fw_version, d.state, d.created_at,
+    `SELECT d.id, d.name, d.type, d.room, d.favorite, ${onlineColumn("d.")}, d.last_seen, d.fw_version, d.state, d.created_at,
             u.email AS owner_email, u.id AS owner_id
      FROM devices d LEFT JOIN users u ON u.id = d.owner_id WHERE d.id = $1`,
     [req.params.id]

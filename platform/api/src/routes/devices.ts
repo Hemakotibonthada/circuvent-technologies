@@ -6,6 +6,7 @@ import { publishCommand, provisionBrokerClient, deprovisionBrokerClient } from "
 import { ownsDevice, invalidateOwnership } from "../ownership";
 import { buildDeviceReport, reportToCsv } from "../device-report";
 import { logger } from "../logger";
+import { onlineColumn } from "../device-online";
 
 export const deviceRouter = Router();
 
@@ -89,7 +90,7 @@ deviceRouter.post("/claim", requireAuth, async (req: AuthedRequest, res) => {
 /** GET /devices — the caller's devices with live-ish state. */
 deviceRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
-    `SELECT id, serial, name, type, room, favorite, online, last_seen, state, fw_version
+    `SELECT id, serial, name, type, room, favorite, ${onlineColumn()}, last_seen, state, fw_version
      FROM devices WHERE owner_id = $1 ORDER BY created_at`,
     [req.user!.uid]
   );
@@ -104,7 +105,7 @@ deviceRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
 /** GET /devices/:id — single device detail. */
 deviceRouter.get("/:id", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
-    `SELECT id, serial, name, type, room, favorite, online, last_seen, state, fw_version
+    `SELECT id, serial, name, type, room, favorite, ${onlineColumn()}, last_seen, state, fw_version
      FROM devices WHERE id = $1 AND owner_id = $2`,
     [req.params.id, req.user!.uid]
   );

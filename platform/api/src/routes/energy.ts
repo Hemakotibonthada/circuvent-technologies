@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { pool } from "../db";
 import { requireAuth, type AuthedRequest } from "../auth";
+import { onlineColumn } from "../device-online";
 
 export const energyRouter = Router();
 
@@ -13,7 +14,7 @@ energyRouter.get("/summary", requireAuth, async (req: AuthedRequest, res) => {
   const uid = req.user!.uid;
 
   const devs = await pool.query<{ id: string; name: string; type: string; online: boolean; watts: number | null }>(
-    `SELECT id, name, type, online, NULLIF(state->>'watts','')::float AS watts
+    `SELECT id, name, type, ${onlineColumn()}, NULLIF(state->>'watts','')::float AS watts
      FROM devices WHERE owner_id = $1 ORDER BY watts DESC NULLS LAST`,
     [uid]
   );

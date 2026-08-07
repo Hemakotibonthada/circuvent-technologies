@@ -1,5 +1,6 @@
 import { pool } from "./db";
 import { labelQrPayload } from "./serial";
+import { onlineColumn } from "./device-online";
 
 /**
  * The device report.
@@ -49,7 +50,7 @@ interface DeviceRow {
 }
 
 const DEVICE_SELECT = `
-  SELECT d.id, d.serial, d.hwid, d.name, d.type, d.room, d.favorite, d.online, d.last_seen,
+  SELECT d.id, d.serial, d.hwid, d.name, d.type, d.room, d.favorite, ${onlineColumn("d.")}, d.last_seen,
          d.state, d.fw_version, d.created_at, d.notes, d.batch,
          d.key_issued_at, d.key_rotated_at, d.key_rotations,
          d.owner_id, u.email AS owner_email, u.name AS owner_name

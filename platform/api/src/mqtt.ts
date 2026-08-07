@@ -287,6 +287,10 @@ async function persistMessage(
     } else if (kind === "status") {
       const online = (payload as { online?: boolean })?.online ?? raw.includes("online");
       const prev = await pool.query<{ owner_id: number | null; name: string | null; online: boolean | null }>(
+        // Reads the raw flag deliberately: this is transition detection, not a
+        // liveness report. The edge true -> false is what emits the offline
+        // event, so it must compare against what was stored, not against a
+        // derived value. /* raw-flag: transition detection */
         `SELECT owner_id, name, online FROM devices WHERE id = $1`,
         [deviceId]
       );
