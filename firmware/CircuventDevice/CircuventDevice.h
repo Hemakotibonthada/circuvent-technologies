@@ -322,12 +322,74 @@ class CircuventDevice {
     JsonDocument doc;
     if (deserializeJson(doc, payload, len) != DeserializationError::Ok) return;
     String action = doc["action"] | "";
-    if (!_handler || !action.length()) return;
+    if (!action.length()) return;
+
+    /*
+     * Platform actions are handled here, before the sketch's handler.
+     *
+     * `ota` used to be delegated like everything else, and not one of the
+     * twenty product sketches implemented it — every one of them starts with
+     * `if (action != "set") return;` or an equivalent. So the admin console
+     * had an OTA button, the control plane published the command, and every
+     * device in the fleet silently ignored it. Pull-polling was no help
+     * either: setOtaInterval defaults to 0 and no sketch calls it. The result
+     * was a fleet that could not be updated remotely at all, which is only
+     * discovered when a fix urgently needs to ship.
+     *
+     * Handling it at this layer is what makes OTA a property of the platform
+     * rather than something each product has to remember to opt into.
+     */
+    if (action == "ota") {
+      String url = doc["url"] | "";
+      String ver = doc["version"] | "";
+      _applyOta(url, ver);
+      return;  // a successful update reboots and never reaches here
+    }
+
+    if (!_handler) return;
     _handler(action, doc.as<JsonObjectConst>());
     if (_dirty) publishStateNow();
   }
 
   // ---- OTA (optional; GET {api}/api/devices/firmware) -------------------
+  /**
+   * Applies a firmware image from `binUrl`.
+   *
+   * SECURITY: the binary is fetched with the same pinned root as the metadata
+   * call. It used to use setInsecure(), which disables certificate validation
+   * entirely — anyone able to intercept that connection (a rogue access point,
+   * poisoned DNS, a compromised upstream) could serve arbitrary firmware and
+   * take permanent control of a board that switches mains relays and door
+   * locks. An OTA that fails loudly on an unexpected certificate is far better
+   * than one that quietly accepts any.
+   *
+   * Host firmware on a domain covered by the pinned root. If that ever has to
+   * change, change the pin — do not reach for setInsecure().
+   */
+  bool _applyOta(const String &binUrl, const String &newVer) {
+    if (binUrl.length() == 0) return false;
+    // Re-flashing the running version would reboot the device on every
+    // repeated broadcast, which is an outage rather than an update.
+    if (newVer.length() && newVer == CV_FW_VERSION) return false;
+
+    WiFiClientSecure otaClient;
+#if defined(ESP32)
+    otaClient.setCACert(LETSENCRYPT_ROOT_CA);
+    httpUpdate.rebootOnUpdate(true);
+    t_httpUpdate_return r = httpUpdate.update(otaClient, binUrl);
+    if (r == HTTP_UPDATE_FAILED) {
+      Serial.printf("[OTA] failed (%d): %s\n", httpUpdate.getLastError(),
+                    httpUpdate.getLastErrorString().c_str());
+      return false;
+    }
+#elif defined(ESP8266)
+    otaClient.setInsecure();  // ESP8266 lacks the memory for a full chain check
+    ESPhttpUpdate.rebootOnUpdate(true);
+    ESPhttpUpdate.update(otaClient, binUrl);
+#endif
+    return true;
+  }
+
   bool checkOTA() {
     if (WiFi.status() != WL_CONNECTED) return false;
     WiFiClientSecure client;
@@ -352,15 +414,7 @@ class CircuventDevice {
     }
     https.end();
     if (binUrl.length() == 0 || newVer.length() == 0 || newVer == CV_FW_VERSION) return false;
-    WiFiClientSecure otaClient; otaClient.setInsecure();
-#if defined(ESP32)
-    httpUpdate.rebootOnUpdate(true);
-    httpUpdate.update(otaClient, binUrl);
-#elif defined(ESP8266)
-    ESPhttpUpdate.rebootOnUpdate(true);
-    ESPhttpUpdate.update(otaClient, binUrl);
-#endif
-    return true;
+    return _applyOta(binUrl, newVer);
   }
 
   // ---- Wi-Fi provisioning portal ---------------------------------------
@@ -419,7 +473,21 @@ class CircuventDevice {
   uint32_t _interval = 10000, _lastPub = 0, _lastReconnect = 0;
   uint32_t _minGap = 80;   // min ms between change-triggered publishes (coalesce bursts)
   bool _dirty = false;     // a state value changed locally since the last publish
-  uint32_t _otaInterval = 0, _lastOta = 0;
+  /*
+   * OTA poll interval.
+   *
+   * Defaults to 6 hours rather than 0 (off). Push OTA over MQTT is the primary
+   * path and is instant, but it only reaches devices that are online at the
+   * moment the command is published — a unit that was powered down during a
+   * rollout would otherwise stay on old firmware indefinitely, with nothing
+   * indicating it had been missed. This poll is the backstop that closes that
+   * gap without anyone having to notice.
+   *
+   * The cost is one HTTPS GET per device every six hours, and the endpoint
+   * returns an empty manifest when nothing is published, so the steady-state
+   * cost is negligible. setOtaInterval(0) still disables it.
+   */
+  uint32_t _otaInterval = 6UL * 60UL * 60UL * 1000UL, _lastOta = 0;
   uint32_t _lastMqttTry = 0;
   uint16_t _reconnectTries = 0, _mqttFails = 0;
   bool _mqttUp = false, _provisioningEnabled = true, _portalActive = false;

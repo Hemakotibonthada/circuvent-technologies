@@ -15,6 +15,14 @@
 /*
  * Version history — bump this whenever behaviour changes, not just features.
  *
+ * 2.2.0  OTA actually works. `action:"ota"` is now handled inside
+ *        CircuventDevice rather than delegated to this sketch, which never
+ *        implemented it — so the admin console's OTA button published a
+ *        command every device ignored. Poll-based OTA also defaults on now as
+ *        a backstop for units offline during a rollout. The firmware download
+ *        is fetched with a pinned root instead of setInsecure(), which had
+ *        allowed anyone able to intercept that connection to flash arbitrary
+ *        code onto a board driving mains relays.
  * 2.1.0  State is published the instant a command is handled
  *        (CircuventDevice::_dispatch -> publishStateNow), instead of waiting
  *        for the next 10s heartbeat. That behaviour landed on 2026-07-28 but
@@ -24,7 +32,7 @@
  *        filtered on version skipped exactly the units that needed it.
  * 2.0.0  Production hardening: 4 channels, schedules, NVS boot restore.
  */
-#define CV_FW_VERSION "2.1.0"
+#define CV_FW_VERSION "2.2.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 #include <time.h>
