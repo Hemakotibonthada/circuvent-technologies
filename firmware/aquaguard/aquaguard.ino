@@ -13,7 +13,8 @@
  *
  * Deps: CircuventDevice, ArduinoJson.  Board: ESP32.
  */
-#define CV_FW_VERSION "2.0.0"
+/** Version history: 2.0.0 initial; 2.1.0 adds OTA (from CircuventDevice). */
+#define CV_FW_VERSION "2.1.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 

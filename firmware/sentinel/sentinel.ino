@@ -43,7 +43,16 @@
  *
  * Deps: CircuventDevice, ArduinoJson, Adafruit DHT.  Board: ESP32 / ESP32-CAM.
  */
-#define CV_FW_VERSION "1.0.0"
+/**
+ * Version history
+ *   1.0.0  initial
+ *   1.1.0  OTA (from CircuventDevice) + gas sensor fault detection. 1.0.0
+ *          trusted the module's active-low comparator on GPIO35, which has no
+ *          internal pull-up, so an unplugged detector floated low and latched
+ *          a gas alarm that cut a relay and could never clear itself. Two
+ *          units in the field were sitting in exactly that state.
+ */
+#define CV_FW_VERSION "1.1.0"
 
 #include <CircuventDevice.h>
 #include <Preferences.h>
@@ -264,6 +273,16 @@ static const uint32_t GAS_SAMPLE_MS    = 500;
 static const int      GAS_ALARM_MARGIN = 700;      // ADC counts above baseline
 static const int      GAS_CLEAR_MARGIN = 450;      // must fall this far to clear
 static const uint32_t GAS_ALARM_MIN_MS = 3000;     // sustained before alarming
+/**
+ * Below this the sensor is considered absent, not clean.
+ *
+ * An MQ element is a resistive divider across the ADC — powered and connected,
+ * it always sources *something*, and in clean air that is hundreds of counts.
+ * A reading at the very floor of the ADC does not mean "no gas", it means no
+ * sensor: unplugged, or its 5 V rail is down. 16/4095 is about 13 mV, which
+ * nothing alive sits at.
+ */
+static const int      GAS_FAULT_RAW    = 16;
 static const uint32_t GAS_BASELINE_MS  = 600000;   // slow re-baseline, 10 min
 
 static const uint32_t DHT_SAMPLE_MS    = 2500;     // DHT11 needs > 1 s between reads
@@ -333,7 +352,8 @@ void releasePublish() {
 int  gasRaw = 0;
 int  gasBaseline = 0;
 bool gasAlarm = false;
-bool gasReady = false;                // warm-up complete
+bool gasFault = false;                 // sensor absent / unpowered
+bool gasReady = false;                 // warm-up complete
 uint32_t gasAboveSince = 0;
 uint32_t lastGasSample = 0;
 uint32_t lastBaselineAt = 0;
@@ -714,7 +734,31 @@ void sampleGas() {
   const int alarmAt = gasBaseline + GAS_ALARM_MARGIN;
   const int clearAt = gasBaseline + GAS_CLEAR_MARGIN;
 
-  bool moduleTrip = (digitalRead(GAS_DIGITAL_PIN) == LOW);   // modules pull low
+  // Has the sensor stopped being a sensor? Judged only once a baseline exists,
+  // because before calibration we have nothing to compare against.
+  const bool faulted = (gasBaseline > 0 && gasRaw <= GAS_FAULT_RAW);
+  if (faulted != gasFault) {
+    gasFault = faulted;
+    cv.set("gasFault", gasFault);
+    cv.publishStateNow();
+  }
+
+  // The module's own comparator output. It is active-low, so a floating pin
+  // reads as a trip.
+  //
+  // GAS_DIGITAL_PIN is GPIO35, and on the ESP32 GPIO34-39 are input-only with
+  // no internal pull-up or pull-down at all — the INPUT_PULLUP requested in
+  // setup() is silently a no-op on this pin. There is therefore nothing
+  // holding it high when the module is unplugged or unpowered, and it settles
+  // low, which reads exactly like a detection.
+  //
+  // The analog line is what distinguishes the two cases: a real trip comes
+  // with a raised ADC reading, and a disconnected module reads zero on both.
+  // Trusting the comparator alone is what latched a permanent false alarm on
+  // two units in the field, cutting a relay that could not be restored,
+  // because the clear branch below also requires !moduleTrip and so could
+  // never run.
+  bool moduleTrip = (digitalRead(GAS_DIGITAL_PIN) == LOW) && !gasFault;
 
   if (!gasAlarm) {
     if (gasRaw >= alarmAt || moduleTrip) {
@@ -739,7 +783,11 @@ void sampleGas() {
 
   // Slow baseline tracking, and only while the air is demonstrably clean —
   // doing it during an alarm would teach the sensor that a leak is normal.
-  if (gasReady && !gasAlarm && gasRaw < clearAt) {
+  // Excluded while faulted for the same reason in reverse: a disconnected
+  // module reads zero, and averaging that in would walk the baseline down to
+  // nothing, so the moment the sensor came back its ordinary clean-air output
+  // would sit hundreds of counts "above baseline" and trip the alarm.
+  if (gasReady && !gasAlarm && !gasFault && gasRaw < clearAt) {
     gasAccum += gasRaw;
     gasAccumN++;
     if (now - lastBaselineAt > GAS_BASELINE_MS && gasAccumN > 0) {
@@ -1218,6 +1266,11 @@ void setup() {
   cv.set("safetyCutMask", (long)safetyCutMask);
   cv.set("exhaustRelay", (int)exhaustRelay);
   cv.set("hasGas", (bool)CV_HAS_GAS);
+#if CV_HAS_GAS
+  // Published from boot so the console can say "detector not responding"
+  // rather than silently showing a healthy-looking zero.
+  cv.set("gasFault", gasFault);
+#endif
   cv.set("hasCamera", (bool)CV_HAS_CAMERA);
   cv.set("fw", CV_FW_VERSION);
 #if CV_HAS_EXPANDER

@@ -26,7 +26,15 @@
  *
  * Board: AI-Thinker ESP32-CAM (default). Set CV_CAM_BOARD for the others.
  */
-#define CV_FW_VERSION "1.1.0"
+/**
+ * Version history
+ *   1.0.0  initial
+ *   1.1.0  streaming fixes
+ *   1.2.0  OTA. Also moves the build to min_spiffs.csv: the previous
+ *          huge_app.csv has a single app slot, so no camera could ever have
+ *          taken an over-the-air update at all.
+ */
+#define CV_FW_VERSION "1.2.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
