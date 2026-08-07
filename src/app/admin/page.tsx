@@ -455,7 +455,7 @@ export default function AdminDashboard() {
           }}
         >
           <div className="flex items-center justify-center mb-6">
-            <img src="/logo-mark.png" alt="Circuvent" width={52} height={52} />
+            <img src="/logo-mark-160.png" alt="Circuvent" width={52} height={52} />
           </div>
           <h1 className="text-xl font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>
             Circuvent Control Center
@@ -559,7 +559,7 @@ export default function AdminDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-3">
-            <img src="/logo-mark.png" alt="Circuvent" width={44} height={44} />
+            <img src="/logo-mark-160.png" alt="Circuvent" width={44} height={44} />
             <div>
               <h1
                 className="text-3xl font-bold"

@@ -25,7 +25,7 @@ export default function ShopHeader() {
     >
       <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 lg:px-8">
         <Link href="/shop" className="mr-1 flex items-center gap-2 font-semibold" style={{ color: "var(--text-primary)" }}>
-          <img src="/logo-mark.png" alt="Circuvent" width={28} height={28} className="rounded-lg" />
+          <img src="/logo-mark-160.png" alt="Circuvent" width={28} height={28} className="rounded-lg" />
           <span className="hidden text-sm sm:inline">Circuvent Store</span>
         </Link>
 

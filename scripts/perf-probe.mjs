@@ -161,4 +161,21 @@ for (const r of rows) {
     console.log(`  ${r.path.padEnd(15)} ${over.join("  |  ")}`);
   }
 }
-if (!any) console.log("  nothing - all pages inside FCP/CLS/JS budget.");
+
+// A probe that measured nothing must not report success. Every page failing to
+// load and the summary reading "all pages inside budget" is the most dangerous
+// output this script can produce, because it is indistinguishable from a pass.
+const measured = rows.filter((r) => !r.error).length;
+if (measured === 0) {
+  console.error(
+    `\nFAILED: 0 of ${rows.length} pages loaded — nothing was measured.\n` +
+    `  Is the server up at ${BASE}?  Start it, or pass a base URL:\n` +
+    `    npm run audit:perf -- https://circuvent.com`
+  );
+  process.exit(1);
+}
+if (measured < rows.length) {
+  console.error(`\nWARNING: only ${measured} of ${rows.length} pages loaded; the rest are unmeasured, not passing.`);
+}
+if (!any) console.log(`  nothing - all ${measured} measured pages inside FCP/CLS/JS budget.`);
+if (any) process.exitCode = 1;

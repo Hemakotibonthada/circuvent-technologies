@@ -81,7 +81,7 @@ export default function InvoicePage() {
           <div>
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-mark.png" alt="Circuvent" width={36} height={36} />
+              <img src="/logo-mark-160.png" alt="Circuvent" width={36} height={36} />
               <span className="text-xl font-bold">Circuvent Technologies</span>
             </div>
             <p className="mt-1 text-xs text-slate-500">circuvent.com · support: hema@circuvent.com</p>

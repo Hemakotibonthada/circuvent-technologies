@@ -335,7 +335,7 @@ export default function HeroSystemsGraph() {
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                 style={{ transformOrigin: `${CORE.x}px ${CORE.y}px` }}
               />
-              <image href="/logo-mark.png" x={CORE.x - 22} y={CORE.y - 22} width={44} height={44} preserveAspectRatio="xMidYMid meet" />
+              <image href="/logo-mark-160.png" x={CORE.x - 22} y={CORE.y - 22} width={44} height={44} preserveAspectRatio="xMidYMid meet" />
               <text
                 x={CORE.x}
                 y={CORE.y + 54}
@@ -367,7 +367,7 @@ export default function HeroSystemsGraph() {
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: `${activeInfo.color}22`, color: activeInfo.color }}>
                 {isCore ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src="/logo-mark.png" alt="Circuvent" className="h-5 w-5 object-contain" />
+                  <img src="/logo-mark-160.png" alt="Circuvent" className="h-5 w-5 object-contain" />
                 ) : (
                   <ActiveIcon className="h-[18px] w-[18px]" />
                 )}
