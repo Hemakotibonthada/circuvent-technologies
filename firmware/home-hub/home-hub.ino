@@ -15,6 +15,11 @@
 /*
  * Version history — bump this whenever behaviour changes, not just features.
  *
+ * 2.3.0  OTA reports its own outcome. 2.2.0 wrote failures to Serial and
+ *        nowhere else, so on a deployed unit a rejected certificate, a 404
+ *        and a command that never arrived all looked identical: nothing
+ *        happens. The device now publishes otaStatus, which is what makes a
+ *        failed rollout diagnosable without a serial cable.
  * 2.2.0  OTA actually works. `action:"ota"` is now handled inside
  *        CircuventDevice rather than delegated to this sketch, which never
  *        implemented it — so the admin console's OTA button published a
@@ -32,7 +37,7 @@
  *        filtered on version skipped exactly the units that needed it.
  * 2.0.0  Production hardening: 4 channels, schedules, NVS boot restore.
  */
-#define CV_FW_VERSION "2.2.0"
+#define CV_FW_VERSION "2.3.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 #include <time.h>

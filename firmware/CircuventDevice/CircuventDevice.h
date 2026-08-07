@@ -366,11 +366,33 @@ class CircuventDevice {
    * Host firmware on a domain covered by the pinned root. If that ever has to
    * change, change the pin — do not reach for setInsecure().
    */
+  /**
+   * Reports an OTA outcome over MQTT.
+   *
+   * The previous version wrote failures to Serial and nothing else, which on a
+   * deployed device means nowhere. "I pressed update and nothing happened" was
+   * therefore indistinguishable from "the command never arrived" — and that is
+   * precisely how OTA stayed broken across the entire fleet without anyone
+   * noticing. A rollout mechanism that cannot report its own failure is barely
+   * better than not having one.
+   *
+   * Success needs no message: the device reboots and reports the new version.
+   */
+  void _otaStatus(const String &s) {
+    set("otaStatus", s.c_str());
+    publishStateNow();
+  }
+
   bool _applyOta(const String &binUrl, const String &newVer) {
     if (binUrl.length() == 0) return false;
     // Re-flashing the running version would reboot the device on every
     // repeated broadcast, which is an outage rather than an update.
-    if (newVer.length() && newVer == CV_FW_VERSION) return false;
+    if (newVer.length() && newVer == CV_FW_VERSION) {
+      _otaStatus("skipped: already on " + newVer);
+      return false;
+    }
+
+    _otaStatus("downloading " + newVer);
 
     WiFiClientSecure otaClient;
 #if defined(ESP32)
@@ -378,8 +400,15 @@ class CircuventDevice {
     httpUpdate.rebootOnUpdate(true);
     t_httpUpdate_return r = httpUpdate.update(otaClient, binUrl);
     if (r == HTTP_UPDATE_FAILED) {
-      Serial.printf("[OTA] failed (%d): %s\n", httpUpdate.getLastError(),
-                    httpUpdate.getLastErrorString().c_str());
+      String why = String(httpUpdate.getLastError()) + " " + httpUpdate.getLastErrorString();
+      Serial.printf("[OTA] failed: %s\n", why.c_str());
+      // Distinguishes a TLS rejection from a 404 from a bad image, which is
+      // the difference between fixing a pinned root, a URL, and a build.
+      _otaStatus("failed: " + why);
+      return false;
+    }
+    if (r == HTTP_UPDATE_NO_UPDATES) {
+      _otaStatus("no update offered at url");
       return false;
     }
 #elif defined(ESP8266)
