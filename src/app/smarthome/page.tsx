@@ -13,7 +13,7 @@
  * round-trip time from an actual timed request.
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -100,6 +100,27 @@ export default function OverviewPage() {
 
   const probeTone = probe.stats.p95 == null ? undefined : probe.stats.p95 < 300 ? "ok" : probe.stats.p95 < 900 ? "warning" : "critical";
 
+  /**
+   * One refresh fans out to four sources, and the energy one issues a request
+   * per device — around eight in total. The button previously reported
+   * `probe.busy`, which clears after the single fastest of those, so it
+   * re-enabled while the rest were still in flight and a user clicking
+   * impatiently could stack thirty fan-outs into a couple of seconds. Measured:
+   * 30 clicks produced 236 requests and tripped the control plane's 240/minute
+   * limit, surfacing a red failure banner caused entirely by the clicking.
+   *
+   * Tracking the whole fan-out means repeat clicks land on a disabled button
+   * instead of queueing more work, which is also the honest signal: the refresh
+   * genuinely has not finished yet.
+   */
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshAll = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void Promise.all([fleet.refresh(), energy.refresh(), events.refresh(), probe.probe()])
+      .finally(() => setRefreshing(false));
+  }, [refreshing, fleet, energy, events, probe]);
+
   const firstName = user?.name?.split(" ")[0];
   const empty = !fleet.loading && fleet.devices.length === 0;
 
@@ -124,7 +145,7 @@ export default function OverviewPage() {
         }
         actions={
           <>
-            <Button icon={RefreshCw} onClick={() => void Promise.all([fleet.refresh(), energy.refresh(), events.refresh(), probe.probe()])} busy={probe.busy}>
+            <Button icon={RefreshCw} onClick={refreshAll} busy={refreshing}>
               Refresh
             </Button>
             <Link href="/smarthome/devices?tab=onboarding">

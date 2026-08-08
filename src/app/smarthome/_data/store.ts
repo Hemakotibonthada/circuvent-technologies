@@ -40,6 +40,11 @@ function describe(status: number): string {
   if (status === 0) return "Can't reach the control plane. Check your connection.";
   if (status === 401 || status === 403) return "Session expired. Sign in again.";
   if (status === 404) return "Not found.";
+  // Almost always self-inflicted: a refresh fans out to several endpoints, so
+  // repeated clicks add up quickly against the control plane's per-minute
+  // budget. Saying "Request failed" for this is actively misleading — it reads
+  // as a broken backend when nothing is broken and the fix is simply to wait.
+  if (status === 429) return "Too many requests just now — this will clear in a moment.";
   if (status >= 500) return "The control plane returned an error.";
   return "Request failed.";
 }
