@@ -146,8 +146,8 @@ function getPageName(path: string): string {
 
 // Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
 const ROLE_AREAS: Record<string, string[]> = {
-  superadmin: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "emails", "cms", "marketing", "pricing", "vendors", "fraud", "flags", "integrations", "tax", "crm", "subscriptions", "affiliates", "warranty", "jobs", "bulk", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
-  manager: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices", "cms", "marketing", "pricing", "vendors", "fraud", "crm", "subscriptions", "affiliates", "warranty", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
+  superadmin: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "users", "emails", "cms", "marketing", "pricing", "vendors", "fraud", "flags", "integrations", "tax", "crm", "subscriptions", "affiliates", "warranty", "jobs", "bulk", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
+  manager: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices", "users", "cms", "marketing", "pricing", "vendors", "fraud", "crm", "subscriptions", "affiliates", "warranty", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
   inventory: ["inventory", "vendors", "pricing", "shipping", "bundles", "forecasting"],
   orders: ["orders", "returns", "customers", "fraud", "warranty", "shipping"],
   support: ["support", "messages", "returns", "customers", "warranty", "macros", "surveys", "privacy"],
@@ -202,6 +202,11 @@ const TAB_META: Record<string, { label: string; icon: IconType; category: string
 
   cms: { label: "Content Studio", icon: BookOpen, category: "content" },
   devices: { label: "Devices", icon: Cpu, category: "content" },
+  // Account holders on the IoT control plane — distinct from `staff` (people
+  // who run the shop) and `customers` (people who bought something). This
+  // already existed as a sub-tab inside Devices, which meant the only way to
+  // find the person attached to a device was to know it was hidden there.
+  users: { label: "Users", icon: Users, category: "content" },
 
   staff: { label: "Staff", icon: UserCog, category: "platform" },
   emails: { label: "Emails", icon: Mail, category: "platform" },
@@ -242,7 +247,7 @@ export default function AdminDashboard() {
   const [liveVisitors, setLiveVisitors] = useState<VisitorSnapshot | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [tab, setTab] = useState<
-    "overview" | "analytics" | "monitoring" | "latency" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff" | "devices" | "emails"
+    "overview" | "analytics" | "monitoring" | "latency" | "reports" | "orders" | "inventory" | "customers" | "coupons" | "returns" | "support" | "messages" | "staff" | "devices" | "users" | "emails"
     | "cms" | "marketing" | "pricing" | "vendors" | "fraud" | "flags" | "integrations" | "tax" | "crm" | "subscriptions" | "affiliates" | "warranty" | "jobs" | "bulk"
     | "seo" | "shipping" | "bundles" | "macros" | "surveys"
     | "currency" | "privacy" | "forecasting" | "reportbuilder"
@@ -709,6 +714,7 @@ export default function AdminDashboard() {
           </>
         )}
         {tab === "devices" && <DevicesPanel />}
+        {tab === "users" && <DevicesPanel initialSub="users" />}
         {tab === "cms" && <ContentStudioPanel />}
         {tab === "marketing" && <MarketingPanel />}
         {tab === "pricing" && <PricingPanel />}

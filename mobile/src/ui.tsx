@@ -87,10 +87,26 @@ interface ThemeCtx {
 const Ctx = createContext<ThemeCtx | null>(null);
 const KEY = "cv-theme-v2";
 
-/* App default. Glass-on-dark matches the web console and the product artwork.
-   The provider only writes to storage on an explicit change, so anything found
-   under KEY is a deliberate user choice and always wins over these. */
-export const DEFAULT_MODE: ThemeMode = "glass";
+/* App defaults.
+ *
+ * Android opens on neumorphism, everything else on glass.
+ *
+ * That split is deliberate rather than a preference. Glass depends on a real
+ * backdrop blur: on iOS that is BlurView over live content, and it is what
+ * makes the frosted panels read as glass at all. Android's blur support is
+ * uneven across versions and GPUs, and where it degrades the same design
+ * flattens into translucent grey rectangles — the style loses the one effect
+ * it is built on.
+ *
+ * Neo does not need a backdrop. Its depth comes from a light shadow up-left and
+ * a dark one down-right, which NeoShadow paints as gradient layers rather than
+ * relying on `elevation` (Android casts only one downward shadow, at a colour
+ * the platform picks, so the highlight that reads as "raised" is unavailable
+ * to it). Painted layers render identically on every Android version.
+ *
+ * The provider only writes to storage on an explicit change, so anything found
+ * under KEY is a deliberate user choice and always wins over these. */
+export const DEFAULT_MODE: ThemeMode = Platform.OS === "android" ? "neo" : "glass";
 export const DEFAULT_SCHEME: Scheme = "dark";
 export const DEFAULT_ACCENT = "coral";
 

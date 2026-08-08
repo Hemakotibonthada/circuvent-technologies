@@ -50,7 +50,7 @@ function download(name: string, text: string) {
  * Full control-plane fleet admin embedded in the store /admin portal. Talks to
  * api.circuvent.com/admin/* with a control-plane admin JWT (shared cv-console-token).
  */
-export default function DevicesPanel() {
+export default function DevicesPanel({ initialSub = "devices" }: { initialSub?: Sub } = {}) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [meEmail, setMeEmail] = useState("");
   const myUid = useRef<number | null>(null);
@@ -61,7 +61,7 @@ export default function DevicesPanel() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [events, setEvents] = useState<AdminEvent[]>([]);
 
-  const [sub, setSub] = useState<Sub>("devices");
+  const [sub, setSub] = useState<Sub>(initialSub);
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all");
