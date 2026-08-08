@@ -397,7 +397,16 @@ export default function AdminDashboard() {
 
     const connect = () => {
       if (closed) return;
-      es = new EventSource("/api/visitors/stream");
+      // The token has to travel in the query string. EventSource cannot set
+      // request headers, and `tokenFromRequest` only reads `authorization` and
+      // `x-admin-token`, so an unadorned EventSource URL is guaranteed to 401 —
+      // which is why this panel sat on "Disconnected" and silently retried
+      // every four seconds forever. The stream route already accommodates this
+      // (it accepts `?token=` and hands it to the same guard); it was only the
+      // caller that never used it.
+      const token = sessionStorage.getItem("admin-token");
+      if (!token) return;
+      es = new EventSource(`/api/visitors/stream?token=${encodeURIComponent(token)}`);
       es.onopen = () => setSSEConnected(true);
       es.onmessage = (event) => {
         try {

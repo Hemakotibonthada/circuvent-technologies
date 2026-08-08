@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, useInView } from "framer-motion";
 import Link from "next/link";
 import { Github, Linkedin, Twitter, Mail, ArrowUpRight, Heart, Sparkles, Code2, Cpu, Globe, Send, ChevronUp } from "lucide-react";
-import Image from "next/image";
 
 const footerLinks = {
   shop: [
@@ -201,11 +200,16 @@ export default function Footer() {
           {/* Brand Column */}
           <motion.div variants={itemVariants} className="col-span-2 md:col-span-3 lg:col-span-2 space-y-6">
             <Link href="/" className="inline-flex items-center gap-2.5 group" aria-label="Circuvent home">
-              <Image
-                src="/logo-mark.png"
+              {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized static
+                  asset; a 36px mark does not need the on-demand optimizer */}
+              <img
+                src="/logo-mark-160.png"
                 alt="Circuvent Technologies logo"
                 width={36}
                 height={36}
+                decoding="async"
+                loading="lazy"
+                style={{ width: 36, height: 36 }}
                 className="transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110"
               />
               <span className="text-xl font-bold tracking-tight">

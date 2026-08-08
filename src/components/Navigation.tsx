@@ -10,7 +10,6 @@ import {
   Terminal, GitBranch, Users, Briefcase, Mail, Newspaper, Info,
   Command as CommandIcon,
 } from "lucide-react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import CommandPalette from "./CommandPalette";
@@ -210,12 +209,35 @@ export default function Navigation() {
                 whileHover={{ rotate: 12, scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 400, damping: 15 }}
               >
-                <Image
-                  src="/logo-mark.png"
+                {/*
+                  A plain <img> against a pre-sized static asset, deliberately.
+
+                  next/image routed this 34px mark through /_next/image, which
+                  is a dynamic endpoint doing format negotiation and re-encoding
+                  a 512x512 source down to a 1.9kB AVIF on demand. For a logo
+                  this small that trades a round trip to a serverless function,
+                  and every failure mode that endpoint has, for about 8kB — on a
+                  page that already ships far more JavaScript than that.
+
+                  logo-mark-160.png is 10kB and covers 34px at 4x, so it is
+                  served straight from the CDN as bytes that cannot be
+                  renegotiated, re-encoded or half-generated. Fewer moving parts
+                  in front of the first thing on the page.
+
+                  width/height are set so the box is reserved before it loads;
+                  this is the one thing next/image was buying that actually
+                  mattered here.
+                */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- see above: a
+                    34px mark does not justify a dynamic optimizer round trip */}
+                <img
+                  src="/logo-mark-160.png"
                   alt="Circuvent Technologies logo"
                   width={34}
                   height={34}
-                  priority
+                  fetchPriority="high"
+                  decoding="async"
+                  style={{ width: 34, height: 34 }}
                 />
                 {/* Logo glow on hover */}
                 <motion.div
