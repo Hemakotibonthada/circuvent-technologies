@@ -395,8 +395,8 @@ class CircuventDevice {
     _otaStatus("downloading " + newVer);
 
     WiFiClientSecure otaClient;
+    _pinRoot(otaClient);
 #if defined(ESP32)
-    otaClient.setCACert(LETSENCRYPT_ROOT_CA);
     httpUpdate.rebootOnUpdate(true);
     t_httpUpdate_return r = httpUpdate.update(otaClient, binUrl);
     if (r == HTTP_UPDATE_FAILED) {
@@ -412,9 +412,14 @@ class CircuventDevice {
       return false;
     }
 #elif defined(ESP8266)
-    otaClient.setInsecure();  // ESP8266 lacks the memory for a full chain check
     ESPhttpUpdate.rebootOnUpdate(true);
-    ESPhttpUpdate.update(otaClient, binUrl);
+    t_httpUpdate_return r = ESPhttpUpdate.update(otaClient, binUrl);
+    if (r == HTTP_UPDATE_FAILED) {
+      String why = String(ESPhttpUpdate.getLastError()) + " " + ESPhttpUpdate.getLastErrorString();
+      Serial.printf("[OTA] failed: %s\n", why.c_str());
+      _otaStatus("failed: " + why);
+      return false;
+    }
 #endif
     return true;
   }
@@ -422,11 +427,10 @@ class CircuventDevice {
   bool checkOTA() {
     if (WiFi.status() != WL_CONNECTED) return false;
     WiFiClientSecure client;
-#if defined(ESP32)
-    client.setCACert(LETSENCRYPT_ROOT_CA);  // pin Let's Encrypt for the OTA-metadata call
-#else
-    client.setInsecure();  // OTA metadata fetch from the public website cert
-#endif
+    // The manifest names the URL that _applyOta will flash and reboot into, so
+    // it needs the same authentication as the download itself. Leaving this leg
+    // unvalidated let an on-path attacker answer with any url they liked.
+    _pinRoot(client);
     HTTPClient https;
     String url = _api + "/api/devices/firmware?type=" + _type + "&id=" + _id + "&ver=" + CV_FW_VERSION;
     if (!https.begin(client, url)) return false;
@@ -543,11 +547,14 @@ class CircuventDevice {
     if (_token.length() == 0) return false;
     _ntpSync();  // TLS needs a valid clock
     WiFiClientSecure client;
-#if defined(ESP32)
-    client.setCACert(LETSENCRYPT_ROOT_CA);  // authenticate the control plane, not just encrypt
-#else
-    client.setInsecure();  // ESP8266: LE-root pinning needs a large BearSSL buffer
-#endif
+    // The response to this POST contains the device's permanent id, key and
+    // broker host — the credentials it will authenticate to MQTT with for the
+    // rest of its life. The comment above states that the secret "is never
+    // present on the local setup link" and is delivered only over this TLS
+    // response; that guarantee is worth nothing if the response is not
+    // authenticated. Anyone on the provisioning network could otherwise answer
+    // it, harvest the credentials, and hand back a broker of their choosing.
+    _pinRoot(client);
     HTTPClient https;
     if (!https.begin(client, "https://api.circuvent.com/provisioning/self")) return false;
     https.addHeader("Content-Type", "application/json");
@@ -574,6 +581,35 @@ class CircuventDevice {
     }
     https.end();
     return ok;
+  }
+
+  /**
+   * Pins the Let's Encrypt root on a one-shot HTTPS client.
+   *
+   * Every outbound HTTPS call in this library must authenticate the control
+   * plane, not merely encrypt to it. The three that did not — the OTA manifest
+   * fetch, the firmware download, and self-provisioning — each called
+   * `setInsecure()` on ESP8266 with the justification that the chip "lacks the
+   * memory for a full chain check".
+   *
+   * That was wrong, and demonstrably so: `_tlsSetup()` below has been pinning
+   * this same root on ESP8266 for the MQTT connection all along, using exactly
+   * the BearSSL trust-anchor + 1 kB buffer arrangement used here. The claim was
+   * never tested, and it excused turning off validation on the one request that
+   * installs new code and the one that carries the device's permanent
+   * credentials.
+   *
+   * The X509List is static because BearSSL keeps a reference to it for the life
+   * of the connection; a stack-local would be freed underneath the handshake.
+   */
+  static void _pinRoot(WiFiClientSecure &c) {
+#if defined(ESP32)
+    c.setCACert(LETSENCRYPT_ROOT_CA);
+#elif defined(ESP8266)
+    static BearSSL::X509List otaRoots(LETSENCRYPT_ROOT_CA);
+    c.setTrustAnchors(&otaRoots);
+    c.setBufferSizes(1024, 1024);
+#endif
   }
 
   void _tlsSetup() {
