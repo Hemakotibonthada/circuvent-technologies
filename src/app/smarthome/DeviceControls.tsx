@@ -1097,6 +1097,21 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
         </div>
       )}
 
+      {/* A detector that is not connected is a safety fault, not a clean
+          reading. The firmware distinguishes the two (raw pinned at zero
+          against an established baseline means the module has lost power or
+          its analog line), and this is where that has to be said plainly —
+          otherwise the tiles below show a reassuring green 0% for a sensor
+          that is not there at all. */}
+      {hasGas && b(s.gasFault) && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 mb-4 text-sm text-red-200">
+          <b>Gas detector not responding.</b> It is reading zero against a stored baseline of{" "}
+          {n(s.gasBaseline) > 0 ? n(s.gasBaseline) : "—"}, which means the module has lost power or its
+          signal wire is disconnected — not that the air is clean. Gas readings below are not
+          meaningful and the alarm is suppressed until it is reconnected.
+        </div>
+      )}
+
       {b(s.climateOk) ? (
         <div className="grid grid-cols-3 gap-3">
           <StatTile label="Temperature" value={`${n(s.temp).toFixed(1)}°C`} accent="#f59e0b" />
@@ -1111,8 +1126,14 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 
       {hasGas && (
         <div className="mt-3 grid grid-cols-3 gap-3">
-          <StatTile label="Gas level" value={b(s.gasReady) ? `${n(s.gasPct).toFixed(0)}%` : "—"} accent={alarm ? "#ef4444" : "#22c55e"} />
-          <StatTile label="Raw" value={b(s.gasReady) ? String(n(s.gasRaw)) : "—"} />
+          <StatTile
+            label="Gas level"
+            // Not green when the sensor is absent: 0% would read as "clean air"
+            // for a detector that is not measuring anything.
+            value={b(s.gasFault) ? "No sensor" : b(s.gasReady) ? `${n(s.gasPct).toFixed(0)}%` : "—"}
+            accent={b(s.gasFault) ? "#ef4444" : alarm ? "#ef4444" : "#22c55e"}
+          />
+          <StatTile label="Raw" value={b(s.gasFault) ? "—" : b(s.gasReady) ? String(n(s.gasRaw)) : "—"} />
           <StatTile label="Baseline" value={n(s.gasBaseline) > 0 ? String(n(s.gasBaseline)) : "Not set"} />
         </div>
       )}

@@ -8,6 +8,7 @@ import { controlPlane, type Room } from "@/lib/control-plane";
 import { useLiveDevice } from "@/lib/smarthome-realtime";
 import { useConsole } from "../../ConsoleProvider";
 import { DeviceControls, deviceMeta } from "../../DeviceControls";
+import { effectiveDeviceType } from "../../_data/device-type";
 import { GatePasses } from "../../GatePasses";
 import DeviceReportCard from "./DeviceReportCard";
 import { LatencyBadge } from "../../ui";
@@ -62,7 +63,10 @@ export default function DevicePage() {
     );
   }
 
-  const meta = deviceMeta(device.type);
+  // Effective, not stored: a board registered as a camera that reports no
+  // camera should not wear a camera icon and a "Camera" chip while showing
+  // sentinel controls. See _data/device-type.ts.
+  const meta = deviceMeta(effectiveDeviceType(device));
   const Icon = meta.icon;
 
   return (
