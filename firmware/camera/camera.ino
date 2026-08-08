@@ -34,7 +34,7 @@
  *          huge_app.csv has a single app slot, so no camera could ever have
  *          taken an over-the-air update at all.
  */
-#define CV_FW_VERSION "1.2.0"
+#define CV_FW_VERSION "1.3.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
@@ -223,6 +223,8 @@ bool      mdPrimed = false;
 int   captureFails = 0;
 bool  sensorLive   = false;      // has a capture actually worked recently
 
+bool sccbAlive();                // defined with the camera setup, below
+
 /** Records a capture outcome and republishes `ready` when it changes. */
 void noteCapture(bool got) {
   bool was = sensorLive;
@@ -235,6 +237,9 @@ void noteCapture(bool got) {
   }
   if (sensorLive != was) {
     cv.set("ready", sensorLive);
+    // On the transition to dead, say *how* it is dead. "ready:false" alone
+    // sends someone hunting a software fault for a ribbon that is not seated.
+    if (!sensorLive) cv.set("sccbOk", sccbAlive());
     cv.publishStateNow();
     Serial.printf("[CAM] sensor %s\n", sensorLive ? "recovered" : "not responding");
   }
@@ -397,6 +402,12 @@ bool initCamera() {
 
   sensor_t *s = esp_camera_sensor_get();
   if (s) {
+    // Published so a board that initialises but never captures can be told
+    // apart from one whose sensor was never detected. Without this the console
+    // shows "ready" and zero frames, and there is no way to distinguish a
+    // missing module, an unseated ribbon and a dead data bus from a browser
+    // that simply is not subscribed.
+    cv.set("sensorPid", (int)s->id.PID);
     // OV3660 modules ship upside down and washed out.
     if (s->id.PID == OV3660_PID) {
       s->set_vflip(s, 1);
@@ -408,6 +419,28 @@ bool initCamera() {
     s->set_whitebal(s, 1);
   }
   return true;
+}
+
+/**
+ * Is the sensor still talking on SCCB?
+ *
+ * SCCB runs on SIOD/SIOC alone. The frame data rides eleven other pins —
+ * PCLK, VSYNC, HREF and Y2-Y9 — so the two can fail independently, and which
+ * one failed is the whole diagnosis:
+ *
+ *   SCCB ok + no frames  -> the sensor is alive and the parallel bus is not.
+ *                           A ribbon that is seated well enough for two pins
+ *                           but not thirteen looks exactly like this.
+ *   SCCB fails           -> the module has lost power or is gone entirely.
+ *
+ * Reading a register the sensor always answers is the cheapest way to ask.
+ */
+bool sccbAlive() {
+  sensor_t *s = esp_camera_sensor_get();
+  if (!s || !s->get_reg) return false;
+  // 0x0A is the product-ID high byte on every OV sensor this firmware supports.
+  int v = s->get_reg(s, 0x0A, 0xFF);
+  return v >= 0;
 }
 
 // ---------------------------------------------------------------------------
