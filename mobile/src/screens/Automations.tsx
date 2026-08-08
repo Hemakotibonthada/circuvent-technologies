@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { api, actionList, Automation, AutomationAction, AutomationActions, AutomationTrigger, Device } from "../api";
+import { useTheme } from "../ui";
+import type { Palette } from "../theme";
 
 type TriggerType = AutomationTrigger["type"];
 type ActionType = AutomationAction["type"];
@@ -9,6 +11,8 @@ type StateOp = NonNullable<AutomationTrigger["op"]>;
 const OPS: StateOp[] = ["==", "!=", ">", ">=", "<", "<=", "truthy", "falsy"];
 
 export default function Automations({ onBack, embedded }: { onBack: () => void; embedded?: boolean }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,7 +189,7 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
       {showForm && (
         <View style={s.form}>
           <Text style={s.section}>Details</Text>
-          <TextInput style={s.input} placeholder="Name" placeholderTextColor="#64748b" value={name} onChangeText={setName} />
+          <TextInput style={s.input} placeholder="Name" placeholderTextColor={c.faint} value={name} onChangeText={setName} />
 
           <Text style={s.section}>Trigger</Text>
           <Segmented
@@ -221,7 +225,7 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
             </>
           ) : (
             <>
-              <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor="#64748b" value={at} onChangeText={setAt} autoCapitalize="none" keyboardType="numbers-and-punctuation" />
+              <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor={c.faint} value={at} onChangeText={setAt} autoCapitalize="none" keyboardType="numbers-and-punctuation" />
               <Text style={s.note}>IST</Text>
             </>
           )}
@@ -238,8 +242,8 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
 
           {actionType === "notify" ? (
             <>
-              <TextInput style={s.input} placeholder="Title" placeholderTextColor="#64748b" value={title} onChangeText={setTitle} />
-              <TextInput style={s.input} placeholder="Body" placeholderTextColor="#64748b" value={body} onChangeText={setBody} />
+              <TextInput style={s.input} placeholder="Title" placeholderTextColor={c.faint} value={title} onChangeText={setTitle} />
+              <TextInput style={s.input} placeholder="Body" placeholderTextColor={c.faint} value={body} onChangeText={setBody} />
             </>
           ) : (
             <>
@@ -255,13 +259,13 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
           )}
 
           <Pressable style={[s.btn, saving && s.btnOff]} onPress={save} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnT}>Save automation</Text>}
+            {saving ? <ActivityIndicator color={c.onAccent} /> : <Text style={s.btnT}>Save automation</Text>}
           </Pressable>
         </View>
       )}
 
       {loading ? (
-        <ActivityIndicator color="#06b6d4" size="large" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={c.accent} size="large" style={{ marginTop: 40 }} />
       ) : automations.length === 0 ? (
         <Text style={s.empty}>No automations yet.</Text>
       ) : (
@@ -286,6 +290,8 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
 }
 
 function DevicePicker({ devices, selected, onSelect }: { devices: Device[]; selected: string; onSelect: (id: string) => void }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
   if (devices.length === 0) return <Text style={s.note}>No devices available.</Text>;
   return (
     <View style={s.deviceList}>
@@ -315,6 +321,8 @@ function humanField(f: string): string {
 // Device-driven field picker: reads the fields straight off the device's live
 // state so the user never types a variable name.
 function FieldPicker({ device, selected, onSelect, settable }: { device: Device | undefined; selected: string; onSelect: (f: string) => void; settable?: boolean }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
   if (!device) return <Text style={s.note}>Choose a device first.</Text>;
   let keys = Object.keys(device.state || {}).filter((k) => !HIDDEN_FIELDS.has(k));
   if (settable) {
@@ -336,6 +344,8 @@ function FieldPicker({ device, selected, onSelect, settable }: { device: Device 
 // Value input whose type is inferred from the device's CURRENT value for the
 // field: booleans get an On/Off toggle, numbers get a numeric keypad.
 function SmartValue({ device, field, value, onChange }: { device: Device | undefined; field: string; value: string; onChange: (v: string) => void }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
   const cur = device?.state?.[field];
   const kind = typeof cur;
   if (kind === "boolean") {
@@ -352,7 +362,7 @@ function SmartValue({ device, field, value, onChange }: { device: Device | undef
     <TextInput
       style={s.input}
       placeholder={numeric ? `Value${cur != null ? ` (now ${String(cur)})` : ""}` : "Value"}
-      placeholderTextColor="#64748b"
+      placeholderTextColor={c.faint}
       value={value}
       onChangeText={onChange}
       autoCapitalize="none"
@@ -375,6 +385,8 @@ function Segmented<T extends string>({
   options: { label: string; value: T }[];
   onChange: (value: T) => void;
 }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={s.segment}>
       {options.map((option) => (
@@ -419,45 +431,61 @@ function readError(data: unknown): string | null {
   return null;
 }
 
-const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#0b1020" },
-  back: { color: "#8b5cf6", marginTop: 8, marginBottom: 6 },
-  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  h1: { color: "#fff", fontSize: 24, fontWeight: "800" },
-  sub: { color: "#94a3b8", marginTop: 2 },
-  newBtn: { backgroundColor: "#8b5cf6", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
-  newBtnT: { color: "#fff", fontWeight: "700" },
-  msg: { color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)", padding: 10, borderRadius: 10, marginBottom: 10 },
-  form: { backgroundColor: "#111827", borderRadius: 16, padding: 14, marginBottom: 14 },
-  section: { color: "#94a3b8", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginTop: 12, marginBottom: 8 },
-  input: { backgroundColor: "#0b1020", borderColor: "#334155", borderWidth: 1, borderRadius: 10, color: "#e5e7eb", padding: 12, marginBottom: 10 },
-  segment: { flexDirection: "row", gap: 8, marginBottom: 10 },
-  segmentItem: { flex: 1, borderColor: "#334155", borderWidth: 1, borderRadius: 10, padding: 12, alignItems: "center" },
-  segmentOn: { backgroundColor: "#06b6d4", borderColor: "#06b6d4" },
-  segmentT: { color: "#94a3b8", fontWeight: "700" },
-  segmentOnT: { color: "#fff" },
-  deviceList: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-  deviceChip: { borderColor: "#334155", borderWidth: 1, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 12 },
-  deviceChipOn: { backgroundColor: "#8b5cf6", borderColor: "#8b5cf6" },
-  deviceChipT: { color: "#94a3b8", fontWeight: "700" },
-  deviceChipOnT: { color: "#fff" },
-  ops: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-  chip: { minWidth: 54, borderColor: "#334155", borderWidth: 1, borderRadius: 10, padding: 10, alignItems: "center" },
-  chipOn: { backgroundColor: "#06b6d4", borderColor: "#06b6d4" },
-  chipT: { color: "#94a3b8", fontWeight: "700" },
-  chipOnT: { color: "#fff" },
-  note: { color: "#64748b", marginBottom: 10 },
-  hint: { color: "#94a3b8", fontSize: 12, marginBottom: 8 },
-  fieldChipOn: { backgroundColor: "#06b6d4", borderColor: "#06b6d4" },
-  btn: { backgroundColor: "#06b6d4", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 4 },
-  btnOff: { opacity: 0.65 },
-  btnT: { color: "#fff", fontWeight: "700" },
-  empty: { color: "#64748b", textAlign: "center", marginTop: 60 },
-  card: { backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 10 },
-  cardTop: { flexDirection: "row", alignItems: "center" },
-  name: { color: "#e5e7eb", fontSize: 16, fontWeight: "700" },
-  summary: { color: "#94a3b8", marginTop: 6 },
-  action: { color: "#22d3ee", marginTop: 4 },
-  deleteBtn: { alignSelf: "flex-start", marginTop: 12, borderColor: "#ef4444", borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
-  deleteT: { color: "#ef4444", fontWeight: "700" },
-});
+/**
+ * Styles derived from the active palette.
+ *
+ * These were a module-level StyleSheet.create with every colour written in by
+ * hand — a #0b1020 background, #fff headings, #e5e7eb inputs. That is a whole
+ * screen that ignores the theme, and it was not merely inconsistent: this
+ * component renders with `embedded`, which drops its own background to
+ * transparent so it can sit inside Automate. Light text then lands on whatever
+ * surface the theme provides, and on any light scheme — including the neo light
+ * the app now offers — the entire form is white on near-white.
+ *
+ * Semantic colours (amber warning, red destructive, the cyan/violet accents)
+ * keep their meaning across themes and stay literal on purpose; only the
+ * surface and text roles come from the palette.
+ */
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    wrap: { flex: 1, backgroundColor: c.bg },
+    back: { color: c.accent, marginTop: 8, marginBottom: 6 },
+    top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+    h1: { color: c.text, fontSize: 24, fontWeight: "800" },
+    sub: { color: c.textDim, marginTop: 2 },
+    newBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
+    newBtnT: { color: c.onAccent, fontWeight: "700" },
+    msg: { color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)", padding: 10, borderRadius: 10, marginBottom: 10 },
+    form: { backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 14 },
+    section: { color: c.textDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginTop: 12, marginBottom: 8 },
+    input: { backgroundColor: c.surface, borderColor: c.border, borderWidth: 1, borderRadius: 10, color: c.text, padding: 12, marginBottom: 10 },
+    segment: { flexDirection: "row", gap: 8, marginBottom: 10 },
+    segmentItem: { flex: 1, borderColor: c.border, borderWidth: 1, borderRadius: 10, padding: 12, alignItems: "center" },
+    segmentOn: { backgroundColor: c.accent, borderColor: c.accent },
+    segmentT: { color: c.textDim, fontWeight: "700" },
+    segmentOnT: { color: c.onAccent },
+    deviceList: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+    deviceChip: { borderColor: c.border, borderWidth: 1, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 12 },
+    deviceChipOn: { backgroundColor: c.accent, borderColor: c.accent },
+    deviceChipT: { color: c.textDim, fontWeight: "700" },
+    deviceChipOnT: { color: c.onAccent },
+    ops: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+    chip: { minWidth: 54, borderColor: c.border, borderWidth: 1, borderRadius: 10, padding: 10, alignItems: "center" },
+    chipOn: { backgroundColor: c.accent, borderColor: c.accent },
+    chipT: { color: c.textDim, fontWeight: "700" },
+    chipOnT: { color: c.onAccent },
+    note: { color: c.faint, marginBottom: 10 },
+    hint: { color: c.textDim, fontSize: 12, marginBottom: 8 },
+    fieldChipOn: { backgroundColor: c.accent, borderColor: c.accent },
+    btn: { backgroundColor: c.accent, borderRadius: 12, padding: 14, alignItems: "center", marginTop: 4 },
+    btnOff: { opacity: 0.65 },
+    btnT: { color: c.onAccent, fontWeight: "700" },
+    empty: { color: c.faint, textAlign: "center", marginTop: 60 },
+    card: { backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 10 },
+    cardTop: { flexDirection: "row", alignItems: "center" },
+    name: { color: c.text, fontSize: 16, fontWeight: "700" },
+    summary: { color: c.textDim, marginTop: 6 },
+    action: { color: c.accent, marginTop: 4 },
+    deleteBtn: { alignSelf: "flex-start", marginTop: 12, borderColor: "#ef4444", borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
+    deleteT: { color: "#ef4444", fontWeight: "700" },
+  });
