@@ -34,7 +34,7 @@
  *          huge_app.csv has a single app slot, so no camera could ever have
  *          taken an over-the-air update at all.
  */
-#define CV_FW_VERSION "1.5.0"
+#define CV_FW_VERSION "1.6.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
@@ -661,6 +661,41 @@ void setup() {
   sensitivity = store.getInt("sens", sensitivity);
   flashLevel  = store.getInt("flash", 0);
 
+  /*
+   * The camera is initialised here, before cv.begin(), and torn down again if
+   * begin() turns out to need the setup portal.
+   *
+   * Both halves of that are load-bearing, and I got it wrong in each direction
+   * before landing here.
+   *
+   * It cannot come after begin(): the driver needs a large DMA-capable
+   * allocation, and by the time Wi-Fi has associated and mbedTLS has taken its
+   * working buffers the heap is too fragmented to serve one. What that produced
+   * was not a clean init failure but a panic inside xTaskIncrementTick with a
+   * garbage PC — the scheduler tick walking a structure that allocation damage
+   * had already corrupted, several frames removed from anything this sketch
+   * wrote. Decoding the return address was the only thing that identified it.
+   *
+   * It also cannot simply stay up during provisioning: the portal raises a soft
+   * AP, a web server, a DNS server and an async scan together, and the camera's
+   * DMA alongside them panics the board before a phone can list the hotspot.
+   *
+   * So: take the memory first, while it is contiguous, and give it back if it
+   * turns out the portal needs it. Provisioning is the one moment a camera is
+   * definitively useless — no network, no subscriber, nobody watching — and
+   * _portalSave() restarts, so the next boot comes back through here with Wi-Fi
+   * configured and takes the normal path.
+   */
+  camReady = initCamera();
+  if (camReady) {
+    resName = clampRes(resName);
+    applySensorSettings();
+    mdPrev = (uint8_t *)malloc(MD_W * MD_H);
+    if (!mdPrev) motionOn = false;    // no baseline buffer, no differencing
+  }
+  sensorLive = camReady;   // init succeeded; live captures confirm or refute it
+  applyFlash(flashLevel);
+
   cv.onCommand(onCommand);
   cv.setInterval(15000);
 #if CV_RESET_BTN >= 0
@@ -668,37 +703,15 @@ void setup() {
 #endif
   cv.begin();
 
-  /*
-   * The camera is brought up only once the device is not provisioning.
-   *
-   * It used to initialise before cv.begin(), which meant that on a board with
-   * no stored Wi-Fi the driver was already holding its DMA descriptors and
-   * buffers when begin() raised the setup portal — a soft AP, a web server, a
-   * DNS server and an async scan, arriving all at once on a board whose DRAM is
-   * mostly spoken for. The result was an immediate InstrFetchProhibited panic
-   * and a reboot loop: the AP appeared on the serial log and then vanished
-   * before a phone could finish listing it, which reads as "the hotspot never
-   * shows up" rather than as a crash.
-   *
-   * Provisioning is also the one moment a camera is definitively useless — no
-   * network, no subscriber, nobody watching. Deferring costs nothing and hands
-   * the whole memory budget to the thing the user is actually waiting on. The
-   * device restarts once credentials are saved, and comes back through here
-   * with the camera path taken.
-   */
-  if (!cv.isProvisioning()) {
-    camReady = initCamera();
-    if (camReady) {
-      resName = clampRes(resName);
-      applySensorSettings();
-      mdPrev = (uint8_t *)malloc(MD_W * MD_H);
-      if (!mdPrev) motionOn = false;    // no baseline buffer, no differencing
-    }
-    sensorLive = camReady;   // init succeeded; live captures confirm or refute it
-    applyFlash(flashLevel);
-  } else {
-    Serial.println(F("[CAM] provisioning — camera held off until Wi-Fi is set up"));
+  if (cv.isProvisioning() && camReady) {
+    esp_camera_deinit();
+    camReady = false;
+    sensorLive = false;
+    if (mdPrev) { free(mdPrev); mdPrev = nullptr; }
+    Serial.println(F("[CAM] released for provisioning — returns after Wi-Fi setup"));
   }
+  Serial.printf("[CAM] free heap %u, largest block %u\n",
+                (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
 
   cv.set("hasCamera", true);          // how the apps discover a video source
   cv.set("ready", camReady);
