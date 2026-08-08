@@ -53,7 +53,7 @@ function onOff(type: string): { field: string; cmd: (v: boolean) => Record<strin
   }
 }
 
-function bearerUid(req: Request): number | null {
+async function bearerUid(req: Request): Promise<number | null> {
   const h = req.headers.authorization;
   if (h && h.startsWith("Bearer ")) return verifySmartHomeToken(h.slice(7).trim());
   return null;
@@ -68,7 +68,7 @@ function googleType(t: string): string {
 }
 
 smarthomeRouter.post("/google", async (req: Request, res: Response) => {
-  const uid = bearerUid(req);
+  const uid = await bearerUid(req);
   const reqId = req.body?.requestId ?? "";
   if (uid == null) {
     res.status(401).json({ requestId: reqId, payload: { errorCode: "authFailure" } });
@@ -193,7 +193,7 @@ smarthomeRouter.post("/alexa", async (req: Request, res: Response) => {
   const header = dir?.header || {};
   const ns = header.namespace;
   const token = dir?.payload?.scope?.token || dir?.endpoint?.scope?.token;
-  const uid = token ? verifySmartHomeToken(token) : null;
+  const uid = token ? await verifySmartHomeToken(token) : null;
 
   const errorResp = (type: string, message: string) => ({
     event: { header: aHeader("Alexa", "ErrorResponse", header.correlationToken), endpoint: dir?.endpoint, payload: { type, message } },

@@ -3,24 +3,63 @@ import jwt from "jsonwebtoken";
 import { pool } from "../db";
 import { verifyPassword } from "../auth";
 import { config } from "../config";
+import { checkSession, currentEpoch } from "../sessions";
 
 export const oauthRouter = Router();
 
-function sign(purpose: string, uid: number, expiresIn: string): string {
-  return jwt.sign({ uid, purpose }, config.JWT_SECRET, { expiresIn } as jwt.SignOptions);
+/**
+ * Smart-home grants live inside the same revocation model as everything else.
+ *
+ * They did not, and the gap was total. These tokens were minted with a bare
+ * `jwt.sign({uid, purpose})` — no `te` (token-epoch) claim — and verified with a
+ * bare `jwt.verify`, so they never reached `checkSession()`. That made every
+ * remediation the product offers a no-op against them: signing out all devices,
+ * changing the password, resetting a forgotten password, an admin revoking
+ * sessions, and even an admin *blocking the account* all bump `token_epoch` and
+ * kill console sessions while leaving the Alexa/Google grant fully alive.
+ *
+ * The refresh token lasted ten years, there is no unlink endpoint, and no record
+ * of issued grants exists to delete out of band. So anyone who completed account
+ * linking once — a shared Amazon account, an Echo left behind after a move, an
+ * ex-partner — kept the ability to actuate mains relays, pumps and the hub for a
+ * decade, and the victim doing everything right could not take it away.
+ *
+ * Adding `te` and calling `checkSession` on verify is the whole fix: it puts
+ * these tokens under the same kill switch as the console.
+ */
+async function sign(purpose: string, uid: number, expiresIn: string): Promise<string> {
+  const te = await currentEpoch(uid);
+  return jwt.sign({ uid, purpose, te }, config.JWT_SECRET, { expiresIn } as jwt.SignOptions);
 }
-function verify(purpose: string, token: string): number | null {
+
+async function verify(purpose: string, token: string): Promise<number | null> {
+  let uid: number;
+  let te: number;
   try {
     const d = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
-    const uid = Number(d.uid);
-    if (d.purpose === purpose && Number.isFinite(uid)) return uid;
-    return null;
+    uid = Number(d.uid);
+    if (d.purpose !== purpose || !Number.isFinite(uid)) return null;
+    // Tokens minted before this change carry no `te`. Treating a missing claim
+    // as epoch 0 is what retires them: any account that has ever bumped its
+    // epoch rejects them immediately, and any that has not is at 0 and keeps
+    // working until it does. Defaulting to the *current* epoch instead would
+    // grandfather in exactly the ten-year tokens this exists to revoke.
+    te = Number.isFinite(Number(d.te)) ? Number(d.te) : 0;
   } catch {
     return null;
   }
+  // Fails closed: checkSession rejects blocked accounts and stale epochs, and
+  // throws rather than returning "ok" if the database is unreachable.
+  try {
+    if ((await checkSession(uid, te)) !== "ok") return null;
+  } catch {
+    return null;
+  }
+  return uid;
 }
+
 /** Verify a smart-home access token (Bearer) -> user id. */
-export function verifySmartHomeToken(token: string): number | null {
+export async function verifySmartHomeToken(token: string): Promise<number | null> {
   return verify("sh_access", token);
 }
 
@@ -149,7 +188,7 @@ oauthRouter.post("/authorize", async (req, res) => {
 });
 
 // POST /oauth/token — exchange code (or refresh) for access + refresh tokens.
-oauthRouter.post("/token", (req, res) => {
+oauthRouter.post("/token", async (req, res) => {
   const b = (req.body || {}) as Record<string, string>;
   let cid = b.client_id;
   let csec = b.client_secret;
@@ -175,7 +214,7 @@ oauthRouter.post("/token", (req, res) => {
     } catch {
       uid = null;
     }
-  } else if (b.grant_type === "refresh_token") uid = verify("sh_refresh", b.refresh_token || "");
+  } else if (b.grant_type === "refresh_token") uid = await verify("sh_refresh", b.refresh_token || "");
   else {
     res.status(400).json({ error: "unsupported_grant_type" });
     return;
@@ -184,10 +223,14 @@ oauthRouter.post("/token", (req, res) => {
     res.status(400).json({ error: "invalid_grant" });
     return;
   }
+  // 90 days rather than ten years. Both vendors refresh on a schedule far
+  // shorter than this, so the only thing a decade bought was the window in
+  // which a stolen grant kept working. A lifetime nobody can review is not a
+  // lifetime anyone chose.
   res.json({
     token_type: "Bearer",
-    access_token: sign("sh_access", uid, "1h"),
-    refresh_token: sign("sh_refresh", uid, "3650d"),
+    access_token: await sign("sh_access", uid, "1h"),
+    refresh_token: await sign("sh_refresh", uid, "90d"),
     expires_in: 3600,
   });
 });
