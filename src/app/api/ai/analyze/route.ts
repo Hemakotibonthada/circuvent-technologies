@@ -55,13 +55,26 @@ export async function POST(request: Request) {
       }
     };
 
-    const devices = await get<Device[]>("/devices");
-    if (!devices) {
+    /**
+     * The control plane wraps its collections: `/devices` answers
+     * `{ devices: [...] }`, not a bare array, and `/events` and `/automations`
+     * are the same shape. `get<T>` ends in `as T`, which is an assertion rather
+     * than a check, so typing this call as `Device[]` compiled cleanly and then
+     * handed `analyseHome` an object where it expects an array. It spreads that
+     * into `findOfflineDevices` and throws, which the catch-all turns into a
+     * 500 and the panel renders as "Analysis failed." — with nothing anywhere
+     * naming the actual mismatch.
+     *
+     * The other two calls were already unwrapped correctly. Only this one lied.
+     */
+    const deviceList = await get<{ devices: Device[] }>("/devices");
+    if (!deviceList || !Array.isArray(deviceList.devices)) {
       return NextResponse.json(
         { success: false, message: "Could not reach the smart-home service." },
         { status: 502 },
       );
     }
+    const devices = deviceList.devices;
 
     // Events and automations enrich the analysis but are not required for it,
     // so a failure there degrades the report rather than failing the request.

@@ -72,8 +72,20 @@ export default function DeviceReportCard({ deviceId }: { deviceId: string }) {
     setError("");
     const r = await controlPlane.deviceReport(deviceId, 200);
     setLoading(false);
-    if (r.ok) setReport(r.data.report);
-    else setError((r.data as { error?: string })?.error ?? "Could not build the report.");
+    if (r.ok) { setReport(r.data.report); return; }
+    // A 404 here does not mean the device is missing — it means the control
+    // plane this console is talking to has no reporting endpoint at all,
+    // because it predates it. Surfacing the raw "Not found" sends someone
+    // looking for a device that is plainly on the screen behind the dialog.
+    if (r.status === 404) {
+      setError(
+        "This control plane build has no device-reporting endpoint yet, so there is nothing to " +
+        "assemble the report from. The device itself is fine — everything else on this page is " +
+        "live. Reporting appears once the control plane is updated."
+      );
+      return;
+    }
+    setError((r.data as { error?: string })?.error ?? "Could not build the report.");
   }, [deviceId]);
 
   const qr = useQr(report?.qr.label ?? null);
@@ -156,7 +168,7 @@ export default function DeviceReportCard({ deviceId }: { deviceId: string }) {
   if (error && !report) {
     return (
       <Surface>
-        <EmptyState title="Could not build the report" body={error} />
+        <EmptyState title="Report not available yet" body={error} />
         <div className="mt-3">
           <Button variant="secondary" icon={RefreshCcw} onClick={load}>Retry</Button>
         </div>

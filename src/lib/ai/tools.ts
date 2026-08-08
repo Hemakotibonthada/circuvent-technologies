@@ -59,6 +59,35 @@ async function controlPlane<T>(ctx: AssistantContext, path: string): Promise<T |
   }
 }
 
+/**
+ * Fetches one of the control plane's wrapped collections.
+ *
+ * Every list endpoint answers `{ <key>: [...] }` rather than a bare array.
+ * `controlPlane<T>` ends in `as T`, which is an assertion and not a check, so
+ * writing `controlPlane<Device[]>(ctx, "/devices")` compiled perfectly and
+ * returned an object where the caller then treated it as an array. Three tools
+ * here did exactly that, and so did /api/ai/analyze — where it surfaced as a
+ * 500 and a bare "Analysis failed." with nothing naming the real mismatch.
+ *
+ * Naming the key at the call site makes the wrapper visible, and validating the
+ * result means a shape change fails here, once, instead of somewhere downstream
+ * as a TypeError.
+ */
+async function controlPlaneList<T>(
+  ctx: AssistantContext,
+  path: string,
+  key: string,
+): Promise<T[] | null> {
+  const res = await controlPlane<Record<string, unknown>>(ctx, path);
+  if (!res) return null;
+  const list = res[key];
+  if (!Array.isArray(list)) {
+    logger.warn("ai.control_plane_shape", { path, key, got: typeof list });
+    return null;
+  }
+  return list as T[];
+}
+
 const NO_DEVICES =
   "The user has no devices linked, or their smart-home session is not active. " +
   "Tell them to sign in to the console at /smarthome, and do not guess at device names.";
@@ -156,7 +185,7 @@ type Handler = (args: Record<string, unknown>, ctx: AssistantContext) => Promise
 
 const HANDLERS: Record<string, Handler> = {
   async list_devices(_args, ctx) {
-    const devices = await controlPlane<Device[]>(ctx, "/devices");
+    const devices = await controlPlaneList<Device>(ctx, "/devices", "devices");
     if (!devices) return { content: NO_DEVICES, refused: true };
     if (devices.length === 0) {
       return { content: "The user has no devices yet.", data: { devices: [] } };
@@ -172,7 +201,7 @@ const HANDLERS: Record<string, Handler> = {
   },
 
   async home_analysis(_args, ctx) {
-    const devices = await controlPlane<Device[]>(ctx, "/devices");
+    const devices = await controlPlaneList<Device>(ctx, "/devices", "devices");
     if (!devices) return { content: NO_DEVICES, refused: true };
 
     const events = (await controlPlane<{ events: AppEvent[] }>(ctx, "/events?limit=100"))?.events ?? [];
@@ -193,7 +222,7 @@ const HANDLERS: Record<string, Handler> = {
   },
 
   async energy_report(_args, ctx) {
-    const devices = await controlPlane<Device[]>(ctx, "/devices");
+    const devices = await controlPlaneList<Device>(ctx, "/devices", "devices");
     if (!devices) return { content: NO_DEVICES, refused: true };
 
     const e = energyInsight(devices);
