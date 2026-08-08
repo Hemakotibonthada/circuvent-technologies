@@ -19,6 +19,7 @@ import {
 import { useFleet } from "../_data/hooks";
 import { deviceMeta } from "../DeviceControls";
 import { useCameraFrames, useNow } from "@/lib/control-plane-live";
+import { isCameraDevice } from "../_data/device-type";
 
 // Security devices that operators typically want visual status for
 const SECURITY_TYPES = new Set([
@@ -132,7 +133,7 @@ function SecurityDeviceCard({ device }: SecurityDeviceCardProps) {
 
         {/* Live frames for Circuvent cameras, then plain stream/snapshot URLs
             for third-party devices, then honest disclosure. */}
-        {CAMERA_TYPES.has(device.type) ? (
+        {isCameraDevice(device) ? (
           <CameraThumb device={device} />
         ) : streamUrl ? (
           <div>
@@ -260,7 +261,10 @@ export function CamerasPanel() {
     () =>
       securityDevices.filter(
         (d) =>
-          CAMERA_TYPES.has(d.type) ||
+          // isCameraDevice rather than CAMERA_TYPES: a unit registered as a
+          // camera that reports hasCamera:false will never produce a frame, so
+          // it must not hold a tile promising one.
+          isCameraDevice(d) ||
           typeof d.state.streamUrl === "string" ||
           typeof d.state.snapshotUrl === "string"
       ),

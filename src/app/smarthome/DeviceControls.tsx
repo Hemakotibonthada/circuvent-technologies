@@ -51,6 +51,7 @@ import {
   type ChannelStyle,
 } from "@/lib/smarthome-prefs";
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
+import { effectiveDeviceType } from "./_data/device-type";
 
 export interface DeviceTypeMeta {
   label: string;
@@ -218,7 +219,10 @@ function useChannelGrid(d: Device) {
 
 export function DeviceControls({ device, send, st }: { device: Device; send: SendFn; st: StatusFn }) {
   const generic = <GenericCapabilities d={device} send={send} st={st} />;
-  switch (device.type) {
+  // Not device.type: a board registered as a camera that reports hasCamera:false
+  // is a sentinel, and rendering it camera controls it cannot honour helps
+  // nobody. See _data/device-type.ts.
+  switch (effectiveDeviceType(device)) {
     case "aquaguard":
       return <>{generic}<AquaGuard d={device} send={send} st={st} /></>;
     case "home-hub":
