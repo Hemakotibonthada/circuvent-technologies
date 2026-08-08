@@ -1379,7 +1379,11 @@ void loop() {
   }
 
 #if CV_HAS_CAMERA
-  if (streaming && cameraReady && now - lastFrameAt >= (uint32_t)(1000 / fps)) {
+  // Not while the setup portal is up. The AP, web server, DNS server and async
+  // scan already have this board's memory and radio committed; adding camera
+  // DMA on top is what panics an ESP32-CAM before a phone can list the hotspot.
+  if (streaming && cameraReady && !cv.isProvisioning() &&
+      now - lastFrameAt >= (uint32_t)(1000 / fps)) {
     sendFrame(false);
   }
 #endif

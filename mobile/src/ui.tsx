@@ -307,38 +307,6 @@ function mixHex(a: string, b: string, t: number): string {
 }
 
 /**
- * The surface gradient that gives an Android neumorphic card its curve.
- *
- * WHY ANDROID NEEDS THIS AND iOS DOES NOT
- *
- * Neumorphism is two shadows: a light one up and to the left, a dark one down
- * and to the right. Together they read as a surface extruded from the
- * background. iOS renders arbitrary `shadowColor` and `shadowOffset`, so
- * nesting two views produces both.
- *
- * Android has only `elevation`, which draws a single shadow, downward, and
- * cannot be light. The previous fallback substituted a 1px border for the
- * highlight — so Android got one grey drop shadow and a flat outline, with none
- * of the extrusion. That is the difference in depth between the platforms.
- *
- * Android does render gradients well, and the illusion does not actually depend
- * on shadows: it depends on the surface being lit from one corner. A diagonal
- * gradient across the card face — lighter at the top-left, darker at the
- * bottom-right — produces the same read, and pairs with `elevation` for the
- * cast shadow underneath.
- *
- * Kept subtle on purpose. Neumorphism fails in both directions: too flat and it
- * is invisible, too strong and every card looks like a button.
- */
-function neoSurface(c: Palette): readonly [string, string, string] {
-  return [
-    mixHex(c.surface, c.neoLight, 0.55),
-    c.surface,
-    mixHex(c.surface, c.neoDark, 0.4),
-  ] as const;
-}
-
-/**
  * The soft double shadow that makes a neumorphic surface look extruded, drawn
  * for Android.
  *
@@ -362,7 +330,14 @@ function neoSurface(c: Palette): readonly [string, string, string] {
  * but at these radii the eye reads them the same way, and unlike `elevation`
  * it respects the palette, so the effect survives every theme.
  */
-const NEO_DEPTH = 7;
+/**
+ * Offset of both painted shadows, in points.
+ *
+ * 5 because that is iOS's `shadowOffset` on the same card. The two platforms
+ * must extrude by the same amount or the same theme reads as two designs; this
+ * was 7, which made Android's cards sit visibly further off the page.
+ */
+const NEO_DEPTH = 5;
 
 function NeoShadow({
   radius,
@@ -1116,33 +1091,20 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
 
     // Android cannot cast a light shadow — `elevation` is one dark shadow,
     // always downward, with a platform-fixed colour. NeoShadow paints both
-    // halves instead, which is what actually reads as extruded; the surface
-    // gradient and top-left hairline then round the face off. Dropping
-    // elevation entirely is deliberate: its dark, downward-only shadow fought
-    // the painted one and flattened the result.
-    const grad = neoSurface(c);
+    // halves instead, which is what actually reads as extruded.
+    //
+    // The face itself is a flat `c.surface`, matching iOS exactly. An earlier
+    // version painted a diagonal gradient across it and added top/left
+    // hairlines, which iOS does not do — so the two platforms rendered visibly
+    // different cards from the same theme. The point of NeoShadow is to
+    // reproduce what iOS gets for free from a real shadow, not to design a
+    // second look for Android.
     return (
       wrap(style, (
         <NeoShadow radius={radius} c={c}>
-          <LinearGradient
-            colors={grad}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            // 0.45 rather than 0.5 puts the mid stop slightly early, so the lit
-            // face is a little larger than the shaded one — which is what a
-            // rounded surface under a top-left light actually looks like.
-            locations={[0, 0.45, 1]}
-            style={{
-              borderRadius: radius,
-              padding: pad,
-              borderTopWidth: StyleSheet.hairlineWidth,
-              borderLeftWidth: StyleSheet.hairlineWidth,
-              borderTopColor: mixHex(c.surface, c.neoLight, 0.8),
-              borderLeftColor: mixHex(c.surface, c.neoLight, 0.55),
-            }}
-          >
+          <View style={{ borderRadius: radius, padding: pad, backgroundColor: c.surface }}>
             {children}
-          </LinearGradient>
+          </View>
         </NeoShadow>
       ))
     );

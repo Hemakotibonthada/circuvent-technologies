@@ -341,11 +341,7 @@ export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string)
       bg: "#20263a", surface: "#20263a", surfaceHi: "#262d45", card: "#20263a", cardHi: "#262d45",
       border: "rgba(255,255,255,0.05)", borderHi: "rgba(255,255,255,0.1)",
       text: "#e7ecff", textDim: "#9aa6c8", faint: "#868fbb",
-      // The dual shadow is the whole effect, so on a dark ground it has to be
-      // wide enough to see. #2b3350 sits only a shade above the #20263a
-      // surface, and the highlight it produced was nearly invisible — the card
-      // read as flat with a faint smudge under it rather than as extruded.
-      onAccent: "#ffffff", neoLight: "#39426b", neoDark: "#111624",
+      onAccent: "#ffffff", neoLight: "#2b3350", neoDark: "#141a2b",
       glassTint: "dark", glassFill: "rgba(255,255,255,0.06)", glassBorder: "rgba(255,255,255,0.12)",
     };
   }

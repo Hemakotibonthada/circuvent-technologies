@@ -451,6 +451,18 @@ class CircuventDevice {
   }
 
   // ---- Wi-Fi provisioning portal ---------------------------------------
+  /**
+   * True while the Wi-Fi provisioning portal is running.
+   *
+   * Sketches need this because the portal is not a quiet background task: it
+   * brings up a soft AP, a web server, a DNS server and an asynchronous Wi-Fi
+   * scan, all at once, on a board that has not yet joined a network. Anything
+   * the sketch does concurrently is competing with that for memory and for the
+   * radio, and on the ESP32-CAM specifically, running the camera's DMA at the
+   * same time panics the chip before a phone can even list the AP.
+   */
+  bool isProvisioning() const { return _portalActive; }
+
   void startPortal() {
     _portalActive = true;
     if (!_boxReady) { crypto_box_keypair(_boxPk, _boxSk); _boxReady = true; }

@@ -34,7 +34,7 @@
  *          huge_app.csv has a single app slot, so no camera could ever have
  *          taken an over-the-air update at all.
  */
-#define CV_FW_VERSION "1.4.0"
+#define CV_FW_VERSION "1.5.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
@@ -661,22 +661,44 @@ void setup() {
   sensitivity = store.getInt("sens", sensitivity);
   flashLevel  = store.getInt("flash", 0);
 
-  camReady = initCamera();
-  if (camReady) {
-    resName = clampRes(resName);
-    applySensorSettings();
-    mdPrev = (uint8_t *)malloc(MD_W * MD_H);
-    if (!mdPrev) motionOn = false;    // no baseline buffer, no differencing
-  }
-  sensorLive = camReady;   // init succeeded; live captures confirm or refute it
-  applyFlash(flashLevel);
-
   cv.onCommand(onCommand);
   cv.setInterval(15000);
 #if CV_RESET_BTN >= 0
   cv.setResetButton(CV_RESET_BTN);
 #endif
   cv.begin();
+
+  /*
+   * The camera is brought up only once the device is not provisioning.
+   *
+   * It used to initialise before cv.begin(), which meant that on a board with
+   * no stored Wi-Fi the driver was already holding its DMA descriptors and
+   * buffers when begin() raised the setup portal — a soft AP, a web server, a
+   * DNS server and an async scan, arriving all at once on a board whose DRAM is
+   * mostly spoken for. The result was an immediate InstrFetchProhibited panic
+   * and a reboot loop: the AP appeared on the serial log and then vanished
+   * before a phone could finish listing it, which reads as "the hotspot never
+   * shows up" rather than as a crash.
+   *
+   * Provisioning is also the one moment a camera is definitively useless — no
+   * network, no subscriber, nobody watching. Deferring costs nothing and hands
+   * the whole memory budget to the thing the user is actually waiting on. The
+   * device restarts once credentials are saved, and comes back through here
+   * with the camera path taken.
+   */
+  if (!cv.isProvisioning()) {
+    camReady = initCamera();
+    if (camReady) {
+      resName = clampRes(resName);
+      applySensorSettings();
+      mdPrev = (uint8_t *)malloc(MD_W * MD_H);
+      if (!mdPrev) motionOn = false;    // no baseline buffer, no differencing
+    }
+    sensorLive = camReady;   // init succeeded; live captures confirm or refute it
+    applyFlash(flashLevel);
+  } else {
+    Serial.println(F("[CAM] provisioning — camera held off until Wi-Fi is set up"));
+  }
 
   cv.set("hasCamera", true);          // how the apps discover a video source
   cv.set("ready", camReady);
@@ -694,6 +716,12 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
+
+  // While the setup portal is up, the radio, the web server and the DNS server
+  // own this device. Touching the camera alongside them is what crashed the
+  // board before a phone could connect, so nothing here runs until Wi-Fi is
+  // configured. cv.loop() still services the portal itself.
+  if (cv.isProvisioning()) { cv.loop(); return; }
 
   /*
    * Why a dead sensor stops all automatic capture rather than retrying slowly.
