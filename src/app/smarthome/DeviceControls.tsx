@@ -261,6 +261,18 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
 const n = (v: unknown, dflt = 0) => (v == null || Number.isNaN(Number(v)) ? dflt : Number(v));
 const b = (v: unknown) => !!v;
 
+/** Product IDs the OV sensor family reports over SCCB. */
+function sensorName(pid: number): string {
+  switch (pid) {
+    case 0x26: return "an OV2640";
+    case 0x36: return "an OV3660";
+    case 0x56: return "an OV5640";
+    case 0x76: return "an OV7670";
+    case 0x77: return "an OV7725";
+    default: return pid ? `sensor 0x${pid.toString(16)}` : "";
+  }
+}
+
 export interface Capability {
   power?: { field: string; label: string };
   dimmer?: { field: string; label: string; min: number; max: number };
@@ -1475,7 +1487,24 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
       )}
       {hasCamera && !ready && d.online && (
         <div className="mt-3">
-          <AlertBanner text="The camera sensor is not responding. Check the ribbon cable seating, then reboot." />
+          {/* The firmware distinguishes two very different faults, so say which
+              one it is. SCCB runs on SIOD/SIOC alone while frame data rides
+              eleven other pins, so a sensor that still answers a register read
+              while no frame ever completes localises the fault to the parallel
+              bus — and that is a ribbon, not a module and not software. Telling
+              someone "the sensor is not responding" when it demonstrably is
+              sends them replacing the wrong part. */}
+          <AlertBanner
+            text={
+              d.state.sccbOk === true
+                ? `The sensor is alive — it answers on the control bus${
+                    n(d.state.sensorPid) ? ` and identifies as ${sensorName(n(d.state.sensorPid))}` : ""
+                  } — but no frame ever completes. That isolates the fault to the parallel data lines, so it is the ribbon rather than the module: power the board down, unlatch the connector, reseat the cable fully and latch it, then reboot. Frame size makes no difference to this, so lowering the resolution will not help.`
+                : d.state.sccbOk === false
+                  ? "The sensor does not answer at all, so the module is unpowered, unseated or dead. Reseat the ribbon; if that changes nothing the camera module needs replacing."
+                  : "The camera sensor is not responding. Check the ribbon cable seating, then reboot."
+            }
+          />
         </div>
       )}
 
