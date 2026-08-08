@@ -102,24 +102,32 @@ export default function OverviewPage() {
 
   /**
    * One refresh fans out to four sources, and the energy one issues a request
-   * per device — around eight in total. The button previously reported
-   * `probe.busy`, which clears after the single fastest of those, so it
-   * re-enabled while the rest were still in flight and a user clicking
-   * impatiently could stack thirty fan-outs into a couple of seconds. Measured:
-   * 30 clicks produced 236 requests and tripped the control plane's 240/minute
-   * limit, surfacing a red failure banner caused entirely by the clicking.
+   * per device — around eight requests per press. Measured in a browser: 30
+   * clicks produced 236 requests and tripped the control plane's 240/minute
+   * budget, surfacing a failure banner caused entirely by the clicking.
    *
-   * Tracking the whole fan-out means repeat clicks land on a disabled button
-   * instead of queueing more work, which is also the honest signal: the refresh
-   * genuinely has not finished yet.
+   * Disabling the button for the duration of the fan-out is not enough on its
+   * own, and I checked: the fan-out finishes in well under the interval between
+   * impatient clicks, so the button re-enables in time for the next one and 29
+   * of 30 clicks still landed. The limit is a *rate*, so the guard has to be a
+   * rate too.
+   *
+   * The cooldown costs nothing real. A realtime channel already streams state
+   * into this page and a poll timer backs it up, so manual refresh is a
+   * reassurance control rather than the data path — pressing it four times a
+   * second cannot surface anything that pressing it once would not.
    */
+  const COOLDOWN_MS = 3000;
   const [refreshing, setRefreshing] = useState(false);
+  const [cooling, setCooling] = useState(false);
   const refreshAll = useCallback(() => {
-    if (refreshing) return;
+    if (refreshing || cooling) return;
     setRefreshing(true);
+    setCooling(true);
+    window.setTimeout(() => setCooling(false), COOLDOWN_MS);
     void Promise.all([fleet.refresh(), energy.refresh(), events.refresh(), probe.probe()])
       .finally(() => setRefreshing(false));
-  }, [refreshing, fleet, energy, events, probe]);
+  }, [refreshing, cooling, fleet, energy, events, probe]);
 
   const firstName = user?.name?.split(" ")[0];
   const empty = !fleet.loading && fleet.devices.length === 0;
@@ -145,7 +153,7 @@ export default function OverviewPage() {
         }
         actions={
           <>
-            <Button icon={RefreshCw} onClick={refreshAll} busy={refreshing}>
+            <Button icon={RefreshCw} onClick={refreshAll} busy={refreshing} disabled={cooling}>
               Refresh
             </Button>
             <Link href="/smarthome/devices?tab=onboarding">
