@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileText, Download, Printer, RefreshCcw, QrCode, ChevronDown } from "lucide-react";
 import { controlPlane, CONTROL_PLANE_URL, getToken, type DeviceReport } from "@/lib/control-plane";
+import { buildFallbackReport } from "./fallbackReport";
 import { Button, Callout, EmptyState, SectionTitle, Surface, DetailRow } from "../../_kit/primitives";
 
 function fmt(iso: string | null | undefined): string {
@@ -63,6 +64,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function DeviceReportCard({ deviceId }: { deviceId: string }) {
   const [report, setReport] = useState<DeviceReport | null>(null);
+  const [partial, setPartial] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [shown, setShown] = useState(false);
@@ -70,21 +72,24 @@ export default function DeviceReportCard({ deviceId }: { deviceId: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+    setPartial([]);
     const r = await controlPlane.deviceReport(deviceId, 200);
-    setLoading(false);
-    if (r.ok) { setReport(r.data.report); return; }
-    // A 404 here does not mean the device is missing — it means the control
-    // plane this console is talking to has no reporting endpoint at all,
-    // because it predates it. Surfacing the raw "Not found" sends someone
-    // looking for a device that is plainly on the screen behind the dialog.
+    if (r.ok) { setReport(r.data.report); setLoading(false); return; }
+    // A 404 here does not mean the device is missing — it means this control
+    // plane build has no reporting endpoint. Rather than show the raw
+    // "Not found" to someone looking straight at the device, assemble what the
+    // deployed routes can actually supply. See fallbackReport.ts.
     if (r.status === 404) {
+      const fb = await buildFallbackReport(deviceId, 200);
+      setLoading(false);
+      if (fb) { setReport(fb); setPartial(fb.partial); return; }
       setError(
-        "This control plane build has no device-reporting endpoint yet, so there is nothing to " +
-        "assemble the report from. The device itself is fine — everything else on this page is " +
-        "live. Reporting appears once the control plane is updated."
+        "This control plane build has no device-reporting endpoint, and the device record " +
+        "could not be read either. Everything else on this page is live."
       );
       return;
     }
+    setLoading(false);
     setError((r.data as { error?: string })?.error ?? "Could not build the report.");
   }, [deviceId]);
 
@@ -202,6 +207,22 @@ export default function DeviceReportCard({ deviceId }: { deviceId: string }) {
           ? ` · showing the most recent ${report.summary.historyLimit} entries per section`
           : ""}
       </p>
+
+      {/* An absent section must not read as an empty one. Without this, a blank
+          audit log says "nothing was ever done to this device" when what it
+          actually means is "this control plane build does not record it". */}
+      {partial.length > 0 && (
+        <div
+          className="rounded-xl px-4 py-3 text-[12px]"
+          style={{ background: "var(--cv-card-hi)", border: "1px solid var(--cv-border)", color: "var(--cv-muted)" }}
+        >
+          <b style={{ color: "var(--cv-text)" }}>Assembled from live device data.</b>{" "}
+          The connected control plane has no reporting endpoint, so this was built from the device
+          record, its telemetry and the event feed. These are <b>not available</b> from this build
+          and are shown blank rather than as zero: {partial.join(", ")}. Everything displayed is
+          real and current.
+        </div>
+      )}
 
       <Surface padded={false}>
         <div className="px-5 py-1">
