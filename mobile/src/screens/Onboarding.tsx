@@ -5,6 +5,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeArea } from "../ui";
 import { Icon, type IconName } from "../icons";
 import { tapLight } from "../haptics";
+import { registerForPush } from "../push";
+import { ensureWifiPermissions } from "../wifi";
 
 /**
  * First-run introduction.
@@ -93,6 +95,13 @@ const PAGES: Page[] = [
       "Have the porch light come on at dusk and off at bedtime. Build scenes for Away and Night. Everything keeps running on the device even if the internet drops.",
     grad: ["#22c55e", "#06b6d4"],
   },
+  {
+    icon: "bell",
+    title: "Two permissions, and why",
+    body:
+      "Notifications let a device reach you when it matters — a gas alarm, a leak, a door left open. Location is what Android requires before any app may list nearby Wi-Fi networks, which is the step that gets a new device onto your network. Your location is never read, stored or sent anywhere. You can decline both and the app still works.",
+    grad: ["#8b5cf6", "#06b6d4"],
+  },
 ];
 
 export default function Onboarding({ onDone }: { onDone: () => void }) {
@@ -102,6 +111,27 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const scroller = useRef<ScrollView>(null);
 
   const finish = useCallback(() => {
+    /*
+     * Ask for both permissions here, at the end of onboarding, rather than at
+     * the moment each is first needed.
+     *
+     * The system dialogs are the only chance to ask — decline once and Android
+     * and iOS both stop showing them, leaving the user to find a settings
+     * screen they have no reason to look for. Asking cold, mid-task, is what
+     * gets a reflexive "no": location in particular arrives in the middle of
+     * adding a device with no explanation, which reads as an app asking to
+     * track you. The screen before this one says what each is for and that
+     * location is never read or sent, so the dialog lands after the reason
+     * rather than before it.
+     *
+     * Neither is required. Both failures are swallowed on purpose: declining
+     * must not block someone from finishing setup, and the flows that need them
+     * still ask again in context.
+     */
+    void (async () => {
+      try { await registerForPush(); } catch { /* declined or unsupported */ }
+      try { await ensureWifiPermissions(); } catch { /* declined; scanning asks again */ }
+    })();
     void markSeen();
     onDone();
   }, [onDone]);

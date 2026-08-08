@@ -11,6 +11,8 @@ import {
   Linking,
   Animated,
   Easing,
+  Modal,
+  KeyboardAvoidingView,
 } from "react-native";
 import * as IntentLauncher from "expo-intent-launcher";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -106,6 +108,10 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
   const [mkey, setMkey] = useState("");
   const [busy, setBusy] = useState(false);
   const [targetSsid, setTargetSsid] = useState("");
+  /** SSID whose password is being asked for, or "" when the prompt is closed. */
+  const [askPassFor, setAskPassFor] = useState("");
+  const [passDraft, setPassDraft] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [scanLock, setScanLock] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   // auto-discovery / auto-connect
@@ -510,7 +516,29 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             )}
             {!!scanErr && !scanning && <Text style={s.err}>{scanErr}</Text>}
             {!manual && networks.map((nw) => (
-              <Pressable key={nw.ssid} style={[s.netRow, ssid === nw.ssid && s.netRowOn]} onPress={() => setSsid(nw.ssid)}>
+              <Pressable
+                key={nw.ssid}
+                style={[s.netRow, ssid === nw.ssid && s.netRowOn]}
+                accessibilityRole="button"
+                accessibilityLabel={`${nw.ssid}${nw.lock ? ", secured" : ", open"}`}
+                onPress={() => {
+                  // Tapping a locked network asks for its password there and
+                  // then, which is what every OS Wi-Fi picker does and what
+                  // people expect. Previously the tap only set the SSID and the
+                  // password field waited further down the page, so the obvious
+                  // reading — "I picked my network, now what?" — was to scroll
+                  // looking for a next step that had already scrolled past.
+                  setSsid(nw.ssid);
+                  if (nw.lock) {
+                    setAskPassFor(nw.ssid);
+                    setPassDraft(ssid === nw.ssid ? pass : "");
+                  } else {
+                    // An open network has no password to ask for; inventing a
+                    // prompt for one would only be a dead end.
+                    setPass("");
+                  }
+                }}
+              >
                 <Text style={s.netName} numberOfLines={1}>{ssid === nw.ssid ? "● " : ""}{nw.ssid}</Text>
                 <Text style={s.netMeta}>{nw.lock ? "🔒 " : ""}{bars(nw.rssi)}</Text>
               </Pressable>
@@ -558,6 +586,57 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
           </View>
         )}
       </ScrollView>
+
+      {/*
+        Password prompt.
+
+        Modelled on the OS Wi-Fi picker deliberately: tapping a locked network
+        should ask for its password, not silently select it and leave the field
+        somewhere else on the page. autoFocus means the keyboard is already up,
+        so joining a network is tap, type, done.
+      */}
+      <Modal visible={!!askPassFor} transparent animationType="fade" onRequestClose={() => setAskPassFor("")}>
+        <Pressable style={s.modalScrim} onPress={() => setAskPassFor("")} accessibilityLabel="Dismiss" />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={s.modalWrap}
+          pointerEvents="box-none"
+        >
+          <View style={s.modalCard}>
+            <Text style={s.modalTitle} numberOfLines={1}>{askPassFor}</Text>
+            <Text style={s.modalSub}>Enter the password for this network.</Text>
+            <TextInput
+              style={[s.input, { marginTop: 12 }]}
+              value={passDraft}
+              onChangeText={setPassDraft}
+              placeholder="Wi-Fi password"
+              placeholderTextColor="#64748b"
+              secureTextEntry={!showPass}
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel={`Password for ${askPassFor}`}
+              onSubmitEditing={() => { setPass(passDraft); setAskPassFor(""); }}
+              returnKeyType="done"
+            />
+            <Pressable onPress={() => setShowPass((v) => !v)} hitSlop={10} style={{ paddingVertical: 10 }}>
+              <Text style={s.link}>{showPass ? "Hide password" : "Show password"}</Text>
+            </Pressable>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+              <Pressable style={[s.secondary, { flex: 1, marginBottom: 0 }]} onPress={() => setAskPassFor("")}>
+                <Text style={s.secondaryT}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.btn, { flex: 1, marginTop: 0 }, !passDraft && { opacity: 0.5 }]}
+                disabled={!passDraft}
+                onPress={() => { setPass(passDraft); setAskPassFor(""); }}
+              >
+                <Text style={s.btnT}>Use this</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -676,4 +755,9 @@ const s = StyleSheet.create({
   logRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7 },
   logIcon: { width: 22, textAlign: "center", fontSize: 16, fontWeight: "800" },
   logMsg: { color: "#cbd5e1", fontSize: 14, flex: 1 },
+  modalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
+  modalWrap: { flex: 1, justifyContent: "center", padding: 22 },
+  modalCard: { backgroundColor: "#111827", borderColor: "#334155", borderWidth: 1, borderRadius: 18, padding: 18 },
+  modalTitle: { color: "#e5e7eb", fontSize: 18, fontWeight: "800" },
+  modalSub: { color: "#94a3b8", fontSize: 13, marginTop: 4 },
 });

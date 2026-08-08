@@ -346,6 +346,24 @@ class CircuventDevice {
       return;  // a successful update reboots and never reaches here
     }
 
+    /*
+     * Move the device to a different Wi-Fi network without a factory reset.
+     *
+     * Changing Wi-Fi used to mean holding the reset button, joining the
+     * device's setup AP and provisioning again — which also discards the
+     * device's identity, so it comes back as a new device and everything
+     * attached to the old id (rooms, scenes, automations, history) is orphaned.
+     * A router replaced or a password rotated should not cost any of that.
+     *
+     * The identity is untouched here; only the network changes.
+     */
+    if (action == "wifi") {
+      String ssid = doc["ssid"] | "";
+      String pass = doc["pass"] | "";
+      if (ssid.length()) _applyWifi(ssid, pass);
+      return;
+    }
+
     if (!_handler) return;
     _handler(action, doc.as<JsonObjectConst>());
     if (_dirty) publishStateNow();
@@ -383,8 +401,61 @@ class CircuventDevice {
     publishStateNow();
   }
 
-  bool _applyOta(const String &binUrl, const String &newVer) {
-    if (binUrl.length() == 0) return false;
+  /**
+   * Switches Wi-Fi networks, and comes back if the new one does not work.
+   *
+   * The rollback is the entire point. A device that accepts credentials and
+   * then cannot associate has removed its own only route home: it is powered,
+   * silent, and needs someone to find it and hold a button — which is the
+   * outcome this command exists to avoid. So the old credentials are kept in
+   * memory, the new ones are tried, and they are only written to NVS after the
+   * association actually succeeds. A typo costs about forty seconds of downtime
+   * instead of a trip to wherever the device is mounted.
+   *
+   * The last message before the link drops reports what is about to happen,
+   * because from the app's point of view the device is about to go quiet for a
+   * while and "offline" on its own is indistinguishable from a crash.
+   */
+  bool _applyWifi(const String &ssid, const String &pass) {
+    const String oldSsid = _ssid, oldPass = _pass;
+    if (ssid == oldSsid && pass == oldPass) {
+      set("wifiStatus", "unchanged");
+      publishStateNow();
+      return true;
+    }
+
+    set("wifiStatus", String("switching to " + ssid).c_str());
+    publishStateNow();
+    delay(400);  // let that publish leave before the radio drops
+
+    _mqttUp = false;
+    _mqtt.disconnect();
+    WiFi.disconnect(false, false);
+    delay(300);
+
+    _ssid = ssid; _pass = pass;
+    _connect();
+
+    if (WiFi.status() == WL_CONNECTED) {
+      _saveWifi();
+      Serial.printf("[CV] Wi-Fi changed to %s\n", ssid.c_str());
+      set("wifiStatus", "ok");
+      set("ssid", _ssid.c_str());
+      _dirty = true;         // published as soon as MQTT is back up
+      return true;
+    }
+
+    Serial.printf("[CV] Wi-Fi change to %s failed — restoring %s\n", ssid.c_str(), oldSsid.c_str());
+    _ssid = oldSsid; _pass = oldPass;
+    WiFi.disconnect(false, false);
+    delay(300);
+    _connect();
+    set("wifiStatus", String("failed: could not join " + ssid).c_str());
+    _dirty = true;
+    return false;
+  }
+
+  bool _applyOta(const String &binUrl, const String &newVer) {    if (binUrl.length() == 0) return false;
     // Re-flashing the running version would reboot the device on every
     // repeated broadcast, which is an outage rather than an update.
     if (newVer.length() && newVer == CV_FW_VERSION) {
