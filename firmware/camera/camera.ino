@@ -34,7 +34,7 @@
  *          huge_app.csv has a single app slot, so no camera could ever have
  *          taken an over-the-air update at all.
  */
-#define CV_FW_VERSION "1.3.0"
+#define CV_FW_VERSION "1.4.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
@@ -499,6 +499,12 @@ void raiseMotion(const char *source) {
 // ---------------------------------------------------------------------------
 bool sendFrame(bool isSnapshot) {
   if (!camReady) return false;
+  // A sensor already proven dead is not asked again. esp_camera_fb_get() does
+  // not time out when the parallel bus is disconnected — it waits on a frame
+  // queue nothing will ever fill, taking the whole loop with it. One such call
+  // is enough to make the device unreachable, so a user pressing Snapshot must
+  // not be able to trigger it either. Reboot re-inits and clears this.
+  if (!sensorLive && captureFails >= CAPTURE_FAIL_LIMIT) { dropCount++; return false; }
   camera_fb_t *fb = esp_camera_fb_get();
   noteCapture(fb != nullptr);
   if (!fb) { dropCount++; return false; }
@@ -689,23 +695,39 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
+  /*
+   * Why a dead sensor stops all automatic capture rather than retrying slowly.
+   *
+   * The previous version paced retries at SENSOR_RETRY_MS on the theory that
+   * esp_camera_fb_get() "blocks for seconds" when the sensor is unresponsive.
+   * On a board whose parallel bus is disconnected it is worse than that: with
+   * no VSYNC at all the driver waits on its frame queue and does not come back,
+   * so loop() never returns, cv.loop() never runs, and the device stops
+   * answering MQTT entirely. It is still powered, still associated to Wi-Fi,
+   * and completely deaf — which cost this unit its OTA path and needed a
+   * physical power cycle to recover.
+   *
+   * A pacing interval cannot help with that, because the very first call after
+   * the sensor dies is the one that never returns. So once CAPTURE_FAIL_LIMIT
+   * consecutive failures have declared the sensor dead, nothing here touches it
+   * again. Recovery is a reboot, which is what the console already tells the
+   * user to do after reseating the ribbon, and which is reachable over the air
+   * precisely because the device stayed connected.
+   *
+   * Losing the camera should cost the camera, not the device.
+   */
+
   // A stream nobody re-armed is a stream nobody is watching.
   if (streaming && now - streamArmedAt > STREAM_TTL_MS) setStreaming(false);
 
-  if (streaming && camReady) {
-    // A capture from an unresponsive sensor does not fail fast — it blocks for
-    // seconds waiting on a frame that never arrives, which starves the MQTT
-    // loop and leaves the device ignoring commands. Once the sensor looks
-    // dead, poll it slowly so the device stays reachable and can still recover.
-    unsigned long period = sensorLive
-      ? 1000UL / (unsigned long)max(fps, FPS_MIN)
-      : SENSOR_RETRY_MS;
+  if (streaming && camReady && sensorLive) {
+    unsigned long period = 1000UL / (unsigned long)max(fps, FPS_MIN);
     if (now - lastFrameAt >= period) {
       lastFrameAt = now;
       sendFrame(false);
     }
-  } else if (motionOn && camReady &&
-             now - lastMotionScan >= (sensorLive ? MOTION_PERIOD_MS : SENSOR_RETRY_MS)) {
+  } else if (motionOn && camReady && sensorLive &&
+             now - lastMotionScan >= MOTION_PERIOD_MS) {
     // Idle: capture only as often as the motion check needs, and never publish.
     lastMotionScan = now;
     camera_fb_t *fb = esp_camera_fb_get();
