@@ -6,6 +6,8 @@
 // control plane. Commands are published over MQTT server-side and reach the
 // device in well under a second.
 
+import { normalizeDevice, normalizeDevices } from "./device-normalize";
+
 export const CONTROL_PLANE_URL = (
   process.env.NEXT_PUBLIC_CONTROL_PLANE_URL || "https://api.circuvent.com"
 ).replace(/\/$/, "");
@@ -528,8 +530,19 @@ export const controlPlane = {
       method: "POST",
       body: JSON.stringify({ email, otp, newPassword }),
     }, false),
-  devices: () => req<{ devices: Device[] }>("/devices"),
-  device: (id: string) => req<{ device: Device }>("/devices/" + encodeURIComponent(id)),
+  // Normalised at the boundary: this control-plane build leaves fw_version
+  // empty and never clears a stale `online` flag, and both are recoverable from
+  // what it does send. See device-normalize.ts.
+  devices: async () => {
+    const r = await req<{ devices: Device[] }>("/devices");
+    if (r.ok && r.data?.devices) r.data.devices = normalizeDevices(r.data.devices);
+    return r;
+  },
+  device: async (id: string) => {
+    const r = await req<{ device: Device }>("/devices/" + encodeURIComponent(id));
+    if (r.ok && r.data?.device) r.data.device = normalizeDevice(r.data.device);
+    return r;
+  },
   claim: (id: string, key: string, name: string) =>
     req<{ success: boolean; id?: string; error?: string }>("/devices/claim", {
       method: "POST",
@@ -612,7 +625,11 @@ export const controlPlane = {
   adminRevokeSessions: (id: number) =>
     req<{ success: boolean }>("/admin/users/" + id + "/revoke-sessions", { method: "POST" }),
   adminDeleteUser: (id: number) => req<{ success: boolean }>("/admin/users/" + id, { method: "DELETE" }),
-  adminDevices: () => req<{ devices: AdminDevice[] }>("/admin/devices"),
+  adminDevices: async () => {
+    const r = await req<{ devices: AdminDevice[] }>("/admin/devices");
+    if (r.ok && r.data?.devices) r.data.devices = normalizeDevices(r.data.devices);
+    return r;
+  },
   adminCommand: (id: string, cmd: Record<string, unknown>) =>
     req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id) + "/command", { method: "POST", body: JSON.stringify(cmd) }),
   adminOta: (id: string, url: string, version?: string) =>
@@ -621,7 +638,11 @@ export const controlPlane = {
     req<{ success: boolean }>("/admin/devices/" + encodeURIComponent(id), { method: "DELETE" }),
   adminEvents: (limit = 100) => req<{ events: AdminEvent[] }>("/admin/events?limit=" + limit),
   adminHealth: () => req<AdminHealth>("/admin/health"),
-  adminDevice: (id: string) => req<{ device: AdminDevice }>("/admin/devices/" + encodeURIComponent(id)),
+  adminDevice: async (id: string) => {
+    const r = await req<{ device: AdminDevice }>("/admin/devices/" + encodeURIComponent(id));
+    if (r.ok && r.data?.device) r.data.device = normalizeDevice(r.data.device);
+    return r;
+  },
   adminDeviceTelemetry: (id: string, limit = 100) =>
     req<{ telemetry: { ts: string; payload: Record<string, unknown> }[] }>(
       "/admin/devices/" + encodeURIComponent(id) + "/telemetry?limit=" + limit

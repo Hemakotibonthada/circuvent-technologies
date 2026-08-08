@@ -119,17 +119,31 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
     ),
   } as React.CSSProperties;
   if (mode === "neo") {
+    /*
+     * Matched to the iOS app's neo palette, value for value.
+     *
+     * The console had its own neo — a neutral grey/black one — while the app
+     * used a blue-tinted set, so the same named theme was two different designs
+     * depending on which screen you were looking at. These are now the exact
+     * values from mobile/src/theme.ts, so a user switching between phone and
+     * browser sees one product.
+     *
+     * Neumorphism reads as extruded only when both shadows are present, so the
+     * surface has to sit *level* with the canvas rather than above it: card and
+     * bg are deliberately the same colour, and the depth comes entirely from
+     * --cv-neo-light and --cv-neo-dark in .cv-neo below.
+     */
     return {
       ...base,
-      "--cv-bg": dark ? "#1c1c1e" : "#eceef3",
-      "--cv-card": dark ? "#1c1c1e" : "#eceef3",
-      "--cv-card-hi": dark ? "#2c2c2e" : "#f5f6fa",
-      "--cv-input-bg": dark ? "#141416" : "#e2e5ec",
-      "--cv-border": dark ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.8)",
-      "--cv-text": dark ? "#ffffff" : "#1c1c1e",
-      "--cv-muted": dark ? "rgba(235,235,245,.62)" : "rgba(60,60,67,.62)",
-      "--cv-neo-light": dark ? "#26262a" : "#ffffff",
-      "--cv-neo-dark": dark ? "#121214" : "#c9ccd6",
+      "--cv-bg": dark ? "#20263a" : "#e6e9f2",
+      "--cv-card": dark ? "#20263a" : "#e6e9f2",
+      "--cv-card-hi": dark ? "#262d45" : "#eef1f8",
+      "--cv-input-bg": dark ? "#1b2133" : "#dfe3ee",
+      "--cv-border": dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.7)",
+      "--cv-text": dark ? "#e7ecff" : "#2a3350",
+      "--cv-muted": dark ? "#9aa6c8" : "#5b6488",
+      "--cv-neo-light": dark ? "#2b3350" : "#ffffff",
+      "--cv-neo-dark": dark ? "#141a2b" : "#c3c9da",
     } as React.CSSProperties;
   }
   if (mode === "glass") {
@@ -271,7 +285,41 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           box-shadow: var(--cv-shadow-2);
         }
         .cv-neo {
-          box-shadow: -8px -8px 18px var(--cv-neo-light), 10px 10px 22px var(--cv-neo-dark);
+          /*
+           * The same extrusion iOS draws, expressed in CSS.
+           *
+           * iOS uses shadowOffset {5,5} with shadowRadius 8 for the dark half
+           * and {-5,-5} for the light one. A CSS blur radius is roughly twice
+           * an iOS shadowRadius for the same visual softness, so 8 becomes 16.
+           * The previous values here were -8/-8/18 and 10/10/22: asymmetric
+           * between the two halves, and heavier than the app, which made the
+           * same theme sit at a different height on each platform.
+           *
+           * Dark half first so the light one wins where they overlap — that is
+           * what a single top-left light source produces, and it is the order
+           * NeoShadow uses on Android for the same reason.
+           */
+          box-shadow:
+            5px 5px 16px var(--cv-neo-dark),
+            -5px -5px 16px var(--cv-neo-light);
+        }
+        /* Pressed/active surfaces invert to a carved-in look, which is the other
+           half of the idiom: the same two shadows, inside. */
+        .cv-neo-inset {
+          box-shadow:
+            inset 4px 4px 10px var(--cv-neo-dark),
+            inset -4px -4px 10px var(--cv-neo-light);
+        }
+        /* Neumorphism depends on the surface being level with its canvas, so a
+           hairline border would read as a cut edge and flatten it. */
+        .cv-neo,
+        .cv-neo-inset {
+          border-color: transparent;
+        }
+        @media (prefers-reduced-transparency: reduce) {
+          /* Depth here is entirely shadow, so there is nothing to degrade — but
+             honour a forced-colours pass by dropping to a plain outline. */
+          .cv-neo, .cv-neo-inset { box-shadow: none; border-color: var(--cv-border); }
         }
         /* ---- Accessory tile ----------------------------------------------
            The Home app's core idea: an "on" accessory inverts to a bright fill
