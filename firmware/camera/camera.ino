@@ -34,7 +34,7 @@
  *          huge_app.csv has a single app slot, so no camera could ever have
  *          taken an over-the-air update at all.
  */
-#define CV_FW_VERSION "1.6.0"
+#define CV_FW_VERSION "1.7.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
@@ -224,6 +224,58 @@ int   captureFails = 0;
 bool  sensorLive   = false;      // has a capture actually worked recently
 
 bool sccbAlive();                // defined with the camera setup, below
+
+/**
+ * Does a capture actually complete, or does it hang?
+ *
+ * esp_camera_fb_get() does not time out. With the parallel bus disconnected
+ * there is no VSYNC, the driver waits on a frame queue nothing will ever fill,
+ * and it never returns — so loop() never returns either, cv.loop() never runs,
+ * and the task watchdog resets the chip. That is a TG1WDT_SYS_RESET reboot
+ * loop with no panic and no clue in it.
+ *
+ * Counting failures cannot defend against this, which is what the previous
+ * attempt did: `sensorLive` starts true, so the very first capture runs, and a
+ * call that never returns never increments a failure counter. The first attempt
+ * is the one that has to be survivable.
+ *
+ * So the first capture happens on its own task, and the main thread waits with
+ * a deadline. If it does not land, the camera is declared dead for this boot
+ * and nothing calls into the driver again. The probe task stays blocked
+ * forever — it is holding a queue read inside the driver and cannot be safely
+ * killed — which costs one task and its stack. That is a fair price for a
+ * device that stays reachable, answers MQTT, and can still be given new
+ * firmware over the air.
+ */
+static QueueHandle_t probeQ = nullptr;
+
+static void captureProbeTask(void *) {
+  camera_fb_t *fb = esp_camera_fb_get();      // may never return
+  bool ok = fb != nullptr;
+  if (fb) esp_camera_fb_return(fb);
+  if (probeQ) xQueueSend(probeQ, &ok, 0);
+  vTaskDelete(nullptr);
+}
+
+/** Returns false if the sensor could not produce a frame within `ms`. */
+bool captureWorksWithin(uint32_t ms) {
+  probeQ = xQueueCreate(1, sizeof(bool));
+  if (!probeQ) return false;
+  if (xTaskCreate(captureProbeTask, "cvcamprobe", 4096, nullptr, 1, nullptr) != pdPASS) {
+    vQueueDelete(probeQ); probeQ = nullptr;
+    return false;
+  }
+  bool ok = false;
+  if (xQueueReceive(probeQ, &ok, pdMS_TO_TICKS(ms)) != pdTRUE) {
+    // Deliberately leaked: the task is parked inside the driver and deleting it
+    // there would free a queue the driver still references.
+    Serial.printf("[CAM] capture did not return within %ums — sensor declared dead\n", (unsigned)ms);
+    probeQ = nullptr;
+    return false;
+  }
+  vQueueDelete(probeQ); probeQ = nullptr;
+  return ok;
+}
 
 /** Records a capture outcome and republishes `ready` when it changes. */
 void noteCapture(bool got) {
@@ -692,8 +744,17 @@ void setup() {
     applySensorSettings();
     mdPrev = (uint8_t *)malloc(MD_W * MD_H);
     if (!mdPrev) motionOn = false;    // no baseline buffer, no differencing
+    // esp_camera_init() only proves the sensor answered on SCCB — two pins.
+    // Frames need eleven more, and a board whose ribbon is not seated passes
+    // init and then hangs on the first capture. Find that out here, once, on a
+    // task we can walk away from, rather than in loop() where it takes the
+    // watchdog and the device with it.
+    if (!captureWorksWithin(4000)) {
+      camReady = false;
+      Serial.println(F("[CAM] init succeeded but no frame arrived — running without the camera"));
+    }
   }
-  sensorLive = camReady;   // init succeeded; live captures confirm or refute it
+  sensorLive = camReady;
   applyFlash(flashLevel);
 
   cv.onCommand(onCommand);

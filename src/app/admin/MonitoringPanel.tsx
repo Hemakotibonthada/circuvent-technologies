@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Activity, Server, Database, Wifi, WifiOff, RefreshCw, HeartPulse, Cpu, Clock } from "lucide-react";
 import { ProgressRing, Sparkline, PALETTE } from "./charts";
+import { openVisitorStream } from "./visitorStream";
 
 function tok() { try { return sessionStorage.getItem("admin-token") || ""; } catch { return ""; } }
 const card: React.CSSProperties = { background: "var(--bg-surface)", border: "1px solid var(--border-primary)" };
@@ -66,11 +67,12 @@ export default function MonitoringPanel() {
   }, [fetchStats, runHealth]);
 
   useEffect(() => {
-    const es = new EventSource("/api/visitors/stream");
-    es.onopen = () => setSse(true);
-    es.onmessage = (e) => { try { setLive(JSON.parse(e.data).totalActive ?? 0); } catch { /* ignore */ } };
-    es.onerror = () => { setSse(false); es.close(); };
-    return () => es.close();
+    const stream = openVisitorStream({
+      onOpen: () => setSse(true),
+      onClosed: () => setSse(false),
+      onData: (p) => setLive((p as { totalActive?: number })?.totalActive ?? 0),
+    });
+    return () => stream.close();
   }, []);
 
   const memPct = stats ? pctOf(stats.server.memory.heapUsed, stats.server.memory.heapTotal) : 0;

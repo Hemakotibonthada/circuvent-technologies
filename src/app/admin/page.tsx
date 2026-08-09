@@ -77,6 +77,7 @@ import PrivacyPanel from "./PrivacyPanel";
 import StaffActivityPanel from "./StaffActivityPanel";
 import ForecastingPanel from "./ForecastingPanel";
 import ReportBuilderPanel from "./ReportBuilderPanel";
+import { openVisitorStream } from "./visitorStream";
 
 interface PageStats {
   page: string;
@@ -396,43 +397,12 @@ export default function AdminDashboard() {
   // instead of getting stuck on "Disconnected" until a manual refresh.
   useEffect(() => {
     if (!authenticated || !canSee("overview")) return;
-    let es: EventSource | null = null;
-    let retry: ReturnType<typeof setTimeout> | null = null;
-    let closed = false;
-
-    const connect = () => {
-      if (closed) return;
-      // The token has to travel in the query string. EventSource cannot set
-      // request headers, and `tokenFromRequest` only reads `authorization` and
-      // `x-admin-token`, so an unadorned EventSource URL is guaranteed to 401 —
-      // which is why this panel sat on "Disconnected" and silently retried
-      // every four seconds forever. The stream route already accommodates this
-      // (it accepts `?token=` and hands it to the same guard); it was only the
-      // caller that never used it.
-      const token = sessionStorage.getItem("admin-token");
-      if (!token) return;
-      es = new EventSource(`/api/visitors/stream?token=${encodeURIComponent(token)}`);
-      es.onopen = () => setSSEConnected(true);
-      es.onmessage = (event) => {
-        try {
-          setLiveVisitors(JSON.parse(event.data) as VisitorSnapshot);
-        } catch {
-          // ignore parse errors
-        }
-      };
-      es.onerror = () => {
-        setSSEConnected(false);
-        es?.close();
-        if (!closed) retry = setTimeout(connect, 4000); // auto-reconnect
-      };
-    };
-    connect();
-
-    return () => {
-      closed = true;
-      if (retry) clearTimeout(retry);
-      es?.close();
-    };
+    const stream = openVisitorStream({
+      onOpen: () => setSSEConnected(true),
+      onClosed: () => setSSEConnected(false),
+      onData: (p) => setLiveVisitors(p as VisitorSnapshot),
+    });
+    return () => stream.close();
   }, [authenticated, canSee]);
 
   const visitors = liveVisitors ?? stats?.visitors;
