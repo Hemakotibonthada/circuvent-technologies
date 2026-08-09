@@ -4,6 +4,7 @@ import { Screen, Card, SectionLabel, useTheme, IconButton, useBackHandler } from
 import { useDevices } from "../../store";
 import { parseCommand, VOICE_EXAMPLES } from "../../voice";
 import { sendChat, type ChatMessage } from "../../assistant";
+import { TAP_SLOP } from "../../theme";
 
 // TTS via expo-speech, loaded defensively so the screen still works if the
 // native module isn't linked (e.g. in Expo Go).
@@ -115,7 +116,7 @@ export default function VoiceAssistant({ onBack }: { onBack: () => void }) {
         <View style={{ paddingHorizontal: 16 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 8 }}>
             {VOICE_EXAMPLES.map((ex) => (
-              <Pressable key={ex} onPress={() => run(ex)} style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12 }}>
+              <Pressable hitSlop={TAP_SLOP} key={ex} onPress={() => run(ex)} style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12 }}>
                 <Text style={{ color: c.textDim, fontSize: 12 }}>{ex}</Text>
               </Pressable>
             ))}

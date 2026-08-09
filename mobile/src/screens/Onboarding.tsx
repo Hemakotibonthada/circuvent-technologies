@@ -7,6 +7,7 @@ import { Icon, type IconName } from "../icons";
 import { tapLight } from "../haptics";
 import { registerForPush } from "../push";
 import { ensureWifiPermissions } from "../wifi";
+import { TAP_SLOP } from "../theme";
 
 /**
  * First-run introduction.
@@ -54,10 +55,12 @@ async function markSeen(): Promise<void> {
  * brand's first impression and should look the same every time rather than
  * inheriting whatever the app happens to be set to.
  */
+// theme-literal-ok: fixed brand palette, deliberately not themed (see above).
 const BG = ["#0a0e1a", "#141033", "#0a0e1a"] as const;
-const FG = "#f1f5f9";
-const FG_DIM = "#94a3b8";
-const FG_FAINT = "#475569";
+const FG = "#f1f5f9"; // theme-literal-ok
+const FG_DIM = "#94a3b8"; // theme-literal-ok
+const FG_FAINT = "#475569"; // theme-literal-ok
+const ACTIVE_DOT = "#22d3ee"; // theme-literal-ok
 
 interface Page {
   icon: IconName;
@@ -187,7 +190,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 style={[
                   s.dot,
                   {
-                    backgroundColor: i === page ? "#22d3ee" : FG_FAINT,
+                    backgroundColor: i === page ? ACTIVE_DOT : FG_FAINT,
                     width: i === page ? 22 : 8,
                   },
                 ]}
@@ -195,7 +198,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             ))}
           </View>
 
-          <Pressable
+          <Pressable hitSlop={TAP_SLOP}
             onPress={() => { tapLight(); last ? finish() : goTo(page + 1); }}
             accessibilityRole="button"
             accessibilityLabel={last ? "Get started" : "Next"}

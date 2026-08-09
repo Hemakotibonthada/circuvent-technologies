@@ -8,6 +8,7 @@ import { Icon } from "../../icons";
 import { useDevices } from "../../store";
 import { api, type Device } from "../../api";
 import { useCameraFrames } from "../../live";
+import { TAP_SLOP } from "../../theme";
 import {
   getUserCameras, addCamera, removeCamera, mergedCameras, snapshotUrl,
   type Camera,
@@ -105,7 +106,7 @@ function CameraTile({ cam, c, devices, onOpen, onRemove }: {
   return (
     <Pressable onPress={onOpen} style={{ width: "47%" }} accessibilityRole="button" accessibilityLabel={`Open ${cam.name}`}>
       <Card padded style={{ padding: 0, overflow: "hidden" }}>
-        <View style={{ aspectRatio: 16 / 9, backgroundColor: "#0b1220", alignItems: "center", justifyContent: "center" }}>
+        <View style={{ aspectRatio: 16 / 9, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
           <Poster cam={cam} online={online} c={c} />
           <View style={{ position: "absolute", top: 8, right: 8, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.45)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: statusColor }} />
@@ -712,7 +713,7 @@ function AddCamera({ devices, c, onDone }: { devices: Device[]; c: Colors; onDon
           <Text style={{ color: c.textDim, fontSize: 12, marginBottom: 6 }}>Device</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {camDevices.map((d) => (
-              <Pressable key={d.id} onPress={() => setDeviceId(d.id)} style={{ borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: deviceId === d.id ? c.accent : c.card, borderColor: deviceId === d.id ? c.accent : c.border, borderWidth: 1 }}>
+              <Pressable hitSlop={TAP_SLOP} key={d.id} onPress={() => setDeviceId(d.id)} style={{ borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: deviceId === d.id ? c.accent : c.card, borderColor: deviceId === d.id ? c.accent : c.border, borderWidth: 1 }}>
                 <Text style={{ color: deviceId === d.id ? c.onAccent || "#fff" : c.textDim }}>{d.name || d.id}</Text>
               </Pressable>
             ))}

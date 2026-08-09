@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, AppState, Image } from "react-native
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme, useBackHandler } from "../ui";
 import { useDevices } from "../store";
-import { deviceMeta } from "../theme";
+import { deviceMeta, TAP_SLOP } from "../theme";
 import { getUserCameras, mergedCameras, snapshotUrl, type Camera } from "../cameras";
 import { api } from "../api";
 import { Icon } from "../icons";
@@ -103,13 +103,13 @@ export default function Kiosk({ onExit }: { onExit: () => void }) {
         <Text style={{ color: c.faint, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Cameras</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
           {cams.length === 0 ? (
-            <View style={{ width: "100%", aspectRatio: 32 / 9, borderRadius: 14, backgroundColor: "#0b1220", borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: "100%", aspectRatio: 32 / 9, borderRadius: 14, backgroundColor: "#000", borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}>
               <Text style={{ color: c.faint, fontSize: 13 }}>No cameras added — add them in More › Cameras</Text>
             </View>
           ) : cams.map((cam) => {
             const online = cam.kind === "device" ? devices.find((d) => d.id === cam.deviceId)?.online !== false : true;
             return (
-              <View key={cam.id} style={{ width: "47%", aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: "#0b1220", borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <View key={cam.id} style={{ width: "47%", aspectRatio: 16 / 9, borderRadius: 14, backgroundColor: "#000", borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 <KioskThumb cam={cam} />
                 <View style={{ position: "absolute", bottom: 6, left: 8 }}><Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{cam.name}</Text></View>
                 <View style={{ position: "absolute", top: 8, right: 8, flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -129,9 +129,9 @@ export default function Kiosk({ onExit }: { onExit: () => void }) {
             const on = meta.toggle ? !!d.state[meta.toggle.field] : false;
             return (
               <Pressable key={d.id} onPress={() => toggle(d.id, d.type, d.state)} accessibilityRole={meta.toggle ? "switch" : "button"} accessibilityLabel={d.name || d.id} accessibilityState={meta.toggle ? { checked: on } : undefined} style={{ width: "47%", borderRadius: 16, padding: 16, backgroundColor: on ? meta.accent : c.card, borderWidth: 1, borderColor: on ? meta.accent : c.border }}>
-                <Icon name={meta.icon} size={28} color={on ? "#04121a" : meta.accent} />
-                <Text style={{ color: on ? "#04121a" : c.text, fontWeight: "800", fontSize: 15, marginTop: 8 }} numberOfLines={1}>{d.name || d.id}</Text>
-                <Text style={{ color: on ? "#04121a" : c.faint, fontSize: 12, marginTop: 2 }}>{meta.toggle ? (on ? "On" : "Off") : meta.label}</Text>
+                <Icon name={meta.icon} size={28} color={on ? c.onAccent : meta.accent} />
+                <Text style={{ color: on ? c.onAccent : c.text, fontWeight: "800", fontSize: 15, marginTop: 8 }} numberOfLines={1}>{d.name || d.id}</Text>
+                <Text style={{ color: on ? c.onAccent : c.faint, fontSize: 12, marginTop: 2 }}>{meta.toggle ? (on ? "On" : "Off") : meta.label}</Text>
               </Pressable>
             );
           })}
@@ -140,7 +140,7 @@ export default function Kiosk({ onExit }: { onExit: () => void }) {
       </ScrollView>
 
       {/* Exit (locked) */}
-      <Pressable onPress={() => setAskPin(true)} style={{ position: "absolute", top: 44, right: 16, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}>
+      <Pressable hitSlop={TAP_SLOP} onPress={() => setAskPin(true)} style={{ position: "absolute", top: 44, right: 16, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}>
         <Text style={{ color: c.textDim, fontWeight: "700" }}>🔒 Exit</Text>
       </Pressable>
 
@@ -168,7 +168,7 @@ export default function Kiosk({ onExit }: { onExit: () => void }) {
               </Pressable>
             ))}
           </View>
-          <Pressable onPress={() => { setAskPin(false); setEntry(""); setErr(""); }} style={{ marginTop: 20 }}>
+          <Pressable hitSlop={TAP_SLOP} onPress={() => { setAskPin(false); setEntry(""); setErr(""); }} style={{ marginTop: 20 }}>
             <Text style={{ color: c.faint }}>Cancel</Text>
           </Pressable>
         </View>

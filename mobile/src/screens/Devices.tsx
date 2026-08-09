@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Device } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse, RoomChips } from "../ui";
-import { GRAD, deviceMeta } from "../theme";
+import { GRAD, deviceMeta, TAP_SLOP } from "../theme";
 import { Icon } from "../icons";
 import { toggleFeedback } from "../haptics";
 
@@ -60,7 +60,7 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
         <View style={[s.search, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={{ color: c.faint }}>🔎</Text>
           <TextInput value={q} onChangeText={setQ} placeholder="Search devices, rooms…" placeholderTextColor={c.faint} style={{ flex: 1, color: c.text, paddingVertical: 8 }} autoCorrect={false} />
-          {q ? <Pressable onPress={() => setQ("")}><Text style={{ color: c.faint }}>✕</Text></Pressable> : null}
+          {q ? <Pressable hitSlop={TAP_SLOP} onPress={() => setQ("")}><Text style={{ color: c.faint }}>✕</Text></Pressable> : null}
         </View>
         {rooms.length > 1 && (
           <View style={{ marginBottom: 10 }}>
@@ -216,7 +216,7 @@ function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpe
           <Switch
             value={isOn}
             onValueChange={(v) => { toggleFeedback(v); onToggle(device.id, field, v); }}
-            trackColor={{ true: meta.accent, false: "#334155" }}
+            trackColor={{ true: meta.accent, false: c.borderHi }}
             thumbColor="#fff"
             style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
             accessibilityLabel={`Toggle ${device.name || device.id}`}
@@ -231,7 +231,7 @@ function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpe
 
 const s = StyleSheet.create({
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  addBtn: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9 },
+  addBtn: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9, minHeight: 44, justifyContent: "center" },
   search: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, marginBottom: 14 },
   stats: { flexDirection: "row", gap: 10, marginBottom: 16 },
   pillTap: { minWidth: 46, minHeight: 46, alignItems: "flex-start", justifyContent: "center" },

@@ -7,7 +7,7 @@ import { api, Device } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
-import { deviceMeta, type Palette } from "../theme";
+import { deviceMeta, type Palette, TAP_SLOP } from "../theme";
 import { useSwitchWidgets, CHANNEL_KINDS, channelKind, type Gang } from "../widgets";
 import { useCameraFrames } from "../live";
 import { isCameraDevice as isCamera } from "../cameras";
@@ -150,7 +150,7 @@ function Sw({ v, on, c }: { v: boolean; on: (b: boolean) => void; c: Palette }) 
     <Switch
       value={v}
       onValueChange={(b) => { toggleFeedback(b); on(b); }}
-      trackColor={{ true: c.accent, false: "#334155" }}
+      trackColor={{ true: c.accent, false: c.borderHi }}
       thumbColor="#fff"
     />
   );
@@ -241,7 +241,7 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
           <Text style={{ color: c.text, fontSize: 16, marginBottom: 10 }}>Colour</Text>
           <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
             {COLORS.map((col) => (
-              <Pressable key={col} onPress={() => send({ [cap.color!.field]: col })} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: col, borderWidth: d.state[cap.color!.field] === col ? 3 : 1, borderColor: d.state[cap.color!.field] === col ? c.text : c.border }} />
+              <Pressable hitSlop={TAP_SLOP} key={col} accessibilityRole="button" accessibilityLabel={`Set colour to ${col}`} accessibilityState={{ selected: d.state[cap.color!.field] === col }} onPress={() => send({ [cap.color!.field]: col })} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: col, borderWidth: d.state[cap.color!.field] === col ? 3 : 1, borderColor: d.state[cap.color!.field] === col ? c.text : c.border }} />
             ))}
           </View>
         </Card>
@@ -303,7 +303,7 @@ function HomeHub({ d, send, c }: { d: Device; send: (p: Record<string, unknown>)
         {scenes.map((sc) => {
           const on = d.state.scene === sc;
           return (
-            <Pressable key={sc} onPress={() => send({ scene: sc })} style={{ paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, backgroundColor: on ? c.accent : c.card, borderColor: on ? c.accent : c.border, borderWidth: 1 }}>
+            <Pressable hitSlop={TAP_SLOP} key={sc} onPress={() => send({ scene: sc })} style={{ paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, backgroundColor: on ? c.accent : c.card, borderColor: on ? c.accent : c.border, borderWidth: 1 }}>
               <Text style={{ color: on ? c.onAccent : c.textDim, textTransform: "capitalize", fontWeight: "700" }}>{sc}</Text>
             </Pressable>
           );
@@ -434,7 +434,7 @@ function SwitchGangs({ d, send, c, sendFor }: { d: Device; send: (p: Record<stri
                 {CHANNEL_KINDS.map((k) => {
                   const sel = (g.kind ?? "generic") === k.id;
                   return (
-                    <Pressable
+                    <Pressable hitSlop={TAP_SLOP}
                       key={k.id}
                       onPress={() => { tapLight(); setKind(g.field, k.id); }}
                       accessibilityRole="button"
@@ -520,7 +520,7 @@ function Guardian({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
       {!!d.state.sos && (
         <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1, alignItems: "center" }}>
           <Text style={{ color: c.red, fontSize: 18, fontWeight: "800", marginBottom: 10 }}>🆘 SOS TRIGGERED</Text>
-          <Pressable onPress={() => send({ sos: false })} style={{ backgroundColor: c.red, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}><Text style={{ color: "#fff", fontWeight: "700" }}>Clear alert</Text></Pressable>
+          <Pressable hitSlop={TAP_SLOP} onPress={() => send({ sos: false })} style={{ backgroundColor: c.red, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}><Text style={{ color: "#fff", fontWeight: "700" }}>Clear alert</Text></Pressable>
         </Card>
       )}
       <Row label="Armed" c={c}><Sw v={!!d.state.armed} on={(v) => send({ armed: v })} c={c} /></Row>
@@ -685,7 +685,7 @@ function RfidGate({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
         <Text style={{ color: c.faint, marginTop: 6, fontSize: 13 }}>{!!d.state.vehiclePresent ? "🚗 Vehicle at gate" : "No vehicle"} · {Number(d.state.tagCount ?? 0)} tags</Text>
       </Card>
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
-        <Pressable onPress={() => send({ action: "open" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: "#04121a", fontWeight: "800" }}>Open</Text></Pressable>
+        <Pressable onPress={() => send({ action: "open" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>Open</Text></Pressable>
         <Pressable onPress={() => send({ action: "close" })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "800" }}>Close</Text></Pressable>
       </View>
       <Card padded style={{ marginBottom: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -711,7 +711,7 @@ function FaceDoor({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
         <Text style={{ color: c.faint, marginTop: 4, fontSize: 13 }}>{String(d.state.lastMethod ?? "—")}{d.state.lastName ? ` · ${String(d.state.lastName)}` : ""}</Text>
       </Card>
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
-        <Pressable onPress={() => send({ action: "unlock", method: "app" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: "#04121a", fontWeight: "800" }}>Unlock</Text></Pressable>
+        <Pressable onPress={() => send({ action: "unlock", method: "app" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>Unlock</Text></Pressable>
         <Pressable onPress={() => send({ action: "lock" })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "800" }}>Lock</Text></Pressable>
       </View>
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 4 }}>
@@ -903,7 +903,7 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
                     accessibilityState={{ selected: sel }}
                     style={{ minHeight: 44, minWidth: 64, justifyContent: "center", alignItems: "center", paddingHorizontal: 14, borderRadius: 10, backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}
                   >
-                    <Text style={{ color: sel ? "#04121a" : c.textDim, fontWeight: sel ? "800" : "600" }}>{r < 0 ? "None" : `Relay ${r + 1}`}</Text>
+                    <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600" }}>{r < 0 ? "None" : `Relay ${r + 1}`}</Text>
                   </Pressable>
                 );
               })}

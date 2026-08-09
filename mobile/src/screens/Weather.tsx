@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, TextInput, Pressable, RefreshControl, ActivityIndicator } from "react-native";
 import { Screen, Card, SectionLabel, useTheme, IconButton, useToast, ToastHost } from "../ui";
 import { useDevices } from "../store";
+import { TAP_SLOP } from "../theme";
 import {
   getWeather, getWeatherByQuery, geocode, getSavedLocation, setSavedLocation,
   wmo, aqiCategory, weatherTips, type WeatherBundle, type GeoPlace, type WeatherAction,
@@ -88,7 +89,7 @@ export default function Weather({ onBack }: { onBack: () => void }) {
               {q.length > 0 && <Pressable onPress={() => setQ("")} hitSlop={8}><Text style={{ color: c.faint }}>✕</Text></Pressable>}
             </View>
             {places.map((p) => (
-              <Pressable key={p.id} onPress={() => pick(p)} style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border }}>
+              <Pressable hitSlop={TAP_SLOP} key={p.id} onPress={() => pick(p)} style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border }}>
                 <Text style={{ color: c.text }}>{p.name}<Text style={{ color: c.faint }}>{[p.admin1, p.country].filter(Boolean).length ? ` · ${[p.admin1, p.country].filter(Boolean).join(", ")}` : ""}</Text></Text>
               </Pressable>
             ))}
@@ -169,8 +170,8 @@ export default function Weather({ onBack }: { onBack: () => void }) {
                   <Text style={{ color: c.faint, fontSize: 12 }}>{t.body}</Text>
                 </View>
                 {t.action && (t.action === "close-curtains" || t.action === "turn-on-ac" || t.action === "turn-off-ac" || t.action === "turn-on-fan") && (
-                  <Pressable onPress={() => applyAction(t.action!)} style={{ backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
-                    <Text style={{ color: "#04121a", fontWeight: "800", fontSize: 13 }}>Apply</Text>
+                  <Pressable hitSlop={TAP_SLOP} onPress={() => applyAction(t.action!)} style={{ backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
+                    <Text style={{ color: c.onAccent, fontWeight: "800", fontSize: 13 }}>Apply</Text>
                   </Pressable>
                 )}
               </Card>

@@ -599,7 +599,7 @@ const sf = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    minHeight: 40,
+    minHeight: 44,
     paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
@@ -664,7 +664,7 @@ const fb = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    minHeight: 38,
+    minHeight: 44,
     paddingHorizontal: 13,
     borderRadius: 999,
     borderWidth: 1,
@@ -805,7 +805,7 @@ function alignToFlex(a?: "left" | "right" | "center"): "flex-start" | "flex-end"
 const dg = StyleSheet.create({
   head: { flexDirection: "row", borderBottomWidth: 1, paddingVertical: 10 },
   headCell: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12 },
-  row: { flexDirection: "row", alignItems: "center", paddingVertical: 11 },
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 11, minHeight: 44 },
   cell: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12 },
 });
 

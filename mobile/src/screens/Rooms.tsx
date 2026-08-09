@@ -112,7 +112,7 @@ function RoomDetail({ name, onBack, onChanged }: { name: string; onBack: () => v
                     <Text style={{ color: c.text, fontWeight: "600" }} numberOfLines={1}>{d.name || d.id}</Text>
                     {!!d.room && d.room !== name && <Text style={{ color: c.faint, fontSize: 11 }}>in {d.room}</Text>}
                   </View>
-                  <Switch value={inThis} onValueChange={(v) => { patch(d.id, { room: v ? name : "" }); onChanged(); }} trackColor={{ true: c.accent, false: "#334155" }} thumbColor="#fff" />
+                  <Switch value={inThis} onValueChange={(v) => { patch(d.id, { room: v ? name : "" }); onChanged(); }} trackColor={{ true: c.accent, false: c.borderHi }} thumbColor="#fff" />
                 </View>
               </Card>
             );
@@ -133,7 +133,7 @@ function RoomDetail({ name, onBack, onChanged }: { name: string; onBack: () => v
                     <Text style={{ color: c.faint, fontSize: 12 }}>{d.online ? "online" : "offline"}</Text>
                   </View>
                   {cap.power && (
-                    <Switch value={!!d.state[cap.power.field]} onValueChange={(v) => toggle(d.id, cap.power!.field, v)} trackColor={{ true: c.accent, false: "#334155" }} thumbColor="#fff" />
+                    <Switch value={!!d.state[cap.power.field]} onValueChange={(v) => toggle(d.id, cap.power!.field, v)} trackColor={{ true: c.accent, false: c.borderHi }} thumbColor="#fff" />
                   )}
                 </View>
               </Card>

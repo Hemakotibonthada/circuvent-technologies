@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { Screen, Card, SectionLabel, useTheme, IconButton, useBackHandler, useToast, ToastHost } from "../../ui";
+import { TAP_SLOP } from "../../theme";
 import {
   PROVIDERS, PAY_METHODS, getAccounts, addAccount, removeAccount, getPayments,
   recordPayment, estimateBill, isBillPaid,
@@ -119,7 +120,7 @@ export default function BillPayment({ onBack }: { onBack: () => void }) {
                   </Pressable>
                 )}
 
-                <Pressable onPress={async () => { const list = await removeAccount(sel.id); setAccounts(list); setSelId(list[0]?.id || ""); }} style={{ alignSelf: "center", marginBottom: 8 }}>
+                <Pressable hitSlop={TAP_SLOP} onPress={async () => { const list = await removeAccount(sel.id); setAccounts(list); setSelId(list[0]?.id || ""); }} style={{ alignSelf: "center", marginBottom: 8 }}>
                   <Text style={{ color: c.faint }}>Remove this account</Text>
                 </Pressable>
               </>
@@ -221,7 +222,7 @@ function AddAccount({ c, onDone }: { c: ReturnType<typeof useTheme>["c"]; onDone
       <Text style={{ color: c.textDim, fontSize: 12, marginBottom: 6 }}>Provider (DISCOM)</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 8 }}>
         {PROVIDERS.map((p) => (
-          <Pressable key={p} onPress={() => setProvider(p)} style={{ borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: provider === p ? c.accent : c.card, borderColor: provider === p ? c.accent : c.border, borderWidth: 1 }}>
+          <Pressable hitSlop={TAP_SLOP} key={p} onPress={() => setProvider(p)} style={{ borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: provider === p ? c.accent : c.card, borderColor: provider === p ? c.accent : c.border, borderWidth: 1 }}>
             <Text style={{ color: provider === p ? c.onAccent || "#fff" : c.textDim, fontSize: 12 }}>{p}</Text>
           </Pressable>
         ))}

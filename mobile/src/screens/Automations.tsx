@@ -4,6 +4,7 @@ import { api, actionList, Automation, AutomationAction, AutomationActions, Autom
 import { buildFieldCommand } from "../command-map";
 import { useTheme } from "../ui";
 import type { Palette } from "../theme";
+import { TAP_SLOP } from "../theme";
 
 type TriggerType = AutomationTrigger["type"];
 type ActionType = AutomationAction["type"];
@@ -190,7 +191,7 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
 
   return (
     <ScrollView style={[s.wrap, embedded && { backgroundColor: "transparent" }]} contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
-      {!embedded && <Pressable onPress={onBack}><Text style={s.back}>‹ Devices</Text></Pressable>}
+      {!embedded && <Pressable hitSlop={TAP_SLOP} onPress={onBack}><Text style={s.back}>‹ Devices</Text></Pressable>}
       <View style={s.top}>
         <View>
           <Text style={s.h1}>Automations</Text>
@@ -470,24 +471,24 @@ const makeStyles = (c: Palette) =>
     top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
     h1: { color: c.text, fontSize: 24, fontWeight: "800" },
     sub: { color: c.textDim, marginTop: 2 },
-    newBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
+    newBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" },
     newBtnT: { color: c.onAccent, fontWeight: "700" },
-    msg: { color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)", padding: 10, borderRadius: 10, marginBottom: 10 },
+    msg: { color: c.amber, backgroundColor: "rgba(245,158,11,0.12)", padding: 10, borderRadius: 10, marginBottom: 10 },
     form: { backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 14 },
     section: { color: c.textDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginTop: 12, marginBottom: 8 },
     input: { backgroundColor: c.surface, borderColor: c.border, borderWidth: 1, borderRadius: 10, color: c.text, padding: 12, marginBottom: 10 },
     segment: { flexDirection: "row", gap: 8, marginBottom: 10 },
-    segmentItem: { flex: 1, borderColor: c.border, borderWidth: 1, borderRadius: 10, padding: 12, alignItems: "center" },
+    segmentItem: { flex: 1, borderColor: c.border, borderWidth: 1, borderRadius: 10, padding: 12, alignItems: "center", minHeight: 44, justifyContent: "center" },
     segmentOn: { backgroundColor: c.accent, borderColor: c.accent },
     segmentT: { color: c.textDim, fontWeight: "700" },
     segmentOnT: { color: c.onAccent },
     deviceList: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-    deviceChip: { borderColor: c.border, borderWidth: 1, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 12 },
+    deviceChip: { borderColor: c.border, borderWidth: 1, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" },
     deviceChipOn: { backgroundColor: c.accent, borderColor: c.accent },
     deviceChipT: { color: c.textDim, fontWeight: "700" },
     deviceChipOnT: { color: c.onAccent },
     ops: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-    chip: { minWidth: 54, borderColor: c.border, borderWidth: 1, borderRadius: 10, padding: 10, alignItems: "center" },
+    chip: { minWidth: 54, borderColor: c.border, borderWidth: 1, borderRadius: 10, padding: 10, alignItems: "center", minHeight: 44, justifyContent: "center" },
     chipOn: { backgroundColor: c.accent, borderColor: c.accent },
     chipT: { color: c.textDim, fontWeight: "700" },
     chipOnT: { color: c.onAccent },
@@ -503,6 +504,6 @@ const makeStyles = (c: Palette) =>
     name: { color: c.text, fontSize: 16, fontWeight: "700" },
     summary: { color: c.textDim, marginTop: 6 },
     action: { color: c.accent, marginTop: 4 },
-    deleteBtn: { alignSelf: "flex-start", marginTop: 12, borderColor: "#ef4444", borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
-    deleteT: { color: "#ef4444", fontWeight: "700" },
+    deleteBtn: { alignSelf: "flex-start", marginTop: 12, borderColor: c.red, borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, minHeight: 44, justifyContent: "center" },
+    deleteT: { color: c.red, fontWeight: "700" },
   });

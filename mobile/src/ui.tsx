@@ -754,7 +754,7 @@ const tp = StyleSheet.create({
   step: { width: 52, height: 44, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   num: { fontSize: 34, fontWeight: "800", fontVariant: ["tabular-nums"], minWidth: 52, textAlign: "center" },
   ampm: { marginLeft: 10, minHeight: 44, minWidth: 56, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  preset: { minHeight: 40, justifyContent: "center", paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
+  preset: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
 });
 
 /* ------------------------------------------------------- screen headers --- */
@@ -1690,7 +1690,7 @@ export function RoomChips({ options, value, onChange, style }: { options: string
       {options.map((o, i) => {
         const sel = i === value;
         return (
-          <Pressable key={`${o}-${i}`} onPress={() => { if (i !== value) { tapLight(); onChange(i); } }} accessibilityRole="button" accessibilityState={{ selected: sel }} style={{ paddingHorizontal: 18, paddingVertical: 11, minHeight: 42, justifyContent: "center", borderRadius: RADIUS.pill, backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
+          <Pressable key={`${o}-${i}`} onPress={() => { if (i !== value) { tapLight(); onChange(i); } }} accessibilityRole="button" accessibilityState={{ selected: sel }}           style={{ paddingHorizontal: 18, paddingVertical: 11, minHeight: 44, justifyContent: "center", borderRadius: RADIUS.pill, backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
             <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600" }}>{o}</Text>
           </Pressable>
         );

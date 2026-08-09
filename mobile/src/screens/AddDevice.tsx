@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,9 +19,9 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { api } from "../api";
 import { sealToDevice } from "../crypto";
 import { parseSetupQr } from "../qr";
-import { useBackHandler } from "../ui";
+import { useBackHandler, useTheme } from "../ui";
 import { Icon, type IconName } from "../icons";
-import { deviceMeta, DEVICE_META } from "../theme";
+import { deviceMeta, DEVICE_META, TAP_SLOP, type Palette } from "../theme";
 import {
   wifiAutoSupported, ensureWifiPermissions, discoverDeviceAPs, connectToDeviceAP,
   leaveDeviceAP, rssiBars, type DeviceAP,
@@ -90,6 +90,9 @@ function bars(rssi: number): string {
 }
 
 export default function AddDevice({ onClose }: { onClose: (added: boolean) => void }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
+
   const [step, setStep] = useState<Step>("mode");
   const [type, setType] = useState("");
   const [name, setName] = useState("");
@@ -420,7 +423,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             <View style={s.typeGrid}>
               {TYPES.map((t) => (
                 <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.label} accessibilityState={{ selected: type === t.id }} style={[s.typeChip, type === t.id && s.typeChipOn]} onPress={() => setType(t.id)}>
-                  <Icon name={deviceMeta(t.id).icon as IconName} size={22} color={type === t.id ? "#06b6d4" : "#94a3b8"} />
+                  <Icon name={deviceMeta(t.id).icon as IconName} size={22} color={type === t.id ? c.accent : c.textDim} />
                   <Text style={[s.typeLabel, type === t.id && { color: "#fff" }]}>{t.label}</Text>
                 </Pressable>
               ))}
@@ -464,7 +467,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
                   <Text style={s.apName} numberOfLines={1}>{ap.ssid}</Text>
                   <Text style={s.apSub}>Circuvent device · {ap.hwid}</Text>
                 </View>
-                {connectingSsid === ap.ssid ? <ActivityIndicator color="#06b6d4" /> : <Text style={s.apBars}>{rssiBars(ap.rssi)}</Text>}
+                {connectingSsid === ap.ssid ? <ActivityIndicator color={c.accent} /> : <Text style={s.apBars}>{rssiBars(ap.rssi)}</Text>}
               </Pressable>
             ))}
 
@@ -493,7 +496,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             </Text>
             <Pressable style={s.secondary} onPress={openWifiSettings}><Text style={s.secondaryT}>Open Wi-Fi settings</Text></Pressable>
             {wifiAutoSupported() && (
-              <Pressable onPress={() => { setStep("discover"); setTimeout(() => discover(), 300); }}><Text style={[s.link, { textAlign: "center", marginBottom: 6 }]}>‹ Find &amp; connect automatically instead</Text></Pressable>
+              <Pressable hitSlop={TAP_SLOP} onPress={() => { setStep("discover"); setTimeout(() => discover(), 300); }}><Text style={[s.link, { textAlign: "center", marginBottom: 6 }]}>‹ Find &amp; connect automatically instead</Text></Pressable>
             )}
             <Primary label="Continue" onPress={() => goWifi(false)} />
           </View>
@@ -510,7 +513,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             </View>
             {scanning && (
               <View style={s.center}>
-                <ActivityIndicator color="#06b6d4" />
+                <ActivityIndicator color={c.accent} />
                 <Text style={s.hint}>Reading nearby networks from the device… {scanElapsed}s</Text>
               </View>
             )}
@@ -610,7 +613,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
               value={passDraft}
               onChangeText={setPassDraft}
               placeholder="Wi-Fi password"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={c.faint}
               secureTextEntry={!showPass}
               autoFocus
               autoCapitalize="none"
@@ -642,16 +645,19 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
 }
 
 function ProgressLog({ items }: { items: LogItem[] }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
+
   return (
     <View style={{ marginTop: 6 }}>
       {items.map((it, i) => (
         <View key={i} style={s.logRow}>
           {it.state === "run" ? (
-            <ActivityIndicator size="small" color="#06b6d4" style={{ width: 22 }} />
+            <ActivityIndicator size="small" color={c.accent} style={{ width: 22 }} />
           ) : (
-            <Text style={[s.logIcon, { color: it.state === "ok" ? "#22c55e" : "#ef4444" }]}>{it.state === "ok" ? "✓" : "✕"}</Text>
+            <Text style={[s.logIcon, { color: it.state === "ok" ? c.green : c.red }]}>{it.state === "ok" ? "✓" : "✕"}</Text>
           )}
-          <Text style={[s.logMsg, it.state === "err" && { color: "#fca5a5" }]}>{it.msg}</Text>
+          <Text style={[s.logMsg, it.state === "err" && { color: c.red }]}>{it.msg}</Text>
         </View>
       ))}
     </View>
@@ -659,14 +665,20 @@ function ProgressLog({ items }: { items: LogItem[] }) {
 }
 
 function Field({ label, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
+
   return (
     <View style={{ marginBottom: 12 }}>
       <Text style={s.fieldLabel}>{label}</Text>
-      <TextInput style={s.input} placeholderTextColor="#64748b" {...props} />
+      <TextInput style={s.input} placeholderTextColor={c.faint} {...props} />
     </View>
   );
 }
 function Primary({ label, onPress, busy }: { label: string; onPress: () => void; busy?: boolean }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
+
   return (
     <Pressable style={[s.btn, busy && { opacity: 0.6 }]} onPress={busy ? undefined : onPress}>
       {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.btnT}>{label}</Text>}
@@ -674,11 +686,17 @@ function Primary({ label, onPress, busy }: { label: string; onPress: () => void;
   );
 }
 function StepTag({ children }: { children: React.ReactNode }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
+
   return <Text style={s.stepTag}>{children}</Text>;
 }
 
 // Animated radar rings shown while discovering / connecting to a device hotspot.
 function RadarPulse({ active }: { active: boolean }) {
+  const { c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
+
   const a1 = useRef(new Animated.Value(0)).current;
   const a2 = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -704,60 +722,71 @@ function RadarPulse({ active }: { active: boolean }) {
   );
 }
 
-const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: "#0b1020" },
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, borderBottomColor: "#1f2937", borderBottomWidth: 1 },
-  back: { color: "#8b5cf6", fontSize: 15, width: 54 },
+/*
+ * Styles are built from the active palette rather than written as literals.
+ *
+ * This screen was 57 hard-coded colours -- #0b1020 backgrounds, #e5e7eb text --
+ * and never called useTheme at all. In the light scheme that is near-white
+ * text on a near-black card the user did not ask for. The admin console had
+ * the same defect for the same reason, so this follows the pattern the rest of
+ * the app already uses: a factory taking the palette, memoised per component.
+ */
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: c.bg },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, borderBottomColor: c.border, borderBottomWidth: 1 },
+  back: { color: c.violet, fontSize: 15, width: 54 },
   title: { color: "#fff", fontSize: 17, fontWeight: "800" },
-  lead: { color: "#94a3b8", fontSize: 14, lineHeight: 22, marginBottom: 16 },
-  b: { color: "#e5e7eb", fontWeight: "700" },
-  stepTag: { color: "#06b6d4", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 },
-  optCard: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
-  scanBox: { height: 300, borderRadius: 18, overflow: "hidden", backgroundColor: "#000", borderWidth: 1, borderColor: "#334155", alignItems: "center", justifyContent: "center" },
-  scanFrame: { position: "absolute", width: 190, height: 190, borderRadius: 16, borderWidth: 3, borderColor: "#06b6d4", opacity: 0.9 },
+  lead: { color: c.textDim, fontSize: 14, lineHeight: 22, marginBottom: 16 },
+  b: { color: c.text, fontWeight: "700" },
+  stepTag: { color: c.accent, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 },
+  optCard: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
+  scanBox: { height: 300, borderRadius: 18, overflow: "hidden", backgroundColor: "#000", borderWidth: 1, borderColor: c.borderHi, alignItems: "center", justifyContent: "center" },
+  scanFrame: { position: "absolute", width: 190, height: 190, borderRadius: 16, borderWidth: 3, borderColor: c.accent, opacity: 0.9 },
   optEmoji: { fontSize: 26 },
-  optTitle: { color: "#e5e7eb", fontSize: 16, fontWeight: "700" },
-  optSub: { color: "#64748b", fontSize: 13, marginTop: 2 },
-  chev: { color: "#475569", fontSize: 26 },
-  label: { color: "#e5e7eb", fontSize: 14, fontWeight: "600", marginBottom: 10 },
-  hint: { color: "#64748b", fontSize: 12, marginTop: 8 },
+  optTitle: { color: c.text, fontSize: 16, fontWeight: "700" },
+  optSub: { color: c.faint, fontSize: 13, marginTop: 2 },
+  chev: { color: c.faint, fontSize: 26 },
+  label: { color: c.text, fontSize: 14, fontWeight: "600", marginBottom: 10 },
+  hint: { color: c.faint, fontSize: 12, marginTop: 8 },
   radarWrap: { height: 150, alignItems: "center", justifyContent: "center", marginVertical: 6 },
   radarInner: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
-  radarRing: { position: "absolute", width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: "#06b6d4" },
+  radarRing: { position: "absolute", width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: c.accent },
   radarGlyph: { fontSize: 46 },
-  apRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 10 },
-  apRowOn: { borderColor: "#06b6d4" },
+  apRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 10 },
+  apRowOn: { borderColor: c.accent },
   apGlyph: { fontSize: 22 },
-  apName: { color: "#e5e7eb", fontSize: 15, fontWeight: "700" },
-  apSub: { color: "#64748b", fontSize: 12, marginTop: 2 },
-  apBars: { color: "#06b6d4", fontSize: 16 },
-  okChip: { backgroundColor: "rgba(34,197,94,0.12)", borderColor: "rgba(34,197,94,0.4)", borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12 },
-  okChipT: { color: "#22c55e", fontSize: 13, fontWeight: "700" },
+  apName: { color: c.text, fontSize: 15, fontWeight: "700" },
+  apSub: { color: c.faint, fontSize: 12, marginTop: 2 },
+  apBars: { color: c.accent, fontSize: 16 },
+  okChip: { backgroundColor: c.green + "1f", borderColor: c.green + "66", borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12 },
+  okChipT: { color: c.green, fontSize: 13, fontWeight: "700" },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  link: { color: "#22d3ee", fontWeight: "700" },
+  link: { color: c.accentHi, fontWeight: "700" },
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  typeChip: { width: "31%", backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
-  typeChipOn: { borderColor: "#06b6d4", backgroundColor: "rgba(6,182,212,0.12)" },
-  typeLabel: { color: "#94a3b8", fontSize: 11, textAlign: "center", marginTop: 6 },
-  netRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#111827", borderColor: "#1f2937", borderWidth: 1, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8 },
-  netRowOn: { borderColor: "#06b6d4", backgroundColor: "rgba(6,182,212,0.12)" },
-  netName: { color: "#e5e7eb", fontSize: 15, flex: 1, marginRight: 10 },
-  netMeta: { color: "#94a3b8", fontSize: 14 },
-  fieldLabel: { color: "#94a3b8", fontSize: 12, marginBottom: 6 },
-  input: { backgroundColor: "#111827", borderColor: "#334155", borderWidth: 1, borderRadius: 12, color: "#e5e7eb", padding: 14, fontSize: 15 },
-  btn: { backgroundColor: "#06b6d4", borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8 },
+  typeChip: { width: "31%", backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  typeChipOn: { borderColor: c.accent, backgroundColor: c.accent + "1f" },
+  typeLabel: { color: c.textDim, fontSize: 11, textAlign: "center", marginTop: 6 },
+  netRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14, marginBottom: 8 },
+  netRowOn: { borderColor: c.accent, backgroundColor: c.accent + "1f" },
+  netName: { color: c.text, fontSize: 15, flex: 1, marginRight: 10 },
+  netMeta: { color: c.textDim, fontSize: 14 },
+  fieldLabel: { color: c.textDim, fontSize: 12, marginBottom: 6 },
+  input: { backgroundColor: c.card, borderColor: c.borderHi, borderWidth: 1, borderRadius: 12, color: c.text, padding: 14, fontSize: 15 },
+  btn: { backgroundColor: c.accent, borderRadius: 12, padding: 16, alignItems: "center", marginTop: 8 },
   btnT: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  secondary: { borderColor: "#334155", borderWidth: 1, borderRadius: 12, padding: 14, alignItems: "center", marginBottom: 16 },
-  secondaryT: { color: "#22d3ee", fontWeight: "700" },
-  err: { color: "#f59e0b", marginBottom: 12, lineHeight: 20 },
-  okBadge: { color: "#22c55e", fontWeight: "800", fontSize: 16, marginBottom: 12 },
+  secondary: { borderColor: c.borderHi, borderWidth: 1, borderRadius: 12, padding: 14, alignItems: "center", marginBottom: 16 },
+  secondaryT: { color: c.accentHi, fontWeight: "700" },
+  err: { color: c.amber, marginBottom: 12, lineHeight: 20 },
+  okBadge: { color: c.green, fontWeight: "800", fontSize: 16, marginBottom: 12 },
   center: { alignItems: "center", justifyContent: "center", paddingVertical: 20 },
   logRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7 },
   logIcon: { width: 22, textAlign: "center", fontSize: 16, fontWeight: "800" },
-  logMsg: { color: "#cbd5e1", fontSize: 14, flex: 1 },
+  logMsg: { color: c.text, fontSize: 14, flex: 1 },
   modalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
   modalWrap: { flex: 1, justifyContent: "center", padding: 22 },
-  modalCard: { backgroundColor: "#111827", borderColor: "#334155", borderWidth: 1, borderRadius: 18, padding: 18 },
-  modalTitle: { color: "#e5e7eb", fontSize: 18, fontWeight: "800" },
-  modalSub: { color: "#94a3b8", fontSize: 13, marginTop: 4 },
-});
+  modalCard: { backgroundColor: c.card, borderColor: c.borderHi, borderWidth: 1, borderRadius: 18, padding: 18 },
+  modalTitle: { color: c.text, fontSize: 18, fontWeight: "800" },
+  modalSub: { color: c.textDim, fontSize: 13, marginTop: 4 },
+  });
+}

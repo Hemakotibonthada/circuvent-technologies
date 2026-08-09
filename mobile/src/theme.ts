@@ -64,6 +64,17 @@ export const SPACE = {
 } as const;
 
 /**
+ * The smallest a control may be before a finger starts missing it.
+ *
+ * 44pt is Apple's figure and Android's 48dp rounds to the same place in
+ * practice. Controls that must stay visually small -- a colour swatch, a
+ * filter chip, a clear-search cross -- keep their size and take TAP_SLOP
+ * instead, which grows the touch area without moving any pixels.
+ */
+export const TAP_MIN = 44;
+export const TAP_SLOP = { top: 10, bottom: 10, left: 10, right: 10 } as const;
+
+/**
  * Type scale.
  *
  * `label` deliberately replaced the old 11-12px uppercase + 1.5 letter-spacing

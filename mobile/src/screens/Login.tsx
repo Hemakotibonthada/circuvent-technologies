@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
-import { C, GRAD } from "../theme";
+import { C, GRAD, TAP_SLOP } from "../theme";
 
 export default function Login() {
   const { login, register, verifyOtp, resendOtp } = useAuth();

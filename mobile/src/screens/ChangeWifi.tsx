@@ -232,7 +232,7 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
                 3. Come back and tap Continue.
               </Text>
             </Card>
-            <Pressable onPress={openWifiSettings} style={{ marginBottom: 12 }}><Text style={{ color: c.accentHi, textAlign: "center" }}>Open Wi-Fi settings</Text></Pressable>
+            <Pressable onPress={openWifiSettings} style={{ marginBottom: 12, minHeight: 44, justifyContent: "center" }}><Text style={{ color: c.accentHi, textAlign: "center" }}>Open Wi-Fi settings</Text></Pressable>
             <Primary c={c} label="Continue" onPress={() => goWifi(false)} />
           </View>
         )}

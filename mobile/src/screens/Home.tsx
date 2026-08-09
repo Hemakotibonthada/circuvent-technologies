@@ -422,7 +422,7 @@ const DeviceCard = React.memo(
     const statusLine = offline ? "No response" : pf ? (on ? "On" : "Off") : meta.label;
     const subtitle = showRoom && d.room ? `${d.room} · ${statusLine}` : statusLine;
 
-    const fg = lit ? "#1c1c1e" : offline ? c.faint : c.text;
+    const fg = lit ? c.onAccent : offline ? c.faint : c.text;
     const sub = lit ? "rgba(28,28,30,0.62)" : c.faint;
 
     return (
@@ -455,7 +455,7 @@ const DeviceCard = React.memo(
                 backgroundColor: lit ? "rgba(28,28,30,0.12)" : offline ? c.cardHi : `${tint}22`,
               }}
             >
-              <Icon name={meta.icon} size={21} color={lit ? "#1c1c1e" : offline ? c.faint : tint} />
+              <Icon name={meta.icon} size={21} color={lit ? c.onAccent : offline ? c.faint : tint} />
             </View>
             {pf && !offline ? (
               <View onStartShouldSetResponder={() => true}>

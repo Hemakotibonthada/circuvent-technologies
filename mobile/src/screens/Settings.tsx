@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
 import { Screen, Card, SectionLabel, GhostButton, useTheme, useSafeArea } from "../ui";
 import { Icon, type IconName } from "../icons";
-import { ACCENTS, ThemeMode } from "../theme";
+import { ACCENTS, ThemeMode, TAP_SLOP } from "../theme";
 import { tapLight, toggleFeedback, setHapticsEnabled, hapticsEnabled } from "../haptics";
 import { APP_VERSION, APP_BUILD } from "../version";
 import { usePrompt } from "../overlays";
@@ -140,7 +140,7 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
             <Switch
               value={haptics}
               onValueChange={setHaptics}
-              trackColor={{ true: c.accent, false: "#334155" }}
+              trackColor={{ true: c.accent, false: c.borderHi }}
               thumbColor="#fff"
             />
           </View>
@@ -150,7 +150,7 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
         <Card padded style={{ marginBottom: 16 }}>
           <View style={s.swatchRow}>
             {ACCENTS.map((a) => (
-              <Pressable key={a.key} onPress={() => setAccentKey(a.key)} style={{ alignItems: "center", gap: 4 }}>
+              <Pressable hitSlop={TAP_SLOP} key={a.key} onPress={() => setAccentKey(a.key)} style={{ alignItems: "center", gap: 4 }}>
                 <LinearGradient colors={a.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.swatch, accentKey === a.key && { borderWidth: 3, borderColor: c.text }]} />
                 <Text style={{ color: accentKey === a.key ? c.text : c.faint, fontSize: 10 }}>{a.label}</Text>
               </Pressable>
