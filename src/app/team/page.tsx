@@ -313,7 +313,7 @@ function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemb
                   className="px-2 py-0.5 rounded-full text-[10px] font-medium"
                   style={{
                     background: "var(--accent-cyan-muted)",
-                    color: "var(--accent-cyan)",
+                    color: "var(--accent-cyan-text)",
                   }}
                 >
                   {skill}
@@ -509,7 +509,7 @@ export default function TeamPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="max-w-3xl">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>
                 Team
               </span>
               <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mt-3 mb-6" style={{ color: "var(--text-primary)" }}>
@@ -552,7 +552,7 @@ export default function TeamPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="mb-10">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>
                 AI Workforce
               </span>
               <h2 className="text-3xl sm:text-4xl font-bold mt-2" style={{ color: "var(--text-primary)" }}>
@@ -654,7 +654,7 @@ export default function TeamPage() {
         <div className="max-w-5xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-16">
-              <span className="text-xs font-semibold text-emerald-500 uppercase tracking-[0.2em]">
+              <span className="text-xs font-semibold text-emerald-700 uppercase tracking-[0.2em]">
                 Careers
               </span>
               <h2 className="text-4xl sm:text-5xl font-bold mt-3 mb-4" style={{ color: "var(--text-primary)" }}>

@@ -35,7 +35,7 @@ export default function ProjectsPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="max-w-3xl">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>
                 Portfolio
               </span>
               <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mt-3 mb-6" style={{ color: "var(--text-primary)" }}>

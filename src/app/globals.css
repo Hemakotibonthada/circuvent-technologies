@@ -50,6 +50,9 @@
    * which is how a token ends up needing a second token.
    */
   --accent-cyan-text: #155e75;
+  /* Pink at a readable weight. #ec4899 is 3.53:1 on white -- a good chip fill
+     and a poor eyebrow label, which is where it kept being used. */
+  --accent-pink-text: #be185d;
   /* The skip link's surface. Dark enough that white text on it clears AA by a
      wide margin, in every theme, since the link is fixed-position and lands on
      whatever happens to be underneath. */
@@ -132,6 +135,7 @@
   /* The dark theme reads the other way round: these need to be lighter than
      the base colour, not darker, to lift off a dark surface. */
   --accent-cyan-text: #67e8f9;
+  --accent-pink-text: #f9a8d4;
   --status-success-text: #34d399;
   --status-warning-text: #fbbf24;
   --status-danger-text: #f87171;

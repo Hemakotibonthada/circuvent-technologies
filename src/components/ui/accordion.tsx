@@ -62,7 +62,7 @@ export function Accordion({
                 {item.category && (
                   <span
                     className="text-[10px] font-semibold uppercase tracking-wider block mb-1"
-                    style={{ color: "var(--accent-cyan)" }}
+                    style={{ color: "var(--accent-cyan-text)" }}
                   >
                     {item.category}
                   </span>

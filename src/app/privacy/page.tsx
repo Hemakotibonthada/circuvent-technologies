@@ -232,7 +232,7 @@ export default function PrivacyPolicyPage() {
                 <a
                   href="mailto:contact@circuvent.com"
                   className="underline hover:text-[var(--accent-cyan)]"
-                  style={{ color: "var(--accent-cyan)" }}
+                  style={{ color: "var(--accent-cyan-text)" }}
                 >
                   contact@circuvent.com
                 </a>

@@ -27,10 +27,10 @@ const iconMap: Record<string, React.ElementType> = {
 
 // Stats data
 const serviceStats = [
-  { value: "53+", label: "Projects Delivered", icon: Rocket, color: "#06b6d4" },
-  { value: "99.5%", label: "Client Satisfaction", icon: Heart, color: "#ec4899" },
-  { value: "6", label: "Tech Domains", icon: Layers, color: "#8b5cf6" },
-  { value: "<48hrs", label: "Response Time", icon: Clock, color: "#10b981" },
+  { value: "53+", label: "Projects Delivered", icon: Rocket, color: "#06b6d4", textColor: "#0e7490" },
+  { value: "99.5%", label: "Client Satisfaction", icon: Heart, color: "#ec4899", textColor: "#be185d" },
+  { value: "6", label: "Tech Domains", icon: Layers, color: "#8b5cf6", textColor: "#6d28d9" },
+  { value: "<48hrs", label: "Response Time", icon: Clock, color: "#10b981", textColor: "#047857" },
 ];
 
 // Process steps with more detail
@@ -120,36 +120,42 @@ const techStackCategories = [
     icon: Monitor,
     techs: ["React", "Next.js", "TypeScript", "Tailwind CSS", "Framer Motion"],
     color: "#06b6d4",
+    textColor: "#0e7490",
   },
   {
     label: "Backend",
     icon: Database,
     techs: ["Python", "FastAPI", "Node.js", "GraphQL", "Prisma"],
     color: "#8b5cf6",
+    textColor: "#6d28d9",
   },
   {
     label: "Mobile",
     icon: Smartphone,
     techs: ["Flutter", "React Native", "Dart", "Expo", "Capacitor"],
     color: "#ec4899",
+    textColor: "#be185d",
   },
   {
     label: "AI / ML",
     icon: Brain,
     techs: ["Ollama", "OpenAI", "YOLOv8", "ChromaDB", "LangChain"],
     color: "#10b981",
+    textColor: "#047857",
   },
   {
     label: "IoT",
     icon: Cpu,
     techs: ["ESP32", "MQTT", "Arduino", "PlatformIO", "C++"],
     color: "#f59e0b",
+    textColor: "#b45309",
   },
   {
     label: "DevOps",
     icon: Terminal,
     techs: ["Docker", "GitHub Actions", "Vercel", "Nginx", "Redis"],
     color: "#3b82f6",
+    textColor: "#1d4ed8",
   },
 ];
 
@@ -209,7 +215,7 @@ export default function ServicesPage() {
                 >
                   <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
                 </motion.div>
-                <div className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}</div>
+                <div className="text-2xl font-bold" style={{ color: stat.textColor }}>{stat.value}</div>
                 <div className="text-[10px] mt-1 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{stat.label}</div>
               </motion.div>
             ))}
@@ -222,7 +228,7 @@ export default function ServicesPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-16">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Process</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>Process</span>
               <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
                 How We <ShimmerText gradient="from-cyan-400 via-blue-400 to-violet-400">Deliver</ShimmerText>
               </h2>
@@ -249,7 +255,7 @@ export default function ServicesPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-mono" style={{ color: "var(--accent-cyan)" }}>Step {step.step}</span>
+                        <span className="text-[10px] font-mono" style={{ color: "var(--accent-cyan-text)" }}>Step {step.step}</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "var(--bg-surface-hover)", color: "var(--text-muted)" }}>{step.duration}</span>
                       </div>
                       <h3 className="text-base font-bold" style={{ color: activeProcess === i ? "var(--text-primary)" : "var(--text-secondary)" }}>{step.title}</h3>
@@ -280,7 +286,7 @@ export default function ServicesPage() {
                       </div>
                       <div>
                         <h3 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{processSteps[activeProcess].title}</h3>
-                        <p className="text-sm" style={{ color: "var(--accent-cyan)" }}>{processSteps[activeProcess].duration}</p>
+                        <p className="text-sm" style={{ color: "var(--accent-cyan-text)" }}>{processSteps[activeProcess].duration}</p>
                       </div>
                     </div>
 
@@ -473,7 +479,7 @@ export default function ServicesPage() {
                                   <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Timeline</span>
                                   <Clock className="w-3 h-3" style={{ color: "var(--text-muted)" }} />
                                 </div>
-                                <p className="text-lg font-bold" style={{ color: "var(--accent-cyan)" }}>{service.timeline}</p>
+                                <p className="text-lg font-bold" style={{ color: "var(--accent-cyan-text)" }}>{service.timeline}</p>
                               </div>
 
                               <p className="text-xs mb-4 p-3 rounded-lg" style={{ color: "var(--text-muted)", background: "var(--bg-surface-hover)" }}>
@@ -503,7 +509,7 @@ export default function ServicesPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-16">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Why Us</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>Why Us</span>
               <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
                 What Sets Us <ShimmerText>Apart</ShimmerText>
               </h2>
@@ -568,7 +574,7 @@ export default function ServicesPage() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {category.techs.map((tech) => (
-                      <span key={tech} className="px-2.5 py-1 rounded-full text-[10px] font-medium" style={{ background: `${category.color}10`, color: category.color }}>
+                      <span key={tech} className="px-2.5 py-1 rounded-full text-[10px] font-medium" style={{ background: `${category.color}10`, color: category.textColor }}>
                         {tech}
                       </span>
                     ))}
@@ -585,7 +591,7 @@ export default function ServicesPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-16">
-              <span className="text-xs font-semibold text-emerald-500 uppercase tracking-[0.2em]">Testimonials</span>
+              <span className="text-xs font-semibold text-emerald-700 uppercase tracking-[0.2em]">Testimonials</span>
               <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
                 What Clients <ShimmerText gradient="from-emerald-400 to-cyan-400">Say</ShimmerText>
               </h2>

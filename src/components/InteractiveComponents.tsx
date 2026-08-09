@@ -592,7 +592,7 @@ export function AnimatedFeatureCard({
                 className="px-2 py-0.5 rounded-full text-[10px] font-medium"
                 style={{
                   background: "var(--accent-cyan-muted)",
-                  color: "var(--accent-cyan)",
+                  color: "var(--accent-cyan-text)",
                 }}
               >
                 {tag}
@@ -1116,7 +1116,7 @@ export function AnimatedTabs({
             {tab.icon}
             {tab.label}
             {tab.badge && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-500">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-700">
                 {tab.badge}
               </span>
             )}

@@ -107,7 +107,7 @@ const values = [
 ];
 
 const techEcosystem = [
-  { name: "React / Next.js", category: "Frontend", count: 15, color: "text-cyan-500" },
+  { name: "React / Next.js", category: "Frontend", count: 15, color: "text-cyan-700" },
   { name: "Flutter / Dart", category: "Mobile", count: 4, color: "text-blue-500" },
   { name: "React Native", category: "Cross-Platform", count: 5, color: "text-blue-400" },
   { name: "Python / FastAPI", category: "Backend", count: 10, color: "text-emerald-500" },
@@ -136,7 +136,7 @@ export default function AboutPage() {
             <div className="max-w-4xl">
               <motion.span
                 className="inline-block text-xs font-semibold uppercase tracking-[0.2em] mb-4"
-                style={{ color: "var(--accent-cyan)" }}
+                style={{ color: "var(--accent-cyan-text)" }}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
@@ -335,7 +335,7 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-12 sm:mb-16">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink-text)" }}>
                 Philosophy
               </span>
               <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
@@ -397,7 +397,7 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-12 sm:mb-16">
-              <span className="text-xs font-semibold text-emerald-500 uppercase tracking-[0.2em]">
+              <span className="text-xs font-semibold text-emerald-700 uppercase tracking-[0.2em]">
                 Ecosystem
               </span>
               <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mt-3 mb-4" style={{ color: "var(--text-primary)" }}>

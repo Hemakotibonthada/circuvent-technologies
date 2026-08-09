@@ -153,7 +153,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-16">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Domains</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>Domains</span>
               <h2 className="text-4xl sm:text-5xl font-bold mt-3 mb-4" style={{ color: "var(--text-primary)" }}>
                 Where We <ShimmerText gradient="from-cyan-400 via-violet-400 to-pink-400">Operate</ShimmerText>
               </h2>
@@ -308,7 +308,7 @@ export default function Home() {
                             <h3 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
                               Circuvent {app.title}
                             </h3>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
                               Live
                             </span>
                           </div>
@@ -425,7 +425,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-16">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-500">Process</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Process</span>
               <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
                 How We <ShimmerText gradient="from-emerald-400 via-teal-400 to-cyan-400">Deliver</ShimmerText>
               </h2>
@@ -457,7 +457,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-12">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Testimonials</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink-text)" }}>Testimonials</span>
               <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
                 What People <ShimmerText gradient="from-pink-400 via-rose-400 to-red-400">Say</ShimmerText>
               </h2>

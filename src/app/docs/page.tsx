@@ -1132,7 +1132,7 @@ export default function DocsPage() {
                         >
                           <h4
                             className="text-xs font-semibold uppercase tracking-wider mb-2"
-                            style={{ color: "var(--accent-cyan)" }}
+                            style={{ color: "var(--accent-cyan-text)" }}
                           >
                             Notes
                           </h4>
@@ -1143,7 +1143,7 @@ export default function DocsPage() {
                                 className="flex items-start gap-2 text-xs"
                                 style={{ color: "var(--text-tertiary)" }}
                               >
-                                <span style={{ color: "var(--accent-cyan)" }}>•</span>
+                                <span style={{ color: "var(--accent-cyan-text)" }}>•</span>
                                 {note}
                               </li>
                             ))}

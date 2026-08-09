@@ -108,11 +108,51 @@ const PROBE = () => {
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   };
   const lum = ([r, g, b]) => 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b);
+  /*
+   * Resolve any CSS colour to RGBA, whatever syntax it is written in.
+   *
+   * A regex for rgba() was enough until Tailwind v4, which emits
+   * `oklab(0 0 0 / 0.75)` for opacity-modified colours. Those parsed as null,
+   * so the probe treated the element as transparent and climbed past it --
+   * the shop's "Out of stock" badge, white on 75% black and perfectly
+   * readable, was reported as white on white at 1:1. Worse than the false
+   * alarm is the reverse: a genuinely unreadable label on an oklab surface
+   * would have been skipped in silence.
+   *
+   * Painting the colour and reading the pixel back hands the problem to the
+   * browser, which knows every colour space it supports.
+   */
+  const swatch = document.createElement("canvas");
+  swatch.width = swatch.height = 1;
+  const swatchCtx = swatch.getContext("2d", { willReadFrequently: true });
+  const parseCache = new Map();
   const parse = (css) => {
-    const m = /rgba?\(([^)]+)\)/.exec(css || "");
-    if (!m) return null;
-    const p = m[1].split(",").map(parseFloat);
-    return { rgb: [p[0], p[1], p[2]], a: p.length > 3 ? p[3] : 1 };
+    if (!css) return null;
+    if (parseCache.has(css)) return parseCache.get(css);
+    let out = null;
+    const m = /rgba?\(([^)]+)\)/.exec(css);
+    if (m) {
+      const p = m[1].split(",").map(parseFloat);
+      out = { rgb: [p[0], p[1], p[2]], a: p.length > 3 ? p[3] : 1 };
+    } else if (css !== "none" && css !== "transparent") {
+      try {
+        swatchCtx.clearRect(0, 0, 1, 1);
+        swatchCtx.fillStyle = "#000";
+        swatchCtx.fillStyle = css;
+        // An unparseable value leaves fillStyle at the previous colour, so a
+        // black result is only trusted when the input really was black.
+        swatchCtx.fillRect(0, 0, 1, 1);
+        const d = swatchCtx.getImageData(0, 0, 1, 1).data;
+        const a = d[3] / 255;
+        // getImageData returns premultiplied-looking values on a cleared
+        // canvas; divide back out so the colour is comparable to an rgb().
+        out = a > 0 ? { rgb: [d[0] / a, d[1] / a, d[2] / a].map((v) => Math.min(255, Math.round(v))), a } : { rgb: [0, 0, 0], a: 0 };
+      } catch {
+        out = null;
+      }
+    }
+    parseCache.set(css, out);
+    return out;
   };
   const ratio = (a, b) => {
     const x = lum(a) + 0.05;
@@ -156,6 +196,24 @@ const PROBE = () => {
    * produced false alarms that made an earlier report ignorable.
    */
   const backdrop = (el) => {
+    /*
+     * Text sitting on a photograph cannot be judged from CSS at all.
+     *
+     * The team page puts a name in white with a drop shadow over each
+     * portrait; the probe walked past the <img> -- which is an element, not a
+     * background -- and compared white against the card behind it, reporting
+     * 1.05:1 on text that is perfectly legible. An image is reported as
+     * unknown for the same reason a gradient is: there is no single colour to
+     * compare against, and guessing produces noise.
+     */
+    const box = el.getBoundingClientRect();
+    for (const media of document.querySelectorAll("img, video, canvas, picture")) {
+      const m = media.getBoundingClientRect();
+      if (m.width < 8 || m.height < 8) continue;
+      if (box.left >= m.left - 1 && box.right <= m.right + 1 && box.top >= m.top - 1 && box.bottom <= m.bottom + 1) {
+        return { image: true };
+      }
+    }
     let n = el;
     while (n && n !== document.documentElement) {
       const cs = getComputedStyle(n);

@@ -177,7 +177,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…", classN
   return (
     <div className={`flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 ${className}`}>
       <Search className="h-4 w-4 text-slate-500" />
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="min-h-[44px] w-full bg-transparent py-2 text-sm text-white outline-none placeholder:text-slate-500" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="min-h-[44px] w-full bg-transparent py-2 text-sm text-white outline-none placeholder:text-slate-400" />
       {value && <button onClick={() => onChange("")} className="text-slate-500 hover:text-white"><X className="h-4 w-4" /></button>}
     </div>
   );

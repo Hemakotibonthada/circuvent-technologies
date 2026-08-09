@@ -57,7 +57,7 @@ export default function SettingsTab() {
       </label>
       <div className="mt-5 flex items-center gap-3">
         <Btn onClick={save} disabled={busy}><Save className="h-4 w-4" /> {busy ? "Saving…" : "Save settings"}</Btn>
-        {msg && <span className="text-sm" style={{ color: "var(--accent-cyan)" }}>{msg}</span>}
+        {msg && <span className="text-sm" style={{ color: "var(--accent-cyan-text)" }}>{msg}</span>}
       </div>
     </div>
   );

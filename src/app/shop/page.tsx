@@ -185,7 +185,7 @@ export default async function ShopPage({
         <header className="mb-8">
           <span
             className="text-xs font-semibold uppercase tracking-[0.2em]"
-            style={{ color: "var(--accent-cyan)" }}
+            style={{ color: "var(--accent-cyan-text)" }}
           >
             Circuvent Store
           </span>
@@ -325,11 +325,11 @@ export default async function ShopPage({
           </div>
           <p className="mt-4 text-sm" style={{ color: "var(--text-tertiary)" }}>
             Still deciding?{" "}
-            <Link href="/contact" className="font-semibold underline underline-offset-2" style={{ color: "var(--accent-cyan)" }}>
+            <Link href="/contact" className="font-semibold underline underline-offset-2" style={{ color: "var(--accent-cyan-text)" }}>
               Talk to our team
             </Link>{" "}
             or read the{" "}
-            <Link href="/warranty" className="font-semibold underline underline-offset-2" style={{ color: "var(--accent-cyan)" }}>
+            <Link href="/warranty" className="font-semibold underline underline-offset-2" style={{ color: "var(--accent-cyan-text)" }}>
               warranty terms
             </Link>
             .

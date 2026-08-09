@@ -84,7 +84,7 @@ export default function DomainsPage() {
 
                         <p
                           className="text-sm font-medium mb-3"
-                          style={{ color: "var(--accent-cyan)" }}
+                          style={{ color: "var(--accent-cyan-text)" }}
                         >
                           {domain.tagline}
                         </p>

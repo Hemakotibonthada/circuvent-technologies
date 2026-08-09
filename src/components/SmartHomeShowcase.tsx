@@ -23,7 +23,7 @@ export default function SmartHomeShowcase() {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <ScrollReveal>
           <div className="text-center mb-14">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Smart Home</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>Smart Home</span>
             <h2 className="text-4xl sm:text-5xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>
               One app. Every device. <ShimmerText gradient="from-cyan-400 via-violet-400 to-pink-400">Your voice.</ShimmerText>
             </h2>

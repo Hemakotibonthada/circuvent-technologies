@@ -421,7 +421,7 @@ export function HorizontalTimeline({
                         className="px-2 py-0.5 rounded-full text-[10px] font-medium"
                         style={{
                           background: "var(--accent-cyan-muted)",
-                          color: "var(--accent-cyan)",
+                          color: "var(--accent-cyan-text)",
                         }}
                       >
                         {tag}

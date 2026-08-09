@@ -120,7 +120,7 @@ export default function MessagesPanel() {
                     {m.name}
                     {m.status === "new" && <span className="h-2 w-2 rounded-full" style={{ background: "#ef4444" }} />}
                   </p>
-                  <a href={`mailto:${m.email}`} className="text-sm" style={{ color: "var(--accent-cyan)" }}>
+                  <a href={`mailto:${m.email}`} className="text-sm" style={{ color: "var(--accent-cyan-text)" }}>
                     {m.email}
                   </a>
                 </div>

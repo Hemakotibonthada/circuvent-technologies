@@ -172,7 +172,7 @@ export default function TrackPage() {
   return (
     <section className="relative z-10 mx-auto max-w-3xl px-6 pb-24 pt-28 lg:px-8 lg:pt-32">
       <div className="mb-6">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>
           Order tracking
         </p>
         <h1 className="text-3xl font-bold sm:text-4xl" style={{ color: "var(--text-primary)" }}>

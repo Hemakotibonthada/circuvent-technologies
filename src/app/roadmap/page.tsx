@@ -240,10 +240,10 @@ const roadmapItems: RoadmapItem[] = [
 ];
 
 const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  completed: { label: "Completed", color: "text-emerald-500", bgColor: "bg-emerald-500/10" },
-  "in-progress": { label: "In Progress", color: "text-cyan-500", bgColor: "bg-cyan-500/10" },
-  planned: { label: "Planned", color: "text-violet-500", bgColor: "bg-violet-500/10" },
-  future: { label: "Future", color: "text-gray-500", bgColor: "bg-gray-500/10" },
+  completed: { label: "Completed", color: "text-emerald-700", bgColor: "bg-emerald-500/10" },
+  "in-progress": { label: "In Progress", color: "text-cyan-700", bgColor: "bg-cyan-500/10" },
+  planned: { label: "Planned", color: "text-violet-700", bgColor: "bg-violet-500/10" },
+  future: { label: "Future", color: "text-gray-700", bgColor: "bg-gray-500/10" },
 };
 
 export default function RoadmapPage() {
@@ -361,7 +361,7 @@ export default function RoadmapPage() {
                               <div className="flex items-center gap-2 mb-1">
                                 <span
                                   className="text-xs font-mono"
-                                  style={{ color: "var(--accent-cyan)" }}
+                                  style={{ color: "var(--accent-cyan-text)" }}
                                 >
                                   {item.quarter} {item.year}
                                 </span>

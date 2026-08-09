@@ -101,7 +101,7 @@ export default function ContentPage({
             >
               <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
                 Questions? Email us at{" "}
-                <a href="mailto:contact@circuvent.com" className="underline" style={{ color: "var(--accent-cyan)" }}>
+                <a href="mailto:contact@circuvent.com" className="underline" style={{ color: "var(--accent-cyan-text)" }}>
                   contact@circuvent.com
                 </a>{" "}
                 or reach out from your account&rsquo;s Support section.

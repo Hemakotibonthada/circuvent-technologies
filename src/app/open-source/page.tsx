@@ -182,7 +182,7 @@ export default function OpenSourcePage() {
               <div>
                 <span
                   className="text-xs font-semibold uppercase tracking-[0.2em]"
-                  style={{ color: "var(--accent-cyan)" }}
+                  style={{ color: "var(--accent-cyan-text)" }}
                 >
                   Repositories
                 </span>
@@ -282,7 +282,7 @@ export default function OpenSourcePage() {
           <ScrollReveal>
             <div className="text-center mb-16">
               <span
-                className="text-xs font-semibold text-pink-500 uppercase tracking-[0.2em]"
+                className="text-xs font-semibold text-pink-700 uppercase tracking-[0.2em]"
               >
                 Contribute
               </span>

@@ -85,9 +85,9 @@ export default function Hero() {
               <p className="text-base sm:text-lg md:text-xl max-w-xl leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
                 Circuvent Technologies crafts intelligent systems at the intersection
                 of{" "}
-                <span style={{ color: "var(--accent-cyan)" }}>Artificial Intelligence</span>,{" "}
+                <span style={{ color: "var(--accent-cyan-text)" }}>Artificial Intelligence</span>,{" "}
                 <span style={{ color: "var(--accent-violet)" }}>IoT</span>, and{" "}
-                <span style={{ color: "var(--accent-pink)" }}>Full-Stack Engineering</span>.
+                <span style={{ color: "var(--accent-pink-text)" }}>Full-Stack Engineering</span>.
                 We circuvent limitations to ship products that matter.
               </p>
             </ScrollReveal>

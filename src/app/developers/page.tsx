@@ -298,11 +298,18 @@ function Code({ children }: { children: React.ReactNode }) {
   );
 }
 
+/*
+ * HTTP method colours, at a weight that reads as 11px bold mono.
+ *
+ * The vivid set (#0e9f6e, #f59e0b) measured 3.24:1 and 2.06:1 on the docs
+ * table -- these are the labels that tell you whether a call writes or
+ * deletes, so they are worth being able to read.
+ */
 const METHOD_COLOR: Record<string, string> = {
-  GET: "#0e9f6e",
-  POST: "#3b82f6",
-  PATCH: "#f59e0b",
-  DELETE: "#ef4444",
+  GET: "#047857",
+  POST: "#1d4ed8",
+  PATCH: "#b45309",
+  DELETE: "#b91c1c",
 };
 
 const NAV = [
@@ -374,7 +381,7 @@ export default function DevelopersPage() {
                   <Link
                     href="/smarthome/settings?tab=developer"
                     className="font-semibold underline"
-                    style={{ color: "var(--accent-cyan)" }}
+                    style={{ color: "var(--accent-cyan-text)" }}
                   >
                     Console → Settings → Developer
                   </Link>{" "}
@@ -474,7 +481,7 @@ Authorization: Bearer cvk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`}
                 <a
                   href="/openapi.json"
                   className="font-semibold underline"
-                  style={{ color: "var(--accent-cyan)" }}
+                  style={{ color: "var(--accent-cyan-text)" }}
                 >
                   an OpenAPI 3.1 document
                 </a>{" "}
@@ -556,7 +563,7 @@ Authorization: Bearer cvk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`}
                 The response is <strong>202 Accepted</strong>, not 200. It means the broker has taken
                 the command for delivery — not that the relay has closed. To observe the result,
                 either read the device back a moment later or take a{" "}
-                <a href="#webhooks" className="font-semibold underline" style={{ color: "var(--accent-cyan)" }}>
+                <a href="#webhooks" className="font-semibold underline" style={{ color: "var(--accent-cyan-text)" }}>
                   webhook
                 </a>
                 , which is pushed as soon as the device reports.
@@ -637,7 +644,7 @@ Authorization: Bearer cvk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`}
                 <Link
                   href="/smarthome/settings?tab=developer"
                   className="font-semibold underline"
-                  style={{ color: "var(--accent-cyan)" }}
+                  style={{ color: "var(--accent-cyan-text)" }}
                 >
                   Settings → Developer
                 </Link>

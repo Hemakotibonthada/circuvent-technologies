@@ -63,7 +63,7 @@ export default function InvoicePage() {
   return (
     <section className="mx-auto max-w-3xl px-6 py-10">
       <div className="mb-4 flex items-center justify-between print:hidden">
-        <a href="/shop/account" className="text-sm" style={{ color: "var(--accent-cyan)" }}>← Back to account</a>
+        <a href="/shop/account" className="text-sm" style={{ color: "var(--accent-cyan-text)" }}>← Back to account</a>
         <button
           onClick={() => window.print()}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white"

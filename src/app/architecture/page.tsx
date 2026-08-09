@@ -417,7 +417,7 @@ export default function ArchitecturePage() {
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-3">
-                              <span className="text-xs font-mono" style={{ color: "var(--accent-cyan)" }}>
+                              <span className="text-xs font-mono" style={{ color: "var(--accent-cyan-text)" }}>
                                 {milestone.date}
                               </span>
                               <Badge variant="default">{milestone.value} projects</Badge>

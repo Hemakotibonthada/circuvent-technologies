@@ -371,6 +371,19 @@ function ShellStyles() {
         --ad-fg-slate: #475569;
       }
       .ad-sidebar { background: var(--cv-card); backdrop-filter: blur(16px); }
+      /*
+       * Slate greys that are too dark for the dark scheme.
+       *
+       * theme.tsx remaps text-slate-400/500/600 for the *light* scheme, because
+       * that is where the console's dark-first authoring hurt. It turns out the
+       * dark scheme has the mirror problem: slate-500 reads 3.15:1 on the admin
+       * card and slate-600 reads 1.98:1 -- section headings a person is meant
+       * to navigate by, nearly invisible. Same fix, other direction.
+       */
+      .cv-dark .ad-root .text-slate-500,
+      .cv-dark .ad-root .text-slate-600 {
+        color: var(--ad-fg-slate);
+      }
       .ad-topbar { background: var(--cv-card); }
       .ad-card {
         background: var(--cv-card);

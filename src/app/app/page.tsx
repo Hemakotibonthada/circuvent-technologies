@@ -41,7 +41,7 @@ export default function AppPage() {
       <section className="relative z-10 pt-32 pb-8">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 text-center">
           <ScrollReveal>
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>The Circuvent App</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>The Circuvent App</span>
             <h1 className="text-5xl sm:text-6xl font-black mt-4" style={{ color: "var(--text-primary)" }}>
               Control everything, <ShimmerText gradient="from-cyan-400 via-violet-400 to-pink-400">everywhere.</ShimmerText>
             </h1>
@@ -64,7 +64,7 @@ export default function AppPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-12">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>Highlights</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink-text)" }}>Highlights</span>
               <h2 className="text-4xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>Built for daily life</h2>
             </div>
           </ScrollReveal>

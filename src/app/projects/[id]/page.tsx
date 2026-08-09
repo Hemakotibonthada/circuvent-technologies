@@ -338,7 +338,7 @@ export default function ProjectDetailPage() {
                     <div
                       className={`text-5xl font-bold ${
                         project.impactScore >= 90
-                          ? "text-cyan-500"
+                          ? "text-cyan-700"
                           : project.impactScore >= 80
                           ? "text-violet-500"
                           : ""

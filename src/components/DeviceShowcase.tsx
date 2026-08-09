@@ -281,7 +281,7 @@ function FileTreeItem({
 
         {/* Badge */}
         {node.badge && (
-          <span className="text-[8px] px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-500 font-medium">
+          <span className="text-[8px] px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-700 font-medium">
             {node.badge}
           </span>
         )}

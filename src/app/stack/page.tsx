@@ -262,7 +262,7 @@ export default function StackPage() {
           <ScrollReveal>
             <div className="text-center mb-12">
               <span
-                className="text-xs font-semibold text-pink-500 uppercase tracking-[0.2em]"
+                className="text-xs font-semibold text-pink-700 uppercase tracking-[0.2em]"
               >
                 Architecture
               </span>

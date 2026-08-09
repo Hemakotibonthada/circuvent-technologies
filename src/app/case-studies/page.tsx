@@ -125,7 +125,7 @@ export default function CaseStudiesPage() {
                     </h2>
                     <p
                       className="text-lg"
-                      style={{ color: "var(--accent-cyan)" }}
+                      style={{ color: "var(--accent-cyan-text)" }}
                     >
                       {currentProject?.tagline}
                     </p>
@@ -156,9 +156,9 @@ export default function CaseStudiesPage() {
                         style={{
                           color:
                             metric.category === "performance"
-                              ? "var(--accent-cyan)"
+                              ? "var(--accent-cyan-text)"
                               : metric.category === "quality"
-                              ? "rgb(16, 185, 129)"
+                              ? "var(--status-success-text)"
                               : metric.category === "scale"
                               ? "var(--accent-violet)"
                               : "var(--text-primary)",
@@ -365,7 +365,7 @@ export default function CaseStudiesPage() {
                               </p>
                               <h5
                                 className="text-xs font-semibold uppercase tracking-wider mb-2"
-                                style={{ color: "var(--accent-cyan)" }}
+                                style={{ color: "var(--accent-cyan-text)" }}
                               >
                                 Deliverables
                               </h5>
@@ -469,7 +469,7 @@ export default function CaseStudiesPage() {
                     <ul className="space-y-3">
                       {currentStudy.lessonsLearned.map((lesson, i) => (
                         <li key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                          <span className="text-amber-500 shrink-0 mt-0.5">•</span>
+                          <span className="text-amber-700 shrink-0 mt-0.5">•</span>
                           {lesson}
                         </li>
                       ))}
@@ -495,7 +495,7 @@ export default function CaseStudiesPage() {
                     <ul className="space-y-3">
                       {currentStudy.futureRoadmap.map((item, i) => (
                         <li key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                          <span className="text-emerald-500 shrink-0 mt-0.5">→</span>
+                          <span className="text-emerald-700 shrink-0 mt-0.5">→</span>
                           {item}
                         </li>
                       ))}

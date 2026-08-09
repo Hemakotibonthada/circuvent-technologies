@@ -98,7 +98,7 @@ export default function ProjectCard({
                 <span
                   className={`text-xl font-bold ${
                     project.impactScore >= 90
-                      ? "text-cyan-500"
+                      ? "text-cyan-700"
                       : project.impactScore >= 80
                       ? "text-violet-500"
                       : ""

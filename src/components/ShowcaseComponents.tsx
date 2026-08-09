@@ -185,7 +185,7 @@ export function AnimatedMetricsGrid({
                 </div>
               </div>
               <div className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                metric.trend === "up" ? "bg-emerald-500/10 text-emerald-500" :
+                metric.trend === "up" ? "bg-emerald-500/10 text-emerald-700" :
                 metric.trend === "down" ? "bg-red-500/10 text-red-500" :
                 "bg-gray-500/10 text-gray-500"
               }`}>
@@ -369,7 +369,7 @@ export function ShowcaseCarousel({
                       className="px-2 py-0.5 rounded-full text-[10px] font-medium"
                       style={{
                         background: "var(--accent-cyan-muted)",
-                        color: "var(--accent-cyan)",
+                        color: "var(--accent-cyan-text)",
                       }}
                     >
                       {tag}

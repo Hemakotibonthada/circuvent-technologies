@@ -24,6 +24,7 @@ const contactInfo = [
     href: "mailto:contact@circuvent.com",
     description: "For project inquiries and collaborations.",
     color: "#ea4335",
+    textColor: "#b3261e",
   },
   {
     icon: Phone,
@@ -32,6 +33,7 @@ const contactInfo = [
     href: "tel:+917659993331",
     description: "Available during IST business hours.",
     color: "#10b981",
+    textColor: "#047857",
   },
   {
     icon: MapPin,
@@ -40,6 +42,7 @@ const contactInfo = [
     href: "https://maps.google.com/?q=Hyderabad,India",
     description: "Operating across India with remote-first culture.",
     color: "#f59e0b",
+    textColor: "#b45309",
   },
   {
     icon: Clock,
@@ -48,6 +51,7 @@ const contactInfo = [
     href: null,
     description: "We respond to all inquiries promptly.",
     color: "#8b5cf6",
+    textColor: "#6d28d9",
   },
   {
     icon: Globe,
@@ -56,6 +60,7 @@ const contactInfo = [
     href: null,
     description: "Flexible for meetings across timezones.",
     color: "#06b6d4",
+    textColor: "#0e7490",
   },
 ];
 
@@ -174,7 +179,7 @@ export default function ContactPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-10">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>How Can We Help?</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>How Can We Help?</span>
               <h2 className="text-3xl sm:text-4xl font-bold mt-2" style={{ color: "var(--text-primary)" }}>
                 Choose Your <ShimmerText>Path</ShimmerText>
               </h2>
@@ -208,7 +213,7 @@ export default function ContactPage() {
                     <h3 className="text-base font-bold mb-2" style={{ color: "var(--text-primary)" }}>{type.title}</h3>
                     <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--text-muted)" }}>{type.description}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-medium" style={{ color: "var(--accent-cyan)" }}>{type.stats}</span>
+                      <span className="text-[10px] font-medium" style={{ color: "var(--accent-cyan-text)" }}>{type.stats}</span>
                       {type.href && (
                         <Link
                           href={type.href}
@@ -283,7 +288,7 @@ export default function ContactPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-sm font-medium hover:underline transition-colors"
-                              style={{ color: info.color }}
+                              style={{ color: info.textColor }}
                             >
                               {info.value}
                             </a>
@@ -345,7 +350,7 @@ export default function ContactPage() {
                         animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
                         transition={{ duration: 2, repeat: Infinity }}
                       />
-                      <span className="text-sm font-bold text-emerald-500">Currently Available</span>
+                      <span className="text-sm font-bold text-emerald-700">Currently Available</span>
                     </div>
                     <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--text-tertiary)" }}>
                       We&apos;re accepting new projects. Typical start time is 1-2 weeks from initial discussion.

@@ -18,6 +18,8 @@ interface SysNode {
   desc: string;
   caps: string[];
   icon: LucideIcon;
+  /** The same hue dark enough to be read as an 11px label on the light card. */
+  textColor: string;
   x: number;
   y: number;
   color: string;
@@ -39,6 +41,7 @@ const NODES: SysNode[] = [
     x: 260,
     y: 70,
     color: "#8b5cf6",
+    textColor: "#6d28d9",
     labelDy: -32,
   },
   {
@@ -53,6 +56,7 @@ const NODES: SysNode[] = [
     x: 432,
     y: 160,
     color: "#ec4899",
+    textColor: "#be185d",
     labelDy: -30,
   },
   {
@@ -67,6 +71,7 @@ const NODES: SysNode[] = [
     x: 432,
     y: 356,
     color: "#6366f1",
+    textColor: "#4338ca",
     labelDy: 40,
   },
   {
@@ -81,6 +86,7 @@ const NODES: SysNode[] = [
     x: 260,
     y: 448,
     color: "#10b981",
+    textColor: "#047857",
     labelDy: 40,
   },
   {
@@ -95,6 +101,7 @@ const NODES: SysNode[] = [
     x: 88,
     y: 356,
     color: "#64748b",
+    textColor: "#475569",
     labelDy: 40,
   },
   {
@@ -109,6 +116,7 @@ const NODES: SysNode[] = [
     x: 88,
     y: 160,
     color: "#06b6d4",
+    textColor: "#0e7490",
     labelDy: -30,
   },
 ];
@@ -121,6 +129,7 @@ const CORE_NODE = {
   desc: "One engineering core that crafts intelligent systems across six domains — from silicon to cloud.",
   caps: ["AI", "IoT", "FinTech", "HealthTech", "Enterprise", "Education"],
   color: "#8b5cf6",
+  textColor: "#6d28d9",
 };
 
 const CYCLE = NODES.map((n) => n.id);
@@ -391,7 +400,7 @@ export default function HeroSystemsGraph() {
                 <p className="truncate text-sm font-bold" style={{ color: "var(--text-primary)" }}>
                   {activeInfo.label}
                 </p>
-                <p className="truncate text-[11px] font-medium uppercase tracking-wider" style={{ color: activeInfo.color }}>
+                <p className="truncate text-[11px] font-medium uppercase tracking-wider" style={{ color: activeInfo.textColor }}>
                   {activeInfo.tagline}
                 </p>
               </div>

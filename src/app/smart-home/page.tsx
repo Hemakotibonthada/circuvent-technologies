@@ -42,7 +42,7 @@ export default function SmartHomePage() {
       <section className="relative z-10 pt-32 pb-12">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 text-center">
           <ScrollReveal>
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Circuvent Smart Home</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>Circuvent Smart Home</span>
             <h1 className="text-5xl sm:text-6xl font-black mt-4" style={{ color: "var(--text-primary)" }}>
               Your whole home,<br /><ShimmerText gradient="from-cyan-400 via-violet-400 to-pink-400">in one app.</ShimmerText>
             </h1>
@@ -120,7 +120,7 @@ export default function SmartHomePage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-12">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink)" }}>The app</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-pink-text)" }}>The app</span>
               <h2 className="text-4xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>Everything, beautifully in control</h2>
             </div>
           </ScrollReveal>
@@ -195,7 +195,7 @@ export default function SmartHomePage() {
         <div className="max-w-3xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="text-center mb-10">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan)" }}>Questions</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--accent-cyan-text)" }}>Questions</span>
               <h2 id="smart-home-faq" className="text-4xl font-bold mt-3" style={{ color: "var(--text-primary)" }}>Good to know</h2>
             </div>
           </ScrollReveal>
