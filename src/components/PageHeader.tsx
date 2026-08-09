@@ -16,7 +16,10 @@ interface PageHeaderProps {
 
 export default function PageHeader({
   eyebrow,
-  eyebrowColor = "var(--accent-cyan)",
+  /* The eyebrow is 12px uppercase text, so it takes the readable weight of the
+     accent rather than the brand one -- var(--accent-cyan) measures 3.52:1 on
+     the page background. */
+  eyebrowColor = "var(--accent-cyan-text)",
   title,
   titleHighlight,
   titleGradient = "from-cyan-500 via-violet-500 to-pink-500",

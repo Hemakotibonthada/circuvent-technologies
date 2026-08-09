@@ -91,7 +91,9 @@ export default function NotFound() {
             <Link
               key={link.label}
               href={link.href}
-              className="text-sm transition-colors hover:text-[var(--accent-cyan)]"
+              /* The 404 page is where someone is already lost; its links are
+                 the way out and were 20px tall. */
+              className="inline-flex min-h-[44px] items-center px-2 text-sm transition-colors hover:text-[var(--accent-cyan)]"
               style={{ color: "var(--text-muted)" }}
             >
               {link.label}

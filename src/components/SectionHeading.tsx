@@ -19,7 +19,8 @@ interface SectionHeadingProps {
 
 export default function SectionHeading({
   eyebrow,
-  eyebrowColor = "var(--accent-cyan)",
+  /* 12px uppercase text: the readable accent, not the brand one. */
+  eyebrowColor = "var(--accent-cyan-text)",
   title,
   titleHighlight,
   titleGradient = "from-cyan-400 via-violet-400 to-pink-400",
