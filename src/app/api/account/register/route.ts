@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { clientIp } from "@/lib/client-ip";
 import crypto from "crypto";
 import { rateLimit } from "@/lib/rate-limit";
@@ -63,10 +63,23 @@ export async function POST(request: Request) {
     // (which may hit a different serverless instance) can find it.
     await flushNow();
 
-    // Send the code after the response so sign-up feels instant.
-    after(async () => {
-      await sendOtpEmail(clean, cleanName, otp);
-    });
+    // Send the code before responding.
+    //
+    // This used to run in after(), so a failed send happened after the response
+    // had already promised "We've emailed a 6-digit code". When Resend's sandbox
+    // started rejecting every recipient except the account owner, sign-up looked
+    // successful while no code was ever delivered, and nothing surfaced it.
+    const sent = await sendOtpEmail(clean, cleanName, otp);
+    if (!sent) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "We couldn't send your verification code right now. Please try again in a moment.",
+        },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

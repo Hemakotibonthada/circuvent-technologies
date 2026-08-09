@@ -1,0 +1,22 @@
+# The Next.js storefront lives at the repository root (src/). Several unrelated
+# sibling projects share this repo — the platform monorepo, the React Native
+# app, and the device firmware — and none of them are imported by the site.
+#
+# Vercel only skips node_modules at the top level, so a CLI deploy was uploading
+# roughly 6 GB of their locally-installed dependencies. That pushed a single
+# serverless function to 932 MB against a 250 MB limit and failed the deploy.
+# Git-triggered deploys never hit this because those directories' dependencies
+# are not committed.
+
+**/node_modules
+
+circuvent-platform/
+mobile/
+firmware/
+hardware/
+platform/
+
+# Local build output of the sibling projects.
+**/dist
+**/.turbo
+**/.expo

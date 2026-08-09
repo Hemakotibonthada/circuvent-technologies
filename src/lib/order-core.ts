@@ -16,15 +16,19 @@ const emailLogo = (size = 26) =>
 let transporter: Transporter | null = null;
 function getTransport(): Transporter | null {
   if (transporter) return transporter;
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  // Trimmed because a trailing newline in a dashboard-set variable is invisible
+  // but fatal: it turns the host into an unresolvable name (ENOTFOUND) and
+  // makes SMTP_SECURE fail its "true" comparison, silently disabling TLS.
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
   if (!host || !user || !pass) return null;
   transporter = nodemailer.createTransport({
     host,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE) === "true",
+    port: Number(String(process.env.SMTP_PORT || 587).trim()),
+    secure: String(process.env.SMTP_SECURE).trim() === "true",
     auth: { user, pass },
+    requireTLS: true,
   });
   return transporter;
 }
@@ -80,7 +84,19 @@ export async function sendMail(
       const r = (await resend.emails.send({ from: fromUsed, to: [to], cc, subject, html, replyTo: replyToUsed || undefined })) as { data: { id?: string } | null; error: { message?: string } | string | null };
       if (r.error) {
         error = typeof r.error === "string" ? r.error : r.error.message || JSON.stringify(r.error);
-        console.error("Resend send error:", r.error);
+        // onboarding@resend.dev is Resend's sandbox sender: it can only deliver
+        // to the API key owner's own address, and rejects every other recipient
+        // with a 403. Called out explicitly because the generic message reads
+        // like a transient error, and this one silently broke every OTP.
+        if (/only send testing emails|verify a domain/i.test(error)) {
+          console.error(
+            `Resend is in sandbox mode and refused to mail ${to}. ` +
+              "Configure SMTP_HOST/SMTP_USER/SMTP_PASS to send from the Circuvent mail server, " +
+              "or verify a domain at resend.com/domains."
+          );
+        } else {
+          console.error("Resend send error:", r.error);
+        }
       } else {
         ok = true;
         messageId = r.data?.id ?? null;

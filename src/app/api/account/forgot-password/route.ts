@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { clientIp } from "@/lib/client-ip";
 import crypto from "crypto";
 import { rateLimit, rateLimitIdentity } from "@/lib/rate-limit";
@@ -49,9 +49,10 @@ export async function POST(request: Request) {
       const otp = genOtp();
       setPasswordReset({ email: clean, otp, expires: Date.now() + 15 * 60 * 1000, attempts: 0 });
       await flushNow();
-      after(async () => {
-        await sendPasswordResetEmail(clean, acc.name || "", otp);
-      });
+      // Awaited so a failed send is recorded in the evidence log rather than
+      // vanishing with the request. The response stays generic either way —
+      // reporting the failure here would reveal whether the account exists.
+      await sendPasswordResetEmail(clean, acc.name || "", otp);
     }
     return NextResponse.json(generic);
   } catch {

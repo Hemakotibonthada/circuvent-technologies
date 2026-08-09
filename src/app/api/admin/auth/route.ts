@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { revalidate, setAdmin2faOtp, flushNow } from "@/lib/store";
 import { sendAdmin2faEmail } from "@/lib/order-core";
@@ -48,9 +48,20 @@ export async function POST(request: NextRequest) {
         const otp = genOtp();
         setAdmin2faOtp(user.email, otp);
         await flushNow();
-        after(async () => {
-          await sendAdmin2faEmail(user.email, user.name, otp);
-        });
+        // Awaited, not deferred: if this code never sends, the admin cannot
+        // complete sign-in at all. Reporting the failure is far better than
+        // showing a code prompt that no code will ever arrive for.
+        const sent = await sendAdmin2faEmail(user.email, user.name, otp);
+        if (!sent) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message:
+                "Could not send your sign-in code. Please try again, or contact support if this continues.",
+            },
+            { status: 502 }
+          );
+        }
       } else {
         // Record that the password stage passed. Without this marker the TOTP
         // branch of verify-2fa would accept a code as the *only* factor, and
