@@ -94,8 +94,28 @@ describe("accent text tokens", () => {
   );
 });
 
-describe("touch targets", () => {
+describe("eyebrow labels", () => {
   /*
+   * The eyebrow is 12px uppercase text sitting above most page titles on the
+   * site, and the brand accent measures 3.52:1 behind it. Both the shared
+   * components' defaults and the pages that pass their own colour have to use
+   * the readable variant -- fixing only the default left /stack and /docs
+   * still failing, because they override it.
+   */
+  const files = walk(join(root, "src"));
+
+  it("never passes the raw brand accent as an eyebrow colour", () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(f, "utf8");
+      const m = src.match(/eyebrowColor\s*=\s*"var\(--accent-(?:cyan|pink)\)"/g);
+      if (m) offenders.push(`${f.replace(root, "")}: ${m.join(", ")}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("touch targets", () => {  /*
    * Tailwind's h-11 is 2.75rem, and globals.css rescales the root font size
    * below 640px -- so h-11 renders at about 42px on the phone widths where a
    * touch target actually matters. Measuring found rows of icon buttons at

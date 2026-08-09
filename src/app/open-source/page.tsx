@@ -102,7 +102,7 @@ export default function OpenSourcePage() {
 
       <PageHeader
         eyebrow="Open Source"
-        eyebrowColor="var(--accent-cyan)"
+        eyebrowColor="var(--accent-cyan-text)"
         title="Building in"
         titleHighlight="Public"
         titleGradient="from-emerald-500 via-teal-500 to-cyan-500"

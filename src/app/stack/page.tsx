@@ -111,7 +111,7 @@ export default function StackPage() {
 
       <PageHeader
         eyebrow="Tech Stack"
-        eyebrowColor="var(--accent-cyan)"
+        eyebrowColor="var(--accent-cyan-text)"
         title="Our Technology"
         titleHighlight="Arsenal"
         description={`${totalTechs} technologies mastered across ${stackCategories.length} domains. Average proficiency: ${avgProficiency}%. Every tool chosen with purpose, every stack battle-tested in production.`}

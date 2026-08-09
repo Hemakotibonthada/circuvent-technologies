@@ -1019,7 +1019,7 @@ export default function DocsPage() {
 
       <PageHeader
         eyebrow="Documentation"
-        eyebrowColor="var(--accent-cyan)"
+        eyebrowColor="var(--accent-cyan-text)"
         title="Developer"
         titleHighlight="Docs"
         description="Comprehensive documentation for setting up, developing, deploying, and contributing to Circuvent Technologies projects."
