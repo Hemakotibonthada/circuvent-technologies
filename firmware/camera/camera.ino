@@ -34,7 +34,7 @@
  *          huge_app.csv has a single app slot, so no camera could ever have
  *          taken an over-the-air update at all.
  */
-#define CV_FW_VERSION "1.7.0"
+#define CV_FW_VERSION "1.8.0"
 
 #include "esp_camera.h"
 #include "img_converters.h"
@@ -186,8 +186,8 @@
 #define MOTION_HOLD_MS      8000UL   // keep "motion" true this long after the last hit
 #define MOTION_COOLDOWN_MS 15000UL   // minimum gap between motion events
 #define SENSOR_RETRY_MS     5000UL   // capture retry pace while the sensor is dead
-#define MD_W                   40    // 1/8 scale of a QVGA frame
-#define MD_H                   30
+/* Motion scan geometry is derived per-frame in mdEnsureBuffers(); see the note
+   there. It used to be these two constants, which is precisely the bug. */
 #define FLASH_LEDC_CH           7
 #define FLASH_LEDC_FREQ      5000
 #define FLASH_LEDC_BITS         8
@@ -503,17 +503,80 @@ bool sccbAlive() {
  * against the previous pass. Decoding a 40x30 thumbnail costs a few
  * milliseconds; decoding the full frame would cost tens and starve MQTT.
  */
+/**
+ * Motion detection works on a 1/8-scale decode of whatever frame arrives.
+ *
+ * These were fixed at 40x30 — 1/8 of QVGA — with a static
+ * `uint8_t rgb[MD_W * MD_H * 2]` behind them, while the camera's default
+ * resolution is VGA. jpg2rgb565() decodes the whole frame, so a VGA capture
+ * wrote 80x60x2 = 9600 bytes into a 2400-byte buffer and took 7200 bytes of
+ * whatever followed it with it. The symptom was a reboot loop with an
+ * ASCII-looking program counter, a corrupted backtrace and a corrupted ELF
+ * hash — memory damage rather than a clean fault, several steps removed from
+ * the code that caused it.
+ *
+ * It had been latent for as long as the code existed: the frames never arrived
+ * on the one board running this firmware, so the decode never ran. Fixing the
+ * camera is what made it reachable, which is the awkward shape of this class of
+ * bug — it only appears once something else starts working.
+ *
+ * The buffers are now sized from the frame actually received and reallocated if
+ * the resolution changes, with the decode refused outright if anything does not
+ * add up. A cap keeps a UXGA frame from asking for 60 kB of DRAM; above it,
+ * motion detection turns itself off rather than guessing at a smaller buffer.
+ */
+#define MD_MAX_PIXELS (80 * 60)   // VGA at 1/8. Covers every resolution we scan.
+
+static uint8_t *mdRgb = nullptr;  // 1/8-scale RGB565 decode target
+static int mdW = 0, mdH = 0;      // dimensions the buffers are currently sized for
+
+/** Sizes the motion buffers for this frame. False means do not decode. */
+static bool mdEnsureBuffers(int frameW, int frameH) {
+  const int w = frameW / 8, h = frameH / 8;
+  if (w <= 0 || h <= 0) return false;
+  if (w * h > MD_MAX_PIXELS) {
+    // Larger than we are willing to allocate for. Say so once and stop trying,
+    // rather than silently never detecting anything.
+    if (motionOn) {
+      motionOn = false;
+      cv.set("motion", false);
+      cv.publishStateNow();
+      Serial.printf("[CAM] motion detection off: %dx%d is too large to scan\n", frameW, frameH);
+    }
+    return false;
+  }
+  if (w == mdW && h == mdH && mdRgb && mdPrev) return true;
+
+  free(mdRgb);  mdRgb = nullptr;
+  free(mdPrev); mdPrev = nullptr;
+  mdRgb  = (uint8_t *)malloc((size_t)w * h * 2);
+  mdPrev = (uint8_t *)malloc((size_t)w * h);
+  if (!mdRgb || !mdPrev) {
+    free(mdRgb);  mdRgb = nullptr;
+    free(mdPrev); mdPrev = nullptr;
+    mdW = mdH = 0;
+    motionOn = false;                 // no buffer, no differencing
+    Serial.println(F("[CAM] motion detection off: could not allocate scan buffers"));
+    return false;
+  }
+  mdW = w; mdH = h;
+  mdPrimed = false;                   // geometry changed; the baseline is void
+  Serial.printf("[CAM] motion scan buffers sized for %dx%d\n", w, h);
+  return true;
+}
+
 bool detectMotion(camera_fb_t *fb) {
-  if (!mdPrev || fb->format != PIXFORMAT_JPEG) return false;
-  static uint8_t rgb[MD_W * MD_H * 2];
+  if (fb->format != PIXFORMAT_JPEG) return false;
+  if (!mdEnsureBuffers(fb->width, fb->height)) return false;
 
-  if (!jpg2rgb565(fb->buf, fb->len, rgb, JPG_SCALE_8X)) return false;
+  if (!jpg2rgb565(fb->buf, fb->len, mdRgb, JPG_SCALE_8X)) return false;
 
+  const int count = mdW * mdH;
   uint32_t changed = 0;
   // Below this a pixel delta is just sensor noise, not movement.
   const int pixelThreshold = 18;
-  for (int i = 0; i < MD_W * MD_H; i++) {
-    uint16_t px = (uint16_t)rgb[i * 2] | ((uint16_t)rgb[i * 2 + 1] << 8);
+  for (int i = 0; i < count; i++) {
+    uint16_t px = (uint16_t)mdRgb[i * 2] | ((uint16_t)mdRgb[i * 2 + 1] << 8);
     uint8_t r = (px >> 11) & 0x1F, g = (px >> 5) & 0x3F, b = px & 0x1F;
     uint8_t luma = (uint8_t)(((r << 3) * 77 + (g << 2) * 150 + (b << 3) * 29) >> 8);
     if (mdPrimed && abs((int)luma - (int)mdPrev[i]) > pixelThreshold) changed++;
@@ -522,7 +585,7 @@ bool detectMotion(camera_fb_t *fb) {
   if (!mdPrimed) { mdPrimed = true; return false; }
 
   // sensitivity 1..100 maps to "how much of the frame must move": 12% .. 0.6%.
-  uint32_t need = (uint32_t)((MD_W * MD_H) * (0.12f - (sensitivity / 100.0f) * 0.114f));
+  uint32_t need = (uint32_t)(count * (0.12f - (sensitivity / 100.0f) * 0.114f));
   if (need < 2) need = 2;
   return changed >= need;
 }
@@ -742,9 +805,10 @@ void setup() {
   if (camReady) {
     resName = clampRes(resName);
     applySensorSettings();
-    mdPrev = (uint8_t *)malloc(MD_W * MD_H);
-    if (!mdPrev) motionOn = false;    // no baseline buffer, no differencing
-    // esp_camera_init() only proves the sensor answered on SCCB — two pins.
+    // The scan buffers are sized from the first frame that actually arrives,
+    // because their size depends on the resolution and that can change at
+    // runtime. Allocating a fixed pair here is what produced a 2400-byte
+    // buffer for a 9600-byte VGA decode.    // esp_camera_init() only proves the sensor answered on SCCB — two pins.
     // Frames need eleven more, and a board whose ribbon is not seated passes
     // init and then hangs on the first capture. Find that out here, once, on a
     // task we can walk away from, rather than in loop() where it takes the
