@@ -52,8 +52,25 @@
  * route. An MJPEG endpoint on the LAN needs no broker, no relay and no cloud,
  * so video works on the local network while the relay is down, and keeps
  * working if it ever goes down again.
+ *
+ *   1.12.0 Record to the microSD card on the board itself.
+ *
+ * WHY THE CARD MATTERS MORE THAN IT LOOKS
+ *
+ * Every route this firmware had for getting a picture out needs something
+ * else to be working: the broker, the relay, the site, or a viewer standing
+ * on the same LAN. All three fail together the moment the house loses its
+ * uplink — which is the exact minute footage is worth having. The card is the
+ * only path with nothing else in it, so a break-in during an outage is
+ * recorded rather than merely unwatched.
+ *
+ * Clips are written as indexed AVI/MJPEG. That is not a fashionable
+ * container, but it is the only one this chip can write honestly: the sensor
+ * already emits JPEG, so frames are stored exactly as captured with nothing
+ * re-encoded and nothing interpolated over a dropped frame. An MP4 would mean
+ * either transcoding the ESP32 cannot afford, or lying about the timebase.
  */
-#define CV_FW_VERSION "1.11.0"
+#define CV_FW_VERSION "1.12.0"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -61,6 +78,9 @@
 #include "esp_heap_caps.h"
 #include <CircuventDevice.h>
 #include <Preferences.h>
+#include <FS.h>
+#include <SD_MMC.h>
+#include <time.h>
 
 // ---------------------------------------------------------------------------
 // Board pin profiles
@@ -166,6 +186,124 @@
 #endif
 
 // ---------------------------------------------------------------------------
+// microSD
+// ---------------------------------------------------------------------------
+/*
+ * ONE DATA LINE, NOT FOUR — AND THIS IS NOT A PERFORMANCE COMPROMISE TO FIX
+ * LATER.
+ *
+ * The AI-Thinker's slot is wired to the SDMMC peripheral: CLK 14, CMD 15,
+ * D0 2, D1 4, D2 12, D3 13. GPIO 4 is also the white illuminator LED, and
+ * GPIO 12 is the MTDI strapping pin that selects the flash voltage at reset.
+ *
+ * In 4-bit mode the card driver takes both. The visible symptom is the
+ * illuminator glowing at full brightness whenever the card is touched — it is
+ * being driven as a data line, so the LED tracks the bits, and applyFlash()
+ * loses the pin entirely. The invisible one is worse: a card pulling GPIO 12
+ * high at boot tells the chip its flash is 1.8 V, and a 3.3 V part then
+ * returns garbage. That is a board which "randomly stops booting with a card
+ * inserted", and nothing in the log names the card.
+ *
+ * 1-bit mode uses CLK, CMD and D0 only. It halves peak throughput to roughly
+ * 1.5-2 MB/s, which is still five times what VGA MJPEG at 15 fps needs, and
+ * it leaves 4, 12 and 13 alone. The bandwidth is not the constraint here; the
+ * pins are.
+ */
+#define CV_SD_CLK   14
+#define CV_SD_CMD   15
+#define CV_SD_D0     2
+
+#ifndef CV_SD_ENABLED
+#define CV_SD_ENABLED 1
+#endif
+
+// ---------------------------------------------------------------------------
+// Two-way audio
+// ---------------------------------------------------------------------------
+/*
+ * OFF BY DEFAULT, AND NOT OUT OF CAUTION.
+ *
+ * The AI-Thinker ESP32-CAM has no microphone and no amplifier. Not a disabled
+ * one, not one that needs a driver — the parts are absent from the board. Any
+ * amount of firmware produces silence. Two-way audio needs an I2S MEMS mic
+ * (INMP441 or SPH0645) and an I2S amplifier (MAX98357A) soldered on, and this
+ * code is what runs once they are.
+ *
+ * THE PIN BUDGET, WHICH IS THE REAL CONSTRAINT
+ *
+ * The ESP32 has 34 GPIOs and this board has almost none left:
+ *   camera   0, 5, 18, 19, 21, 22, 23, 25, 26, 27, 32, 34, 35, 36, 39
+ *   microSD  2, 14, 15                (1-bit mode; 4, 12, 13 stay free)
+ *   PSRAM    16, 17                   <- the trap
+ *   flash    4
+ *   status   33
+ *   console  1, 3
+ *
+ * GPIO 16 is the one that catches people. Every ESP32-CAM pinout diagram
+ * lists it as free, and it is — on modules without PSRAM. This board is a
+ * WROVER, where 16 and 17 are the PSRAM chip select and clock. Wiring a mic to
+ * 16 does not fail cleanly: PSRAM keeps half working, the camera DMAs frames
+ * into memory that no longer holds them, and the board panics somewhere
+ * unrelated minutes later.
+ *
+ * That leaves 12, 13, 33, and the console pair. Full duplex on one I2S
+ * peripheral shares the bit clock and word select between input and output, so
+ * four pins is enough where two separate peripherals would need six. There is
+ * still no fourth pin that is free of charge:
+ *
+ *   BCLK  12   free (SD D2, unused in 1-bit mode)
+ *   LRCLK 13   free (SD D3, unused in 1-bit mode)
+ *   DOUT  33   costs the small red status LED
+ *   DIN    3   costs the serial console's receive line
+ *
+ * DIN takes the console's RX rather than the illuminator, because the
+ * illuminator is a feature a user can see and RX is only used for typing into
+ * a board that is normally in a ceiling. Serial output still works; you simply
+ * cannot type back. Set CV_I2S_DIN to 4 to trade the other way.
+ *
+ * GPIO 12 is MTDI, which selects the flash voltage at reset. It is assigned as
+ * BCLK — an output this chip drives — precisely so nothing external holds it
+ * high during boot. Wiring a mic's clock *input* here is safe; wiring anything
+ * with a pull-up is not, and produces a board that boots only sometimes.
+ *
+ * If audio matters more than the compromises above, the honest answer is an
+ * ESP32-S3 camera board, which has the pins.
+ */
+#ifndef CV_AUDIO
+#define CV_AUDIO 0
+#endif
+
+#ifndef CV_I2S_BCLK
+#define CV_I2S_BCLK  12
+#endif
+#ifndef CV_I2S_LRCLK
+#define CV_I2S_LRCLK 13
+#endif
+#ifndef CV_I2S_DOUT
+#define CV_I2S_DOUT  33
+#endif
+#ifndef CV_I2S_DIN
+#define CV_I2S_DIN    3
+#endif
+
+/*
+ * 8 kHz, 16-bit, mono.
+ *
+ * Speech is intelligible at 8 kHz — it is what every telephone call used for a
+ * century — and it costs 16 kB/s. This device already sustains one 30 kB JPEG
+ * a second over TLS, so that fits with headroom. 16 kHz would sound slightly
+ * better and double a budget that is the actual limit here.
+ *
+ * PCM in a WAV wrapper, with no codec. An ADPCM or Opus stream would be
+ * smaller, but every consumer of this — the browser, the phone, ffmpeg —
+ * plays WAV with nothing added, and a codec that has to be shipped to three
+ * clients to save 8 kB/s is a bad trade.
+ */
+#define CV_AUDIO_RATE      8000
+#define CV_AUDIO_CHUNK_MS  1000   // upload cadence while someone is listening
+#define CV_AUDIO_MAX_SPEAK 320000 // 20 s of playback; a bounded fetch, not a stream
+
+// ---------------------------------------------------------------------------
 // Pin sanity
 // ---------------------------------------------------------------------------
 // Every auxiliary pin below is handed to pinMode() at boot, which rebinds the
@@ -194,6 +332,49 @@
 #if CV_PIN_CLASH(PIR_GPIO_NUM)
 #error "PIR_GPIO_NUM shares a pin with the camera. Pick a free pin."
 #endif
+#if CV_SD_ENABLED
+#if CV_PIN_CLASH(CV_SD_CLK) || CV_PIN_CLASH(CV_SD_CMD) || CV_PIN_CLASH(CV_SD_D0)
+#error "An SD pin shares a pin with the camera on this board. Set CV_SD_ENABLED=0."
+#endif
+// The whole reason for 1-bit mode is that GPIO 4 stays free for the
+// illuminator. If someone later moves the LED onto a card line, that must
+// fail here rather than at 2am in a dark hallway.
+#if FLASH_GPIO_NUM == CV_SD_CLK || FLASH_GPIO_NUM == CV_SD_CMD || FLASH_GPIO_NUM == CV_SD_D0
+#error "FLASH_GPIO_NUM is on an SD data line. The illuminator and the card cannot share it."
+#endif
+#endif
+
+#if CV_AUDIO
+#if CV_PIN_CLASH(CV_I2S_BCLK) || CV_PIN_CLASH(CV_I2S_LRCLK) || CV_PIN_CLASH(CV_I2S_DOUT) || CV_PIN_CLASH(CV_I2S_DIN)
+#error "An I2S pin collides with the camera. See the pin budget note above."
+#endif
+#if CV_SD_ENABLED
+#if CV_I2S_BCLK == CV_SD_CLK || CV_I2S_BCLK == CV_SD_CMD || CV_I2S_BCLK == CV_SD_D0 || \
+    CV_I2S_LRCLK == CV_SD_CLK || CV_I2S_LRCLK == CV_SD_CMD || CV_I2S_LRCLK == CV_SD_D0 || \
+    CV_I2S_DOUT == CV_SD_CLK || CV_I2S_DOUT == CV_SD_CMD || CV_I2S_DOUT == CV_SD_D0 || \
+    CV_I2S_DIN == CV_SD_CLK || CV_I2S_DIN == CV_SD_CMD || CV_I2S_DIN == CV_SD_D0
+#error "An I2S pin collides with the microSD card. Move it, or build with CV_SD_ENABLED=0."
+#endif
+#endif
+/*
+ * The PSRAM trap, caught at build time.
+ *
+ * On a WROVER module — which is what an ESP32-CAM with PSRAM is — GPIO 16 and
+ * 17 are the PSRAM chip select and clock. Pinout diagrams list them as free
+ * because they are, on the modules without it. Taking one here does not fail
+ * cleanly: PSRAM half-works, the camera writes frames into memory that no
+ * longer holds them, and the board panics somewhere else entirely.
+ */
+#ifdef BOARD_HAS_PSRAM
+#if CV_I2S_BCLK == 16 || CV_I2S_BCLK == 17 || CV_I2S_LRCLK == 16 || CV_I2S_LRCLK == 17 || \
+    CV_I2S_DOUT == 16 || CV_I2S_DOUT == 17 || CV_I2S_DIN == 16 || CV_I2S_DIN == 17
+#error "GPIO 16/17 are the PSRAM chip select and clock on this module. They are not free."
+#endif
+#endif
+#if CV_I2S_DIN < 0 || CV_I2S_DOUT < 0
+#error "Both an input and an output pin are required for two-way audio."
+#endif
+#endif
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -220,6 +401,28 @@
 #define FLASH_LEDC_CH           7
 #define FLASH_LEDC_FREQ      5000
 #define FLASH_LEDC_BITS         8
+
+// ---- microSD recording ----
+#define REC_DIR             "/clips"
+#define REC_FPS_DEFAULT         10
+#define REC_SEG_SECS_DEFAULT   300   // 5 minutes a clip
+#define REC_SEG_SECS_MIN        10
+#define REC_SEG_SECS_MAX      3600
+/*
+ * A clip is also capped by frame count, because the AVI index lives in RAM
+ * until the clip closes and 16 bytes an entry is the one cost that grows
+ * without bound. 9000 frames is 15 minutes at 10 fps and 144 kB of index,
+ * which PSRAM carries comfortably; boards without it get the smaller cap
+ * below and simply roll over to a new clip sooner.
+ */
+#define REC_MAX_FRAMES_PSRAM  9000
+#define REC_MAX_FRAMES_HEAP    900
+/* Keep this much of the card free. Filling a FAT volume completely makes it
+ * slow to write and awkward to recover, and the oldest clip is always the one
+ * worth least. */
+#define REC_KEEP_FREE_MB        64
+#define REC_MOTION_TAIL_MS   15000UL  // keep recording this long after motion stops
+#define REC_MAX_CLIPS          512    // directory entries we are willing to walk
 
 CircuventDevice cv("camera");
 Preferences store;
@@ -253,6 +456,29 @@ int   captureFails = 0;
 bool  sensorLive   = false;      // has a capture actually worked recently
 
 bool sccbAlive();                // defined with the camera setup, below
+
+/*
+ * A grab target, declared up here rather than beside the code that uses it.
+ *
+ * The .ino build injects generated prototypes just above the first function in
+ * the file, so any type named in a signature must already exist at that point.
+ * Declaring FrameBuf next to grabInto() compiles cleanly by eye and then fails
+ * with "'FrameBuf' was not declared in this scope" pointing at an unrelated
+ * line four hundred lines earlier, because the prototype the build wrote is
+ * the thing that cannot see it.
+ *
+ * There are three consumers that each need a frame to survive past
+ * esp_camera_fb_return() — the LAN viewer, the cloud pusher and the SD
+ * recorder — and they run at different rates. One shared buffer would mean a
+ * recorder writing to the card while a viewer overwrites the bytes underneath
+ * it, which corrupts the clip and is invisible until someone tries to play it
+ * back. Each consumer owns its own, grown once and reused, so there is still
+ * no per-frame malloc.
+ */
+struct FrameBuf {
+  uint8_t *p   = nullptr;
+  size_t   cap = 0;
+};
 
 /**
  * Does a capture actually complete, or does it hang?
@@ -344,9 +570,10 @@ void noteCapture(bool got) {
  */
 static SemaphoreHandle_t camMux  = nullptr;
 static httpd_handle_t    lanHttpd = nullptr;
-static uint8_t          *lanCopy  = nullptr;   // reusable, so no per-frame malloc
-static size_t            lanCopyCap = 0;
 static volatile int      lanViewers = 0;
+
+static FrameBuf lanBuf;    // LAN viewers and the cloud pusher (both on paced paths)
+static FrameBuf recBuf;    // SD recorder
 
 static bool camLock(uint32_t ms) {
   return camMux && xSemaphoreTake(camMux, pdMS_TO_TICKS(ms)) == pdTRUE;
@@ -356,35 +583,906 @@ static void camUnlock() {
 }
 
 /** Copies a frame out so the driver buffer can be returned before network I/O. */
-static bool lanCopyFrame(const camera_fb_t *fb) {
-  if (fb->len > lanCopyCap) {
+static bool copyFrameInto(FrameBuf &dst, const camera_fb_t *fb) {
+  if (fb->len > dst.cap) {
     uint8_t *grown = (uint8_t *)heap_caps_realloc(
-        lanCopy, fb->len, hasPsram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT);
+        dst.p, fb->len, hasPsram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT);
     if (!grown) return false;
-    lanCopy = grown;
-    lanCopyCap = fb->len;
+    dst.p = grown;
+    dst.cap = fb->len;
   }
-  memcpy(lanCopy, fb->buf, fb->len);
+  memcpy(dst.p, fb->buf, fb->len);
   return true;
 }
 
 /**
- * Grabs one frame into `lanCopy`. Returns 0 on failure.
+ * Grabs one frame into `dst`. Returns 0 on failure.
  *
- * The driver buffer is handed back before the caller writes to a socket. A
- * viewer on a slow link would otherwise hold a frame buffer for the length of
- * its transfer, and with two buffers that stalls the next capture — the same
- * reason sendFrame() returns early.
+ * The driver buffer is handed back before the caller writes to a socket or to
+ * the card. A viewer on a slow link would otherwise hold a frame buffer for
+ * the length of its transfer, and with two buffers that stalls the next
+ * capture — the same reason sendFrame() returns early.
  */
-static size_t lanGrab() {
+static size_t grabInto(FrameBuf &dst, int *w = nullptr, int *h = nullptr) {
   if (!camReady || !sensorLive) return 0;
   if (!camLock(3000)) return 0;
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) { camUnlock(); return 0; }
-  size_t len = fb->format == PIXFORMAT_JPEG && lanCopyFrame(fb) ? fb->len : 0;
+  size_t len = fb->format == PIXFORMAT_JPEG && copyFrameInto(dst, fb) ? fb->len : 0;
+  if (len) { if (w) *w = fb->width; if (h) *h = fb->height; }
   esp_camera_fb_return(fb);
   camUnlock();
   return len;
+}
+
+static size_t lanGrab() { return grabInto(lanBuf); }
+
+// ---------------------------------------------------------------------------
+// microSD card
+// ---------------------------------------------------------------------------
+/*
+ * Everything here is written so that a camera with no card, a card that was
+ * pulled while recording, or a card that is full behaves like a camera
+ * without recording — never like a camera that has stopped working. A storage
+ * fault must not cost the device its stream, its motion detection or its OTA
+ * path, so every entry point checks `sdReady` and every write failure closes
+ * the clip and drops back to not recording rather than retrying into a wall.
+ */
+bool     sdReady   = false;
+uint64_t sdTotalB  = 0;
+String   sdFault;                 // why the card is unavailable, in plain words
+
+/**
+ * Is this one of our clips?
+ *
+ * Case-insensitive, because the 8.3 fallback in aviOpen() writes uppercase
+ * names. Matching only ".avi" meant a card that had ever rejected a long
+ * filename produced clips that recorded correctly, sat on the card, and were
+ * then invisible to the listing, undeletable, undownloadable and never
+ * reclaimed when the card filled — a storage leak that looks like footage
+ * silently going missing.
+ */
+static bool isClipName(const String &n) {
+  if (n.length() < 5) return false;
+  String ext = n.substring(n.length() - 4);
+  ext.toLowerCase();
+  return ext == ".avi";
+}
+
+static uint64_t sdFreeB() {
+  if (!sdReady) return 0;
+  uint64_t total = SD_MMC.totalBytes(), used = SD_MMC.usedBytes();
+  return total > used ? total - used : 0;
+}
+
+static bool sdMount() {
+#if !CV_SD_ENABLED
+  sdFault = "disabled in this build";
+  return false;
+#else
+  if (sdReady) return true;
+  /*
+   * No setPins() call. On the classic ESP32 the SDMMC host is bonded to those
+   * pads through IOMUX and cannot be routed anywhere by the GPIO matrix, so
+   * the constants above are a contract with the hardware rather than a
+   * configuration — they exist to be checked against the camera and flash
+   * assignments at build time, which is the only way this can actually go
+   * wrong. Calling setPins here would compile only on newer cores and fail at
+   * runtime on this chip regardless.
+   */
+  // true  = 1-bit mode (see the pin note above — this argument is the whole
+  //         reason the illuminator still works)
+  // false = do not format a card we failed to read. A camera that silently
+  //         erased the last month of footage because a card was briefly
+  //         unreadable would be worse than one that records nothing.
+  if (!SD_MMC.begin("/sdcard", true, false)) {
+    sdFault = "no card, or the card could not be read";
+    return false;
+  }
+  uint8_t type = SD_MMC.cardType();
+  if (type == CARD_NONE) {
+    SD_MMC.end();
+    sdFault = "no card in the slot";
+    return false;
+  }
+  sdTotalB = SD_MMC.totalBytes();
+  if (!SD_MMC.exists(REC_DIR) && !SD_MMC.mkdir(REC_DIR)) {
+    SD_MMC.end();
+    sdFault = "card is not writable";
+    return false;
+  }
+  sdReady = true;
+  sdFault = "";
+  Serial.printf("[SD] mounted, %llu MB total, %llu MB free\n",
+                sdTotalB / (1024ULL * 1024ULL), sdFreeB() / (1024ULL * 1024ULL));
+#if FLASH_GPIO_NUM >= 0
+  /*
+   * Re-attach the illuminator.
+   *
+   * 1-bit mode leaves GPIO 4 out of the slot configuration, but the SDMMC
+   * host driver still runs its pad setup over the peripheral's full pin set
+   * on some IDF versions, and that detaches the LEDC output without reporting
+   * anything. The symptom is a flash control that answers every command and
+   * changes nothing. Re-binding costs two register writes and removes the
+   * question entirely.
+   */
+  ledcAttachPin(FLASH_GPIO_NUM, FLASH_LEDC_CH);
+#endif
+  return true;
+#endif
+}
+
+/** Marks the card gone. Called when a write fails — a pulled card is common. */
+static void sdLost(const char *why) {
+  if (!sdReady) return;
+  sdReady = false;
+  sdFault = why;
+  SD_MMC.end();
+  Serial.printf("[SD] card lost: %s\n", why);
+}
+
+// ---------------------------------------------------------------------------
+// AVI/MJPEG writer
+// ---------------------------------------------------------------------------
+/*
+ * WHY AVI, WRITTEN BY HAND
+ *
+ * The sensor hands us a finished JPEG. AVI is the one container that can hold
+ * those bytes unchanged, is understood by VLC, ffmpeg, QuickTime and every
+ * NVR, and can be written by a microcontroller in a single forward pass with
+ * seven fields patched at the end. MP4 would need either a full re-encode this
+ * chip cannot afford, or a fabricated constant timebase — and the timebase is
+ * exactly the thing that is not constant when a camera drops a frame.
+ *
+ * The index is the part people leave out, and leaving it out is why so much
+ * ESP32 footage "plays but will not seek and reports no duration". Players
+ * fall back to scanning the movi list, get no frame count, and show a
+ * zero-length clip that only plays forward. idx1 is 16 bytes a frame and it
+ * is what makes the file a real recording rather than a pile of JPEGs with a
+ * header on it.
+ *
+ * Layout, all little-endian:
+ *    0  RIFF <fileSize-8> AVI
+ *   12  LIST <192> hdrl
+ *   24    avih <56> MainAVIHeader
+ *   88    LIST <116> strl
+ *  100      strh <56> AVIStreamHeader
+ *  164      strf <40> BITMAPINFOHEADER
+ *  212  LIST <moviSize> movi
+ *  224    00dc <len> <jpeg> [pad to even] ...
+ *   ..  idx1 <16*frames> entries
+ */
+#define AVI_HDR_BYTES   224
+#define AVI_OFF_RIFFSZ    4
+#define AVI_OFF_USPF     32     // avih.dwMicroSecPerFrame
+#define AVI_OFF_MAXBPS   36     // avih.dwMaxBytesPerSec
+#define AVI_OFF_TOTFRM   48     // avih.dwTotalFrames
+#define AVI_OFF_SUGBUF   60     // avih.dwSuggestedBufferSize
+#define AVI_OFF_RATE    132     // strh.dwRate
+#define AVI_OFF_LENGTH  140     // strh.dwLength
+#define AVI_OFF_STRBUF  144     // strh.dwSuggestedBufferSize
+#define AVI_OFF_MOVISZ  216     // movi LIST size
+#define AVI_MOVI_FOURCC 220     // idx1 offsets are relative to this
+
+File     recF;
+bool     recording   = false;
+bool     recEnabled  = false;    // the user's intent, which survives a lost card
+bool     recMotion   = false;    // record only while motion is present
+int      recFps      = REC_FPS_DEFAULT;
+uint32_t recSegSecs  = REC_SEG_SECS_DEFAULT;
+String   recName;
+uint32_t recFrames   = 0;
+uint32_t recBytes    = 0;        // movi payload only
+uint32_t recMaxJpeg  = 0;
+unsigned long recStartMs = 0, lastRecFrameAt = 0, recMotionSeenAt = 0;
+long     recClips    = 0;
+uint32_t *recIdx     = nullptr;  // {offset, size} pairs
+uint32_t  recIdxCap  = 0;
+
+static inline void put32(uint8_t *p, uint32_t v) {
+  p[0] = v; p[1] = v >> 8; p[2] = v >> 16; p[3] = v >> 24;
+}
+static inline void put16(uint8_t *p, uint16_t v) { p[0] = v; p[1] = v >> 8; }
+static inline void putTag(uint8_t *p, const char *t) { memcpy(p, t, 4); }
+
+/** Rewrites one dword in a header already on the card. */
+static bool patch32(uint32_t off, uint32_t v) {
+  uint8_t b[4];
+  put32(b, v);
+  return recF.seek(off) && recF.write(b, 4) == 4;
+}
+
+static void aviHeader(uint8_t *h, int w, int h_px, int fpsOut) {
+  memset(h, 0, AVI_HDR_BYTES);
+  putTag(h + 0, "RIFF");  put32(h + 4, 0);            // patched at close
+  putTag(h + 8, "AVI ");
+  putTag(h + 12, "LIST"); put32(h + 16, 192);
+  putTag(h + 20, "hdrl");
+  putTag(h + 24, "avih"); put32(h + 28, 56);
+  put32(h + 32, 1000000UL / (uint32_t)max(fpsOut, 1));  // dwMicroSecPerFrame
+  put32(h + 36, 0);                                     // dwMaxBytesPerSec
+  put32(h + 40, 0);                                     // dwPaddingGranularity
+  put32(h + 44, 0x10);                                  // AVIF_HASINDEX
+  put32(h + 48, 0);                                     // dwTotalFrames
+  put32(h + 52, 0);                                     // dwInitialFrames
+  put32(h + 56, 1);                                     // dwStreams
+  put32(h + 60, 0);                                     // dwSuggestedBufferSize
+  put32(h + 64, (uint32_t)w);
+  put32(h + 68, (uint32_t)h_px);
+  putTag(h + 88, "LIST"); put32(h + 92, 116);
+  putTag(h + 96, "strl");
+  putTag(h + 100, "strh"); put32(h + 104, 56);
+  putTag(h + 108, "vids");
+  putTag(h + 112, "MJPG");
+  put32(h + 128, 1);                                    // dwScale
+  put32(h + 132, (uint32_t)max(fpsOut, 1));             // dwRate
+  put32(h + 140, 0);                                    // dwLength
+  put32(h + 148, 0xFFFFFFFFUL);                         // dwQuality: "not set"
+  // rcFrame occupies the last 8 bytes of strh: left, top, right, bottom.
+  // left/top stay zero from the memset.
+  put16(h + 160, (uint16_t)w);                          // rcFrame.right
+  put16(h + 162, (uint16_t)h_px);                       // rcFrame.bottom
+  putTag(h + 164, "strf"); put32(h + 168, 40);
+  put32(h + 172, 40);                                   // biSize
+  put32(h + 176, (uint32_t)w);
+  put32(h + 180, (uint32_t)h_px);
+  put16(h + 184, 1);                                    // biPlanes
+  put16(h + 186, 24);                                   // biBitCount
+  putTag(h + 188, "MJPG");                              // biCompression
+  put32(h + 192, (uint32_t)(w * h_px * 3));             // biSizeImage
+  putTag(h + 212, "LIST"); put32(h + 216, 4);           // patched at close
+  putTag(h + AVI_MOVI_FOURCC, "movi");
+}
+
+/**
+ * Deletes the oldest clips until `need` bytes are free.
+ *
+ * Oldest by name, and the names are zero-padded and time-ordered for exactly
+ * this reason: f.getLastWrite() returns 0 on a card written before NTP
+ * resolved, so sorting by mtime would pick a victim at random on precisely
+ * the boots where it matters. The name is written by us and is always
+ * ordered, so it is the honest key.
+ */
+static bool sdMakeRoom(uint64_t need) {
+  if (!sdReady) return false;
+  for (int pass = 0; pass < REC_MAX_CLIPS; pass++) {
+    if (sdFreeB() >= need) return true;
+    File dir = SD_MMC.open(REC_DIR);
+    if (!dir) return false;
+    String oldest;
+    for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+      String n = f.name();
+      int slash = n.lastIndexOf('/');
+      if (slash >= 0) n = n.substring(slash + 1);
+      f.close();
+      if (!isClipName(n)) continue;
+      if (recording && n == recName) continue;     // never eat the live clip
+      if (!oldest.length() || n < oldest) oldest = n;
+    }
+    dir.close();
+    if (!oldest.length()) return false;            // nothing left to reclaim
+    String path = String(REC_DIR) + "/" + oldest;
+    Serial.printf("[SD] reclaiming %s\n", path.c_str());
+    if (!SD_MMC.remove(path)) return false;
+  }
+  return sdFreeB() >= need;
+}
+
+/**
+ * A name that sorts chronologically whether or not the clock is set.
+ *
+ * sdMakeRoom() reclaims the lexicographically smallest name, so this ordering
+ * is the retention policy. Timestamped clips sort first and are therefore
+ * deleted oldest-first, which is what "oldest footage goes first" should mean.
+ * Unstamped ones begin with 'u', which sorts after every digit, so a clip
+ * recorded before NTP resolved outlives the dated ones around it. That is
+ * deliberate: its position in time is the one thing nobody can reconstruct
+ * later, so it is the clip most worth keeping and the least safe to guess at.
+ */
+static String clipName() {
+  time_t now = time(nullptr);
+  char buf[40];
+  if (now > 1700000000) {
+    struct tm t;
+    gmtime_r(&now, &t);
+    snprintf(buf, sizeof(buf), "%04d%02d%02d-%02d%02d%02d.avi",
+             t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
+  } else {
+    // No NTP yet. "up" keeps these together, and it sorts after every digit so
+    // sdMakeRoom() reclaims dated clips before these — see the note above.
+    snprintf(buf, sizeof(buf), "up%08lu.avi", (unsigned long)(millis() / 1000));
+  }
+  return String(buf);
+}
+
+static void recPublishState();
+
+/** Opens a new clip. Returns false and leaves recording off on any failure. */
+static bool aviOpen(int w, int h_px) {
+  if (!sdReady || recording) return false;
+
+  uint32_t cap = hasPsram ? REC_MAX_FRAMES_PSRAM : REC_MAX_FRAMES_HEAP;
+  if (!recIdx || recIdxCap != cap) {
+    if (recIdx) heap_caps_free(recIdx);
+    recIdx = (uint32_t *)heap_caps_malloc(
+        (size_t)cap * 2 * sizeof(uint32_t), hasPsram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT);
+    if (!recIdx) {
+      // Fall back rather than refuse: a shorter clip that seeks is worth more
+      // than no clip at all.
+      cap = REC_MAX_FRAMES_HEAP;
+      recIdx = (uint32_t *)heap_caps_malloc((size_t)cap * 2 * sizeof(uint32_t), MALLOC_CAP_8BIT);
+      if (!recIdx) { recIdxCap = 0; Serial.println(F("[REC] no memory for the clip index")); return false; }
+    }
+    recIdxCap = cap;
+  }
+
+  // Room for a whole segment plus the reserve, worked out from what frames
+  // actually cost rather than a guess: recMaxJpeg carries over between clips.
+  uint32_t perFrame = recMaxJpeg ? recMaxJpeg : 60000;
+  uint64_t want = (uint64_t)perFrame * (uint64_t)recFps * (uint64_t)min(recSegSecs, (uint32_t)60)
+                + (uint64_t)REC_KEEP_FREE_MB * 1024ULL * 1024ULL;
+  if (!sdMakeRoom(want)) {
+    Serial.println(F("[REC] card is full and nothing could be reclaimed"));
+    return false;
+  }
+
+  String name = clipName();
+  String path = String(REC_DIR) + "/" + name;
+  recF = SD_MMC.open(path, FILE_WRITE);
+  if (!recF) {
+    /*
+     * Long filenames are configured in every Arduino-ESP32 core this builds
+     * against, but a card formatted by a tool that disabled them, or a core
+     * built without CONFIG_FATFS_LFN, rejects a 19-character name with the
+     * same null this returns for a dead card. Retrying in 8.3 tells the two
+     * apart, and a camera that records under an ugly name is better than one
+     * that reports a storage failure it does not have.
+     */
+    char shortName[13];
+    snprintf(shortName, sizeof(shortName), "R%07lu.AVI", (unsigned long)(millis() / 1000) % 10000000UL);
+    name = shortName;
+    path = String(REC_DIR) + "/" + name;
+    recF = SD_MMC.open(path, FILE_WRITE);
+    if (!recF) { sdLost("could not create a clip"); return false; }
+    Serial.println(F("[REC] card rejected a long filename — using 8.3"));
+  }
+
+  uint8_t hdr[AVI_HDR_BYTES];
+  aviHeader(hdr, w, h_px, recFps);
+  if (recF.write(hdr, AVI_HDR_BYTES) != AVI_HDR_BYTES) {
+    recF.close();
+    SD_MMC.remove(path);
+    sdLost("could not write a clip header");
+    return false;
+  }
+
+  recording  = true;
+  recName    = name;
+  recFrames  = 0;
+  recBytes   = 0;
+  recStartMs = millis();
+  Serial.printf("[REC] recording %s (%dx%d @ %d fps)\n", name.c_str(), w, h_px, recFps);
+  return true;
+}
+
+/** Finishes the clip: writes idx1, patches the seven size fields, closes. */
+static void aviClose(const char *why) {
+  if (!recording) return;
+  recording = false;
+
+  bool ok = recF;
+  uint32_t frames = recFrames;
+  uint32_t secs = (millis() - recStartMs) / 1000;
+
+  if (ok && frames && recIdx) {
+    uint8_t e[16];
+    putTag(e + 0, "00dc");
+    put32(e + 4, 0x10);                     // AVIIF_KEYFRAME — every MJPEG frame is
+    ok = recF.seek(recF.size());
+    if (ok) {
+      uint8_t idxHdr[8];
+      putTag(idxHdr + 0, "idx1");
+      put32(idxHdr + 4, frames * 16);
+      ok = recF.write(idxHdr, 8) == 8;
+    }
+    for (uint32_t i = 0; ok && i < frames; i++) {
+      put32(e + 8, recIdx[i * 2]);
+      put32(e + 12, recIdx[i * 2 + 1]);
+      ok = recF.write(e, 16) == 16;
+    }
+  }
+
+  if (ok) {
+    uint32_t total = recF.size();
+    uint32_t moviSz = 4 + recBytes;
+    // Real elapsed time, not the requested rate. A card that made us miss
+    // frames produces a clip that is genuinely slower, and writing the
+    // nominal fps here would play it back too fast and quietly misrepresent
+    // when things happened — which is the one thing footage is for.
+    uint32_t realFps = (uint32_t)(recFps > 0 ? recFps : 1);
+    if (secs > 0) {
+      uint32_t measured = (frames + secs / 2) / secs;
+      realFps = measured ? measured : 1;
+    }
+    ok = patch32(AVI_OFF_RIFFSZ, total - 8)
+      && patch32(AVI_OFF_USPF, 1000000UL / realFps)
+      && patch32(AVI_OFF_MAXBPS, secs ? recBytes / secs : recBytes)
+      && patch32(AVI_OFF_TOTFRM, frames)
+      && patch32(AVI_OFF_SUGBUF, recMaxJpeg)
+      && patch32(AVI_OFF_RATE, realFps)
+      && patch32(AVI_OFF_LENGTH, frames)
+      && patch32(AVI_OFF_STRBUF, recMaxJpeg)
+      && patch32(AVI_OFF_MOVISZ, moviSz);
+  }
+  if (recF) { recF.flush(); recF.close(); }
+
+  if (!ok) {
+    sdLost("the clip could not be finalised");
+    Serial.printf("[REC] %s left incomplete\n", recName.c_str());
+  } else {
+    recClips++;
+    Serial.printf("[REC] closed %s — %lu frames in %lus (%s)\n",
+                  recName.c_str(), (unsigned long)frames, (unsigned long)secs, why);
+    JsonDocument d;
+    d["type"]   = "clip";
+    d["name"]   = recName;
+    d["frames"] = (long)frames;
+    d["secs"]   = (long)secs;
+    d["bytes"]  = (long)recBytes;
+    d["reason"] = why;
+    cv.publishTelemetry(d.as<JsonObjectConst>());
+  }
+  recName = "";
+  recFrames = 0;
+}
+
+/** Appends one JPEG. Closes the clip rather than half-writing it on failure. */
+static bool aviAddFrame(const uint8_t *jpeg, size_t len) {
+  if (!recording || !recF || !len) return false;
+
+  uint32_t off = recF.position();
+  uint8_t ck[8];
+  putTag(ck + 0, "00dc");
+  put32(ck + 4, (uint32_t)len);
+  if (recF.write(ck, 8) != 8 || recF.write(jpeg, len) != len) {
+    aviClose("write failed");
+    sdLost("the card stopped accepting data");
+    return false;
+  }
+  // RIFF chunks are word-aligned. Without this pad an odd-length JPEG shifts
+  // every following chunk by one byte and the file stops parsing at frame two.
+  if (len & 1) {
+    uint8_t z = 0;
+    if (recF.write(&z, 1) != 1) { aviClose("write failed"); sdLost("the card stopped accepting data"); return false; }
+  }
+
+  recIdx[recFrames * 2]     = off - AVI_MOVI_FOURCC;
+  recIdx[recFrames * 2 + 1] = (uint32_t)len;
+  recFrames++;
+  recBytes += 8 + len + (len & 1);
+  if (len > recMaxJpeg) recMaxJpeg = (uint32_t)len;
+
+  // Flush periodically so a power cut costs seconds, not the whole clip. The
+  // header is still unpatched at that point, but ffmpeg and VLC both recover a
+  // movi list without an index; nothing is recoverable if it is still in a
+  // cache when the lights go out.
+  if ((recFrames % 32) == 0) recF.flush();
+  return true;
+}
+
+/** Deletes every clip. Used by the "clear card" command. */
+static int recDeleteAll() {
+  if (!sdReady) return 0;
+  if (recording) aviClose("card cleared");
+  File dir = SD_MMC.open(REC_DIR);
+  if (!dir) return 0;
+  int removed = 0;
+  for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+    String n = f.name();
+    int slash = n.lastIndexOf('/');
+    if (slash >= 0) n = n.substring(slash + 1);
+    f.close();
+    if (isClipName(n) && SD_MMC.remove(String(REC_DIR) + "/" + n)) removed++;
+  }
+  dir.close();
+  return removed;
+}
+
+static void recPublishState() {
+  cv.set("sd", sdReady);
+  cv.set("sdTotalMb", (long)(sdTotalB / (1024ULL * 1024ULL)));
+  cv.set("sdFreeMb", (long)(sdFreeB() / (1024ULL * 1024ULL)));
+  cv.set("sdFault", sdFault.c_str());
+  cv.set("recording", recording);
+  cv.set("recEnabled", recEnabled);
+  cv.set("recMotion", recMotion);
+  cv.set("recFps", recFps);
+  cv.set("recSegment", (int)recSegSecs);
+  cv.set("recFile", recName.c_str());
+  cv.set("recFrames", (long)recFrames);
+  cv.set("recSecs", (long)(recording ? (millis() - recStartMs) / 1000 : 0));
+  cv.set("recClips", recClips);
+}
+
+/**
+ * One recording tick, called from loop().
+ *
+ * Capture happens here rather than piggybacking on sendFrame() so that
+ * recording keeps its own cadence: the stream is armed by a viewer and stops
+ * twenty seconds after they leave, and footage that only exists while someone
+ * is watching is not a recording. The card write happens outside the capture
+ * mutex, so a slow card delays this clip and nothing else.
+ */
+static void recTick() {
+  unsigned long now = millis();
+
+  bool want = recEnabled && camReady && sensorLive && !cv.isProvisioning();
+  if (want && recMotion) {
+    if (motionActive) recMotionSeenAt = now;
+    want = recMotionSeenAt && (now - recMotionSeenAt <= REC_MOTION_TAIL_MS);
+  }
+
+  if (!want) {
+    if (recording) aviClose(recEnabled ? "motion ended" : "stopped");
+    return;
+  }
+  if (!sdReady) {
+    // Re-mounting is how a card pushed in after boot starts working, and how
+    // one that was pulled and returned recovers. Paced, because a mount
+    // attempt against an empty slot is not free.
+    static unsigned long lastTry = 0;
+    if (now - lastTry < 10000UL) return;
+    lastTry = now;
+    if (!sdMount()) return;
+    recPublishState();
+    cv.publishStateNow();
+  }
+
+  unsigned long period = 1000UL / (unsigned long)max(recFps, 1);
+  if (now - lastRecFrameAt < period) return;
+  lastRecFrameAt = now;
+
+  int w = 0, h = 0;
+  size_t len = grabInto(recBuf, &w, &h);
+  if (!len) return;
+
+  if (recording &&
+      ((millis() - recStartMs) / 1000 >= recSegSecs || recFrames >= recIdxCap)) {
+    aviClose("segment complete");
+  }
+  if (!recording && !aviOpen(w, h)) {
+    // Opening failed for a reason aviOpen has already reported. Back off by
+    // pretending this tick used its slot, so a full card does not spin.
+    lastRecFrameAt = now + 2000;
+    return;
+  }
+  aviAddFrame(recBuf.p, len);
+}
+
+/** Starts or stops recording, and says what actually happened. */
+static String recSet(bool on) {
+  recEnabled = on;
+  store.putBool("recon", on);
+  if (!on) {
+    if (recording) aviClose("stopped");
+    recMotionSeenAt = 0;
+    return "stopped";
+  }
+  if (!sdReady && !sdMount()) {
+    // The intent is kept even though the attempt failed: recTick() retries the
+    // mount every ten seconds, so pushing a card in later just starts it.
+    return sdFault.length() ? sdFault : "no card — will start when one is inserted";
+  }
+  recMotionSeenAt = recMotion ? 0 : millis();
+  return recMotion ? "armed for motion" : "recording";
+}
+
+// ---------------------------------------------------------------------------
+// Two-way audio
+// ---------------------------------------------------------------------------
+/*
+ * Listening and talking, both push-to-talk shaped rather than a phone call.
+ *
+ * WHY NOT A REAL FULL-DUPLEX CALL
+ *
+ * A continuous voice link needs a bidirectional low-latency socket. This
+ * device has no public address, the broker relay is the thing that has been
+ * unreliable all along, and an ESP32 running TLS has neither the throughput
+ * nor the jitter budget for conversational audio. Building it that way would
+ * produce something that demos on a bench and fails in a house.
+ *
+ * So each direction is a separate, bounded transfer over the path already
+ * proven to work here:
+ *
+ *   Listening — while a viewer has armed it, the device POSTs one second of
+ *   WAV at a time to the site, exactly like cloudPushFrame does with JPEGs.
+ *   The arming expires on its own, so a closed tab cannot leave a microphone
+ *   uploading a household's conversations indefinitely. That is a privacy
+ *   property, not a bandwidth one.
+ *
+ *   Talking — the app uploads a clip to the site, the site issues a `speak`
+ *   command carrying a URL and a one-shot token, and the device fetches and
+ *   plays it. The device pulls, because nothing on the internet can reach into
+ *   a home network to push, and a camera that accepted unsolicited audio from
+ *   anywhere would be a speaker in someone's home that strangers can use.
+ *
+ * Both are capability-gated: a board with no parts fitted reports hasMic and
+ * hasSpeaker false and the apps hide the controls, rather than offering a
+ * button that produces silence and no explanation.
+ */
+#if CV_AUDIO
+#include <driver/i2s.h>
+
+#define CV_I2S_PORT I2S_NUM_0
+/* One second of 16-bit mono at the working rate. */
+#define AUDIO_CHUNK_SAMPLES ((CV_AUDIO_RATE * CV_AUDIO_CHUNK_MS) / 1000)
+#define AUDIO_CHUNK_BYTES   (AUDIO_CHUNK_SAMPLES * 2)
+#define WAV_HEADER_BYTES    44
+#endif
+
+bool     audioReady = false;
+bool     micOn      = false;          // armed by a listener, expires on its own
+String   audioUrl, audioToken;
+unsigned long audioArmedAt = 0, audioTtlMs = CLOUD_TTL_MS, lastAudioAt = 0;
+long     audioSent = 0, audioFail = 0, spokeCount = 0;
+int      speakerVolume = 80;          // 0..100, applied in software
+String   audioFault;
+
+/** Fills a 44-byte canonical WAV header for `bytes` of 16-bit mono PCM. */
+static void wavHeader(uint8_t *h, uint32_t bytes) {
+  const uint32_t rate = CV_AUDIO_RATE;
+  memcpy(h, "RIFF", 4);            put32(h + 4, 36 + bytes);
+  memcpy(h + 8, "WAVEfmt ", 8);    put32(h + 16, 16);
+  h[20] = 1; h[21] = 0;                       // PCM
+  h[22] = 1; h[23] = 0;                       // mono
+  put32(h + 24, rate);
+  put32(h + 28, rate * 2);                    // byte rate
+  h[32] = 2; h[33] = 0;                       // block align
+  h[34] = 16; h[35] = 0;                      // bits per sample
+  memcpy(h + 36, "data", 4);       put32(h + 40, bytes);
+}
+
+#if CV_AUDIO
+/**
+ * Brings up one I2S peripheral in full duplex.
+ *
+ * Full duplex rather than two peripherals because the bit clock and word
+ * select are shared, which is the difference between needing four pins and
+ * needing six — and on this board four is already more than is comfortably
+ * free. It also guarantees the microphone and the speaker cannot drift onto
+ * different clocks, which is what produces the slow warble people spend a
+ * weekend chasing in software.
+ */
+static bool audioInit() {
+  if (audioReady) return true;
+
+  i2s_config_t cfg = {};
+  cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_RX);
+  cfg.sample_rate = CV_AUDIO_RATE;
+  cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;   // see the shift in micRead()
+  cfg.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;
+  cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+  cfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
+  cfg.dma_buf_count = 6;
+  cfg.dma_buf_len = 256;
+  cfg.use_apll = false;
+  cfg.tx_desc_auto_clear = true;
+
+  if (i2s_driver_install(CV_I2S_PORT, &cfg, 0, nullptr) != ESP_OK) {
+    audioFault = "the I2S driver would not start";
+    return false;
+  }
+  i2s_pin_config_t pins = {};
+  pins.bck_io_num = CV_I2S_BCLK;
+  pins.ws_io_num = CV_I2S_LRCLK;
+  pins.data_out_num = CV_I2S_DOUT;
+  pins.data_in_num = CV_I2S_DIN;
+  if (i2s_set_pin(CV_I2S_PORT, &pins) != ESP_OK) {
+    i2s_driver_uninstall(CV_I2S_PORT);
+    audioFault = "the I2S pins could not be assigned";
+    return false;
+  }
+  i2s_zero_dma_buffer(CV_I2S_PORT);
+  audioReady = true;
+  audioFault = "";
+  Serial.printf("[AUD] I2S up — bclk %d, lrclk %d, out %d, in %d\n",
+                CV_I2S_BCLK, CV_I2S_LRCLK, CV_I2S_DOUT, CV_I2S_DIN);
+  return true;
+}
+
+/**
+ * Reads one chunk from the microphone into 16-bit samples.
+ *
+ * I2S MEMS mics send 24 bits left-justified in a 32-bit slot, so the peripheral
+ * is configured for 32 bits and the top 16 are taken here. Configuring it for
+ * 16 bits instead reads the *middle* of the sample and produces audio that is
+ * recognisably speech but sounds broken, which is a much harder fault to
+ * diagnose than silence.
+ *
+ * Returns the number of bytes written, which may be short — a partial chunk is
+ * still worth sending.
+ */
+static size_t micRead(int16_t *out, size_t samples, uint32_t waitMs) {
+  static int32_t raw[256];
+  size_t got = 0;
+  while (got < samples) {
+    size_t want = samples - got;
+    if (want > 256) want = 256;
+    size_t bytes = 0;
+    if (i2s_read(CV_I2S_PORT, raw, want * sizeof(int32_t), &bytes, pdMS_TO_TICKS(waitMs)) != ESP_OK) break;
+    size_t n = bytes / sizeof(int32_t);
+    if (!n) break;
+    for (size_t i = 0; i < n; i++) out[got + i] = (int16_t)(raw[i] >> 16);
+    got += n;
+  }
+  return got * sizeof(int16_t);
+}
+
+/** Writes 16-bit samples to the amplifier, scaled by the volume setting. */
+static void speakerWrite(const int16_t *pcm, size_t samples) {
+  static int32_t slot[256];
+  const int32_t gain = constrain(speakerVolume, 0, 100);
+  size_t done = 0;
+  while (done < samples) {
+    size_t n = samples - done;
+    if (n > 256) n = 256;
+    for (size_t i = 0; i < n; i++) {
+      // Scaled in 32-bit space before being left-justified, so a quiet setting
+      // does not throw away the low bits of every sample.
+      int32_t v = ((int32_t)pcm[done + i] * gain) / 100;
+      slot[i] = v << 16;
+    }
+    size_t written = 0;
+    if (i2s_write(CV_I2S_PORT, slot, n * sizeof(int32_t), &written, pdMS_TO_TICKS(500)) != ESP_OK) break;
+    if (!written) break;
+    done += written / sizeof(int32_t);
+  }
+}
+#endif // CV_AUDIO
+
+static bool audioArmed() {
+  return micOn && audioUrl.length() && millis() - audioArmedAt <= audioTtlMs;
+}
+
+/** Uploads one second of microphone audio as a self-contained WAV. */
+static void audioPushChunk() {
+#if !CV_AUDIO
+  return;
+#else
+  if (!audioReady) return;
+  static uint8_t *buf = nullptr;
+  if (!buf) {
+    buf = (uint8_t *)heap_caps_malloc(WAV_HEADER_BYTES + AUDIO_CHUNK_BYTES,
+                                      hasPsram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT);
+    if (!buf) { audioFail++; return; }
+  }
+  size_t pcmBytes = micRead((int16_t *)(buf + WAV_HEADER_BYTES), AUDIO_CHUNK_SAMPLES, 1200);
+  if (pcmBytes < 2) { audioFail++; return; }
+  wavHeader(buf, (uint32_t)pcmBytes);
+
+  // Same held-open TLS session as the frame uploader, for the same reason: a
+  // handshake per second costs more than the audio does.
+  static WiFiClientSecure client;
+  static HTTPClient http;
+  static bool pinned = false;
+  if (!pinned) { cv.pinRoot(client); pinned = true; }
+
+  if (!http.begin(client, audioUrl)) { audioFail++; return; }
+  http.setReuse(true);
+  http.setTimeout(8000);
+  http.addHeader("Content-Type", "audio/wav");
+  http.addHeader("X-CV-Device", cv.deviceId());
+  http.addHeader("X-CV-Token", audioToken);
+  int code = http.POST(buf, WAV_HEADER_BYTES + pcmBytes);
+  http.end();
+
+  if (code == 200) {
+    audioSent++;
+  } else {
+    audioFail++;
+    // A refusal that will not fix itself must stop the uploads, or the device
+    // records the room for the rest of the window and posts it nowhere.
+    if (code == 403 || code == 409 || code == 410) {
+      Serial.printf("[AUD] listening refused (%d) — stopping\n", code);
+      micOn = false;
+      audioUrl = "";
+    }
+  }
+#endif
+}
+
+/**
+ * Fetches a clip and plays it.
+ *
+ * Bounded and blocking on purpose. Twenty seconds of 8 kHz mono is 320 kB and
+ * takes about as long to play as it does to arrive, so it is streamed
+ * straight from the socket to the amplifier without ever holding the whole
+ * clip. The loop is stalled while it plays — that is a real cost, and it is
+ * the right one: the alternatives are a second task fighting for the same TLS
+ * stack, or buffering 320 kB the device does not have.
+ */
+static void audioSpeak(const String &url, const String &token) {
+#if !CV_AUDIO
+  (void)url; (void)token;
+#else
+  if (!audioReady && !audioInit()) return;
+
+  WiFiClientSecure client;
+  cv.pinRoot(client);
+  HTTPClient http;
+  if (!http.begin(client, url)) { Serial.println(F("[AUD] speak: bad url")); return; }
+  http.setTimeout(10000);
+  if (token.length()) http.addHeader("X-CV-Token", token);
+  int code = http.GET();
+  if (code != 200) {
+    Serial.printf("[AUD] speak refused (%d)\n", code);
+    http.end();
+    return;
+  }
+
+  WiFiClient *s = http.getStreamPtr();
+  int remaining = http.getSize();
+  // Skip the WAV header. The site sends canonical 44-byte headers; anything
+  // else is not something this can play, and guessing at the offset would
+  // emit the header itself as a burst of noise through the speaker.
+  uint8_t hdr[WAV_HEADER_BYTES];
+  if (s->readBytes(hdr, WAV_HEADER_BYTES) != WAV_HEADER_BYTES ||
+      memcmp(hdr, "RIFF", 4) != 0 || memcmp(hdr + 8, "WAVE", 4) != 0) {
+    Serial.println(F("[AUD] speak: not a WAV"));
+    http.end();
+    return;
+  }
+  if (remaining > 0) remaining -= WAV_HEADER_BYTES;
+
+  int16_t pcm[256];
+  long played = 0;
+  unsigned long deadline = millis() + 30000UL;
+  while ((remaining > 0 || remaining < 0) && http.connected() && millis() < deadline) {
+    if (played >= CV_AUDIO_MAX_SPEAK) break;
+    int want = sizeof(pcm);
+    if (remaining > 0 && remaining < want) want = remaining;
+    int got = s->readBytes((uint8_t *)pcm, want);
+    if (got <= 0) break;
+    speakerWrite(pcm, (size_t)(got / 2));
+    played += got;
+    if (remaining > 0) remaining -= got;
+    cv.loop();                 // keep MQTT alive through a long clip
+  }
+  i2s_zero_dma_buffer(CV_I2S_PORT);   // stop the amp humming on the last sample
+  http.end();
+  spokeCount++;
+  Serial.printf("[AUD] played %ld bytes\n", played);
+#endif
+}
+
+static void audioPublishState() {
+  // Reported unconditionally, including the false case. A board with no parts
+  // fitted has to say so, or the apps show a talk button that produces silence
+  // and every layer gets blamed before the hardware does.
+  cv.set("hasMic", (bool)(CV_AUDIO != 0) && audioReady);
+  cv.set("hasSpeaker", (bool)(CV_AUDIO != 0) && audioReady);
+  cv.set("listening", audioArmed());
+  cv.set("volume", speakerVolume);
+  cv.set("audioFault", audioFault.c_str());
+}
+
+/** Paced from loop(); uploads while a listener is armed and not after. */
+static void audioTick() {
+#if CV_AUDIO
+  static bool was = false;
+  bool now = audioArmed();
+  if (now != was) {
+    was = now;
+    cv.set("listening", now);
+    cv.publishStateNow();
+    if (!now) Serial.println(F("[AUD] listening stopped"));
+  }
+  if (!now) return;
+  unsigned long t = millis();
+  if (t - lastAudioAt < CV_AUDIO_CHUNK_MS) return;
+  lastAudioAt = t;
+  audioPushChunk();
+#endif
 }
 
 #define LAN_BOUNDARY "cvframe"
@@ -410,7 +1508,7 @@ static esp_err_t lanSnapshot(httpd_req_t *req) {
   httpd_resp_set_type(req, "image/jpeg");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-  return httpd_resp_send(req, (const char *)lanCopy, len);
+  return httpd_resp_send(req, (const char *)lanBuf.p, len);
 }
 
 static esp_err_t lanStream(httpd_req_t *req) {
@@ -429,7 +1527,7 @@ static esp_err_t lanStream(httpd_req_t *req) {
                      "\r\n--" LAN_BOUNDARY "\r\nContent-Type: image/jpeg\r\n"
                      "Content-Length: %u\r\n\r\n", (unsigned)len);
     res = httpd_resp_send_chunk(req, head, n);
-    if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)lanCopy, len);
+    if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)lanBuf.p, len);
     // Pace to the configured frame rate so a LAN viewer cannot monopolise the
     // sensor and starve motion detection.
     vTaskDelay(pdMS_TO_TICKS(1000UL / (unsigned long)max(fps, FPS_MIN)));
@@ -450,9 +1548,166 @@ static esp_err_t lanIndex(httpd_req_t *req) {
       "a{color:#7cc4ff}</style>"
       "<h3>Circuvent camera — local view</h3>"
       "<img src='/stream' alt='Live camera stream'>"
-      "<p><a href='/snapshot'>Still image</a></p>";
+      "<p><a href='/snapshot'>Still image</a> · <a href='/rec/list'>Recordings on the card</a></p>";
   httpd_resp_set_type(req, "text/html; charset=utf-8");
   return httpd_resp_send(req, page, sizeof(page) - 1);
+}
+
+// ---------------------------------------------------------------------------
+// Clips over HTTP
+// ---------------------------------------------------------------------------
+/*
+ * These handlers run on the HTTP server task, which must never touch `cv`:
+ * PubSubClient holds one connection with one buffer and is not thread-safe,
+ * so publishing from here while loop() is mid-publish corrupts the stream.
+ * Start and stop therefore only raise a flag that loop() acts on, and answer
+ * "accepted" rather than pretending to know the outcome. Reading the card is
+ * safe from either task — FATFS serialises it — but the *writing* file handle
+ * belongs to loop(), so the clip being recorded is never served or deleted
+ * from here.
+ */
+static volatile int recPending = 0;    // 0 none, 1 start, 2 stop
+
+static esp_err_t lanJson(httpd_req_t *req, const String &body, const char *status = nullptr) {
+  if (status) httpd_resp_set_status(req, status);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  return httpd_resp_send(req, body.c_str(), body.length());
+}
+
+/**
+ * Pulls `?f=` out and refuses anything that is not a bare clip name.
+ *
+ * The card holds more than clips and the handler builds a path by
+ * concatenation, so "f=../../wpa_supplicant.conf" would otherwise read
+ * whatever it likes off the volume. Only [A-Za-z0-9._-] survives, and the
+ * name must still end in .avi.
+ */
+static bool lanClipName(httpd_req_t *req, String &out) {
+  char q[128];
+  if (httpd_req_get_url_query_str(req, q, sizeof(q)) != ESP_OK) return false;
+  char v[64];
+  if (httpd_query_key_value(q, "f", v, sizeof(v)) != ESP_OK) return false;
+  String n(v);
+  if (n.length() < 5 || n.length() > 48 || !isClipName(n)) return false;
+  for (size_t i = 0; i < n.length(); i++) {
+    char c = n[i];
+    bool okc = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+               (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+    if (!okc) return false;
+  }
+  if (n.indexOf("..") >= 0) return false;
+  out = n;
+  return true;
+}
+
+static esp_err_t lanSdStatus(httpd_req_t *req) {
+  JsonDocument d;
+  d["card"]      = sdReady;
+  d["fault"]     = sdFault;
+  d["totalMb"]   = (long)(sdTotalB / (1024ULL * 1024ULL));
+  d["freeMb"]    = (long)(sdFreeB() / (1024ULL * 1024ULL));
+  d["recording"] = recording;
+  d["enabled"]   = recEnabled;
+  d["motionOnly"] = recMotion;
+  d["fps"]       = recFps;
+  d["segment"]   = (long)recSegSecs;
+  d["file"]      = recName;
+  d["frames"]    = (long)recFrames;
+  d["clips"]     = recClips;
+  String out;
+  serializeJson(d, out);
+  return lanJson(req, out);
+}
+
+static esp_err_t lanRecList(httpd_req_t *req) {
+  if (!sdReady) return lanJson(req, String("{\"error\":\"") + (sdFault.length() ? sdFault : String("no card")) + "\"}", "503 Service Unavailable");
+  File dir = SD_MMC.open(REC_DIR);
+  if (!dir) return lanJson(req, "{\"error\":\"clips folder is missing\"}", "503 Service Unavailable");
+
+  // Streamed rather than assembled: a card with hundreds of clips would build
+  // a JSON string larger than the free heap, and running out of memory to
+  // describe recordings that are sitting safely on the card would be an
+  // absurd way to lose them.
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  httpd_resp_send_chunk(req, "{\"clips\":[", HTTPD_RESP_USE_STRLEN);
+  bool first = true;
+  int n = 0;
+  for (File f = dir.openNextFile(); f && n < REC_MAX_CLIPS; f = dir.openNextFile()) {
+    String name = f.name();
+    int slash = name.lastIndexOf('/');
+    if (slash >= 0) name = name.substring(slash + 1);
+    uint32_t size = f.size();
+    uint32_t mtime = (uint32_t)f.getLastWrite();
+    f.close();
+    if (!isClipName(name)) continue;
+    char row[160];
+    snprintf(row, sizeof(row), "%s{\"name\":\"%s\",\"bytes\":%lu,\"mtime\":%lu,\"live\":%s}",
+             first ? "" : ",", name.c_str(), (unsigned long)size, (unsigned long)mtime,
+             (recording && name == recName) ? "true" : "false");
+    httpd_resp_send_chunk(req, row, HTTPD_RESP_USE_STRLEN);
+    first = false;
+    n++;
+  }
+  dir.close();
+  char tail[96];
+  snprintf(tail, sizeof(tail), "],\"freeMb\":%lu,\"totalMb\":%lu}",
+           (unsigned long)(sdFreeB() / (1024ULL * 1024ULL)),
+           (unsigned long)(sdTotalB / (1024ULL * 1024ULL)));
+  httpd_resp_send_chunk(req, tail, HTTPD_RESP_USE_STRLEN);
+  return httpd_resp_send_chunk(req, nullptr, 0);
+}
+
+static esp_err_t lanRecGet(httpd_req_t *req) {
+  String name;
+  if (!lanClipName(req, name)) return lanJson(req, "{\"error\":\"bad clip name\"}", "400 Bad Request");
+  if (!sdReady) return lanJson(req, "{\"error\":\"no card\"}", "503 Service Unavailable");
+  if (recording && name == recName) {
+    // Its header still says zero frames and it has no index. Handing that over
+    // would produce a file that looks broken, and someone would reasonably
+    // conclude the recorder is broken.
+    return lanJson(req, "{\"error\":\"that clip is still being recorded\"}", "409 Conflict");
+  }
+  File f = SD_MMC.open(String(REC_DIR) + "/" + name);
+  if (!f || f.isDirectory()) { if (f) f.close(); return lanJson(req, "{\"error\":\"no such clip\"}", "404 Not Found"); }
+
+  httpd_resp_set_type(req, "video/x-msvideo");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  String disp = String("attachment; filename=\"") + name + "\"";
+  httpd_resp_set_hdr(req, "Content-Disposition", disp.c_str());
+
+  static uint8_t buf[4096];
+  esp_err_t res = ESP_OK;
+  while (res == ESP_OK) {
+    int got = f.read(buf, sizeof(buf));
+    if (got <= 0) break;
+    res = httpd_resp_send_chunk(req, (const char *)buf, got);
+  }
+  f.close();
+  httpd_resp_send_chunk(req, nullptr, 0);
+  return res;
+}
+
+static esp_err_t lanRecDelete(httpd_req_t *req) {
+  String name;
+  if (!lanClipName(req, name)) return lanJson(req, "{\"error\":\"bad clip name\"}", "400 Bad Request");
+  if (!sdReady) return lanJson(req, "{\"error\":\"no card\"}", "503 Service Unavailable");
+  if (recording && name == recName) return lanJson(req, "{\"error\":\"that clip is still being recorded\"}", "409 Conflict");
+  bool ok = SD_MMC.remove(String(REC_DIR) + "/" + name);
+  return lanJson(req, ok ? "{\"ok\":true}" : "{\"error\":\"could not delete\"}",
+                 ok ? nullptr : "500 Internal Server Error");
+}
+
+static esp_err_t lanRecStart(httpd_req_t *req) {
+  recPending = 1;
+  return lanJson(req, "{\"accepted\":true,\"action\":\"start\"}", "202 Accepted");
+}
+static esp_err_t lanRecStop(httpd_req_t *req) {
+  recPending = 2;
+  return lanJson(req, "{\"accepted\":true,\"action\":\"stop\"}", "202 Accepted");
 }
 
 void startLanVideo() {
@@ -461,7 +1716,7 @@ void startLanVideo() {
   cfg.server_port = CV_LAN_PORT;
   cfg.ctrl_port   = 32769;          // default 32768 belongs to the portal server
   cfg.stack_size  = 8192;           // JPEG chunking overruns the 4 kB default
-  cfg.max_uri_handlers = 4;
+  cfg.max_uri_handlers = 12;        // three video routes plus six clip routes
   cfg.lru_purge_enable = true;
   if (httpd_start(&lanHttpd, &cfg) != ESP_OK) {
     lanHttpd = nullptr;
@@ -469,9 +1724,15 @@ void startLanVideo() {
     return;
   }
   httpd_uri_t routes[] = {
-      {"/",         HTTP_GET, lanIndex,    nullptr},
-      {"/stream",   HTTP_GET, lanStream,   nullptr},
-      {"/snapshot", HTTP_GET, lanSnapshot, nullptr},
+      {"/",           HTTP_GET, lanIndex,     nullptr},
+      {"/stream",     HTTP_GET, lanStream,    nullptr},
+      {"/snapshot",   HTTP_GET, lanSnapshot,  nullptr},
+      {"/sd",         HTTP_GET, lanSdStatus,  nullptr},
+      {"/rec/list",   HTTP_GET, lanRecList,   nullptr},
+      {"/rec/get",    HTTP_GET, lanRecGet,    nullptr},
+      {"/rec/delete", HTTP_GET, lanRecDelete, nullptr},
+      {"/rec/start",  HTTP_GET, lanRecStart,  nullptr},
+      {"/rec/stop",   HTTP_GET, lanRecStop,   nullptr},
   };
   for (auto &r : routes) httpd_register_uri_handler(lanHttpd, &r);
   Serial.printf("[CAM] LAN video at http://%s:%d/\n",
@@ -537,7 +1798,7 @@ static void cloudPushFrame() {
   http.addHeader("Content-Type", "image/jpeg");
   http.addHeader("X-CV-Device", cv.deviceId());
   http.addHeader("X-CV-Token", cloudToken);
-  int code = http.POST(lanCopy, len);
+  int code = http.POST(lanBuf.p, len);
   http.end();
 
   if (code == 200) {
@@ -965,7 +2226,89 @@ void onCommand(const String &action, JsonObjectConst p) {
     }
     cv.set("cloud", cloudActive());
     cv.publishStateNow();
+  } else if (action == "record") {
+    // Recording to the card. Settings are applied before the on/off decision
+    // so a single command can say "10 fps, motion only, go" and mean it.
+    if (p["fps"].is<int>()) {
+      recFps = constrain(p["fps"].as<int>(), FPS_MIN, FPS_MAX);
+      store.putInt("recfps", recFps);
+    }
+    if (p["segment"].is<int>()) {
+      recSegSecs = (uint32_t)constrain(p["segment"].as<int>(), REC_SEG_SECS_MIN, REC_SEG_SECS_MAX);
+      store.putInt("recseg", (int)recSegSecs);
+    }
+    if (p["motionOnly"].is<bool>()) {
+      recMotion = p["motionOnly"].as<bool>();
+      store.putBool("recmd", recMotion);
+      // Motion-only recording is meaningless with the detector off, and
+      // silently recording nothing is the worst way to discover that.
+      if (recMotion && !motionOn) {
+        motionOn = true;
+        store.putBool("md", true);
+        mdPrimed = false;
+        cv.set("motion", true);
+      }
+    }
+    String outcome = "unchanged";
+    if (p["on"].is<bool>()) outcome = recSet(p["on"].as<bool>());
+    else if (recEnabled) outcome = recSet(true);          // re-apply new settings
+    recPublishState();
+    cv.publishStateNow();
+    Serial.printf("[REC] %s\n", outcome.c_str());
+
+  } else if (action == "sdclear") {
+    int removed = recDeleteAll();
+    Serial.printf("[SD] cleared %d clips\n", removed);
+    JsonDocument d;
+    d["type"]    = "sdclear";
+    d["removed"] = removed;
+    cv.publishTelemetry(d.as<JsonObjectConst>());
+    recPublishState();
+    cv.publishStateNow();
+
+  } else if (action == "listen") {
+    // Microphone. Armed by a listener and re-armed while they listen; it
+    // lapses on its own so a closed tab cannot leave a microphone in someone's
+    // home uploading indefinitely. That expiry is a privacy property and not
+    // an optimisation, which is why it is not configurable to "never".
+#if CV_AUDIO
+    if (!audioReady) audioInit();
+#endif
+    if (!audioReady) {
+      Serial.println(F("[AUD] no microphone fitted on this board"));
+      audioPublishState();
+      cv.publishStateNow();
+      return;
+    }
+    if (p["on"] | false) {
+      audioUrl   = (const char *)(p["url"]   | "");
+      audioToken = (const char *)(p["token"] | "");
+      long ttl   = p["ttl"] | 0;
+      audioTtlMs = ttl > 0 ? (unsigned long)ttl * 1000UL : CLOUD_TTL_MS;
+      audioArmedAt = millis();
+      micOn = audioUrl.length() > 0;
+      Serial.println(F("[AUD] listening armed"));
+    } else {
+      micOn = false;
+      audioUrl = "";
+      Serial.println(F("[AUD] listening stopped"));
+    }
+    audioPublishState();
+    cv.publishStateNow();
+
+  } else if (action == "speak") {
+    if (p["volume"].is<int>()) {
+      speakerVolume = constrain(p["volume"].as<int>(), 0, 100);
+      store.putInt("vol", speakerVolume);
+    }
+    const char *url = p["url"] | "";
+    if (url && *url) audioSpeak(String(url), String((const char *)(p["token"] | "")));
+    audioPublishState();
+    cv.publishStateNow();
+
   } else if (action == "reboot") {
+    // Never leave a half-written clip behind because someone pressed Reboot.
+    if (recording) aviClose("rebooting");
     cv.publishStateNow();
     delay(200);
     ESP.restart();
@@ -1051,6 +2394,14 @@ void setup() {
   motionOn    = store.getBool("md", motionOn);
   sensitivity = store.getInt("sens", sensitivity);
   flashLevel  = store.getInt("flash", 0);
+  recFps      = store.getInt("recfps", recFps);
+  recSegSecs  = (uint32_t)store.getInt("recseg", (int)recSegSecs);
+  recMotion   = store.getBool("recmd", recMotion);
+  // Recording intent survives a power cut on purpose. A camera set to record
+  // that quietly stops after a brownout is worse than one that never
+  // recorded: the gap looks like nothing happened.
+  recEnabled  = store.getBool("recon", false);
+  speakerVolume = store.getInt("vol", speakerVolume);
 
   /*
    * The camera is initialised here, before cv.begin(), and torn down again if
@@ -1121,6 +2472,35 @@ void setup() {
   cv.set("motionCount", motionCount);
   cv.set("snapshots", snapCount);
 
+  /*
+   * The card is mounted after the camera and after cv.begin(), and that order
+   * matters in both directions. Before the camera it would not help — the
+   * SDMMC driver's allocations are small — but during provisioning the portal
+   * owns the radio and the heap, and a mount there is one more thing to go
+   * wrong at the moment the device is least able to report it. After begin()
+   * the network is up, so a mount failure can actually be published.
+   */
+  if (!cv.isProvisioning()) {
+    sdMount();
+    if (recEnabled && sdReady) {
+      recMotionSeenAt = recMotion ? 0 : millis();
+      Serial.println(F("[REC] resuming recording from saved settings"));
+    }
+#if CV_AUDIO
+    /*
+     * Brought up at boot rather than on the first `listen`, so the device can
+     * report honestly whether audio hardware answers. Discovering that at the
+     * moment someone presses Talk means the failure surfaces as a button that
+     * did nothing, with no way to tell a missing part from a bad solder joint.
+     */
+    if (!audioInit()) Serial.printf("[AUD] unavailable — %s\n", audioFault.c_str());
+#else
+    audioFault = "this firmware was built without audio support";
+#endif
+  }
+  audioPublishState();
+  recPublishState();
+
   // LAN video is the route that does not depend on the broker or the relay.
   // Publishing the address is what lets the apps offer it: a client cannot
   // guess a DHCP lease, and without this the feature exists but is unreachable.
@@ -1187,6 +2567,31 @@ void loop() {
 
   // A stream nobody re-armed is a stream nobody is watching.
   if (streaming && now - streamArmedAt > STREAM_TTL_MS) setStreaming(false);
+
+  /*
+   * Recording lives on this thread and nowhere else. The LAN handlers can
+   * only raise `recPending`, because they run on the HTTP task and the MQTT
+   * client is not thread-safe — a publish from there while this thread is
+   * mid-publish corrupts the connection for everything, not just the reply
+   * nobody was waiting for.
+   */
+  int pending = recPending;
+  if (pending) {
+    recPending = 0;
+    String outcome = recSet(pending == 1);
+    recPublishState();
+    cv.publishStateNow();
+    Serial.printf("[REC] %s (asked over the LAN)\n", outcome.c_str());
+  }
+  recTick();
+  audioTick();
+  // The clip counters move constantly; publishing every change would flood the
+  // state topic for no benefit, so they ride the periodic publish instead.
+  static unsigned long lastRecState = 0;
+  if (now - lastRecState >= 15000UL) {
+    lastRecState = now;
+    recPublishState();
+  }
 
   // Remote viewing runs independently of the MQTT stream: someone away from
   // home has no LAN access and may not have armed the local stream at all.

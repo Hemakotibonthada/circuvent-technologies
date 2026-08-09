@@ -48,7 +48,16 @@ services:
     networks: [internal]
 
   api:
-    build: ./api
+    build:
+      context: ./api
+      args:
+        # Stamped into /health so a stale container identifies itself instead
+        # of looking like a broken camera. Set them when you deploy:
+        #   BUILD_COMMIT=$(git rev-parse --short HEAD) \
+        #   BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+        #   docker compose up -d --build
+        BUILD_COMMIT: ${BUILD_COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     restart: unless-stopped
     environment:
       PORT: "8080"

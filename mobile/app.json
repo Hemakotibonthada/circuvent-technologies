@@ -20,7 +20,9 @@
         "NSLocationWhenInUseUsageDescription": "Circuvent uses your location to find and connect to nearby Circuvent devices during setup.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {

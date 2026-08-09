@@ -12,6 +12,11 @@ import {
   getUserCameras, addCamera, removeCamera, mergedCameras, snapshotUrl,
   type Camera,
 } from "../../cameras";
+import {
+  chooseTarget, startLiveRecording, listSdClips, downloadSdClip, deleteSdClip,
+  cameraLanBase, formatBytes, LIVE_CLIP_MAX_BYTES,
+  type SaveTarget, type LiveRecorder, type SdClip, type SdStatus,
+} from "../../recording";
 
 // The firmware clamps to 15fps — offering 30 would just look broken.
 const FPS_OPTIONS = [1, 5, 10, 15] as const;
@@ -192,6 +197,21 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
   const [measured, setMeasured] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
 
+  /*
+   * Recording to the phone. Every frame that reaches this screen is eligible,
+   * whichever route delivered it, so footage does not stop the moment the
+   * transport changes underneath the viewer.
+   */
+  const [rec, setRec] = useState<LiveRecorder | null>(null);
+  const [recFrames, setRecFrames] = useState(0);
+  const [recNote, setRecNote] = useState("");
+  const recRef = useRef<LiveRecorder | null>(null);
+  const recBusy = useRef(false);
+  recRef.current = rec;
+
+  // Clips on the camera's own card, over the LAN.
+  const [showCard, setShowCard] = useState(false);
+
   // Measured fps: count frames in a rolling window rather than echoing the
   // requested rate, so the number tells the truth about the link.
   const window = useRef<number[]>([]);
@@ -206,7 +226,61 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
     w.push(now);
     while (w.length && now - w[0] > 3000) w.shift();
     setMeasured(w.length / 3);
+
+    /*
+     * Recording is serialised on recBusy: writing a clip out at the rollover
+     * takes real time, and a second frame arriving mid-write would interleave
+     * into the buffer being flushed. A dropped frame is better than a corrupt
+     * clip, and the AVI timebase is written from measured elapsed time, so
+     * anything dropped here plays back at the right speed rather than
+     * silently speeding the footage up.
+     */
+    const r = recRef.current;
+    if (!r || recBusy.current) return;
+    recBusy.current = true;
+    void r
+      .add(f.jpeg)
+      .then(() => setRecFrames(r.status().frames))
+      .catch((e: unknown) => setRecNote(e instanceof Error ? e.message : "could not save a frame"))
+      .finally(() => { recBusy.current = false; });
   });
+
+  const toggleRecording = useCallback(async () => {
+    const current = recRef.current;
+    if (current) {
+      setRec(null);
+      recRef.current = null;
+      try {
+        const r = await current.stop();
+        setRecNote(
+          r.frames === 0
+            ? "Stopped before any frame arrived — nothing was saved."
+            : `Saved ${r.clips} ${r.clips === 1 ? "clip" : "clips"} · ` +
+              `${r.frames.toLocaleString()} frames · ${formatBytes(r.bytes)} to ${current.target.label}`
+        );
+        toast.show(r.frames ? "Recording saved" : "Nothing to save", r.frames ? "success" : "info");
+      } catch (e) {
+        setRecNote(e instanceof Error ? e.message : "the clip could not be written");
+        toast.show("Could not save the recording", "error");
+      }
+      return;
+    }
+    const target = await chooseTarget();
+    setRecFrames(0);
+    setRecNote(`Recording to ${target.label}`);
+    const r = startLiveRecording(cam.name, target, fps);
+    recRef.current = r;
+    setRec(r);
+  }, [cam.name, fps, toast]);
+
+  // Never leave a recording running after the screen closes: the frame
+  // subscription ends with it, so the clip would sit in memory unwritten until
+  // the app was killed and then be lost entirely.
+  useEffect(() => () => {
+    const r = recRef.current;
+    recRef.current = null;
+    if (r) void r.stop().catch(() => {});
+  }, []);
 
   // The stream is a lease: keep renewing it while the view is open, and let it
   // lapse the moment we leave so a backgrounded app never keeps a board hot.
@@ -295,6 +369,31 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
             />
           </View>
 
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <ActionButton
+              c={c}
+              icon={rec ? "stop" : "save"}
+              label={rec ? `Stop · ${recFrames.toLocaleString()}` : "Record to phone"}
+              primary={!!rec}
+              onPress={() => void toggleRecording()}
+            />
+            <ActionButton
+              c={c}
+              icon="storage"
+              label={showCard ? "Hide card" : "SD card"}
+              disabled={!isDevice}
+              onPress={() => setShowCard((s) => !s)}
+            />
+          </View>
+          {!!recNote && (
+            <Text style={{ color: c.faint, fontSize: 11 }}>
+              {recNote}
+              {rec ? ` · a new file starts every ${Math.round(LIVE_CLIP_MAX_BYTES / (1024 * 1024))} MB` : ""}
+            </Text>
+          )}
+
+          {isDevice && showCard && <SdCardPanel c={c} deviceState={st} deviceId={cam.deviceId!} send={send} />}
+
           <View>
             <SectionLabel>Frame rate</SectionLabel>
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -355,6 +454,187 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
       </View>
       <ToastHost toast={toast.toast} onHide={toast.hide} />
     </Screen>
+  );
+}
+
+// --------------------------------------------------------------- SD card ---
+
+/**
+ * The clips sitting on the camera's own microSD card.
+ *
+ * This talks to the device directly over the LAN and not through the control
+ * plane, because the card holds hundreds of megabytes and pushing that through
+ * a broker to reach a phone in the next room would be absurd. The honest cost
+ * is that it only works at home — so when the address is missing or the fetch
+ * times out, this says which of those it was rather than spinning.
+ */
+function SdCardPanel({ c, deviceState, deviceId, send }: {
+  c: Colors; deviceState: Record<string, unknown>; deviceId: string;
+  send: (cmd: Record<string, unknown>) => void;
+}) {
+  const toast = useToast();
+  const base = cameraLanBase(deviceState);
+  const [status, setStatus] = useState<SdStatus | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [target, setTarget] = useState<SaveTarget | null>(null);
+
+  const cardPresent = deviceState.sd === true;
+  const recordingNow = deviceState.recording === true;
+  const cardFault = typeof deviceState.sdFault === "string" ? deviceState.sdFault : "";
+
+  const refresh = useCallback(async () => {
+    if (!base) return;
+    setLoading(true);
+    setError("");
+    try {
+      setStatus(await listSdClips(base));
+    } catch (e) {
+      setStatus(null);
+      setError(
+        e instanceof Error && e.name === "AbortError"
+          ? "The camera did not answer. This only works while your phone is on the same Wi-Fi as the camera."
+          : e instanceof Error ? e.message : "could not reach the camera"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [base]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const save = async (clip: SdClip) => {
+    if (!base) return;
+    let dest = target;
+    if (!dest) {
+      dest = await chooseTarget();
+      setTarget(dest);
+    }
+    setBusy(clip.name);
+    setProgress(0);
+    try {
+      await downloadSdClip(base, clip, dest, setProgress);
+      toast.show(`Saved to ${dest.label}`, "success");
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "download failed", "error");
+    } finally {
+      setBusy(null);
+      setProgress(0);
+    }
+  };
+
+  const remove = async (clip: SdClip) => {
+    if (!base) return;
+    setBusy(clip.name);
+    try {
+      await deleteSdClip(base, clip.name);
+      await refresh();
+      toast.show("Clip deleted", "success");
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "could not delete", "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <>
+      <Divider />
+      <View style={{ gap: 12 }}>
+        <SectionLabel>Camera storage</SectionLabel>
+
+        <SettingRow
+          c={c}
+          icon="storage"
+          title={cardPresent ? "Record to the card" : "No card in the camera"}
+          subtitle={
+            cardPresent
+              ? `${Number(deviceState.sdFreeMb ?? 0).toLocaleString()} MB free of ${Number(deviceState.sdTotalMb ?? 0).toLocaleString()} MB` +
+                ` · ${Number(deviceState.recClips ?? 0)} clips`
+              : cardFault || "Insert a microSD card to record without the network"
+          }
+        >
+          <PillToggle
+            value={deviceState.recEnabled === true}
+            onChange={(v) => {
+              send({ action: "record", on: v });
+              toast.show(v ? "Recording to the card" : "Card recording stopped", "info");
+            }}
+          />
+        </SettingRow>
+
+        {cardPresent && (
+          <SettingRow c={c} icon="motion" title="Only while there is motion" subtitle="Saves the card for the moments that matter">
+            <PillToggle
+              value={deviceState.recMotion === true}
+              onChange={(v) => send({ action: "record", motionOnly: v })}
+            />
+          </SettingRow>
+        )}
+
+        {recordingNow && (
+          <Text style={{ color: c.amber, fontSize: 11, fontWeight: "700" }}>
+            Recording now — {String(deviceState.recFile ?? "")} · {Number(deviceState.recFrames ?? 0).toLocaleString()} frames
+          </Text>
+        )}
+
+        {!base ? (
+          <Text style={{ color: c.faint, fontSize: 11 }}>
+            The camera has not published a local address yet. Downloading clips needs firmware 1.12.0 or newer.
+          </Text>
+        ) : error ? (
+          <Text style={{ color: c.faint, fontSize: 11 }}>{error}</Text>
+        ) : loading && !status ? (
+          <ActivityIndicator color={c.accentHi} />
+        ) : status && status.clips.length === 0 ? (
+          <Text style={{ color: c.faint, fontSize: 11 }}>No clips on the card yet.</Text>
+        ) : (
+          status?.clips.map((clip) => (
+            <View
+              key={clip.name}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 48 }}
+            >
+              <Icon name="camera" size={16} color={c.textDim} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: c.text, fontWeight: "700", fontSize: 13 }} numberOfLines={1}>{clip.name}</Text>
+                <Text style={{ color: c.faint, fontSize: 11 }}>
+                  {formatBytes(clip.bytes)}
+                  {clip.live ? " · still recording" : ""}
+                  {busy === clip.name && progress > 0 ? ` · ${Math.round(progress * 100)}%` : ""}
+                </Text>
+              </View>
+              {busy === clip.name ? (
+                <ActivityIndicator color={c.accentHi} />
+              ) : (
+                <>
+                  {/* A clip still being written has no index yet — the camera
+                      refuses it, so do not offer a button that cannot work. */}
+                  <IconButton
+                    icon="download"
+                    label={`Save ${clip.name} to this phone`}
+                    onPress={() => { if (!clip.live) void save(clip); }}
+                  />
+                  <IconButton
+                    icon="trash"
+                    label={`Delete ${clip.name}`}
+                    onPress={() => { if (!clip.live) void remove(clip); }}
+                  />
+                </>
+              )}
+            </View>
+          ))
+        )}
+
+        {!!status && (
+          <Text style={{ color: c.faint, fontSize: 11 }}>
+            {status.freeMb.toLocaleString()} MB free of {status.totalMb.toLocaleString()} MB on the card
+            {target ? ` · saving to ${target.label}` : ""}
+          </Text>
+        )}
+      </View>
+    </>
   );
 }
 

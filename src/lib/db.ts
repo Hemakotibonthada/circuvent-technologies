@@ -236,6 +236,37 @@ const SCHEMA_STATEMENTS: string[] = [
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
   `CREATE INDEX IF NOT EXISTS request_metrics_ts_idx ON request_metrics (ts DESC)`,
+  /*
+   * Two-way audio, held exactly as briefly as it has to be.
+   *
+   * `listen_*` is a rolling buffer of what the microphone sent — one row per
+   * chunk, pruned aggressively, because this is a live listen and not a
+   * recording. A camera that quietly accumulated a household's conversations
+   * in a database would be a different product from the one anyone agreed to,
+   * so the retention here is a design decision and not a storage one.
+   *
+   * `speak_*` is one pending clip per device: the app uploads it, the device
+   * fetches it once, and the row is cleared. Keeping a queue would mean a
+   * camera that came back online after an hour suddenly speaking into an empty
+   * room, which is startling and useless in equal measure.
+   */
+  `CREATE TABLE IF NOT EXISTS camera_audio (
+     id BIGSERIAL PRIMARY KEY,
+     device_id TEXT NOT NULL,
+     wav_b64 TEXT NOT NULL,
+     bytes INTEGER NOT NULL DEFAULT 0,
+     captured_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS camera_audio_device_idx ON camera_audio (device_id, captured_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS camera_audio_session (
+     device_id TEXT PRIMARY KEY,
+     listen_token TEXT,
+     listen_expires TIMESTAMPTZ,
+     speak_token TEXT,
+     speak_wav_b64 TEXT,
+     speak_expires TIMESTAMPTZ,
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
   `CREATE INDEX IF NOT EXISTS request_metrics_endpoint_idx ON request_metrics (endpoint)`,
   // Page views.
   //
@@ -493,6 +524,181 @@ export async function dbLatestCameraFrame(
   const row = rows[0];
   if (!row?.jpeg_b64 || !row.captured_at) return null;
   return { jpegB64: row.jpeg_b64, bytes: row.bytes ?? 0, capturedAt: row.captured_at };
+}
+
+// ---------------------------------------------------------------------------
+// Two-way audio
+// ---------------------------------------------------------------------------
+/** How long a listening session lasts before the camera stops on its own. */
+export const AUDIO_LISTEN_MS = 120_000;
+/** Chunks older than this are never served, and are pruned on write. */
+export const AUDIO_KEEP_MS = 30_000;
+/** A pending talk clip that nothing collected is dropped after this. */
+export const AUDIO_SPEAK_TTL_MS = 60_000;
+
+export async function dbArmCameraListen(deviceId: string, token: string, expires: number): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q(
+    `INSERT INTO camera_audio_session (device_id, listen_token, listen_expires, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (device_id) DO UPDATE
+       SET listen_token = EXCLUDED.listen_token,
+           listen_expires = EXCLUDED.listen_expires,
+           updated_at = now()`,
+    [deviceId, token, new Date(expires).toISOString()]
+  );
+}
+
+export async function dbStopCameraListen(deviceId: string): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  // The buffered audio goes with the session. Leaving thirty seconds of a
+  // room's sound behind after someone stopped listening is not something a
+  // person would expect from pressing Stop.
+  await q(`UPDATE camera_audio_session SET listen_token = NULL, listen_expires = NULL WHERE device_id = $1`, [deviceId]);
+  await q(`DELETE FROM camera_audio WHERE device_id = $1`, [deviceId]);
+}
+
+/**
+ * Stores one chunk if the presented token is live, in a single statement.
+ *
+ * Same shape as the frame path and for the same reason: a check-then-write is
+ * two round trips per second against a serverless database, which is most of
+ * the upload budget for audio this small.
+ */
+export async function dbStoreCameraAudioIfToken(
+  deviceId: string,
+  token: string,
+  wavB64: string,
+  bytes: number
+): Promise<boolean> {
+  await initDb();
+  const q = await getQuery();
+  const rows = (await q(
+    `INSERT INTO camera_audio (device_id, wav_b64, bytes)
+     SELECT $1, $3, $4
+       FROM camera_audio_session
+      WHERE device_id = $1 AND listen_token = $2 AND listen_expires > now()
+     RETURNING id`,
+    [deviceId, token, wavB64, bytes]
+  )) as unknown as unknown[];
+  if (rows.length === 0) return false;
+  // Prune on write rather than on a timer: there is no scheduler here, and a
+  // buffer that only shrinks when someone reads it would grow without bound
+  // for a listener who walked away.
+  await q(
+    `DELETE FROM camera_audio
+      WHERE device_id = $1 AND captured_at < now() - ($2 || ' milliseconds')::interval`,
+    [deviceId, String(AUDIO_KEEP_MS)]
+  );
+  return true;
+}
+
+export async function dbCameraListenToken(
+  deviceId: string
+): Promise<{ token: string | null; expires: number | null }> {
+  await initDb();
+  const q = await getQuery();
+  const rows = (await q(
+    `SELECT listen_token, listen_expires FROM camera_audio_session WHERE device_id = $1`,
+    [deviceId]
+  )) as unknown as { listen_token: string | null; listen_expires: string | null }[];
+  const row = rows[0];
+  if (!row) return { token: null, expires: null };
+  return {
+    token: row.listen_token,
+    expires: row.listen_expires ? new Date(row.listen_expires).getTime() : null,
+  };
+}
+
+/**
+ * Chunks captured after `sinceId`, oldest first.
+ *
+ * Cursor-based rather than time-based: a listener polling on a timer would
+ * either re-fetch the same second or skip one, and a gap in audio is far more
+ * noticeable than a gap in video. The id is monotonic, so "what have I not
+ * heard yet" has an exact answer.
+ */
+export async function dbCameraAudioSince(
+  deviceId: string,
+  sinceId: number,
+  limit = 8
+): Promise<{ id: number; wavB64: string; bytes: number; capturedAt: string }[]> {
+  await initDb();
+  const q = await getQuery();
+  const rows = (await q(
+    `SELECT id, wav_b64, bytes, captured_at
+       FROM camera_audio
+      WHERE device_id = $1 AND id > $2
+        AND captured_at > now() - ($4 || ' milliseconds')::interval
+      ORDER BY id ASC
+      LIMIT $3`,
+    [deviceId, sinceId, limit, String(AUDIO_KEEP_MS)]
+  )) as unknown as { id: string | number; wav_b64: string; bytes: number; captured_at: string }[];
+  return rows.map((r) => ({
+    id: Number(r.id),
+    wavB64: r.wav_b64,
+    bytes: r.bytes ?? 0,
+    capturedAt: r.captured_at,
+  }));
+}
+
+/** Queues a clip for the camera to fetch and play, replacing any pending one. */
+export async function dbQueueCameraSpeak(
+  deviceId: string,
+  token: string,
+  wavB64: string,
+  expires: number
+): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q(
+    `INSERT INTO camera_audio_session (device_id, speak_token, speak_wav_b64, speak_expires, updated_at)
+     VALUES ($1, $2, $3, $4, now())
+     ON CONFLICT (device_id) DO UPDATE
+       SET speak_token = EXCLUDED.speak_token,
+           speak_wav_b64 = EXCLUDED.speak_wav_b64,
+           speak_expires = EXCLUDED.speak_expires,
+           updated_at = now()`,
+    [deviceId, token, wavB64, new Date(expires).toISOString()]
+  );
+}
+
+/**
+ * Hands the pending clip to the camera and clears it, in one statement.
+ *
+ * One-shot on purpose. A device that retried a fetch — because the first
+ * response was cut off, or because it rebooted mid-play — would otherwise
+ * repeat the message into the room, and a speaker that says the same thing
+ * twice to whoever is standing there is worse than one that says nothing.
+ */
+export async function dbTakeCameraSpeak(deviceId: string, token: string): Promise<string | null> {
+  await initDb();
+  const q = await getQuery();
+  /*
+   * The clip is read in a CTE and cleared in the UPDATE, rather than cleared
+   * with a plain RETURNING. Postgres RETURNING yields the *new* row, so
+   * `RETURNING speak_wav_b64` after setting it to NULL returns NULL — the
+   * device would fetch an empty body every time and the failure would look
+   * like a firmware problem. (RETURNING OLD arrived in Postgres 18; this has
+   * to work on what is deployed.)
+   */
+  const rows = (await q(
+    `WITH pending AS (
+       SELECT device_id, speak_wav_b64
+         FROM camera_audio_session
+        WHERE device_id = $1 AND speak_token = $2
+          AND speak_expires > now() AND speak_wav_b64 IS NOT NULL
+     )
+     UPDATE camera_audio_session s
+        SET speak_wav_b64 = NULL, speak_token = NULL, speak_expires = NULL, updated_at = now()
+       FROM pending p
+      WHERE s.device_id = p.device_id
+     RETURNING p.speak_wav_b64 AS taken`,
+    [deviceId, token]
+  )) as unknown as { taken: string | null }[];
+  return rows[0]?.taken ?? null;
 }
 
 /** Raw latency samples within the last `hours` (newest first, capped). */

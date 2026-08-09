@@ -37,6 +37,11 @@ import {
   Download,
   RefreshCcw,
   Circle,
+  HardDrive,
+  Trash2,
+  Mic,
+  Ear,
+  Volume2,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -54,7 +59,9 @@ import {
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 import { effectiveDeviceType } from "./_data/device-type";
 import { useRemoteCamera } from "./useRemoteCamera";
-import { chooseTarget, startRecording, MEMORY_FRAME_LIMIT, type Recorder } from "./recording";
+import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } from "./recording";
+import { useCameraListen, useCameraTalk } from "./useCameraAudio";
+import { useControlPlaneCapability, stalePlaneAdvice } from "@/lib/control-plane-health";
 
 export interface DeviceTypeMeta {
   label: string;
@@ -1434,6 +1441,15 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   const shownFrame = frame ?? remote.frame;
 
   /*
+   * When frames are provably being produced and lost, ask the control plane
+   * what it supports. The answer turns "the server is not relaying video" —
+   * true but unactionable — into a specific instruction, and stops a working
+   * camera being suspected of a fault that is not on the device at all.
+   */
+  const plane = useControlPlaneCapability("frameRelay", relayLost > 0);
+  const planeAdvice = stalePlaneAdvice(plane.state, plane.build);
+
+  /*
    * Recording. Every frame that reaches this panel is eligible, whichever
    * route delivered it, so footage does not stop the moment the transport
    * changes underneath the viewer.
@@ -1466,15 +1482,20 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
       const r = await rec.stop();
       setRec(null);
       setRecNote(
-        `Saved ${r.frames.toLocaleString()} frames (${(r.bytes / 1048576).toFixed(1)} MB)` +
-          (r.truncated ? ` — stopped at the ${MEMORY_FRAME_LIMIT}-frame memory limit` : "")
+        r.frames === 0
+          ? "Stopped before a readable frame arrived — nothing was saved."
+          : `Saved ${r.clips} ${r.clips === 1 ? "video" : "videos"} · ` +
+            `${r.frames.toLocaleString()} frames · ${(r.bytes / 1048576).toFixed(1)} MB` +
+            (r.rolled
+              ? ` — split at the ${Math.round(MEMORY_CLIP_MAX_BYTES / 1048576)} MB limit this browser has without folder access`
+              : "")
       );
       return;
     }
     const target = await chooseTarget();
     lastRecorded.current = 0;
     setRecCount(0);
-    setRecNote(target.kind === "folder" ? `Saving to ${target.label}` : target.label);
+    setRecNote(target.kind === "folder" ? `Recording to ${target.label}` : target.label);
     setRec(startRecording(d.name || d.id, target));
   };
 
@@ -1650,7 +1671,12 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
            actively wrong here — it costs a working device an uptime for a
            problem that is not on the device at all. */
         <div className="mt-3">
-          <AlertBanner text="The camera is capturing and publishing normally — the server is not relaying its video. Rebooting will not help. Use local view at home, or the direct route from anywhere." />
+          <AlertBanner
+            text={
+              planeAdvice ??
+              "The camera is capturing and publishing normally — the server is not relaying its video. Rebooting will not help. Use local view at home, or the direct route from anywhere."
+            }
+          />
         </div>
       )}
       {hasCamera && !ready && d.online && (
@@ -1835,6 +1861,12 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
         </ControlRow>
       )}
 
+      <SectionLabel>Camera storage</SectionLabel>
+      <CameraStorage d={d} send={send} st={st} />
+
+      <SectionLabel>Audio</SectionLabel>
+      <CameraAudio d={d} />
+
       <SectionLabel>Health</SectionLabel>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label="Frames sent" value={n(d.state.frames).toLocaleString()} />
@@ -1863,6 +1895,324 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           accent={ready ? "#22c55e" : "#ef4444"}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * The camera's own microSD card.
+ *
+ * WHY THE CLIP LIST IS NOT FETCHED HERE
+ *
+ * The clips live on the device and are served by its own HTTP server on the
+ * LAN. This page is loaded from circuvent.com over HTTPS, and a browser will
+ * not let an HTTPS page fetch http://192.168.x.x — that is mixed content, and
+ * it is blocked before any request is made. No amount of CORS on the firmware
+ * changes it.
+ *
+ * The routes that matter are therefore offered as links the browser opens
+ * directly, which works because the *page* at that address is plain HTTP. The
+ * alternative — relaying hundreds of megabytes of footage from a device in the
+ * user's house, out to a broker, into this server and back down — would be a
+ * lot of engineering to make a worse version of a local file copy. The mobile
+ * app has no such restriction and downloads clips in place; that is said here
+ * rather than left for someone to discover.
+ *
+ * Recording itself is controlled through the normal command path, which works
+ * from anywhere.
+ */
+function CameraStorage({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const card = b(d.state.sd);
+  const fault = typeof d.state.sdFault === "string" ? d.state.sdFault : "";
+  const recording = b(d.state.recording);
+  const enabled = b(d.state.recEnabled);
+  const motionOnly = b(d.state.recMotion);
+  const freeMb = n(d.state.sdFreeMb);
+  const totalMb = n(d.state.sdTotalMb);
+  const lanIp = typeof d.state.ip === "string" ? d.state.ip : "";
+  const lanBase = lanIp ? `http://${lanIp}:${n(d.state.lanPort) || 81}` : "";
+  const supported = d.state.sd != null;
+
+  if (!supported) {
+    return (
+      <p className="text-sm" style={{ color: "var(--cv-text-dim)" }}>
+        This camera has not reported a card. Recording to microSD needs firmware 1.12.0 or newer —
+        update it from Settings and this section will fill in.
+      </p>
+    );
+  }
+
+  const usedPct = totalMb > 0 ? Math.max(0, Math.min(100, ((totalMb - freeMb) / totalMb) * 100)) : 0;
+
+  return (
+    <div>
+      <ControlRow
+        label="Record to the card"
+        hint={
+          card
+            ? "Keeps recording when the internet is down — the only route that needs nothing else"
+            : fault || "No card detected in the camera"
+        }
+      >
+        <Toggle
+          checked={enabled}
+          onChange={(v) => send({ action: "record", on: v })}
+          status={st("recEnabled")}
+          label="Record to the microSD card"
+        />
+      </ControlRow>
+
+      {enabled && (
+        <ControlRow label="Only while there is motion" hint="Saves the card for the moments that matter">
+          <Toggle
+            checked={motionOnly}
+            onChange={(v) => send({ action: "record", motionOnly: v })}
+            status={st("recMotion")}
+            label="Record only on motion"
+          />
+        </ControlRow>
+      )}
+      {enabled && (
+        <ControlRow label="Clip length" hint="A new file starts at this interval">
+          <Stepper
+            value={n(d.state.recSegment, 300)}
+            onChange={(v) => send({ action: "record", segment: v })}
+            min={30}
+            max={3600}
+            step={30}
+            suffix=" s"
+          />
+        </ControlRow>
+      )}
+
+      {card && (
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between text-xs" style={{ color: "var(--cv-muted)" }}>
+            <span>
+              {freeMb.toLocaleString()} MB free of {totalMb.toLocaleString()} MB
+            </span>
+            <span>{n(d.state.recClips).toLocaleString()} clips</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--cv-card-hi)" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${usedPct}%`,
+                background: usedPct > 90 ? "#ef4444" : "linear-gradient(90deg,#06b6d4,#8b5cf6)",
+              }}
+            />
+          </div>
+          {usedPct > 90 && (
+            <p className="mt-1.5 text-xs" style={{ color: "#f59e0b" }}>
+              The card is nearly full. The camera deletes its oldest clip to make room, so the newest
+              footage is safe — but anything older than about a day may not be.
+            </p>
+          )}
+        </div>
+      )}
+
+      {recording && (
+        <p className="mt-3 text-xs font-semibold" style={{ color: "#ef4444" }}>
+          Recording now — {String(d.state.recFile ?? "")} · {n(d.state.recFrames).toLocaleString()} frames ·{" "}
+          {n(d.state.recSecs).toLocaleString()}s
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {lanBase ? (
+          <a
+            href={`${lanBase}/rec/list`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => haptic()}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-95"
+            style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
+          >
+            <HardDrive className="h-4 w-4" /> Browse clips on the card
+          </a>
+        ) : (
+          <p className="text-xs" style={{ color: "var(--cv-text-dim)" }}>
+            The camera has not published a local address yet, so its clips cannot be listed.
+          </p>
+        )}
+        <button
+          onClick={() => {
+            haptic();
+            if (confirm("Delete every clip on the camera's card? This cannot be undone.")) {
+              send({ action: "sdclear" });
+            }
+          }}
+          disabled={!card || !d.online}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
+        >
+          <Trash2 className="h-4 w-4" /> Clear card
+        </button>
+      </div>
+
+      {lanBase && (
+        <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--cv-text-dim)" }}>
+          That link opens the camera directly and only works on the same network. This page is served
+          over HTTPS and a browser will not let it fetch from a plain-HTTP address on your LAN, so the
+          clips cannot be listed inline here. The mobile app has no such restriction and can download
+          them straight to your phone.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Listening and talking.
+ *
+ * The controls only appear when the device says it has the parts. A stock
+ * AI-Thinker ESP32-CAM has no microphone and no amplifier — not disabled ones,
+ * absent ones — so a Talk button on that board would produce silence, and
+ * every layer between here and the speaker would be suspected before the
+ * hardware was. The firmware reports hasMic and hasSpeaker; this listens.
+ */
+function CameraAudio({ d }: { d: Device }) {
+  const [listening, setListening] = useState(false);
+  const hasMic = b(d.state.hasMic);
+  const hasSpeaker = b(d.state.hasSpeaker);
+  const fault = typeof d.state.audioFault === "string" ? d.state.audioFault : "";
+  const reported = d.state.hasMic != null;
+
+  const listen = useCameraListen(d.id, listening && d.online && hasMic);
+  const talk = useCameraTalk(d.online && hasSpeaker ? d.id : null);
+
+  /*
+   * Stop listening when the device drops.
+   *
+   * Adjusted during render against the previous value rather than in an
+   * effect, which is React's own guidance for reacting to a changed prop and
+   * avoids the extra render an effect would cost. It has to be a transition
+   * and not a plain `listening && d.online`: deriving it would silently
+   * resume the microphone when the camera reconnected, for a listener who
+   * stopped paying attention twenty minutes ago.
+   */
+  const [wasOnline, setWasOnline] = useState(d.online);
+  if (wasOnline !== d.online) {
+    setWasOnline(d.online);
+    if (!d.online) setListening(false);
+  }
+
+  if (!reported) {
+    return (
+      <p className="text-sm" style={{ color: "var(--cv-text-dim)" }}>
+        This camera has not reported whether it has audio hardware. Two-way audio needs firmware
+        1.12.0 or newer — update it from Settings and this section will fill in.
+      </p>
+    );
+  }
+
+  if (!hasMic && !hasSpeaker) {
+    return (
+      <div>
+        <AlertBanner
+          text={
+            "This board has no microphone and no amplifier fitted, so there is nothing to listen to or talk through. " +
+            "The stock AI-Thinker ESP32-CAM ships without them: audio needs an I2S MEMS microphone (INMP441 or SPH0645) " +
+            "and an I2S amplifier (MAX98357A) soldered on, and firmware built with CV_AUDIO=1. " +
+            "See firmware/camera/platformio.ini for the wiring — it costs the status LED and the serial console's receive line." +
+            (fault ? ` The device also reports: ${fault}.` : "")
+          }
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => {
+            haptic();
+            setListening((v) => !v);
+          }}
+          disabled={!d.online || !hasMic}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          style={{
+            background: listening ? "rgba(6,182,212,0.15)" : "var(--cv-card-hi)",
+            borderColor: listening ? "rgba(6,182,212,0.55)" : "var(--cv-border)",
+            color: listening ? "#22d3ee" : "var(--cv-text)",
+          }}
+        >
+          {listening ? <Volume2 className="h-4 w-4" /> : <Ear className="h-4 w-4" />}
+          {listening ? "Stop listening" : "Listen"}
+        </button>
+
+        {/* Press and hold, on both pointer and touch. A tap-to-start,
+            tap-to-stop toggle is how a microphone gets left open in someone's
+            house, and holding makes the live state unambiguous. */}
+        <button
+          onPointerDown={() => {
+            haptic();
+            void talk.start();
+          }}
+          onPointerUp={() => void talk.stopAndSend()}
+          onPointerLeave={() => {
+            if (talk.status === "recording") void talk.stopAndSend();
+          }}
+          disabled={!d.online || !hasSpeaker || talk.status === "sending"}
+          className="flex min-h-11 select-none items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          style={{
+            background: talk.status === "recording" ? "rgba(239,68,68,0.15)" : "var(--cv-card-hi)",
+            borderColor: talk.status === "recording" ? "rgba(239,68,68,0.55)" : "var(--cv-border)",
+            color: talk.status === "recording" ? "#f87171" : "var(--cv-text)",
+            touchAction: "none",
+          }}
+        >
+          <Mic className="h-4 w-4" />
+          {talk.status === "recording"
+            ? `Release to send · ${talk.seconds.toFixed(1)}s`
+            : talk.status === "sending"
+              ? "Sending…"
+              : talk.status === "sent"
+                ? "Sent"
+                : "Hold to talk"}
+        </button>
+      </div>
+
+      {listening && (
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between text-xs" style={{ color: "var(--cv-muted)" }}>
+            <span>
+              {listen.status === "live"
+                ? "Listening"
+                : listen.status === "starting"
+                  ? "Connecting to the microphone…"
+                  : listen.status === "unavailable"
+                    ? `Cannot listen: ${listen.detail}`
+                    : "Idle"}
+            </span>
+            <span>8 kHz mono</span>
+          </div>
+          {/* A level meter, because silence and a broken link look identical
+              otherwise and one of them needs fixing. */}
+          <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--cv-card-hi)" }}>
+            <div
+              className="h-full rounded-full transition-all duration-150"
+              style={{
+                width: `${Math.min(100, Math.round(listen.level * 140))}%`,
+                background: "linear-gradient(90deg,#06b6d4,#8b5cf6)",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {talk.status === "error" && talk.detail && (
+        <p className="mt-2 text-xs" style={{ color: "#f59e0b" }}>
+          {talk.detail}
+        </p>
+      )}
+
+      <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--cv-text-dim)" }}>
+        Listening stops on its own after two minutes and when this page closes — a microphone in your
+        home should not stay open because a tab was left behind. Talking sends one clip at a time, up
+        to 20 seconds; the camera fetches it and plays it once.
+      </p>
     </div>
   );
 }
