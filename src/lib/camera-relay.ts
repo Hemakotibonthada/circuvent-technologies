@@ -32,7 +32,7 @@
 import {
   dbArmCameraRelay,
   dbCameraRelayToken,
-  dbStoreCameraFrame,
+  dbStoreCameraFrameIfToken,
   dbLatestCameraFrame,
   dbEnabled,
 } from "./db";
@@ -88,14 +88,17 @@ export async function storeFrame(
   bytes: number
 ): Promise<StoreResult> {
   if (!dbEnabled()) return { ok: false, reason: "no database configured", status: 503 };
+
+  // One statement on the happy path; the reason is only fetched on failure.
+  if (await dbStoreCameraFrameIfToken(deviceId, presented, jpegB64, bytes)) return { ok: true };
+
   const { token, expires } = await dbCameraRelayToken(deviceId);
   if (!token) return { ok: false, reason: "camera is not armed for upload", status: 409 };
   if (token !== presented) return { ok: false, reason: "upload token rejected", status: 403 };
   if (expires != null && expires < Date.now()) {
     return { ok: false, reason: "upload window expired", status: 410 };
   }
-  await dbStoreCameraFrame(deviceId, jpegB64, bytes);
-  return { ok: true };
+  return { ok: false, reason: "frame could not be stored", status: 500 };
 }
 
 /** The newest frame, or null when there is nothing fresh enough to show. */
@@ -117,13 +120,32 @@ const CONTROL_PLANE = process.env.NEXT_PUBLIC_CONTROL_PLANE_URL || "https://api.
  * locally would be a guess with security consequences, so the authoritative
  * service is asked directly using the caller's own token — a route that is
  * deployed and verified working.
+ *
+ * The answer is cached briefly, because a viewer polls several times a second
+ * and an uncached check put a full round trip to another host in front of
+ * every frame — measured at ~700 ms per request, which was most of the reason
+ * remote viewing ran at well under one frame a second. The cache is keyed on
+ * the token as well as the device, so it can never let a *different* caller
+ * inherit someone's access, and it is short enough that revoking a device
+ * takes effect in seconds rather than needing a restart.
  */
+const OWNERSHIP_TTL_MS = 30_000;
+const ownershipCache = new Map<string, { ok: boolean; at: number }>();
+
 export async function callerOwnsDevice(deviceId: string, cpToken: string): Promise<boolean> {
+  const key = `${deviceId}\u0000${cpToken}`;
+  const hit = ownershipCache.get(key);
+  if (hit && Date.now() - hit.at < OWNERSHIP_TTL_MS) return hit.ok;
   try {
     const r = await fetch(`${CONTROL_PLANE}/devices/${encodeURIComponent(deviceId)}`, {
       headers: { authorization: `Bearer ${cpToken}` },
       cache: "no-store",
     });
+    // Only a definite answer is cached. A network blip must not be remembered
+    // as "not your device" for the next half minute.
+    if (r.ok || r.status === 401 || r.status === 403 || r.status === 404) {
+      ownershipCache.set(key, { ok: r.ok, at: Date.now() });
+    }
     return r.ok;
   } catch {
     return false;
@@ -147,3 +169,4 @@ export async function commandCloudPush(
     return false;
   }
 }
+

@@ -426,6 +426,33 @@ export async function dbArmCameraRelay(deviceId: string, token: string, expires:
   );
 }
 
+/**
+ * Stores a frame only if the token matches and is unexpired, in one statement.
+ *
+ * Separate check-then-write cost two round trips per frame, and at a few
+ * frames a second against a serverless database that was the dominant term in
+ * the upload budget — more than the image transfer itself. The guard lives in
+ * the WHERE clause so the happy path is a single query; the reason for a
+ * refusal is only looked up when there is one.
+ */
+export async function dbStoreCameraFrameIfToken(
+  deviceId: string,
+  token: string,
+  jpegB64: string,
+  bytes: number
+): Promise<boolean> {
+  await initDb();
+  const q = await getQuery();
+  const rows = (await q(
+    `UPDATE camera_frames
+        SET jpeg_b64 = $3, bytes = $4, captured_at = now(), updated_at = now()
+      WHERE device_id = $1 AND upload_token = $2 AND token_expires > now()
+      RETURNING device_id`,
+    [deviceId, token, jpegB64, bytes]
+  )) as unknown as unknown[];
+  return rows.length > 0;
+}
+
 /** The stored upload credential for a camera, for validating an upload. */
 export async function dbCameraRelayToken(
   deviceId: string
