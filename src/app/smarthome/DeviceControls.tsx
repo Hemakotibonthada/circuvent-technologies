@@ -1774,7 +1774,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           value={n(d.state.fps, 8)}
           onChange={(v) => send({ fps: v })}
           min={1}
-          max={15}
+          max={30}
           step={1}
           suffix=" fps"
         />
