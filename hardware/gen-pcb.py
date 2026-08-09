@@ -1554,9 +1554,22 @@ LOAD_COM, LOAD_NO = "LOAD_COM", "LOAD_NO"
 #
 #   xfmr  EE13 bobbin   1=Np start 2=Np end 4=Nb start 5=Nb end
 #                       6=Ns start 10=Ns end ; 3/7/8/9 unfitted
-#   dip8  TNY274PN (!)  1=EN/UV 2=BYPASS 4,5=SOURCE 7,8=DRAIN ; 3,6 omitted
-#                       in the DIP-8B package for primary-side creepage
-#   sot23 TL431 (!)     1=REF 2=ANODE 3=CATHODE
+#   dip8  TNY274PN      1=EN/UV 2=BYPASS 4=DRAIN 5,6,7,8=SOURCE ; 3 omitted
+#                       VERIFIED against the Power Integrations TinySwitch-III
+#                       datasheet, P package (DIP-8C), page 2. An earlier
+#                       revision of this file had DRAIN and SOURCE swapped,
+#                       which would have connected the 700 V switching node to
+#                       the source pins and tied the drain to the primary
+#                       return - a dead short across the rectified mains
+#                       through the transformer, with no switching control.
+#                       Note the package is DIP-8C, not DIP-8B, and only pin 3
+#                       is omitted (for DRAIN-to-adjacent-pin creepage).
+#   sot23 TL431 (!)     1=REF 2=ANODE 3=CATHODE - STILL UNVERIFIED. The TI
+#                       datasheet states explicitly that TL432 "has different
+#                       pinouts for the DBV, DBZ and PK packages", so the
+#                       ordered part number decides this. The pin numbers live
+#                       in a figure that does not extract as text; confirm
+#                       against the printed drawing before fabrication.
 #   sma   S1M / SS34    1=cathode 2=anode  (as everywhere else in this file)
 #   dip4  PC817         1=LED anode 2=LED cathode 3=emitter 4=collector
 # --------------------------------------------------------------------------
@@ -1640,8 +1653,8 @@ def wire_psu_block(nl, by_ref, hot):
 
     w("T1", {1: HV_P, 2: SW_D, 4: BIAS, 5: HV_N, 6: SEC, 10: GND,
              3: "N$T1.3", 7: "N$T1.7", 8: "N$T1.8", 9: "N$T1.9"})
-    w("U20", {1: "EN_UV", 2: "BYPASS", 4: HV_N, 5: HV_N, 7: SW_D, 8: SW_D,
-              3: "N$U20.3", 6: "N$U20.6"})
+    w("U20", {1: "EN_UV", 2: "BYPASS", 4: SW_D, 5: HV_N, 6: HV_N, 7: HV_N,
+              8: HV_N, 3: "N$U20.3"})
     w("PZ2", {1: "BYPASS", 2: HV_N})
 
     # RCD clamp: catch at the drain, bleed back to the rail through R//C.
@@ -1736,10 +1749,9 @@ def build_netlist_psu(dev, parts):
     # ---- switcher ---------------------------------------------------------
     u1 = pick("dip8", used)
     if u1:
-        nl.tie_many(u1, {1: "EN_UV", 2: "BYPASS", 4: HV_N, 5: HV_N,
-                         7: SW_D, 8: SW_D})
-        for p in (3, 6):
-            nl.tie(u1, p, "N$%s.%d" % (u1, p))
+        nl.tie_many(u1, {1: "EN_UV", 2: "BYPASS", 4: SW_D,
+                         5: HV_N, 6: HV_N, 7: HV_N, 8: HV_N})
+        nl.tie(u1, 3, "N$%s.3" % u1)
         nl.mark_mains("EN_UV", "BYPASS")
 
     caps = [r for r in of("C") if r not in used]

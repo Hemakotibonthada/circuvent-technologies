@@ -11,10 +11,12 @@ Design source: SCHEMATIC.md (netlist) + BOM.csv. Open cv-psu5.kicad_pro in KiCad
   the floor. What it buys is BOM cost, a second source, and the 3.3 V rail.
 
 ## Blocking pre-fab checklist
-- [ ] **Confirm the TNY274PN DIP-8B pinout against the datasheet.** Asserted as
-      1=EN/UV, 2=BYPASS, 4/5=SOURCE, 7/8=DRAIN with 3 and 6 omitted. Unverified.
+- [x] **TNY274PN DIP-8C pinout confirmed** against the TinySwitch-III datasheet:
+      1=EN/UV, 2=BYPASS, 4=DRAIN, 5/6/7/8=SOURCE, 3 omitted. (The design
+      previously had DRAIN and SOURCE swapped.)
 - [ ] **Confirm the TL431 SOT-23 pinout.** Asserted 1=REF, 2=ANODE, 3=CATHODE.
-      SOT-23 TL431 pinouts differ between vendors — check the exact part.
+      TI states TL432 has a different DBZ pinout from TL431, so check the exact
+      ordered part against the printed package drawing.
 - [ ] **Confirm the EE13 bobbin drawing** against
       `hardware/lib/Circuvent.pretty/Transformer_EE13_10pin.kicad_mod`
       (2.54 mm pitch, 10.16 mm row spacing, 5+5). Regenerate with

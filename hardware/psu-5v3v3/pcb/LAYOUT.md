@@ -11,11 +11,11 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Board size | **77.4 x 72.0 mm** (doc target 70 x 55 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
 | Footprints placed | 32 of 32 BOM positions |
-| Nets | 26 total, 19 multi-pad (routable) |
+| Nets | 25 total, 19 multi-pad (routable) |
 | Pads bound to nets | 87 of 87 |
 | Net classes | Default=5, HVDC=9, MAINS=3, POWER=3 |
-| Routing | autorouted, 266 track/via segments |
-| DRC errors / unconnected | **13 / 9** |
+| Routing | not run |
+| DRC errors / unconnected | **not run** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -118,7 +118,7 @@ rating, and safety agency approval):
 | `J1` | term3 | AC_L, AC_N | PE |
 | `PC1` | dip4 | EN_UV, HV- | FB_A, FB_K |
 | `T1` | xfmr | BIAS, HV+, HV-, SW_DRAIN | GND, N$T1.3, N$T1.7, N$T1.8, N$T1.9, SEC |
-| `U1` | dip8 | BYPASS, EN_UV, HV-, SW_DRAIN | N$U1.3, N$U1.6 |
+| `U1` | dip8 | BYPASS, EN_UV, HV-, SW_DRAIN | N$U1.3 |
 
 An optocoupler or an isolated PSU is fine here. A metering front-end such as
 the BL0937 is **not** - it is galvanically connected to both sides, so either
@@ -129,7 +129,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 266 track/via segments)
+- [ ] Copper routing (not run)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

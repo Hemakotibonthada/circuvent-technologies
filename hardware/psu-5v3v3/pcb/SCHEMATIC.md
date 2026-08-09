@@ -62,13 +62,17 @@ manufacturer datasheet when this was written and are blocking pre-fab items:
 | Part | Assumed pinout | Confirmed? |
 | --- | --- | --- |
 | T1 EE13 bobbin | 1=Np start 2=Np end · 4/5=bias · 6/10=secondary | **No** — depends on the winding house's bobbin |
-| U1 TNY274PN (DIP-8B) | 1=EN/UV 2=BYPASS 4,5=SOURCE 7,8=DRAIN, 3/6 omitted | **No** |
-| U2 TL431 (SOT-23) | 1=REF 2=ANODE 3=CATHODE | **No** |
+| U1 TNY274PN (DIP-8C) | 1=EN/UV 2=BYPASS 4=DRAIN 5,6,7,8=SOURCE, 3 omitted | **Yes** — TinySwitch-III datasheet p.2 |
+| U2 TL431 (SOT-23) | 1=REF 2=ANODE 3=CATHODE | **No** — TL431 and TL432 differ in DBZ |
 | D1–D7 (SMA) | 1=cathode 2=anode | Yes — matches every other board here |
 | PC1 PC817 | 1=LED anode 2=LED cathode 3=emitter 4=collector | Yes |
 
-The TNY274 in particular has two omitted pins for creepage, so a footprint
-that lands copper on positions 3 and 6 is wrong in a way that matters.
+The TNY274 in particular has an omitted pin for creepage, so a footprint that
+lands copper on position 3 is wrong in a way that matters. The pinout above is
+now taken from the datasheet: an earlier revision of this design had DRAIN and
+SOURCE swapped, which would have tied the 700 V switching node to the source
+pins and the drain to the primary return — a short across the rectified mains
+through the transformer, with nothing controlling it.
 
 ## Transformer specification (order this, do not improvise)
 ```
