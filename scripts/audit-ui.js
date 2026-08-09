@@ -1,0 +1,316 @@
+/**
+ * Whole-application UI audit.
+ *
+ * WHY A TOOL AND NOT A READ-THROUGH
+ *
+ * The console is 85 routes across six theme combinations. Nobody can hold that
+ * in their head, and "looks fine to me" has already been wrong twice here — the
+ * admin console rendered black-on-black at 1.07:1 while every unit test passed,
+ * and a strict CSP silently refused every inline style while the page still
+ * returned 200. Both were found by driving a browser and measuring.
+ *
+ * So this measures. For each route, in each theme, at desktop and phone widths:
+ *
+ *   contrast   text that cannot be read against what is actually painted
+ *              behind it, per WCAG 2.1 (4.5:1 body, 3:1 for large text)
+ *   targets    interactive elements below the 44x44 CSS px that Apple's HIG
+ *              and WCAG 2.5.5 both settle on
+ *   overflow   content wider than the viewport at 390px, which is a phone
+ *   naming     interactive elements a screen reader would announce as nothing
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO
+ *
+ * It does not judge taste. Spacing, hierarchy and colour choice are design
+ * decisions; only the four properties above are defects with an objective
+ * answer, and mixing the two would make the report arguable and therefore
+ * ignorable.
+ *
+ * Usage:
+ *   node scripts/audit-ui.js                      # console routes, all themes
+ *   BASE=https://circuvent.com node scripts/audit-ui.js
+ *   ROUTES=/smarthome,/smarthome/energy node scripts/audit-ui.js
+ *   THEMES=glass-dark node scripts/audit-ui.js
+ *   JSON=report.json node scripts/audit-ui.js
+ */
+const { chromium } = require("@playwright/test");
+const { writeFileSync } = require("fs");
+
+const BASE = process.env.BASE || "http://localhost:3001";
+const THEME_KEY = "cv-console-theme";
+const CONCURRENCY = Number(process.env.CONCURRENCY || 4);
+
+const ALL_THEMES = [
+  { mode: "glass", scheme: "dark" },
+  { mode: "glass", scheme: "light" },
+  { mode: "neo", scheme: "dark" },
+  { mode: "neo", scheme: "light" },
+  { mode: "aurora", scheme: "dark" },
+  { mode: "aurora", scheme: "light" },
+];
+
+const CONSOLE_ROUTES = [
+  "/smarthome", "/smarthome/devices", "/smarthome/rooms", "/smarthome/spaces",
+  "/smarthome/automation", "/smarthome/scenes", "/smarthome/energy", "/smarthome/security",
+  "/smarthome/insights", "/smarthome/settings", "/smarthome/cameras", "/smarthome/notifications",
+  "/smarthome/reports", "/smarthome/weather", "/smarthome/presence", "/smarthome/timeline",
+  "/smarthome/groups", "/smarthome/quick-actions", "/smarthome/widgets", "/smarthome/floorplan",
+  "/smarthome/diagnostics", "/smarthome/firmware", "/smarthome/maintenance", "/smarthome/solar",
+  "/smarthome/profile", "/smarthome/properties", "/smarthome/recipes", "/smarthome/backup",
+  "/smarthome/command-center", "/smarthome/kiosk", "/smarthome/lifecycle", "/smarthome/benchmark",
+  "/smarthome/energy-budget", "/smarthome/scene-scheduler", "/smarthome/notification-rules",
+  "/smarthome/assistants", "/smarthome/developer", "/smarthome/away-mode",
+  "/smarthome/admin", "/smarthome/admin/fleet", "/smarthome/admin/registry",
+  "/smarthome/admin/telemetry", "/smarthome/admin/provisioning", "/smarthome/admin/ota",
+  "/smarthome/admin/latency", "/smarthome/admin/alerts", "/smarthome/admin/rules",
+  "/smarthome/admin/access", "/smarthome/admin/security", "/smarthome/admin/platform",
+  "/smarthome/admin/dashboards", "/smarthome/admin/intelligence",
+];
+
+const routes = (process.env.ROUTES || CONSOLE_ROUTES.join(",")).split(",").filter(Boolean);
+const themes = process.env.THEMES
+  ? process.env.THEMES.split(",").map((t) => {
+      const [mode, scheme] = t.split("-");
+      return { mode, scheme };
+    })
+  : ALL_THEMES;
+
+/* ------------------------------------------------------------------ */
+/* The probe. Runs inside the page.                                     */
+/* ------------------------------------------------------------------ */
+const PROBE = () => {
+  const MIN_TARGET = 44;
+
+  const srgb = (v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const lum = ([r, g, b]) => 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b);
+  const parse = (css) => {
+    const m = /rgba?\(([^)]+)\)/.exec(css || "");
+    if (!m) return null;
+    const p = m[1].split(",").map(parseFloat);
+    return { rgb: [p[0], p[1], p[2]], a: p.length > 3 ? p[3] : 1 };
+  };
+  const ratio = (a, b) => {
+    const x = lum(a) + 0.05;
+    const y = lum(b) + 0.05;
+    return Math.round((Math.max(x, y) / Math.min(x, y)) * 100) / 100;
+  };
+  const where = (el) => {
+    const bits = [el.tagName.toLowerCase()];
+    if (el.id) bits.push(`#${el.id}`);
+    const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/).slice(0, 3).join(".") : "";
+    if (cls) bits.push(`.${cls}`);
+    return bits.join("");
+  };
+
+  const out = { contrast: [], targets: [], naming: [], overflow: null };
+
+  /*
+   * The painted background behind an element.
+   *
+   * Climbing matters: nearly every surface in this console is translucent, so
+   * an element's own backgroundColor is usually rgba(...,0) and comparing
+   * against that would score everything as perfect contrast against nothing.
+   * Gradient fills are reported as unknown rather than guessed — a gradient is
+   * a background-image with no single colour, and pretending otherwise
+   * produced false alarms that made an earlier report ignorable.
+   */
+  const backdrop = (el) => {
+    let n = el;
+    while (n && n !== document.documentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.backgroundImage && cs.backgroundImage !== "none") return { gradient: true };
+      const c = parse(cs.backgroundColor);
+      if (c && c.a > 0.55) return { rgb: c.rgb };
+      n = n.parentElement;
+    }
+    const body = parse(getComputedStyle(document.body).backgroundColor);
+    return body && body.a > 0.55 ? { rgb: body.rgb } : { unknown: true };
+  };
+
+  const visible = (el) => {
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none") return false;
+    if (parseFloat(cs.opacity) < 0.15) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 2 && r.height > 2;
+  };
+
+  // ---- contrast ----
+  for (const el of document.querySelectorAll("body *")) {
+    if (el.children.length > 0) continue;
+    const text = (el.textContent || "").trim();
+    if (!text || !visible(el)) continue;
+    const cs = getComputedStyle(el);
+    const fg = parse(cs.color);
+    const bg = backdrop(el);
+    if (!fg || !bg.rgb) continue;
+
+    const px = parseFloat(cs.fontSize);
+    const bold = Number(cs.fontWeight) >= 700;
+    // WCAG "large text": 18.66px bold or 24px regular.
+    const large = px >= 24 || (bold && px >= 18.66);
+    const need = large ? 3 : 4.5;
+    const cr = ratio(fg.rgb, bg.rgb);
+    if (cr < need) {
+      out.contrast.push({ el: where(el), text: text.slice(0, 44), fg: cs.color, bg: `rgb(${bg.rgb.join(",")})`, ratio: cr, need });
+    }
+  }
+
+  // ---- touch targets + accessible names ----
+  const interactive = document.querySelectorAll(
+    'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="switch"], [role="tab"], [tabindex]:not([tabindex="-1"])'
+  );
+  for (const el of interactive) {
+    if (!visible(el)) continue;
+    const r = el.getBoundingClientRect();
+    // An inline link inside a paragraph is not a control and is exempt from
+    // the target rule; WCAG says the same.
+    const inline = el.tagName === "A" && getComputedStyle(el).display === "inline";
+    if (!inline && (r.width < MIN_TARGET || r.height < MIN_TARGET)) {
+      out.targets.push({ el: where(el), w: Math.round(r.width), h: Math.round(r.height), text: (el.textContent || "").trim().slice(0, 30) });
+    }
+    const name =
+      (el.getAttribute("aria-label") || "").trim() ||
+      (el.textContent || "").trim() ||
+      (el.getAttribute("title") || "").trim() ||
+      (el.getAttribute("alt") || "").trim() ||
+      (el.getAttribute("placeholder") || "").trim() ||
+      (el.getAttribute("aria-labelledby") ? "by-id" : "");
+    if (!name) out.naming.push({ el: where(el) });
+  }
+
+  // ---- horizontal overflow ----
+  const doc = document.documentElement;
+  if (doc.scrollWidth > doc.clientWidth + 1) {
+    const wide = [];
+    for (const el of document.querySelectorAll("body *")) {
+      const r = el.getBoundingClientRect();
+      if (r.right > doc.clientWidth + 1 && r.width > 8 && visible(el)) wide.push({ el: where(el), right: Math.round(r.right) });
+      if (wide.length > 5) break;
+    }
+    out.overflow = { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, culprits: wide };
+  }
+
+  return out;
+};
+
+/* ------------------------------------------------------------------ */
+async function auditOne(browser, theme, route, width) {
+  const ctx = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1 });
+  await ctx.addInitScript(
+    ([k, v]) => window.localStorage.setItem(k, v),
+    [THEME_KEY, JSON.stringify({ mode: theme.mode, scheme: theme.scheme, accentKey: "brand" })]
+  );
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e.message).slice(0, 120)));
+  try {
+    await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForTimeout(900);
+    const r = await page.evaluate(PROBE);
+    return { ...r, errors };
+  } catch (e) {
+    return { contrast: [], targets: [], naming: [], overflow: null, errors: [`LOAD: ${String(e.message).slice(0, 100)}`] };
+  } finally {
+    await ctx.close();
+  }
+}
+
+async function pool(items, n, fn) {
+  const out = [];
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(n, items.length) }, async () => {
+      while (i < items.length) {
+        const idx = i++;
+        out[idx] = await fn(items[idx]);
+      }
+    })
+  );
+  return out;
+}
+
+(async () => {
+  const browser = await chromium.launch();
+  const jobs = [];
+  for (const theme of themes) {
+    for (const route of routes) {
+      jobs.push({ theme, route, width: 1440 });
+      // Phone width only needs one theme: overflow and target size do not
+      // depend on colour, and six times the runtime buys nothing.
+      if (theme === themes[0]) jobs.push({ theme, route, width: 390 });
+    }
+  }
+
+  process.stderr.write(`auditing ${routes.length} routes x ${themes.length} themes (${jobs.length} loads)\n`);
+  let done = 0;
+  const results = await pool(jobs, CONCURRENCY, async (j) => {
+    const r = await auditOne(browser, j.theme, j.route, j.width);
+    done++;
+    if (done % 25 === 0) process.stderr.write(`  ${done}/${jobs.length}\n`);
+    return { ...j, ...r };
+  });
+  await browser.close();
+
+  // ---- roll up ----
+  const byRoute = new Map();
+  for (const r of results) {
+    const k = r.route;
+    if (!byRoute.has(k)) byRoute.set(k, { route: k, contrast: 0, targets: 0, naming: 0, overflow: 0, errors: 0, worst: [], samples: [] });
+    const e = byRoute.get(k);
+    e.contrast += r.contrast.length;
+    e.naming += r.naming.length;
+    e.errors += r.errors.length;
+    if (r.width === 390) {
+      e.targets += r.targets.length;
+      if (r.overflow) e.overflow += 1;
+    }
+    for (const c of r.contrast.slice(0, 3)) e.worst.push({ theme: `${r.theme.mode}-${r.theme.scheme}`, ...c });
+    for (const t of r.targets.slice(0, 2)) e.samples.push(t);
+  }
+
+  const rows = [...byRoute.values()].sort(
+    (a, b) => b.contrast + b.targets * 2 + b.naming - (a.contrast + a.targets * 2 + a.naming)
+  );
+
+  const totals = rows.reduce(
+    (t, r) => ({
+      contrast: t.contrast + r.contrast,
+      targets: t.targets + r.targets,
+      naming: t.naming + r.naming,
+      overflow: t.overflow + r.overflow,
+      errors: t.errors + r.errors,
+    }),
+    { contrast: 0, targets: 0, naming: 0, overflow: 0, errors: 0 }
+  );
+
+  console.log("route".padEnd(42) + "contrast  targets  naming  overflow  errors");
+  console.log("-".repeat(90));
+  for (const r of rows) {
+    if (!r.contrast && !r.targets && !r.naming && !r.overflow && !r.errors) continue;
+    console.log(
+      r.route.padEnd(42) +
+        String(r.contrast).padStart(8) +
+        String(r.targets).padStart(9) +
+        String(r.naming).padStart(8) +
+        String(r.overflow).padStart(10) +
+        String(r.errors).padStart(8)
+    );
+  }
+  console.log("-".repeat(90));
+  console.log(
+    "TOTAL".padEnd(42) +
+      String(totals.contrast).padStart(8) +
+      String(totals.targets).padStart(9) +
+      String(totals.naming).padStart(8) +
+      String(totals.overflow).padStart(10) +
+      String(totals.errors).padStart(8)
+  );
+
+  if (process.env.JSON) {
+    writeFileSync(process.env.JSON, JSON.stringify({ base: BASE, totals, routes: rows }, null, 2));
+    process.stderr.write(`\nwrote ${process.env.JSON}\n`);
+  }
+})();

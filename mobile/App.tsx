@@ -9,6 +9,7 @@ import { initHaptics } from "./src/haptics";
 import Login from "./src/screens/Login";
 import Shell from "./src/screens/Shell";
 import Onboarding, { hasSeenOnboarding } from "./src/screens/Onboarding";
+import { ErrorBoundary } from "./src/overlays";
 
 function Root() {
   const { account, ready } = useAuth();
@@ -49,7 +50,18 @@ function Root() {
       {account ? (
         <DevicesProvider>
           <SiriSync />
-          <Shell />
+          {/*
+            Keyed on the account so signing in as someone else clears a caught
+            error, and remounts the shell rather than restoring a tree that
+            belonged to the previous session.
+
+            Without this an uncaught render error anywhere in the app unmounted
+            everything and left a white screen — on a phone that controls a
+            house, with no way back to the lights and no route except force-quit.
+          */}
+          <ErrorBoundary label="shell" key={account.email}>
+            <Shell />
+          </ErrorBoundary>
         </DevicesProvider>
       ) : (
         <Login />

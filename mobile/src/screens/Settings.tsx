@@ -8,6 +8,7 @@ import { Icon, type IconName } from "../icons";
 import { ACCENTS, ThemeMode } from "../theme";
 import { tapLight, toggleFeedback, setHapticsEnabled, hapticsEnabled } from "../haptics";
 import { APP_VERSION, APP_BUILD } from "../version";
+import { usePrompt } from "../overlays";
 
 const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = [
   { key: "glass", label: "Glass", sub: "Frosted glassmorphism", icon: "glass" },
@@ -32,19 +33,29 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
     if (v) toggleFeedback(true);
   };
 
-  const setKioskPin = () => {
-    Alert.prompt?.(
-      "Set kiosk exit PIN",
-      "A 4-digit PIN required to leave kiosk mode.",
-      async (text) => {
-        const pin = (text || "").replace(/[^0-9]/g, "").slice(0, 4);
-        if (pin.length === 4) { await AsyncStorage.setItem("cv-kiosk-pin", pin); Alert.alert("Kiosk PIN updated"); }
-        else Alert.alert("PIN must be 4 digits");
-      },
-      "plain-text",
-      "",
-      "number-pad"
-    );
+  const { prompt, promptNode } = usePrompt();
+
+  const setKioskPin = async () => {
+    /*
+     * Was `Alert.prompt?.(...)`, which is iOS-only and evaluated to undefined
+     * on Android — so an Android user could enable kiosk mode and never be
+     * able to set the PIN that leaves it. Silent, because of the `?.`.
+     */
+    const entered = await prompt({
+      title: "Set kiosk exit PIN",
+      message: "A 4-digit PIN required to leave kiosk mode.",
+      placeholder: "0000",
+      keyboardType: "number-pad",
+      secure: true,
+      maxLength: 4,
+      confirmLabel: "Set PIN",
+      validate: (v) => (v.replace(/[^0-9]/g, "").length === 4 ? null : "The PIN must be exactly 4 digits."),
+    });
+    if (entered == null) return;
+    const pin = entered.replace(/[^0-9]/g, "").slice(0, 4);
+    if (pin.length !== 4) return;
+    await AsyncStorage.setItem("cv-kiosk-pin", pin);
+    Alert.alert("Kiosk PIN updated");
   };
 
   return (
@@ -175,6 +186,7 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
 
         <GhostButton label="Log out" onPress={logout} />
       </ScrollView>
+      {promptNode}
     </Screen>
   );
 }

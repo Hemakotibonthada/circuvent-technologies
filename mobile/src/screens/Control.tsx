@@ -12,6 +12,7 @@ import { useSwitchWidgets, CHANNEL_KINDS, channelKind, type Gang } from "../widg
 import { useCameraFrames } from "../live";
 import { isCameraDevice as isCamera } from "../cameras";
 import { Icon, type IconName } from "../icons";
+import { usePrompt } from "../overlays";
 
 const COLORS = ["#ffffff", "#ffd27f", "#ff7f7f", "#7fd0ff", "#7fff9e", "#c79bff", "#ff9be0"];
 
@@ -22,8 +23,27 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
 
   const send = (params: Record<string, unknown>) => command(d.id, { action: "set", ...params });
 
-  const rename = () => {
-    Alert.prompt?.("Rename device", undefined, (text) => { if (text?.trim()) patch(d.id, { name: text.trim() }); }, "plain-text", d.name || "");
+  /*
+   * Renaming used to call `Alert.prompt?.(...)`.
+   *
+   * Alert.prompt is iOS-only. The optional call meant that on Android the
+   * expression evaluated to undefined and nothing happened at all — no dialog,
+   * no error, no log line. Every Android user who tried to rename a device got
+   * silence, and the `?.` is exactly why nobody noticed: it turned a crash
+   * into a no-op.
+   */
+  const { prompt, promptNode } = usePrompt();
+
+  const rename = async () => {
+    const next = await prompt({
+      title: "Rename device",
+      message: "This is the name you will see everywhere, including in scenes and automations.",
+      placeholder: "Living room lamp",
+      initialValue: d.name || "",
+      maxLength: 40,
+      validate: (v) => (v.trim().length === 0 ? "Give the device a name." : null),
+    });
+    if (next && next.trim()) patch(d.id, { name: next.trim() });
   };
 
   const meta = deviceMeta(d.type);
@@ -95,6 +115,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
           </Card>
         </Pressable>
       </ScrollView>
+      {promptNode}
     </Screen>
   );
 }
