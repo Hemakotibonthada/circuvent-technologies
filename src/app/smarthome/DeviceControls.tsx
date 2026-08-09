@@ -328,11 +328,30 @@ function GenericCapabilities({ d, send, st }: { d: Device; send: SendFn; st: Sta
         </ControlRow>
       )}
       {caps.fan && (
-        <ControlRow label={caps.fan.label}>
+        <ControlRow label={caps.fan.label} hint={`${n(d.state[caps.fan.field])} / ${caps.fan.steps}`}>
           <div className="flex gap-2">
-            {Array.from({ length: caps.fan.steps + 1 }, (_, i) => (
-              <button key={i} onClick={() => send({ [caps.fan!.field]: i })} className={`h-9 w-9 rounded-lg border border-white/10 ${n(d.state[caps.fan!.field]) === i ? "text-white cv-gradient" : "text-slate-300 bg-white/5"}`}>{i}</button>
-            ))}
+            {Array.from({ length: caps.fan.steps + 1 }, (_, i) => {
+              const active = n(d.state[caps.fan!.field]) === i;
+              return (
+                <button
+                  key={i}
+                  onClick={() => send({ [caps.fan!.field]: i })}
+                  aria-pressed={active}
+                  aria-label={i === 0 ? "Off" : `Speed ${i}`}
+                  className="h-9 w-9 rounded-lg text-sm font-semibold transition"
+                  // border-white/10 and bg-white/5 were hardcoded, which is a
+                  // white outline on a white surface under any light theme —
+                  // the off-state steps were invisible. Tokens follow the theme.
+                  style={
+                    active
+                      ? { background: "var(--cv-gradient)", color: "#fff", boxShadow: "var(--cv-shadow-1)" }
+                      : { background: "var(--cv-card-hi)", color: "var(--cv-muted)", border: "1px solid var(--cv-border)" }
+                  }
+                >
+                  {i}
+                </button>
+              );
+            })}
           </div>
         </ControlRow>
       )}

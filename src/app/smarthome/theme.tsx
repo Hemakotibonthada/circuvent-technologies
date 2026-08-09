@@ -284,6 +284,83 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           -webkit-backdrop-filter: blur(28px) saturate(180%);
           box-shadow: var(--cv-shadow-2);
         }
+        /* ---- Range inputs -------------------------------------------------
+           Dimmers and speed dials are the one control where neumorphism has
+           something to say: the track is carved *into* the surface and the
+           handle sits proud of it, which is what makes "how far along am I"
+           legible without reading a number.
+
+           Only styled inside .cv-neo. The other themes use the platform
+           control on purpose — a native range picks up focus rings, keyboard
+           steps and forced-colours handling for free, and re-implementing
+           those to look consistent is how those behaviours quietly get lost. */
+        .cv-neo input[type="range"] {
+          -webkit-appearance: none;
+          appearance: none;
+          height: 26px;
+          background: transparent;
+          cursor: pointer;
+        }
+        .cv-neo input[type="range"]::-webkit-slider-runnable-track {
+          height: 10px;
+          border-radius: 999px;
+          background: var(--cv-bg);
+          box-shadow:
+            inset 2px 2px 5px var(--cv-neo-dark),
+            inset -2px -2px 5px var(--cv-neo-light);
+        }
+        .cv-neo input[type="range"]::-moz-range-track {
+          height: 10px;
+          border-radius: 999px;
+          background: var(--cv-bg);
+          box-shadow:
+            inset 2px 2px 5px var(--cv-neo-dark),
+            inset -2px -2px 5px var(--cv-neo-light);
+        }
+        .cv-neo input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 22px;
+          height: 22px;
+          margin-top: -6px;              /* centres a 22px thumb on a 10px track */
+          border-radius: 999px;
+          background: var(--cv-card);
+          border: none;
+          box-shadow:
+            2px 2px 5px var(--cv-neo-dark),
+            -2px -2px 5px var(--cv-neo-light);
+        }
+        .cv-neo input[type="range"]::-moz-range-thumb {
+          width: 22px;
+          height: 22px;
+          border-radius: 999px;
+          background: var(--cv-card);
+          border: none;
+          box-shadow:
+            2px 2px 5px var(--cv-neo-dark),
+            -2px -2px 5px var(--cv-neo-light);
+        }
+        /* The handle presses in while dragging — the same inversion the cards
+           use, so the idiom is consistent across the theme. */
+        .cv-neo input[type="range"]:active::-webkit-slider-thumb {
+          box-shadow:
+            inset 2px 2px 4px var(--cv-neo-dark),
+            inset -2px -2px 4px var(--cv-neo-light);
+        }
+        /* Removing the browser default outline would take keyboard focus with
+           it, so it is replaced rather than dropped. */
+        .cv-neo input[type="range"]:focus-visible::-webkit-slider-thumb {
+          outline: 2px solid var(--cv-accent);
+          outline-offset: 2px;
+        }
+        .cv-neo input[type="range"]:focus-visible::-moz-range-thumb {
+          outline: 2px solid var(--cv-accent);
+          outline-offset: 2px;
+        }
+        @media (prefers-reduced-transparency: reduce) {
+          .cv-neo input[type="range"]::-webkit-slider-runnable-track,
+          .cv-neo input[type="range"]::-webkit-slider-thumb { box-shadow: none; }
+        }
         .cv-neo {
           /*
            * The same extrusion iOS draws, expressed in CSS.
