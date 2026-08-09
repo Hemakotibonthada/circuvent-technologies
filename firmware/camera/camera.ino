@@ -53,7 +53,7 @@
  * so video works on the local network while the relay is down, and keeps
  * working if it ever goes down again.
  */
-#define CV_FW_VERSION "1.10.0"
+#define CV_FW_VERSION "1.11.0"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -516,10 +516,23 @@ static void cloudPushFrame() {
   size_t len = lanGrab();
   if (!len) { cloudFail++; return; }
 
-  WiFiClientSecure client;
-  cv.pinRoot(client);
-  HTTPClient http;
+  /*
+   * The TLS session is held open across frames.
+   *
+   * The first version built a WiFiClientSecure per frame, so every upload paid
+   * for a full handshake — measured at roughly 1.3 s per frame against a
+   * requested 2 fps, which is to say the handshake cost more than the image.
+   * Keeping the connection means one handshake per viewing session instead of
+   * one per frame. They are static rather than globals because nothing outside
+   * this function may touch them: they belong to whichever thread is uploading.
+   */
+  static WiFiClientSecure client;
+  static HTTPClient http;
+  static bool pinned = false;
+  if (!pinned) { cv.pinRoot(client); pinned = true; }
+
   if (!http.begin(client, cloudUrl)) { cloudFail++; return; }
+  http.setReuse(true);
   http.setTimeout(8000);
   http.addHeader("Content-Type", "image/jpeg");
   http.addHeader("X-CV-Device", cv.deviceId());
@@ -532,7 +545,7 @@ static void cloudPushFrame() {
   } else {
     cloudFail++;
     // A refusal that will not fix itself must stop the uploads, or the device
-    // hammers the endpoint for the rest of the window. 409/403/410 all mean
+    // hammers the endpoint for the rest of the window. 403/409/410 all mean
     // "this token is not going to start working".
     if (code == 403 || code == 409 || code == 410) {
       Serial.printf("[CAM] cloud push refused (%d) — stopping\n", code);

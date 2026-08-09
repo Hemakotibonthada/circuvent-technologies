@@ -36,6 +36,7 @@ import {
   Radio,
   Download,
   RefreshCcw,
+  Circle,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -53,6 +54,7 @@ import {
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 import { effectiveDeviceType } from "./_data/device-type";
 import { useRemoteCamera } from "./useRemoteCamera";
+import { chooseTarget, startRecording, MEMORY_FRAME_LIMIT, type Recorder } from "./recording";
 
 export interface DeviceTypeMeta {
   label: string;
@@ -1431,6 +1433,51 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   const remote = useRemoteCamera(d.id, relayLost > 0 && d.online && ready);
   const shownFrame = frame ?? remote.frame;
 
+  /*
+   * Recording. Every frame that reaches this panel is eligible, whichever
+   * route delivered it, so footage does not stop the moment the transport
+   * changes underneath the viewer.
+   */
+  const [rec, setRec] = useState<Recorder | null>(null);
+  const [recCount, setRecCount] = useState(0);
+  const [recNote, setRecNote] = useState("");
+  const recBusy = useRef(false);
+  const lastRecorded = useRef(0);
+
+  useEffect(() => {
+    if (!rec || !shownFrame || shownFrame.at <= lastRecorded.current) return;
+    // Serialised: two concurrent writes to one directory handle can interleave
+    // and truncate a file, and a dropped frame beats a corrupt one.
+    if (recBusy.current) return;
+    recBusy.current = true;
+    lastRecorded.current = shownFrame.at;
+    void rec
+      .add(shownFrame.src, shownFrame.at)
+      .then(() => setRecCount((c) => c + 1))
+      .catch((e: unknown) => setRecNote(e instanceof Error ? e.message : "could not write frame"))
+      .finally(() => {
+        recBusy.current = false;
+      });
+  }, [rec, shownFrame]);
+
+  const toggleRecording = async () => {
+    haptic();
+    if (rec) {
+      const r = await rec.stop();
+      setRec(null);
+      setRecNote(
+        `Saved ${r.frames.toLocaleString()} frames (${(r.bytes / 1048576).toFixed(1)} MB)` +
+          (r.truncated ? ` — stopped at the ${MEMORY_FRAME_LIMIT}-frame memory limit` : "")
+      );
+      return;
+    }
+    const target = await chooseTarget();
+    lastRecorded.current = 0;
+    setRecCount(0);
+    setRecNote(target.kind === "folder" ? `Saving to ${target.label}` : target.label);
+    setRec(startRecording(d.name || d.id, target));
+  };
+
   // Drives the stall check and the "last frame" age without re-rendering on
   // every frame for the sake of a clock.
   const now = useNow(1000, d.online);
@@ -1660,11 +1707,24 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
         </button>
         <button
           onClick={download}
-          disabled={!frame}
+          disabled={!shownFrame}
           className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
         >
           <Download className="h-4 w-4" /> Save
+        </button>
+        <button
+          onClick={() => void toggleRecording()}
+          disabled={!d.online || !ready}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          style={{
+            background: rec ? "rgba(239,68,68,0.15)" : "var(--cv-card-hi)",
+            borderColor: rec ? "rgba(239,68,68,0.55)" : "var(--cv-border)",
+            color: rec ? "#ef4444" : "var(--cv-text)",
+          }}
+        >
+          <Circle className={`h-4 w-4 ${rec ? "fill-current" : ""}`} />
+          {rec ? `Stop · ${recCount.toLocaleString()}` : "Record"}
         </button>
         <button
           onClick={() => {
@@ -1678,6 +1738,11 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           <RefreshCcw className="h-4 w-4" /> Reboot
         </button>
       </div>
+      {recNote && (
+        <p className="mt-2 text-xs" style={{ color: "var(--cv-text-dim)" }}>
+          {recNote}
+        </p>
+      )}
 
       <SectionLabel>Image</SectionLabel>
       <ControlRow label="Resolution" hint={psram ? undefined : "Higher modes need PSRAM"}>
