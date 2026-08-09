@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "r
 import { api, EnergySummary, EnergySeries } from "../api";
 import { Screen, Card, SectionLabel, useTheme, Chip, ListSkeleton } from "../ui";
 import { Gauge, LineChart, Donut, Sparkline, HBars } from "../charts";
+import { StaleNotice } from "../async";
 import { deviceMeta } from "../theme";
 import { Icon } from "../icons";
 
@@ -16,11 +17,18 @@ export default function Energy() {
   const [series, setSeries] = useState<EnergySeries | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  /* Live watts polls every 15s. If the poll fails the old number stays on
+     screen looking current, so the failure is surfaced rather than hidden --
+     a stale 0 W reads as "nothing is running". */
+  const [syncError, setSyncError] = useState<string | null>(null);
   const loadSummary = useCallback(async () => {
     const r = await api.energySummary();
     if (r.ok) {
       setSummary(r.data);
       setSelected((cur) => cur ?? r.data.byDevice[0]?.id ?? null);
+      setSyncError(null);
+    } else {
+      setSyncError("Can't reach the hub. These readings are the last ones received.");
     }
   }, []);
 
@@ -46,6 +54,7 @@ export default function Energy() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accentHi} onRefresh={async () => { setRefreshing(true); await loadSummary(); setRefreshing(false); }} />}
       >
         <Text style={{ color: c.text, fontSize: 26, fontWeight: "800", marginBottom: 16 }}>Energy</Text>
+        <StaleNotice error={syncError} onRetry={loadSummary} />
 
         <Card padded style={{ alignItems: "center", marginBottom: 14 }}>
           <Gauge value={totalW} max={Math.max(500, Math.ceil(totalW / 500) * 500)} unit="W" label="live power" />

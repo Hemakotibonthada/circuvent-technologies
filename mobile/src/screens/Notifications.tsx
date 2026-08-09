@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { api, AppEvent } from "../api";
 import { useDevices } from "../store";
-import { Screen, Card, useTheme, BackButton, ListSkeleton } from "../ui";
+import { Screen, Card, useTheme, BackButton, ListSkeleton, ErrorState } from "../ui";
 import { timeAgo } from "./Home";
 
 export default function Notifications({ onBack }: { onBack: () => void }) {
@@ -14,10 +14,23 @@ export default function Notifications({ onBack }: { onBack: () => void }) {
   // notifications" — including when there were unread alerts about to appear.
   const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  /*
+   * Distinguishing "nothing to show" from "we could not ask" is the point of
+   * this screen: an empty notifications list is reassuring, and it should only
+   * be shown when it is true. The loaded flag below already separates "still
+   * fetching" from "finished"; this separates "finished with nothing" from
+   * "finished badly".
+   */
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await api.events(200);
-    if (r.ok) setEvents(r.data.events || []);
+    if (r.ok) {
+      setEvents(r.data.events || []);
+      setError(null);
+    } else {
+      setError(r.status ? `Couldn't load notifications (${r.status})` : "Can't reach the hub to load notifications");
+    }
     // Set regardless of outcome: a failed fetch has still finished, and leaving
     // the skeleton up forever would be a worse lie than an empty list.
     setLoaded(true);
@@ -59,6 +72,8 @@ export default function Notifications({ onBack }: { onBack: () => void }) {
       >
         {!loaded ? (
           <ListSkeleton rows={5} height={72} />
+        ) : error && events.length === 0 ? (
+          <ErrorState text={error} onRetry={load} />
         ) : events.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 60 }}>
             <Text style={{ fontSize: 40 }}>🔕</Text>

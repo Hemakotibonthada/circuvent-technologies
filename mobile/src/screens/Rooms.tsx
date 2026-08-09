@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable, TextInput, Switch, StyleSheet, Alert
 import { api, Room } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Card, SectionLabel, PrimaryButton, useTheme } from "../ui";
+import { StaleNotice, unwrap, useAsync } from "../async";
 import { deviceMeta } from "../theme";
 import { Icon } from "../icons";
 
@@ -11,17 +12,22 @@ const ICONS = ["🏠", "🛋️", "🛏️", "🍳", "🚿", "🖥️", "🌿", 
 export default function Rooms() {
   const { c } = useTheme();
   const { devices, patch, toggle } = useDevices();
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newIcon, setNewIcon] = useState("🏠");
 
-  const load = useCallback(async () => {
-    const r = await api.rooms();
-    if (r.ok) setRooms(r.data.rooms || []);
+  /*
+   * Rooms are the top-level way into the house, so an empty list here is the
+   * difference between "you have not set up any rooms" and "we cannot reach
+   * the hub". It used to show the first sentence for both.
+   */
+  const state = useAsync<Room[]>(async () => {
+    const data = await unwrap<{ rooms?: Room[] }>(api.rooms(), "your rooms");
+    return data.rooms || [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const rooms = state.data ?? [];
+  const load = state.reload;
 
   const create = async () => {
     if (!newName.trim()) return;
@@ -36,6 +42,7 @@ export default function Rooms() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
+      <StaleNotice error={state.error} onRetry={state.reload} />
       {rooms.map((r) => (
         <Pressable key={r.name} onPress={() => setOpen(r.name)}>
           <Card padded style={{ marginBottom: 10 }}>

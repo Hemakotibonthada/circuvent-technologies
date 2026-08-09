@@ -6,20 +6,23 @@ import { useDevices, capabilities } from "../store";
 import { Card, SectionLabel, PrimaryButton, GhostButton, useTheme } from "../ui";
 import { deviceMeta } from "../theme";
 import { Icon } from "../icons";
+import { StaleNotice, unwrap, useAsync } from "../async";
 
 const ICONS = ["✨", "🌙", "🌅", "🎬", "🍿", "🛋️", "🚪", "🏠", "💤", "☕", "🎉", "🔒"];
 
 export default function Scenes() {
   const { c } = useTheme();
   const { devices } = useDevices();
-  const [scenes, setScenes] = useState<Scene[]>([]);
   const [editing, setEditing] = useState<Scene | "new" | null>(null);
 
-  const load = useCallback(async () => {
-    const r = await api.scenes();
-    if (r.ok) setScenes(r.data.scenes || []);
+  /* A failed request used to leave the list empty, which reads as "you have no
+     scenes" -- an invitation to create the ones you already have. */
+  const state = useAsync<Scene[]>(async () => {
+    const data = await unwrap<{ scenes?: Scene[] }>(api.scenes(), "your scenes");
+    return data.scenes || [];
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const scenes = state.data ?? [];
+  const load = state.reload;
 
   const activate = async (sc: Scene) => {
     const r = await api.activateScene(sc.id);
@@ -30,7 +33,8 @@ export default function Scenes() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
-      {scenes.length === 0 && <Text style={{ color: c.faint, marginBottom: 12 }}>No scenes yet. Create one to control many devices with a tap.</Text>}
+      <StaleNotice error={state.error} onRetry={state.reload} />
+      {!state.loading && !state.error && scenes.length === 0 && <Text style={{ color: c.faint, marginBottom: 12 }}>No scenes yet. Create one to control many devices with a tap.</Text>}
       {scenes.map((sc) => (
         <Card key={sc.id} padded style={{ marginBottom: 10 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>

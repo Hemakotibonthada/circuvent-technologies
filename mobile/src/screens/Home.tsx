@@ -19,6 +19,7 @@ import {
   useAppActive,
 } from "../ui";
 import { Icon, eventIcon, weatherIcon, type IconName } from "../icons";
+import { StaleNotice } from "../async";
 import { deviceMeta, greeting, CATEGORY_TINTS, deviceCategory, RADIUS, SPACE, MOTION } from "../theme";
 import { Sparkline } from "../charts";
 import { getSavedLocation, getWeather, getWeatherByQuery, wmo, type WeatherBundle } from "../weather";
@@ -59,6 +60,7 @@ export default function Home({
   const [energy, setEnergy] = useState<EnergySummary | null>(null);
   const [activity, setActivity] = useState<AppEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [roomIdx, setRoomIdx] = useState(0);
   // Observed live-power readings. The API exposes a point-in-time summary with
@@ -85,6 +87,13 @@ export default function Home({
       if (Number.isFinite(w)) setWattHistory((h) => [...h, w].slice(-WATT_HISTORY));
     }
     if (a.ok) setActivity(a.data.events || []);
+    /*
+     * Partial failure is fine on a dashboard -- three good panels beat none.
+     * All four failing is not: that is the hub being unreachable, and the
+     * screen would otherwise show a confident 0 W and an empty scene list,
+     * which looks exactly like a quiet house.
+     */
+    setSyncError([s, r, e, a].every((x) => !x.ok) ? "Can't reach your hub. These figures are the last ones received." : null);
     setLoading(false);
   }, []);
 
@@ -130,6 +139,7 @@ export default function Home({
         contentContainerStyle={{ padding: GUTTER, paddingTop: insets.top + 12, paddingBottom: 28 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accentHi} onRefresh={onRefresh} />}
       >
+        <StaleNotice error={syncError} onRetry={loadExtras} />
         {/* header */}
         <View style={s.header}>
           <Pressable onPress={onOpenSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Account and settings">

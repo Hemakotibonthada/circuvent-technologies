@@ -11,7 +11,7 @@
     "web": "expo start --web",
     "icons:check": "node scripts/check-icons.js",
     "version:check": "node scripts/version-check.js",
-    "typecheck": "node scripts/version-check.js && node scripts/check-device-types.js && node scripts/check-command-map.js && node scripts/check-contrast.js && node scripts/check-screen-theming.js && node scripts/check-avi-sync.js && node scripts/check-dialogs.js && node scripts/audit-mobile.js && tsc --noEmit",
+    "typecheck": "node scripts/version-check.js && node scripts/check-device-types.js && node scripts/check-command-map.js && node scripts/check-contrast.js && node scripts/check-screen-theming.js && node scripts/check-avi-sync.js && node scripts/check-dialogs.js && node scripts/audit-mobile.js && node scripts/audit-swallowed.js && tsc --noEmit",
     "postinstall": "node scripts/patch-expo-sdk35.js && node scripts/patch-expo-android-publishing.js",
     "build:ios": "bash scripts/build-ios.sh",
     "build:android": "bash scripts/build-android.sh",
@@ -19,7 +19,8 @@
     "devicetypes:check": "node scripts/check-device-types.js",
     "commandmap:check": "node scripts/check-command-map.js",
     "contrast:check": "node scripts/check-contrast.js",
-    "ui:audit": "node scripts/audit-mobile.js --list"
+    "ui:audit": "node scripts/audit-mobile.js --list",
+    "states:audit": "node scripts/audit-states.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
