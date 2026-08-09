@@ -52,37 +52,37 @@ def V(x_mm, y_mm):
 # --------------------------------------------------------------------------
 DEVICES = [
     dict(folder="smart-plug", model="cv-plug", title="Circuvent Smart Plug 16A",
-         w=50, h=50, mounts=2, mains=True, creepage=8.0),
+         w=50, h=50, mounts=2, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="smart-switch", model="cv-sw2", title="Circuvent Smart Switch 2G",
-         w=45, h=45, mounts=2, mains=True, creepage=8.0),
+         w=45, h=45, mounts=2, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="smart-light", model="cv-led", title="Circuvent Smart Light RGBW",
-         w=55, h=40, mounts=2, mains=True, creepage=8.0),
+         w=55, h=40, mounts=2, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="smart-fan", model="cv-fan", title="Circuvent Smart Fan Regulator",
-         w=55, h=45, mounts=2, mains=True, creepage=8.0),
+         w=55, h=45, mounts=2, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="smart-lock", model="cv-lock", title="Circuvent Smart Lock Ctrl",
-         w=50, h=40, mounts=2, mains=True, creepage=8.0),
+         w=50, h=40, mounts=2, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="curtain", model="cv-curt", title="Circuvent Curtain Control",
-         w=70, h=50, mounts=2, mains=True, creepage=8.0),
+         w=70, h=50, mounts=2, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="motion-sensor", model="cv-pir", title="Circuvent Motion Sensor",
          w=45, h=35, mounts=2, mains=False, creepage=0.0),
     dict(folder="energy-monitor", model="cv-em", title="Circuvent Energy Monitor",
-         w=50, h=45, mounts=2, mains=True, creepage=8.0),
+         w=50, h=45, mounts=2, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="guardian", model="cv-sos", title="Circuvent Guardian SOS",
          w=60, h=40, mounts=1, mains=False, creepage=0.0),
     dict(folder="agri-starter", model="cv-agri", title="Circuvent Agri Pump Starter",
-         w=80, h=60, mounts=4, mains=True, creepage=8.0),
+         w=80, h=60, mounts=4, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="home-automation", model="homehub", title="Circuvent Home Hub 4CH",
-         w=90, h=65, mounts=4, mains=True, creepage=8.0),
+         w=90, h=65, mounts=4, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="water-tank-controller", model="aquaguard", title="Circuvent AquaGuard",
-         w=80, h=60, mounts=4, mains=True, creepage=8.0),
+         w=80, h=60, mounts=4, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="touchboard", model="cv-tb3", title="Circuvent Touch Switchboard",
-         w=80, h=60, mounts=4, mains=True, creepage=8.0),
+         w=80, h=60, mounts=4, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="facedoor", model="cv-door", title="Circuvent FaceDoor",
          w=70, h=55, mounts=4, mains=True, creepage=8.0),
     dict(folder="rfid-gate", model="cv-gate", title="Circuvent RFID Gate",
-         w=75, h=60, mounts=4, mains=True, creepage=8.0),
+         w=75, h=60, mounts=4, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="sentinel", model="cv-sent", title="Circuvent Sentinel Safety Panel",
-         w=90, h=70, mounts=4, mains=True, creepage=8.0),
+         w=90, h=70, mounts=4, mains=True, creepage=8.0, psu_inline=True),
     # In-house offline SMPS. No MCU: build_netlist_psu() wires it instead.
     dict(folder="psu-5v3v3", model="cv-psu5", title="Circuvent PSU-5 230VAC-5V/3V3",
          w=70, h=55, mounts=2, mains=True, creepage=8.0, psu=True),
@@ -1196,6 +1196,11 @@ def build_netlist(dev, parts):
         for r in of("PS"):
             nl.tie_many(r, {1: hot, 2: AC_N, 3: GND, 4: V5})
             used.add(r)
+        # In-house flyback instead of a bought module. Wired before any pool is
+        # built so the device board's own optocouplers, transistors, diodes and
+        # passives are never grabbed for the supply.
+        if dev.get("psu_inline"):
+            used |= wire_psu_block(nl, by_ref, hot)
     else:
         hot = None
         inlet = next((r for r in of("J") if key_of(r) in ("term2", "term3")), None)
@@ -1252,7 +1257,8 @@ def build_netlist(dev, parts):
                 return r
         return None
 
-    diodes = [r for r in of("D") if key_of(r) in ("do41", "do201", "sma", "smb")]
+    diodes = [r for r in of("D") if key_of(r) in ("do41", "do201", "sma", "smb")
+              and r not in used]
     consumed_sigs, out_nets, touch_sigs = set(), [], set()
     lv_outs = []
 
@@ -1558,6 +1564,107 @@ HV_P, HV_N = "HV+", "HV-"
 SW_D, CLAMP = "SW_DRAIN", "CLAMP"
 BIAS, VBIAS, SEC = "BIAS", "VBIAS", "SEC"
 FB_A, FB_K, FB_REF = "FB_A", "FB_K", "FB_REF"
+
+# --------------------------------------------------------------------------
+# The same flyback, dropped onto a device board in place of its HLK module.
+#
+# Designators are deliberately outside the ranges the device BOMs use (T1, U20,
+# U21, PC9, PDn, PRn, PZn) so the block can be added to any board without
+# renumbering it, and every part is wired by exact designator rather than
+# "first free part of this type" - the device boards have their own SOT-23
+# transistors and DIP-4 optocouplers, and a positional grab would wire the
+# feedback loop through a relay driver.
+#
+# F1, RV1 and J1 are NOT repeated here: the board already has a fuse, a MOV and
+# a mains inlet, and the block taps the fused live the existing code produced.
+# --------------------------------------------------------------------------
+PSU_INLINE_ROWS = [
+    ("T1", "EE13 flyback 1.4mH", "EE13", "Isolated flyback transformer"),
+    ("U20", "TNY274PN", "DIP-8", "Offline switcher (700V MOSFET)"),
+    ("U21", "TL431", "SOT-23", "Shunt voltage reference"),
+    ("PC9", "PC817", "DIP-4", "Feedback optocoupler (crosses the barrier)"),
+    ("PD1", "S1M 1000V 1A", "SMA", "Bridge rectifier"),
+    ("PD2", "S1M 1000V 1A", "SMA", "Bridge rectifier"),
+    ("PD3", "S1M 1000V 1A", "SMA", "Bridge rectifier"),
+    ("PD4", "S1M 1000V 1A", "SMA", "Bridge rectifier"),
+    ("PD5", "UF4007", "SMA", "RCD clamp catch diode"),
+    ("PD6", "S1M", "SMA", "Bias winding rectifier"),
+    ("PD7", "SS34 40V 3A", "SMA", "Secondary rectifier"),
+    ("PR1", "100k", "0805", "RCD snubber resistor"),
+    ("PR2", "100k", "0805", "RCD snubber resistor"),
+    ("PR3", "1k", "0805", "Opto LED series resistor"),
+    ("PR4", "10k", "0805", "Feedback divider upper"),
+    ("PR5", "3k3", "0805", "Feedback divider lower"),
+    ("PZ1", "4.7uF/400V", "electrolytic", "Bulk / DC link"),
+    ("PZ2", "100nF/50V", "0805", "BYPASS pin decoupling"),
+    ("PZ3", "1nF/1kV", "0805", "RCD snubber capacitor"),
+    ("PZ4", "10uF/50V", "electrolytic", "Bias rail"),
+    ("PZ5", "470uF/10V", "electrolytic", "5V output bulk"),
+    ("CX1", "100nF X2 275VAC", "film X2", "EMI differential-mode filter"),
+    ("CY1", "2.2nF Y1 250VAC", "disc Y1", "Barrier Y capacitor (Y1 ONLY)"),
+]
+
+PSU_HV_NETS = (HV_P, HV_N, SW_D, CLAMP, "CLAMP_MID", BIAS, VBIAS,
+               "EN_UV", "BYPASS")
+
+
+def psu_inline_rows():
+    """PSU_INLINE_ROWS as read_bom()-shaped dicts."""
+    return [dict(ref=r, qty="1", value=v, package=p, desc=d)
+            for r, v, p, d in PSU_INLINE_ROWS]
+
+
+def wire_psu_block(nl, by_ref, hot):
+    """Wire the in-house flyback onto a device board. Returns the refs used.
+
+    `hot` is the board's already-fused live. The block produces +5V/GND, which
+    is exactly what the HLK module it replaces produced, so nothing downstream
+    of the rail has to change.
+    """
+    used = set()
+
+    def w(ref, mapping):
+        if ref in by_ref:
+            nl.tie_many(ref, mapping)
+            used.add(ref)
+
+    nl.mark_mains(*PSU_HV_NETS)
+
+    w("CX1", {1: hot, 2: AC_N})
+    # Bridge: hot and neutral both feed HV+; HV- returns to both.
+    w("PD1", {1: HV_P, 2: hot})
+    w("PD2", {1: HV_P, 2: AC_N})
+    w("PD3", {1: hot, 2: HV_N})
+    w("PD4", {1: AC_N, 2: HV_N})
+    w("PZ1", {1: HV_P, 2: HV_N})
+
+    w("T1", {1: HV_P, 2: SW_D, 4: BIAS, 5: HV_N, 6: SEC, 10: GND,
+             3: "N$T1.3", 7: "N$T1.7", 8: "N$T1.8", 9: "N$T1.9"})
+    w("U20", {1: "EN_UV", 2: "BYPASS", 4: HV_N, 5: HV_N, 7: SW_D, 8: SW_D,
+              3: "N$U20.3", 6: "N$U20.6"})
+    w("PZ2", {1: "BYPASS", 2: HV_N})
+
+    # RCD clamp: catch at the drain, bleed back to the rail through R//C.
+    w("PD5", {1: CLAMP, 2: SW_D})
+    w("PZ3", {1: CLAMP, 2: HV_P})
+    w("PR1", {1: CLAMP, 2: "CLAMP_MID"})    # in series: ~325 V stands here
+    w("PR2", {1: "CLAMP_MID", 2: HV_P})
+
+    w("PD6", {1: VBIAS, 2: BIAS})
+    w("PZ4", {1: VBIAS, 2: HV_N})
+
+    w("PD7", {1: V5, 2: SEC})               # secondary rectifier
+    w("PZ5", {1: V5, 2: GND})
+
+    w("PC9", {1: FB_A, 2: FB_K, 3: HV_N, 4: "EN_UV"})
+    w("U21", {1: FB_REF, 2: GND, 3: FB_K})
+    w("PR3", {1: V5, 2: FB_A})
+    w("PR4", {1: V5, 2: FB_REF})
+    w("PR5", {1: FB_REF, 2: GND})
+
+    # The only intentional primary-to-secondary connection on the board.
+    w("CY1", {1: HV_N, 2: GND})
+    return used
 
 
 def build_netlist_psu(dev, parts):
@@ -1967,13 +2074,13 @@ NETCLASS_DEFS_COMPACT = [
 def netclass_defs(dev=None):
     base = (NETCLASS_DEFS_COMPACT if dev and dev.get("compact")
             else NETCLASS_DEFS)
-    if dev and dev.get("psu"):
+    if dev and (dev.get("psu") or dev.get("psu_inline")):
         return base[:1] + [NETCLASS_HVDC] + base[1:]
     return base
 
 
 def netclass_of(name, mains_nets, dev=None):
-    if dev and dev.get("psu") and name in HVDC_NETS:
+    if dev and (dev.get("psu") or dev.get("psu_inline")) and name in HVDC_NETS:
         return "HVDC"
     if name in mains_nets:
         return "MAINS"
@@ -2102,6 +2209,10 @@ DRU_COMMON = """
 """
 
 
+def _has_hv(dev):
+    return bool(dev.get("psu") or dev.get("psu_inline"))
+
+
 def write_dru(path, dev, pkg_refs=()):
     """Emit the board-specific custom design rules KiCad DRC will honour."""
     body = DRU_HEADER
@@ -2127,14 +2238,14 @@ def write_dru(path, dev, pkg_refs=()):
             # would be asking for 8 mm inside a single island. Exempt the two
             # hazardous classes from each other; keep both 8 mm from everything
             # else.
-            hvexcl=" && B.NetClass != 'HVDC'" if dev.get("psu") else "",
+            hvexcl=" && B.NetClass != 'HVDC'" if _has_hv(dev) else "",
             hvrule=(
                 '\n(rule "reinforced_hvdc_to_selv"\n'
                 '    (constraint clearance (min %smm))\n'
                 '    (condition "A.NetClass == \'HVDC\' && B.NetClass != \'HVDC\' '
                 "&& B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') "
                 "&& !B.insideArea('ISO_BRIDGE')\"))\n"
-                % dev["creepage"]) if dev.get("psu") else "")
+                % dev["creepage"]) if _has_hv(dev) else "")
     body += DRU_COMMON
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(body)
@@ -2175,7 +2286,11 @@ def plan_parts(dev, mains_refs=None, bridge_refs=()):
     parts, skipped = [], []
     seen_inlet = False
     creep = float(dev["creepage"])
-    for row in read_bom(dev["folder"]):
+    bom = read_bom(dev["folder"])
+    if dev.get("psu_inline"):
+        # Drop the bought AC/DC module and put the discrete flyback in its place.
+        bom = [r for r in bom if ref_prefix(r["ref"]) != "PS"] + psu_inline_rows()
+    for row in bom:
         key = resolve(row["ref"], row["value"], row["package"], row["desc"])
         if key is None or key not in FP:
             skipped.append((row["ref"], row["value"], row["package"] or "unmapped"))
