@@ -572,7 +572,10 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
         }
         .cv-theme.cv-light .text-cyan-300,
         .cv-theme.cv-light .text-cyan-400 {
-          color: #0e7490;
+          /* #0e7490 clears white at 5.36:1 but only reaches 4.41:1 on the neo
+             scheme's card (#e6e9f2), which is the lightest surface this text
+             actually lands on. One shade darker passes on both. */
+          color: #155e75;
         }
         /* Tailwind's fractional-opacity class names contain "/", which cannot
            be backslash-escaped through styled-jsx's parser. [class~="..."]

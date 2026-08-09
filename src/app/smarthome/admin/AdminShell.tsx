@@ -119,7 +119,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                     return (
                       <Link
                         key={n.href} href={n.href} title={collapsed ? n.label : undefined}
-                        className={`group relative flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-sm font-medium transition ${
+                        className={`group relative flex min-h-[44px] items-center gap-3 rounded-xl px-2.5 py-2.5 text-sm font-medium transition ${
                           isActive ? "text-white" : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
                         }`}
                         style={isActive ? { background: "rgba(6,182,212,.10)", boxShadow: "inset 0 0 0 1px rgba(6,182,212,.25)" } : undefined}
@@ -160,7 +160,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 <ChevronsUpDown className="h-4 w-4 text-slate-500" />
               </Link>
             )}
-          <button onClick={() => setCollapsed((c) => !c)} className="hidden w-full items-center justify-center gap-2 rounded-lg py-2 text-xs text-slate-500 hover:text-white md:flex cursor-pointer">
+          <button onClick={() => setCollapsed((c) => !c)} className="hidden min-h-[44px] w-full items-center justify-center gap-2 rounded-lg py-2 text-xs text-slate-500 hover:text-white md:flex cursor-pointer">
             <ChevronLeft className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />
             {!collapsed && "Collapse"}
           </button>
@@ -174,7 +174,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
         <div>
           {/* Topbar */}
           <header className="ad-topbar sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 px-4 py-3 backdrop-blur-xl md:px-6">
-            <button onClick={() => setMobileOpen(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-slate-300 md:hidden cursor-pointer">
+            <button onClick={() => setMobileOpen(true)} aria-label="Open navigation menu" className="grid h-11 w-11 place-items-center rounded-lg border border-white/10 text-slate-300 md:hidden cursor-pointer">
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
@@ -186,7 +186,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 
             <button
               onClick={() => setPaletteOpen(true)}
-              className="ml-auto hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-400 transition hover:bg-white/[0.06] sm:flex cursor-pointer"
+              className="ml-auto hidden min-h-[44px] items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-400 transition hover:bg-white/[0.06] sm:flex cursor-pointer"
             >
               <Search className="h-4 w-4" />
               <span>Search…</span>
@@ -195,11 +195,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 
             <div className="ml-auto flex items-center gap-2 sm:ml-0">
               <ModeBadge mode={mode} />
-              <Link href="/smarthome/admin/alerts" className="relative grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06]">
+              <Link href="/smarthome/admin/alerts" aria-label={attentionCount > 0 ? `Alerts — ${attentionCount} need attention` : "Alerts"} className="relative grid h-11 w-11 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06]">
                 <Bell className="h-[18px] w-[18px]" />
-                {attentionCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{attentionCount}</span>}
+                {attentionCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{attentionCount}</span>}
               </Link>
-              <a href="mailto:support@circuvent.com" className="hidden h-9 w-9 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06] sm:grid"><LifeBuoy className="h-[18px] w-[18px]" /></a>
+              <a href="mailto:support@circuvent.com" aria-label="Email support" className="hidden h-11 w-11 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06] sm:grid"><LifeBuoy className="h-[18px] w-[18px]" /></a>
               <UserMenu email={user?.email ?? "admin@circuvent.com"} name={user?.name ?? "Platform Admin"} onLogout={logout} />
             </div>
           </header>
@@ -256,7 +256,7 @@ function UserMenu({ email, name, onLogout }: { email: string; name: string; onLo
   const initials = name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="grid h-9 w-9 place-items-center rounded-lg text-sm font-bold text-white cursor-pointer" style={{ background: "var(--cv-gradient)" }}>
+      <button onClick={() => setOpen((o) => !o)} className="grid h-11 w-11 place-items-center rounded-lg text-sm font-bold text-white cursor-pointer" style={{ background: "var(--cv-gradient)" }}>
         {initials}
       </button>
       {open && (
@@ -386,6 +386,10 @@ function ShellStyles() {
       .ad-btn-primary:hover { filter: brightness(1.06); }
       .ad-input {
         width: 100%;
+        /* 44px minimum: WCAG 2.5.5 and Apple's HIG both express the touch
+           target in CSS pixels, so this is stated in pixels rather than a rem
+           multiple that changes when globals.css rescales type below 640px. */
+        min-height: 44px;
         border: 1px solid var(--cv-border);
         background: var(--cv-input-bg);
         border-radius: 0.6rem;

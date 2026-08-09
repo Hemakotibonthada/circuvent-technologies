@@ -324,7 +324,7 @@ export default function Login() {
                           setInfo(null);
                           setPassword("");
                         }}
-                        className="text-xs text-slate-400 hover:text-cyan-300 transition"
+                        className="min-h-[44px] px-1 text-xs text-slate-400 hover:text-cyan-300 transition"
                       >
                         Forgot your password?
                       </button>
@@ -348,7 +348,7 @@ export default function Login() {
                       setPassword("");
                       setError(null);
                     }}
-                    className="text-cyan-400 font-semibold hover:text-cyan-300 transition"
+                    className="min-h-[44px] px-1 text-cyan-400 font-semibold hover:text-cyan-300 transition"
                   >
                     Send another code
                   </button>
@@ -359,7 +359,7 @@ export default function Login() {
                 </div>
               ) : step === "otp" ? (
                 <div className="mt-6 text-center text-sm text-slate-400">
-                  <button onClick={resend} className="text-cyan-400 font-semibold hover:text-cyan-300 transition">
+                  <button onClick={resend} className="min-h-[44px] px-1 text-cyan-400 font-semibold hover:text-cyan-300 transition">
                     Resend code
                   </button>
                   <span className="mx-2 text-slate-600">·</span>
@@ -377,7 +377,7 @@ export default function Login() {
                 </div>
               ) : mode === "forgot" ? (
                 <div className="mt-6 text-center text-sm text-slate-400">
-                  <button onClick={backToLogin} className="text-cyan-400 font-semibold hover:text-cyan-300 transition">
+                  <button onClick={backToLogin} className="min-h-[44px] px-1 text-cyan-400 font-semibold hover:text-cyan-300 transition">
                     Back to sign in
                   </button>
                 </div>
@@ -389,7 +389,7 @@ export default function Login() {
                       setMode(mode === "login" ? "register" : "login");
                       setError(null);
                     }}
-                    className="text-cyan-400 font-semibold hover:text-cyan-300 transition"
+                    className="min-h-[44px] px-1 text-cyan-400 font-semibold hover:text-cyan-300 transition"
                   >
                     {mode === "login" ? "Create an account" : "Sign in"}
                   </button>

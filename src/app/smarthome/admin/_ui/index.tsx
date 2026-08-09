@@ -103,7 +103,19 @@ export function Btn({
   children: ReactNode; onClick?: () => void; variant?: BtnVariant; size?: "sm" | "md";
   type?: "button" | "submit"; disabled?: boolean; className?: string; title?: string;
 }) {
-  const base = "inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+  /*
+   * min-h-[44px] in explicit pixels, not min-h-11.
+   *
+   * The 44px touch target is defined in CSS pixels by both WCAG 2.5.5 and
+   * Apple's HIG. Tailwind's min-h-11 is 2.75rem, which is 44px only while the
+   * root font size is 16 — and globals.css rescales type below 640px, which is
+   * exactly the width where the target size matters. Measured at 43px on a
+   * phone, which is a rule that looks satisfied and is not.
+   *
+   * Kept as a minimum rather than a fixed height so a wrapping label still
+   * grows the control.
+   */
+  const base = "inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
   const sz = size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-3.5 py-2 text-sm";
   const cls =
     variant === "primary" ? "ad-btn-primary text-white"
@@ -165,7 +177,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…", classN
   return (
     <div className={`flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 ${className}`}>
       <Search className="h-4 w-4 text-slate-500" />
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full bg-transparent py-2 text-sm text-white outline-none placeholder:text-slate-500" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="min-h-[44px] w-full bg-transparent py-2 text-sm text-white outline-none placeholder:text-slate-500" />
       {value && <button onClick={() => onChange("")} className="text-slate-500 hover:text-white"><X className="h-4 w-4" /></button>}
     </div>
   );
@@ -202,7 +214,7 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <button key={o.value} onClick={() => onChange(o.value)} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`} style={active ? { background: "var(--cv-gradient)" } : undefined}>
+          <button key={o.value} onClick={() => onChange(o.value)} className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`} style={active ? { background: "var(--cv-gradient)" } : undefined}>
             {o.label}
           </button>
         );
@@ -217,7 +229,7 @@ export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; on
       {tabs.map((t) => {
         const active = t.value === value;
         return (
-          <button key={t.value} onClick={() => onChange(t.value)} className={`relative flex items-center gap-2 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`}>
+          <button key={t.value} onClick={() => onChange(t.value)} className={`relative flex min-h-[44px] items-center gap-2 whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`}>
             {t.icon}{t.label}
             {typeof t.count === "number" && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] tabular-nums">{t.count}</span>}
             {active && <motion.span layoutId="ad-tab" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full" style={{ background: "linear-gradient(90deg,#06b6d4,#8b5cf6)" }} />}
@@ -296,7 +308,7 @@ export function ErrorState({
       <p className="mx-auto mt-1 max-w-sm text-sm ad-muted">{message}</p>
       <div className="mt-4 flex justify-center gap-2">
         {unauthorized ? (
-          <Link href="/smarthome" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/15">
+          <Link href="/smarthome" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-white/10 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/15">
             Go to sign in
           </Link>
         ) : (

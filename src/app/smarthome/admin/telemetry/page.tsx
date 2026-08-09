@@ -379,7 +379,7 @@ function RetentionPolicies() {
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Input value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="metric e.g. temperature" className="min-w-[180px] flex-1 font-mono" />
-        <Input type="number" min={1} max={3650} value={days} onChange={(e) => setDays(e.target.value)} className="w-24" />
+        <Input type="number" min={1} max={3650} aria-label="Retention period in days" value={days} onChange={(e) => setDays(e.target.value)} className="w-24" />
         <span className="text-xs ad-muted">days</span>
         <Btn variant="primary" onClick={add} disabled={cfg.saving || !metric.trim()}><Plus className="h-4 w-4" /> Add</Btn>
       </div>

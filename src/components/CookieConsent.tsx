@@ -62,7 +62,7 @@ export default function CookieConsent() {
           </p>
           <p className="mt-0.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
             We use essential cookies to run the site and, with your consent, analytics to improve it. See our{" "}
-            <Link href="/privacy" className="underline" style={{ color: "var(--accent-cyan)" }}>
+            <Link href="/privacy" className="underline" style={{ color: "var(--accent-cyan-text)" }}>
               Privacy Policy
             </Link>
             .
@@ -70,13 +70,13 @@ export default function CookieConsent() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               onClick={() => choose("all")}
-              className="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-xs font-semibold text-white"
+              className="inline-flex min-h-[44px] items-center rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-xs font-semibold text-white"
             >
               Accept all
             </button>
             <button
               onClick={() => choose("essential")}
-              className="rounded-xl border px-4 py-2 text-xs font-medium"
+              className="inline-flex min-h-[44px] items-center rounded-xl border px-4 py-2 text-xs font-medium"
               style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
             >
               Essential only
@@ -86,7 +86,7 @@ export default function CookieConsent() {
         <button
           onClick={() => choose("essential")}
           aria-label="Dismiss (essential cookies only)"
-          className="shrink-0 rounded-lg p-1"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
           style={{ color: "var(--text-muted)" }}
         >
           <X className="h-4 w-4" />

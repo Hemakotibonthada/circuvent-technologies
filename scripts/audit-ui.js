@@ -78,7 +78,11 @@ const themes = process.env.THEMES
 /* The probe. Runs inside the page.                                     */
 /* ------------------------------------------------------------------ */
 const PROBE = () => {
-  const MIN_TARGET = 44;
+  // 44 CSS px is the target, but getBoundingClientRect returns floats and a
+  // deliberately-44px control routinely measures 43.996 after layout rounding.
+  // Flagging those buried the real failures — a 16px text button — under a
+  // hundred elements that were already correct.
+  const MIN_TARGET = 43.5;
 
   const srgb = (v) => {
     const c = v / 255;
@@ -208,7 +212,30 @@ async function auditOne(browser, theme, route, width) {
   page.on("pageerror", (e) => errors.push(String(e.message).slice(0, 120)));
   try {
     await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(900);
+    /*
+     * Wait for the page to stop moving before measuring.
+     *
+     * The console renders its dark styling server-side and only applies the
+     * operator's chosen scheme once the theme provider hydrates. Measuring at a
+     * fixed 900ms caught heavier routes mid-swap and reported white-on-white
+     * text that is black-on-light a second later. Two findings in a clean run
+     * were this, not the product — an audit that cries wolf gets ignored, so it
+     * waits for the theme class and for CSS animations to finish.
+     */
+    await page
+      .waitForFunction(
+        (scheme) => {
+          const root = document.querySelector(".cv-theme");
+          return !root || root.classList.contains(`cv-${scheme}`);
+        },
+        theme.scheme,
+        { timeout: 8000 }
+      )
+      .catch(() => {});
+    await page
+      .waitForFunction(() => !document.getAnimations().some((a) => a.playState === "running"), undefined, { timeout: 5000 })
+      .catch(() => {});
+    await page.waitForTimeout(400);
     const r = await page.evaluate(PROBE);
     return { ...r, errors };
   } catch (e) {
@@ -258,11 +285,12 @@ async function pool(items, n, fn) {
   const byRoute = new Map();
   for (const r of results) {
     const k = r.route;
-    if (!byRoute.has(k)) byRoute.set(k, { route: k, contrast: 0, targets: 0, naming: 0, overflow: 0, errors: 0, worst: [], samples: [] });
+    if (!byRoute.has(k)) byRoute.set(k, { route: k, contrast: 0, targets: 0, naming: 0, overflow: 0, errors: 0, worst: [], samples: [], errorSamples: [] });
     const e = byRoute.get(k);
     e.contrast += r.contrast.length;
     e.naming += r.naming.length;
     e.errors += r.errors.length;
+    for (const m of r.errors) if (e.errorSamples.length < 4 && !e.errorSamples.includes(m)) e.errorSamples.push(m);
     if (r.width === 390) {
       e.targets += r.targets.length;
       if (r.overflow) e.overflow += 1;
@@ -309,8 +337,20 @@ async function pool(items, n, fn) {
       String(totals.errors).padStart(8)
   );
 
+  const loadFailures = rows.reduce((n, r) => n + (r.errorSamples || []).filter((m) => m.startsWith("LOAD:")).length, 0);
+  if (loadFailures) {
+    console.log("");
+    console.log(`!! ${loadFailures} route/theme combinations never loaded. Every zero above is meaningless.`);
+    console.log(`!! Check the server at ${BASE} is actually serving a production build.`);
+    for (const r of rows) {
+      const f = (r.errorSamples || []).find((m) => m.startsWith("LOAD:"));
+      if (f) { console.log(`   ${r.route}: ${f.split("\n")[0]}`); break; }
+    }
+  }
+
   if (process.env.JSON) {
-    writeFileSync(process.env.JSON, JSON.stringify({ base: BASE, totals, routes: rows }, null, 2));
+    writeFileSync(process.env.JSON, JSON.stringify({ base: BASE, totals, loadFailures, routes: rows }, null, 2));
     process.stderr.write(`\nwrote ${process.env.JSON}\n`);
   }
+  if (loadFailures) process.exitCode = 2;
 })();

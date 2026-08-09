@@ -25,9 +25,24 @@
 
   --accent-cyan: #0891b2;
   --accent-violet: #7c3aed;
-  /* Accent for inline code. --accent-cyan is 3.68:1 on white — fine for a
-     border or an icon, below AA for the text inside a code chip. */
-  --code-accent: #0e7490;
+  /*
+   * The accent, at a weight that can be read as body copy.
+   *
+   * --accent-cyan is the brand colour and is correct for borders, icons, fills
+   * and large display text. As 12px body copy on a white surface it measures
+   * 3.68:1, which is below AA — and it was being used that way in the cookie
+   * banner, on every page of the site, which made one element the single
+   * largest contrast defect in the application (283 of 297 findings).
+   *
+   * #155e75 is 7.27:1 on white and 5.99:1 on the console's lightest card
+   * (#e6e9f2). The lighter #0e7490 clears white at 5.36:1 but only reaches
+   * 4.41:1 on that card, so it passes in one place and fails in another —
+   * which is how a token ends up needing a second token.
+   */
+  --accent-cyan-text: #155e75;
+  /* Inline code. Kept as its own name because a code chip is not a link, but
+     it resolves to the same readable weight. */
+  --code-accent: var(--accent-cyan-text);
   --accent-pink: #db2777;
   --accent-cyan-muted: rgba(8, 145, 178, 0.08);
   --accent-violet-muted: rgba(124, 58, 237, 0.07);
