@@ -59,6 +59,25 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_automations_owner ON automations(owner_id);
 
+    /*
+     * Execution record, so a rule that never runs can be seen to never run.
+     *
+     * Switch timers spent weeks saving correctly, showing the right next-run
+     * time, counting down, and never moving a relay — because the stored
+     * command was a shape the device discards. Nothing in the product could
+     * distinguish "fired and worked" from "never fired at all", so the fault
+     * was invisible from every screen and every log a user can reach.
+     *
+     * last_error holds the reason a run failed rather than a boolean: "the
+     * device is offline" and "you no longer own that device" need completely
+     * different responses, and one undifferentiated failure flag is how
+     * someone ends up reflashing firmware to chase an ownership change.
+     */
+    ALTER TABLE automations ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;
+    ALTER TABLE automations ADD COLUMN IF NOT EXISTS last_run_ok BOOLEAN;
+    ALTER TABLE automations ADD COLUMN IF NOT EXISTS last_error TEXT;
+    ALTER TABLE automations ADD COLUMN IF NOT EXISTS run_count BIGINT NOT NULL DEFAULT 0;
+
     CREATE TABLE IF NOT EXISTS push_tokens (
       token       TEXT PRIMARY KEY,
       user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

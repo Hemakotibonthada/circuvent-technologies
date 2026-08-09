@@ -130,8 +130,14 @@ function stepValue(step: Step, field: CommandField): boolean | number | string {
   return step.selectValue;
 }
 
-/** Converts a step to the API shape, or null when it is not yet complete. */
-function actionFromStep(step: Step, fields: CommandField[]): AutomationAction | null {
+/**
+ * Converts a step to the API shape, or null when it is not yet complete.
+ *
+ * `deviceType` is a separate argument rather than looked up from `fields`,
+ * because the command shape depends on the sketch and not on the field list —
+ * two device types can offer the same field key and read it differently.
+ */
+function actionFromStep(step: Step, fields: CommandField[], deviceType: string): AutomationAction | null {
   const delay = step.delayMs > 0 ? { delayMs: Math.min(step.delayMs, MAX_DELAY_MS) } : {};
 
   if (step.type === "notify") {
@@ -149,10 +155,15 @@ function actionFromStep(step: Step, fields: CommandField[]): AutomationAction | 
   }
   const field = fields.find((f) => f.key === step.cmdFieldKey);
   if (!step.deviceId || !field) return null;
+  const command = buildCommand(deviceType, field, stepValue(step, field));
+  // A step whose command cannot be expressed is dropped rather than saved.
+  // A rule that stores an unusable command looks saved, shows a next-run time,
+  // and never moves anything — which is the failure this guards against.
+  if (!command) return null;
   return {
     type: "command",
     deviceId: step.deviceId,
-    command: buildCommand(field, stepValue(step, field)),
+    command,
     ...delay,
   };
 }
@@ -316,7 +327,7 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
   const previewActions = useMemo(
     () =>
       steps
-        .map((s) => actionFromStep(s, commandFieldsFor(deviceById.get(s.deviceId), labelFor)))
+        .map((s) => actionFromStep(s, commandFieldsFor(deviceById.get(s.deviceId), labelFor), deviceById.get(s.deviceId)?.type ?? ""))
         .filter((a): a is AutomationAction => a !== null),
     [steps, deviceById, labelFor],
   );
@@ -390,7 +401,7 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
             };
 
     const built = steps
-      .map((s) => actionFromStep(s, commandFieldsFor(deviceById.get(s.deviceId), labelFor)))
+      .map((s) => actionFromStep(s, commandFieldsFor(deviceById.get(s.deviceId), labelFor), deviceById.get(s.deviceId)?.type ?? ""))
       .filter((a): a is AutomationAction => a !== null);
 
     if (built.length === 0) {

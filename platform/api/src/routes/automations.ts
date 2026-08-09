@@ -76,7 +76,9 @@ export async function ownsReferencedDevices(
 
 automationRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
-    `SELECT id, name, enabled, trigger, action, created_at FROM automations WHERE owner_id = $1 ORDER BY created_at DESC`,
+    `SELECT id, name, enabled, trigger, action, created_at,
+              last_run_at, last_run_ok, last_error, run_count
+         FROM automations WHERE owner_id = $1 ORDER BY created_at DESC`,
     [req.user!.uid]
   );
   res.json({ automations: rows });

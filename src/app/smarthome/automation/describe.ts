@@ -3,6 +3,7 @@
 import type { AutomationTrigger, AutomationAction, AutomationActions } from "@/lib/control-plane";
 import { actionList } from "@/lib/control-plane";
 import { daysText } from "@/lib/smarthome-switches";
+import { buildFieldCommand } from "@/lib/smarthome-command-map";
 
 /* ------------------------------------------------------------------ */
 /* Operator display labels                                             */
@@ -298,10 +299,28 @@ export function getCommandFields(type: string): CommandField[] {
  * Action-type fields (rfid-gate barrier) use the `action` key; all others
  * use the field key directly — matching what each firmware sketch reads.
  */
+/**
+ * Build the command object from a CommandField and its chosen value.
+ *
+ * WHY THIS TAKES A DEVICE TYPE NOW
+ *
+ * It used to be `{ [field.key]: value }`, which is a *state* key posing as a
+ * command. Two things were wrong with that and both were silent:
+ *
+ *  - No `action`. CircuventDevice::_dispatch() drops any payload without one
+ *    before the sketch's handler runs, so every rule and scene built here
+ *    reached the device and was discarded with nothing logged.
+ *  - The Home Hub reads { ch, on }, never power2/power3/power4 — those are
+ *    what it publishes back.
+ *
+ * The real mapping lives in lib/smarthome-command-map.ts beside its inverse,
+ * so the two are read together and tested against each other. This wrapper
+ * stays because callers hold a CommandField rather than a bare key.
+ */
 export function buildCommand(
+  type: string,
   field: CommandField,
   value: boolean | number | string,
-): Record<string, unknown> {
-  if (field.key === "action") return { action: value };
-  return { [field.key]: value };
+): Record<string, unknown> | null {
+  return buildFieldCommand(type, field.key, value);
 }

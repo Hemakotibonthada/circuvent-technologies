@@ -9,6 +9,7 @@ import {
   controlPlane, getToken, setToken,
   type AdminStats, type AdminDevice, type AdminUser, type AdminEvent, type AdminHealth,
 } from "@/lib/control-plane";
+import { buildFieldCommand } from "@/lib/smarthome-command-map";
 
 type Phase = "loading" | "login" | "denied" | "ready";
 type Sub = "devices" | "users" | "activity";
@@ -112,7 +113,11 @@ export default function DevicesPanel({ initialSub = "devices" }: { initialSub?: 
   const forceToggle = async (d: AdminDevice) => {
     const f = primaryField(d.type); const next = !d.state[f];
     setDevices((p) => p.map((x) => (x.id === d.id ? { ...x, state: { ...x.state, [f]: next } } : x)));
-    await controlPlane.adminCommand(d.id, { action: "set", [f]: next });
+    // Built rather than assembled inline. `{ action:"set", [field]: value }`
+    // looks right and is wrong for any device whose command key differs from
+    // its state key — a Home Hub ignores it, and nothing reports that.
+    const cmd = buildFieldCommand(d.type, f, next);
+    if (cmd) await controlPlane.adminCommand(d.id, cmd);
   };
   const delDevice = async (id: string, name?: string) => {
     if (!window.confirm(`Remove ${name || id} from the fleet?`)) return;
@@ -139,7 +144,7 @@ export default function DevicesPanel({ initialSub = "devices" }: { initialSub?: 
   // bulk
   const bulkToggle = async (on: boolean) => {
     const ids = [...sel];
-    for (const id of ids) { const d = devices.find((x) => x.id === id); if (d) await controlPlane.adminCommand(id, { action: "set", [primaryField(d.type)]: on }); }
+    for (const id of ids) { const d = devices.find((x) => x.id === id); if (d) { const c = buildFieldCommand(d.type, primaryField(d.type), on); if (c) await controlPlane.adminCommand(id, c); } }
     setSel(new Set()); loadAll();
   };
   const bulkDelete = async () => {

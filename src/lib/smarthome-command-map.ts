@@ -331,6 +331,171 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
   }
 }
 
+/**
+ * Turns "set this switch to this value" into the payload the firmware reads.
+ *
+ * WHY THIS EXISTS (the "timers save but nothing happens" bug)
+ *
+ * projectCommand answers "what state will this command produce". Automations
+ * need the opposite: the user picks a *switch* — which is identified by its
+ * state key, because that is what the UI renders — and something has to turn
+ * that back into a command. Nothing did. Every caller inlined its own guess,
+ * and the guess was `{ [field]: value }`, which is a state key wearing a
+ * command's clothes.
+ *
+ * That failed twice over, both silently:
+ *
+ *  1. No `action`. CircuventDevice::_dispatch() starts with
+ *         String action = doc["action"] | "";
+ *         if (!action.length()) return;
+ *     so a payload with no action is discarded before any sketch handler runs.
+ *     Not logged, not rejected, not echoed — the command reaches the device,
+ *     the device drops it, and every layer in between reports success. This
+ *     broke scheduled switching for *every* device type.
+ *
+ *  2. Wrong key for the Home Hub. Its sketch reads { ch, on } and has no
+ *     concept of power2/power3/power4 — those are what writeRelay() *publishes*
+ *     back. So even a correctly actioned { action:"set", power2:true } does
+ *     nothing on channels 2-4.
+ *
+ * Both are invisible from the app: the rule saves, the next-run time is
+ * correct, the countdown ticks down, and the relay never moves. The only
+ * honest way to keep it fixed is to make the round trip a test — every field
+ * offered by the UI, built into a command here and fed back through
+ * projectCommand, must produce that same field. See smarthome-command-map.test.ts.
+ */
+export interface BuiltCommand extends CommandPayload {
+  action: string;
+}
+
+/** Relay index for a Home Hub state key, or -1 when it is not a channel. */
+function hubChannelIndex(field: string): number {
+  return HUB_CHANNEL_FIELDS.indexOf(field as (typeof HUB_CHANNEL_FIELDS)[number]);
+}
+
+/**
+ * Builds the wire command that sets `field` to `value` on a `type` device.
+ *
+ * Returns null when the pairing is not something the firmware can act on, so
+ * callers surface "this switch cannot be scheduled" instead of saving a rule
+ * that will never fire. Guessing here is the whole failure being fixed.
+ */
+export function buildFieldCommand(
+  type: string,
+  field: string,
+  value: boolean | number | string
+): BuiltCommand | null {
+  if (!field) return null;
+
+  switch (type) {
+    case "home-hub": {
+      // Channels are addressed positionally. The state key is an output of the
+      // sketch, never an input to it.
+      const ch = hubChannelIndex(field);
+      if (ch >= 0) {
+        if (typeof value !== "boolean") return null;
+        return { action: "set", ch, on: value };
+      }
+      if (field === "scene") {
+        if (typeof value !== "string" || !value) return null;
+        return { action: "set", scene: value };
+      }
+      if (field === "relays" && Array.isArray(value)) return { action: "set", relays: value };
+      return null;
+    }
+
+    case "rfid-gate": {
+      // The barrier is a verb, not a field: the sketch switches on `action`.
+      if (field === "action" || field === "barrier") {
+        const v = String(value);
+        return v === "open" || v === "close" ? { action: v } : null;
+      }
+      if (field === "mode" && typeof value === "string") return { action: "set", mode: value };
+      return null;
+    }
+
+    case "smart-lock":
+    case "facedoor": {
+      if (field === "locked") {
+        if (typeof value !== "boolean") return null;
+        // Both sketches take lock/unlock as the action, and also accept
+        // { locked } — the verb form is used because it is what the device
+        // controls send, so there is one shape in the field to reason about.
+        return { action: value ? "lock" : "unlock" };
+      }
+      return null;
+    }
+
+    case "curtain": {
+      if (field === "position" && typeof value === "number") {
+        return { action: "set", position: value };
+      }
+      if (field === "action" && (value === "open" || value === "close")) {
+        return { action: String(value) };
+      }
+      return null;
+    }
+
+    default:
+      break;
+  }
+
+  /*
+   * Everything else takes { action:"set", <field>: value } — touchboard gangs,
+   * smart-switch and smart-plug power, sentinel relays, pumps, thresholds,
+   * armed flags. The field name genuinely is the command key for these
+   * sketches; the only thing that was missing is the action.
+   */
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+    return { action: "set", [field]: value };
+  }
+  return null;
+}
+
+/**
+ * Repairs a command stored before buildFieldCommand existed.
+ *
+ * Rules already in the database carry the broken shape, and there are two
+ * places that could fix them: here, or by asking every user to delete and
+ * recreate every schedule they ever made. Rewriting on read means a timer
+ * someone set weeks ago starts working the moment this ships.
+ *
+ * Only touches payloads that are unambiguously the old shape. A command that
+ * already names an action is left exactly as authored — including hand-written
+ * ones from the rule editor, which may legitimately use actions this module
+ * knows nothing about.
+ */
+export function repairLegacyCommand(
+  type: string,
+  cmd: CommandPayload | null | undefined
+): CommandPayload | null {
+  if (!cmd || typeof cmd !== "object") return null;
+  const keys = Object.keys(cmd);
+  if (!keys.length) return null;
+  if (typeof cmd.action === "string" && cmd.action.length) {
+    // Already actioned. One exception: the Home Hub's channel keys are never
+    // valid as command keys, whatever action they were sent with.
+    if (type === "home-hub") {
+      const bad = keys.find((k) => hubChannelIndex(k) >= 0);
+      if (bad && typeof cmd[bad] === "boolean") {
+        return buildFieldCommand(type, bad, cmd[bad] as boolean);
+      }
+    }
+    return cmd;
+  }
+
+  // Single-field legacy shape — what every switch timer was written as.
+  const field = keys[0];
+  const value = cmd[field];
+  if (keys.length === 1 && (typeof value === "boolean" || typeof value === "number" || typeof value === "string")) {
+    return buildFieldCommand(type, field, value);
+  }
+
+  // Multi-key with no action: the safest reading is "a set with several
+  // fields", which is exactly what the sketches implement.
+  return { action: "set", ...cmd };
+}
+
 /** The state keys a command is expected to change. */
 export function projectedFields(type: string, cmd: CommandPayload, state?: Record<string, unknown>): string[] {
   return Object.keys(projectCommand(type, cmd, state));

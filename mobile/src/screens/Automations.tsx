@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { api, actionList, Automation, AutomationAction, AutomationActions, AutomationTrigger, Device } from "../api";
+import { buildFieldCommand } from "../command-map";
 import { useTheme } from "../ui";
 import type { Palette } from "../theme";
 
@@ -164,10 +165,26 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
       setMsg("Choose a command device and field.");
       return null;
     }
+    /*
+     * The device drops any payload with no `action` before the sketch runs, so
+     * a hand-typed field alone produces a rule that saves and never fires.
+     * Built against the target's type, which also remaps keys the sketch does
+     * not accept as commands.
+     */
+    const target = devices.find((d) => d.id === actionDeviceId);
+    const command = buildFieldCommand(
+      target?.type ?? "",
+      commandField.trim(),
+      parseValue(commandValue) as boolean | number | string
+    );
+    if (!command) {
+      setMsg(`That device cannot be commanded with “${commandField.trim()}”.`);
+      return null;
+    }
     return {
       type: "command",
       deviceId: actionDeviceId,
-      command: { [commandField.trim()]: parseValue(commandValue) },
+      command,
     };
   };
 

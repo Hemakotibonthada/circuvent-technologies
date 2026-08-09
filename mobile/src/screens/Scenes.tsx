@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, StyleSheet, Alert } from "react-native";
 import { api, Scene, SceneAction } from "../api";
+import { buildFieldCommand } from "../command-map";
 import { useDevices, capabilities } from "../store";
 import { Card, SectionLabel, PrimaryButton, GhostButton, useTheme } from "../ui";
 import { deviceMeta } from "../theme";
@@ -75,7 +76,12 @@ function SceneEditor({ scene, onDone }: { scene: Scene | null; onDone: () => voi
       const s = sel[d.id];
       if (!s || s === "skip") continue;
       const field = capabilities(d.type).power!.field;
-      actions.push({ deviceId: d.id, command: { action: "set", [field]: s === "on" } });
+      // Built rather than assembled: a Home Hub reads { ch, on } and ignores
+      // power2/power3/power4, so a scene written with the state key would
+      // report success and leave three of four channels untouched.
+      const command = buildFieldCommand(d.type, field, s === "on");
+      if (!command) continue;
+      actions.push({ deviceId: d.id, command });
     }
     setBusy(true);
     const body = { name: name.trim(), icon, favorite, actions };

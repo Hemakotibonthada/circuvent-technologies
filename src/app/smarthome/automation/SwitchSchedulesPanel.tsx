@@ -16,7 +16,9 @@
 
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CalendarClock,
+  CheckCircle2,
   Clock,
   Lightbulb,
   Plus,
@@ -26,6 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { controlPlane, actionList } from "@/lib/control-plane";
+import { buildFieldCommand } from "@/lib/smarthome-command-map";
 import type { Automation, AutomationAction } from "@/lib/control-plane";
 import {
   useSwitchIndex,
@@ -49,6 +52,7 @@ import {
   Field,
   LoadingState,
   SectionTitle,
+  RelativeTime,
   SelectInput,
   SwitchRow,
   TextInput,
@@ -358,6 +362,8 @@ function ScheduleCard({
         <TimeChip icon={Power} tone="off" at={offAt} days={schedule.days} label="Off" />
       </div>
 
+      <RunRecord schedule={schedule} />
+
       <div className="mt-3 flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: "var(--cv-muted)" }}>
           <Clock className="h-3.5 w-3.5" />
@@ -378,6 +384,72 @@ function ScheduleCard({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * What actually happened the last time this timer was due.
+ *
+ * WHY A TIMER NEEDS TO SHOW THIS
+ *
+ * A switch timer used to save correctly, display the right next-run time and
+ * count down — while the relay never moved, because the stored command was a
+ * shape the device discards before its sketch runs. Every screen in the
+ * product showed a healthy schedule. There was no way, from the app, to tell
+ * "fired and worked" from "never fired at all", and that is why the fault
+ * survived so long.
+ *
+ * The three states are kept distinct on purpose:
+ *   never run   — expected before the first due time, suspicious long after
+ *   ran, failed — with the server's own reason, not a generic apology
+ *   ran, fine   — the device was commanded; the relay is the device's business
+ *
+ * A control plane too old to report any of this says nothing rather than
+ * claiming "never", which would be a confident wrong answer.
+ */
+function RunRecord({ schedule }: { schedule: SwitchSchedule }) {
+  const rules = [schedule.onRule, schedule.offRule].filter(Boolean) as Automation[];
+  if (!rules.length) return null;
+
+  // Older control planes omit the field entirely. Absent is unknown.
+  const reports = rules.some((r) => r.last_run_at !== undefined || r.run_count !== undefined);
+  if (!reports) return null;
+
+  const ran = rules
+    .filter((r) => r.last_run_at)
+    .sort((a, b) => new Date(b.last_run_at!).getTime() - new Date(a.last_run_at!).getTime());
+  const latest = ran[0];
+  const failed = rules.find((r) => r.last_run_ok === false && r.last_error);
+
+  if (failed) {
+    return (
+      <p className="mt-2.5 flex items-start gap-1.5 text-xs" style={{ color: "#f59e0b" }}>
+        <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+        <span>
+          Last run failed — {failed.last_error}
+          {failed.last_run_at ? <> · <RelativeTime iso={failed.last_run_at} /></> : null}
+        </span>
+      </p>
+    );
+  }
+
+  if (!latest) {
+    return (
+      <p className="mt-2.5 text-xs" style={{ color: "var(--cv-muted)" }}>
+        Has not run yet — it will fire at the next time shown above.
+      </p>
+    );
+  }
+
+  const total = rules.reduce((n, r) => n + (r.run_count ?? 0), 0);
+  return (
+    <p className="mt-2.5 flex items-center gap-1.5 text-xs" style={{ color: "var(--cv-muted)" }}>
+      <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#22c55e" }} />
+      <span>
+        Last ran <RelativeTime iso={latest.last_run_at!} />
+        {total > 0 ? ` · ${total.toLocaleString()} run${total === 1 ? "" : "s"}` : ""}
+      </span>
+    </p>
   );
 }
 
@@ -503,6 +575,10 @@ function SwitchScheduleEditor({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  // Shared cache keyed on "devices", so this is the same fetch the panel
+  // already made. Needed here because the command shape depends on the device
+  // type, and a schedule whose switch has left the fleet still has one.
+  const { devices } = useFleet();
 
   const [switchKey, setSwitchKey] = useState(existing?.key ?? switches[0]?.key ?? "");
   const [useOn, setUseOn] = useState(existing ? existing.onRule !== null : true);
@@ -553,6 +629,26 @@ function SwitchScheduleEditor({
       return;
     }
 
+    /*
+     * The device type decides the command shape, so it has to be known before
+     * a rule can be written. When the switch has left the fleet the target is
+     * gone, but the schedule still points at a real device — read the type off
+     * the fleet by id rather than giving up.
+     */
+    const deviceType = target?.deviceType ?? devices.find((d) => d.id === deviceId)?.type ?? "";
+    const commandFor = (on: boolean) => buildFieldCommand(deviceType, field, on);
+    if (!commandFor(true)) {
+      setBusy(false);
+      // Refusing beats saving a rule that cannot fire. Timers that looked
+      // perfect and never moved a relay are the reason this check exists.
+      setProblem(
+        deviceType
+          ? `A ${deviceType} does not accept a scheduled change to “${field}”.`
+          : "That switch's device is no longer in the fleet, so its type is unknown."
+      );
+      return;
+    }
+
     // Seven selected days is the same as no filter; store the shorter form so
     // the row reads the way it behaves.
     const dayFilter = days.length === 7 ? undefined : days;
@@ -569,7 +665,7 @@ function SwitchScheduleEditor({
         name: scheduleName(label, on),
         enabled: rule?.enabled ?? true,
         trigger: { type: "time" as const, at, days: dayFilter },
-        action: { type: "command" as const, deviceId, command: { [field]: on } },
+        action: { type: "command" as const, deviceId, command: commandFor(on)! },
       };
       const r = rule
         ? await controlPlane.updateAutomation(rule.id, body)

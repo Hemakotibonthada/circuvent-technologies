@@ -161,7 +161,11 @@ export default function SceneEditor({ scene, onClose, onSaved }: Props) {
       // Coerce to correct type
       if (field.kind === "bool") value = Boolean(parseSceneValue(row.rawValue));
       if (field.kind === "number") value = Number(row.rawValue) || (field.min ?? 0);
-      return [{ deviceId: row.deviceId, command: buildCommand(field, value) }];
+      const command = buildCommand(device.type, field, value);
+      // Skipped rather than saved broken: a scene step the device cannot act
+      // on would leave the scene reporting success while one light stayed off.
+      if (!command) return [];
+      return [{ deviceId: row.deviceId, command }];
     });
   };
 

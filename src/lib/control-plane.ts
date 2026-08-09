@@ -122,6 +122,19 @@ export interface Automation {
   trigger: AutomationTrigger;
   action: AutomationActions;
   created_at?: string;
+  /**
+   * Execution record. Present only on control planes new enough to report it —
+   * an older one omits these entirely, which is why every consumer treats
+   * `undefined` as "unknown" rather than "never ran".
+   *
+   * This exists because a switch timer could save correctly, show the right
+   * next-run time, count down, and never move a relay, and nothing anywhere
+   * distinguished that from working. "Last ran" either advances or it does not.
+   */
+  last_run_at?: string | null;
+  last_run_ok?: boolean | null;
+  last_error?: string | null;
+  run_count?: number;
 }
 
 export interface AutomationBody {

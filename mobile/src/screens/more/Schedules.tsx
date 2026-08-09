@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { api, Automation, Device } from "../../api";
+import { buildFieldCommand } from "../../command-map";
 import { useDevices } from "../../store";
 import { defaultGangs, useSwitchWidgets } from "../../widgets";
 import {
@@ -99,12 +100,27 @@ export default function Schedules({ onBack }: { onBack: () => void }) {
     if (mode !== "off") halves.push({ on: true, at: onTime });
     if (mode !== "on") halves.push({ on: false, at: offTime });
 
+    /*
+     * Built, not assembled. `{ [field]: value }` is a state key, and the
+     * device drops any payload with no `action` before its sketch runs — the
+     * timer saved, the countdown ticked, and the relay never moved.
+     */
+    const command = buildFieldCommand(selected.type, target.field, true);
+    if (!command) {
+      setBusy(false);
+      return setErr(`A ${selected.type} cannot be scheduled on “${target.field}”.`);
+    }
+
     const results = await Promise.all(
       halves.map((h) =>
         api.createAutomation({
           name: `${MARK} ${target.label} ${h.on ? "on" : "off"}`,
           trigger: { type: "time", at: h.at, days: dayFilter },
-          action: { type: "command", deviceId: selected.id, command: { [target.field]: h.on } },
+          action: {
+            type: "command",
+            deviceId: selected.id,
+            command: buildFieldCommand(selected.type, target.field, h.on)!,
+          },
         })
       )
     );

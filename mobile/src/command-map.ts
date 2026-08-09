@@ -149,3 +149,87 @@ export function projectCommand(type: string, cmd: Cmd, state?: Record<string, un
     }
   }
 }
+
+/**
+ * Turns "set this switch to this value" into the payload the firmware reads.
+ *
+ * WHY THIS EXISTS (the "timers save but nothing happens" bug)
+ *
+ * projectCommand above answers "what state will this command produce".
+ * Schedules and rules need the opposite: the user picks a *switch*, which is
+ * identified by its state key because that is what the UI renders, and
+ * something has to turn that back into a command. Nothing did — every caller
+ * inlined `{ [field]: value }`, a state key wearing a command's clothes, and
+ * it failed twice over, silently:
+ *
+ *  1. No `action`. CircuventDevice::_dispatch() begins
+ *         String action = doc["action"] | "";
+ *         if (!action.length()) return;
+ *     so the payload is discarded before any sketch handler runs. Nothing logs
+ *     it, nothing rejects it. This broke scheduled switching for every device
+ *     type — the rule saved, the countdown ran, the relay never moved.
+ *
+ *  2. Wrong key for the Home Hub, whose sketch reads { ch, on } and has no
+ *     concept of power2/power3/power4 — those are what writeRelay() publishes
+ *     back, not something onCommand() accepts.
+ *
+ * Mirrors buildFieldCommand in the web app's src/lib/smarthome-command-map.ts,
+ * which is where the round-trip test lives: every field the UI offers, built
+ * into a command here and fed back through projectCommand, must produce that
+ * same field.
+ */
+export function buildFieldCommand(
+  type: string,
+  field: string,
+  value: boolean | number | string
+): Cmd | null {
+  if (!field) return null;
+
+  switch (type) {
+    case "home-hub": {
+      const ch = (HUB_CHANNEL_FIELDS as readonly string[]).indexOf(field);
+      if (ch >= 0) {
+        if (typeof value !== "boolean") return null;
+        return { action: "set", ch, on: value };
+      }
+      if (field === "scene") {
+        if (typeof value !== "string" || !value) return null;
+        return { action: "set", scene: value };
+      }
+      return null;
+    }
+
+    case "rfid-gate": {
+      if (field === "action" || field === "barrier") {
+        const v = String(value);
+        return v === "open" || v === "close" ? { action: v } : null;
+      }
+      if (field === "mode" && typeof value === "string") return { action: "set", mode: value };
+      return null;
+    }
+
+    case "smart-lock":
+    case "facedoor":
+      if (field === "locked") {
+        if (typeof value !== "boolean") return null;
+        return { action: value ? "lock" : "unlock" };
+      }
+      return null;
+
+    case "curtain":
+      if (field === "position" && typeof value === "number") return { action: "set", position: value };
+      if (field === "action" && (value === "open" || value === "close")) return { action: String(value) };
+      return null;
+
+    default:
+      break;
+  }
+
+  // Everything else: the field name genuinely is the command key for these
+  // sketches — touchboard gangs, smart-switch and smart-plug power, sentinel
+  // relays, pumps, thresholds, armed flags. Only the action was missing.
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+    return { action: "set", [field]: value };
+  }
+  return null;
+}
