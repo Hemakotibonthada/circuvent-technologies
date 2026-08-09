@@ -537,6 +537,19 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           border-radius: var(--cv-r-tile);
         }
 
+        /* The focus indicator's outer ring has to contrast with the surface it
+           lands on, so it flips with the scheme. Without this the console's
+           inputs kept a white halo on a white card and measured 2.87:1 with
+           what looked like a focus ring. */
+        .cv-theme.cv-light {
+          --focus-ring-halo: rgba(15, 23, 42, 0.85);
+          --focus-ring: #155e75;
+        }
+        .cv-theme.cv-dark {
+          --focus-ring-halo: rgba(255, 255, 255, 0.9);
+          --focus-ring: #67e8f9;
+        }
+
         /* ---- Light-scheme remap ------------------------------------------
            The console was authored dark-first: ~1,100 Tailwind neutrals under
            /smarthome hardcode white text and black scrims. Remapping them once

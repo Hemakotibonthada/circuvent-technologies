@@ -128,7 +128,7 @@ export default function ProductDetailClient({
             <div className="inline-flex items-center rounded-xl border" style={{ borderColor: "var(--border-primary)" }}>
               <button
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
-                className="grid h-11 w-11 place-items-center hover:opacity-70"
+                className="grid h-[44px] w-[44px] place-items-center hover:opacity-70"
                 style={{ color: "var(--text-secondary)" }}
                 aria-label="Decrease quantity"
               >
@@ -139,7 +139,7 @@ export default function ProductDetailClient({
               </span>
               <button
                 onClick={() => setQty((q) => Math.min(99, q + 1))}
-                className="grid h-11 w-11 place-items-center hover:opacity-70"
+                className="grid h-[44px] w-[44px] place-items-center hover:opacity-70"
                 style={{ color: "var(--text-secondary)" }}
                 aria-label="Increase quantity"
               >
@@ -163,7 +163,7 @@ export default function ProductDetailClient({
               onClick={buyNow}
               disabled={soldOut}
               title={soldOut ? "This product is out of stock" : "Buy now"}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
               <Zap className="h-4 w-4" /> {soldOut ? "Out of stock" : "Buy now"}
             </button>

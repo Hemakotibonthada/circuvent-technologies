@@ -105,7 +105,7 @@ export default function CompareBar({ products }: { products: Product[] }) {
                       accent={p.accent}
                       icon={p.icon}
                       name={p.name}
-                      className="h-11 w-11 rounded-xl"
+                      className="h-[44px] w-[44px] rounded-xl"
                       iconClass="text-lg"
                     />
                     <button
@@ -122,7 +122,7 @@ export default function CompareBar({ products }: { products: Product[] }) {
                   <div
                     key={`slot-${i}`}
                     aria-hidden="true"
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-dashed text-[10px]"
+                    className="grid h-[44px] w-[44px] shrink-0 place-items-center rounded-xl border border-dashed text-[10px]"
                     style={{ borderColor: "var(--border-hover)", color: "var(--text-muted)" }}
                   >
                     +

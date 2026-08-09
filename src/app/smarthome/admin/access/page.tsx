@@ -253,7 +253,7 @@ function SessionCard({ meRes }: { meRes: Resource<AdminMe> }) {
   return (
     <Panel>
       <div className="flex flex-wrap items-center gap-4">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: TONE.brand.bg, color: TONE.brand.fg }}>
+        <span className="grid h-[44px] w-[44px] shrink-0 place-items-center rounded-xl" style={{ background: TONE.brand.bg, color: TONE.brand.fg }}>
           <CircleUser className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">

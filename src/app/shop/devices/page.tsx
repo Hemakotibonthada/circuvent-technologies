@@ -166,7 +166,7 @@ function DeviceCard({
             </p>
           </div>
         </div>
-        <span className="flex items-center gap-1 text-xs" style={{ color: device.online ? "#10b981" : "var(--text-muted)" }}>
+        <span className="flex items-center gap-1 text-xs" style={{ color: device.online ? "var(--status-success-text)" : "var(--text-muted)" }}>
           {device.online ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
           {device.online ? "Online" : "Offline"}
         </span>
@@ -249,7 +249,7 @@ function ControlButton({
     <button
       onClick={onClick}
       className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white"
-      style={{ background: on ? "#ef4444" : "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+      style={{ background: on ? "var(--status-danger-text)" : "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
     >
       <Power className="h-3.5 w-3.5" /> {on ? labelOn : labelOff}
     </button>

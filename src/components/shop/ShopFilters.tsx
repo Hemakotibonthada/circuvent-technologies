@@ -78,7 +78,7 @@ export default function ShopFilters({
           type="button"
           onClick={onClear}
           disabled={activeCount === 0}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-40"
+          className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-40"
           style={{ color: "var(--text-tertiary)" }}
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Clear all
@@ -99,7 +99,7 @@ export default function ShopFilters({
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggleCategory(c.value)}
-                    className="h-4 w-4 shrink-0 accent-cyan-600"
+                    className="inline-flex h-[44px] w-[44px] items-center justify-center h-4 w-4 shrink-0 accent-cyan-600"
                   />
                   <span className="min-w-0 truncate">{c.value}</span>
                   <Count n={c.count} />
@@ -126,7 +126,7 @@ export default function ShopFilters({
                     )
                   }
                   aria-pressed={active}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors"
+                  className="min-h-[44px] flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors"
                   style={toggleRow(active)}
                 >
                   <span
@@ -156,7 +156,7 @@ export default function ShopFilters({
                 onChange({ minPrice: e.target.value === "" ? null : Math.max(0, Number(e.target.value)) })
               }
               placeholder={`Min ${bounds.min}`}
-              className="w-full rounded-lg border px-2.5 py-2 text-sm outline-none"
+              className="min-h-[44px] w-full rounded-lg border px-2.5 py-2 text-sm outline-none"
               style={{ borderColor: "var(--border-primary)", color: "var(--text-primary)" }}
             />
           </label>
@@ -174,7 +174,7 @@ export default function ShopFilters({
                 onChange({ maxPrice: e.target.value === "" ? null : Math.max(0, Number(e.target.value)) })
               }
               placeholder={`Max ${bounds.max}`}
-              className="w-full rounded-lg border px-2.5 py-2 text-sm outline-none"
+              className="min-h-[44px] w-full rounded-lg border px-2.5 py-2 text-sm outline-none"
               style={{ borderColor: "var(--border-primary)", color: "var(--text-primary)" }}
             />
           </label>
@@ -195,7 +195,7 @@ export default function ShopFilters({
                   onClick={() => onChange({ minRating: active ? null : r.value })}
                   aria-pressed={active}
                   disabled={r.count === 0 && !active}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors disabled:opacity-40"
+                  className="min-h-[44px] flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors disabled:opacity-40"
                   style={toggleRow(active)}
                 >
                   <Star
@@ -232,7 +232,7 @@ export default function ShopFilters({
                     type="checkbox"
                     checked={active}
                     onChange={() => onChange({ [key]: !active } as Partial<FilterState>)}
-                    className="h-4 w-4 shrink-0 accent-cyan-600"
+                    className="inline-flex h-[44px] w-[44px] items-center justify-center h-4 w-4 shrink-0 accent-cyan-600"
                   />
                   <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>{label}</span>

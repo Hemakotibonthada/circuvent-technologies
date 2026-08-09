@@ -16,7 +16,17 @@
   --text-primary: #0c1222;
   --text-secondary: #2d3a4e;
   --text-tertiary: #536478;
-  --text-muted: #64748b;
+  /*
+   * Muted body text.
+   *
+   * #8494a7 was 3.1:1 on white and produced 840 contrast failures across the
+   * public site on its own. #64748b fixed white (4.76:1) but still measured
+   * 4.43:1 on --bg-surface-hover (#f5f7fa), which is where the service-timeline
+   * chips sit -- passing on one surface and failing on the next is how a token
+   * ends up needing a third revision. #586878 clears 4.5:1 on white, on
+   * #f5f7fa and on the console's lightest card.
+   */
+  --text-muted: #586878;
   --text-inverted: #fafbfd;
 
   --border-primary: rgba(12, 18, 34, 0.07);
@@ -43,7 +53,34 @@
   /* The skip link's surface. Dark enough that white text on it clears AA by a
      wide margin, in every theme, since the link is fixed-position and lands on
      whatever happens to be underneath. */
-  --skip-link-bg: #0f2b38;  /* Inline code. Kept as its own name because a code chip is not a link, but
+  --skip-link-bg: #0f2b38;
+
+  /*
+   * Status colours at a weight that can be read.
+   *
+   * emerald-500 (#10b981) measures 2.54:1 on white, amber-500 2.15:1,
+   * red-500 3.76:1. They are the right colours for a dot, a chip fill or a
+   * chart series, and they were being used for the price, the refund amount
+   * and the ticket status -- the words a person is actually trying to read.
+   *
+   * These are tokens rather than a `.text-emerald-500 { }` override because
+   * the same class appears on dark cards sitting on light pages; correcting a
+   * colour from its class name alone repainted 14 labels down to 2.06:1 when
+   * it was tried. A token resolves per theme, which is the part that matters.
+   */
+  --status-success-text: #047857;
+  --status-warning-text: #b45309;
+  --status-danger-text: #b91c1c;  /* Inline code. Kept as its own name because a code chip is not a link, but
+
+  /*
+   * The outer half of the focus indicator.
+   *
+   * It has to be the opposite lightness to the surface, or it is not there at
+   * all -- a white halo on a white card measures 1:1 and the console's inputs
+   * were still failing at 2.87:1 with one. Dark surfaces get the light halo,
+   * light surfaces get the dark one.
+   */
+  --focus-ring-halo: rgba(15, 23, 42, 0.85);  /* Inline code. Kept as its own name because a code chip is not a link, but
      it resolves to the same readable weight. */
   --code-accent: var(--accent-cyan-text);
   --accent-pink: #db2777;
@@ -92,6 +129,13 @@
   --accent-cyan: #06b6d4;
   --accent-violet: #8b5cf6;
   --code-accent: #22d3ee;
+  /* The dark theme reads the other way round: these need to be lighter than
+     the base colour, not darker, to lift off a dark surface. */
+  --accent-cyan-text: #67e8f9;
+  --status-success-text: #34d399;
+  --status-warning-text: #fbbf24;
+  --status-danger-text: #f87171;
+  --focus-ring-halo: rgba(255, 255, 255, 0.9);
   --accent-pink: #ec4899;
   --accent-cyan-muted: rgba(6, 182, 212, 0.1);
   --accent-violet-muted: rgba(139, 92, 246, 0.1);

@@ -103,7 +103,7 @@ export default function SmartHomePage() {
               <ScrollReveal key={s.title} delay={i * 0.08}>
                 <div className="rounded-2xl p-6 h-full relative" style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)" }}>
                   <div className="text-6xl font-black absolute top-3 right-5 opacity-10" style={{ color: "var(--text-primary)" }}>{i + 1}</div>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
+                  <div className="w-11 h-[44px] rounded-xl flex items-center justify-center mb-4" style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}>
                     <s.icon className="w-5 h-5 text-white" />
                   </div>
                   <div className="font-bold text-lg" style={{ color: "var(--text-primary)" }}>{s.title}</div>
@@ -149,7 +149,7 @@ export default function SmartHomePage() {
                   {family.length} devices, all on the same app and control plane — from {formatINR(entryPrice)}.
                 </p>
               </div>
-              <Link href="/shop" className="text-sm font-semibold inline-flex items-center gap-1" style={{ color: "var(--accent-cyan)" }}>Shop all <ArrowRight className="w-4 h-4" /></Link>
+              <Link href="/shop" className="min-h-[44px] text-sm font-semibold inline-flex items-center gap-1" style={{ color: "var(--accent-cyan)" }}>Shop all <ArrowRight className="w-4 h-4" /></Link>
             </div>
           </ScrollReveal>
           <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -227,7 +227,7 @@ export default function SmartHomePage() {
                   Circuvent runs a self-hosted control plane — MQTT broker, API and web console on your own VM.
                   Sub-second commands, no third-party lock-in, and a real-time link that reflects even a physical switch flip.
                 </p>
-                <Link href="/architecture" className="inline-flex items-center gap-1 mt-4 text-sm font-semibold" style={{ color: "var(--accent-cyan)" }}>See the architecture <ArrowRight className="w-4 h-4" /></Link>
+                <Link href="/architecture" className="min-h-[44px] inline-flex items-center gap-1 mt-4 text-sm font-semibold" style={{ color: "var(--accent-cyan)" }}>See the architecture <ArrowRight className="w-4 h-4" /></Link>
               </div>
             </div>
           </ScrollReveal>

@@ -66,7 +66,7 @@ export default function InvoicePage() {
         <a href="/shop/account" className="text-sm" style={{ color: "var(--accent-cyan)" }}>← Back to account</a>
         <button
           onClick={() => window.print()}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white"
         >
           <Printer className="h-4 w-4" /> Print / Save PDF
         </button>
@@ -136,7 +136,7 @@ export default function InvoicePage() {
           <div className="mt-4 ml-auto w-full max-w-[240px] text-sm">
             <div className="flex justify-between py-1"><span className="text-slate-500">Subtotal</span><span>{formatINR(order.subtotal)}</span></div>
             {order.discount ? (
-              <div className="flex justify-between py-1"><span className="text-slate-500">Discount</span><span className="text-emerald-600">- {formatINR(order.discount)}</span></div>
+              <div className="flex justify-between py-1"><span className="text-slate-500">Discount</span><span style={{ color: "var(--status-success-text)" }}>- {formatINR(order.discount)}</span></div>
             ) : null}
             <div className="flex justify-between py-1"><span className="text-slate-500">Shipping</span><span>{order.shipping === 0 ? "Free" : formatINR(order.shipping)}</span></div>
             <div className="mt-1 flex justify-between border-t border-slate-200 py-2 text-base font-extrabold"><span>Total</span><span>{formatINR(order.total)}</span></div>

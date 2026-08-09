@@ -462,13 +462,13 @@ function HomeHub({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
       <div className="flex gap-2 mt-3">
         <button
           onClick={() => send({ relays: [true, true, true, true] })}
-          className="min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
+          className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
         >
           All on
         </button>
         <button
           onClick={() => send({ relays: [false, false, false, false] })}
-          className="min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
+          className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
         >
           All off
         </button>
@@ -653,7 +653,7 @@ function ChannelTile({
       {config.style === "button" ? (
         <span
           aria-hidden
-          className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 transition ${
+          className={`grid h-[44px] w-[44px] shrink-0 place-items-center rounded-full border-2 transition ${
             on ? "border-cyan-300 bg-cyan-400/20 text-cyan-200" : "border-white/20 bg-white/5 text-slate-400"
           }`}
         >
@@ -993,8 +993,8 @@ function RfidGate({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 
       <SectionLabel>Barrier</SectionLabel>
       <div className="flex gap-2.5">
-        <button onClick={() => send({ action: "open" })} className={`min-h-11 flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition ${pendCls(st("barrier"))}`}>Open</button>
-        <button onClick={() => send({ action: "close" })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("barrier"))}`}>Close</button>
+        <button onClick={() => send({ action: "open" })} className={`min-h-[44px] flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition ${pendCls(st("barrier"))}`}>Open</button>
+        <button onClick={() => send({ action: "close" })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("barrier"))}`}>Close</button>
       </div>
 
       <SectionLabel>Last scan</SectionLabel>
@@ -1029,8 +1029,8 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 
       <SectionLabel>Controls</SectionLabel>
       <div className="flex gap-2.5">
-        <button onClick={() => send({ action: "unlock", method: "app" })} className={`min-h-11 flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition flex items-center justify-center gap-2 ${pendCls(st("locked"))}`}><LockOpen className="h-4 w-4" /> Unlock</button>
-        <button onClick={() => send({ action: "lock" })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition flex items-center justify-center gap-2 ${pendCls(st("locked"))}`}><Lock className="h-4 w-4" /> Lock</button>
+        <button onClick={() => send({ action: "unlock", method: "app" })} className={`min-h-[44px] flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition flex items-center justify-center gap-2 ${pendCls(st("locked"))}`}><LockOpen className="h-4 w-4" /> Unlock</button>
+        <button onClick={() => send({ action: "lock" })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition flex items-center justify-center gap-2 ${pendCls(st("locked"))}`}><Lock className="h-4 w-4" /> Lock</button>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1077,8 +1077,8 @@ function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
         )}
       </div>
       <div className="mt-3 flex gap-2.5">
-        <button onClick={() => send({ all: true })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("g1"))}`}>All on</button>
-        <button onClick={() => send({ all: false })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("g1"))}`}>All off</button>
+        <button onClick={() => send({ all: true })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("g1"))}`}>All on</button>
+        <button onClick={() => send({ all: false })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("g1"))}`}>All off</button>
       </div>
       <SectionLabel>Backlight</SectionLabel>
       <ControlRow label="Brightness">
@@ -1118,13 +1118,13 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
           <div className="mt-4 flex gap-2.5">
             <button
               onClick={() => send({ muted: true })}
-              className={`min-h-11 rounded-xl border border-white/15 bg-black/20 px-5 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("muted"))}`}
+              className={`min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-5 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("muted"))}`}
             >
               Silence 5 min
             </button>
             <button
               onClick={() => send({ action: "clearAlarm" })}
-              className={`min-h-11 rounded-xl bg-red-500 px-5 text-sm font-semibold text-white hover:bg-red-600 active:scale-95 transition ${pendCls(st("gasAlarm"))}`}
+              className={`min-h-[44px] rounded-xl bg-red-500 px-5 text-sm font-semibold text-white hover:bg-red-600 active:scale-95 transition ${pendCls(st("gasAlarm"))}`}
             >
               Clear alarm
             </button>
@@ -1194,8 +1194,8 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
             )}
           </div>
           <div className="mt-3 flex gap-2.5">
-            <button onClick={() => send({ all: true })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("r1"))}`}>All on</button>
-            <button onClick={() => send({ all: false })} className={`min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("r1"))}`}>All off</button>
+            <button onClick={() => send({ all: true })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("r1"))}`}>All on</button>
+            <button onClick={() => send({ all: false })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("r1"))}`}>All off</button>
           </div>
         </>
       )}
@@ -1231,7 +1231,7 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
                   key={r}
                   onClick={() => send({ exhaustRelay: r })}
                   aria-pressed={exhaust === r}
-                  className={`min-h-11 rounded-xl border px-4 text-sm font-semibold transition active:scale-95 ${
+                  className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold transition active:scale-95 ${
                     exhaust === r
                       ? "border-transparent bg-cyan-500 text-slate-950"
                       : "border-white/15 bg-black/20 text-slate-200 hover:bg-white/10"
@@ -1261,7 +1261,7 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 
       <SectionLabel>Maintenance</SectionLabel>
       <div className="flex flex-wrap gap-2.5">
-        <button onClick={() => send({ action: "test" })} className="min-h-11 rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition">
+        <button onClick={() => send({ action: "test" })} className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition">
           Test siren
         </button>
         {hasGas && (
@@ -1274,12 +1274,12 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
                 send({ action: "calibrateGas" });
               }
             }}
-            className="min-h-11 rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
+            className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
           >
             Calibrate gas sensor
           </button>
         )}
-        <button onClick={() => send({ action: "recalibrateTouch" })} className="min-h-11 rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition">
+        <button onClick={() => send({ action: "recalibrateTouch" })} className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition">
           Recalibrate touch pads
         </button>
       </div>
@@ -1583,7 +1583,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => haptic()}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
                 style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
               >
                 <Play className="h-4 w-4" /> Open local view
@@ -1600,7 +1600,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
                   haptic();
                   send({ action: "stream", on: true });
                 }}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
                 style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
               >
                 <Play className="h-4 w-4" /> Start live view
@@ -1710,7 +1710,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
             send({ action: "stream", on: !streaming });
           }}
           disabled={!d.online || !ready}
-          className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40 ${pendCls(st("streaming"))}`}
+          className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40 ${pendCls(st("streaming"))}`}
           style={{
             background: streaming ? "rgba(239,68,68,0.15)" : "var(--cv-card-hi)",
             borderColor: streaming ? "rgba(239,68,68,0.45)" : "var(--cv-border)",
@@ -1726,7 +1726,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
             send({ action: "snapshot" });
           }}
           disabled={!d.online || !ready}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
         >
           <CameraIcon className="h-4 w-4" /> Snapshot
@@ -1734,7 +1734,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
         <button
           onClick={download}
           disabled={!shownFrame}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
         >
           <Download className="h-4 w-4" /> Save
@@ -1742,7 +1742,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
         <button
           onClick={() => void toggleRecording()}
           disabled={!d.online || !ready}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{
             background: rec ? "rgba(239,68,68,0.15)" : "var(--cv-card-hi)",
             borderColor: rec ? "rgba(239,68,68,0.55)" : "var(--cv-border)",
@@ -1758,7 +1758,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
             send({ action: "reboot" });
           }}
           disabled={!d.online}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
         >
           <RefreshCcw className="h-4 w-4" /> Reboot
@@ -1773,7 +1773,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
       <SectionLabel>Image</SectionLabel>
       <ControlRow label="Resolution" hint={psram ? undefined : "Higher modes need PSRAM"}>
         <select
-          className="cv-input min-h-11 w-[150px]"
+          className="cv-input min-h-[44px] w-[150px]"
           value={String(d.state.resolution ?? "VGA")}
           onChange={(e) => setRes(e.target.value)}
           aria-label="Camera resolution"
@@ -1828,13 +1828,13 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
       <div className="mt-2 flex gap-2">
         <button
           onClick={() => send({ action: "flash", level: 0 })}
-          className="min-h-11 flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 active:scale-95"
+          className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 active:scale-95"
         >
           Off
         </button>
         <button
           onClick={() => send({ action: "flash", level: 100 })}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 active:scale-95"
+          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-black/20 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10 active:scale-95"
         >
           <Flashlight className="h-4 w-4" /> Full
         </button>
@@ -2025,7 +2025,7 @@ function CameraStorage({ d, send, st }: { d: Device; send: SendFn; st: StatusFn 
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => haptic()}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-95"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-95"
             style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
           >
             <HardDrive className="h-4 w-4" /> Browse clips on the card
@@ -2043,7 +2043,7 @@ function CameraStorage({ d, send, st }: { d: Device; send: SendFn; st: StatusFn 
             }
           }}
           disabled={!card || !d.online}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{ background: "var(--cv-card-hi)", borderColor: "var(--cv-border)", color: "var(--cv-text)" }}
         >
           <Trash2 className="h-4 w-4" /> Clear card
@@ -2131,7 +2131,7 @@ function CameraAudio({ d }: { d: Device }) {
             setListening((v) => !v);
           }}
           disabled={!d.online || !hasMic}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{
             background: listening ? "rgba(6,182,212,0.15)" : "var(--cv-card-hi)",
             borderColor: listening ? "rgba(6,182,212,0.55)" : "var(--cv-border)",
@@ -2155,7 +2155,7 @@ function CameraAudio({ d }: { d: Device }) {
             if (talk.status === "recording") void talk.stopAndSend();
           }}
           disabled={!d.online || !hasSpeaker || talk.status === "sending"}
-          className="flex min-h-11 select-none items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
+          className="flex min-h-[44px] select-none items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition active:scale-95 disabled:opacity-40"
           style={{
             background: talk.status === "recording" ? "rgba(239,68,68,0.15)" : "var(--cv-card-hi)",
             borderColor: talk.status === "recording" ? "rgba(239,68,68,0.55)" : "var(--cv-border)",

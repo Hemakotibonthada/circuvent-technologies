@@ -58,12 +58,12 @@ export default function CartDrawer() {
 
             {items.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-                <ShoppingBag className="h-11 w-11" style={{ color: "var(--text-muted)" }} />
+                <ShoppingBag className="h-[44px] w-[44px]" style={{ color: "var(--text-muted)" }} />
                 <p style={{ color: "var(--text-tertiary)" }}>Your cart is empty.</p>
                 <Link
                   href="/shop"
                   onClick={close}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
                 >
                   Browse the shop <ArrowRight className="h-4 w-4" />
                 </Link>

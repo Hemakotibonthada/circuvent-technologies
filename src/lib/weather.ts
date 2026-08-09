@@ -100,15 +100,24 @@ export function wmo(code: number): { label: string; icon: string; group: string 
   return { label: (m[code] ?? ["Unknown", "🌡️", "cloud"])[0], icon: (m[code] ?? ["", "🌡️"])[1], group: (m[code] ?? ["", "", "cloud"])[2] };
 }
 
-/** US-AQI category with a display colour. */
-export function aqiCategory(aqi: number | null | undefined): { label: string; color: string } {
-  if (aqi == null) return { label: "—", color: "#94a3b8" };
-  if (aqi <= 50) return { label: "Good", color: "#22c55e" };
-  if (aqi <= 100) return { label: "Moderate", color: "#eab308" };
-  if (aqi <= 150) return { label: "Unhealthy (sensitive)", color: "#f59e0b" };
-  if (aqi <= 200) return { label: "Unhealthy", color: "#ef4444" };
-  if (aqi <= 300) return { label: "Very unhealthy", color: "#a855f7" };
-  return { label: "Hazardous", color: "#7f1d1d" };
+/**
+ * US-AQI category with display colours.
+ *
+ * Two colours, because one cannot do both jobs. `color` is the vivid band
+ * colour people recognise from air-quality scales and is right for a dot, a
+ * bar or a chip fill. As the AQI number itself it measured 2.28:1 on the
+ * weather card's white surface -- the reading you most need to see was the
+ * hardest thing on the card to read. `textColor` is the same hue taken down
+ * to at least 4.5:1 on white.
+ */
+export function aqiCategory(aqi: number | null | undefined): { label: string; color: string; textColor: string } {
+  if (aqi == null) return { label: "—", color: "#94a3b8", textColor: "#475569" };
+  if (aqi <= 50) return { label: "Good", color: "#22c55e", textColor: "#15803d" };
+  if (aqi <= 100) return { label: "Moderate", color: "#eab308", textColor: "#a16207" };
+  if (aqi <= 150) return { label: "Unhealthy (sensitive)", color: "#f59e0b", textColor: "#b45309" };
+  if (aqi <= 200) return { label: "Unhealthy", color: "#ef4444", textColor: "#b91c1c" };
+  if (aqi <= 300) return { label: "Very unhealthy", color: "#a855f7", textColor: "#7e22ce" };
+  return { label: "Hazardous", color: "#7f1d1d", textColor: "#7f1d1d" };
 }
 
 async function json<T>(url: string): Promise<T> {

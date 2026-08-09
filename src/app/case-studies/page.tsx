@@ -276,7 +276,7 @@ export default function CaseStudiesPage() {
                           className="text-xs font-mono px-2 py-1 rounded shrink-0"
                           style={{
                             background: "var(--accent-cyan-muted)",
-                            color: "var(--accent-cyan)",
+                            color: "var(--accent-cyan-text)",
                           }}
                         >
                           L{i + 1}

@@ -344,7 +344,7 @@ export default function OverviewPage() {
                   <button
                     key={s.id}
                     onClick={() => void activate(s.id)}
-                    className="cv-card flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-95"
+                    className="cv-card flex min-h-[44px] items-center gap-2 rounded-xl px-4 text-sm font-semibold transition active:scale-95"
                   >
                     <Zap className="h-4 w-4" style={{ color: "var(--cv-accent-hi)" }} />
                     {s.name}

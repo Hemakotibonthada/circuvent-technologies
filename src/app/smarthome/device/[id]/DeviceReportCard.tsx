@@ -48,7 +48,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="rounded-2xl border" style={{ borderColor: "var(--cv-border)", background: "var(--cv-card)" }}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-11 w-full items-center justify-between px-4 py-3 text-left"
+        className="flex min-h-[44px] w-full items-center justify-between px-4 py-3 text-left"
         aria-expanded={open}
       >
         <span className="text-sm font-bold" style={{ color: "var(--cv-text)" }}>{title}</span>

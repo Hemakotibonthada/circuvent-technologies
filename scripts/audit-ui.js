@@ -127,6 +127,22 @@ const PROBE = () => {
     return bits.join("");
   };
 
+  /*
+   * Enough to find the element in the source.
+   *
+   * `where` is a display label and deliberately short. Fixing a finding means
+   * locating the JSX that produced it, and three class names are not enough to
+   * grep for -- half the findings share `span.text-xs`. The full class list is,
+   * and so is the text, so both are recorded here even though neither is worth
+   * printing in the summary table.
+   */
+  const fingerprint = (el) => ({
+    cls: typeof el.className === "string" ? el.className.trim() : "",
+    tag: el.tagName.toLowerCase(),
+    text: (el.textContent || "").trim().slice(0, 40),
+    parent: el.parentElement ? (typeof el.parentElement.className === "string" ? el.parentElement.className.trim().slice(0, 90) : "") : "",
+  });
+
   const out = { contrast: [], targets: [], naming: [], focus: [], overflow: null };
 
   /*
@@ -177,7 +193,7 @@ const PROBE = () => {
     const need = large ? 3 : 4.5;
     const cr = ratio(fg.rgb, bg.rgb);
     if (cr < need) {
-      out.contrast.push({ el: where(el), text: text.slice(0, 44), fg: cs.color, bg: `rgb(${bg.rgb.join(",")})`, ratio: cr, need });
+      out.contrast.push({ el: where(el), text: text.slice(0, 44), fg: cs.color, bg: `rgb(${bg.rgb.join(",")})`, ratio: cr, need, fp: fingerprint(el) });
     }
   }
 
@@ -195,7 +211,7 @@ const PROBE = () => {
     // the target rule; WCAG says the same.
     const inline = el.tagName === "A" && getComputedStyle(el).display === "inline";
     if (!inline && (r.width < MIN_TARGET || r.height < MIN_TARGET)) {
-      out.targets.push({ el: where(el), w: Math.round(r.width), h: Math.round(r.height), text: (el.textContent || "").trim().slice(0, 30) });
+      out.targets.push({ el: where(el), w: Math.round(r.width), h: Math.round(r.height), text: (el.textContent || "").trim().slice(0, 30), fp: fingerprint(el) });
     }
     /*
      * A form control wrapped in a label takes its name from that label, and
@@ -401,7 +417,7 @@ async function pool(items, n, fn) {
   const byRoute = new Map();
   for (const r of results) {
     const k = r.route;
-    if (!byRoute.has(k)) byRoute.set(k, { route: k, contrast: 0, targets: 0, naming: 0, focus: 0, overflow: 0, errors: 0, worst: [], samples: [], focusSamples: [], errorSamples: [] });
+    if (!byRoute.has(k)) byRoute.set(k, { route: k, contrast: 0, targets: 0, naming: 0, focus: 0, overflow: 0, errors: 0, worst: [], samples: [], focusSamples: [], errorSamples: [], overflowCulprits: [], allContrast: [], allTargets: [] });
     const e = byRoute.get(k);
     e.contrast += r.contrast.length;
     e.naming += r.naming.length;
@@ -411,10 +427,14 @@ async function pool(items, n, fn) {
     for (const m of r.errors) if (e.errorSamples.length < 4 && !e.errorSamples.includes(m)) e.errorSamples.push(m);
     if (r.width === 390) {
       e.targets += r.targets.length;
-      if (r.overflow) e.overflow += 1;
+      if (r.overflow) { e.overflow += 1; if (!e.overflowCulprits.length) e.overflowCulprits = r.overflow.culprits || []; }
     }
     for (const c of r.contrast.slice(0, 3)) e.worst.push({ theme: `${r.theme.mode}-${r.theme.scheme}`, ...c });
-    for (const t of r.targets.slice(0, 2)) e.samples.push(t);
+    if (process.env.FULL) { for (const c of r.contrast) e.allContrast.push({ theme: `${r.theme.mode}-${r.theme.scheme}`, ...c }); for (const t2 of r.targets) e.allTargets.push(t2); }
+    // Only from the width the count comes from. Mixing desktop measurements
+    // into a phone-width total made the samples describe controls that were
+    // never counted, and sent me looking for a defect that was not there.
+    if (r.width === 390) for (const t of r.targets.slice(0, 4)) e.samples.push(t);
   }
 
   const rows = [...byRoute.values()].sort(

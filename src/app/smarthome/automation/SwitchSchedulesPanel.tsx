@@ -335,7 +335,7 @@ function ScheduleCard({
     >
       <div className="flex items-start gap-3">
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+          className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl"
           style={{ background: "var(--cv-card-hi)" }}
         >
           <Lightbulb className="h-5 w-5" style={{ color: "var(--cv-accent-hi)" }} />

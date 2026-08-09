@@ -237,7 +237,7 @@ function CodeBlock({ code, label }: { code: string; label?: string }) {
         </span>
         <button
           onClick={copy}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold transition hover:opacity-80"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold transition hover:opacity-80"
           style={{ color: copied ? "var(--accent-cyan)" : "var(--text-tertiary)" }}
           aria-label="Copy code"
         >
@@ -351,7 +351,7 @@ export default function DevelopersPage() {
                 <li key={n.id}>
                   <a
                     href={`#${n.id}`}
-                    className="block rounded-lg px-3 py-1.5 text-[13px] transition hover:opacity-70"
+                    className="inline-flex min-h-[44px] items-center rounded-lg px-3 py-1.5 text-[13px] transition hover:opacity-70"
                     style={{ color: "var(--text-secondary)" }}
                   >
                     {n.label}
@@ -391,10 +391,10 @@ export default function DevelopersPage() {
                   <button
                     key={s.id}
                     onClick={() => setSample(s.id)}
-                    className="min-h-9 rounded-lg border px-3 text-[13px] font-semibold transition"
+                    className="min-h-[44px] rounded-lg border px-3 text-[13px] font-semibold transition"
                     style={{
                       borderColor: sample === s.id ? "var(--accent-cyan)" : "var(--border-subtle)",
-                      color: sample === s.id ? "var(--accent-cyan)" : "var(--text-secondary)",
+                      color: sample === s.id ? "var(--accent-cyan-text)" : "var(--text-secondary)",
                       background: sample === s.id ? "var(--bg-elevated)" : "transparent",
                     }}
                   >

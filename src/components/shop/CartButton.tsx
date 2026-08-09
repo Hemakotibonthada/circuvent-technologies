@@ -11,7 +11,7 @@ export default function CartButton({ className }: { className?: string }) {
       onClick={open}
       aria-label={`Open cart${count ? ` (${count} items)` : ""}`}
       className={cn(
-        "relative inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-all duration-300 hover:scale-105",
+        "relative inline-flex h-[44px] w-[44px] items-center justify-center rounded-lg border transition-all duration-300 hover:scale-105",
         className
       )}
       style={{

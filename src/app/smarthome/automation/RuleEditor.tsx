@@ -656,7 +656,7 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
             <button
               type="button"
               onClick={addStep}
-              className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition"
+              className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition"
               style={{
                 background: "var(--cv-card-hi)",
                 border: "1px dashed var(--cv-border)",

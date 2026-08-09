@@ -165,7 +165,7 @@ export default function TestimonialCarousel({
             whileTap={{ scale: 0.9 }}
             onClick={prev}
             aria-label="Previous testimonial"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl cursor-pointer transition-colors"
+            className="inline-flex h-[44px] w-[44px] items-center justify-center rounded-xl cursor-pointer transition-colors"
             style={{
               background: "var(--bg-surface)",
               border: "1px solid var(--border-primary)",
@@ -206,7 +206,7 @@ export default function TestimonialCarousel({
             whileTap={{ scale: 0.9 }}
             onClick={next}
             aria-label="Next testimonial"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl cursor-pointer transition-colors"
+            className="inline-flex h-[44px] w-[44px] items-center justify-center rounded-xl cursor-pointer transition-colors"
             style={{
               background: "var(--bg-surface)",
               border: "1px solid var(--border-primary)",
@@ -221,7 +221,9 @@ export default function TestimonialCarousel({
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setIsPlaying(!isPlaying)}
-            className="p-2 rounded-xl cursor-pointer transition-colors absolute right-6"
+            aria-label={isPlaying ? "Pause testimonial autoplay" : "Play testimonial autoplay"}
+            aria-pressed={isPlaying}
+            className="inline-flex h-[44px] w-[44px] items-center justify-center rounded-xl cursor-pointer transition-colors absolute right-6"
             style={{
               background: "var(--bg-surface)",
               border: "1px solid var(--border-primary)",

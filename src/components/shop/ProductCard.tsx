@@ -89,7 +89,7 @@ export default function ProductCard({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className="grid h-9 w-9 place-items-center rounded-full border backdrop-blur transition-transform hover:scale-110 active:scale-95"
+      className="grid h-[44px] w-[44px] place-items-center rounded-full border backdrop-blur transition-transform hover:scale-110 active:scale-95"
       style={{
         background: "var(--bg-glass-strong)",
         borderColor: active ? "var(--border-accent)" : "var(--border-primary)",
@@ -133,14 +133,14 @@ export default function ProductCard({
             <span className="text-sm line-through" style={{ color: "var(--text-muted)" }}>
               {formatINR(product.compareAt)}
             </span>
-            <span className="text-sm font-semibold" style={{ color: "#10b981" }}>
+            <span className="text-sm font-semibold" style={{ color: "var(--status-success-text)" }}>
               Save {formatINR(saving)}
             </span>
           </>
         )}
       </div>
       {lowStock ? (
-        <p className="mt-1 text-xs font-semibold" style={{ color: "#f59e0b" }}>
+        <p className="mt-1 text-xs font-semibold" style={{ color: "var(--status-warning-text)" }}>
           Only {product.stock} left — order soon
         </p>
       ) : (
@@ -159,7 +159,7 @@ export default function ProductCard({
         type="button"
         onClick={handleAdd}
         disabled={soldOut}
-        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+        className="min-h-[44px] flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
       >
         <ShoppingCart className="h-4 w-4" aria-hidden="true" />
         {soldOut ? "Out of stock" : "Add to cart"}
@@ -168,7 +168,7 @@ export default function ProductCard({
       <Link
         href={href}
         aria-label={`View full details for ${product.name}`}
-        className="grid place-items-center rounded-xl border px-3 transition-colors"
+        className="inline-flex h-[44px] w-[44px] items-center justify-center grid place-items-center rounded-xl border px-3 transition-colors"
         style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
       >
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -216,7 +216,7 @@ export default function ProductCard({
             <Heart
               className="h-4 w-4"
               aria-hidden="true"
-              style={{ color: saved ? "#ef4444" : "var(--text-tertiary)", fill: saved ? "#ef4444" : "none" }}
+              style={{ color: saved ? "var(--status-danger-text)" : "var(--text-tertiary)", fill: saved ? "var(--status-danger-text)" : "none" }}
             />
           )}
           {iconButton(
@@ -235,7 +235,7 @@ export default function ProductCard({
           <button
             type="button"
             onClick={() => onQuickView(product)}
-            className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold backdrop-blur transition-all duration-200 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100"
+            className="min-h-[44px] absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold backdrop-blur transition-all duration-200 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100"
             style={{
               background: "var(--bg-glass-strong)",
               borderColor: "var(--border-primary)",

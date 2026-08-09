@@ -388,7 +388,7 @@ export default function ServicesPage() {
                           {/* Tech preview badges */}
                           <div className="flex flex-wrap gap-1.5 mt-3">
                             {service.technologies.slice(0, 5).map((tech) => (
-                              <span key={tech} className="px-2 py-0.5 rounded-full text-[9px] font-medium" style={{ background: "var(--accent-cyan-muted)", color: "var(--accent-cyan)" }}>
+                              <span key={tech} className="px-2 py-0.5 rounded-full text-[9px] font-medium" style={{ background: "var(--accent-cyan-muted)", color: "var(--accent-cyan-text)" }}>
                                 {tech}
                               </span>
                             ))}

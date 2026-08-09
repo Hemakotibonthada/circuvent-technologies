@@ -192,7 +192,7 @@ export default function Assistant({ surface: surfaceProp }: { surface?: Surface 
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="min-h-11 rounded-xl px-3 py-2 text-left text-[13px] transition hover:bg-white/10"
+                  className="min-h-[44px] rounded-xl px-3 py-2 text-left text-[13px] transition hover:bg-white/10"
                   style={{
                     background: "var(--bg-elevated,rgba(255,255,255,0.05))",
                     border: "1px solid var(--border-primary,rgba(255,255,255,0.1))",
@@ -272,7 +272,7 @@ export default function Assistant({ surface: surfaceProp }: { surface?: Surface 
           placeholder="Ask anything…"
           aria-label="Message the assistant"
           disabled={busy}
-          className="min-h-11 flex-1 rounded-xl px-3 text-sm outline-none"
+          className="min-h-[44px] flex-1 rounded-xl px-3 text-sm outline-none"
           style={{
             background: "var(--bg-elevated,rgba(255,255,255,0.05))",
             border: "1px solid var(--border-primary,rgba(255,255,255,0.1))",
@@ -283,7 +283,7 @@ export default function Assistant({ surface: surfaceProp }: { surface?: Surface 
           type="submit"
           disabled={busy || !input.trim()}
           aria-label="Send message"
-          className="flex h-11 w-11 items-center justify-center rounded-xl transition disabled:opacity-40"
+          className="flex h-[44px] w-[44px] items-center justify-center rounded-xl transition disabled:opacity-40"
           style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" }}
         >
           <Send className="h-4 w-4" />

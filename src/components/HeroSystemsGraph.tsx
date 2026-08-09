@@ -278,6 +278,21 @@ export default function HeroSystemsGraph() {
                   }}
                   className="cursor-pointer outline-none"
                 >
+                  {/*
+                   * A transparent disc, purely to be hit.
+                   *
+                   * The visible node is a 40px circle and a group's hit area
+                   * is only where its children actually paint, so on a phone
+                   * these domain nodes gave 26-44px of tappable area with the
+                   * label doing most of the work. fill="transparent" still
+                   * takes pointer events -- fill="none" would not.
+                   *
+                   * r=34 because the SVG is drawn in a 520-unit box scaled to
+                   * about 335px on a phone: 68 units across becomes 44 real
+                   * pixels. The nodes sit 172 units apart, so nothing here
+                   * overlaps its neighbour and steals its taps.
+                   */}
+                  <circle cx={n.x} cy={n.y} r="34" fill="transparent" />
                   {on && <circle cx={n.x} cy={n.y} r="30" fill={n.color} fillOpacity="0.18" filter="url(#soft)" />}
                   <motion.circle
                     cx={n.x}
@@ -395,7 +410,7 @@ export default function HeroSystemsGraph() {
                 </span>
               ))}
             </div>
-            <Link href={exploreHref} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: activeInfo.color }}>
+            <Link href={exploreHref} className="min-h-[44px] mt-3 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: activeInfo.color }}>
               {isCore ? "Explore all domains" : `Explore ${activeInfo.label}`} <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </motion.div>

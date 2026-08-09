@@ -323,7 +323,7 @@ function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemb
 
             {/* Social icons */}
             {activeSocials.length > 0 && (
-              <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: "1px solid var(--border-primary)" }}>
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4" style={{ borderTop: "1px solid var(--border-primary)" }}>
                 {activeSocials.map(([platform, url]) => {
                   const social = socialIcons[platform];
                   if (!social) return null;
@@ -335,7 +335,7 @@ function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemb
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="p-2 rounded-xl transition-all duration-200"
+                      className="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl transition-all duration-200"
                       style={{
                         background: "var(--bg-surface)",
                         border: "1px solid var(--border-primary)",
@@ -361,7 +361,7 @@ function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemb
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium"
+                    className="min-h-[44px] ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium"
                     style={{
                       background: "var(--accent-cyan-muted)",
                       color: "var(--accent-cyan)",

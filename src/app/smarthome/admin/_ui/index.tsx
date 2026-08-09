@@ -104,10 +104,10 @@ export function Btn({
   type?: "button" | "submit"; disabled?: boolean; className?: string; title?: string;
 }) {
   /*
-   * min-h-[44px] in explicit pixels, not min-h-11.
+   * min-h-[44px] in explicit pixels, not min-h-[44px].
    *
    * The 44px touch target is defined in CSS pixels by both WCAG 2.5.5 and
-   * Apple's HIG. Tailwind's min-h-11 is 2.75rem, which is 44px only while the
+   * Apple's HIG. Tailwind's min-h-[44px] is 2.75rem, which is 44px only while the
    * root font size is 16 — and globals.css rescales type below 640px, which is
    * exactly the width where the target size matters. Measured at 43px on a
    * phone, which is a rule that looks satisfied and is not.

@@ -210,7 +210,15 @@ export default function ContactPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-medium" style={{ color: "var(--accent-cyan)" }}>{type.stats}</span>
                       {type.href && (
-                        <Link href={type.href}>
+                        <Link
+                          href={type.href}
+                          aria-label={`${type.title}: ${type.stats}`}
+                          /* The arrow only appears on hover, which a phone
+                             never does, and it was a 14px target. Sized to be
+                             reachable and named so it is not an anonymous
+                             link when the icon is invisible. */
+                          className="inline-flex h-[44px] w-[44px] items-center justify-center"
+                        >
                           <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--accent-cyan)" }} />
                         </Link>
                       )}

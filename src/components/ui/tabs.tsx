@@ -48,16 +48,27 @@ export function Tabs({
   }, [activeTab, variant]);
 
   const sizeClasses = {
-    sm: "px-3 py-1.5 text-xs",
-    md: "px-4 py-2 text-sm",
-    lg: "px-6 py-3 text-base",
+    // A tab is a primary navigation control, so it gets a full 44px target at
+    // every size. Only the horizontal padding and type scale change.
+    sm: "min-h-[44px] px-3 py-1.5 text-xs",
+    md: "min-h-[44px] px-4 py-2 text-sm",
+    lg: "min-h-[44px] px-6 py-3 text-base",
   };
 
   return (
     <div
       ref={tabsRef}
       className={cn(
-        "relative inline-flex",
+        /*
+         * Scroll rather than push the page sideways.
+         *
+         * A tab strip is as wide as its labels, and on /docs that came to
+         * 575px inside a 390px viewport -- so the whole page scrolled
+         * horizontally and every other element on it moved. max-w-full
+         * plus overflow-x-auto keeps the overflow inside the strip, where
+         * it belongs.
+         */
+        "relative inline-flex max-w-full overflow-x-auto",
         variant === "pills" && "gap-1 p-1 rounded-xl",
         variant === "underline" && "gap-0",
         variant === "bordered" &&
@@ -144,7 +155,7 @@ export function Tabs({
                   className="text-xs px-1.5 py-0.5 rounded-full"
                   style={{
                     background: isActive
-                      ? "var(--accent-cyan)"
+                      ? "var(--accent-cyan-text)"
                       : "var(--bg-surface)",
                     color: isActive
                       ? "white"

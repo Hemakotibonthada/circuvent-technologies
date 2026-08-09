@@ -1097,7 +1097,7 @@ export default function DocsPage() {
                             </span>
                             <button
                               onClick={() => handleCopy(item.code!, `${activeSection}-${i}`)}
-                              className="flex items-center gap-1 text-xs cursor-pointer transition-colors hover:text-[var(--accent-cyan)]"
+                              className="min-h-[44px] flex items-center gap-1 text-xs cursor-pointer transition-colors hover:text-[var(--accent-cyan)]"
                               style={{ color: "var(--text-muted)" }}
                             >
                               {copiedCode === `${activeSection}-${i}` ? (

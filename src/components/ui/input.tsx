@@ -41,7 +41,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             type={type}
             id={inputId}
             className={cn(
-              "flex h-11 w-full rounded-xl px-4 py-2 text-sm transition-all duration-200",
+              "flex h-[44px] w-full rounded-xl px-4 py-2 text-sm transition-all duration-200",
               "focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] focus:ring-offset-1 focus:ring-offset-[var(--bg-primary)]",
               "disabled:cursor-not-allowed disabled:opacity-50",
               "placeholder:text-[var(--text-muted)]",

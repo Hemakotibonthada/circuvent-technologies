@@ -407,7 +407,7 @@ export default function CheckoutPage() {
           <div className="mt-2 flex flex-wrap justify-center gap-3">
             <Link
               href={`/track?order=${encodeURIComponent(done.orderNo)}&email=${encodeURIComponent(done.customer.email)}`}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
             >
               <Truck className="h-4 w-4" /> Track order
             </Link>
@@ -432,7 +432,7 @@ export default function CheckoutPage() {
         </h1>
         <Link
           href="/shop"
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
+          className="min-h-[44px] mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
         >
           Browse the shop <ArrowRight className="h-4 w-4" />
         </Link>

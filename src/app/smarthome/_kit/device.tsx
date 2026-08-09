@@ -111,7 +111,7 @@ export function PowerButton({
 }) {
   const mp = masterPower(device);
   if (!mp) return null;
-  const dim = size === "sm" ? "h-9 w-9" : "h-11 w-11";
+  const dim = size === "sm" ? "h-9 w-9" : "h-[44px] w-[44px]";
   return (
     <button
       onClick={(e) => {
@@ -204,7 +204,7 @@ export function DeviceTile({
             disabled={!device.online}
             aria-label={`${mp.on ? "Turn off" : "Turn on"} ${device.name}`}
             title={device.online ? mp.label : "Device offline"}
-            className={`pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-90 disabled:active:scale-100 ${RING[status]}`}
+            className={`pointer-events-auto flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full transition active:scale-90 disabled:active:scale-100 ${RING[status]}`}
             style={
               on
                 ? { background: tint, color: "#fff", boxShadow: "var(--cv-shadow-1)" }
@@ -215,7 +215,7 @@ export function DeviceTile({
           </button>
         ) : (
           <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+            className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full"
             style={{ background: "var(--cv-card-hi)", color: tint }}
           >
             <Icon className="h-[22px] w-[22px]" />

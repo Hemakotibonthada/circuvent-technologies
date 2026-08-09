@@ -174,7 +174,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
         <div>
           {/* Topbar */}
           <header className="ad-topbar sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 px-4 py-3 backdrop-blur-xl md:px-6">
-            <button onClick={() => setMobileOpen(true)} aria-label="Open navigation menu" className="grid h-11 w-11 place-items-center rounded-lg border border-white/10 text-slate-300 md:hidden cursor-pointer">
+            <button onClick={() => setMobileOpen(true)} aria-label="Open navigation menu" className="grid h-[44px] w-[44px] place-items-center rounded-lg border border-white/10 text-slate-300 md:hidden cursor-pointer">
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
@@ -195,11 +195,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
 
             <div className="ml-auto flex items-center gap-2 sm:ml-0">
               <ModeBadge mode={mode} />
-              <Link href="/smarthome/admin/alerts" aria-label={attentionCount > 0 ? `Alerts — ${attentionCount} need attention` : "Alerts"} className="relative grid h-11 w-11 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06]">
+              <Link href="/smarthome/admin/alerts" aria-label={attentionCount > 0 ? `Alerts — ${attentionCount} need attention` : "Alerts"} className="relative grid h-[44px] w-[44px] place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06]">
                 <Bell className="h-[18px] w-[18px]" />
                 {attentionCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{attentionCount}</span>}
               </Link>
-              <a href="mailto:support@circuvent.com" aria-label="Email support" className="hidden h-11 w-11 place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06] sm:grid"><LifeBuoy className="h-[18px] w-[18px]" /></a>
+              <a href="mailto:support@circuvent.com" aria-label="Email support" className="hidden h-[44px] w-[44px] place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06] sm:grid"><LifeBuoy className="h-[18px] w-[18px]" /></a>
               <UserMenu email={user?.email ?? "admin@circuvent.com"} name={user?.name ?? "Platform Admin"} onLogout={logout} />
             </div>
           </header>
@@ -256,7 +256,7 @@ function UserMenu({ email, name, onLogout }: { email: string; name: string; onLo
   const initials = name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="grid h-11 w-11 place-items-center rounded-lg text-sm font-bold text-white cursor-pointer" style={{ background: "var(--cv-gradient)" }}>
+      <button onClick={() => setOpen((o) => !o)} className="grid h-[44px] w-[44px] place-items-center rounded-lg text-sm font-bold text-white cursor-pointer" style={{ background: "var(--cv-gradient)" }}>
         {initials}
       </button>
       {open && (

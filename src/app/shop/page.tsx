@@ -254,7 +254,7 @@ export default async function ShopPage({
             <Link
               href="/shop"
               aria-current={activeCategory ? undefined : "page"}
-              className="rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors"
+              className="inline-flex min-h-[44px] items-center rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors"
               style={{
                 background: activeCategory ? "var(--bg-surface)" : "var(--accent-cyan-muted)",
                 borderColor: activeCategory ? "var(--border-primary)" : "var(--border-accent)",
@@ -270,7 +270,7 @@ export default async function ShopPage({
                   key={c}
                   href={`/shop?cat=${encodeURIComponent(c)}`}
                   aria-current={isActive ? "page" : undefined}
-                  className="rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors"
+                  className="inline-flex min-h-[44px] items-center rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors"
                   style={{
                     background: isActive ? "var(--accent-cyan-muted)" : "var(--bg-surface)",
                     borderColor: isActive ? "var(--border-accent)" : "var(--border-primary)",

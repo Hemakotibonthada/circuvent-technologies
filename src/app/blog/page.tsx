@@ -100,7 +100,7 @@ export default function BlogPage() {
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium transition-all duration-300 cursor-pointer whitespace-nowrap"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium transition-all duration-300 cursor-pointer whitespace-nowrap"
                   style={
                     activeCategory === cat
                       ? {
@@ -135,7 +135,7 @@ export default function BlogPage() {
                 placeholder="Search articles..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] transition-all"
+                className="min-h-[44px] w-full pl-9 pr-3 py-2 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] transition-all"
                 style={{
                   background: "var(--bg-surface)",
                   border: "1px solid var(--border-primary)",

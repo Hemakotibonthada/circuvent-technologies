@@ -82,7 +82,7 @@ export default function ShopToolbar({
         aria-pressed={active}
         aria-label={label}
         title={label}
-        className="grid h-9 w-9 place-items-center rounded-lg transition-colors"
+        className="grid h-[44px] w-[44px] place-items-center rounded-lg transition-colors"
         style={{
           background: active ? "var(--accent-cyan-muted)" : "transparent",
           color: active ? "var(--accent-cyan)" : "var(--text-tertiary)",
@@ -157,7 +157,7 @@ export default function ShopToolbar({
             <select
               value={state.sort}
               onChange={(e) => onChange({ sort: e.target.value as SortId })}
-              className="rounded-xl border px-3 py-3 text-sm outline-none sm:py-2.5"
+              className="min-h-[44px] rounded-xl border px-3 py-3 text-sm outline-none sm:py-2.5"
               style={{
                 background: "var(--bg-surface)",
                 borderColor: "var(--border-primary)",

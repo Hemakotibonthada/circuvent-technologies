@@ -588,7 +588,7 @@ function SignedIn({
             </ul>
           ) : ordersError ? (
             <div className="py-10 text-center">
-              <AlertCircle className="mx-auto h-8 w-8" style={{ color: "#f59e0b" }} />
+              <AlertCircle className="mx-auto h-8 w-8" style={{ color: "var(--status-warning-text)" }} />
               <p className="mt-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                 We couldn&apos;t load your orders
               </p>
@@ -657,7 +657,7 @@ function SignedIn({
                     </span>
                     <div className="flex flex-wrap items-center gap-3">
                       {["placed", "confirmed"].includes(o.status) && (
-                        <button onClick={() => cancelOrder(o.orderNo)} className="text-xs font-medium" style={{ color: "#ef4444" }}>
+                        <button onClick={() => cancelOrder(o.orderNo)} className="text-xs font-medium" style={{ color: "var(--status-danger-text)" }}>
                           Cancel
                         </button>
                       )}
@@ -772,7 +772,7 @@ function SignedIn({
                       )}
                       {t.reason}
                     </span>
-                    <span className="font-medium" style={{ color: t.type === "credit" ? "#10b981" : "var(--text-primary)" }}>
+                    <span className="font-medium" style={{ color: t.type === "credit" ? "var(--status-success-text)" : "var(--text-primary)" }}>
                       {t.type === "credit" ? "+" : "−"}
                       {formatINR(t.amount)}
                     </span>
@@ -825,7 +825,7 @@ function WishlistSection({
                       {p.name}
                     </Link>
                     <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                      {formatINR(p.price)} {soldOut && <span className="text-xs" style={{ color: "#ef4444" }}>· Out of stock</span>}
+                      {formatINR(p.price)} {soldOut && <span className="text-xs" style={{ color: "var(--status-danger-text)" }}>· Out of stock</span>}
                     </p>
                   </div>
                   <button
@@ -960,7 +960,7 @@ function SupportSection({ authHeaders }: { authHeaders: () => Record<string, str
                 <li key={t.id} className="rounded-lg border p-3 text-sm" style={{ borderColor: "var(--border-primary)" }}>
                   <div className="flex items-center justify-between">
                     <span style={{ color: "var(--text-primary)" }}>{t.subject}</span>
-                    <span className="text-xs" style={{ color: t.status === "open" ? "#f59e0b" : "#10b981" }}>
+                    <span className="text-xs" style={{ color: t.status === "open" ? "var(--status-warning-text)" : "var(--status-success-text)" }}>
                       {t.status}
                     </span>
                   </div>
@@ -993,7 +993,7 @@ function SupportSection({ authHeaders }: { authHeaders: () => Record<string, str
                   <span className="font-mono" style={{ color: "var(--text-primary)" }}>
                     {r.orderNo}
                   </span>
-                  <span className="text-xs" style={{ color: r.status === "refunded" ? "#10b981" : r.status === "rejected" ? "#ef4444" : "#f59e0b" }}>
+                  <span className="text-xs" style={{ color: r.status === "refunded" ? "var(--status-success-text)" : r.status === "rejected" ? "var(--status-danger-text)" : "var(--status-warning-text)" }}>
                     {r.status}
                     {r.refundAmount ? ` · ${formatINR(r.refundAmount)}` : ""}
                   </span>

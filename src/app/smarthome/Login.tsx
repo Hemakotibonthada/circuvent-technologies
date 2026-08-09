@@ -116,7 +116,7 @@ export default function Login() {
         <div className="relative hidden flex-col justify-between p-12 lg:flex">
           <div className="flex items-center gap-3">
             <div
-              className="h-11 w-11 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
+              className="h-[44px] w-[44px] rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
               style={{ background: "var(--cv-gradient)" }}
             >
               <Cpu className="h-6 w-6 text-white" />
@@ -170,7 +170,7 @@ export default function Login() {
             {/* Mobile brand */}
             <div className="mb-8 flex items-center gap-3 justify-center lg:hidden">
               <div
-                className="h-11 w-11 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
+                className="h-[44px] w-[44px] rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
                 style={{ background: "var(--cv-gradient)" }}
               >
                 <Cpu className="h-6 w-6 text-white" />

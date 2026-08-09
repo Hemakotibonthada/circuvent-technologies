@@ -24,7 +24,7 @@ export default function CartPage() {
           <p style={{ color: "var(--text-tertiary)" }}>Your cart is empty.</p>
           <Link
             href="/shop"
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
           >
             Browse the shop <ArrowRight className="h-4 w-4" />
           </Link>

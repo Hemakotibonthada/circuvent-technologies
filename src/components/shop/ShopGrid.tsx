@@ -203,7 +203,7 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
                       style={{
                         background: "var(--bg-surface)",
                         borderColor: "var(--border-accent)",
-                        color: "var(--accent-cyan)",
+                        color: "var(--accent-cyan-text)",
                       }}
                     >
                       Load {Math.min(PAGE_SIZE, results.length - visible)} more products
@@ -232,7 +232,7 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
                   <button
                     type="button"
                     onClick={handleClear}
-                    className="mt-1 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
+                    className="mt-1 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white"
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden="true" /> Clear all filters
                   </button>

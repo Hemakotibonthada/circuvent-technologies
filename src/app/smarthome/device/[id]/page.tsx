@@ -123,7 +123,7 @@ export default function DevicePage() {
         </div>
         <button
           onClick={() => patch({ favorite: !device.favorite })}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition hover:brightness-125 active:scale-95 focus:outline-none focus-visible:ring-2"
+          className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl transition hover:brightness-125 active:scale-95 focus:outline-none focus-visible:ring-2"
           aria-label={
             device.favorite ? "Remove from favourites" : "Add to favourites"
           }

@@ -28,7 +28,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         <select
           id={selectId}
           className={cn(
-            "flex h-11 w-full rounded-xl px-4 py-2 text-sm transition-all duration-200 appearance-none cursor-pointer",
+            "flex h-[44px] w-full rounded-xl px-4 py-2 text-sm transition-all duration-200 appearance-none cursor-pointer",
             "focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)] focus:ring-offset-1 focus:ring-offset-[var(--bg-primary)]",
             "disabled:cursor-not-allowed disabled:opacity-50",
             error && "ring-2 ring-rose-500/50",

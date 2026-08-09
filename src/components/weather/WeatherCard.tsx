@@ -91,9 +91,9 @@ export default function WeatherCard({ defaultQuery = "Bengaluru", className = ""
           <span className="truncate text-sm font-semibold" style={{ color: T }}>{bundle?.place.name ?? "Weather"}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={useMyLocation} title="Use my location" className="rounded-lg p-2 hover:bg-white/5"><MapPin className="h-4 w-4" style={{ color: T3 }} /></button>
-          <button onClick={() => setShowSearch((s) => !s)} title="Search city" className="rounded-lg p-2 hover:bg-white/5"><Search className="h-4 w-4" style={{ color: T3 }} /></button>
-          <button onClick={() => bundle && loadByCoords(bundle.place.latitude, bundle.place.longitude, bundle.place.name)} title="Refresh" className="rounded-lg p-2 hover:bg-white/5"><RefreshCw className="h-4 w-4" style={{ color: T3 }} /></button>
+          <button onClick={useMyLocation} title="Use my location" className="rounded-lg inline-flex h-[44px] w-[44px] items-center justify-center hover:bg-white/5"><MapPin className="h-4 w-4" style={{ color: T3 }} /></button>
+          <button onClick={() => setShowSearch((s) => !s)} title="Search city" className="rounded-lg inline-flex h-[44px] w-[44px] items-center justify-center hover:bg-white/5"><Search className="h-4 w-4" style={{ color: T3 }} /></button>
+          <button onClick={() => bundle && loadByCoords(bundle.place.latitude, bundle.place.longitude, bundle.place.name)} title="Refresh" className="rounded-lg inline-flex h-[44px] w-[44px] items-center justify-center hover:bg-white/5"><RefreshCw className="h-4 w-4" style={{ color: T3 }} /></button>
         </div>
       </div>
 
@@ -142,7 +142,7 @@ export default function WeatherCard({ defaultQuery = "Bengaluru", className = ""
             <Stat icon={<Droplets className="h-4 w-4" />} label="Humidity" value={`${Math.round(cur.humidity)}%`} T={T} T3={T3} />
             <Stat icon={<Wind className="h-4 w-4" />} label="Wind" value={`${Math.round(cur.windSpeed)} km/h`} T={T} T3={T3} />
             <Stat icon={<Sun className="h-4 w-4" />} label="UV max" value={`${Math.round(bundle.daily[0]?.uvIndexMax ?? 0)}`} T={T} T3={T3} />
-            {aqi && <Stat icon={<Eye className="h-4 w-4" />} label="AQI" value={bundle.air?.usAqi != null ? String(Math.round(bundle.air.usAqi)) : "—"} valueColor={aqi.color} T={T} T3={T3} />}
+            {aqi && <Stat icon={<Eye className="h-4 w-4" />} label="AQI" value={bundle.air?.usAqi != null ? String(Math.round(bundle.air.usAqi)) : "—"} valueColor={aqi.textColor} T={T} T3={T3} />}
             {cur.pressure != null && <Stat icon={<Gauge className="h-4 w-4" />} label="Pressure" value={`${Math.round(cur.pressure)}`} T={T} T3={T3} />}
           </div>
           {bundle.daily[0] && (
@@ -158,7 +158,7 @@ export default function WeatherCard({ defaultQuery = "Bengaluru", className = ""
                   <span className="text-xs" style={{ color: T3 }}>{i === 0 ? "Now" : fmtHour(h.time)}</span>
                   <span className="text-lg">{hw.icon}</span>
                   <span className="text-sm font-semibold" style={{ color: T }}>{Math.round(h.temperature)}°</span>
-                  <span className="text-[10px]" style={{ color: "var(--accent-cyan, #38bdf8)" }}>{Math.round(h.precipitationProb)}%</span>
+                  <span className="text-[10px]" style={{ color: "var(--accent-cyan-text, #155e75)" }}>{Math.round(h.precipitationProb)}%</span>
                 </div>
               );
             })}
@@ -174,7 +174,7 @@ export default function WeatherCard({ defaultQuery = "Bengaluru", className = ""
                 <div key={d.date} className="flex items-center gap-3 text-sm">
                   <span className="w-12 shrink-0" style={{ color: T2 }}>{fmtDay(d.date, i)}</span>
                   <span className="w-6 text-center">{dw.icon}</span>
-                  <span className="w-8 shrink-0 text-right text-xs" style={{ color: "var(--accent-cyan, #38bdf8)" }}>{Math.round(d.precipProbMax)}%</span>
+                  <span className="w-8 shrink-0 text-right text-xs" style={{ color: "var(--accent-cyan-text, #155e75)" }}>{Math.round(d.precipProbMax)}%</span>
                   <span className="w-7 shrink-0 text-right" style={{ color: T3 }}>{Math.round(d.tMin)}°</span>
                   <div className="relative h-1.5 flex-1 rounded-full" style={{ background: "var(--bg-glass, rgba(255,255,255,0.08))" }}>
                     <div className="absolute h-1.5 rounded-full" style={{ left: `${left}%`, width: `${Math.max(6, width)}%`, background: "linear-gradient(90deg,#22d3ee,#f59e0b)" }} />

@@ -248,7 +248,7 @@ export default function Footer() {
                   rel="noopener noreferrer"
                   whileHover={{ scale: 1.1, y: -3, backgroundColor: social.hoverBg }}
                   whileTap={{ scale: 0.95 }}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-300"
+                  className="inline-flex h-[44px] w-[44px] items-center justify-center rounded-xl transition-all duration-300"
                   style={{
                     background: "var(--bg-surface)",
                     border: "1px solid var(--border-primary)",
@@ -277,7 +277,19 @@ export default function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="group/link relative flex items-center gap-1 text-sm py-0.5 transition-all duration-300"
+                      /*
+                       * Taller on touch, unchanged on the desktop layout.
+                       *
+                       * These are the footer's link columns -- roughly 40
+                       * links, on every page, and they measured 24px tall.
+                       * That was 1,160 of the 1,561 undersized controls on
+                       * the site: one line of markup, counted once per link
+                       * per page. Giving them 44px everywhere would make the
+                       * footer enormous on a wide screen for no benefit,
+                       * since a mouse pointer is not a fingertip, so the
+                       * minimum only applies below the md breakpoint.
+                       */
+                      className="group/link relative flex min-h-[44px] items-center gap-1 text-sm py-0.5 transition-all duration-300 md:min-h-0"
                       style={{ color: hoveredLink === link.label ? "var(--accent-cyan)" : "var(--text-muted)" }}
                       onMouseEnter={() => setHoveredLink(link.label)}
                       onMouseLeave={() => setHoveredLink(null)}
@@ -327,7 +339,7 @@ export default function Footer() {
             {/* Back to top */}
             <motion.button
               onClick={scrollToTop}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl transition-all"
+              className="inline-flex h-[44px] w-[44px] items-center justify-center rounded-xl transition-all"
               style={{
                 background: "var(--bg-surface)",
                 border: "1px solid var(--border-primary)",

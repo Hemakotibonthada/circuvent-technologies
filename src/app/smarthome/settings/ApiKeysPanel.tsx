@@ -212,7 +212,7 @@ function CreateKeyForm({
               <button
                 key={e}
                 onClick={() => setEnv(e)}
-                className="min-h-11 rounded-xl border px-4 text-sm font-semibold transition"
+                className="min-h-[44px] rounded-xl border px-4 text-sm font-semibold transition"
                 style={{
                   borderColor: env === e ? "var(--cv-accent)" : "var(--cv-border)",
                   background: env === e ? "var(--cv-card-hi)" : "transparent",

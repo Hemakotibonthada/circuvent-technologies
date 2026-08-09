@@ -150,7 +150,7 @@ export default function ProjectCard({
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
-            className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:bg-[var(--accent-cyan-muted)]"
+            className="inline-flex h-[44px] w-[44px] items-center justify-center rounded-lg transition-all duration-200 cursor-pointer hover:bg-[var(--accent-cyan-muted)]"
             style={{ color: "var(--text-muted)" }}
             aria-label={`View ${project.name}`}
           >

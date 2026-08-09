@@ -224,7 +224,7 @@ export default function TrackPage() {
                       className="group flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors hover:border-[var(--border-accent)]"
                       style={{ background: "var(--bg-surface)", borderColor: active ? "var(--border-accent)" : "var(--border-primary)" }}
                     >
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+                      <div className="grid h-[44px] w-[44px] shrink-0 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
                         <Package className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -258,7 +258,7 @@ export default function TrackPage() {
       {/* Guests: nudge to sign in for one-tap tracking. */}
       {ready && !account && (
         <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
-          <Link href="/shop/account" className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--accent-cyan)" }}>
+          <Link href="/shop/account" className="min-h-[44px] inline-flex items-center gap-1 font-semibold" style={{ color: "var(--accent-cyan)" }}>
             <LogIn className="h-3.5 w-3.5" /> Sign in
           </Link>{" "}
           to see all your orders and track them in one tap.

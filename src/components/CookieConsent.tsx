@@ -86,7 +86,7 @@ export default function CookieConsent() {
         <button
           onClick={() => choose("essential")}
           aria-label="Dismiss (essential cookies only)"
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+          className="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-lg"
           style={{ color: "var(--text-muted)" }}
         >
           <X className="h-4 w-4" />

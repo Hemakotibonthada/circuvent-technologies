@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 
 /*
@@ -69,7 +69,62 @@ describe("accent text tokens", () => {
     const ratio = contrast(hexToRgb(token("accent-cyan")), WHITE);
     expect(ratio).toBeLessThan(4.5);
   });
+
+  /** The tinted surface the service-timeline chips sit on. */
+  const TINTED: RGB = [245, 247, 250]; // #f5f7fa, --bg-surface-hover
+
+  it.each([
+    ["white", WHITE],
+    ["the tinted surface", TINTED],
+    ["the lightest card", LIGHTEST_CARD],
+  ])("--text-muted is readable on %s", (_label, bg) => {
+    // It is called "muted", not "optional". This token carries body copy on
+    // every public page; at #8494a7 it was 3.1:1 and was the single largest
+    // source of contrast failures on the site.
+    expect(contrast(hexToRgb(token("text-muted")), bg as RGB)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(["status-success-text", "status-warning-text", "status-danger-text"])(
+    "--%s can be read as text on white",
+    (name) => {
+      // The vivid emerald/amber/red are for dots and fills. These are the
+      // shades used for the price, the refund and the ticket status.
+      expect(contrast(hexToRgb(token(name)), WHITE)).toBeGreaterThanOrEqual(4.5);
+    }
+  );
 });
+
+describe("touch targets", () => {
+  /*
+   * Tailwind's h-11 is 2.75rem, and globals.css rescales the root font size
+   * below 640px -- so h-11 renders at about 42px on the phone widths where a
+   * touch target actually matters. Measuring found rows of icon buttons at
+   * 42x42 that all said h-11. Sizes meant to guarantee a minimum have to be
+   * written in pixels.
+   */
+  const files = walk(join(root, "src"));
+
+  it("does not use rem-based h-11 for a 44px minimum", () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(f, "utf8");
+      for (const line of src.split("\n")) {
+        if (/\bh-11\b/.test(line)) offenders.push(`${f.replace(root, "")}: ${line.trim().slice(0, 80)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (name === "node_modules") continue;
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (/\.tsx$/.test(name)) out.push(p);
+  }
+  return out;
+}
 
 describe("cookie consent", () => {
   const banner = readFileSync(join(root, "src/components/CookieConsent.tsx"), "utf8");
@@ -93,7 +148,15 @@ describe("cookie consent", () => {
     const buttons = openingTags(banner, "button");
     expect(buttons.length).toBeGreaterThan(0);
     for (const b of buttons) {
-      expect(b).toMatch(/min-h-\[44px\]|h-11/);
+      /*
+       * Explicit pixels, not Tailwind's rem-based h-11.
+       *
+       * globals.css rescales the root font size below 640px, so h-11 (2.75rem)
+       * renders at about 42px on a phone -- which is exactly where the rule
+       * matters. Measuring caught a row of icon buttons sitting at 42px while
+       * every one of them said h-11.
+       */
+      expect(b).toMatch(/min-h-\[44px\]|h-\[44px\]/);
     }
   });
 });

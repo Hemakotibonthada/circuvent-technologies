@@ -495,7 +495,7 @@ export default function Navigation() {
               <ThemeToggle />
               <motion.button
                 onClick={() => setIsMobileOpen(!isMobileOpen)}
-                className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl"
+                className="relative inline-flex h-[44px] w-[44px] items-center justify-center rounded-xl"
                 style={{
                   background: isMobileOpen ? "var(--accent-cyan-muted)" : "transparent",
                   border: `1px solid ${isMobileOpen ? "var(--border-accent)" : "transparent"}`,

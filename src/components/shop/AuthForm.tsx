@@ -122,7 +122,7 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
     return (
       <div className={shell} style={shellStyle}>
         <div className="mb-4 flex items-center justify-center">
-          <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+          <span className="grid h-[44px] w-[44px] place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
             <MailCheck className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
           </span>
         </div>
@@ -179,7 +179,7 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
     return (
       <div className={shell} style={shellStyle}>
         <div className="mb-4 flex items-center justify-center">
-          <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+          <span className="grid h-[44px] w-[44px] place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
             <KeyRound className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
           </span>
         </div>
@@ -220,7 +220,7 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
     return (
       <div className={shell} style={shellStyle}>
         <div className="mb-4 flex items-center justify-center">
-          <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+          <span className="grid h-[44px] w-[44px] place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
             <KeyRound className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
           </span>
         </div>
@@ -283,7 +283,7 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
   return (
     <div className={shell} style={shellStyle}>
       <div className="mb-4 flex items-center justify-center">
-        <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
+        <span className="grid h-[44px] w-[44px] place-items-center rounded-xl" style={{ background: "var(--accent-cyan-muted)" }}>
           <ShieldCheck className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
         </span>
       </div>
@@ -304,7 +304,7 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
               setErr("");
               setInfo("");
             }}
-            className="flex-1 rounded-lg py-2 text-sm font-semibold transition-colors"
+            className="min-h-[44px] items-center flex-1 rounded-lg py-2 text-sm font-semibold transition-colors"
             style={mode === m ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" } : { color: "var(--text-tertiary)" }}
           >
             {m === "login" ? "Sign in" : "Create account"}
@@ -343,8 +343,8 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
             setErr("");
             setInfo("");
           }}
-          className="mt-3 w-full text-center text-xs font-medium"
-          style={{ color: "var(--accent-cyan)" }}
+          className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center text-center text-xs font-medium"
+          style={{ color: "var(--accent-cyan-text)" }}
         >
           Forgot your password?
         </button>

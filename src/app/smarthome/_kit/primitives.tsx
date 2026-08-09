@@ -246,7 +246,7 @@ export function IconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 hover:brightness-125 focus-visible:ring-2"
+      className="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full transition active:scale-95 hover:brightness-125 focus-visible:ring-2"
       style={
         {
           background: active ? "var(--cv-accent)" : "var(--cv-card-hi)",
@@ -412,7 +412,7 @@ export function SearchField({
 }) {
   return (
     <div
-      className="flex min-h-11 flex-1 items-center gap-2.5 px-3.5 focus-within:ring-2 focus-within:ring-[var(--cv-accent)]"
+      className="flex min-h-[44px] flex-1 items-center gap-2.5 px-3.5 focus-within:ring-2 focus-within:ring-[var(--cv-accent)]"
       style={{
         background: "var(--cv-input-bg)",
         border: "1px solid var(--cv-border)",

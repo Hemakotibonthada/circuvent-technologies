@@ -105,7 +105,7 @@ export default function AppearancePanel() {
               aria-label={a.label}
               aria-pressed={active}
               title={a.label}
-              className="h-11 w-11 rounded-full transition focus:outline-none focus-visible:ring-2"
+              className="h-[44px] w-[44px] rounded-full transition focus:outline-none focus-visible:ring-2"
               style={
                 {
                   background: `linear-gradient(135deg, ${a.grad[0]}, ${a.grad[1]})`,
