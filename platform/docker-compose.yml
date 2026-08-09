@@ -37,9 +37,20 @@ services:
       - "8883:8883"   # device MQTT over TLS (public)
     healthcheck:
       # The broker is the single point every device depends on, so a hung
-      # process should be restarted rather than left accepting TCP but serving
-      # nothing. mosquitto_sub ships in the image.
-      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/#' -C 1 -W 3 -i healthcheck -q 1 || exit 1"]
+      # process should be restarted rather than left accepting TCP and serving
+      # nothing.
+      #
+      # Exit code 5 counts as healthy. The broker requires authentication and
+      # this probe deliberately carries no credentials — putting the
+      # control-plane password into a healthcheck would spread a secret across
+      # another file for no gain. Code 5 is an MQTT CONNACK saying "not
+      # authorised", which means the broker parsed a CONNECT and replied: it is
+      # alive, which is the only thing a liveness probe should assert. A dead
+      # or hung broker fails at TCP and returns something else.
+      #
+      # The first version of this treated 5 as failure and reported a perfectly
+      # healthy broker as unhealthy for forty minutes.
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/#' -C 1 -W 3 -i healthcheck -q 1 >/dev/null 2>&1; c=$$?; [ $$c -eq 0 ] || [ $$c -eq 5 ]"]
       interval: 30s
       timeout: 10s
       retries: 3
