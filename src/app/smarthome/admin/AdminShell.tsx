@@ -173,7 +173,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       <div className="transition-all duration-300 md:pl-[var(--adsb)]" style={{ "--adsb": `${sidebarW}px` } as React.CSSProperties}>
         <div>
           {/* Topbar */}
-          <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 px-4 py-3 backdrop-blur-xl md:px-6" style={{ background: "rgba(7,11,20,.75)" }}>
+          <header className="ad-topbar sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 px-4 py-3 backdrop-blur-xl md:px-6">
             <button onClick={() => setMobileOpen(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-slate-300 md:hidden cursor-pointer">
               <Menu className="h-5 w-5" />
             </button>
@@ -315,48 +315,103 @@ function CommandPalette({ onClose, onNavigate }: { onClose: () => void; onNaviga
 function ShellStyles() {
   return (
     <style jsx global>{`
+      /* The admin chrome, in the console's own tokens.
+       *
+       * WHY THIS IS NOT A PALETTE
+       *
+       * Every value here used to be a literal: #070b14 for the page,
+       * rgba(9,13,22,.92) for the sidebar, #e2e8f0 for text. That was fine
+       * while the console was dark-only. It stopped being fine when the light
+       * schemes arrived, and it failed in the worst available way.
+       *
+       * theme.tsx carries a light-scheme shim that remaps Tailwind's dark-first
+       * neutrals — .text-white becomes var(--cv-text) — so that ~1,100
+       * hardcoded utilities across /smarthome stay legible without editing
+       * every file. It reaches class names. It cannot reach a literal inside a
+       * styled-jsx block. So on a light scheme the admin's text was remapped to
+       * near-black while these surfaces stayed near-black too: measured at 1.07:1,
+       * which is text you cannot see at all rather than text that is merely hard
+       * to read.
+       *
+       * Reading from --cv-* means the surfaces move with the scheme, which is
+       * both the fix and the thing that keeps the shim honest: text and
+       * background now come from the same source.
+       */
       .ad-root {
         min-height: 100vh;
-        color: #e2e8f0;
+        color: var(--cv-text);
+        /* Status ramp, authored for dark cards. The light overrides sit below;
+           these are the values the admin has always used. */
+        --ad-fg-cyan: #22d3ee;
+        --ad-fg-green: #4ade80;
+        --ad-fg-amber: #fbbf24;
+        --ad-fg-red: #f87171;
+        --ad-fg-blue: #60a5fa;
+        --ad-fg-violet: #c084fc;
+        --ad-fg-slate: #94a3b8;
+        /* Only the accent wash is painted here. The page colour belongs to
+           .cv-theme, and painting it twice would mean this file has to know
+           what every scheme's background is — which is how it drifted. */
         background:
           radial-gradient(1000px 640px at 100% -6%, rgba(139, 92, 246, 0.10), transparent 60%),
-          radial-gradient(820px 520px at -6% 8%, rgba(6, 182, 212, 0.10), transparent 55%),
-          #070b14;
+          radial-gradient(820px 520px at -6% 8%, rgba(6, 182, 212, 0.10), transparent 55%);
         font-feature-settings: "cv01", "ss01";
       }
-      .ad-sidebar { background: rgba(9, 13, 22, 0.92); backdrop-filter: blur(16px); }
+      /* The same hues at the 600/700 level, which is where they stop being
+         pale-on-pale. Mirrors what theme.tsx already does for the text-*
+         utility classes; these have to be repeated because the tones are
+         applied as inline styles and a class shim cannot see them. */
+      .cv-light .ad-root {
+        --ad-fg-cyan: #0e7490;
+        --ad-fg-green: #047857;
+        --ad-fg-amber: #b45309;
+        --ad-fg-red: #b91c1c;
+        --ad-fg-blue: #1d4ed8;
+        --ad-fg-violet: #6d28d9;
+        --ad-fg-slate: #475569;
+      }
+      .ad-sidebar { background: var(--cv-card); backdrop-filter: blur(16px); }
+      .ad-topbar { background: var(--cv-card); }
       .ad-card {
-        background: rgba(15, 23, 42, 0.55);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--cv-card);
+        border: 1px solid var(--cv-border);
         backdrop-filter: blur(14px) saturate(140%);
       }
-      .ad-muted { color: #7c8aa5; }
+      .ad-muted { color: var(--cv-muted); }
       .ad-btn-primary {
-        background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+        background: var(--cv-gradient);
+        color: #fff;
         box-shadow: 0 8px 24px -8px rgba(6, 182, 212, 0.55);
       }
       .ad-btn-primary:hover { filter: brightness(1.06); }
       .ad-input {
         width: 100%;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid var(--cv-border);
+        background: var(--cv-input-bg);
         border-radius: 0.6rem;
         padding: 0.55rem 0.75rem;
-        color: #fff;
+        color: var(--cv-text);
         font-size: 0.85rem;
         outline: none;
         transition: border-color 0.15s;
       }
-      .ad-input:focus { border-color: rgba(6, 182, 212, 0.5); }
-      .ad-input::placeholder { color: #5b6577; }
-      .ad-input option { background: #0d1424; color: #fff; }
+      .ad-input:focus { border-color: var(--cv-accent); }
+      .ad-input::placeholder { color: var(--cv-muted); }
+      /* A native <option> renders in the OS popup, which does not inherit the
+         page's colours — it needs both stated explicitly or it is white text
+         on white on a light scheme. */
+      .ad-input option { background: var(--cv-card-hi); color: var(--cv-text); }
       .ad-iconbox {
         display: grid; place-items: center; height: 2.25rem; width: 2.25rem;
-        border-radius: 0.7rem; background: rgba(6, 182, 212, 0.12); color: #22d3ee;
+        border-radius: 0.7rem;
+        background: color-mix(in srgb, var(--cv-accent) 14%, transparent);
+        color: var(--cv-accent-hi);
       }
       .ad-root ::-webkit-scrollbar { width: 10px; height: 10px; }
-      .ad-root ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
-      .ad-root ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); background-clip: padding-box; }
+      /* Derived from the text colour so the thumb is visible on any scheme;
+         a fixed white at 8% is invisible on a light surface. */
+      .ad-root ::-webkit-scrollbar-thumb { background: color-mix(in srgb, currentColor 18%, transparent); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+      .ad-root ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, currentColor 32%, transparent); background-clip: padding-box; }
       @media (prefers-reduced-motion: reduce) { .ad-root * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
     `}</style>
   );

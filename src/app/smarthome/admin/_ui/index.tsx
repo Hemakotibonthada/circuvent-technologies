@@ -9,15 +9,30 @@ import { useMemo, useState, type ReactNode } from "react";
 
 export type Tone = "brand" | "green" | "amber" | "red" | "blue" | "violet" | "slate" | "cyan";
 
+/**
+ * Status colours, resolved through CSS variables rather than fixed hexes.
+ *
+ * These are applied as inline styles, which is what makes them a problem: the
+ * console's light-scheme shim in theme.tsx remaps Tailwind's dark-first
+ * neutrals by class name, and an inline style is invisible to it. So the whole
+ * ramp — authored at the 300/400 level for dark cards — stayed pale when the
+ * surfaces went light, and `slate` in particular measured 2.1:1 on a neo-light
+ * card, which is a label you have to lean in to read.
+ *
+ * Each tone therefore reads a variable, and ShellStyles defines two sets: the
+ * original ramp for dark schemes, and the 600/700 ramp under `.cv-light`. The
+ * tinted backgrounds and borders stay as they are — a 12% wash of the same hue
+ * works on either surface, and it is only the foreground that has to move.
+ */
 export const TONE: Record<Tone, { fg: string; bg: string; bd: string }> = {
-  brand: { fg: "#22d3ee", bg: "rgba(6,182,212,.12)", bd: "rgba(6,182,212,.30)" },
-  cyan: { fg: "#22d3ee", bg: "rgba(6,182,212,.12)", bd: "rgba(6,182,212,.30)" },
-  green: { fg: "#4ade80", bg: "rgba(34,197,94,.12)", bd: "rgba(34,197,94,.30)" },
-  amber: { fg: "#fbbf24", bg: "rgba(245,158,11,.12)", bd: "rgba(245,158,11,.30)" },
-  red: { fg: "#f87171", bg: "rgba(239,68,68,.12)", bd: "rgba(239,68,68,.30)" },
-  blue: { fg: "#60a5fa", bg: "rgba(59,130,246,.12)", bd: "rgba(59,130,246,.30)" },
-  violet: { fg: "#c084fc", bg: "rgba(139,92,246,.14)", bd: "rgba(139,92,246,.30)" },
-  slate: { fg: "#94a3b8", bg: "rgba(148,163,184,.10)", bd: "rgba(148,163,184,.22)" },
+  brand: { fg: "var(--ad-fg-cyan)", bg: "rgba(6,182,212,.12)", bd: "rgba(6,182,212,.30)" },
+  cyan: { fg: "var(--ad-fg-cyan)", bg: "rgba(6,182,212,.12)", bd: "rgba(6,182,212,.30)" },
+  green: { fg: "var(--ad-fg-green)", bg: "rgba(34,197,94,.12)", bd: "rgba(34,197,94,.30)" },
+  amber: { fg: "var(--ad-fg-amber)", bg: "rgba(245,158,11,.12)", bd: "rgba(245,158,11,.30)" },
+  red: { fg: "var(--ad-fg-red)", bg: "rgba(239,68,68,.12)", bd: "rgba(239,68,68,.30)" },
+  blue: { fg: "var(--ad-fg-blue)", bg: "rgba(59,130,246,.12)", bd: "rgba(59,130,246,.30)" },
+  violet: { fg: "var(--ad-fg-violet)", bg: "rgba(139,92,246,.14)", bd: "rgba(139,92,246,.30)" },
+  slate: { fg: "var(--ad-fg-slate)", bg: "rgba(148,163,184,.10)", bd: "rgba(148,163,184,.22)" },
 };
 
 // -------------------------------------------------------------- containers ---
