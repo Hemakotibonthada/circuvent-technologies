@@ -16,7 +16,7 @@
   --text-primary: #0c1222;
   --text-secondary: #2d3a4e;
   --text-tertiary: #536478;
-  --text-muted: #8494a7;
+  --text-muted: #64748b;
   --text-inverted: #fafbfd;
 
   --border-primary: rgba(12, 18, 34, 0.07);
@@ -40,7 +40,10 @@
    * which is how a token ends up needing a second token.
    */
   --accent-cyan-text: #155e75;
-  /* Inline code. Kept as its own name because a code chip is not a link, but
+  /* The skip link's surface. Dark enough that white text on it clears AA by a
+     wide margin, in every theme, since the link is fixed-position and lands on
+     whatever happens to be underneath. */
+  --skip-link-bg: #0f2b38;  /* Inline code. Kept as its own name because a code chip is not a link, but
      it resolves to the same readable weight. */
   --code-accent: var(--accent-cyan-text);
   --accent-pink: #db2777;
@@ -332,9 +335,61 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+/*
+ * The focus ring, guaranteed.
+ *
+ * The rule above is correct and was still losing. Measuring every focusable
+ * element on the public site found 1,509 controls that painted no visible
+ * indicator at all -- the header nav, the theme toggle, the menu button --
+ * because a utility class further down the cascade turned the outline off.
+ * Somebody tabbing through the site had no way to tell where they were.
+ *
+ * This is the one place !important earns its keep. A focus ring is not
+ * decoration that a component may opt out of; it is the only thing telling a
+ * keyboard user what the Enter key is about to do. Anything that wants a
+ * different-looking ring should change --focus-ring, not remove the outline.
+ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="link"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 2px solid var(--focus-ring, var(--accent-cyan)) !important;
+  outline-offset: 2px !important;
+  /*
+   * A second, contrasting ring outside the first.
+   *
+   * No single colour is visible on every surface -- the cyan ring measures
+   * 3.68:1 on a white page and 2.87:1 on the console's input fields, and
+   * darkening it just moves the problem to the dark theme. Two rings of
+   * opposite lightness mean at least one of them always contrasts with
+   * whatever is behind the control, which is how browsers draw their own
+   * default focus indicator.
+   */
+  box-shadow: 0 0 0 4px var(--focus-ring-halo, rgba(255, 255, 255, 0.9)) !important;
+}
 :focus:not(:focus-visible) {
   outline: none;
 }
+
+/*
+ * Deliberately not overriding Tailwind's status colours by class name.
+ *
+ * text-emerald-500 is 2.54:1 on white and does need to be darker where it is
+ * used as small text. But a rule like `.text-emerald-500 { color: darker }`
+ * scoped to the light theme also repaints the same class inside dark cards
+ * that sit on light pages -- measuring that change found 14 labels that went
+ * from readable to 2.06:1. A colour cannot be corrected from its class name
+ * alone without knowing what is behind it, which is the same lesson the admin
+ * console's light-scheme shim taught. These belong on the components that own
+ * the surface, and are tracked as remaining work rather than papered over.
+ */
 
 /* Gradient border on hover */
 .gradient-border-hover {

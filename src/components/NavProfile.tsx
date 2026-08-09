@@ -33,7 +33,7 @@ export default function NavProfile() {
     return (
       <Link href={account ? "/shop/account" : "/projects"}>
         <motion.div
-          className="relative px-5 py-2 text-[13px] font-semibold rounded-xl overflow-hidden group"
+          className="relative inline-flex min-h-[44px] items-center px-5 py-2 text-[13px] font-semibold rounded-xl overflow-hidden group"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           style={{

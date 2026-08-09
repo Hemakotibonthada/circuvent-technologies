@@ -345,7 +345,7 @@ export default function CommandPalette() {
       {/* Search Trigger Button (in nav) */}
       <button
         onClick={() => setIsOpen(true)}
-        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all cursor-pointer hover:bg-[var(--accent-cyan-muted)]"
+        className="hidden md:flex min-h-[44px] items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all cursor-pointer hover:bg-[var(--accent-cyan-muted)]"
         style={{
           border: "1px solid var(--border-primary)",
           color: "var(--text-muted)",

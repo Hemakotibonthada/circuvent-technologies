@@ -436,6 +436,8 @@ export function ShowcaseCarousel({
           <motion.button
             key={i}
             onClick={() => goTo(i)}
+            aria-label={`Show slide ${i + 1} of ${slides.length}`}
+            aria-current={current === i}
             className="rounded-full transition-all"
             style={{
               width: current === i ? 24 : 8,

@@ -203,7 +203,7 @@ export default function Navigation() {
         <nav className="relative max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex items-center justify-between h-[72px]">
             {/* ============ LOGO ============ */}
-            <Link href="/" className="flex items-center gap-2.5 group relative" aria-label="Circuvent Technologies home">
+            <Link href="/" className="flex min-h-[44px] items-center gap-2.5 group relative" aria-label="Circuvent Technologies home">
               <motion.div
                 className="relative"
                 whileHover={{ rotate: 12, scale: 1.05 }}
@@ -286,7 +286,7 @@ export default function Navigation() {
                       target={item.newTab ? "_blank" : undefined}
                       rel={item.newTab ? "noopener noreferrer" : undefined}
                       className={cn(
-                        "relative flex items-center gap-1 px-4 py-2 text-[13px] font-medium transition-all duration-300 rounded-xl group",
+                        "relative flex min-h-[44px] items-center gap-1 px-4 py-2 text-[13px] font-medium transition-all duration-300 rounded-xl group",
                         active
                           ? "text-[var(--text-primary)]"
                           : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -495,7 +495,7 @@ export default function Navigation() {
               <ThemeToggle />
               <motion.button
                 onClick={() => setIsMobileOpen(!isMobileOpen)}
-                className="relative p-2.5 rounded-xl"
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl"
                 style={{
                   background: isMobileOpen ? "var(--accent-cyan-muted)" : "transparent",
                   border: `1px solid ${isMobileOpen ? "var(--border-accent)" : "transparent"}`,

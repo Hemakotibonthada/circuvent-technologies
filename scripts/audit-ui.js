@@ -66,7 +66,26 @@ const CONSOLE_ROUTES = [
   "/smarthome/admin/dashboards", "/smarthome/admin/intelligence",
 ];
 
-const routes = (process.env.ROUTES || CONSOLE_ROUTES.join(",")).split(",").filter(Boolean);
+/*
+ * The public site.
+ *
+ * This list was missing, and its absence was not obvious: the audit reported
+ * a clean sweep across 52 routes while the marketing home page carried 255
+ * contrast failures, 54 undersized targets and 42 unnamed controls. Everything
+ * measured was clean; the front door was simply never measured. It is the
+ * first page anyone sees, so it goes first.
+ */
+const PUBLIC_ROUTES = [
+  "/", "/about", "/services", "/projects", "/stack", "/team", "/contact",
+  "/architecture", "/blog", "/careers", "/case-studies", "/developers", "/docs",
+  "/domains", "/faq", "/open-source", "/privacy", "/roadmap", "/returns-policy",
+  "/shipping", "/shop", "/shop/devices", "/shop/account", "/cart", "/checkout",
+  "/smart-home", "/terms", "/track", "/warranty", "/weather", "/app", "/admin",
+];
+
+const ALL_ROUTES = [...PUBLIC_ROUTES, ...CONSOLE_ROUTES];
+
+const routes = (process.env.ROUTES || ALL_ROUTES.join(",")).split(",").filter(Boolean);
 const themes = process.env.THEMES
   ? process.env.THEMES.split(",").map((t) => {
       const [mode, scheme] = t.split("-");
@@ -108,7 +127,7 @@ const PROBE = () => {
     return bits.join("");
   };
 
-  const out = { contrast: [], targets: [], naming: [], overflow: null };
+  const out = { contrast: [], targets: [], naming: [], focus: [], overflow: null };
 
   /*
    * The painted background behind an element.
@@ -168,6 +187,9 @@ const PROBE = () => {
   );
   for (const el of interactive) {
     if (!visible(el)) continue;
+    // Hidden from assistive technology on purpose -- a decorative duplicate
+    // link behind a card, for instance -- so it needs no name.
+    if (el.closest('[aria-hidden="true"]')) continue;
     const r = el.getBoundingClientRect();
     // An inline link inside a paragraph is not a control and is exempt from
     // the target rule; WCAG says the same.
@@ -175,15 +197,91 @@ const PROBE = () => {
     if (!inline && (r.width < MIN_TARGET || r.height < MIN_TARGET)) {
       out.targets.push({ el: where(el), w: Math.round(r.width), h: Math.round(r.height), text: (el.textContent || "").trim().slice(0, 30) });
     }
+    /*
+     * A form control wrapped in a label takes its name from that label, and
+     * so does one referenced by `for`. Checkboxes in the shop filters are
+     * written that way and were being reported as unnamed.
+     */
+    const labelled =
+      el.closest("label")?.textContent?.trim() ||
+      (el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent?.trim() : "") ||
+      "";
     const name =
       (el.getAttribute("aria-label") || "").trim() ||
       (el.textContent || "").trim() ||
+      labelled ||
       (el.getAttribute("title") || "").trim() ||
       (el.getAttribute("alt") || "").trim() ||
       (el.getAttribute("placeholder") || "").trim() ||
       (el.getAttribute("aria-labelledby") ? "by-id" : "");
     if (!name) out.naming.push({ el: where(el) });
   }
+
+  // ---- keyboard focus visibility ----
+  /*
+   * A keyboard user has to be able to see where they are. The site defines a
+   * global :focus-visible outline, but a global rule is easy to lose: a
+   * component that sets `outline: none` for its own hover treatment, or a
+   * focus ring the same colour as the surface it sits on, both leave someone
+   * tabbing through the page with no idea what is selected.
+   *
+   * Focus is forced rather than simulated. :focus-visible only matches when
+   * the browser decides the interaction was keyboard-like, so each element is
+   * focused and then measured for an actual painted indicator.
+   */
+  const focusables = [...interactive].filter(visible).slice(0, 40);
+  /*
+   * Freeze transitions while measuring.
+   *
+   * Nav links carry `transition-all duration-300`, so the focus ring animates
+   * from 0 to 2px. Reading the computed style immediately after focus() caught
+   * every one of them at 0px and reported 1,500 controls with no focus
+   * indicator when the indicator was simply still fading in. Disabling
+   * transitions gives the settled appearance, which is what a keyboard user
+   * ends up looking at.
+   */
+  const freeze = document.createElement("style");
+  freeze.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; }";
+  document.head.appendChild(freeze);
+  for (const el of focusables) {
+    const before = getComputedStyle(el);
+    const beforeShadow = before.boxShadow;
+    const beforeOutline = before.outlineWidth;
+    try {
+      el.focus({ preventScroll: true });
+    } catch {
+      continue;
+    }
+    if (document.activeElement !== el) continue;
+    const after = getComputedStyle(el);
+    const outlineW = parseFloat(after.outlineWidth) || 0;
+    const hasOutline = outlineW >= 1 && after.outlineStyle !== "none";
+    const shadowChanged = after.boxShadow !== beforeShadow && after.boxShadow !== "none";
+    const outlineChanged = after.outlineWidth !== beforeOutline;
+    if (!hasOutline && !shadowChanged && !outlineChanged) {
+      out.focus.push({ el: where(el), text: (el.textContent || "").trim().slice(0, 30) });
+      continue;
+    }
+    // An indicator that is there but invisible against its surface is no
+    // better than none. 3:1 is the WCAG figure for a non-text indicator.
+    if (hasOutline) {
+      const oc = parse(after.outlineColor);
+      const bg = backdrop(el);
+      // The halo counts too: the indicator is two rings, and it is visible if
+      // either of them contrasts with what is behind the control.
+      const halo = (after.boxShadow.match(/rgba?\([^)]+\)/) || [])[0];
+      const hc = halo ? parse(halo) : null;
+      const okOutline = oc && bg.rgb && ratio(oc.rgb, bg.rgb) >= 3;
+      const okHalo = hc && bg.rgb && hc.a > 0.5 && ratio(hc.rgb, bg.rgb) >= 3;
+      if (oc && bg.rgb && !okOutline && !okHalo) {
+        out.focus.push({ el: where(el), text: (el.textContent || "").trim().slice(0, 30), outline: after.outlineColor, ratio: ratio(oc.rgb, bg.rgb) });
+      }
+    }
+  }
+  try {
+    document.activeElement instanceof HTMLElement && document.activeElement.blur();
+  } catch {}
+  freeze.remove();
 
   // ---- horizontal overflow ----
   const doc = document.documentElement;
@@ -236,10 +334,21 @@ async function auditOne(browser, theme, route, width) {
       .waitForFunction(() => !document.getAnimations().some((a) => a.playState === "running"), undefined, { timeout: 5000 })
       .catch(() => {});
     await page.waitForTimeout(400);
+    /*
+     * Put the browser into keyboard modality before measuring focus.
+     *
+     * :focus-visible deliberately does not match when script moves focus after
+     * a mouse interaction -- that is the whole point of it over :focus. So a
+     * probe that calls el.focus() and looks for a ring finds nothing, on every
+     * element, and reports the entire site as having no focus indicator. One
+     * Tab tells Chromium the user is on the keyboard; after that, programmatic
+     * focus matches and the measurement reflects what a keyboard user sees.
+     */
+    await page.keyboard.press("Tab").catch(() => {});
     const r = await page.evaluate(PROBE);
     return { ...r, errors };
   } catch (e) {
-    return { contrast: [], targets: [], naming: [], overflow: null, errors: [`LOAD: ${String(e.message).slice(0, 100)}`] };
+    return { contrast: [], targets: [], naming: [], focus: [], overflow: null, errors: [`LOAD: ${String(e.message).slice(0, 100)}`] };
   } finally {
     await ctx.close();
   }
@@ -264,6 +373,13 @@ async function pool(items, n, fn) {
   const jobs = [];
   for (const theme of themes) {
     for (const route of routes) {
+      /*
+       * The console theme only applies under /smarthome. Public pages render
+       * identically in all six, so measuring them six times buys nothing but
+       * runtime.
+       */
+      const themed = route.startsWith("/smarthome");
+      if (!themed && theme !== themes[0]) continue;
       jobs.push({ theme, route, width: 1440 });
       // Phone width only needs one theme: overflow and target size do not
       // depend on colour, and six times the runtime buys nothing.
@@ -285,10 +401,12 @@ async function pool(items, n, fn) {
   const byRoute = new Map();
   for (const r of results) {
     const k = r.route;
-    if (!byRoute.has(k)) byRoute.set(k, { route: k, contrast: 0, targets: 0, naming: 0, overflow: 0, errors: 0, worst: [], samples: [], errorSamples: [] });
+    if (!byRoute.has(k)) byRoute.set(k, { route: k, contrast: 0, targets: 0, naming: 0, focus: 0, overflow: 0, errors: 0, worst: [], samples: [], focusSamples: [], errorSamples: [] });
     const e = byRoute.get(k);
     e.contrast += r.contrast.length;
     e.naming += r.naming.length;
+    e.focus += r.focus.length;
+    for (const f of r.focus.slice(0, 3)) if (e.focusSamples.length < 5) e.focusSamples.push({ theme: `${r.theme.mode}-${r.theme.scheme}`, ...f });
     e.errors += r.errors.length;
     for (const m of r.errors) if (e.errorSamples.length < 4 && !e.errorSamples.includes(m)) e.errorSamples.push(m);
     if (r.width === 390) {
@@ -300,7 +418,7 @@ async function pool(items, n, fn) {
   }
 
   const rows = [...byRoute.values()].sort(
-    (a, b) => b.contrast + b.targets * 2 + b.naming - (a.contrast + a.targets * 2 + a.naming)
+    (a, b) => b.contrast + b.targets * 2 + b.naming + b.focus - (a.contrast + a.targets * 2 + a.naming + a.focus)
   );
 
   const totals = rows.reduce(
@@ -308,31 +426,34 @@ async function pool(items, n, fn) {
       contrast: t.contrast + r.contrast,
       targets: t.targets + r.targets,
       naming: t.naming + r.naming,
+      focus: t.focus + r.focus,
       overflow: t.overflow + r.overflow,
       errors: t.errors + r.errors,
     }),
-    { contrast: 0, targets: 0, naming: 0, overflow: 0, errors: 0 }
+    { contrast: 0, targets: 0, naming: 0, focus: 0, overflow: 0, errors: 0 }
   );
 
-  console.log("route".padEnd(42) + "contrast  targets  naming  overflow  errors");
+  console.log("route".padEnd(40) + "contrast  targets  naming   focus  overflow  errors");
   console.log("-".repeat(90));
   for (const r of rows) {
-    if (!r.contrast && !r.targets && !r.naming && !r.overflow && !r.errors) continue;
+    if (!r.contrast && !r.targets && !r.naming && !r.focus && !r.overflow && !r.errors) continue;
     console.log(
-      r.route.padEnd(42) +
+      r.route.padEnd(40) +
         String(r.contrast).padStart(8) +
         String(r.targets).padStart(9) +
         String(r.naming).padStart(8) +
+        String(r.focus).padStart(8) +
         String(r.overflow).padStart(10) +
         String(r.errors).padStart(8)
     );
   }
   console.log("-".repeat(90));
   console.log(
-    "TOTAL".padEnd(42) +
+    "TOTAL".padEnd(40) +
       String(totals.contrast).padStart(8) +
       String(totals.targets).padStart(9) +
       String(totals.naming).padStart(8) +
+      String(totals.focus).padStart(8) +
       String(totals.overflow).padStart(10) +
       String(totals.errors).padStart(8)
   );

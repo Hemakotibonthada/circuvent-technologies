@@ -132,8 +132,15 @@ export default function RootLayout({
             <VisitorTracker />
             <a
               href="#main-content"
-              className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-semibold"
-              style={{ background: "var(--accent-cyan)", color: "var(--text-inverted)" }}
+              /*
+               * The first thing a keyboard user reaches, so it has to be the
+               * most obviously correct control on the page. It used to be
+               * near-white on the brand cyan at 3.56:1, 36px tall, with a cyan
+               * focus ring on a cyan background -- an invisible ring around
+               * unreadable text. Dark surface, white text, light ring.
+               */
+              className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:inline-flex focus:min-h-[44px] focus:items-center focus:px-5 focus:py-2 focus:rounded-lg focus:text-sm focus:font-semibold"
+              style={{ background: "var(--skip-link-bg)", color: "#ffffff", ["--focus-ring" as string]: "#ffffff" }}
             >
               Skip to main content
             </a>

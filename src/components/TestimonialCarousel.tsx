@@ -164,7 +164,8 @@ export default function TestimonialCarousel({
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={prev}
-            className="p-2 rounded-xl cursor-pointer transition-colors"
+            aria-label="Previous testimonial"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl cursor-pointer transition-colors"
             style={{
               background: "var(--bg-surface)",
               border: "1px solid var(--border-primary)",
@@ -183,7 +184,9 @@ export default function TestimonialCarousel({
                   setDirection(i > activeIndex ? 1 : -1);
                   setActiveIndex(i);
                 }}
-                className="cursor-pointer"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center cursor-pointer"
+                aria-label={`Show testimonial ${i + 1} of ${testimonials.length}`}
+                aria-current={i === activeIndex}
               >
                 <motion.div
                   className="rounded-full transition-all"
@@ -202,7 +205,8 @@ export default function TestimonialCarousel({
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={next}
-            className="p-2 rounded-xl cursor-pointer transition-colors"
+            aria-label="Next testimonial"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl cursor-pointer transition-colors"
             style={{
               background: "var(--bg-surface)",
               border: "1px solid var(--border-primary)",

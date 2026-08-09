@@ -167,7 +167,7 @@ export default function Footer() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="hello@circuvent.com"
                     aria-label="Email address for newsletter"
-                    className="flex-1 sm:w-64 px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
+                    className="min-h-[44px] flex-1 sm:w-64 px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
                     style={{
                       background: "var(--bg-surface)",
                       border: "1px solid var(--border-primary)",
@@ -177,7 +177,7 @@ export default function Footer() {
                   <motion.button
                     type="submit"
                     aria-label="Subscribe to newsletter"
-                    className="px-5 py-2.5 rounded-xl text-sm font-medium text-white shrink-0"
+                    className="inline-flex min-h-[44px] items-center justify-center px-5 py-2.5 rounded-xl text-sm font-medium text-white shrink-0"
                     style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)" }}
                     whileHover={{ scale: 1.02, boxShadow: "0 4px 20px rgba(6,182,212,0.3)" }}
                     whileTap={{ scale: 0.98 }}
@@ -199,7 +199,7 @@ export default function Footer() {
         >
           {/* Brand Column */}
           <motion.div variants={itemVariants} className="col-span-2 md:col-span-3 lg:col-span-2 space-y-6">
-            <Link href="/" className="inline-flex items-center gap-2.5 group" aria-label="Circuvent home">
+            <Link href="/" className="inline-flex min-h-[44px] items-center gap-2.5 group" aria-label="Circuvent home">
               {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized static
                   asset; a 36px mark does not need the on-demand optimizer */}
               <img
@@ -248,7 +248,7 @@ export default function Footer() {
                   rel="noopener noreferrer"
                   whileHover={{ scale: 1.1, y: -3, backgroundColor: social.hoverBg }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-2.5 rounded-xl transition-all duration-300"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-300"
                   style={{
                     background: "var(--bg-surface)",
                     border: "1px solid var(--border-primary)",
@@ -319,7 +319,7 @@ export default function Footer() {
           <div className="flex items-center gap-4">
             <p className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
               Crafted with <Heart className="w-3 h-3 text-red-400 fill-red-400" /> and{" "}
-              <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--accent-cyan-muted)", color: "var(--accent-cyan)" }}>
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--accent-cyan-muted)", color: "var(--accent-cyan-text)" }}>
                 40K+ LoC
               </span>
             </p>
@@ -327,7 +327,7 @@ export default function Footer() {
             {/* Back to top */}
             <motion.button
               onClick={scrollToTop}
-              className="p-2 rounded-xl transition-all"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl transition-all"
               style={{
                 background: "var(--bg-surface)",
                 border: "1px solid var(--border-primary)",

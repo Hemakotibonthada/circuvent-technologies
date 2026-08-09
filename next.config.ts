@@ -34,6 +34,16 @@ const robotsHeaders = isProductionDeploy
   : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
 
 const nextConfig: NextConfig = {
+  /*
+   * Let a build target its own directory.
+   *
+   * A dev server and a production build share .next, and the dev server keeps
+   * rewriting it -- which silently deleted BUILD_ID twice while auditing, so
+   * `next start` served nothing and the audit reported a clean sweep of an
+   * empty site. Setting NEXT_DIST_DIR gives the audit build somewhere of its
+   * own. Unset, nothing changes.
+   */
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // ── Production hardening ──
   poweredByHeader: false,
   compress: true,

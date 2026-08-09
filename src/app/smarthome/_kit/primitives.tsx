@@ -246,7 +246,7 @@ export function IconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 hover:brightness-125 focus:outline-none focus-visible:ring-2"
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 hover:brightness-125 focus-visible:ring-2"
       style={
         {
           background: active ? "var(--cv-accent)" : "var(--cv-card-hi)",
