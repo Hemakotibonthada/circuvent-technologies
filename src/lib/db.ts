@@ -213,6 +213,28 @@ const SCHEMA_STATEMENTS: string[] = [
      ms REAL NOT NULL,
      region TEXT
    )`,
+  /*
+   * One row per camera, holding only the newest frame.
+   *
+   * Deliberately not a history table. Frames arrive while someone is watching
+   * and are worthless a second later, so keeping them would trade real storage
+   * for nothing. The primary key is the device id and every upload overwrites
+   * in place, which keeps this table the size of the fleet rather than the
+   * size of the footage.
+   *
+   * `upload_token` is minted per viewing session and expires, so a camera can
+   * only post while a viewer has actually asked for it — the device is never
+   * given a long-lived credential.
+   */
+  `CREATE TABLE IF NOT EXISTS camera_frames (
+     device_id TEXT PRIMARY KEY,
+     jpeg_b64 TEXT,
+     bytes INTEGER NOT NULL DEFAULT 0,
+     captured_at TIMESTAMPTZ,
+     upload_token TEXT,
+     token_expires TIMESTAMPTZ,
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
   `CREATE INDEX IF NOT EXISTS request_metrics_ts_idx ON request_metrics (ts DESC)`,
   `CREATE INDEX IF NOT EXISTS request_metrics_endpoint_idx ON request_metrics (endpoint)`,
   // Page views.
@@ -382,6 +404,68 @@ export async function dbRecordLatency(samples: { endpoint: string; method?: stri
     params.push(s.endpoint, s.method ?? null, s.status ?? null, s.ms, s.region ?? null);
   });
   await q(`INSERT INTO request_metrics (endpoint, method, status, ms, region) VALUES ${values.join(",")}`, params);
+}
+
+/**
+ * Arms a camera for frame upload, returning the credential it must present.
+ *
+ * Re-arming replaces the token rather than adding one: a viewer who reloads
+ * the page should not leave the previous session's credential usable.
+ */
+export async function dbArmCameraRelay(deviceId: string, token: string, expires: number): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q(
+    `INSERT INTO camera_frames (device_id, upload_token, token_expires, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (device_id) DO UPDATE
+       SET upload_token = EXCLUDED.upload_token,
+           token_expires = EXCLUDED.token_expires,
+           updated_at = now()`,
+    [deviceId, token, new Date(expires).toISOString()]
+  );
+}
+
+/** The stored upload credential for a camera, for validating an upload. */
+export async function dbCameraRelayToken(
+  deviceId: string
+): Promise<{ token: string | null; expires: number | null }> {
+  await initDb();
+  const q = await getQuery();
+  const rows = (await q(`SELECT upload_token, token_expires FROM camera_frames WHERE device_id = $1`, [
+    deviceId,
+  ])) as unknown as { upload_token: string | null; token_expires: string | null }[];
+  const row = rows[0];
+  if (!row) return { token: null, expires: null };
+  return {
+    token: row.upload_token,
+    expires: row.token_expires ? new Date(row.token_expires).getTime() : null,
+  };
+}
+
+/** Overwrites the single stored frame for a camera. */
+export async function dbStoreCameraFrame(deviceId: string, jpegB64: string, bytes: number): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q(
+    `UPDATE camera_frames SET jpeg_b64 = $2, bytes = $3, captured_at = now(), updated_at = now()
+      WHERE device_id = $1`,
+    [deviceId, jpegB64, bytes]
+  );
+}
+
+/** The newest stored frame for a camera, if there is one. */
+export async function dbLatestCameraFrame(
+  deviceId: string
+): Promise<{ jpegB64: string; bytes: number; capturedAt: string } | null> {
+  await initDb();
+  const q = await getQuery();
+  const rows = (await q(`SELECT jpeg_b64, bytes, captured_at FROM camera_frames WHERE device_id = $1`, [
+    deviceId,
+  ])) as unknown as { jpeg_b64: string | null; bytes: number; captured_at: string | null }[];
+  const row = rows[0];
+  if (!row?.jpeg_b64 || !row.captured_at) return null;
+  return { jpegB64: row.jpeg_b64, bytes: row.bytes ?? 0, capturedAt: row.captured_at };
 }
 
 /** Raw latency samples within the last `hours` (newest first, capped). */

@@ -53,7 +53,7 @@
  * so video works on the local network while the relay is down, and keeps
  * working if it ever goes down again.
  */
-#define CV_FW_VERSION "1.9.0"
+#define CV_FW_VERSION "1.10.0"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -199,9 +199,17 @@
 // Tunables
 // ---------------------------------------------------------------------------
 #define FPS_MIN                 1
-#define FPS_MAX                15    // TLS on an ESP32 tops out well before this
+/*
+ * 30 is reachable on the LAN, where a frame is a plain socket write. It is not
+ * reachable over MQTT+TLS, where every frame is encrypted and published — that
+ * path tops out around 13-15 on this chip. The ceiling is the LAN ceiling, and
+ * the MQTT sender simply falls behind its target rather than misbehaving, so
+ * asking for 30 gives 30 locally and the best available remotely.
+ */
+#define FPS_MAX                30
 #define FPS_DEFAULT             8
 #define STREAM_TTL_MS      20000UL   // stop if the app stops re-arming
+#define CLOUD_TTL_MS      120000UL   // remote viewing window, re-armed by the app
 #define MOTION_PERIOD_MS     500UL   // how often to run the difference check
 #define MOTION_HOLD_MS      8000UL   // keep "motion" true this long after the last hit
 #define MOTION_COOLDOWN_MS 15000UL   // minimum gap between motion events
@@ -443,7 +451,7 @@ static esp_err_t lanIndex(httpd_req_t *req) {
       "<h3>Circuvent camera — local view</h3>"
       "<img src='/stream' alt='Live camera stream'>"
       "<p><a href='/snapshot'>Still image</a></p>";
-  httpd_resp_set_type(req, "text/html");
+  httpd_resp_set_type(req, "text/html; charset=utf-8");
   return httpd_resp_send(req, page, sizeof(page) - 1);
 }
 
@@ -468,6 +476,69 @@ void startLanVideo() {
   for (auto &r : routes) httpd_register_uri_handler(lanHttpd, &r);
   Serial.printf("[CAM] LAN video at http://%s:%d/\n",
                 WiFi.localIP().toString().c_str(), CV_LAN_PORT);
+}
+
+// ---------------------------------------------------------------------------
+// Remote viewing
+// ---------------------------------------------------------------------------
+/*
+ * Posting frames to the website, for viewers who are not on this network.
+ *
+ * The MQTT frame relay is unreachable in the deployed control plane, and LAN
+ * video only helps someone already at home. So while a viewer is watching from
+ * elsewhere, frames also go out over plain HTTPS to an endpoint that hands
+ * them to the browser. That path needs nothing from the broker.
+ *
+ * It is armed by the app and expires on its own, exactly like `streaming`: a
+ * camera that uploaded around the clock would spend the household's bandwidth
+ * on nobody. The token is issued per viewing session, so this firmware never
+ * stores a durable upload credential.
+ */
+String cloudUrl, cloudToken;
+int    cloudFps = 2;
+unsigned long cloudArmedAt = 0, cloudTtlMs = CLOUD_TTL_MS, lastCloudAt = 0;
+long   cloudSent = 0, cloudFail = 0;
+
+static bool cloudActive() {
+  return cloudUrl.length() && millis() - cloudArmedAt <= cloudTtlMs;
+}
+
+/**
+ * Sends one frame to the site.
+ *
+ * Runs on the main thread on purpose. It is the only thread that may touch
+ * `cv`, and it already owns the capture mutex through lanGrab(), so a single
+ * upload cannot interleave with an MQTT publish or a LAN viewer's capture.
+ * The cost is that a slow upload delays the loop, which is why the rate is
+ * low and the TTL short.
+ */
+static void cloudPushFrame() {
+  size_t len = lanGrab();
+  if (!len) { cloudFail++; return; }
+
+  WiFiClientSecure client;
+  cv.pinRoot(client);
+  HTTPClient http;
+  if (!http.begin(client, cloudUrl)) { cloudFail++; return; }
+  http.setTimeout(8000);
+  http.addHeader("Content-Type", "image/jpeg");
+  http.addHeader("X-CV-Device", cv.deviceId());
+  http.addHeader("X-CV-Token", cloudToken);
+  int code = http.POST(lanCopy, len);
+  http.end();
+
+  if (code == 200) {
+    cloudSent++;
+  } else {
+    cloudFail++;
+    // A refusal that will not fix itself must stop the uploads, or the device
+    // hammers the endpoint for the rest of the window. 409/403/410 all mean
+    // "this token is not going to start working".
+    if (code == 403 || code == 409 || code == 410) {
+      Serial.printf("[CAM] cloud push refused (%d) — stopping\n", code);
+      cloudUrl = "";
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -864,6 +935,23 @@ void onCommand(const String &action, JsonObjectConst p) {
     store.putInt("flash", flashLevel);
     cv.publishStateNow();
 
+  } else if (action == "cloudpush") {
+    // Remote viewing. The app arms this and re-arms it while someone watches;
+    // it lapses on its own so a closed tab cannot leave a camera uploading.
+    if (p["on"] | false) {
+      cloudUrl   = (const char *)(p["url"]   | "");
+      cloudToken = (const char *)(p["token"] | "");
+      cloudFps   = constrain((int)(p["fps"] | 2), 1, 4);
+      long ttl   = p["ttl"] | 0;
+      cloudTtlMs = ttl > 0 ? (unsigned long)ttl * 1000UL : CLOUD_TTL_MS;
+      cloudArmedAt = millis();
+      Serial.printf("[CAM] remote viewing armed (%d fps)\n", cloudFps);
+    } else {
+      cloudUrl = "";
+      Serial.println(F("[CAM] remote viewing stopped"));
+    }
+    cv.set("cloud", cloudActive());
+    cv.publishStateNow();
   } else if (action == "reboot") {
     cv.publishStateNow();
     delay(200);
@@ -1086,6 +1174,24 @@ void loop() {
 
   // A stream nobody re-armed is a stream nobody is watching.
   if (streaming && now - streamArmedAt > STREAM_TTL_MS) setStreaming(false);
+
+  // Remote viewing runs independently of the MQTT stream: someone away from
+  // home has no LAN access and may not have armed the local stream at all.
+  static bool cloudWas = false;
+  bool cloudNow = cloudActive();
+  if (cloudNow != cloudWas) {
+    cloudWas = cloudNow;
+    cv.set("cloud", cloudNow);
+    cv.publishStateNow();
+  }
+  if (cloudNow && camReady && sensorLive) {
+    unsigned long period = 1000UL / (unsigned long)max(cloudFps, 1);
+    if (now - lastCloudAt >= period) {
+      lastCloudAt = now;
+      cloudPushFrame();
+      now = millis();          // an upload takes real time; do not pace off a stale clock
+    }
+  }
 
   if (streaming && camReady && sensorLive) {
     unsigned long period = 1000UL / (unsigned long)max(fps, FPS_MIN);

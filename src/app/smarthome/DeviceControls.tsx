@@ -52,6 +52,7 @@ import {
 } from "@/lib/smarthome-prefs";
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 import { effectiveDeviceType } from "./_data/device-type";
+import { useRemoteCamera } from "./useRemoteCamera";
 
 export interface DeviceTypeMeta {
   label: string;
@@ -1420,12 +1421,22 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   const lanUrl = lanIp ? `http://${lanIp}:${n(d.state.lanPort) || 81}/` : "";
   const relayLost = useRelayFault(n(d.state.frames), received, d.online && ready && streaming);
 
+  /*
+   * When the relay is proven to be dropping frames, fall back automatically
+   * rather than offering a button. The viewer's goal is to see the room; being
+   * asked to choose a transport is this system's problem leaking into their
+   * hands. The LAN link stays on offer because it is the better picture when
+   * they happen to be home.
+   */
+  const remote = useRemoteCamera(d.id, relayLost > 0 && d.online && ready);
+  const shownFrame = frame ?? remote.frame;
+
   // Drives the stall check and the "last frame" age without re-rendering on
   // every frame for the sake of a clock.
   const now = useNow(1000, d.online);
-  const age = frame ? now - frame.at : Infinity;
+  const age = shownFrame ? now - shownFrame.at : Infinity;
   const stalled = streaming && age > STALL_AFTER_MS;
-  const showingLive = streaming && !stalled && !!frame;
+  const showingLive = !!shownFrame && !stalled && (streaming || remote.status === "live");
 
   // Keep-alive. The firmware arms the stream for STREAM_TTL_MS (20 s) and then
   // shuts it off on its own, deliberately, so a closed tab or a dead phone
@@ -1464,10 +1475,10 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           borderColor: motionActive ? "rgba(239,68,68,0.55)" : "var(--cv-border)",
         }}
       >
-        {frame ? (
+        {shownFrame ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={frame.src}
+            src={shownFrame.src}
             alt={`Live view from ${d.name || d.id}`}
             className="h-full w-full object-contain"
             style={{ transform: n(d.state.rotation) === 180 ? "rotate(180deg)" : undefined }}
@@ -1491,9 +1502,11 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
                  device's own counter, rather than leaving the camera under
                  suspicion for a fault upstream of it. */
               <p className="max-w-sm text-xs leading-relaxed" style={{ color: "#64748b" }}>
-                It has sent {relayLost.toLocaleString()} frames since this page opened and none
-                arrived. The server is not relaying video. Local view still works — it goes
-                straight to the camera and does not use the server.
+                {remote.status === "starting"
+                  ? `It has sent ${relayLost.toLocaleString()} frames and none reached you through the server. Connecting a direct route…`
+                  : remote.status === "unavailable"
+                    ? `The server is not relaying video, and the direct route is unavailable: ${remote.detail}.`
+                    : `It has sent ${relayLost.toLocaleString()} frames since this page opened and none arrived. The server is not relaying video.`}
               </p>
             )}
             {relayLost > 0 && lanUrl && (
@@ -1538,7 +1551,15 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
             }}
           >
             <Radio className="h-3 w-3" />
-            {showingLive ? "Live" : stalled ? "Stalled" : frame ? "Still" : "Idle"}
+            {showingLive
+              ? remote.status === "live" && !frame
+                ? "Remote"
+                : "Live"
+              : stalled
+                ? "Stalled"
+                : shownFrame
+                  ? "Still"
+                  : "Idle"}
           </span>
           {motionActive && (
             <span
@@ -1571,9 +1592,18 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           <AlertBanner text="This board reports that it has no camera fitted — it is running gas/relay firmware. It was most likely registered as the wrong device type; change the type in Settings and the correct controls will appear. No video will ever arrive from this unit." />
         </div>
       )}
-      {hasCamera && stalled && ready && (
+      {hasCamera && stalled && ready && !relayLost && (
         <div className="mt-3">
           <AlertBanner text="Streaming is on but no frames are arriving. Check the camera's signal, then try Reboot." />
+        </div>
+      )}
+      {hasCamera && stalled && ready && relayLost > 0 && (
+        /* Do not tell someone to reboot a camera that is provably capturing
+           and publishing. The advice above is right for a signal fault and
+           actively wrong here — it costs a working device an uptime for a
+           problem that is not on the device at all. */
+        <div className="mt-3">
+          <AlertBanner text="The camera is capturing and publishing normally — the server is not relaying its video. Rebooting will not help. Use local view at home, or the direct route from anywhere." />
         </div>
       )}
       {hasCamera && !ready && d.online && (

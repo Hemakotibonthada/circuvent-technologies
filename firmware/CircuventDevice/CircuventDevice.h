@@ -191,6 +191,18 @@ class CircuventDevice {
   bool online() const { return WiFi.status() == WL_CONNECTED && _mqttUp; }
   const char *firmwareVersion() const { return CV_FW_VERSION; }
 
+  /** This device's assigned id — needed to identify itself over plain HTTPS. */
+  const String &deviceId() const { return _id; }
+
+  /**
+   * Applies the pinned root CA to a caller's TLS client.
+   *
+   * Exposed so a sketch making its own HTTPS request gets the same trust
+   * anchor as OTA. The alternative a sketch reaches for is setInsecure(),
+   * which is how a device ends up accepting any certificate presented to it.
+   */
+  void pinRoot(WiFiClientSecure &c) const { _pinRoot(c); }
+
   // ---- state setters (published to cv/<id>/state) -----------------------
   // Each setter marks the state dirty ONLY when the value actually changes, so
   // a physical button press / local event pushes to the cloud within _minGap
