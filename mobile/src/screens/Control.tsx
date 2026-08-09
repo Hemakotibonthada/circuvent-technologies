@@ -124,13 +124,28 @@ const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-mo
 
 // ------------------------------------------------------------ shared bits ---
 
-function Row({ label, c, children }: { label: string; c: Palette; children: React.ReactNode }) {
+function Row({ label, c, children, stack }: { label: string; c: Palette; children: React.ReactNode; stack?: boolean }) {
+  /*
+   * `stack` puts the label above the control instead of beside it.
+   *
+   * A label and a control sharing a row works while the control is narrow. The
+   * resolution and frame-rate selectors are as wide as the card, so sharing
+   * left the label overlapping the first option. Anything that scrolls
+   * horizontally needs the full width.
+   */
   return (
     <Card padded style={{ marginBottom: 10 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Text style={{ color: c.text, fontSize: 16 }}>{label}</Text>
-        {children}
-      </View>
+      {stack ? (
+        <View>
+          <Text style={{ color: c.text, fontSize: 16, marginBottom: 10 }}>{label}</Text>
+          {children}
+        </View>
+      ) : (
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={{ color: c.text, fontSize: 16 }}>{label}</Text>
+          {children}
+        </View>
+      )}
     </Card>
   );
 }
@@ -1091,7 +1106,7 @@ function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unkn
       </View>
 
       <SectionLabel>Image</SectionLabel>
-      <Row label="Resolution" c={c}>
+      <Row label="Resolution" c={c} stack>
         <PillSelector options={resOptions} value={resolution} onChange={(v) => send({ resolution: v })} />
       </Row>
       {!psram && (
@@ -1102,7 +1117,7 @@ function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unkn
       <Stepper label={`Quality ${quality} (lower is sharper)`} c={c}
         onDown={() => send({ quality: Math.max(4, quality - 2) })}
         onUp={() => send({ quality: Math.min(63, quality + 2) })} />
-      <Row label="Frame rate" c={c}>
+      <Row label="Frame rate" c={c} stack>
         <PillSelector options={CAM_FPS.map(String)} value={String(fps)} onChange={(v) => send({ fps: Number(v) })} />
       </Row>
       <Row label="Rotate 180°" c={c}>

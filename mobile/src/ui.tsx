@@ -1665,21 +1665,63 @@ export function PillToggle({ value, onChange, size = "md", disabled, label, styl
   );
 }
 
-/** Segmented capsule selector (e.g. Cool · Dry · Fan) — coral fill on the active option. */
+/**
+ * Segmented capsule selector (e.g. Cool · Dry · Fan).
+ *
+ * Each option takes an equal share of the row, which is right for the three or
+ * four it was built for. The camera screen passes seven resolutions, and on a
+ * 411dp phone that squeezed "qqvga" into a two-line stack overlapping its own
+ * label while "sxga" ran off the right edge of the screen. Found by installing
+ * the release build and looking at it -- no static check sees a layout.
+ *
+ * Past four options it becomes a horizontal scroller with pills sized to their
+ * text, which is the shape that survives any number of them.
+ */
 export function PillSelector<T extends string>({ options, value, onChange, style }: { options: readonly T[]; value: T; onChange: (v: T) => void; style?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
-  return (
-    <View style={[{ flexDirection: "row", gap: 10 }, style]}>
-      {options.map((o) => {
-        const sel = o === value;
-        return (
-          <Pressable key={o} onPress={() => { if (o !== value) { tapLight(); onChange(o); } }} accessibilityRole="button" accessibilityState={{ selected: sel }} style={{ flex: 1, borderRadius: RADIUS.pill, paddingVertical: 13, minHeight: 46, alignItems: "center", justifyContent: "center", backgroundColor: sel ? c.accent : c.card, borderWidth: sel ? 0 : 1, borderColor: c.border }}>
-            <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600", textTransform: "capitalize" }}>{o}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+  const scrolls = options.length > 4;
+
+  const pill = (o: T) => {
+    const sel = o === value;
+    return (
+      <Pressable
+        key={o}
+        onPress={() => { if (o !== value) { tapLight(); onChange(o); } }}
+        accessibilityRole="button"
+        accessibilityState={{ selected: sel }}
+        style={{
+          flex: scrolls ? undefined : 1,
+          paddingHorizontal: scrolls ? 18 : 0,
+          borderRadius: RADIUS.pill,
+          paddingVertical: 13,
+          minHeight: 46,
+          minWidth: 46,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: sel ? c.accent : c.card,
+          borderWidth: sel ? 0 : 1,
+          borderColor: c.border,
+        }}
+      >
+        <Text numberOfLines={1} style={{ color: sel ? c.onAccent : c.textDim, fontWeight: sel ? "800" : "600", textTransform: "capitalize" }}>{o}</Text>
+      </Pressable>
+    );
+  };
+
+  if (scrolls) {
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={style}
+        contentContainerStyle={{ flexDirection: "row", gap: 10, paddingRight: 4 }}
+      >
+        {options.map(pill)}
+      </ScrollView>
+    );
+  }
+
+  return <View style={[{ flexDirection: "row", gap: 10 }, style]}>{options.map(pill)}</View>;
 }
 
 /** Horizontal room / category filter chips. */
