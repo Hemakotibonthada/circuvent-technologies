@@ -162,6 +162,18 @@ export interface Automation {
   trigger: AutomationTrigger;
   action: AutomationActions;
   created_at?: string;
+  /**
+   * Execution record. Present only on control planes new enough to report it,
+   * so `undefined` means "unknown", never "never ran".
+   *
+   * A switch timer used to save correctly, show the right next-run time, count
+   * down, and never move the relay — and nothing in the app could tell that
+   * apart from working. "Last ran" either advances or it does not.
+   */
+  last_run_at?: string | null;
+  last_run_ok?: boolean | null;
+  last_error?: string | null;
+  run_count?: number;
 }
 
 export interface AutomationBody {

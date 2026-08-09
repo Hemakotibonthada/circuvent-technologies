@@ -239,6 +239,7 @@ export default function Schedules({ onBack }: { onBack: () => void }) {
                 </View>
               }
             />
+            <RunLine automation={a} />
           </Card>
         ))}
         {!items.length ? (
@@ -258,6 +259,46 @@ export default function Schedules({ onBack }: { onBack: () => void }) {
  * gang on the control screen so the same switch is called the same thing
  * everywhere.
  */
+/**
+ * What happened the last time this timer was due.
+ *
+ * A switch timer used to save correctly, show the right next-run time and
+ * count down while the relay never moved, because the stored command was a
+ * shape the device discards before its sketch runs. Nothing in the app
+ * distinguished that from working, which is why it went unnoticed for so long.
+ *
+ * A control plane too old to report this stays silent rather than claiming
+ * "never ran", which would be a confident wrong answer.
+ */
+function RunLine({ automation }: { automation: Automation }) {
+  const { c } = useTheme();
+  if (automation.last_run_at === undefined && automation.run_count === undefined) return null;
+
+  if (automation.last_run_ok === false && automation.last_error) {
+    return (
+      <Text style={{ color: c.amber, fontSize: 11, paddingHorizontal: 14, paddingBottom: 10 }}>
+        {`Last run failed \u00B7 ${automation.last_error}`}
+      </Text>
+    );
+  }
+  if (!automation.last_run_at) {
+    return (
+      <Text style={{ color: c.faint, fontSize: 11, paddingHorizontal: 14, paddingBottom: 10 }}>
+        Has not run yet — it will fire at the time above.
+      </Text>
+    );
+  }
+  const mins = Math.max(0, Math.round((Date.now() - new Date(automation.last_run_at).getTime()) / 60000));
+  const ago =
+    mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.round(mins / 60)}h ago` : `${Math.round(mins / 1440)}d ago`;
+  const runs = automation.run_count ?? 0;
+  return (
+    <Text style={{ color: c.green, fontSize: 11, paddingHorizontal: 14, paddingBottom: 10 }}>
+      {`Last ran ${ago}${runs ? ` \u00B7 ${runs} run${runs === 1 ? "" : "s"}` : ""}`}
+    </Text>
+  );
+}
+
 function SwitchPicker({
   device,
   value,
