@@ -22,7 +22,7 @@
  * independently derived from the sketches, so agreement between the two is
  * evidence about the firmware and not about one author's assumption.
  */
-import { buildFieldCommand, projectCommand, repairLegacyCommand } from "./smarthome-command-map";
+import { buildFieldCommand, projectCommand, readFieldCommand, repairLegacyCommand } from "./smarthome-command-map";
 import { getCommandFields } from "@/app/smarthome/automation/describe";
 
 /** Device types the rule and schedule builders can target. */
@@ -127,6 +127,75 @@ describe("every offered switch produces a command the device will act on", () =>
     // handler runs, regardless of whether the key was right.
     const legacy: Record<string, unknown> = { g1: true };
     expect(typeof legacy.action).toBe("undefined");
+  });
+});
+
+describe("a stored command can be read back into the switch it addresses", () => {
+  /*
+   * The half that was missing, and the reason every switch timer vanished from
+   * its own tab while continuing to fire correctly on the hardware.
+   *
+   * Fixing the encoder without the decoder is not a partial fix, it is a
+   * different bug: commands became addressed the way the firmware reads them,
+   * and the UI — which still did `Object.keys(cmd)[0]` — stopped recognising
+   * its own rules. The list went empty, the Rules tab still showed six of them,
+   * and someone would reasonably have created them all a second time.
+   *
+   * So the property is symmetric: build then read must return what went in.
+   */
+  it.each(TYPES)("%s: build then read returns the same switch", (type) => {
+    const notOneSwitch = new Set(["all", "away", "muted", "auto"]);
+    for (const f of getCommandFields(type)) {
+      if (notOneSwitch.has(f.key)) continue;
+      const value = sampleValue(f.kind, f.choices);
+      const cmd = buildFieldCommand(type, f.key, value);
+      if (!cmd) continue;
+      const back = readFieldCommand(type, cmd);
+      expect(back).not.toBeNull();
+      expect(back!.field).toBe(f.key);
+      expect(back!.value).toBe(value);
+    }
+  });
+
+  it("reads a Home Hub channel out of its positional command", () => {
+    // The exact decode that was missing. `{action:"set", ch:1, on:true}` has
+    // no "power2" anywhere in it, so no amount of key-guessing finds one.
+    expect(readFieldCommand("home-hub", { action: "set", ch: 0, on: true })).toEqual({ field: "power", value: true });
+    expect(readFieldCommand("home-hub", { action: "set", ch: 1, on: true })).toEqual({ field: "power2", value: true });
+    expect(readFieldCommand("home-hub", { action: "set", ch: 2, on: false })).toEqual({ field: "power3", value: false });
+    expect(readFieldCommand("home-hub", { action: "set", ch: 3, on: true })).toEqual({ field: "power4", value: true });
+  });
+
+  it("still reads rows written before the fix", () => {
+    // Legacy rows keep displaying until they are rewritten. A schedule that
+    // disappears looks deleted, and someone makes a second one.
+    expect(readFieldCommand("home-hub", { power2: true })).toEqual({ field: "power2", value: true });
+    expect(readFieldCommand("touchboard", { g1: false })).toEqual({ field: "g1", value: false });
+  });
+
+  it("reads the verb forms back to their field", () => {
+    expect(readFieldCommand("smart-lock", { action: "lock" })).toEqual({ field: "locked", value: true });
+    expect(readFieldCommand("facedoor", { action: "unlock" })).toEqual({ field: "locked", value: false });
+    expect(readFieldCommand("rfid-gate", { action: "open" })).toEqual({ field: "action", value: "open" });
+  });
+
+  it("returns null for a command that names no single switch", () => {
+    expect(readFieldCommand("home-hub", { action: "set", relays: [true, true, true, true] })).toBeNull();
+    expect(readFieldCommand("sentinel", { action: "clearAlarm" })).toBeNull();
+    expect(readFieldCommand("home-hub", null)).toBeNull();
+    expect(readFieldCommand("home-hub", {})).toBeNull();
+  });
+
+  it("would have failed on the decoder the panel used to have", () => {
+    /*
+     * Proof this test has teeth. The old decoder dropped `action` and required
+     * exactly one key left; the current command leaves two (ch and on), so it
+     * returned null and the timer was filtered out of its own list.
+     */
+    const cmd: Record<string, unknown> = { action: "set", ch: 1, on: true };
+    const oldDecoder = Object.entries(cmd).filter(([k]) => k !== "action");
+    expect(oldDecoder).toHaveLength(2);          // the old code required 1
+    expect(readFieldCommand("home-hub", cmd)).toEqual({ field: "power2", value: true });
   });
 });
 

@@ -18,6 +18,7 @@
 import { useCallback, useMemo } from "react";
 import type { Device } from "./control-plane";
 import { getCommandFields } from "@/app/smarthome/automation/describe";
+import { readFieldCommand } from "./smarthome-command-map";
 import { useChannelLabels, useChannelConfig, type ChannelKind } from "./smarthome-prefs";
 
 /** One independently switchable output on a device. */
@@ -135,14 +136,29 @@ export function useSwitchIndex(devices: Device[]): SwitchIndex {
 
   const forDevice = useCallback((deviceId: string) => byDevice.get(deviceId) ?? [], [byDevice]);
 
+  const deviceTypeById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of devices) m.set(d.id, d.type);
+    return m;
+  }, [devices]);
+
+  /**
+   * Names the switch a stored command addresses.
+   *
+   * Decoded rather than read off the first key: a Home Hub channel arrives as
+   * `{ ch: 1, on: true }` and there is no `power2` anywhere in it. Guessing the
+   * key made every switch timer's label go blank the moment commands started
+   * being addressed the way the firmware actually reads them.
+   */
   const describeCommand = useCallback(
     (deviceId: string | undefined, command: Record<string, unknown> | undefined) => {
       if (!deviceId || !command) return "";
-      const keys = Object.keys(command).filter((k) => k !== "action");
-      if (keys.length !== 1) return "";
-      return byKey.get(`${deviceId}::${keys[0]}`)?.label ?? "";
+      const type = deviceTypeById.get(deviceId) ?? "";
+      const read = readFieldCommand(type, command);
+      if (!read) return "";
+      return byKey.get(`${deviceId}::${read.field}`)?.label ?? "";
     },
-    [byKey]
+    [byKey, deviceTypeById]
   );
 
   return { switches, byKey, forDevice, describeCommand };

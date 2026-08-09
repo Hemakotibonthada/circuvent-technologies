@@ -453,6 +453,67 @@ export function buildFieldCommand(
 }
 
 /**
+ * Reads a wire command back into the switch it addresses.
+ *
+ * The exact inverse of buildFieldCommand, and it has to exist for the same
+ * reason the builder does: something has to turn `{action:"set", ch:1, on:true}`
+ * back into "channel 2, on" so the timers list can group and display it.
+ *
+ * WHY THIS IS A SEPARATE FUNCTION AND NOT `Object.keys(cmd)[0]`
+ *
+ * That is what the panel used to do, and it worked only for as long as the
+ * command happened to be a single field. The moment commands became real —
+ * carrying an action, and addressing Home Hub channels positionally — every
+ * switch timer vanished from its own tab while continuing to run correctly. A
+ * decoder that guesses is a decoder that breaks the first time the encoder
+ * gets more precise.
+ *
+ * Both shapes are accepted. Rows written before the fix still hold
+ * `{ power2: true }`, and they have to keep displaying until they are rewritten
+ * — a schedule that disappears from the UI looks deleted, and someone will
+ * make a second one.
+ */
+export function readFieldCommand(
+  type: string,
+  cmd: CommandPayload | null | undefined
+): { field: string; value: boolean | number | string } | null {
+  if (!cmd || typeof cmd !== "object") return null;
+  const action = typeof cmd.action === "string" ? cmd.action : "";
+
+  if (type === "home-hub") {
+    if (typeof cmd.ch === "number" && typeof cmd.on === "boolean") {
+      const field = HUB_CHANNEL_FIELDS[cmd.ch];
+      return field ? { field, value: cmd.on } : null;
+    }
+    if (typeof cmd.scene === "string") return { field: "scene", value: cmd.scene };
+  }
+
+  if (type === "smart-lock" || type === "facedoor") {
+    if (action === "lock") return { field: "locked", value: true };
+    if (action === "unlock") return { field: "locked", value: false };
+  }
+
+  if (type === "rfid-gate") {
+    if (action === "open" || action === "close") return { field: "action", value: action };
+    if (typeof cmd.mode === "string") return { field: "mode", value: cmd.mode };
+  }
+
+  if (type === "curtain") {
+    if (action === "open" || action === "close") return { field: "action", value: action };
+    if (typeof cmd.position === "number") return { field: "position", value: cmd.position };
+  }
+
+  // The general shape, and the legacy one: a single field beside the action.
+  const entries = Object.entries(cmd).filter(([k]) => k !== "action");
+  if (entries.length !== 1) return null;
+  const [field, value] = entries[0];
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+    return { field, value };
+  }
+  return null;
+}
+
+/**
  * Repairs a command stored before buildFieldCommand existed.
  *
  * Rules already in the database carry the broken shape, and there are two

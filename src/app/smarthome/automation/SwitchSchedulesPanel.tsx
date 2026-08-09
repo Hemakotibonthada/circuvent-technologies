@@ -28,7 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { controlPlane, actionList } from "@/lib/control-plane";
-import { buildFieldCommand } from "@/lib/smarthome-command-map";
+import { buildFieldCommand, readFieldCommand } from "@/lib/smarthome-command-map";
 import type { Automation, AutomationAction } from "@/lib/control-plane";
 import {
   useSwitchIndex,
@@ -96,15 +96,21 @@ function isSwitchSchedule(a: Automation): boolean {
   );
 }
 
-/** The one boolean key a switch schedule commands, or null if malformed. */
-function commandField(a: Automation): { field: string; on: boolean } | null {
+/**
+ * The one boolean key a switch schedule commands, or null if malformed.
+ *
+ * Decoded against the device's type, because the command is addressed the way
+ * the sketch reads it — a Home Hub channel is `{ ch, on }`, not `{ power2 }`.
+ * Reading the first key off the object worked only while commands were a
+ * single field, and when they stopped being one every timer disappeared from
+ * this tab while still firing correctly on the hardware.
+ */
+function commandField(a: Automation, typeOf: (deviceId: string) => string): { field: string; on: boolean } | null {
   const step = switchStep(a);
-  if (!step) return null;
-  const entries = Object.entries(step.command ?? {}).filter(([k]) => k !== "action");
-  if (entries.length !== 1) return null;
-  const [field, value] = entries[0];
-  if (typeof value !== "boolean") return null;
-  return { field, on: value };
+  if (!step?.deviceId) return null;
+  const read = readFieldCommand(typeOf(step.deviceId), step.command);
+  if (!read || typeof read.value !== "boolean") return null;
+  return { field: read.field, on: read.value };
 }
 
 function scheduleName(label: string, on: boolean): string {
@@ -146,10 +152,11 @@ export default function SwitchSchedulesPanel() {
   const [busy, setBusy] = useState(false);
 
   const schedules = useMemo<SwitchSchedule[]>(() => {
+    const typeOf = (id: string) => devices.find((d) => d.id === id)?.type ?? "";
     const byKey = new Map<string, SwitchSchedule>();
     for (const a of automations) {
       if (!isSwitchSchedule(a)) continue;
-      const cmd = commandField(a);
+      const cmd = commandField(a, typeOf);
       if (!cmd) continue;
       const deviceId = switchStep(a)!.deviceId!;
       const key = `${deviceId}::${cmd.field}`;
@@ -177,7 +184,7 @@ export default function SwitchSchedulesPanel() {
       const b = y.onRule?.trigger.at ?? y.offRule?.trigger.at ?? "99:99";
       return a.localeCompare(b);
     });
-  }, [automations, index.byKey]);
+  }, [automations, index.byKey, devices]);
 
   const tzNote = istOffsetNote();
 

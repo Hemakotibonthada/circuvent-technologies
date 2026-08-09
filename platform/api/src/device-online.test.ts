@@ -59,7 +59,28 @@ test("no SELECT reads devices.online without deriving liveness", () => {
       let offset = 0;
       for (let i = 0; i < parts.length; i++) {
         const seg = parts[i];
-        if (i % 2 === 1 && /\bdevices\b/.test(seg) && /\bonline\b/.test(seg)) {
+        /*
+         * A template literal is only a query if it reads like one.
+         *
+         * Matching on "devices" plus "online" alone was enough while every
+         * template literal in this service was SQL. It stopped being true when
+         * the operations console arrived: its page markup says "Devices" in a
+         * tab and "Online" in a status pill, and the guard reported an HTML
+         * string as an unsafe SELECT. A check that fires on prose gets
+         * suppressed, and then it is not protecting anything.
+         *
+         * Requiring a SQL keyword costs nothing in coverage — every statement
+         * that could read devices.online has a FROM, a WHERE or a JOIN in it —
+         * and it makes the guard say what it means.
+         *
+         * Case-sensitive, and that is not incidental. Matching case-insensitively
+         * made `.join("")` in the console's page script read as a SQL JOIN, so
+         * the first attempt at this fix changed nothing. Every query in this
+         * service writes its keywords in upper case; JavaScript method names
+         * do not.
+         */
+        const looksLikeSql = /\b(SELECT|FROM|WHERE|JOIN)\b/.test(seg);
+        if (i % 2 === 1 && looksLikeSql && /\bdevices\b/.test(seg) && /\bonline\b/.test(seg)) {
           scanned++;
           const writes = /\b(UPDATE|INSERT|CREATE|ALTER)\b/i.test(seg);
           const exempt = /raw-flag:/.test(src.slice(Math.max(0, offset - 400), offset));

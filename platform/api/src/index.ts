@@ -26,6 +26,7 @@ import { adminRouter } from "./routes/admin";
 import { gateRouter } from "./routes/gate";
 import { v1Router } from "./routes/v1";
 import { developerRouter } from "./routes/developer";
+import { consoleRouter } from "./routes/console";
 import { startAutomationScheduler } from "./automations";
 import { startWebhooks } from "./webhooks";
 import { startLivenessSweeper } from "./liveness";
@@ -103,6 +104,9 @@ async function main(): Promise<void> {
   app.use("/energy", energyRouter);
   app.use("/admin", adminRouter);
   app.use("/gate", gateRouter);
+  // Mounted last so it can never shadow an API path: it only claims "/" and
+  // "/index.json", and every route above is matched first.
+  app.use("/", consoleRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 
