@@ -83,6 +83,9 @@ DEVICES = [
          w=75, h=60, mounts=4, mains=True, creepage=8.0),
     dict(folder="sentinel", model="cv-sent", title="Circuvent Sentinel Safety Panel",
          w=90, h=70, mounts=4, mains=True, creepage=8.0),
+    # In-house offline SMPS. No MCU: build_netlist_psu() wires it instead.
+    dict(folder="psu-5v3v3", model="cv-psu5", title="Circuvent PSU-5 230VAC-5V/3V3",
+         w=70, h=55, mounts=2, mains=True, creepage=8.0, psu=True),
     # High-density USB-C board. `compact` selects build_netlist_compact() and
     # the 0402/0603 SMD footprint set; everything downstream is shared.
     dict(folder="load-controller", model="cv-duo",
@@ -165,6 +168,12 @@ FP = {
     "term3_35":  ("TerminalBlock_Phoenix",
                   "TerminalBlock_Phoenix_PT-1,5-3-3.5-H_1x03_P3.50mm_Horizontal", 12.5, 9.0, True),
     "jst2":      ("Connector_JST", "JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical", 8.0, 7.0, True),
+    # --- offline SMPS set. The first three live in hardware/lib/Circuvent.pretty
+    #     because KiCad ships no flyback bobbin and no safety-capacitor land. ---
+    "xfmr":      ("Circuvent", "Transformer_EE13_10pin", 13.4, 12.6, True),
+    "capx2":     ("Circuvent", "C_Film_X2_L10.5_W5.0_P7.50mm", 10.5, 5.0, True),
+    "capy1":     ("Circuvent", "C_Disc_Y1_D12_P10.00mm", 12.0, 5.0, True),
+    "dip8":      ("Package_DIP", "DIP-8_W7.62mm", 10.5, 8.0, True),
 }
 
 # Distinct pad numbers per footprint (measured from the stock libraries).
@@ -181,6 +190,8 @@ PAD_COUNT = {
     "esp32c3": 19, "sot235": 5, "sot236": 6, "so4": 4, "relay_g5q": 4,
     "r0402": 2, "c0402": 2, "r0603": 2, "c0603": 2, "led0603": 2,
     "sod123": 2, "sw_smd": 2, "term2_35": 2, "term3_35": 3, "jst2": 2,
+    # offline SMPS
+    "xfmr": 10, "capx2": 2, "capy1": 2, "dip8": 8,
 }
 
 # Footprints whose pads are not numbered 1..N. The list is authoritative for
@@ -208,6 +219,7 @@ COMPACT_PKG = {
     "0402": "r0402", "0402c": "c0402", "0603": "r0603", "0603c": "c0603",
     "0603led": "led0603", "sod-123": "sod123", "tactile smd": "sw_smd",
     "term 3.5/2": "term2_35", "term 3.5/3": "term3_35", "jst-xh/2": "jst2",
+    "ee13": "xfmr", "film x2": "capx2", "disc y1": "capy1", "dip-8": "dip8",
 }
 
 # KiCad's pcbnew.FootprintLoad() re-guesses the plugin per call and can hand back
@@ -445,7 +457,14 @@ def _load_raw(libpath, name):
 
 def load_fp(board, key, ref, value):
     lib, name, w, h, tht = FP[key]
-    fp = _load_raw(os.path.join(FP_ROOT, lib + ".pretty"), name)
+    # Parts KiCad has no footprint for (the flyback magnetics and the safety
+    # capacitors) live in a library committed alongside the generator, so the
+    # board can be rebuilt from a clean checkout. Repo-local wins over the
+    # KiCad install, which keeps the override explicit rather than depending on
+    # what happens to be installed.
+    local = os.path.join(HW_ROOT, "lib", lib + ".pretty")
+    libpath = local if os.path.isdir(local) else os.path.join(FP_ROOT, lib + ".pretty")
+    fp = _load_raw(libpath, name)
     if fp is None:
         return None, 0, 0
     board.Add(fp)
@@ -1137,6 +1156,8 @@ class Netlist:
 
 def build_netlist(dev, parts):
     """Derive a complete netlist: every pad of every part lands on a net."""
+    if dev.get("psu"):
+        return build_netlist_psu(dev, parts)
     if dev.get("compact"):
         return build_netlist_compact(dev, parts)
     nl = Netlist()
@@ -1518,6 +1539,196 @@ ESP32C3_PADS = {
 VBUS, USB_DP, USB_DM = "VBUS", "USB_D_P", "USB_D_N"
 LOAD_COM, LOAD_NO = "LOAD_COM", "LOAD_NO"
 
+# --------------------------------------------------------------------------
+# Offline SMPS (hardware/psu-5v3v3): isolated flyback, 230 VAC -> 5 V + 3.3 V.
+#
+# Pin functions asserted here, collected so a reviewer can check them in one
+# place. The ones marked (!) could not be confirmed against a datasheet in the
+# session that wrote this and are blocking pre-fab checklist items:
+#
+#   xfmr  EE13 bobbin   1=Np start 2=Np end 4=Nb start 5=Nb end
+#                       6=Ns start 10=Ns end ; 3/7/8/9 unfitted
+#   dip8  TNY274PN (!)  1=EN/UV 2=BYPASS 4,5=SOURCE 7,8=DRAIN ; 3,6 omitted
+#                       in the DIP-8B package for primary-side creepage
+#   sot23 TL431 (!)     1=REF 2=ANODE 3=CATHODE
+#   sma   S1M / SS34    1=cathode 2=anode  (as everywhere else in this file)
+#   dip4  PC817         1=LED anode 2=LED cathode 3=emitter 4=collector
+# --------------------------------------------------------------------------
+HV_P, HV_N = "HV+", "HV-"
+SW_D, CLAMP = "SW_DRAIN", "CLAMP"
+BIAS, VBIAS, SEC = "BIAS", "VBIAS", "SEC"
+FB_A, FB_K, FB_REF = "FB_A", "FB_K", "FB_REF"
+
+
+def build_netlist_psu(dev, parts):
+    """Netlist for the isolated 230 VAC -> 5 V / 3.3 V flyback module.
+
+    The primary is a hazardous-voltage island: rectified mains sits at roughly
+    325 V DC, and the drain node swings above that on every switching cycle.
+    Everything on it is marked mains so the barrier, the netclasses and the
+    reinforced-creepage rule all apply, exactly as they do to the AC input.
+    """
+    nl = Netlist()
+    by_ref = {p["ref"]: p for p in parts}
+
+    def of(*prefixes):
+        return sorted([r for r in by_ref if ref_prefix(r) in prefixes],
+                      key=lambda r: (len(r), r))
+
+    def key_of(r):
+        return by_ref[r]["key"]
+
+    def pick(key, taken):
+        for r in sorted(by_ref, key=lambda x: (len(x), x)):
+            if key_of(r) == key and r not in taken:
+                taken.add(r)
+                return r
+        return None
+
+    used = set()
+    # Primary-referenced nets. HV- is the primary return: it is NOT ground, it
+    # is one rail of the rectified mains, and treating it as ground is the
+    # classic way to kill someone with a flyback.
+    nl.mark_mains(AC_L, AC_N, AC_LF, HV_P, HV_N, SW_D, CLAMP, BIAS, VBIAS)
+
+    # ---- mains input: terminal, fuse, MOV, X2 ----------------------------
+    inlet = next((r for r in of("J") if key_of(r) in ("term2", "term3")), None)
+    if inlet:
+        nl.tie_many(inlet, {1: AC_L, 2: AC_N})
+        if key_of(inlet) == "term3":
+            nl.tie(inlet, 3, PE)
+        used.add(inlet)
+    for r in of("F"):
+        nl.tie_many(r, {1: AC_L, 2: AC_LF})
+        used.add(r)
+    hot = AC_LF if of("F") else AC_L
+    for r in of("RV"):
+        nl.tie_many(r, {1: hot, 2: AC_N})
+        used.add(r)
+    cx = pick("capx2", used)
+    if cx:
+        nl.tie_many(cx, {1: hot, 2: AC_N})
+
+    # ---- bridge rectifier: four discretes, so no unverified bridge land ---
+    diodes = [r for r in of("D") if key_of(r) == "sma"]
+    bridge, rest = diodes[:4], diodes[4:]
+    if len(bridge) == 4:
+        nl.tie_many(bridge[0], {1: HV_P, 2: hot})     # hot  -> HV+
+        nl.tie_many(bridge[1], {1: HV_P, 2: AC_N})    # neut -> HV+
+        nl.tie_many(bridge[2], {1: hot, 2: HV_N})     # HV-  -> hot
+        nl.tie_many(bridge[3], {1: AC_N, 2: HV_N})    # HV-  -> neut
+        used.update(bridge)
+
+    # ---- transformer ------------------------------------------------------
+    t1 = pick("xfmr", used)
+    if t1:
+        nl.tie_many(t1, {1: HV_P, 2: SW_D, 4: BIAS, 5: HV_N, 6: SEC, 10: GND})
+        for p in (3, 7, 8, 9):
+            nl.tie(t1, p, "N$%s.%d" % (t1, p))
+
+    # ---- switcher ---------------------------------------------------------
+    u1 = pick("dip8", used)
+    if u1:
+        nl.tie_many(u1, {1: "EN_UV", 2: "BYPASS", 4: HV_N, 5: HV_N,
+                         7: SW_D, 8: SW_D})
+        for p in (3, 6):
+            nl.tie(u1, p, "N$%s.%d" % (u1, p))
+        nl.mark_mains("EN_UV", "BYPASS")
+
+    caps = [r for r in of("C") if r not in used]
+
+    def cap(net_a, net_b):
+        if caps:
+            c = caps.pop(0)
+            nl.tie_many(c, {1: net_a, 2: net_b})
+            used.add(c)
+
+    cap(HV_P, HV_N)          # bulk
+    cap("BYPASS", HV_N)      # BP decoupling
+    cap(CLAMP, HV_P)         # RCD snubber capacitor, clamp node to the rail
+
+    res = [r for r in of("R") if r not in used]
+
+    def resistor(net_a, net_b):
+        if res:
+            r = res.pop(0)
+            nl.tie_many(r, {1: net_a, 2: net_b})
+            used.add(r)
+            return True
+        return False
+
+    # Snubber resistors in SERIES, not parallel. Roughly 325 V stands across
+    # this string plus the reflected output voltage; a single 0805 is not rated
+    # for it, and two in parallel halve the resistance instead of sharing the
+    # volts.
+    nl.mark_mains("CLAMP_MID")
+    resistor(CLAMP, "CLAMP_MID")
+    resistor("CLAMP_MID", HV_P)
+
+    # ---- clamp / bias / secondary rectifiers ------------------------------
+    # RCD clamp: the diode catches the leakage spike at the drain and dumps it
+    # into the clamp node, which the R//C bleeds back into the rail. Wiring it
+    # from the rail instead of the drain leaves the leakage energy nowhere to
+    # go and the switcher fails on overvoltage.
+    if rest:
+        nl.tie_many(rest.pop(0), {1: CLAMP, 2: SW_D})   # clamp catch diode
+    if rest:
+        nl.tie_many(rest.pop(0), {1: VBIAS, 2: BIAS})   # bias rectifier
+        cap(VBIAS, HV_N)
+    for r in rest:                                       # secondary rectifier
+        nl.tie_many(r, {1: V5, 2: SEC})
+    used.update(diodes)
+
+    # ---- secondary bulk + feedback ---------------------------------------
+    cap(V5, GND)
+    cap(V5, GND)
+    cap(V5, GND)
+    tl = pick("sot23", used)
+    pc = pick("dip4", used)
+    if pc:
+        nl.tie_many(pc, {1: FB_A, 2: FB_K, 3: HV_N, 4: "EN_UV"})
+    if tl:
+        nl.tie_many(tl, {1: FB_REF, 2: GND, 3: FB_K})
+    resistor(V5, FB_A)       # opto LED series
+    resistor(V5, FB_REF)     # divider upper
+    resistor(FB_REF, GND)    # divider lower
+
+    # ---- the Y capacitor is the barrier crossing -------------------------
+    # It is the only intentional connection between the primary return and
+    # SELV ground, and it must be a Y1-rated safety part: if it fails short,
+    # the secondary is at mains potential.
+    cy = pick("capy1", used)
+    if cy:
+        nl.tie_many(cy, {1: HV_N, 2: GND})
+
+    # ---- 3.3 V post-regulator and output ---------------------------------
+    for r in [x for x in by_ref if key_of(x) == "sot223" and x not in used]:
+        nl.tie_many(r, {1: GND, 2: V3, 3: V5})
+        used.add(r)
+    cap(V3, GND)
+    cap(V3, GND)
+
+    out = next((r for r in of("J") if r != inlet and key_of(r) in
+                ("term2", "term3", "hdr3", "hdr4")), None)
+    if out:
+        n = len(pad_ids(key_of(out)))
+        order = [V5, V3, GND, GND][:n]
+        nl.tie_many(out, {i + 1: v for i, v in enumerate(order)})
+        used.add(out)
+
+    nl.spares = list(res)
+    for r in res:
+        nl.tie_many(r, {1: "N$%s.1" % r, 2: "N$%s.2" % r})
+    for c in caps:
+        nl.tie_many(c, {1: "N$%s.1" % c, 2: "N$%s.2" % c})
+
+    for ref, p in by_ref.items():
+        for pad in pad_ids(p["key"]):
+            if (ref, str(pad)) not in nl.pads:
+                nl.tie(ref, pad, "N$%s.%s" % (ref, pad))
+    return nl
+
+
 
 def build_netlist_compact(dev, parts):
     """Netlist for the high-density USB-C dual-channel load controller.
@@ -1723,6 +1934,19 @@ NETCLASS_DEFS = [
 ]
 POWER_NETS = {GND, V5, V3}
 
+# Primary-side nets on the offline SMPS. They are at hazardous voltage, so they
+# stay on the mains side of the isolation barrier and keep a mains-grade gap to
+# anything SELV - but between themselves they carry tens of milliamps, not the
+# 6 A a switched load does. Forcing 1.5 mm track and 2.0 mm clearance on the
+# BYPASS pin decoupling makes the primary physically unroutable while buying no
+# safety at all: 0.5 mm at 325 V is comfortable functional insulation, and the
+# separation that actually matters is primary-to-secondary, which the barrier
+# and the reinforced-creepage rule enforce independently.
+HVDC_NETS = {"HV+", "HV-", "SW_DRAIN", "CLAMP", "CLAMP_MID",
+             "BIAS", "VBIAS", "EN_UV", "BYPASS"}
+NETCLASS_HVDC = ("HVDC", 0.50, 0.50, 0.80, 0.40,
+                 "Rectified-mains primary side, hazardous but low current")
+
 # High-density boards use 0402/0603 passives whose pad gaps are smaller than
 # the 0.30 mm POWER clearance the through-hole boards can afford. These values
 # are still well inside a standard 2-layer service (0.127 mm trace/space), and
@@ -1741,11 +1965,16 @@ NETCLASS_DEFS_COMPACT = [
 
 
 def netclass_defs(dev=None):
-    return (NETCLASS_DEFS_COMPACT if dev and dev.get("compact")
+    base = (NETCLASS_DEFS_COMPACT if dev and dev.get("compact")
             else NETCLASS_DEFS)
+    if dev and dev.get("psu"):
+        return base[:1] + [NETCLASS_HVDC] + base[1:]
+    return base
 
 
-def netclass_of(name, mains_nets):
+def netclass_of(name, mains_nets, dev=None):
+    if dev and dev.get("psu") and name in HVDC_NETS:
+        return "HVDC"
     if name in mains_nets:
         return "MAINS"
     if name in POWER_NETS:
@@ -1776,7 +2005,7 @@ def apply_netclasses(board, net_names, mains_nets, dev=None):
     for n in net_names:
         if n.startswith("N$"):      # unrouted single-pad stubs
             continue
-        cls = netclass_of(n, mains_nets)
+        cls = netclass_of(n, mains_nets, dev)
         assigned[cls] += 1
         if cls != "Default":
             # exact-name patterns: no globbing surprises
@@ -1841,7 +2070,8 @@ DRU_MAINS = """
 # an explicit isolation review.
 (rule "reinforced_mains_to_selv"
     (constraint clearance (min {creep}mm))
-    (condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
+    (condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS'{hvexcl} && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
+{hvrule}
 
 # Line to neutral and line to switched load is basic insulation and is carried
 # by the MAINS netclass clearance (2.0 mm); no extra rule needed here.
@@ -1888,7 +2118,23 @@ def write_dru(path, dev, pkg_refs=()):
                 '    (constraint clearance (min 0.2mm))\n'
                 '    (condition "A.insideArea(\'PKG_%s\') && B.insideArea(\'PKG_%s\')"))\n\n'
                 % (ref, ref, ref))
-        body += DRU_MAINS.format(creep=dev["creepage"])
+        body += DRU_MAINS.format(
+            creep=dev["creepage"],
+            # On the offline SMPS the rectified-mains primary is its own
+            # netclass. It is hazardous, so it needs the same reinforced gap to
+            # SELV that the AC input does - but it sits on the same side of the
+            # barrier as the AC input, so demanding 8 mm between HV+ and AC_N
+            # would be asking for 8 mm inside a single island. Exempt the two
+            # hazardous classes from each other; keep both 8 mm from everything
+            # else.
+            hvexcl=" && B.NetClass != 'HVDC'" if dev.get("psu") else "",
+            hvrule=(
+                '\n(rule "reinforced_hvdc_to_selv"\n'
+                '    (constraint clearance (min %smm))\n'
+                '    (condition "A.NetClass == \'HVDC\' && B.NetClass != \'HVDC\' '
+                "&& B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') "
+                "&& !B.insideArea('ISO_BRIDGE')\"))\n"
+                % dev["creepage"]) if dev.get("psu") else "")
     body += DRU_COMMON
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(body)
@@ -2733,7 +2979,7 @@ def _unrouted_rows(dev, r):
         txt = [e.get("description", "?") for e in ends]
         m = re.search(r"\[([^\]]+)\]", txt[0])
         net = m.group(1) if m else "?"
-        out.append((net, netclass_of(net, mains),
+        out.append((net, netclass_of(net, mains, dev),
                     re.sub(r"\s*\[[^\]]*\]", "", txt[0]),
                     re.sub(r"\s*\[[^\]]*\]", "", txt[1])))
     return out
@@ -3325,7 +3571,7 @@ def bond_duplicate_pads(board, mains_nets, dev=None):
             # together by hand just litters the board with redundant copper.
             if len(pads) > 4 or pads[0].GetNetname() == GND:
                 continue
-            w = widths[netclass_of(pads[0].GetNetname(), mains_nets)]
+            w = widths[netclass_of(pads[0].GetNetname(), mains_nets, dev)]
             pads.sort(key=lambda p: (p.GetX(), p.GetY()))
             for a, b in zip(pads, pads[1:]):
                 if a.GetPosition() == b.GetPosition():

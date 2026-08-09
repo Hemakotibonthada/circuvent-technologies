@@ -14,8 +14,8 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | Nets | 68 total, 39 multi-pad (routable) |
 | Pads bound to nets | 198 of 198 |
 | Net classes | Default=29, MAINS=7, POWER=3 |
-| Routing | autorouted, 804 track/via segments |
-| DRC errors / unconnected | **2 / 21** |
+| Routing | not run |
+| DRC errors / unconnected | **not run** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
 
 ## Net classes and design rules
@@ -144,7 +144,7 @@ must be treated as live.
 - [x] Board outline, stack-up, mounting holes, fiducials, test points
 - [x] Component placement, DRC-clean against the custom fab + safety rules
 - [x] Complete netlist: every pad on a net, net classes bound by net name
-- [x] Copper routing (autorouted, 804 track/via segments)
+- [ ] Copper routing (not run)
 - [ ] Hand-finish any residual unconnected items listed above. On the mains
       boards these concentrate on the line side, where the metering front end
       and the relay/PSU bridge parts leave the router nowhere legal to go; they

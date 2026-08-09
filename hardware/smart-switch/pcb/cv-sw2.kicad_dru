@@ -54,6 +54,7 @@
     (constraint clearance (min 8.0mm))
     (condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
 
+
 # Line to neutral and line to switched load is basic insulation and is carried
 # by the MAINS netclass clearance (2.0 mm); no extra rule needed here.
 

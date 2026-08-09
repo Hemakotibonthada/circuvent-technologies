@@ -4,6 +4,54 @@
 #
 # Basic insulation (mains net to mains net) comes from the MAINS netclass
 # clearance. This file adds the rules that a netclass cannot express.
+(rule "pkg_internal_C1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_C1') && B.insideArea('PKG_C1')"))
+
+(rule "pkg_internal_C2"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_C2') && B.insideArea('PKG_C2')"))
+
+(rule "pkg_internal_C3"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_C3') && B.insideArea('PKG_C3')"))
+
+(rule "pkg_internal_C4"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_C4') && B.insideArea('PKG_C4')"))
+
+(rule "pkg_internal_CX1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_CX1') && B.insideArea('PKG_CX1')"))
+
+(rule "pkg_internal_CY1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_CY1') && B.insideArea('PKG_CY1')"))
+
+(rule "pkg_internal_D1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_D1') && B.insideArea('PKG_D1')"))
+
+(rule "pkg_internal_D2"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_D2') && B.insideArea('PKG_D2')"))
+
+(rule "pkg_internal_D3"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_D3') && B.insideArea('PKG_D3')"))
+
+(rule "pkg_internal_D4"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_D4') && B.insideArea('PKG_D4')"))
+
+(rule "pkg_internal_D5"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_D5') && B.insideArea('PKG_D5')"))
+
+(rule "pkg_internal_D6"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_D6') && B.insideArea('PKG_D6')"))
+
 (rule "pkg_internal_F1"
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_F1') && B.insideArea('PKG_F1')"))
@@ -12,41 +60,29 @@
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_J1') && B.insideArea('PKG_J1')"))
 
-(rule "pkg_internal_J2"
+(rule "pkg_internal_PC1"
     (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_J2') && B.insideArea('PKG_J2')"))
+    (condition "A.insideArea('PKG_PC1') && B.insideArea('PKG_PC1')"))
 
-(rule "pkg_internal_J3"
+(rule "pkg_internal_R1"
     (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_J3') && B.insideArea('PKG_J3')"))
+    (condition "A.insideArea('PKG_R1') && B.insideArea('PKG_R1')"))
 
-(rule "pkg_internal_K1"
+(rule "pkg_internal_R2"
     (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_K1') && B.insideArea('PKG_K1')"))
-
-(rule "pkg_internal_K2"
-    (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_K2') && B.insideArea('PKG_K2')"))
-
-(rule "pkg_internal_K3"
-    (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_K3') && B.insideArea('PKG_K3')"))
-
-(rule "pkg_internal_PS1"
-    (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_PS1') && B.insideArea('PKG_PS1')"))
+    (condition "A.insideArea('PKG_R2') && B.insideArea('PKG_R2')"))
 
 (rule "pkg_internal_RV1"
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_RV1') && B.insideArea('PKG_RV1')"))
 
-(rule "pkg_internal_Rsh"
+(rule "pkg_internal_T1"
     (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_Rsh') && B.insideArea('PKG_Rsh')"))
+    (condition "A.insideArea('PKG_T1') && B.insideArea('PKG_T1')"))
 
-(rule "pkg_internal_U6"
+(rule "pkg_internal_U1"
     (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_U6') && B.insideArea('PKG_U6')"))
+    (condition "A.insideArea('PKG_U1') && B.insideArea('PKG_U1')"))
 
 
 # Inside a package that bridges the barrier, pin-to-pin spacing is fixed by the
@@ -68,7 +104,11 @@
 # an explicit isolation review.
 (rule "reinforced_mains_to_selv"
     (constraint clearance (min 8.0mm))
-    (condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
+    (condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS' && B.NetClass != 'HVDC' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
+
+(rule "reinforced_hvdc_to_selv"
+    (constraint clearance (min 8.0mm))
+    (condition "A.NetClass == 'HVDC' && B.NetClass != 'HVDC' && B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
 
 
 # Line to neutral and line to switched load is basic insulation and is carried

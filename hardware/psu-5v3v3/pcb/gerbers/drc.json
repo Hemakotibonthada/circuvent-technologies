@@ -1,0 +1,544 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-08-09T06:59:03",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "cv-psu5.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 10 [GND] of T1",
+                    "pos": {
+                        "x": 144.9171,
+                        "y": 99.925
+                    },
+                    "uuid": "b973ae21-5c97-4646-b6e7-5ddd4d4b74a7"
+                },
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 158.942073,
+                        "y": 81.0
+                    },
+                    "uuid": "794f5857-d0b7-438d-90c8-9197f79a71b8"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 158.942073,
+                        "y": 81.0
+                    },
+                    "uuid": "794f5857-d0b7-438d-90c8-9197f79a71b8"
+                },
+                {
+                    "description": "Zone [GND] on B.Cu, priority 0",
+                    "pos": {
+                        "x": 158.942073,
+                        "y": 81.0
+                    },
+                    "uuid": "794f5857-d0b7-438d-90c8-9197f79a71b8"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of RV1",
+                    "pos": {
+                        "x": 121.435,
+                        "y": 119.375
+                    },
+                    "uuid": "1a511f32-1173-42f6-9640-d4b03787684a"
+                },
+                {
+                    "description": "Pad 1 [AC_L_FUSED] of D3 on B.Cu",
+                    "pos": {
+                        "x": 122.135,
+                        "y": 134.02
+                    },
+                    "uuid": "2d7bed60-68ed-4007-a6cf-da06a68ac5cb"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 2 [AC_L_FUSED] of D1 on B.Cu",
+                    "pos": {
+                        "x": 136.03,
+                        "y": 116.93
+                    },
+                    "uuid": "19aa9a09-8431-4f68-9ee3-d85c79c32921"
+                },
+                {
+                    "description": "PTH pad 1 [AC_L_FUSED] of RV1",
+                    "pos": {
+                        "x": 121.435,
+                        "y": 119.375
+                    },
+                    "uuid": "1a511f32-1173-42f6-9640-d4b03787684a"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [AC_N] on F.Cu, length 11.5755 mm",
+                    "pos": {
+                        "x": 115.545,
+                        "y": 118.5105
+                    },
+                    "uuid": "c8e13c02-699f-48b8-96fb-f481f1064e83"
+                },
+                {
+                    "description": "Pad 2 [AC_N] of D2 on B.Cu",
+                    "pos": {
+                        "x": 107.795,
+                        "y": 129.77
+                    },
+                    "uuid": "d4735f35-82a4-4b1d-ada4-20ed7207a191"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [AC_N] on F.Cu, length 4.2027 mm",
+                    "pos": {
+                        "x": 124.1736,
+                        "y": 122.9364
+                    },
+                    "uuid": "3f386cf6-4e6f-457c-811a-2814c0e85f5b"
+                },
+                {
+                    "description": "Pad 1 [AC_N] of D4 on B.Cu",
+                    "pos": {
+                        "x": 132.725,
+                        "y": 135.02
+                    },
+                    "uuid": "cf966b82-06a8-419b-8fa5-a87627097aea"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [AC_N] on F.Cu, length 3.1981 mm",
+                    "pos": {
+                        "x": 126.435,
+                        "y": 120.675
+                    },
+                    "uuid": "cf2f9d7d-844a-4f3a-a07f-b2d8350e33e7"
+                },
+                {
+                    "description": "PTH pad 2 [AC_N] of J1",
+                    "pos": {
+                        "x": 148.7571,
+                        "y": 110.485
+                    },
+                    "uuid": "d0eab664-e480-4627-b929-b53ca778dc1e"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [FB_A] of PC1",
+                    "pos": {
+                        "x": 144.1071,
+                        "y": 139.435
+                    },
+                    "uuid": "a13339e1-005f-4fd4-a3d2-83a9a77e657c"
+                },
+                {
+                    "description": "Pad 2 [FB_A] of R3 on B.Cu",
+                    "pos": {
+                        "x": 161.1871,
+                        "y": 98.0425
+                    },
+                    "uuid": "949b9b9f-671d-47ba-8ae3-b98a379673d8"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [AC_L] of J1",
+                    "pos": {
+                        "x": 148.7571,
+                        "y": 115.485
+                    },
+                    "uuid": "e72633b9-cc76-4193-9bb9-36653b8ba96e"
+                },
+                {
+                    "description": "Track [AC_L] on F.Cu, length 5.0000 mm",
+                    "pos": {
+                        "x": 107.545,
+                        "y": 94.195
+                    },
+                    "uuid": "8c580e7d-1266-411d-a59e-8a5741ca9bb8"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": [
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 0.8581 mm)",
+            "items": [
+                {
+                    "description": "Track [BIAS] on F.Cu, length 7.3007 mm",
+                    "pos": {
+                        "x": 141.1874,
+                        "y": 120.9773
+                    },
+                    "uuid": "97246b0b-60b0-4d46-a2a3-a680526ad5cf"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 18.2769 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 141.992
+                    },
+                    "uuid": "c176e9d5-df14-40ef-bc42-2145fef1c9da"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 3.7935 mm)",
+            "items": [
+                {
+                    "description": "Track [BIAS] on F.Cu, length 4.4253 mm",
+                    "pos": {
+                        "x": 136.025,
+                        "y": 126.1397
+                    },
+                    "uuid": "a6939da3-1370-46bc-abfe-5f7ff1add430"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 18.2769 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 141.992
+                    },
+                    "uuid": "c176e9d5-df14-40ef-bc42-2145fef1c9da"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 7.9668 mm)",
+            "items": [
+                {
+                    "description": "Via [FB_K] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 141.992
+                    },
+                    "uuid": "892b4217-443a-4683-968a-9e26f87ecade"
+                },
+                {
+                    "description": "Track [VBIAS] on F.Cu, length 14.3860 mm",
+                    "pos": {
+                        "x": 121.639,
+                        "y": 134.565
+                    },
+                    "uuid": "c8fdeec5-e94c-45d1-a79e-812a0dbdadb7"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 4.3178 mm)",
+            "items": [
+                {
+                    "description": "Via [FB_K] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 141.992
+                    },
+                    "uuid": "892b4217-443a-4683-968a-9e26f87ecade"
+                },
+                {
+                    "description": "Track [SW_DRAIN] on B.Cu, length 5.6155 mm",
+                    "pos": {
+                        "x": 136.7166,
+                        "y": 138.5852
+                    },
+                    "uuid": "cb0017f4-e3cb-46c0-908c-396f3099117c"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 2.4163 mm)",
+            "items": [
+                {
+                    "description": "Track [SW_DRAIN] on F.Cu, length 15.2759 mm",
+                    "pos": {
+                        "x": 139.6858,
+                        "y": 120.2753
+                    },
+                    "uuid": "cb047b49-065c-4f80-8050-6c51e2ca9fc3"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 2.8554 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 123.7151
+                    },
+                    "uuid": "cf19c866-86cd-4c76-b81e-8ec3e10ddee3"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 2.4163 mm)",
+            "items": [
+                {
+                    "description": "Track [SW_DRAIN] on F.Cu, length 21.0888 mm",
+                    "pos": {
+                        "x": 139.6858,
+                        "y": 99.1865
+                    },
+                    "uuid": "729e0803-75c3-42c5-83f3-6eaef9c96533"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 2.8554 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 123.7151
+                    },
+                    "uuid": "cf19c866-86cd-4c76-b81e-8ec3e10ddee3"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 6.2302 mm)",
+            "items": [
+                {
+                    "description": "Track [HV+] on F.Cu, length 5.2308 mm",
+                    "pos": {
+                        "x": 132.0263,
+                        "y": 115.1438
+                    },
+                    "uuid": "4e708256-d38c-48a0-b92d-1cc257ec1558"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 2.8554 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 123.7151
+                    },
+                    "uuid": "cf19c866-86cd-4c76-b81e-8ec3e10ddee3"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 6.7771 mm)",
+            "items": [
+                {
+                    "description": "Pad 1 [VBIAS] of D6 on F.Cu",
+                    "pos": {
+                        "x": 136.025,
+                        "y": 134.565
+                    },
+                    "uuid": "51dd5039-29f2-4d3e-88c6-56f4acac9385"
+                },
+                {
+                    "description": "Via [FB_K] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 141.992
+                    },
+                    "uuid": "892b4217-443a-4683-968a-9e26f87ecade"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 4.4928 mm)",
+            "items": [
+                {
+                    "description": "Track [FB_K] on B.Cu, length 0.0240 mm",
+                    "pos": {
+                        "x": 140.2105,
+                        "y": 141.975
+                    },
+                    "uuid": "126258d4-6eea-464b-821d-f1b88cf61b58"
+                },
+                {
+                    "description": "Track [SW_DRAIN] on B.Cu, length 5.6155 mm",
+                    "pos": {
+                        "x": 136.7166,
+                        "y": 138.5852
+                    },
+                    "uuid": "cb0017f4-e3cb-46c0-908c-396f3099117c"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 3.4332 mm)",
+            "items": [
+                {
+                    "description": "Track [CLAMP] on F.Cu, length 25.0219 mm",
+                    "pos": {
+                        "x": 138.2243,
+                        "y": 95.2768
+                    },
+                    "uuid": "ca3d4939-9f22-46d6-8faa-c14741163a5b"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 2.8554 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 123.7151
+                    },
+                    "uuid": "cf19c866-86cd-4c76-b81e-8ec3e10ddee3"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 2.1518 mm)",
+            "items": [
+                {
+                    "description": "Track [SW_DRAIN] on F.Cu, length 21.0888 mm",
+                    "pos": {
+                        "x": 139.6858,
+                        "y": 99.1865
+                    },
+                    "uuid": "729e0803-75c3-42c5-83f3-6eaef9c96533"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 20.7367 mm",
+                    "pos": {
+                        "x": 142.2126,
+                        "y": 121.696
+                    },
+                    "uuid": "7bbe31ee-de9e-4499-86c1-ffc9da2645b5"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 3.1021 mm)",
+            "items": [
+                {
+                    "description": "Track [SW_DRAIN] on F.Cu, length 21.0888 mm",
+                    "pos": {
+                        "x": 139.6858,
+                        "y": 99.1865
+                    },
+                    "uuid": "729e0803-75c3-42c5-83f3-6eaef9c96533"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 18.2769 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 141.992
+                    },
+                    "uuid": "c176e9d5-df14-40ef-bc42-2145fef1c9da"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "Clearance violation (rule 'reinforced_hvdc_to_selv' clearance 8.0000 mm; actual 2.5376 mm)",
+            "items": [
+                {
+                    "description": "Track [BIAS] on F.Cu, length 20.4801 mm",
+                    "pos": {
+                        "x": 141.1874,
+                        "y": 100.4972
+                    },
+                    "uuid": "90ba813b-246d-4a26-a133-ea06922d5d08"
+                },
+                {
+                    "description": "Track [FB_K] on F.Cu, length 18.2769 mm",
+                    "pos": {
+                        "x": 140.1935,
+                        "y": 141.992
+                    },
+                    "uuid": "c176e9d5-df14-40ef-bc42-2145fef1c9da"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        }
+    ]
+}
