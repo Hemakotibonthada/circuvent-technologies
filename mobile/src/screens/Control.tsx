@@ -218,12 +218,43 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
       )}
       {cap.fan && (
         <Card padded style={{ marginBottom: 10 }}>
-          <Text style={{ color: c.text, fontSize: 16, marginBottom: 10 }}>{cap.fan.label}</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <Text style={{ color: c.text, fontSize: 16 }}>{cap.fan.label}</Text>
+            <Text style={{ color: c.faint, fontWeight: "700" }}>
+              {Number(d.state[cap.fan.field] ?? 0) === 0 ? "Off" : `Speed ${Number(d.state[cap.fan.field] ?? 0)}`}
+            </Text>
+          </View>
+          {/*
+            Buttons alone meant no way to sweep through the speeds -- you had
+            to hit one of six small targets, and there was no gesture for
+            "a bit faster". The slider is the same shape the dimmer already
+            uses: drag freely, commit on release so the fan gets one command
+            rather than one per pixel. The buttons stay as direct picks.
+          */}
+          <Slider
+            style={{ width: "100%" }}
+            minimumValue={0}
+            maximumValue={cap.fan.steps}
+            step={1}
+            value={Number(d.state[cap.fan.field] ?? 0)}
+            onSlidingComplete={(v) => { tapLight(); send({ [cap.fan!.field]: Math.round(v) }); }}
+            minimumTrackTintColor={c.accent}
+            maximumTrackTintColor={c.border}
+            thumbTintColor={c.accentHi}
+            accessibilityLabel={`${cap.fan.label}, ${Number(d.state[cap.fan.field] ?? 0)} of ${cap.fan.steps}`}
+          />
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
             {Array.from({ length: cap.fan.steps + 1 }).map((_, i) => {
               const active = Number(d.state[cap.fan!.field] ?? 0) === i;
               return (
-                <Pressable key={i} onPress={() => send({ [cap.fan!.field]: i })} style={{ flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}>
+                <Pressable
+                  key={i}
+                  onPress={() => send({ [cap.fan!.field]: i })}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={i === 0 ? "Fan off" : `Fan speed ${i}`}
+                  style={{ flex: 1, minHeight: 44, justifyContent: "center", borderRadius: 10, alignItems: "center", backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}
+                >
                   <Text style={{ color: active ? c.onAccent : c.textDim, fontWeight: "700" }}>{i === 0 ? "Off" : i}</Text>
                 </Pressable>
               );
@@ -962,7 +993,9 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
 }
 
 /** The firmware clamps to 15fps; offering more would just look broken. */
-const CAM_FPS = [1, 5, 8, 10, 15] as const;
+/* firmware/camera/camera.ino defines FPS_MAX 30. The app stopped at 15, so
+   half the range the hardware supports was simply not offered. */
+const CAM_FPS = [1, 5, 8, 10, 15, 20, 25, 30] as const;
 /** Anything above VGA needs PSRAM for the frame buffer. */
 const CAM_RES_BASE = ["QQVGA", "QVGA", "CIF", "VGA"] as const;
 const CAM_RES_PSRAM = ["SVGA", "XGA", "SXGA", "UXGA"] as const;

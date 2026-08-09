@@ -28,6 +28,20 @@ export interface CommandPayload {
   [key: string]: unknown;
 }
 
+/**
+ * The camera's frame-rate ceiling, from firmware/camera/camera.ino.
+ *
+ * `#define FPS_MAX 30`. This was clamped to 15 here, so a camera told to run at
+ * 30 reported 30 and the console immediately overwrote it with 15 — the number
+ * on screen disagreed with the hardware, and the stepper appeared to refuse
+ * anything above half its own maximum. The firmware constant is the only real
+ * limit; keep this in step with it.
+ */
+export const CAM_FPS_MAX = 30;
+
+/** The frame rates worth offering as presets. The device accepts any 1..30. */
+export const CAM_FPS_PRESETS = [1, 5, 8, 10, 15, 20, 25, 30] as const;
+
 export type StatePatch = Record<string, unknown>;
 
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
@@ -266,7 +280,7 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
     case "doorbell": {
       if (action === "stream") {
         patch.streaming = isBool(cmd.on) ? cmd.on : true;
-        if (isNum(cmd.fps)) patch.fps = clamp(Math.round(cmd.fps), 1, 15);
+        if (isNum(cmd.fps)) patch.fps = clamp(Math.round(cmd.fps), 1, CAM_FPS_MAX);
         return patch;
       }
       if (action === "flash") {
@@ -280,7 +294,7 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       if (isStr(cmd.resolution)) patch.resolution = cmd.resolution;
       if (isNum(cmd.quality)) patch.quality = clamp(Math.round(cmd.quality), 4, 63);
       if (isNum(cmd.rotation)) patch.rotation = cmd.rotation === 180 ? 180 : 0;
-      if (isNum(cmd.fps)) patch.fps = clamp(Math.round(cmd.fps), 1, 15);
+      if (isNum(cmd.fps)) patch.fps = clamp(Math.round(cmd.fps), 1, CAM_FPS_MAX);
       if (isNum(cmd.flash)) patch.flash = clamp(Math.round(cmd.flash), 0, 100);
       if (isNum(cmd.sensitivity)) patch.sensitivity = clamp(Math.round(cmd.sensitivity), 1, 100);
       if (isBool(cmd.motion)) {
@@ -436,6 +450,37 @@ export function buildFieldCommand(
       return null;
     }
 
+    /*
+     * Cameras take everything under `set`, but `rotation` is read with
+     * `p["rotation"].is<int>()` in the sketch, and the rule builder offers it
+     * as a two-choice select -- which produces the string "180". A string there
+     * fails the firmware's type check silently, so the command would be
+     * accepted, acknowledged, and ignored. Coerce it.
+     */
+    case "camera":
+    case "cctv":
+    case "doorbell": {
+      if (field === "rotation") {
+        const deg = Number(value);
+        if (!Number.isFinite(deg)) return null;
+        return { action: "set", rotation: deg === 180 ? 180 : 0 };
+      }
+      if (field === "fps" || field === "quality" || field === "flash" || field === "sensitivity") {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return null;
+        return { action: "set", [field]: Math.round(num) };
+      }
+      if (field === "streaming" || field === "motion") {
+        if (typeof value !== "boolean") return null;
+        return { action: "set", [field]: value };
+      }
+      if (field === "resolution") {
+        if (typeof value !== "string" || !value) return null;
+        return { action: "set", resolution: value };
+      }
+      return null;
+    }
+
     default:
       break;
   }
@@ -501,6 +546,15 @@ export function readFieldCommand(
   if (type === "curtain") {
     if (action === "open" || action === "close") return { field: "action", value: action };
     if (typeof cmd.position === "number") return { field: "position", value: cmd.position };
+  }
+
+  /*
+   * Camera rotation goes out as a number and has to come back as the string
+   * the select uses, or editing a saved rule shows an empty Rotation box and
+   * saving it again drops the setting.
+   */
+  if (type === "camera" || type === "cctv" || type === "doorbell") {
+    if (typeof cmd.rotation === "number") return { field: "rotation", value: String(cmd.rotation) };
   }
 
   // The general shape, and the legacy one: a single field beside the action.

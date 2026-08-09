@@ -289,6 +289,54 @@ export function getCommandFields(type: string): CommandField[] {
         },
       ];
 
+    /*
+     * Cameras.
+     *
+     * These were missing, so a camera fell to the default below and the rule
+     * builder offered exactly one command: "Power". The camera firmware does
+     * not read `power` at all -- it reads resolution, quality, fps, rotation,
+     * flash, sensitivity, motion and streaming. So a rule aimed at a camera
+     * saved happily, showed a next-run time, and did nothing, forever. That is
+     * the worst shape a bug can take: everything says it worked.
+     *
+     * The ranges come from firmware/camera/camera.ino: FPS_MIN/FPS_MAX 1..30,
+     * quality 4..63 (lower is sharper), flash 0..100.
+     */
+    case "camera":
+    case "cctv":
+    case "doorbell":
+      return [
+        { key: "streaming", label: "Live stream", kind: "bool" },
+        { key: "motion", label: "Motion detection", kind: "bool" },
+        { key: "fps", label: "Frame rate", kind: "number", unit: " fps", min: 1, max: 30, step: 1 },
+        { key: "quality", label: "JPEG quality (lower is sharper)", kind: "number", min: 4, max: 63, step: 2 },
+        { key: "flash", label: "Illuminator", kind: "number", unit: "%", min: 0, max: 100, step: 10 },
+        { key: "sensitivity", label: "Motion sensitivity", kind: "number", unit: "%", min: 1, max: 100, step: 5 },
+        {
+          key: "resolution",
+          label: "Resolution",
+          kind: "select",
+          choices: [
+            { value: "qqvga", label: "QQVGA (160×120)" },
+            { value: "qvga", label: "QVGA (320×240)" },
+            { value: "cif", label: "CIF (400×296)" },
+            { value: "vga", label: "VGA (640×480)" },
+            { value: "svga", label: "SVGA (800×600)" },
+            { value: "xga", label: "XGA (1024×768)" },
+            { value: "sxga", label: "SXGA (1280×1024)" },
+          ],
+        },
+        {
+          key: "rotation",
+          label: "Rotation",
+          kind: "select",
+          choices: [
+            { value: "0", label: "Upright" },
+            { value: "180", label: "Rotated 180°" },
+          ],
+        },
+      ];
+
     default:
       return [{ key: "power", label: "Power", kind: "bool" }];
   }
