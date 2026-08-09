@@ -1343,6 +1343,38 @@ interface LiveFrame {
   bytes: number;
 }
 
+/**
+ * Tells "the camera is not producing frames" apart from "the server is not
+ * relaying them" — from evidence, not from a guess.
+ *
+ * The device publishes a monotonic `frames` counter, and the firmware only
+ * advances it after a *successful* publish. So if that counter climbs while
+ * this browser has received nothing on the frame channel, the video is being
+ * produced and lost in transit.
+ *
+ * This distinction is not hypothetical. A camera here had published 20,522
+ * frames with zero drops while this panel read "Waiting for the first frame…",
+ * which points at the sensor, the ribbon and the firmware in turn — the three
+ * things that were provably fine — and never at the relay, which was the one
+ * thing actually broken. A viewer that can only say whether a frame arrived
+ * cannot help but blame the last device in the chain.
+ */
+const RELAY_FAULT_FRAMES = 25;
+
+function useRelayFault(published: number, received: number, active: boolean) {
+  const baseline = useRef<number | null>(null);
+  useEffect(() => {
+    if (!active || received > 0) {
+      baseline.current = null;
+      return;
+    }
+    if (baseline.current == null && published > 0) baseline.current = published;
+  }, [active, received, published]);
+  if (!active || received > 0 || baseline.current == null) return 0;
+  const advanced = published - baseline.current;
+  return advanced >= RELAY_FAULT_FRAMES ? advanced : 0;
+}
+
 function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const streaming = b(d.state.streaming);
   const ready = d.state.ready == null ? true : b(d.state.ready);
@@ -1364,6 +1396,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   const hasCamera = d.state.hasCamera == null ? true : b(d.state.hasCamera);
 
   const [frame, setFrame] = useState<LiveFrame | null>(null);
+  const [received, setReceived] = useState(0);
   const [fps, setFps] = useState(0);
   const stamps = useRef<number[]>([]);
 
@@ -1374,8 +1407,18 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
     const now = Date.now();
     stamps.current = [...stamps.current, now].filter((t) => now - t <= 2000);
     setFps(stamps.current.length > 1 ? Math.round((stamps.current.length - 1) / 2) : 0);
+    setReceived((c) => c + 1);
     setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: now, bytes: f.bytes });
   });
+
+  /**
+   * The device's own address, which it publishes so viewers do not have to
+   * guess a DHCP lease. LAN video needs no broker and no relay, so it is the
+   * route that still works when the relay does not.
+   */
+  const lanIp = typeof d.state.ip === "string" ? d.state.ip : "";
+  const lanUrl = lanIp ? `http://${lanIp}:${n(d.state.lanPort) || 81}/` : "";
+  const relayLost = useRelayFault(n(d.state.frames), received, d.online && ready && streaming);
 
   // Drives the stall check and the "last frame" age without re-rendering on
   // every frame for the sake of a clock.
@@ -1437,10 +1480,39 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
                 ? "Camera is offline"
                 : !ready
                   ? "Camera sensor failed to initialise"
-                  : streaming
-                    ? "Waiting for the first frame…"
-                    : "Live view is off"}
+                  : relayLost
+                    ? "This camera is working — the video is not reaching you"
+                    : streaming
+                      ? "Waiting for the first frame…"
+                      : "Live view is off"}
             </p>
+            {relayLost > 0 && (
+              /* Say which link in the chain failed, and prove it with the
+                 device's own counter, rather than leaving the camera under
+                 suspicion for a fault upstream of it. */
+              <p className="max-w-sm text-xs leading-relaxed" style={{ color: "#64748b" }}>
+                It has sent {relayLost.toLocaleString()} frames since this page opened and none
+                arrived. The server is not relaying video. Local view still works — it goes
+                straight to the camera and does not use the server.
+              </p>
+            )}
+            {relayLost > 0 && lanUrl && (
+              <a
+                href={lanUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => haptic()}
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
+                style={{ background: "linear-gradient(135deg,#06b6d4,#8b5cf6)" }}
+              >
+                <Play className="h-4 w-4" /> Open local view
+              </a>
+            )}
+            {relayLost > 0 && !lanUrl && (
+              <p className="max-w-sm text-xs" style={{ color: "#64748b" }}>
+                Local view needs camera firmware 1.9.0 or newer.
+              </p>
+            )}
             {d.online && ready && !streaming && (
               <button
                 onClick={() => {

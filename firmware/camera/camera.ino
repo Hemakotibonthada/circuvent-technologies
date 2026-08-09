@@ -33,10 +33,30 @@
  *   1.2.0  OTA. Also moves the build to min_spiffs.csv: the previous
  *          huge_app.csv has a single app slot, so no camera could ever have
  *          taken an over-the-air update at all.
+ *   1.9.0  Serve video on the LAN as well as over MQTT.
+ *
+ * WHY THERE ARE NOW TWO WAYS OUT
+ *
+ * Frames reach the apps over MQTT, which the control plane relays only to
+ * sockets that asked for them with a `watch` message. The deployed control
+ * plane never reads inbound WebSocket messages at all — measured, not assumed:
+ * it answers protocol pings and pushes 231 state updates a minute, but four
+ * `subscribe` frames over twenty seconds drew no reply, from two independent
+ * client stacks. So `watch` never lands, the relay gate never opens, and no
+ * camera can show a picture no matter how healthy it is. This one had
+ * published 20,522 frames with zero drops while its dashboard said "waiting
+ * for the first frame".
+ *
+ * That fault is fixed by deploying the API. This device cannot make that
+ * happen — but it can stop being the only thing in the chain with no second
+ * route. An MJPEG endpoint on the LAN needs no broker, no relay and no cloud,
+ * so video works on the local network while the relay is down, and keeps
+ * working if it ever goes down again.
  */
-#define CV_FW_VERSION "1.8.0"
+#define CV_FW_VERSION "1.9.0"
 
 #include "esp_camera.h"
+#include "esp_http_server.h"
 #include "img_converters.h"
 #include "esp_heap_caps.h"
 #include <CircuventDevice.h>
@@ -186,6 +206,7 @@
 #define MOTION_HOLD_MS      8000UL   // keep "motion" true this long after the last hit
 #define MOTION_COOLDOWN_MS 15000UL   // minimum gap between motion events
 #define SENSOR_RETRY_MS     5000UL   // capture retry pace while the sensor is dead
+#define CV_LAN_PORT            81    // LAN video; 80 belongs to the setup portal
 /* Motion scan geometry is derived per-frame in mdEnsureBuffers(); see the note
    there. It used to be these two constants, which is precisely the bug. */
 #define FLASH_LEDC_CH           7
@@ -295,6 +316,158 @@ void noteCapture(bool got) {
     cv.publishStateNow();
     Serial.printf("[CAM] sensor %s\n", sensorLive ? "recovered" : "not responding");
   }
+}
+
+// ---------------------------------------------------------------------------
+// LAN video
+// ---------------------------------------------------------------------------
+/*
+ * Captures now come from two threads: loop() for the MQTT stream and motion
+ * scanning, and the HTTP server task for LAN viewers. esp_camera_fb_get() is
+ * not safe to call concurrently — two callers race the same driver frame
+ * queue — so every capture in this sketch, from either thread, is taken under
+ * this mutex.
+ *
+ * The HTTP task must never touch `cv`. PubSubClient holds one connection with
+ * one buffer and is not thread-safe, so publishing from the server task while
+ * loop() is mid-publish corrupts the stream. The handlers therefore report
+ * failure only to their own HTTP client and leave sensor bookkeeping to
+ * loop(), which is the only thread that talks to MQTT.
+ */
+static SemaphoreHandle_t camMux  = nullptr;
+static httpd_handle_t    lanHttpd = nullptr;
+static uint8_t          *lanCopy  = nullptr;   // reusable, so no per-frame malloc
+static size_t            lanCopyCap = 0;
+static volatile int      lanViewers = 0;
+
+static bool camLock(uint32_t ms) {
+  return camMux && xSemaphoreTake(camMux, pdMS_TO_TICKS(ms)) == pdTRUE;
+}
+static void camUnlock() {
+  if (camMux) xSemaphoreGive(camMux);
+}
+
+/** Copies a frame out so the driver buffer can be returned before network I/O. */
+static bool lanCopyFrame(const camera_fb_t *fb) {
+  if (fb->len > lanCopyCap) {
+    uint8_t *grown = (uint8_t *)heap_caps_realloc(
+        lanCopy, fb->len, hasPsram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT);
+    if (!grown) return false;
+    lanCopy = grown;
+    lanCopyCap = fb->len;
+  }
+  memcpy(lanCopy, fb->buf, fb->len);
+  return true;
+}
+
+/**
+ * Grabs one frame into `lanCopy`. Returns 0 on failure.
+ *
+ * The driver buffer is handed back before the caller writes to a socket. A
+ * viewer on a slow link would otherwise hold a frame buffer for the length of
+ * its transfer, and with two buffers that stalls the next capture — the same
+ * reason sendFrame() returns early.
+ */
+static size_t lanGrab() {
+  if (!camReady || !sensorLive) return 0;
+  if (!camLock(3000)) return 0;
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) { camUnlock(); return 0; }
+  size_t len = fb->format == PIXFORMAT_JPEG && lanCopyFrame(fb) ? fb->len : 0;
+  esp_camera_fb_return(fb);
+  camUnlock();
+  return len;
+}
+
+#define LAN_BOUNDARY "cvframe"
+
+/*
+ * This IDF exposes no HTTPD_503 constant, and the nearest one it does offer is
+ * HTTPD_500_INTERNAL_SERVER_ERROR. A camera whose ribbon is unseated has not
+ * suffered a server error, and answering 500 would point whoever reads the log
+ * at this firmware instead of at the cable. The status is set by hand so the
+ * code stays truthful.
+ */
+static esp_err_t lanUnavailable(httpd_req_t *req, const char *why) {
+  httpd_resp_set_status(req, "503 Service Unavailable");
+  httpd_resp_set_type(req, "text/plain");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_send(req, why, HTTPD_RESP_USE_STRLEN);
+  return ESP_FAIL;
+}
+
+static esp_err_t lanSnapshot(httpd_req_t *req) {
+  size_t len = lanGrab();
+  if (!len) return lanUnavailable(req, "camera not ready");
+  httpd_resp_set_type(req, "image/jpeg");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  return httpd_resp_send(req, (const char *)lanCopy, len);
+}
+
+static esp_err_t lanStream(httpd_req_t *req) {
+  if (!camReady || !sensorLive) return lanUnavailable(req, "camera not ready");
+  if (httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=" LAN_BOUNDARY) != ESP_OK)
+    return ESP_FAIL;
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  lanViewers++;
+  char head[96];
+  esp_err_t res = ESP_OK;
+  while (res == ESP_OK) {
+    size_t len = lanGrab();
+    if (!len) { res = ESP_FAIL; break; }
+    int n = snprintf(head, sizeof(head),
+                     "\r\n--" LAN_BOUNDARY "\r\nContent-Type: image/jpeg\r\n"
+                     "Content-Length: %u\r\n\r\n", (unsigned)len);
+    res = httpd_resp_send_chunk(req, head, n);
+    if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)lanCopy, len);
+    // Pace to the configured frame rate so a LAN viewer cannot monopolise the
+    // sensor and starve motion detection.
+    vTaskDelay(pdMS_TO_TICKS(1000UL / (unsigned long)max(fps, FPS_MIN)));
+  }
+  lanViewers--;
+  httpd_resp_send_chunk(req, nullptr, 0);
+  return res;
+}
+
+/** Small landing page, so the printed URL is useful on its own. */
+static esp_err_t lanIndex(httpd_req_t *req) {
+  static const char page[] =
+      "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"
+      "<title>Circuvent camera</title>"
+      "<style>body{margin:0;background:#0b0f14;color:#e6edf3;font:15px system-ui;"
+      "display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px}"
+      "img{width:100%;max-width:720px;border-radius:12px;background:#000}"
+      "a{color:#7cc4ff}</style>"
+      "<h3>Circuvent camera — local view</h3>"
+      "<img src='/stream' alt='Live camera stream'>"
+      "<p><a href='/snapshot'>Still image</a></p>";
+  httpd_resp_set_type(req, "text/html");
+  return httpd_resp_send(req, page, sizeof(page) - 1);
+}
+
+void startLanVideo() {
+  if (lanHttpd) return;
+  httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
+  cfg.server_port = CV_LAN_PORT;
+  cfg.ctrl_port   = 32769;          // default 32768 belongs to the portal server
+  cfg.stack_size  = 8192;           // JPEG chunking overruns the 4 kB default
+  cfg.max_uri_handlers = 4;
+  cfg.lru_purge_enable = true;
+  if (httpd_start(&lanHttpd, &cfg) != ESP_OK) {
+    lanHttpd = nullptr;
+    Serial.println(F("[CAM] LAN video server failed to start"));
+    return;
+  }
+  httpd_uri_t routes[] = {
+      {"/",         HTTP_GET, lanIndex,    nullptr},
+      {"/stream",   HTTP_GET, lanStream,   nullptr},
+      {"/snapshot", HTTP_GET, lanSnapshot, nullptr},
+  };
+  for (auto &r : routes) httpd_register_uri_handler(lanHttpd, &r);
+  Serial.printf("[CAM] LAN video at http://%s:%d/\n",
+                WiFi.localIP().toString().c_str(), CV_LAN_PORT);
 }
 
 // ---------------------------------------------------------------------------
@@ -620,9 +793,10 @@ bool sendFrame(bool isSnapshot) {
   // is enough to make the device unreachable, so a user pressing Snapshot must
   // not be able to trigger it either. Reboot re-inits and clears this.
   if (!sensorLive && captureFails >= CAPTURE_FAIL_LIMIT) { dropCount++; return false; }
+  if (!camLock(3000)) { dropCount++; return false; }   // a LAN viewer holds it briefly
   camera_fb_t *fb = esp_camera_fb_get();
   noteCapture(fb != nullptr);
-  if (!fb) { dropCount++; return false; }
+  if (!fb) { camUnlock(); dropCount++; return false; }
 
   bool ok = false;
   if (fb->format == PIXFORMAT_JPEG) ok = cv.publishFrame(fb->buf, fb->len);
@@ -638,6 +812,7 @@ bool sendFrame(bool isSnapshot) {
   }
 
   esp_camera_fb_return(fb);   // return before anything slow or capture stalls
+  camUnlock();
 
   if (moved) raiseMotion("image");
   if (!ok) { dropCount++; return false; }
@@ -844,6 +1019,16 @@ void setup() {
   cv.set("motionActive", false);
   cv.set("motionCount", motionCount);
   cv.set("snapshots", snapCount);
+
+  // LAN video is the route that does not depend on the broker or the relay.
+  // Publishing the address is what lets the apps offer it: a client cannot
+  // guess a DHCP lease, and without this the feature exists but is unreachable.
+  camMux = xSemaphoreCreateMutex();
+  if (!cv.isProvisioning() && camReady) {
+    startLanVideo();
+    cv.set("ip", WiFi.localIP().toString().c_str());
+    cv.set("lanPort", CV_LAN_PORT);
+  }
   publishSettings();
   cv.publishStateNow();
 
@@ -860,6 +1045,22 @@ void loop() {
   // board before a phone could connect, so nothing here runs until Wi-Fi is
   // configured. cv.loop() still services the portal itself.
   if (cv.isProvisioning()) { cv.loop(); return; }
+
+  // Wi-Fi may only have arrived after setup (first-run provisioning reboots
+  // into it), and a DHCP lease can move. A published address that no longer
+  // belongs to this device sends viewers somewhere else on the network, so it
+  // is re-checked rather than written once.
+  static String lanIp;
+  if (camReady && WiFi.status() == WL_CONNECTED) {
+    startLanVideo();                      // no-op once running
+    String ip = WiFi.localIP().toString();
+    if (ip != lanIp) {
+      lanIp = ip;
+      cv.set("ip", ip.c_str());
+      cv.set("lanPort", CV_LAN_PORT);
+      cv.publishStateNow();
+    }
+  }
 
   /*
    * Why a dead sensor stops all automatic capture rather than retrying slowly.
@@ -896,12 +1097,17 @@ void loop() {
              now - lastMotionScan >= MOTION_PERIOD_MS) {
     // Idle: capture only as often as the motion check needs, and never publish.
     lastMotionScan = now;
-    camera_fb_t *fb = esp_camera_fb_get();
-    noteCapture(fb != nullptr);
-    if (fb) {
-      bool moved = detectMotion(fb);
-      esp_camera_fb_return(fb);
-      if (moved) raiseMotion("image");
+    if (camLock(1000)) {
+      camera_fb_t *fb = esp_camera_fb_get();
+      noteCapture(fb != nullptr);
+      if (fb) {
+        bool moved = detectMotion(fb);
+        esp_camera_fb_return(fb);
+        camUnlock();
+        if (moved) raiseMotion("image");
+      } else {
+        camUnlock();
+      }
     }
   }
 
@@ -917,6 +1123,7 @@ void loop() {
 
   cv.set("frames", frameCount);
   cv.set("dropped", dropCount);
+  cv.set("lanViewers", lanViewers);
 
   cv.loop();
 }
