@@ -24,18 +24,18 @@ const dayKey = (iso: string) => (iso || "").slice(0, 10);
  * The window is inclusive of today and `days` long, matching lastNDates() so
  * the breakdowns and the series always cover exactly the same span.
  */
-function ordersInRange(days: number) {
+export function ordersInRange(days: number) {
   const dates = new Set(lastNDates(days));
   return listOrders().filter((o) => dates.has(dayKey(o.placedAt)));
 }
 
 /** Customers created within the window, on the same basis. */
-function customersInRange(days: number) {
+export function customersInRange(days: number) {
   const dates = new Set(lastNDates(days));
   return listCustomers().filter((c) => dates.has(dayKey(c.createdAt)));
 }
 
-function lastNDates(days: number): string[] {
+export function lastNDates(days: number): string[] {
   const out: string[] = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
@@ -284,34 +284,253 @@ export function dashboard(days = 30) {
   };
 }
 
-// -------- report exports (CSV) --------
-function esc(v: unknown) { return `"${String(v ?? "").replace(/"/g, '""')}"`; }
-function toCsv(head: string[], rows: (string | number)[][]) {
-  return [head.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\r\n");
+// ---------------------------------------------------------------------------
+// Additional order/return-only aggregations
+//
+// These read exactly the same collections the fourteen breakdowns above do
+// (orders, returns, customers) and honour the same `days` window, so they can
+// be composed by the reports engine without pulling in inventory or tax
+// modules. Nothing here invents a figure: every number is a sum or ratio of a
+// stored field, and where a field is absent (e.g. a status timestamp) the row
+// is excluded rather than defaulted, matching returnsStats() above.
+// ---------------------------------------------------------------------------
+
+/**
+ * Payment reconciliation by method.
+ *
+ * Splits every order in the window by payment method and settles it into one of
+ * three real buckets from `paymentStatus`: captured (paid), pending, or failed
+ * (anything else — refunded/cancelled/unknown). `captured` is money actually
+ * collected; `pendingValue` is exposure still owed (typically COD awaiting
+ * delivery). No figure is assumed — an order with no method lands under
+ * "unknown" rather than being dropped.
+ */
+export function paymentReconciliation(days = 30) {
+  const label: Record<string, string> = { razorpay: "Online (Razorpay)", cod: "Cash on Delivery", wallet: "Wallet", other: "Other" };
+  const m: Record<string, { method: string; orders: number; captured: number; capturedOrders: number; pendingValue: number; pendingOrders: number; failedOrders: number }> = {};
+  for (const o of ordersInRange(days)) {
+    const k = o.paymentMethod || "other";
+    m[k] = m[k] || { method: label[k] || k, orders: 0, captured: 0, capturedOrders: 0, pendingValue: 0, pendingOrders: 0, failedOrders: 0 };
+    const row = m[k];
+    row.orders++;
+    if (o.paymentStatus === "paid") { row.captured += o.total; row.capturedOrders++; }
+    else if (o.paymentStatus === "pending") { row.pendingValue += o.total; row.pendingOrders++; }
+    else row.failedOrders++;
+  }
+  return Object.values(m).sort((a, b) => b.captured - a.captured);
 }
 
-export function reportCsv(type: string, days = 30): string {
-  switch (type) {
-    case "sales": {
-      const s = dailySeries(days);
-      return toCsv(["Date", "Orders", "Paid orders", "Revenue", "GMV", "AOV", "Units", "New customers"],
-        s.map((p) => [p.date, p.orders, p.paidOrders, p.revenue, p.gmv, p.aov, p.units, p.newCustomers]));
-    }
-    case "products":
-      return toCsv(["Product", "Orders", "Units", "Revenue"], topProducts(1000, days).map((p) => [p.name, p.orders, p.qty, p.revenue]));
-    case "customers":
-      return toCsv(["Name", "Email", "Orders", "Spend"], topCustomers(1000, days).map((c) => [c.name, c.email, c.orders, c.spend]));
-    case "categories":
-      return toCsv(["Category", "Units", "Revenue"], categorySales(days).map((c) => [c.name, c.units, c.revenue]));
-    case "coupons":
-      return toCsv(["Code", "Uses", "Discount given"], couponUsage(days).map((c) => [c.code, c.uses, c.discount]));
-    case "tax": {
-      // simple GST report: 18% assumed inclusive on paid revenue by day
-      const s = dailySeries(days);
-      return toCsv(["Date", "Taxable value", "GST @18% (incl.)", "Total (incl.)"],
-        s.map((p) => [p.date, Math.round(p.revenue / 1.18), Math.round(p.revenue - p.revenue / 1.18), p.revenue]));
-    }
-    default:
-      return toCsv(["metric", "value"], []);
+/**
+ * Discount effectiveness — coupon-bearing orders versus the rest.
+ *
+ * Compares average order value and paid revenue for orders that redeemed a
+ * coupon against those that did not, so the discount spend can be weighed
+ * against the basket lift it did or did not produce. `roi` is paid revenue
+ * generated per rupee of discount given (revenue / discount); it is only
+ * meaningful when discount > 0, so it is reported as null otherwise rather than
+ * shown as a divide-by-zero infinity.
+ */
+export function discountEffectiveness(days = 30) {
+  const bucket = () => ({ orders: 0, paidOrders: 0, revenue: 0, discount: 0, units: 0 });
+  const withCoupon = bucket();
+  const without = bucket();
+  for (const o of ordersInRange(days)) {
+    const b = o.couponCode ? withCoupon : without;
+    b.orders++;
+    b.units += o.items.reduce((s, it) => s + it.qty, 0);
+    if (o.paymentStatus === "paid") { b.paidOrders++; b.revenue += o.total; }
+    b.discount += o.discount || 0;
   }
+  const aov = (b: ReturnType<typeof bucket>) => (b.paidOrders ? Math.round(b.revenue / b.paidOrders) : 0);
+  const totalDiscount = withCoupon.discount + without.discount;
+  return {
+    withCoupon: { ...withCoupon, aov: aov(withCoupon) },
+    withoutCoupon: { ...without, aov: aov(without) },
+    aovLift: aov(withCoupon) - aov(without),
+    totalDiscount,
+    roi: withCoupon.discount > 0 ? Math.round((withCoupon.revenue / withCoupon.discount) * 100) / 100 : null,
+  };
+}
+
+/**
+ * Customer retention within the window.
+ *
+ * "New" is decided against a customer's whole order history (their earliest
+ * order date), not against activity inside the window — the same correction
+ * newVsReturning() makes. `repeatCustomers` are window buyers with more than one
+ * lifetime order; `oneTime` bought exactly once ever. Rates are null when there
+ * are no window customers to divide by, so an empty period reads as "no data"
+ * rather than 0%.
+ */
+export function customerRetention(days = 30) {
+  const dates = new Set(lastNDates(days));
+  const all = listOrders();
+  const lifetime: Record<string, { first: string; count: number }> = {};
+  for (const o of all) {
+    const e = (o.customer.email || "guest").toLowerCase();
+    const k = dayKey(o.placedAt);
+    if (!k) continue;
+    lifetime[e] = lifetime[e] || { first: k, count: 0 };
+    lifetime[e].count++;
+    if (k < lifetime[e].first) lifetime[e].first = k;
+  }
+  const windowCustomers = new Set<string>();
+  let windowOrders = 0;
+  for (const o of ordersInRange(days)) { windowCustomers.add((o.customer.email || "guest").toLowerCase()); windowOrders++; }
+  let neu = 0, returning = 0, repeat = 0, oneTime = 0;
+  for (const e of windowCustomers) {
+    const lt = lifetime[e];
+    if (!lt) continue;
+    if (dates.has(lt.first)) neu++; else returning++;
+    if (lt.count > 1) repeat++; else oneTime++;
+  }
+  const total = windowCustomers.size;
+  return {
+    customers: total,
+    newCustomers: neu,
+    returningCustomers: returning,
+    repeatCustomers: repeat,
+    oneTimeCustomers: oneTime,
+    orders: windowOrders,
+    repeatRatePct: total ? Math.round((repeat / total) * 1000) / 10 : null,
+    returningRatePct: total ? Math.round((returning / total) * 1000) / 10 : null,
+    avgOrdersPerCustomer: total ? Math.round((windowOrders / total) * 100) / 100 : null,
+  };
+}
+
+/**
+ * Monthly acquisition cohorts and their forward retention.
+ *
+ * Every customer is assigned to the calendar month of their first-ever order.
+ * For that cohort we then count, month by month after acquisition, how many
+ * placed at least one further order — the classic retention triangle. Only the
+ * most recent `months` cohorts are returned. Built from full order history
+ * (retention is a lifetime question), independent of the reports date range.
+ */
+export function acquisitionCohorts(months = 6) {
+  const monthKey = (iso: string) => (iso || "").slice(0, 7);
+  const now = new Date();
+  const cohortMonths: string[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    cohortMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  const byCustomer: Record<string, string[]> = {};
+  for (const o of listOrders()) {
+    const e = (o.customer.email || "guest").toLowerCase();
+    const mk = monthKey(o.placedAt);
+    if (!mk) continue;
+    (byCustomer[e] = byCustomer[e] || []).push(mk);
+  }
+  const firstOf: Record<string, string> = {};
+  for (const [e, ms] of Object.entries(byCustomer)) firstOf[e] = ms.slice().sort()[0];
+
+  const monthsSince = (from: string, to: string) => {
+    const [fy, fm] = from.split("-").map(Number);
+    const [ty, tm] = to.split("-").map(Number);
+    return (ty - fy) * 12 + (tm - fm);
+  };
+
+  return cohortMonths.map((cm) => {
+    const members = Object.keys(firstOf).filter((e) => firstOf[e] === cm);
+    const size = members.length;
+    const retained: number[] = [];
+    for (let offset = 1; offset <= months; offset++) {
+      const n = members.filter((e) => byCustomer[e].some((mk) => monthsSince(cm, mk) === offset)).length;
+      retained.push(n);
+    }
+    return { cohort: cm, size, retained, retainedPct: retained.map((n) => (size ? Math.round((n / size) * 1000) / 10 : 0)) };
+  });
+}
+
+/**
+ * Order fulfilment SLA.
+ *
+ * Uses the timestamps recorded in each order's status history to measure how
+ * long orders actually take between stages. An order only contributes to a
+ * transition when both endpoints carry a real timestamp — a missing event is
+ * left out of that average rather than counted as zero hours, so a store that
+ * never records "shipped" reports no shipping SLA instead of a fake 0h. Cancel
+ * rate is over all orders in the window.
+ */
+export function fulfilmentSla(days = 30) {
+  const inRange = ordersInRange(days);
+  const HOUR = 3600000;
+  const at = (o: { placedAt: string; history?: { status: string; at: string }[] }, status: string): number | null => {
+    if (status === "placed") { const t = new Date(o.placedAt).getTime(); return isNaN(t) ? null : t; }
+    const ev = (o.history || []).find((h) => h.status === status);
+    if (!ev) return null;
+    const t = new Date(ev.at).getTime();
+    return isNaN(t) ? null : t;
+  };
+  const transitions: { key: string; from: string; to: string; label: string }[] = [
+    { key: "processing", from: "placed", to: "shipped", label: "Placed → Shipped" },
+    { key: "delivery", from: "shipped", to: "delivered", label: "Shipped → Delivered" },
+    { key: "endToEnd", from: "placed", to: "delivered", label: "Placed → Delivered" },
+  ];
+  const stages = transitions.map((tr) => {
+    let sum = 0, count = 0;
+    for (const o of inRange) {
+      const a = at(o, tr.from), b = at(o, tr.to);
+      if (a === null || b === null || b < a) continue;
+      sum += (b - a) / HOUR;
+      count++;
+    }
+    return { key: tr.key, label: tr.label, avgHours: count ? Math.round((sum / count) * 10) / 10 : null, count };
+  });
+  const delivered = inRange.filter((o) => o.status === "delivered").length;
+  const cancelled = inRange.filter((o) => o.status === "cancelled").length;
+  const total = inRange.length;
+  const e2e = stages.find((s) => s.key === "endToEnd");
+  return {
+    orders: total,
+    delivered,
+    cancelled,
+    deliveredRatePct: total ? Math.round((delivered / total) * 1000) / 10 : null,
+    cancelRatePct: total ? Math.round((cancelled / total) * 1000) / 10 : null,
+    avgFulfilmentHours: e2e ? e2e.avgHours : null,
+    stages,
+  };
+}
+
+/**
+ * Refunds & returns for the window.
+ *
+ * Returns are placed in the window by their `createdAt`; one with no timestamp
+ * is excluded (it cannot be dated), the same rule returnsStats() uses.
+ * `refundValue` sums `refundAmount` only where present, so an approved return
+ * whose refund has not been keyed in does not silently contribute 0 to a
+ * money total that would then read as settled.
+ */
+export function refundsReport(days = 30) {
+  const dates = new Set(lastNDates(days));
+  const inWindow = listReturns().filter((r) => {
+    const at = (r as { createdAt?: string }).createdAt;
+    return at ? dates.has(dayKey(at)) : false;
+  });
+  const byStatus: Record<string, number> = {};
+  const byReason: Record<string, { count: number; refundValue: number }> = {};
+  let refundValue = 0, refundedCount = 0, refundAmountKnown = 0;
+  for (const r of inWindow) {
+    byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+    const reason = (r.reason || "Unspecified").slice(0, 60);
+    byReason[reason] = byReason[reason] || { count: 0, refundValue: 0 };
+    byReason[reason].count++;
+    if (typeof r.refundAmount === "number") {
+      refundValue += r.refundAmount;
+      byReason[reason].refundValue += r.refundAmount;
+      refundAmountKnown++;
+    }
+    if (r.status === "refunded") refundedCount++;
+  }
+  const orderCount = ordersInRange(days).length;
+  return {
+    total: inWindow.length,
+    refundedCount,
+    refundValue,
+    refundAmountKnown,
+    byStatus,
+    byReason: Object.entries(byReason).map(([reason, v]) => ({ reason, ...v })).sort((a, b) => b.count - a.count),
+    returnRatePct: orderCount ? Math.round((inWindow.length / orderCount) * 1000) / 10 : null,
+  };
 }

@@ -5,7 +5,8 @@ import { buildReport, reportToCsv, isReportType } from "@/lib/reports";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/admin/insights/export?type=sales|products|customers|categories|coupons|tax&range=30
+// GET /api/admin/reports/csv?type=sales&range=30 → CSV of raw numbers, ideal for
+// spreadsheets. Shares the exact figures of the on-screen report and the PDF.
 export async function GET(request: Request) {
   if (!guard(request, "analytics")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { searchParams } = new URL(request.url);
