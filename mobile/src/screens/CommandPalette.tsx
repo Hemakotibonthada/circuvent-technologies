@@ -27,11 +27,19 @@ export default function CommandPalette({
   const [q, setQ] = useState("");
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    api.scenes().then((r) => { if (r.ok) setScenes(r.data.scenes || []); });
-    api.rooms().then((r) => { if (r.ok) setRooms(r.data.rooms || []); });
+    /*
+     * The palette searches devices, scenes and rooms. Devices come from the
+     * store and are always there; scenes and rooms are fetched, and if the
+     * fetch failed they simply never appeared in the results -- so searching
+     * for a scene by name returned "no matches", which is indistinguishable
+     * from having typed it wrong.
+     */
+    api.scenes().then((r) => { if (r.ok) setScenes(r.data.scenes || []); else setLoadError("Scenes and rooms could not be loaded, so they are missing from these results."); });
+    api.rooms().then((r) => { if (r.ok) setRooms(r.data.rooms || []); else setLoadError("Scenes and rooms could not be loaded, so they are missing from these results."); });
     const t = setTimeout(() => inputRef.current?.focus(), 250);
     return () => clearTimeout(t);
   }, []);
@@ -68,6 +76,7 @@ export default function CommandPalette({
         </View>
 
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingTop: 0, paddingBottom: 40 }}>
+        {loadError ? <Text style={{ color: c.amber, fontSize: 12, marginBottom: 10 }}>{loadError}</Text> : null}
           {fDevices.length > 0 && (
             <>
               <SectionLabel>Devices</SectionLabel>

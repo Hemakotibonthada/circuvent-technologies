@@ -54,6 +54,15 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
       setDevices(list);
       setTriggerDeviceId((prev) => prev || list[0]?.id || "");
       setActionDeviceId((prev) => prev || list[0]?.id || "");
+    } else if (automationRes.ok) {
+      /*
+       * Only when the automations call succeeded, so this does not overwrite
+       * the more important message above. The device failure is the more
+       * confusing of the two on its own: with no devices the trigger and
+       * action pickers are empty, so the form looks like it works right up to
+       * the point where there is nothing to choose.
+       */
+      setMsg(readError(deviceRes.data) || "Could not load your devices, so the pickers below are empty.");
     }
     setLoading(false);
   }, []);

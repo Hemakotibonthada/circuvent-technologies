@@ -5,5 +5,5 @@
 // Keep these two values in step with `expo.version` / `expo.android.versionCode`
 // in app.json; `npm run version:check` fails the build if they diverge.
 
-export const APP_VERSION = "1.11.0";
-export const APP_BUILD = 13;
+export const APP_VERSION = "1.12.0";
+export const APP_BUILD = 14;

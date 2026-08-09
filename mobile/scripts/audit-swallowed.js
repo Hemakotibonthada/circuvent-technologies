@@ -76,7 +76,7 @@ for (const [f, n] of [...byFile.entries()].sort((a, b) => b[1] - a[1])) {
  * So the number is allowed to fall and not to rise. Lower BASELINE when you
  * fix some; the check fails if it ever goes back up.
  */
-const BASELINE = 15;
+const BASELINE = 9;
 if (hits.length > BASELINE) {
   console.log(`\n✗ ${hits.length} unhandled failures, up from the agreed ${BASELINE}.`);
   console.log(`  A failed request that leaves a screen empty tells someone their house is quiet.`);
