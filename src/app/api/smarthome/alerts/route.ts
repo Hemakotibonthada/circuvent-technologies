@@ -4,6 +4,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { analyseHome } from "@/lib/ai/analysis";
 import { sweep, acknowledge, summarise, type Alert } from "@/lib/anomaly-monitor";
 import { accountKey, readAlerts, writeAlerts, lastSweepAt } from "@/lib/alerts-store";
+import { recordSamples } from "@/lib/device-history";
 import { logger } from "@/lib/logger";
 import type { Device, AppEvent } from "@/lib/control-plane";
 
@@ -117,12 +118,29 @@ export async function POST(request: Request) {
     const result = sweep(previous, analysis.findings, { sweepProducedFindings: true });
     writeAlerts(key, result.alerts);
 
+    /*
+     * Take a maintenance reading while the device list is in hand.
+     *
+     * Predictive maintenance needs a past, and the fleet has almost none: 151
+     * telemetry rows in total, 150 of them from one camera over two hours.
+     * Nothing can be forecast from that, and no amount of modelling
+     * substitutes for the missing history. Sampling here costs one small write
+     * per sweep and is what makes a forecast possible in a few weeks' time.
+     */
+    let recorded = 0;
+    try {
+      recorded = recordSamples(key, deviceList.devices);
+    } catch {
+      // Losing a sample is not worth failing the sweep the operator asked for.
+    }
+
     if (result.opened.length || result.resolved.length || result.escalated.length) {
       logger.info("smarthome.alerts_swept", {
         opened: result.opened.length,
         resolved: result.resolved.length,
         escalated: result.escalated.length,
         open: result.alerts.filter((a) => a.state === "open").length,
+        samplesRecorded: recorded,
       });
     }
 
