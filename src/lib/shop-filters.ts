@@ -5,6 +5,7 @@
 // round-tripped through the URL (shareable, bookmarkable, back-button safe).
 
 import type { Product } from "@/lib/shop-data";
+import { cannotBuy, isLowStockNow, type AvailabilityInput } from "@/lib/product-availability";
 
 export type SortId = "featured" | "price-asc" | "price-desc" | "rating" | "discount" | "name";
 export type ViewMode = "grid" | "list";
@@ -56,14 +57,22 @@ export const DEFAULT_FILTERS: FilterState = {
 
 /* ── Product predicates ─────────────────────────────────────────────────── */
 
-/** A product is sold out when explicitly unavailable or its stock hits zero. */
+/**
+ * A product cannot be bought — sold out, not yet released, or withdrawn.
+ *
+ * The name is kept because a dozen call sites use it and every one of them
+ * asks the same underlying question: should the buy button work? It now
+ * delegates rather than re-deriving, so a product that has not launched stops
+ * being described as "out of stock" everywhere at once. Surfaces that need to
+ * tell the reasons apart should call productAvailability directly.
+ */
 export function isSoldOut(p: Product): boolean {
-  return p.available === false || (typeof p.stock === "number" && p.stock <= 0);
+  return cannotBuy(p as AvailabilityInput);
 }
 
 /** In stock but nearly gone — drives the urgency label on the card. */
 export function isLowStock(p: Product, threshold = 5): boolean {
-  return !isSoldOut(p) && typeof p.stock === "number" && p.stock > 0 && p.stock <= threshold;
+  return isLowStockNow(p as AvailabilityInput, threshold);
 }
 
 /** Absolute rupee saving vs. the compare-at price (0 when not discounted). */

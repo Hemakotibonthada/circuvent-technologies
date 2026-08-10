@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
 import { validateCoupon } from "./coupons";
 import { listProducts } from "./store";
+import { productAvailability, type AvailabilityInput } from "./product-availability";
 import { recordEmail } from "./email-log";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
@@ -182,6 +183,21 @@ export function priceItems(items: IncomingItem[], couponCode?: string): PriceRes
     const cat = products.find((pr) => pr.id === it.id || pr.slug === it.slug);
     const lp = live.find((pr) => pr.id === it.id || pr.slug === it.slug);
     if (!cat && !lp) return { ok: false, error: "A product in your cart is no longer available." };
+    /*
+     * Refuse on the server, not just in the UI.
+     *
+     * Hiding a button stops an accident; it does not stop a POST. A product
+     * that has not been released has no stock, so the stock check below would
+     * have rejected it anyway — with "out of stock", which is both untrue and
+     * the wrong instruction to give somebody. Checking availability properly
+     * gets the reason right and covers the withdrawn case, which no stock
+     * check would have caught at all.
+     */
+    const availability = productAvailability((lp ?? cat) as AvailabilityInput);
+    if (!availability.canBuy && availability.state !== "sold-out") {
+      const name = cat?.name || lp?.name || "A product in your cart";
+      return { ok: false, error: `${name}: ${availability.reason ?? "not available to order."}` };
+    }
     if (lp && lp.available === false) return { ok: false, error: `${lp.name} is currently unavailable.` };
     if (lp && typeof lp.stock === "number" && lp.stock <= 0) {
       return { ok: false, error: `${lp.name} is out of stock and can't be ordered right now.` };

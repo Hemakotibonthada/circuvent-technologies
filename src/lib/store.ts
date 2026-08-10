@@ -96,6 +96,14 @@ export interface StoredProduct {
   specs?: string[];
   compareAt?: number; // original/MRP price — drives the discount/offer badge
   badge?: string; // e.g. "New", "Best seller", "Limited"
+  /**
+   * ISO date this goes on sale. Before it, the product shows as coming soon
+   * and cannot be ordered. A date rather than a flag, because a flag has to be
+   * remembered and switched off on launch morning and a date turns itself off.
+   */
+  releaseAt?: string | null;
+  /** Permanently withdrawn. Distinct from out of stock: it is not coming back. */
+  discontinued?: boolean;
   featured?: boolean;
   accent?: string; // brand accent colour for the media tile
 }

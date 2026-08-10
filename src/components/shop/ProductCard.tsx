@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Check, Eye, GitCompareArrows, Heart, ShoppingCart } from "lucide-react";
 import { formatINR, type Product } from "@/lib/shop-data";
 import { discountPct, isLowStock, isSoldOut, savingOf, type ViewMode } from "@/lib/shop-filters";
+import { productAvailability } from "@/lib/product-availability";
 import { useCart } from "./CartProvider";
 import { useWishlist } from "./WishlistProvider";
 import { useCompare, MAX_COMPARE } from "./CompareProvider";
@@ -39,6 +40,7 @@ export default function ProductCard({
   const saving = savingOf(product);
   const discount = discountPct(product);
   const soldOut = isSoldOut(product);
+  const availability = productAvailability(product);
   const lowStock = isLowStock(product);
   const href = `/shop/${product.slug}`;
   const isList = view === "list";
@@ -114,9 +116,22 @@ export default function ProductCard({
           {product.badge}
         </span>
       )}
-      {soldOut && (
-        <span className="rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-semibold text-white shadow">
-          Out of stock
+      {/* One badge, whatever the reason. Saying "out of stock" about something
+          that has not launched is untrue, and it throws away the more useful
+          message — that it is coming. */}
+      {availability.badge && (
+        <span
+          className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow"
+          style={{
+            background:
+              availability.state === "coming-soon"
+                ? "var(--accent-cyan)"
+                : availability.state === "discontinued"
+                  ? "rgba(100,116,139,.9)"
+                  : "rgba(0,0,0,.75)",
+          }}
+        >
+          {availability.badge}
         </span>
       )}
     </>
@@ -143,6 +158,10 @@ export default function ProductCard({
         <p className="mt-1 text-xs font-semibold" style={{ color: "var(--status-warning-text)" }}>
           Only {product.stock} left — order soon
         </p>
+      ) : availability.state === "coming-soon" ? (
+        <p className="mt-1 text-xs font-semibold" style={{ color: "var(--accent-cyan-text)" }}>
+          {availability.daysUntilRelease === 1 ? "Launches tomorrow" : `Launches in ${availability.daysUntilRelease} days`}
+        </p>
       ) : (
         !soldOut && (
           <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
@@ -162,7 +181,7 @@ export default function ProductCard({
         className="min-h-[44px] flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
       >
         <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-        {soldOut ? "Out of stock" : "Add to cart"}
+        {availability.cta}
         <span className="sr-only"> — {product.name}</span>
       </button>
       <Link

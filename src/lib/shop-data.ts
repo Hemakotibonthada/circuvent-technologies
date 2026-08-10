@@ -19,6 +19,15 @@ export interface Product {
   available?: boolean;
   featured?: boolean;
   badge?: string; // e.g. "New", "Best seller" — shown as an offer/label chip
+  /**
+   * ISO date this goes on sale. Before it the product is "coming soon": shown
+   * in the catalogue, not orderable. Expressed as a date rather than a flag so
+   * it turns itself off on launch day instead of waiting for somebody to
+   * remember.
+   */
+  releaseAt?: string | null;
+  /** Permanently withdrawn — distinct from out of stock, it is not returning. */
+  discontinued?: boolean;
   rating: number;
   reviewCount?: number;
 }
