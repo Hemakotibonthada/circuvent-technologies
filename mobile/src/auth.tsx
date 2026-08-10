@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
-import { api, getToken, setToken, setRefreshToken, storeSession } from "./api";
+import { api, getToken, setToken, setRefreshToken, storeSession, getSignInAt, endSession } from "./api";
+import { issuedAtFromJwt, sessionExpired, sessionStartedAt } from "./session";
 import { forgetSiri } from "./siri-sync";
 import { registerForPush } from "./push";
 
@@ -28,9 +29,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const t = await getToken();
       if (t) {
+        /*
+         * A session past its 24 hours is over before anything is restored from
+         * it — checked here rather than left to the first 401, because a valid
+         * token would not produce one and the session would simply continue.
+         */
+        const now = Date.now();
+        const startedAt = sessionStartedAt({
+          stamp: await getSignInAt(),
+          tokenIssuedAt: issuedAtFromJwt(t),
+          now,
+        });
+        if (sessionExpired(startedAt, now)) {
+          await endSession();
+          forgetSiri();
+          setReady(true);
+          return;
+        }
+
         const r = await api.devices(); // token still valid if this succeeds (200)
         if (r.ok) setAccount({ email: "", name: "" });
-        else if (r.status === 401) { await setToken(null); await setRefreshToken(null); forgetSiri(); }
+        else if (r.status === 401) { await endSession(); forgetSiri(); }
         else setAccount({ email: "", name: "" }); // network hiccup: stay signed in
       }
       setReady(true);
@@ -40,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login: AuthValue["login"] = async (email, password) => {
     const r = await api.login(email, password);
     if (r.ok && r.data?.token) {
-      await storeSession(r.data);
+      await storeSession(r.data, { fresh: true });
       setAccount({ email: r.data.user.email, name: r.data.user.name });
       registerPushToken();
       return { ok: true };
@@ -59,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const verifyOtp: AuthValue["verifyOtp"] = async (email, otp) => {
     const r = await api.verifyOtp(email, otp);
     if (r.ok && r.data?.token) {
-      await storeSession(r.data);
+      await storeSession(r.data, { fresh: true });
       setAccount({ email: r.data.user.email, name: r.data.user.name });
       registerPushToken();
       return { ok: true };
@@ -74,8 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    setToken(null);
-    setRefreshToken(null);
+    void endSession();
     // Siri caches the device list natively; leaving it would keep offering
     // accessories that can no longer be controlled.
     forgetSiri();

@@ -1,8 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE } from "./config";
+import { issuedAtFromJwt, sessionExpired, sessionStartedAt } from "./session";
 
 const TOKEN_KEY = "cv-token";
 const REFRESH_KEY = "cv-refresh";
+const SIGNED_IN_AT_KEY = "cv-signed-in-at";
 
 export async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem(TOKEN_KEY);
@@ -19,10 +21,40 @@ export async function setRefreshToken(t: string | null): Promise<void> {
   else await AsyncStorage.removeItem(REFRESH_KEY);
 }
 
-/** Stores whatever an auth response returned, tolerating an older server. */
-export async function storeSession(data: { token?: string; refreshToken?: string } | null | undefined): Promise<void> {
+/**
+ * When credentials were last presented.
+ *
+ * Kept apart from the token because the token is replaced on every renewal and
+ * this must not be — it is the only thing that makes the 24 hour cap mean
+ * anything against a session that renews itself.
+ */
+export async function getSignInAt(): Promise<number | null> {
+  const raw = await AsyncStorage.getItem(SIGNED_IN_AT_KEY);
+  const n = raw ? Number(raw) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Clears the token, the refresh chain and the clock together. */
+export async function endSession(): Promise<void> {
+  await setToken(null);
+  await setRefreshToken(null);
+  await AsyncStorage.removeItem(SIGNED_IN_AT_KEY);
+}
+
+/**
+ * Stores whatever an auth response returned, tolerating an older server.
+ *
+ * `fresh` marks a real sign-in as opposed to a renewal. A renewal storing a new
+ * stamp would restart the 24 hours every time a request happened to 401, which
+ * is the whole failure this is meant to prevent.
+ */
+export async function storeSession(
+  data: { token?: string; refreshToken?: string } | null | undefined,
+  opts: { fresh?: boolean } = {}
+): Promise<void> {
   if (data?.token) await setToken(data.token);
   if (data?.refreshToken) await setRefreshToken(data.refreshToken);
+  if (opts.fresh) await AsyncStorage.setItem(SIGNED_IN_AT_KEY, String(Date.now()));
 }
 
 type Res<T = any> = { ok: boolean; status: number; data: T };
@@ -41,6 +73,26 @@ let refreshInFlight: Promise<boolean> | null = null;
 async function refreshSession(): Promise<boolean> {
   const stored = await getRefreshToken();
   if (!stored) return false;
+
+  /*
+   * A renewal cannot outlive the sign-in it descends from.
+   *
+   * This is why the cap is measured from the sign-in rather than the token:
+   * renewal happens automatically on any 401, so an expiry on the token alone
+   * would be renewed straight past and the session would run for the whole
+   * refresh chain.
+   */
+  const now = Date.now();
+  const startedAt = sessionStartedAt({
+    stamp: await getSignInAt(),
+    tokenIssuedAt: issuedAtFromJwt(await getToken()),
+    now,
+  });
+  if (sessionExpired(startedAt, now)) {
+    await endSession();
+    return false;
+  }
+
   try {
     const res = await fetch(API_BASE + "/auth/refresh", {
       method: "POST",
