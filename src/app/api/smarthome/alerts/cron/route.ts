@@ -23,6 +23,21 @@ const CONTROL_PLANE_URL = (
  * Friday evening: without this, the first anybody hears of it is when they
  * next open a page.
  *
+ * SCHEDULING. vercel.json runs this once a day, because Vercel's Hobby plan
+ * permits nothing more frequent — a half-hourly schedule is not merely ignored
+ * there, it fails the deployment outright, which is how four commits' worth of
+ * fixes sat undeployed until somebody read the error. Daily is honest but it
+ * is not monitoring: a device that dies an hour after the sweep goes
+ * unreported for twenty-three of them.
+ *
+ * The better schedule does not need Vercel. This endpoint is a plain
+ * authenticated GET, and the control-plane VM is already running continuously,
+ * so a crontab entry there gives a real interval at no cost — every fifteen
+ * minutes, calling this URL with the CRON_SECRET as a bearer token.
+ *
+ * Vercel Pro would also lift the limit. Either way the code is unchanged; only
+ * how often something calls it differs.
+ *
  * The honest difficulty is credentials. Every other path uses the signed-in
  * user's own console token, deliberately — the server never substitutes a
  * service account for a user. A cron has no user, so it needs a credential of
