@@ -21,7 +21,7 @@ PC1,1,PC817,DIP-4,Feedback optocoupler,Crosses the isolation barrier
 U2,1,TL431,SOT-23,Shunt voltage reference,Sets the 5V setpoint
 R3,1,1k,0805,Opto LED series resistor,
 R4,1,10k,0805,Feedback divider upper,
-R5,1,3k3,0805,Feedback divider lower,5V = 2.5V x (1 + R4/R5)
+R5,1,10k,0805,Feedback divider lower,Vout = 2.495 x (1 + R4/R5)
 CY1,1,2.2nF Y1 250VAC,disc Y1,Barrier Y capacitor,Y1 safety-rated ONLY
 U3,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,Secondary-side post-regulator
 C8,1,100uF/6.3V,electrolytic,3.3V bulk,

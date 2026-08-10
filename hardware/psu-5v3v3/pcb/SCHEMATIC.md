@@ -41,7 +41,13 @@ AC_N ----------+------------+            +-- HV- ---+--...   |
 ## Setpoint
 TL431 regulates its REF pin to 2.495 V, so
 
-    Vout = 2.495 x (1 + R4/R5) = 2.495 x (1 + 10k/3k3) = 5.05 V
+    Vout = 2.495 x (1 + R4/R5) = 2.495 x (1 + 10k/10k) = 4.99 V
+
+An earlier revision of this file specified R5 = 3k3, which gives
+2.495 x (1 + 10/3.3) = **10.06 V** - double the intended rail, straight onto
+the 5 V relay coils and optocouplers. Check this arithmetic against the fitted
+parts before first power-on; it is one multiplication and it decides whether
+the board destroys everything downstream of it.
 
 Use 1 % resistors: at 5 % the spread is ±0.25 V, which eats most of the ESP32's
 supply margin once the relay coils pull the rail down.

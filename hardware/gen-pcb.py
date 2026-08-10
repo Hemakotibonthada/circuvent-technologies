@@ -87,6 +87,12 @@ DEVICES = [
     # In-house offline SMPS. No MCU: build_netlist_psu() wires it instead.
     dict(folder="psu-5v3v3", model="cv-psu5", title="Circuvent PSU-5 230VAC-5V/3V3",
          w=70, h=55, mounts=2, mains=True, creepage=8.0, psu=True),
+    # External adapters. compact=True selects the 0402/0603 netclass table;
+    # psu=True still routes them through build_netlist_psu().
+    dict(folder="psu-adapter-5v", model="cv-ad5", title="Circuvent Adapter 5V 1A",
+         w=45, h=25, mounts=2, mains=True, creepage=8.0, psu=True, compact=True),
+    dict(folder="psu-adapter-12v", model="cv-ad12", title="Circuvent Adapter 12V 1A",
+         w=50, h=28, mounts=2, mains=True, creepage=8.0, psu=True, compact=True),
     # High-density USB-C board. `compact` selects build_netlist_compact() and
     # the 0402/0603 SMD footprint set; everything downstream is shared.
     dict(folder="load-controller", model="cv-duo",

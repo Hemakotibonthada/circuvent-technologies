@@ -1,0 +1,27 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+J1,1,2P 3.5mm,term 3.5/2,Mains input L/N,230VAC
+F1,1,T500mA 250V,1206,Mains fuse,SMD - a 5x20 holder is 26mm long
+RV1,1,7D471K,disc,MOV 470V,Mains surge clamp
+CX1,1,100nF X2 275VAC,film X2,EMI differential-mode filter,Safety-rated
+D1-D4,4,S1M 1000V 1A,SMA,Bridge rectifier,
+C1,1,6.8uF/400V,electrolytic,Bulk / DC link,~1uF per watt at 230VAC
+T1,1,EE13 flyback 1.2mH,EE13,Isolated flyback transformer,Reinforced; 4kV hipot
+U1,1,TNY275PN,DIP-8,Offline switcher (700V MOSFET),TinySwitch-III
+C2,1,100nF/50V,0603,BYPASS pin decoupling,Close to U1
+R1-R2,2,100k,0603,RCD snubber resistors,Two in series for voltage rating
+C3,1,1nF/1kV,0603,RCD snubber capacitor,
+D5,1,UF4007,SMA,RCD clamp catch diode,Catches at the drain
+D6,1,S1M,SMA,Bias winding rectifier,
+C4,1,10uF/50V,electrolytic,Bias rail,
+D7,1,SS34 40V 3A,SMA,Secondary rectifier,Schottky
+C5,1,470uF/10V,electrolytic,5V output bulk,Low ESR
+C6,1,100uF/10V,electrolytic,5V post filter,
+C7,1,100nF/50V,0603,5V HF decoupling,
+PC1,1,PC817,DIP-4,Feedback optocoupler,Crosses the isolation barrier
+U2,1,TL431,SOT-23,Shunt voltage reference,Sets the output setpoint
+R3,1,1k,0603,Opto LED series resistor,
+R4,1,10k 1%,0603,Feedback divider upper,
+R5,1,10k 1%,0603,Feedback divider lower,5.0V = 2.495 x (1 + 10k/10k)
+CY1,1,2.2nF Y1 250VAC,disc Y1,Barrier Y capacitor,Y1 safety-rated ONLY
+J2,1,2P 3.5mm,term 3.5/2,DC output 5V / GND,To the device
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm primary-secondary creepage
