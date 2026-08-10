@@ -27,7 +27,7 @@ import { getToken } from "./api";
 export type ChannelLabels = Record<string, Record<string, string>>;
 
 /** `{ [deviceId]: { [stateField]: { kind, style, … } } }` */
-export type ChannelConfig = Record<string, Record<string, { kind?: string; style?: string; icon?: string }>>;
+export type ChannelConfig = Record<string, Record<string, { kind?: string; style?: string; icon?: string; hidden?: boolean }>>;
 
 /*
  * The scope names the console actually stores under.
@@ -239,6 +239,35 @@ export async function setChannelKind(deviceId: string, field: string, kind: stri
   const entry = { ...(forDevice[field] ?? {}) };
   if (kind) entry.kind = kind;
   else delete entry.kind;
+
+  if (Object.keys(entry).length) forDevice[field] = entry;
+  else delete forDevice[field];
+
+  config = { ...config };
+  if (Object.keys(forDevice).length) config[deviceId] = forDevice;
+  else delete config[deviceId];
+
+  return persist(await getToken());
+}
+
+/** Whether this channel has been hidden from the controls. */
+export function channelHidden(deviceId: string, field: string): boolean {
+  return config[deviceId]?.[field]?.hidden === true;
+}
+
+/**
+ * Hides or shows a channel, for everyone.
+ *
+ * This used to live only on the phone, on the reasoning that hiding something
+ * is about this screen. It is not: a channel with nothing wired to it is
+ * nothing to anybody, and hiding it here while the console kept showing it made
+ * the two disagree about what the device even has.
+ */
+export async function setChannelHidden(deviceId: string, field: string, hidden: boolean): Promise<boolean> {
+  const forDevice = { ...(config[deviceId] ?? {}) };
+  const entry = { ...(forDevice[field] ?? {}) };
+  if (hidden) entry.hidden = true;
+  else delete entry.hidden;
 
   if (Object.keys(entry).length) forDevice[field] = entry;
   else delete forDevice[field];

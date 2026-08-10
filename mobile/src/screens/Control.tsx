@@ -9,7 +9,7 @@ import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabe
 import { tapLight, toggleFeedback } from "../haptics";
 import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
 import { deviceMeta, type Palette, TAP_SLOP } from "../theme";
-import { useSwitchWidgets, CHANNEL_KINDS, channelKind, type Gang } from "../widgets";
+import { useSwitchWidgets, CHANNEL_KINDS, channelKind, defaultLabelFor, type Gang } from "../widgets";
 import { useCameraFrames } from "../live";
 import { isCameraDevice as isCamera } from "../cameras";
 import { Icon, type IconName } from "../icons";
@@ -459,6 +459,62 @@ function SmartSwitch({ d, send, c }: { d: Device; send: (p: Record<string, unkno
 // Reusable multi-gang control with per-device widget customization (name, what
 // it is wired to, and show/hide). Used by smart-switch, home-hub, touchboard and
 // sentinel, and available to any boolean-field device.
+/**
+ * The name box for one channel.
+ *
+ * It holds its own text while you are typing, which fixes three things that all
+ * had the same cause: the value used to be re-derived from the shared store on
+ * every keystroke.
+ *
+ *  - Clearing the box refilled it. An empty override means "use the default",
+ *    so the store answered "Gang 1" and the box you had just emptied showed
+ *    "Gang 1" again.
+ *  - A space could not be typed. The store trims what it is given, so "Living "
+ *    came back as "Living", and the next letter landed against the g.
+ *  - The name appeared not to save, because what you saw was never what you had
+ *    typed — it was whatever survived the round trip.
+ *
+ * The default is the placeholder now, which is what an empty box should show:
+ * "this is what it will be called if you leave this alone".
+ */
+function ChannelNameField({
+  value,
+  fallback,
+  onCommit,
+  c,
+}: {
+  value: string;
+  fallback: string;
+  onCommit: (name: string) => void;
+  c: Palette;
+}) {
+  // An override reads as empty; only a name the user actually chose is text.
+  const [draft, setDraft] = useState(value === fallback ? "" : value);
+
+  // Follow the shared value when it changes underneath us — a rename on the web
+  // — but never while this field has focus, or it would fight the typist.
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current) setDraft(value === fallback ? "" : value);
+  }, [value, fallback]);
+
+  return (
+    <TextInput
+      value={draft}
+      onChangeText={setDraft}
+      onFocus={() => { focused.current = true; }}
+      onBlur={() => { focused.current = false; onCommit(draft); }}
+      onSubmitEditing={() => onCommit(draft)}
+      placeholder={fallback}
+      placeholderTextColor={c.faint}
+      maxLength={40}
+      returnKeyType="done"
+      accessibilityLabel={`Name for ${fallback}`}
+      style={{ flex: 1, color: c.text, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 44 }}
+    />
+  );
+}
+
 function SwitchGangs({ d, send, c, sendFor }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette; sendFor?: (field: string, v: boolean) => void }) {
   const { gangs, visible, rename, setVisible, setKind, reset } = useSwitchWidgets(d);
   const [editing, setEditing] = useState(false);
@@ -488,13 +544,11 @@ function SwitchGangs({ d, send, c, sendFor }: { d: Device; send: (p: Record<stri
           {gangs.map((g) => (
             <Card key={g.field} padded style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <TextInput
+                <ChannelNameField
                   value={g.label}
-                  onChangeText={(t) => rename(g.field, t)}
-                  placeholder={g.field}
-                  placeholderTextColor={c.faint}
-                  accessibilityLabel={`Name for ${g.field}`}
-                  style={{ flex: 1, color: c.text, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 44 }}
+                  fallback={defaultLabelFor(d, g.field)}
+                  onCommit={(t) => rename(g.field, t)}
+                  c={c}
                 />
                 <Sw v={g.visible} on={(v) => setVisible(g.field, v)} c={c} />
               </View>

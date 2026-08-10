@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Device } from "./api";
 import type { IconName } from "./icons";
-import { channelLabel, channelKind as savedChannelKind, setChannelLabel, setChannelKind, clearChannelPrefs, onChannelPrefsChange } from "./channel-prefs";
+import { channelLabel, channelKind as savedChannelKind, setChannelLabel, setChannelKind, clearChannelPrefs, onChannelPrefsChange, channelHidden, setChannelHidden } from "./channel-prefs";
 
 /**
  * What a relay is actually wired to.
@@ -50,7 +50,19 @@ export function channelKind(kind: ChannelKind | undefined): ChannelKindMeta {
 export interface Gang { field: string; label: string; visible: boolean; kind: ChannelKind }
 
 // The switchable fields a device exposes, with sensible default labels.
-export function defaultGangs(d: Device): Gang[] {
+/**
+ * What a channel is called when nobody has renamed it.
+ *
+ * Needed by the name field, which shows it as a placeholder rather than as
+ * text — an empty box means "use the default", and filling the box with the
+ * default is how clearing it appeared not to work.
+ */
+export function defaultLabelFor(d: Device, field: string): string {
+  const g = defaultGangs(d, true).find((x) => x.field === field);
+  return g ? g.label : field;
+}
+
+export function defaultGangs(d: Device, rawLabels = false): Gang[] {
   const s = d.state || {};
   /*
    * The user's own name wins over the generic one.
@@ -60,7 +72,7 @@ export function defaultGangs(d: Device): Gang[] {
    * channel; this simply asks for the answer instead of assuming "Channel 1".
    */
   const mk = (field: string, label: string, kind: ChannelKind = "generic"): Gang =>
-    ({ field, label: channelLabel(d.id, field, label), visible: true, kind: (savedChannelKind(d.id, field) as ChannelKind) ?? kind });
+    ({ field, label: rawLabels ? label : channelLabel(d.id, field, label), visible: !channelHidden(d.id, field), kind: (savedChannelKind(d.id, field) as ChannelKind) ?? kind });
   switch (d.type) {
     case "touchboard":
       return [mk("g1", "Gang 1"), mk("g2", "Gang 2"), mk("g3", "Gang 3")];
@@ -186,8 +198,12 @@ export function useSwitchWidgets(device: Device) {
   }, [update, device.id]);
 
   const setVisible = useCallback((field: string, visible: boolean) => {
+    // Shared, not local. A channel with nothing wired to it is nothing to
+    // anybody, and hiding it only here made the app and the console disagree
+    // about what the device has.
     update((prev) => prev.map((g) => (g.field === field ? { ...g, visible } : g)));
-  }, [update]);
+    void setChannelHidden(device.id, field, !visible);
+  }, [update, device.id]);
 
   const setKind = useCallback((field: string, kind: ChannelKind) => {
     update((prev) => prev.map((g) => (g.field === field ? { ...g, kind } : g)));
