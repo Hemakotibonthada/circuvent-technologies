@@ -6,6 +6,7 @@ import { Loader2, Printer, ShieldCheck } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
 import { formatAddress, warrantyFooter, type BusinessDocument, type DocumentKind, type DocumentAddress } from "@/lib/documents";
 import { warrantyDate } from "@/lib/warranty";
+import { useAccount } from "@/components/shop/AccountProvider";
 
 interface CoverUnit {
   id: string;
@@ -40,6 +41,7 @@ function AddressBlock({ heading, a }: { heading: string; a: DocumentAddress }) {
 export default function InvoicePage() {
   const params = useParams<{ orderNo: string }>();
   const sp = useSearchParams();
+  const { account, ready, authHeaders } = useAccount();
   // `type=packing` is the link format the account page has always used; keep it
   // working rather than breaking every invoice link a customer has been emailed.
   const initialKind = (sp.get("kind") || (sp.get("type") === "packing" ? "packing-slip" : "invoice")) as DocumentKind;
@@ -58,17 +60,44 @@ export default function InvoicePage() {
       setLoading(false);
       return;
     }
+    /*
+     * Wait for the account to load before asking, and before concluding
+     * anything from a 401.
+     *
+     * The token lives in localStorage and is restored by AccountProvider after
+     * mount, so a fetch fired on the first render carries no credentials. This
+     * page asked immediately and rendered "Please sign in" at a customer who
+     * was signed in — their name was in the header at the time.
+     */
+    if (!ready) return;
+
+    // A guest who followed the link from their order confirmation has no
+    // session, but the link carries the email the order was placed with, which
+    // is what the API accepts instead. Checkout does not require an account,
+    // so refusing here would mean a guest could never get their own invoice.
+    const emailParam = sp.get("email") || "";
+    if (!account && !emailParam) {
+      setErr("Sign in, or open this from the link in your order confirmation email.");
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setErr("");
-    fetch(`/api/account/documents/${encodeURIComponent(orderNo)}?kind=${encodeURIComponent(kind)}`, {
-      credentials: "include",
+    const query = new URLSearchParams({ kind });
+    if (!account && emailParam) query.set("email", emailParam);
+
+    fetch(`/api/account/documents/${encodeURIComponent(orderNo)}?${query.toString()}`, {
+      // The shop authenticates with a bearer token, not a cookie, so
+      // credentials:"include" sends nothing at all.
+      headers: { ...authHeaders() },
     })
       .then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
       .then(({ status, body }) => {
         if (cancelled) return;
         if (status === 401) {
-          setErr("Please sign in to view this document.");
+          setErr(body?.message || "Sign in, or open this from the link in your order confirmation email.");
         } else if (body?.success) {
           setDoc(body.document);
           setUnits(Array.isArray(body.units) ? body.units : []);
@@ -87,7 +116,7 @@ export default function InvoicePage() {
     return () => {
       cancelled = true;
     };
-  }, [params, kind]);
+  }, [params, kind, ready, account, authHeaders, sp]);
 
   if (loading) {
     return (
