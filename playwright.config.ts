@@ -12,6 +12,34 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.E2E_PORT || 3000);
 const BASE_URL = `http://localhost:${PORT}`;
 
+/*
+ * Which browsers to run.
+ *
+ * The workflow installs chromium and only chromium, while this config declared
+ * three projects — so every CI run launched firefox and webkit, failed with
+ * "Executable doesn't exist", and reported the suite as broken. Two files
+ * disagreed and neither was obviously wrong on its own.
+ *
+ * Chromium is the default in CI because fast feedback that stays green is
+ * worth more than triple coverage nobody can keep passing; the other engines
+ * are a deliberate opt-in via E2E_BROWSERS, and remain the default locally
+ * where they are usually installed. Whatever is listed here must be what the
+ * workflow installs.
+ */
+const ALL_BROWSERS = ["chromium", "firefox", "webkit"] as const;
+type BrowserName = (typeof ALL_BROWSERS)[number];
+
+const requested = (process.env.E2E_BROWSERS || (process.env.CI ? "chromium" : ALL_BROWSERS.join(",")))
+  .split(",")
+  .map((s) => s.trim())
+  .filter((s): s is BrowserName => (ALL_BROWSERS as readonly string[]).includes(s));
+
+const DEVICE_FOR: Record<BrowserName, string> = {
+  chromium: "Desktop Chrome",
+  firefox: "Desktop Firefox",
+  webkit: "Desktop Safari",
+};
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -24,20 +52,10 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
-    },
-    {
-      name: "webkit",
-      use: { ...devices["Desktop Safari"] },
-    },
-  ],
+  projects: (requested.length ? requested : ["chromium" as BrowserName]).map((name) => ({
+    name,
+    use: { ...devices[DEVICE_FOR[name]] },
+  })),
   webServer: {
     /*
      * Run the built app, not the dev server.

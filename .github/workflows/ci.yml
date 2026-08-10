@@ -56,9 +56,15 @@ jobs:
       # stayed broken (it expected the wrong domain). playwright.config.ts
       # starts its own dev server on :3000 via the webServer option.
       - name: Install Playwright browsers
+        # Must match the browsers playwright.config.ts runs. These disagreed:
+        # only chromium was installed while the config declared three projects,
+        # so every run failed on "Executable doesn't exist" for firefox and
+        # webkit and the suite was reported as broken.
         run: npx playwright install --with-deps chromium
 
       - name: End-to-end tests
+        env:
+          E2E_BROWSERS: chromium
         run: npm run test:e2e
 
       - name: Upload Playwright report
