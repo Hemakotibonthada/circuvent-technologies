@@ -677,14 +677,6 @@ export const masonryTestimonials = [
     featured: true,
   },
   {
-    name: "Sankar Nagarapu",
-    role: "Co-Founder & Head of Software & AI",
-    company: "Circuvent Technologies",
-    avatar: "👨‍💻",
-    content: "The CancerGuard AI system achieves 94.2% detection accuracy. Incredible engineering across both the ML pipeline and the clinical interface.",
-    rating: 5,
-  },
-  {
     name: "Chiru Kotcherla",
     role: "Co-Founder & Marketing Director",
     company: "Circuvent Technologies",
@@ -710,28 +702,11 @@ export const masonryTestimonials = [
     rating: 5,
   },
   {
-    name: "Kishore Mandapalli",
-    role: "Co-Founder & Head of Wiring Design",
-    company: "Circuvent Technologies",
-    avatar: "👨‍💻",
-    content: "Code quality is exceptional. Clean architecture, comprehensive tests, Docker deployment — everything a production system needs. Our open-source contributions speak for themselves.",
-    rating: 5,
-    featured: true,
-  },
-  {
     name: "Hema Koteswar Naidu",
     role: "Founder & CEO",
     company: "Circuvent Technologies",
     avatar: "👨‍💻",
     content: "We replaced traditional HR tools with a single HRMS platform. Saved thousands in SaaS costs. The system handles everything from attendance to project management.",
-    rating: 5,
-  },
-  {
-    name: "Sankar Nagarapu",
-    role: "Co-Founder & Head of Software & AI",
-    company: "Circuvent Technologies",
-    avatar: "🧑‍🔬",
-    content: "Our ML pipeline for cancer detection was meticulously engineered. ChromaDB vector storage, custom model training, and a clean API — all containerized with Docker.",
     rating: 5,
   },
   {
