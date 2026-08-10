@@ -219,6 +219,42 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
   }, [mode, scheme, accentKey]);
 
   const accent = accentByKey(accentKey);
+
+  /*
+   * Publish the theme to the document element as well as to the wrapper.
+   *
+   * The --cv-* variables were only ever inline styles on the div below, so
+   * they existed for its descendants and nowhere else. Overlays render through
+   * a portal into document.body — deliberately, so a parent with overflow
+   * hidden cannot clip them — which puts them outside that subtree. Inside a
+   * portal every var(--cv-input-bg) resolved to nothing, the marketing shell's
+   * site-wide `input, textarea, select` rule was the only one left standing,
+   * and every field in every modal was painted with the light marketing
+   * surface. That is the white boxes on the dark automation dialog: not a
+   * colour chosen badly, a colour that was never reachable.
+   *
+   * Mirroring onto :root fixes it for every portal at once, including ones not
+   * written yet. The names are all --cv-* prefixed and only consumed by
+   * console CSS, so nothing on a marketing page reads them; they are removed
+   * on unmount regardless.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    const applied = vars(mode, scheme, accent) as Record<string, string>;
+    for (const [k, v] of Object.entries(applied)) {
+      if (k.startsWith("--")) root.style.setProperty(k, v);
+    }
+    root.setAttribute("data-cv-mode", mode);
+    root.setAttribute("data-cv-scheme", scheme);
+    return () => {
+      for (const k of Object.keys(applied)) {
+        if (k.startsWith("--")) root.style.removeProperty(k);
+      }
+      root.removeAttribute("data-cv-mode");
+      root.removeAttribute("data-cv-scheme");
+    };
+  }, [mode, scheme, accent]);
+
   const value = useMemo<ThemeValue>(
     () => ({
       mode,
@@ -258,6 +294,14 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           -moz-osx-font-smoothing: grayscale;
           text-rendering: optimizeLegibility;
           font-feature-settings: "cv01", "ss01";
+        }
+        /* A portal root carries .cv-theme so every descendant rule below still
+           applies inside overlays — but it must not also become a full-height
+           painted surface, or an open modal would lay an opaque page
+           background over everything behind it. */
+        [data-cv-portal].cv-theme {
+          min-height: 0;
+          background: none;
         }
         /* Apple sets tight tracking on display text and lets it loosen as the
            size drops. Doing it once here keeps every heading in the console
@@ -498,10 +542,18 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
            inside the console was painted with the light marketing surface —
            the white boxes visible even in dark mode. Re-bind them to the
            console's own theme; the leading :root lifts these rules above the
-           global one. */
+           global one.
+
+           [data-cv-portal] is here for the same reason and is the case that
+           was missed: overlays render into document.body, so they are not
+           inside .cv-theme and this rule never reached them. Every field in
+           every modal and drawer stayed marketing-white on a dark dialog. */
         :root .cv-theme input,
         :root .cv-theme textarea,
-        :root .cv-theme select {
+        :root .cv-theme select,
+        :root [data-cv-portal] input,
+        :root [data-cv-portal] textarea,
+        :root [data-cv-portal] select {
           background: var(--cv-input-bg);
           color: var(--cv-text);
           backdrop-filter: none;
@@ -509,8 +561,21 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
         }
         :root .cv-theme input.bg-transparent,
         :root .cv-theme textarea.bg-transparent,
-        :root .cv-theme select.bg-transparent {
+        :root .cv-theme select.bg-transparent,
+        :root [data-cv-portal] input.bg-transparent,
+        :root [data-cv-portal] textarea.bg-transparent,
+        :root [data-cv-portal] select.bg-transparent {
           background: transparent;
+        }
+        /* Overlays inherit the console's surfaces and text colour. Without
+           this the portal root has no colour of its own and falls back to the
+           marketing shell's. */
+        [data-cv-portal] {
+          color: var(--cv-text);
+        }
+        :root [data-cv-portal] option {
+          background: var(--cv-card-solid, #0f1629);
+          color: var(--cv-text);
         }
         :root .cv-theme input[type="checkbox"],
         :root .cv-theme input[type="radio"],
@@ -713,4 +778,19 @@ export function useConsoleTheme() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("useConsoleTheme must be used within ConsoleThemeProvider");
   return ctx;
+}
+
+/**
+ * The theme, or null outside the console.
+ *
+ * Overlays are shared: the same Modal renders inside the console and on
+ * marketing pages that have no provider. They need the theme when it exists
+ * and must not throw when it does not, and they need it during render rather
+ * than from an effect — React runs child effects before parent ones, so an
+ * overlay reading the theme off the DOM in an effect sees the state from
+ * before ConsoleThemeProvider had written it, and a modal that was already
+ * open on first paint came out unthemed.
+ */
+export function useOptionalConsoleTheme(): ThemeValue | null {
+  return useContext(Ctx);
 }

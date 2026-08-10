@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { AlertTriangle, Check, Info, Search, X, XCircle } from "lucide-react";
 import { Button, SEVERITY } from "./primitives";
+import { useOptionalConsoleTheme } from "../theme";
 import type { Severity } from "./primitives";
 
 /* ------------------------------------------------------------------ */
@@ -21,6 +22,13 @@ import type { Severity } from "./primitives";
 
 function Portal({ children }: { children: ReactNode }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
+  const theme = useOptionalConsoleTheme();
+  // Read during render, not from an effect: React runs child effects before
+  // parent ones, so an effect here sees the document before
+  // ConsoleThemeProvider has published the theme to it, and a modal that was
+  // already open on first paint came out unthemed.
+  const themeClass = theme ? `cv-theme cv-${theme.mode} cv-${theme.scheme}` : "";
+
   useEffect(() => {
     const el = document.createElement("div");
     el.setAttribute("data-cv-portal", "");
@@ -30,6 +38,21 @@ function Portal({ children }: { children: ReactNode }) {
       document.body.removeChild(el);
     };
   }, []);
+
+  /*
+   * Carry the console's theme classes onto the portal root, and keep them in
+   * step when the theme changes while an overlay is open.
+   *
+   * The portal is a child of body, not of the themed wrapper, so every
+   * class-scoped console rule — .cv-theme's radius remap, .cv-neo's raised
+   * surfaces, the light-scheme shim — stopped at the portal boundary, and
+   * modals were styled by whatever the marketing shell happened to apply.
+   */
+  useEffect(() => {
+    if (!host) return;
+    host.className = themeClass;
+  }, [host, themeClass]);
+
   return host ? createPortal(children, host) : null;
 }
 
