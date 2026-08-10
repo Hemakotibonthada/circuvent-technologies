@@ -296,8 +296,98 @@ export interface TelemetryRow {
  * `status` and `qr` are computed server-side — never derive them on the client,
  * or a revoked pass could render as active.
  */
-export interface GatePass {
+/** One ANPR sighting. */
+export interface PlateRead {
   id: number;
+  deviceId: string;
+  deviceName: string;
+  plate: string | null;
+  pretty: string | null;
+  confidence: number;
+  votes: number;
+  samples: number;
+  status: "recognised" | "unrecognised";
+  reason: string | null;
+  decision: "allow" | "deny" | "watch" | "unknown";
+  /** Null when the lane's direction could not be resolved — never guessed. */
+  direction: "in" | "out" | null;
+  trigger: string;
+  at: string;
+  hasImage: boolean;
+}
+
+/** One vehicle, aggregated across every sighting. */
+export interface Vehicle {
+  plate: string;
+  pretty: string;
+  passes: number;
+  entries: number;
+  exits: number;
+  firstSeen: string;
+  lastSeen: string;
+  inside: boolean;
+  visits: number;
+  avgStaySec: number | null;
+  totalStaySec: number;
+  devices: string[];
+  rule: "allow" | "deny" | "watch" | null;
+  label: string | null;
+}
+
+/** One stay: an arrival paired with the departure that ended it. */
+export interface Visit {
+  id: number;
+  entryAt: string | null;
+  exitAt: string | null;
+  status: "open" | "closed" | "entry_missed" | "exit_missed";
+  /** Null, never 0, when a read was missed. */
+  durationSec: number | null;
+}
+
+export interface VehicleProfile {
+  plate: string;
+  pretty: string;
+  summary: {
+    passes: number;
+    entries: number;
+    exits: number;
+    visits: number;
+    inside: boolean;
+    firstSeen: string;
+    lastSeen: string;
+    totalStaySec: number;
+    avgStaySec: number | null;
+    longestStaySec: number | null;
+    missedReads: number;
+    cameras: string[];
+  };
+  visits: Visit[];
+  reads: PlateRead[];
+}
+
+export interface Occupancy {
+  inside: number;
+  /** Null when capacity is not managed — which is different from zero. */
+  capacity: number | null;
+  free: number | null;
+  full: boolean;
+  percent: number | null;
+  overstays: { visitId: number; plate: string; pretty: string; entryAt: string; hours: number }[];
+}
+
+export interface PlateRule {
+  id: number;
+  plate: string;
+  pretty: string;
+  kind: "allow" | "deny" | "watch";
+  label: string;
+  validTo: string | null;
+  enabled: boolean;
+  hits: number;
+  lastHitAt: string | null;
+}
+
+export interface GatePass {  id: number;
   device_id: string;
   code: string;
   label: string;
@@ -498,9 +588,24 @@ export const api = {
 
   // ---- gate access / guest passes -----------------------------------------
   // Backed by platform/api/src/routes/gate.ts.
+  // ---- ANPR: vehicles, occupancy and the plate lists ---------------------
+  plateReads: (limit = 100) => req<{ reads: PlateRead[] }>("/anpr/reads?limit=" + limit),
+  vehicles: (days = 30) =>
+    req<{ days: number; vehicles: Vehicle[]; insideNow: number }>("/anpr/vehicles?days=" + days),
+  vehicle: (plate: string) => req<VehicleProfile>("/anpr/vehicles/" + encodeURIComponent(plate)),
+  occupancy: () => req<Occupancy>("/anpr/occupancy"),
+  plateRules: () => req<{ rules: PlateRule[] }>("/anpr/rules"),
+  createPlateRule: (body: { plate: string; kind?: string; label?: string; validTo?: string | null }) =>
+    req<{ rule: PlateRule; error?: string }>("/anpr/rules", { method: "POST", body: JSON.stringify(body) }),
+  deletePlateRule: (id: number) => req<{ success: boolean }>("/anpr/rules/" + id, { method: "DELETE" }),
+  addPlateRuleFromRead: (readId: number, kind: string) =>
+    req<{ rule: PlateRule; error?: string }>("/anpr/rules/from-read/" + readId, {
+      method: "POST",
+      body: JSON.stringify({ kind }),
+    }),
+
   gatePasses: (deviceId?: string) =>
-    req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),
-  createGatePass: (body: GatePassBody) =>
+    req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),  createGatePass: (body: GatePassBody) =>
     req<{ pass: GatePass; error?: string }>("/gate/passes", { method: "POST", body: JSON.stringify(body) }),
   revokeGatePass: (id: number) => req<{ success: boolean }>("/gate/passes/" + id + "/revoke", { method: "POST" }),
   /**
