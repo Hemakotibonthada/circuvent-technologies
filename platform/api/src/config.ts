@@ -8,7 +8,7 @@ const schema = z.object({
   MQTT_USERNAME: z.string().default("control-plane"),
   MQTT_PASSWORD: z.string().min(1, "MQTT_PASSWORD is required"),
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 chars"),
-  JWT_EXPIRES_IN: z.string().default("30d"),
+  JWT_EXPIRES_IN: z.string().default("24h"),
   CORS_ORIGIN: z.string().default("*"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("production"),
   // Smart-home (Alexa + Google) account-linking OAuth client.
@@ -136,12 +136,26 @@ export const topics = {
    * firmware/anpr-cam/anpr-cam.ino.
    */
   anpr: (deviceId: string) => `cv/${deviceId}/anpr`,
+  /*
+   * Drone position batches. A separate topic from `telemetry` for the reason
+   * documented on `frame`: every telemetry message is INSERTed into Postgres
+   * as JSONB, and an aircraft sampling at 10 Hz would write 36,000 rows an
+   * hour holding data that belongs in `flight_track` as columns.
+   *
+   * Binary, QoS 0, never retained. A retransmitted position from four seconds
+   * ago is worth nothing to a moving aircraft, and the batching already
+   * provides the redundancy QoS 1 would be buying. The payload is a 16-byte
+   * header followed by fixed-size records; see `drone/track.ts` and the
+   * `TrackHeader` struct in firmware/drone-link/drone-link.h.
+   */
+  track: (deviceId: string) => `cv/${deviceId}/track`,
   // Wildcards the control-plane subscribes to.
   allState: "cv/+/state",
   allTelemetry: "cv/+/telemetry",
   allStatus: "cv/+/status",
   allFrames: "cv/+/frame",
   allAnpr: "cv/+/anpr",
+  allTrack: "cv/+/track",
 };
 
 /** Extract the deviceId from an inbound topic like cv/<id>/state. */

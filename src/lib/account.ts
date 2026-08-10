@@ -4,6 +4,7 @@
 
 import crypto from "crypto";
 import { lazySecret } from "./secrets";
+import { MAX_SESSION_MS } from "./session-expiry";
 
 const secret = lazySecret(["ACCOUNT_SECRET"], "customer sessions");
 
@@ -67,8 +68,14 @@ export function hasUsablePassword(acc: { salt?: string; hash?: string } | null |
  * deployment. Tokens now carry an issue time and the account's token version,
  * both covered by the signature, and are re-checked against account state on
  * every use.
+ *
+ * Twenty-four hours, down from thirty days. A shop session can place orders,
+ * read invoices and — since the console federation bridge — open somebody's
+ * home. A month of that from a single sign-in on a shared or lost device is
+ * longer than any of it needs. Nothing renews this silently, so the cap is the
+ * whole story here; the console needed more work because it does.
  */
-const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TOKEN_TTL_MS = MAX_SESSION_MS;
 
 export interface SessionClaims {
   email: string;

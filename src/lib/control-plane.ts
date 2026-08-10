@@ -16,9 +16,12 @@ export const CONTROL_PLANE_URL = (
 export const CONTROL_PLANE_WS =
   CONTROL_PLANE_URL.replace(/^http/i, "ws") + "/ws";
 
+import { issuedAtFromJwt, sessionExpired, sessionStartedAt } from "./session-expiry";
+
 const TOKEN_KEY = "cv-console-token";
 const REFRESH_KEY = "cv-console-refresh";
 const USER_KEY = "cv-console-user";
+const SIGNED_IN_AT_KEY = "cv-console-signed-in-at";
 
 export interface ControlUser {
   id: number;
@@ -126,6 +129,140 @@ export interface AnprSettings {
   reportEmail: string | null;
   /** Hour of day in IST, matching the automation scheduler's zone. */
   reportHour: number;
+}
+
+/* ---------------------------------------------------------------- */
+/* Drone                                                             */
+/* ---------------------------------------------------------------- */
+
+export interface DroneLimits {
+  maxAltM: number;
+  maxRangeM: number;
+  minBattPct: number;
+}
+
+export interface DroneSettings extends DroneLimits {
+  /** Operator registration, required above toy weight in most jurisdictions. */
+  operatorId: string | null;
+  /** Where the daily flight report goes. Null means no report is sent. */
+  reportEmail: string | null;
+  /** Hour of day in IST, matching the automation scheduler's zone. */
+  reportHour: number;
+  alertFailsafe: boolean;
+  alertFence: boolean;
+  alertLowBatt: boolean;
+}
+
+/** Live state of one aircraft, as last published by its companion computer. */
+export interface LiveAircraft {
+  deviceId: string;
+  name: string | null;
+  online: boolean;
+  state: Record<string, unknown>;
+  /** The open flight, if it is flying now. */
+  flightId: string | null;
+  warnings: string[];
+}
+
+/**
+ * One command. Every field is optional because the shape depends on `action`,
+ * and the server validates the combination — a client-side union would have to
+ * be kept in step with the Zod schema by hand.
+ */
+export interface DroneCommand {
+  action:
+    | "arm" | "disarm" | "takeoff" | "land" | "rtl" | "loiter"
+    | "brake" | "goto" | "mission" | "mode" | "set" | "state";
+  alt?: number;
+  lat?: number;
+  lon?: number;
+  /** Required to disarm an airborne aircraft. Cuts the motors. */
+  force?: boolean;
+  op?: "start" | "pause" | "resume";
+  mode?: string;
+  allowArm?: boolean;
+  trackHz?: number;
+  maxAlt?: number;
+  maxRange?: number;
+  minBatt?: number;
+  minSats?: number;
+  requireHome?: boolean;
+}
+
+export interface Flight {
+  id: string;
+  deviceId: string;
+  startedAt: string;
+  endedAt: string | null;
+  tookOffAt: string | null;
+  /** Arm to disarm. Null while the flight is open. */
+  durationSec: number | null;
+  /** Take-off to landing. Null when the aircraft armed but never flew. */
+  airborneSec: number | null;
+  maxAltM: number;
+  maxDistM: number;
+  distanceM: number;
+  maxSpeedMs: number;
+  battStartPct: number | null;
+  battEndPct: number | null;
+  /** "open" | "landed" | "stale" | "aborted". Stale is never called landed. */
+  outcome: string;
+  failsafe: boolean;
+  fenceBreach: boolean;
+  samples: number;
+  notes: string | null;
+}
+
+export interface FlightEvent {
+  id?: string;
+  flight_id?: string | null;
+  device_id?: string;
+  at: string;
+  kind: string;
+  detail: Record<string, unknown>;
+  severity: string;
+}
+
+export interface TrackPoint {
+  at: string;
+  lat: number;
+  lon: number;
+  alt: number;
+  speed: number | null;
+  batt: number | null;
+  mode: string | null;
+}
+
+export interface Waypoint {
+  lat: number;
+  lon: number;
+  alt: number;
+  action?: "waypoint" | "loiter" | "land" | "rtl";
+  holdSec?: number;
+}
+
+export interface Mission {
+  id: string;
+  name: string;
+  waypoints: Waypoint[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Battery {
+  id: string;
+  label: string;
+  cells: number;
+  capacityMah: number;
+  cycles: number;
+  retireAt: number;
+  firstUsed: string | null;
+  lastUsed: string | null;
+  retired: boolean;
+  notes: string | null;
+  /** Fraction of rated life used. */
+  wear: number;
+  health: "good" | "ageing" | "retire";
 }
 
 /** One vehicle, aggregated across every sighting. */
@@ -558,6 +695,40 @@ export function setStoredUser(u: ControlUser | null): void {
   else window.localStorage.removeItem(USER_KEY);
 }
 
+/**
+ * When credentials were last presented.
+ *
+ * Recorded separately from the token because the token is replaced on every
+ * renewal and this must not be. Nothing reads it but the 24 hour cap.
+ */
+export function getSignInAt(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(SIGNED_IN_AT_KEY);
+  const n = raw ? Number(raw) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Starts the 24 hour clock. Called only where credentials were actually checked. */
+export function markSignedInNow(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SIGNED_IN_AT_KEY, String(Date.now()));
+}
+
+/**
+ * Removes every trace of the session.
+ *
+ * One function rather than three calls at each site: the sign-in stamp was
+ * added later than the tokens, and a place that forgot to clear it would leave
+ * a stamp behind that outlives the session it described — which then caps the
+ * NEXT sign-in early, from the previous one's clock.
+ */
+export function endSession(): void {
+  setToken(null);
+  setRefreshToken(null);
+  setStoredUser(null);
+  if (typeof window !== "undefined") window.localStorage.removeItem(SIGNED_IN_AT_KEY);
+}
+
 // -------------------------------------------------------------- core fetch --
 
 /**
@@ -574,6 +745,21 @@ let refreshInFlight: Promise<boolean> | null = null;
 async function refreshSession(): Promise<boolean> {
   const stored = getRefreshToken();
   if (!stored) return false;
+
+  /*
+   * A renewal cannot outlive the sign-in it descends from.
+   *
+   * This is the reason the 24 hour cap is measured from the sign-in and not
+   * from the token. Renewal happens automatically on any 401, so an expiry on
+   * the access token alone would be renewed straight past — the session would
+   * run for the refresh chain's sixty days across an unbounded number of
+   * short-lived tokens, and shortening the token would have looked like a fix
+   * while changing nothing.
+   */
+  if (sessionExpired(sessionStartedAt({ stamp: getSignInAt(), tokenIssuedAt: issuedAtFromJwt(getToken()), now: Date.now() }), Date.now())) {
+    endSession();
+    return false;
+  }
 
   try {
     const res = await fetch(CONTROL_PLANE_URL + "/auth/refresh", {
@@ -816,6 +1002,48 @@ export const controlPlane = {
     }),
   anprCapture: (deviceId: string) =>
     req<{ success: boolean }>("/anpr/devices/" + encodeURIComponent(deviceId) + "/capture", { method: "POST" }),
+
+  // ---- drone --------------------------------------------------------------
+  droneLive: () => req<{ aircraft: LiveAircraft[]; limits: DroneLimits }>("/drone/live"),
+  /**
+   * Relays one command.
+   *
+   * A refusal comes back as HTTP 409 with a `code`, and the caller is expected
+   * to show the reason rather than retry. Every command here is a whole intent
+   * that is safe to complete on its own if the link dies immediately after —
+   * there is deliberately no continuous manual control.
+   */
+  droneCommand: (deviceId: string, body: DroneCommand) =>
+    req<{ ok: boolean }>("/drone/" + encodeURIComponent(deviceId) + "/command", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  flights: (opts: { device?: string; limit?: number } = {}) =>
+    req<{ flights: Flight[] }>(
+      "/drone/flights?limit=" + (opts.limit ?? 50) + (opts.device ? "&device=" + encodeURIComponent(opts.device) : "")
+    ),
+  flight: (id: string) => req<{ flight: Flight; events: FlightEvent[] }>("/drone/flights/" + id),
+  flightTrack: (id: string, points = 2000) =>
+    req<{ points: TrackPoint[] }>("/drone/flights/" + id + "/track?points=" + points),
+  patchFlight: (id: string, body: { notes?: string; batteryId?: string | null }) =>
+    req<{ ok: boolean }>("/drone/flights/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  flightsCsvUrl: () => CONTROL_PLANE_URL + "/drone/flights.csv",
+  droneMissions: () => req<{ missions: Mission[] }>("/drone/missions"),
+  createMission: (body: { name: string; waypoints: Waypoint[] }) =>
+    req<{ mission: Mission; error?: string }>("/drone/missions", { method: "POST", body: JSON.stringify(body) }),
+  deleteMission: (id: string) => req<{ ok: boolean }>("/drone/missions/" + id, { method: "DELETE" }),
+  batteries: () => req<{ batteries: Battery[] }>("/drone/batteries"),
+  addBattery: (body: { label: string; cells?: number; capacityMah?: number; retireAt?: number }) =>
+    req<{ battery: Battery }>("/drone/batteries", { method: "POST", body: JSON.stringify(body) }),
+  updateBattery: (id: string, body: { label?: string; retireAt?: number; retired?: boolean; cycles?: number }) =>
+    req<{ battery: Battery }>("/drone/batteries/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBattery: (id: string) => req<{ ok: boolean }>("/drone/batteries/" + id, { method: "DELETE" }),
+  droneSettings: () => req<{ settings: DroneSettings }>("/drone/settings"),
+  saveDroneSettings: (body: Partial<DroneSettings>) =>
+    req<{ settings: DroneSettings }>("/drone/settings", { method: "PUT", body: JSON.stringify(body) }),
+  sendTestFlightReport: () =>
+    req<{ ok: boolean; sentTo?: string; error?: string }>("/drone/report/test", { method: "POST" }),
+  droneEvents: (limit = 100) => req<{ events: FlightEvent[] }>("/drone/events?limit=" + limit),
 
   // ---- gate guest passes (Zone 1) ----------------------------------------
   gatePasses: (deviceId?: string) =>

@@ -82,6 +82,26 @@ jest.mock("framer-motion", () => ({
   useScroll: () => ({ scrollYProgress: { get: () => 0 } }),
 }));
 
+/*
+ * TextEncoder/TextDecoder, which jsdom does not provide.
+ *
+ * Node has had both as globals since v11 and every runtime this ships to has
+ * them; jsdom is the only environment in the stack that does not. So a module
+ * that is perfectly correct in production — anything doing CBOR or binary
+ * decoding, WebAuthn included — fails to import under test with
+ * "TextDecoder is not defined", which reads as a broken dependency rather than
+ * a gap in the test environment.
+ *
+ * Taken from node:util so the test environment matches the real one instead of
+ * a reimplementation of it.
+ */
+if (typeof globalThis.TextDecoder === "undefined" || typeof globalThis.TextEncoder === "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { TextEncoder, TextDecoder } = require("util");
+  globalThis.TextEncoder = globalThis.TextEncoder ?? TextEncoder;
+  globalThis.TextDecoder = globalThis.TextDecoder ?? TextDecoder;
+}
+
 // Browser-only globals — guarded so tests using the `node` test environment
 // (e.g. database/adapter tests) can share this setup file without crashing.
 if (typeof window !== "undefined") {

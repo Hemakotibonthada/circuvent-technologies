@@ -16,10 +16,14 @@ import {
   setStoredUser,
   setToken,
   setRefreshToken,
+  getSignInAt,
+  markSignedInNow,
+  endSession,
   type ControlUser,
 } from "@/lib/control-plane";
 import { useControlLive, type DeviceUpdate, type LiveStatus } from "@/lib/control-plane-live";
 import { signInToConsole, storedShopToken } from "@/lib/console-signin";
+import { issuedAtFromJwt, msUntilExpiry, sessionExpired, sessionStartedAt } from "@/lib/session-expiry";
 
 interface ConsoleContextValue {
   user: ControlUser | null;
@@ -27,6 +31,8 @@ interface ConsoleContextValue {
   liveStatus: LiveStatus;
   notifyPermission: NotificationPermission | "unsupported";
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Completes a passkey sign-in with the console session it produced. */
+  loginWithPasskey: (email: string, session: { token: string; user: ControlUser }) => Promise<{ ok: true; email: string }>;
   register: (name: string, email: string, password: string) => Promise<{ ok: boolean; pending?: boolean; otpSent?: boolean; error?: string }>;
   verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; error?: string }>;
   resendOtp: (email: string) => Promise<{ ok: boolean; otpSent?: boolean; error?: string }>;
@@ -71,6 +77,21 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     void (async () => {
+      /*
+       * A session that has run its 24 hours is over before anything is restored
+       * from it. Done first so an expired session never appears signed in, not
+       * even for the frame between restoring the user and the check.
+       */
+      if (
+        getToken() &&
+        sessionExpired(
+          sessionStartedAt({ stamp: getSignInAt(), tokenIssuedAt: issuedAtFromJwt(getToken()), now: Date.now() }),
+          Date.now()
+        )
+      ) {
+        endSession();
+      }
+
       const stored = getStoredUser();
 
       if (!stored) {
@@ -86,6 +107,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
               setToken(data.token);
               setRefreshToken(data.refreshToken ?? null);
               setStoredUser(data.user);
+              markSignedInNow();
               if (!cancelled) setUser(data.user);
             }
           } catch {
@@ -196,10 +218,28 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       setToken(r.token);
       setRefreshToken(r.refreshToken ?? null);
       setStoredUser(r.user);
+      markSignedInNow();
       setUser(r.user);
       return { ok: true };
     }
     return { ok: false, error: r.error || "Invalid email or password" };
+  }, []);
+
+  /**
+   * Sign in with a passkey.
+   *
+   * The console's accounts live in the control plane, which has no WebAuthn.
+   * So the passkey is verified here, against this application's own customer
+   * credentials, and the resulting proof is spent on the federation bridge for
+   * a console session — the same exchange a password already goes through.
+   */
+  const loginWithPasskey = useCallback(async (email: string, session: { token: string; user: ControlUser }) => {
+    setToken(session.token);
+    setRefreshToken(null);
+    setStoredUser(session.user);
+    markSignedInNow();
+    setUser(session.user);
+    return { ok: true as const, email };
   }, []);
 
   const forgotPassword = useCallback(async (email: string) => {
@@ -218,6 +258,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       setToken(r.data.token);
       setRefreshToken(r.data.refreshToken ?? null);
       setStoredUser(r.data.user);
+      markSignedInNow();
       setUser(r.data.user);
       return { ok: true };
     }
@@ -238,6 +279,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       setToken(r.data.token);
       setRefreshToken(r.data.refreshToken ?? null);
       setStoredUser(r.data.user);
+      markSignedInNow();
       setUser(r.data.user);
       return { ok: true };
     }
@@ -251,12 +293,61 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    setToken(null);
-    setRefreshToken(null);
-    setStoredUser(null);
+    endSession();
     setUser(null);
     lastFlags.current.clear();
   }, []);
+
+  /*
+   * End the session on the boundary, not on the next reload.
+   *
+   * A console left open on a wall tablet is the normal case here, so "expires
+   * after 24 hours" that only takes effect when someone reloads would mean it
+   * effectively never expires on exactly the devices where it matters most.
+   *
+   * setTimeout is not trusted for the whole interval: a laptop that sleeps
+   * through it fires late or not at all, so the deadline is also re-checked
+   * whenever the tab is shown again.
+   */
+  useEffect(() => {
+    if (!user) return;
+
+    const check = () => {
+      const startedAt = sessionStartedAt({
+        stamp: getSignInAt(),
+        tokenIssuedAt: issuedAtFromJwt(getToken()),
+        now: Date.now(),
+      });
+      if (sessionExpired(startedAt, Date.now())) {
+        logout();
+        return 0;
+      }
+      return msUntilExpiry(startedAt, Date.now());
+    };
+
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      const left = check();
+      if (left <= 0) return;
+      // Capped so a long sleep cannot overflow the delay, and so a machine that
+      // was suspended re-checks on a sane cadence rather than after the fact.
+      timer = setTimeout(arm, Math.min(left, 5 * 60 * 1000));
+    };
+    arm();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        clearTimeout(timer);
+        arm();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user, logout]);
 
   const subscribe = useCallback((fn: (u: DeviceUpdate) => void) => {
     subscribers.current.add(fn);
@@ -276,8 +367,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<ConsoleContextValue>(
-    () => ({ user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications }),
-    [user, ready, liveStatus, notifyPermission, login, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications]
+    () => ({ user, ready, liveStatus, notifyPermission, login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications }),
+    [user, ready, liveStatus, notifyPermission, login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications]
   );
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;

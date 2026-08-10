@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const dir = mkdtempSync(join(tmpdir(), "cv-push-"));
-process.env.CIRCUVENT_DATA_DIR = dir;
+process.env.DATA_DIR = dir;
 
 const sendNotification = jest.fn();
 jest.mock("web-push", () => ({

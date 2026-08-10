@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Cpu, Loader2, Mail, Lock, User as UserIcon, ShieldCheck, Zap, Radio, ArrowRight } from "lucide-react";
+import { Cpu, Loader2, Mail, Lock, User as UserIcon, ShieldCheck, Zap, Radio, ArrowRight, KeyRound } from "lucide-react";
 import { useConsole } from "./ConsoleProvider";
+import { usePasskey, usePasskeySupport } from "@/lib/usePasskey";
 
 export default function Login() {
-  const { login, register, verifyOtp, resendOtp, forgotPassword, resetPassword } = useConsole();
+  const { login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword } = useConsole();
+  const passkeySupported = usePasskeySupport();
+  const passkey = usePasskey("/api/account/passkey");
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [step, setStep] = useState<"form" | "otp" | "reset">("form");
   const [name, setName] = useState("");
@@ -16,6 +19,39 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  /*
+   * Sign in with a passkey.
+   *
+   * Asks for the console session in the same round trip as the assertion,
+   * because the alternative is verifying the passkey and then discovering the
+   * bridge is down — which leaves somebody authenticated and still looking at
+   * the sign-in form.
+   */
+  const withPasskey = async () => {
+    const addr = email.trim();
+    if (!addr) {
+      setError("Enter your email first, then use your passkey.");
+      return;
+    }
+    setError(null);
+    setInfo(null);
+
+    const r = await passkey.signIn(addr, { console: true });
+    if (!r.ok) {
+      // A cancelled prompt reports no error; leaving the form untouched is the
+      // correct response to someone changing their mind.
+      if (r.error) setError(r.error);
+      return;
+    }
+
+    const session = r.data?.console as { token: string; user: { id: number; email: string; name: string } } | undefined;
+    if (!session?.token) {
+      setError(String(r.data?.consoleError ?? "Signed in, but the smart-home service could not be reached."));
+      return;
+    }
+    await loginWithPasskey(addr, session);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -336,6 +372,34 @@ export default function Login() {
                     busy={busy}
                     label={mode === "login" ? "Sign in" : mode === "forgot" ? "Send reset code" : "Create account"}
                   />
+
+                  {/*
+                    Offered only where it can work. A passkey button that is
+                    present and then fails on a browser without WebAuthn, or on
+                    an insecure origin, is worse than one that was never there.
+                  */}
+                  {mode === "login" && passkeySupported && (
+                    <>
+                      <div className="flex items-center gap-3 py-1">
+                        <span className="h-px flex-1 bg-white/10" />
+                        <span className="text-[11px] uppercase tracking-wider text-slate-500">or</span>
+                        <span className="h-px flex-1 bg-white/10" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={withPasskey}
+                        disabled={passkey.busy}
+                        className="flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-semibold text-slate-200 transition hover:border-cyan-400/50 hover:bg-white/10 disabled:opacity-60"
+                      >
+                        {passkey.busy ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <KeyRound className="h-4 w-4" />
+                        )}
+                        Use a passkey
+                      </button>
+                    </>
+                  )}
                 </form>
               )}
 

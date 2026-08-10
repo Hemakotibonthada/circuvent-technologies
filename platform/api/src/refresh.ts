@@ -26,8 +26,19 @@ import { revokeAllSessions } from "./sessions";
  * there is nothing to guess — never store a user-chosen secret this way.
  */
 
-/** How long a refresh token remains valid. */
-export const REFRESH_TTL_DAYS = 60;
+/**
+ * How long a refresh token remains valid.
+ *
+ * One day, down from sixty. A refresh chain is the real lifetime of a sign-in:
+ * the console renews automatically on any 401, so while this was sixty days a
+ * short access token bought nothing — it was renewed straight past, and the
+ * session continued for two months across an unbounded number of tokens.
+ *
+ * The clients also refuse to renew more than 24 hours after the sign-in, so a
+ * deployment still running the old value is capped by them. This makes the
+ * server agree rather than relying on that.
+ */
+export const REFRESH_TTL_DAYS = 1;
 
 export interface IssuedRefresh {
   token: string;
