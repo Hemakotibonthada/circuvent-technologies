@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
-import { useDevices, capabilities } from "../store";
+import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
 import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
@@ -48,7 +48,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
   };
 
   const meta = deviceMeta(d.type);
-  const cap = capabilities(d.type);
+  const cap = capabilitiesFor(d);
 
   return (
     <Screen>
@@ -183,7 +183,7 @@ function Sw({ v, on, c }: { v: boolean; on: (b: boolean) => void; c: Palette }) 
 }
 
 function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const cap = capabilities(d.type);
+  const cap = capabilitiesFor(d);
   const showPower = !!cap.power && !KNOWN.includes(d.type);
   if (!showPower && !cap.dimmer && !cap.fan && !cap.color && !cap.thermostat) return null;
   return (
@@ -792,6 +792,8 @@ function AnprCamera({
   const plate = String(d.state.lastPlate ?? "");
   const decision = String(d.state.lastDecision ?? "");
   const confidence = Number(d.state.lastConfidence ?? 0);
+  const hasLoop = !!d.state.hasLoop;
+  const lane = d.state.direction === "in" || d.state.direction === "out" ? d.state.direction : "both";
   const busy = phase === "settle" || phase === "burst";
 
   const decisionColor = decision === "deny" ? c.red : decision === "allow" ? c.green : decision === "watch" ? c.amber : c.faint;
@@ -855,6 +857,20 @@ function AnprCamera({
         <Sw v={armed} on={(v) => send({ armed: v })} c={c} />
       </Row>
 
+      {/*
+        The lane setting, because it changes what every read means. A camera
+        remounted on the exit side while still reporting "in" would log every
+        departure as another arrival, and the vehicle would never appear to
+        leave — a wrong answer that looks like a working one.
+      */}
+      <Row label="Traffic direction" c={c} stack>
+        <PillSelector
+          value={lane}
+          options={["in", "out", "both"] as const}
+          onChange={(v) => send({ direction: v })}
+        />
+      </Row>
+
       <Card padded style={{ marginBottom: 10, flexDirection: "row", justifyContent: "space-between" }}>
         <View>
           <Text style={{ color: c.text, fontWeight: "700" }}>{Number(d.state.captures ?? 0)}</Text>
@@ -871,6 +887,12 @@ function AnprCamera({
           <Text style={{ color: c.faint, fontSize: 12 }}>dropped</Text>
         </View>
       </Card>
+
+      <Text style={{ color: c.faint, fontSize: 12, marginBottom: 10, lineHeight: 17 }}>
+        {hasLoop
+          ? "A loop detector is wired to this unit — the more reliable trigger, since it cannot be fooled by a shadow, a headlight sweep or rain."
+          : "No loop detector is wired to this unit, so arrivals are detected from the picture alone. Fitting an inductive loop or IR beam is the single biggest improvement to trigger reliability."}
+      </Text>
 
       <Text style={{ color: c.faint, fontSize: 12, marginBottom: 10, lineHeight: 17 }}>
         Plates are read by the control plane, not on the device — the camera decides when a vehicle is

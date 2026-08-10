@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { api, Device } from "./api";
 import { projectCommand } from "./command-map";
 import { useLive, refreshLiveSubscription } from "./live";
-import { loadChannelPrefs, onChannelPrefsChange } from "./channel-prefs";
+import { loadChannelPrefs, onChannelPrefsChange, channelLabel } from "./channel-prefs";
 
 interface DevicesCtx {
   devices: Device[];
@@ -140,6 +140,32 @@ export interface Capability {
   color?: { field: string };
   thermostat?: { field: string; label: string; min: number; max: number };
   metric?: (d: Device) => string;
+}
+
+/**
+ * The same capabilities, with the names this particular device was given.
+ *
+ * `capabilities` takes a type because most callers only want to know which
+ * field is the power switch, and threading a device through all fourteen call
+ * sites to answer that would be noise. But a label is not a property of a
+ * type: "Channel 1" is what a relay board ships with, and what it is actually
+ * called — the porch light, the geyser — is a property of the one on the wall.
+ * Anything that renders a name should ask this instead, or the phone will keep
+ * saying Channel 1 while the browser says Porch light and neither will admit
+ * which is right.
+ */
+export function capabilitiesFor(d: Device): Capability {
+  const base = capabilities(d.type);
+  const named = <T extends { field: string; label: string }>(cap: T | undefined): T | undefined =>
+    cap ? ({ ...cap, label: channelLabel(d.id, cap.field, cap.label) } as T) : undefined;
+
+  return {
+    ...base,
+    power: named(base.power),
+    dimmer: named(base.dimmer),
+    fan: named(base.fan),
+    thermostat: named(base.thermostat),
+  };
 }
 
 /** What a device type can do — drives the richer Control screen UI. */

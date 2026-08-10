@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, FlatList, Pressable, TextInput, Switch, RefreshControl, StyleSheet, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Device } from "../api";
-import { useDevices, capabilities } from "../store";
+import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse, RoomChips } from "../ui";
 import { GRAD, deviceMeta, TAP_SLOP } from "../theme";
 import { Icon } from "../icons";
@@ -122,7 +122,7 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
 function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpen: (d: Device) => void; onToggle: (id: string, f: string, v: boolean) => void; onFav: (v: boolean) => void }) {
   const { c } = useTheme();
   const meta = deviceMeta(device.type);
-  const cap = capabilities(device.type);
+  const cap = capabilitiesFor(device);
 
   const field = cap.power?.field ?? meta.toggle?.field ?? "";
   const isOn = field ? !!device.state[field] : false;

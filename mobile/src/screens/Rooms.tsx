@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, Switch, StyleSheet, Alert } from "react-native";
 import { api, Room } from "../api";
-import { useDevices, capabilities } from "../store";
+import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Card, SectionLabel, PrimaryButton, useTheme } from "../ui";
 import { StaleNotice, unwrap, useAsync } from "../async";
 import { deviceMeta } from "../theme";
@@ -129,7 +129,7 @@ function RoomDetail({ name, onBack, onChanged }: { name: string; onBack: () => v
         <>
           {inRoom.length === 0 && <Text style={{ color: c.faint }}>No devices here yet.</Text>}
           {inRoom.map((d) => {
-            const cap = capabilities(d.type);
+            const cap = capabilitiesFor(d);
             const meta = deviceMeta(d.type);
             return (
               <Card key={d.id} padded style={{ marginBottom: 8 }}>
