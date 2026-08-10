@@ -9,6 +9,7 @@
 // SERVER ONLY.
 
 import { createFileStore, shortId } from "./data-file";
+import { WARRANTY_MONTHS, warrantyStart, warrantyTerm, type WarrantyBasis } from "./warranty";
 
 export interface WarrantyRegistration {
   id: string;
@@ -19,6 +20,10 @@ export interface WarrantyRegistration {
   purchaseDate: string;
   warrantyMonths: number;
   createdAt: string;
+  /** True when registered automatically on delivery rather than typed in by support. */
+  auto?: boolean;
+  /** Which order event started the cover — delivery, dispatch or order date. */
+  basis?: WarrantyBasis;
 }
 
 export type RmaStatus = "requested" | "diagnosing" | "approved" | "repair" | "replaced" | "rejected" | "closed";
@@ -56,10 +61,21 @@ export function findRegistration(id: string): WarrantyRegistration | null {
   return store.read().registrations.find((r) => r.id === id) ?? null;
 }
 
+/**
+ * Is this registration still in cover?
+ *
+ * This used to do `expiry.setMonth(expiry.getMonth() + months)`, which turns
+ * 31 August into 3 March rather than 28 February — so a device bought at the
+ * end of a long month got two days of cover the policy never granted, and the
+ * date shown here disagreed with the one on the customer's invoice. The shared
+ * engine clamps; both now give the same answer because both call the same code.
+ */
 export function warrantyStatus(reg: WarrantyRegistration): "active" | "expired" {
-  const expiry = new Date(reg.purchaseDate);
-  expiry.setMonth(expiry.getMonth() + reg.warrantyMonths);
-  return Date.now() <= expiry.getTime() ? "active" : "expired";
+  const term = warrantyTerm(
+    { status: "delivered", updatedAt: reg.purchaseDate, history: [{ status: "delivered", at: reg.purchaseDate }] },
+    { months: reg.warrantyMonths }
+  );
+  return term.state === "expired" ? "expired" : "active";
 }
 
 export function listRmas(status?: RmaStatus): RmaCase[] {
@@ -94,4 +110,87 @@ export function warrantyStats(): { registrations: number; openCases: number; clo
     openCases: db.cases.filter((c) => c.status !== "closed" && c.status !== "rejected").length,
     closedCases: db.cases.filter((c) => c.status === "closed").length,
   };
+}
+
+/* ------------------------------------------------------ automatic registration --- */
+
+interface DeliveredOrderLike {
+  orderNo: string;
+  customer?: { email?: string };
+  items?: { name: string; qty?: number }[];
+  history?: { status: string; at: string }[];
+  status?: string;
+  updatedAt?: string;
+  placedAt?: string;
+}
+
+/**
+ * Register the warranty for an order the moment it is delivered.
+ *
+ * Until now every registration was typed in by support staff from the
+ * customer's order and the label on the device. That means a device is only
+ * under warranty if somebody remembered to record it, and the failure is
+ * invisible: nothing looks wrong until a customer claims and there is no
+ * registration to find. The order already knows what was bought, by whom, and
+ * exactly when it arrived, so none of that typing is necessary.
+ *
+ * One row per physical unit, not per line: two of the same switch on one order
+ * are two devices that can fail and be replaced independently. The serial is
+ * left unassigned and carries a stable per-unit reference, so support can
+ * attach the real device id later without having to work out which of the two
+ * they are looking at.
+ *
+ * Idempotent by order number — a redelivery, a status corrected twice, or a
+ * replayed webhook must not create a second set of registrations.
+ */
+export function autoRegisterForDeliveredOrder(order: DeliveredOrderLike): WarrantyRegistration[] {
+  if (!order?.orderNo) return [];
+
+  const email = order.customer?.email?.trim().toLowerCase();
+  if (!email) return []; // nothing to attach cover to
+
+  const started = warrantyStart(order);
+  if (!started) return []; // not delivered — the policy has not started
+
+  return store.mutate((db) => {
+    if (db.registrations.some((r) => r.orderNo === order.orderNo && r.auto)) return [];
+
+    const created: WarrantyRegistration[] = [];
+    const items = Array.isArray(order.items) ? order.items : [];
+    items.forEach((item, itemIndex) => {
+      const qty = Math.max(1, Math.min(99, Number(item.qty) || 1));
+      for (let unit = 0; unit < qty; unit++) {
+        created.push({
+          id: shortId("wty"),
+          orderNo: order.orderNo,
+          productName: item.name,
+          deviceOrSerial: `${order.orderNo}/${itemIndex + 1}${qty > 1 ? `-${unit + 1}` : ""}`,
+          customerEmail: email,
+          purchaseDate: started.at,
+          warrantyMonths: WARRANTY_MONTHS,
+          createdAt: new Date().toISOString(),
+          auto: true,
+          basis: started.basis,
+        });
+      }
+    });
+
+    db.registrations.unshift(...created);
+    return created;
+  });
+}
+
+/** Registrations for one order, for the invoice and the customer's account. */
+export function registrationsForOrder(orderNo: string): WarrantyRegistration[] {
+  return store.read().registrations.filter((r) => r.orderNo === orderNo);
+}
+
+/** Attach a real device id to a unit once it is known. */
+export function assignSerial(registrationId: string, deviceOrSerial: string): WarrantyRegistration | null {
+  return store.mutate((db) => {
+    const r = db.registrations.find((x) => x.id === registrationId);
+    if (!r) return null;
+    r.deviceOrSerial = deviceOrSerial.trim();
+    return r;
+  });
 }

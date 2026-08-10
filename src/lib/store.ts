@@ -21,6 +21,7 @@ import { after } from "next/server";
 import { registerAccountLookup } from "./account";
 import { products as CATALOG } from "./shop-data";
 import * as dbLayer from "./db";
+import { autoRegisterForDeliveredOrder } from "./admin-warranty";
 
 // ---------------------------------------------------------------- types ----
 export interface StoredOrderItem {
@@ -58,6 +59,13 @@ export interface StoredOrder {
   couponCode?: string;
   total: number;
   customer: StoredCustomer;
+  /**
+   * Where the goods go, when that is not where the bill goes — a gift, a site
+   * office, a different building. Absent on every order placed before this
+   * field existed, and absent whenever the two are the same, so readers must
+   * fall back to `customer` rather than assume it is set.
+   */
+  shippingAddress?: StoredCustomer | null;
   paymentMethod: string;
   paymentStatus: string;
   paymentId?: string;
@@ -889,6 +897,26 @@ export function updateOrder(
   if (patch.adminNotes !== undefined) o.adminNotes = patch.adminNotes;
   o.updatedAt = now;
   save();
+
+  /*
+   * Delivery starts the warranty, so record it here rather than relying on
+   * somebody to type it in later. This is the only place an order's status
+   * changes, which is what makes it the right place: a registration created
+   * anywhere else would be missed by whichever path did not call it.
+   *
+   * Deliberately after save(): the order transition is the fact being
+   * recorded, and a failure to register warranty must not roll it back or
+   * throw out of an admin action. It is idempotent, so the recovery for a
+   * failure here is to run it again.
+   */
+  if (patch.status === "delivered") {
+    try {
+      autoRegisterForDeliveredOrder(o);
+    } catch {
+      // Registration is recoverable; losing the delivery status is not.
+    }
+  }
+
   return o;
 }
 
