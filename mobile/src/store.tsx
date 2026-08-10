@@ -225,6 +225,35 @@ export function capabilities(type: string): Capability {
           return phase === "settle" || phase === "burst" ? "Vehicle" : "Watching";
         },
       };
+    case "drone-link":
+      /*
+       * No `power`, and the reason is stronger than for a camera.
+       *
+       * This device's only boolean is `allowArm` — an aircraft's permission to
+       * fly. As a tile switch in a grid of lamps it reads as a launch button
+       * and behaves as a ground switch, and either reading is dangerous: an
+       * accidental tap would silently ground an aircraft somebody is walking
+       * out to fly, and the label would suggest a tap could put it in the air.
+       *
+       * The metric leads with what the aircraft is doing rather than its
+       * battery: a parked drone on a charger reads 100% and a crashed one
+       * reads whatever it read last, so the number is reassuring in exactly
+       * the two cases where it should not be.
+       */
+      return {
+        metric: (d) => {
+          if (d.state.inAir) {
+            const alt = Number(d.state.alt ?? 0);
+            return alt ? `Flying · ${alt.toFixed(0)} m` : "Flying";
+          }
+          if (d.state.armed) return "Armed";
+          if (d.state.link === false) return "No autopilot";
+          if (d.state.allowArm === false) return "Grounded";
+          if (d.state.ready === false) return "Not ready";
+          if (d.state.ready === true) return "Ready";
+          return "—";
+        },
+      };
     // Dimmable / speed / motorised device types (match firmware type ids).
     case "smart-light":
     case "light":

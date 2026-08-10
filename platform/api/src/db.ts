@@ -546,6 +546,194 @@ export async function initDb(): Promise<void> {
     -- Added after anpr_settings shipped, so existing rows need them too.
     ALTER TABLE anpr_settings ADD COLUMN IF NOT EXISTS report_email TEXT;
     ALTER TABLE anpr_settings ADD COLUMN IF NOT EXISTS report_hour INT NOT NULL DEFAULT 7;
+
+    /*
+     * ============================ DRONE ==================================
+     *
+     * A flight, from arm to disarm.
+     *
+     * The flight — not the device, and not the day — is the unit everything
+     * else hangs off, because it is the unit a person thinks in: "the survey
+     * this morning", "the one where the battery got low". Storing only a
+     * stream of positions and reconstructing flights from gaps in it was the
+     * obvious alternative and was rejected: a radio dropout in the middle of a
+     * long transect is indistinguishable from a landing followed by a
+     * take-off, so the log book would invent flights that never happened and
+     * merge ones that did.
+     *
+     * Arm and disarm are unambiguous, they come from the autopilot rather than
+     * from our inference, and they are exactly the boundary a regulator asks
+     * about.
+     */
+    CREATE TABLE IF NOT EXISTS flights (
+      id             BIGSERIAL PRIMARY KEY,
+      owner_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_id      TEXT NOT NULL,
+      -- Identifies a power cycle of the companion computer. Two flights with
+      -- different boot ids cannot be the same flight, however close in time.
+      boot_id        BIGINT NOT NULL DEFAULT 0,
+      started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ended_at       TIMESTAMPTZ,
+      /*
+       * "took_off_at" is not "started_at". Arming and leaving the ground are
+       * different moments, sometimes minutes apart while the pilot waits for
+       * a clearance, and billing or duty-time built on the wrong one is wrong
+       * by exactly that much. NULL means the aircraft armed and never flew,
+       * which is a real and common outcome worth being able to count.
+       */
+      took_off_at    TIMESTAMPTZ,
+      landed_at      TIMESTAMPTZ,
+      max_alt_m      REAL NOT NULL DEFAULT 0,
+      max_dist_m     REAL NOT NULL DEFAULT 0,
+      distance_m     REAL NOT NULL DEFAULT 0,
+      max_speed_ms   REAL NOT NULL DEFAULT 0,
+      batt_start_pct INT,
+      batt_end_pct   INT,
+      batt_used_mah  REAL,
+      home_lat       DOUBLE PRECISION,
+      home_lon       DOUBLE PRECISION,
+      samples        INT NOT NULL DEFAULT 0,
+      /*
+       * How the flight ended. "open" while it is in progress; "landed" on a
+       * clean disarm; "stale" when the aircraft stopped reporting and never
+       * came back — deliberately NOT folded into "landed", because a flight
+       * that ends in silence is the one an investigator most wants to find,
+       * and a log that quietly calls it a landing hides it.
+       */
+      outcome        TEXT NOT NULL DEFAULT 'open',
+      failsafe       BOOLEAN NOT NULL DEFAULT false,
+      fence_breach   BOOLEAN NOT NULL DEFAULT false,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_flights_owner ON flights(owner_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_flights_device ON flights(device_id, started_at DESC);
+    -- "Is this aircraft flying right now" must not scan the log book.
+    CREATE INDEX IF NOT EXISTS idx_flights_open ON flights(device_id) WHERE outcome = 'open';
+
+    /*
+     * Position samples.
+     *
+     * Columns rather than a JSONB blob: a track is queried by range far more
+     * often than by key ("everything above 100 m", "where was it at 14:32"),
+     * and every sample carries exactly the same fields, so JSONB would buy
+     * nothing and cost roughly three times the storage per row.
+     */
+    CREATE TABLE IF NOT EXISTS flight_track (
+      id           BIGSERIAL PRIMARY KEY,
+      flight_id    BIGINT NOT NULL REFERENCES flights(id) ON DELETE CASCADE,
+      at           TIMESTAMPTZ NOT NULL,
+      lat          DOUBLE PRECISION NOT NULL,
+      lon          DOUBLE PRECISION NOT NULL,
+      alt_m        REAL NOT NULL,
+      alt_msl_m    REAL,
+      heading_deg  REAL,
+      speed_ms     REAL,
+      climb_ms     REAL,
+      batt_v       REAL,
+      batt_pct     INT,
+      sats         INT,
+      hdop         REAL,
+      mode         TEXT,
+      roll_deg     REAL,
+      pitch_deg    REAL,
+      dist_home_m  REAL,
+      flags        INT NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_flight_track_flight ON flight_track(flight_id, at);
+
+    /*
+     * Discrete events within a flight: armed, took off, mode changed, failsafe,
+     * fence breach, landed, and every command we sent plus whether it was
+     * refused.
+     *
+     * Kept apart from the customer-facing "events" feed for the same reason
+     * device_audit is: that feed answers "what did my house do" and the
+     * customer can clear it. This is the flight record, and it has to survive
+     * the customer tidying up — it is what gets read after an accident.
+     */
+    CREATE TABLE IF NOT EXISTS flight_events (
+      id         BIGSERIAL PRIMARY KEY,
+      flight_id  BIGINT REFERENCES flights(id) ON DELETE CASCADE,
+      device_id  TEXT NOT NULL,
+      owner_id   BIGINT REFERENCES users(id) ON DELETE CASCADE,
+      at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+      kind       TEXT NOT NULL,
+      detail     JSONB NOT NULL DEFAULT '{}'::jsonb,
+      severity   TEXT NOT NULL DEFAULT 'info'
+    );
+    CREATE INDEX IF NOT EXISTS idx_flight_events_flight ON flight_events(flight_id, at);
+    CREATE INDEX IF NOT EXISTS idx_flight_events_owner ON flight_events(owner_id, at DESC);
+
+    /*
+     * Saved waypoint missions.
+     *
+     * Stored here and uploaded to the autopilot on request rather than being
+     * flown from here: the autopilot must hold the mission, because it has to
+     * keep flying it when this link goes away. A mission that only existed in
+     * the cloud would stop at the first dropout.
+     */
+    CREATE TABLE IF NOT EXISTS drone_missions (
+      id         BIGSERIAL PRIMARY KEY,
+      owner_id   BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      waypoints  JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_drone_missions_owner ON drone_missions(owner_id, name);
+
+    /*
+     * Per-account drone policy and the battery register.
+     *
+     * Limits here are advisory: they are what the console shows and what the
+     * daily report is measured against. The enforcing copy lives on the
+     * aircraft, because a limit that needs a network round-trip to apply is
+     * not a limit.
+     */
+    CREATE TABLE IF NOT EXISTS drone_settings (
+      owner_id        BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      max_alt_m       INT NOT NULL DEFAULT 120,
+      max_range_m     INT NOT NULL DEFAULT 500,
+      min_batt_pct    INT NOT NULL DEFAULT 25,
+      -- Operator identification, required in most jurisdictions for anything
+      -- above toy weight. Free text because the format differs per country.
+      operator_id     TEXT,
+      report_email    TEXT,
+      report_hour     INT NOT NULL DEFAULT 7,
+      alert_failsafe  BOOLEAN NOT NULL DEFAULT true,
+      alert_fence     BOOLEAN NOT NULL DEFAULT true,
+      alert_low_batt  BOOLEAN NOT NULL DEFAULT true,
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    /*
+     * Flight batteries, tracked as assets.
+     *
+     * A lithium pack is the only part of a multirotor that wears out on a
+     * schedule a person can act on, and cycle count is how it is measured
+     * everywhere in the industry. Counting cycles per pack — rather than
+     * flight hours per airframe — is what lets the console say "this pack has
+     * done 180 cycles, retire it" instead of "something on this aircraft is
+     * old".
+     */
+    CREATE TABLE IF NOT EXISTS drone_batteries (
+      id           BIGSERIAL PRIMARY KEY,
+      owner_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      label        TEXT NOT NULL,
+      cells        INT NOT NULL DEFAULT 4,
+      capacity_mah INT NOT NULL DEFAULT 5000,
+      cycles       INT NOT NULL DEFAULT 0,
+      retire_at    INT NOT NULL DEFAULT 200,
+      first_used   TIMESTAMPTZ,
+      last_used    TIMESTAMPTZ,
+      retired      BOOLEAN NOT NULL DEFAULT false,
+      notes        TEXT,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_drone_batteries_owner ON drone_batteries(owner_id, retired);
+    ALTER TABLE flights ADD COLUMN IF NOT EXISTS battery_id BIGINT;
   `);
 
   await backfillSerials();

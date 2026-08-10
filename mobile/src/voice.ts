@@ -27,6 +27,10 @@ const TYPE_WORDS: Record<string, string[]> = {
   // Not "gate": that belongs to rfid-gate, and a household with both would get
   // the ANPR camera when it asked for the barrier. These name the camera.
   "anpr-cam": ["anpr", "plate camera", "number plate camera", "vehicle camera"],
+  // Deliberately no verbs, only names. Voice never reaches this device with an
+  // action (see kindOf / onOff), so these words exist purely so "where is the
+  // drone" resolves to the right thing rather than to nothing.
+  "drone-link": ["drone", "quadcopter", "aircraft", "uav"],
   watertank: ["tank", "water", "sump", "overhead"],
   aquaguard: ["tank", "water", "aquaguard"],
   thermostat: ["ac", "air conditioner", "thermostat", "climate"],

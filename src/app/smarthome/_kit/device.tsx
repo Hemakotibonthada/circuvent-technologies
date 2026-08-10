@@ -74,8 +74,28 @@ export function deviceMetric(d: Device): string | null {
       return "locked" in s ? (s.locked ? "Locked" : "Unlocked") : null;
     case "rfid-gate":
       return s.barrier == null ? null : String(s.barrier);
+    case "drone-link": {
+      /*
+       * What the aircraft is doing, not a number.
+       *
+       * Battery would be the obvious tile readout and is the wrong one: a
+       * parked aircraft on a charger reads 100% and a crashed one reads
+       * whatever it read last, so the number is reassuring in exactly the two
+       * cases where it should not be. "Airborne" is the fact that changes what
+       * somebody does next.
+       */
+      if (s.inAir === true) {
+        const alt = num(s.alt);
+        return alt == null ? "Airborne" : `Airborne · ${alt.toFixed(0)} m`;
+      }
+      if (s.armed === true) return "Armed";
+      if (s.link === false) return "No autopilot";
+      if (s.allowArm === false) return "Grounded";
+      if (s.ready === false) return "Not ready";
+      if (s.ready === true) return "Ready";
+      return null;
+    }
     case "anpr-cam": {
-      // The last plate is the readout that matters at a glance. Falling back
       // to the phase rather than a count, because "Watching" tells you the
       // lane is being covered while "0 vehicles" reads like a fault.
       const plate = typeof s.lastPlate === "string" && s.lastPlate ? s.lastPlate : null;

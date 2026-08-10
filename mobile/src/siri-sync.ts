@@ -57,6 +57,22 @@ function kindOf(type: string): SiriDevicePayload["kind"] {
      */
     case "anpr-cam":
       return "sensor";
+    /*
+     * Drone Link: reportable, never controllable by voice.
+     *
+     * The "switch" default would give it an empty toggle field, so Siri would
+     * cheerfully offer "turn on the drone" and the tap would do nothing. Worse
+     * than doing nothing would be doing something: the only boolean this
+     * device has is `allowArm`, an aircraft's permission to fly, and there is
+     * no sentence containing "turn on" that should ever be able to affect
+     * whether an aircraft can take off.
+     *
+     * "sensor" is the honest answer — voice can be told where the drone is and
+     * what it is doing, and can do nothing to it. The same reasoning keeps it
+     * out of `onOff()` in the control plane's Google and Alexa fulfilment.
+     */
+    case "drone-link":
+      return "sensor";
     default:
       return "switch";
   }

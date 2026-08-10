@@ -81,6 +81,7 @@ const PRODUCT_CODES: Record<string, string> = {
   "curtain": "CRT",
   "rfid-gate": "GAT",
   "anpr-cam": "ANP",
+  "drone-link": "DRN",
   "facedoor": "FCD",
   "generic": "GEN",
 };

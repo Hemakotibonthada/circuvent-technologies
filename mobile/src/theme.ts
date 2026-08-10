@@ -145,6 +145,10 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   facedoor: "entry",
   "rfid-gate": "entry",
   "anpr-cam": "entry",
+  // Not "entry": a drone is not a way in or out of anywhere. Its own
+  // category would be a tab with one device in it, so it sits with the
+  // other things that watch rather than switch.
+  "drone-link": "sensor",
   curtain: "entry",
   "smart-plug": "power",
   "energy-monitor": "power",
@@ -199,6 +203,12 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   // load. Offering it as a tile toggle would put "turn the ANPR camera off"
   // one accidental tap away on the dashboard, next to the lamps.
   "anpr-cam": { glyph: "🔢", icon: "anpr-cam", accent: C.cyan, grad: GRAD.cyan, label: "ANPR Camera" },
+  // No `toggle`, for a sharper reason than the ANPR camera's: this device's
+  // only boolean is `allowArm`, an aircraft's permission to fly. A tile
+  // toggle would put that one tap from a lamp on the dashboard, and an
+  // accidental tap would silently ground an aircraft somebody is about to
+  // fly — or, read the other way, look like a launch button.
+  "drone-link": { glyph: "🚁", icon: "drone-link", accent: C.violet, grad: GRAD.violet, label: "Drone Link" },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

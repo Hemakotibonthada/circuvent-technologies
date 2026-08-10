@@ -55,7 +55,7 @@ const BASE = "http://192.168.4.1";
 const ORDER = [
   "smart-plug", "smart-switch", "touchboard", "home-hub",
   "smart-light", "smart-fan", "curtain", "smart-lock",
-  "facedoor", "rfid-gate", "anpr-cam",
+  "facedoor", "rfid-gate", "anpr-cam", "drone-link",
   "aquaguard", "watertank", "agri-starter",
   "sentinel", "guardian", "motion-sensor", "energy-monitor",
   "camera", "cctv", "doorbell",

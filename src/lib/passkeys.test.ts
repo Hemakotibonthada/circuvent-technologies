@@ -1,6 +1,14 @@
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+/*
+ * The module is loaded with `require` below so each test can re-import it
+ * against a fresh temp directory. That gives a *value* binding, though, and a
+ * value cannot be used as a namespace — `pk.StoredPasskey` in a type position
+ * does not resolve. The type is therefore imported separately, which costs
+ * nothing at runtime because `import type` is erased.
+ */
+import type { StoredPasskey } from "./passkeys";
 
 const dir = mkdtempSync(join(tmpdir(), "cv-passkeys-"));
 process.env.DATA_DIR = dir;
@@ -25,7 +33,7 @@ afterAll(() => {
   }
 });
 
-const cred = (over: Partial<pk.StoredPasskey> = {}): pk.StoredPasskey => ({
+const cred = (over: Partial<StoredPasskey> = {}): StoredPasskey => ({
   id: "cred-1",
   scope: "account",
   owner: "buyer@example.com",

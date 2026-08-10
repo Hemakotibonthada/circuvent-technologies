@@ -91,6 +91,12 @@ export function connectMqtt(): Promise<void> {
         client!.subscribe(topics.allAnpr, { qos: 0 }, (err) => {
           if (err) logger.error({ err }, "MQTT anpr subscribe failed");
         });
+        // Drone position batches, also QoS 0 and for the same reason: a
+        // retransmitted position from four seconds ago is worth nothing to a
+        // moving aircraft, and the batch is already the redundancy.
+        client!.subscribe(topics.allTrack, { qos: 0 }, (err) => {
+          if (err) logger.error({ err }, "MQTT track subscribe failed");
+        });
       }, 1500);
       resolve();
     });
@@ -160,7 +166,7 @@ function logDynsecResponse(buf: Buffer): void {
 async function handleMessage(topic: string, buf: Buffer): Promise<void> {
   const deviceId = deviceIdFromTopic(topic);
   if (!deviceId) return;
-  const kind = topic.split("/")[2] as DeviceUpdate["kind"] | "frame" | "anpr";
+  const kind = topic.split("/")[2] as DeviceUpdate["kind"] | "frame" | "anpr" | "track";
 
   // Frames are binary JPEG — they must be intercepted before any utf8 decode,
   // and must never reach persistMessage.
@@ -182,6 +188,20 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
    */
   if (kind === "anpr") {
     void import("./anpr").then((m) => m.handleAnprCapture(deviceId, buf));
+    return;
+  }
+
+  /*
+   * Drone track batches are binary too, and must be intercepted before any
+   * utf8 decode for the same reason frames are.
+   *
+   * Like ANPR, and unlike `frame`, this is NOT gated on anybody watching: the
+   * flight record is the thing that gets read after an incident, and a record
+   * that only exists when an operator happened to have the console open is not
+   * a record.
+   */
+  if (kind === "track") {
+    void import("./drone").then((m) => m.handleTrackBatch(deviceId, buf));
     return;
   }
 
