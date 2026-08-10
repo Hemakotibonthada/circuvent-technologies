@@ -46,6 +46,23 @@ jobs:
       - name: Unit tests
         run: npm test -- --ci --runInBand
 
+      # The control plane is a separate package with its own dependencies and
+      # its own runner, so `npm test` at the root never touched it. That left
+      # ~290 tests — the MQTT bridge, session revocation, the device registry,
+      # the whole ANPR recognition and visit-pairing pipeline — unable to block
+      # a deploy. A gate opens on some of that logic.
+      - name: Control-plane dependencies
+        working-directory: platform/api
+        run: npm ci
+
+      - name: Control-plane type-check
+        working-directory: platform/api
+        run: npx tsc --noEmit
+
+      - name: Control-plane tests
+        working-directory: platform/api
+        run: npm test
+
       - name: Database adapter test (PGlite)
         run: npm run test:db
 
