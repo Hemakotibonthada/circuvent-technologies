@@ -27,6 +27,22 @@ export const CAPABILITIES = [
   "deviceCommands",
   /** api keys, webhooks and the developer v1 surface. */
   "developerApi",
+  /**
+   * ANPR: plate reads, the allow/deny/watch list, visits and occupancy.
+   *
+   * Added late, and that was a mistake worth recording. Both this and the
+   * drone entry below were missing from the builds that shipped those
+   * features, so a console newer than its server had no way to ask "do you
+   * support this?" and had to infer it from a 404 on a route that might
+   * equally have 404'd for a dozen other reasons. A live console showed a red
+   * "Not found" banner for exactly this reason and it cost an afternoon.
+   */
+  "anpr",
+  /**
+   * Drone: the cv/<id>/track binary telemetry topic, the flight log and the
+   * command safety gate.
+   */
+  "droneTelemetry",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
