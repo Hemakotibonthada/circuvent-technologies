@@ -80,6 +80,7 @@ const PRODUCT_CODES: Record<string, string> = {
   "agri-starter": "AGR",
   "curtain": "CRT",
   "rfid-gate": "GAT",
+  "anpr-cam": "ANP",
   "facedoor": "FCD",
   "generic": "GEN",
 };

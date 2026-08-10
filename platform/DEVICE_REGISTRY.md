@@ -48,6 +48,13 @@ as "you". Because those characters can never appear in a real serial, an
 operator typing `O` for `0` is unambiguous and is corrected automatically rather
 than guessed at.
 
+**Product codes are explicit, not derived.** `productCode()` has a fallback that
+takes the first three letters of the type, and it works — but a derived code
+cannot be read back: `typeFromProductCode` only searches the explicit table, so
+a serial from a fallback code resolves to no device type at all, and the
+registry lookup silently loses the ability to say what the unit is. Every type
+that ships needs a row in `PRODUCT_CODES`.
+
 **Check character.** A position-weighted sum mod 32. Weighted, not a plain sum,
 because an unweighted checksum cannot see a transposition, and swapping two
 adjacent characters is the most common copying error. `CV-PLG-4K7M-92XH` and

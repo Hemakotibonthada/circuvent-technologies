@@ -216,3 +216,55 @@ describe("label QR", () => {
     assert.equal(payload.split("&").length, 2);
   });
 });
+
+/**
+ * Every device type that ships needs an explicit product code.
+ *
+ * `productCode()` falls back to the first three letters of the type, which
+ * produces a usable serial — so nothing looks wrong. But `typeFromProductCode`
+ * only searches the explicit table, so a serial built from a fallback resolves
+ * to no type at all and the registry quietly loses the ability to say what a
+ * unit is from the number on its label. `anpr-cam` shipped in exactly that
+ * state until this was written.
+ */
+describe("product codes", () => {
+  const SHIPPING_TYPES = [
+    "home-hub", "smart-plug", "smart-switch", "smart-light", "smart-fan",
+    "smart-lock", "touchboard", "sentinel", "camera", "aquaguard", "watertank",
+    "guardian", "motion-sensor", "energy-monitor", "agri-starter", "curtain",
+    "rfid-gate", "anpr-cam", "facedoor",
+  ];
+
+  test("every shipping type reads back from its own code", () => {
+    for (const type of SHIPPING_TYPES) {
+      assert.equal(
+        typeFromProductCode(productCode(type)),
+        type,
+        `${type} has no explicit PRODUCT_CODES entry — its serial cannot be resolved back to a type`
+      );
+    }
+  });
+
+  test("no two types share a code", () => {
+    // A collision would make two different products indistinguishable by
+    // serial, which is the one thing a serial exists to do.
+    const seen = new Map<string, string>();
+    for (const type of SHIPPING_TYPES) {
+      const code = productCode(type);
+      assert.equal(seen.get(code), undefined, `${type} collides with ${seen.get(code)} on ${code}`);
+      seen.set(code, type);
+    }
+  });
+
+  test("a code is three characters, so the serial format holds", () => {
+    for (const type of SHIPPING_TYPES) assert.equal(productCode(type).length, 3, type);
+  });
+
+  test("an unknown type still produces a usable serial", () => {
+    // The fallback must keep working: an experimental board on a bench should
+    // get a label, it just cannot be resolved back to a type.
+    const serial = generateSerial("experimental-thing", "a41c9e02");
+    assert.ok(isSerial(serial), serial);
+    assert.equal(fallbackProductCode("experimental-thing"), "EXP");
+  });
+});
