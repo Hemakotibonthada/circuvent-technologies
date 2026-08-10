@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useOptionalConsoleTheme } from "../theme";
 import {
   AlertTriangle,
   Check,
@@ -169,6 +170,54 @@ export function SectionTitle({ children, right }: { children: ReactNode; right?:
 
 type BtnVariant = "primary" | "secondary" | "ghost" | "danger";
 
+/* ------------------------------------------------------------------ */
+/* Neumorphic surfaces                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The extrusion, for controls rather than cards.
+ *
+ * neo already styled cards and range tracks, and nothing else — so the theme
+ * read as "a flat dark console with slightly soft panels". What makes the
+ * style legible is the small controls: buttons that stand out of the surface
+ * and press into it, fields that are recessed rather than outlined. Those are
+ * the elements the reference sheets are almost entirely made of.
+ *
+ * This has to be applied as an inline style rather than a class because the
+ * primitives already set background, border and boxShadow inline, and an
+ * inline style cannot be overridden from a stylesheet without !important.
+ * Deciding it at the same place the other inline styles are decided keeps one
+ * winner instead of two rules fighting.
+ *
+ * Offsets are half the card's: a 44px button carrying the same 5px/16px
+ * extrusion as a full-width panel looks detached rather than raised. The rule
+ * of thumb the iOS app uses is offset ≈ radius/8, blur ≈ offset×3.
+ */
+export function neoSurface(state: "raised" | "inset" | "flat" = "raised"): React.CSSProperties {
+  if (state === "flat") {
+    return { background: "transparent", border: "none", boxShadow: "none" };
+  }
+  if (state === "inset") {
+    return {
+      background: "var(--cv-input-bg)",
+      border: "none",
+      boxShadow: "inset 3px 3px 7px var(--cv-neo-dark), inset -3px -3px 7px var(--cv-neo-light)",
+    };
+  }
+  return {
+    background: "var(--cv-card)",
+    border: "none",
+    // Dark half first so the light one wins where they overlap — a single
+    // top-left light source, matching the card rule and the iOS app.
+    boxShadow: "3px 3px 8px var(--cv-neo-dark), -3px -3px 8px var(--cv-neo-light)",
+  };
+}
+
+/** True when the console is in neo mode. Safe outside the console. */
+export function useNeo(): boolean {
+  return useOptionalConsoleTheme()?.mode === "neo";
+}
+
 export function Button({
   children,
   onClick,
@@ -194,12 +243,15 @@ export function Button({
 }) {
   const base =
     "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 text-[14px] font-semibold tracking-[-0.01em] transition active:scale-[0.96] disabled:opacity-40 disabled:active:scale-100 focus:outline-none focus-visible:ring-2";
+  const neo = useNeo();
   const style: React.CSSProperties = { "--tw-ring-color": "var(--cv-accent)" } as React.CSSProperties;
   let cls = "";
   if (variant === "primary") {
     style.background = "var(--cv-gradient)";
     style.color = "#fff";
-    style.boxShadow = "var(--cv-shadow-1)";
+    // The gradient is the point of a primary button, so neo keeps it and puts
+    // the extrusion under it rather than replacing it with a flat surface.
+    style.boxShadow = neo ? "3px 3px 8px var(--cv-neo-dark), -3px -3px 8px var(--cv-neo-light)" : "var(--cv-shadow-1)";
   } else if (variant === "danger") {
     style.background = SEVERITY.critical.dim;
     style.color = SEVERITY.critical.fg;
@@ -207,6 +259,12 @@ export function Button({
   } else if (variant === "ghost") {
     style.color = "var(--cv-muted)";
     cls = "hover:brightness-125";
+  } else if (neo) {
+    // A border and an extrusion together read as a sticker stuck on a panel.
+    // In this style the shadow is the edge, so the border goes.
+    Object.assign(style, neoSurface("raised"));
+    style.color = "var(--cv-text)";
+    cls = "cv-neo-press";
   } else {
     style.background = "var(--cv-card-hi)";
     style.color = "var(--cv-text)";

@@ -295,11 +295,12 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           text-rendering: optimizeLegibility;
           font-feature-settings: "cv01", "ss01";
         }
-        /* A portal root carries .cv-theme so every descendant rule below still
-           applies inside overlays — but it must not also become a full-height
-           painted surface, or an open modal would lay an opaque page
-           background over everything behind it. */
-        [data-cv-portal].cv-theme {
+        /* A portal's themed wrapper carries .cv-theme so every descendant rule
+           below still applies inside overlays — but it must not also become a
+           full-height painted surface, or an open modal would lay an opaque
+           page background over everything behind it. */
+        [data-cv-portal].cv-theme,
+        [data-cv-portal] .cv-theme {
           min-height: 0;
           background: none;
         }
@@ -423,6 +424,48 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           box-shadow:
             5px 5px 16px var(--cv-neo-dark),
             -5px -5px 16px var(--cv-neo-light);
+        }
+        /*
+         * Neumorphism only reads as a material if things move when touched.
+         *
+         * A raised control that stays raised while pressed is just a picture
+         * of a button. Swapping the extrusion for the matching inset is what
+         * the style is for, and it is also the clearest affordance the theme
+         * has — there are no borders left to communicate state.
+         */
+        .cv-neo-press:active:not(:disabled) {
+          box-shadow:
+            inset 3px 3px 7px var(--cv-neo-dark),
+            inset -3px -3px 7px var(--cv-neo-light) !important;
+        }
+        /* Fields are recessed rather than outlined, which is the other half of
+           the style. Scoped to neo so the flat themes keep their borders. */
+        .cv-neo input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+        .cv-neo textarea,
+        .cv-neo select {
+          border: none;
+          box-shadow:
+            inset 3px 3px 7px var(--cv-neo-dark),
+            inset -3px -3px 7px var(--cv-neo-light);
+        }
+        .cv-neo input:focus-visible,
+        .cv-neo textarea:focus-visible,
+        .cv-neo select:focus-visible {
+          outline: 2px solid var(--cv-accent);
+          outline-offset: 2px;
+        }
+        /* A card sitting on a card would double the extrusion and read as a
+           tower. Nested surfaces recess instead — the same trick the iOS app
+           uses for grouped rows. */
+        .cv-neo .cv-neo {
+          box-shadow:
+            inset 3px 3px 7px var(--cv-neo-dark),
+            inset -3px -3px 7px var(--cv-neo-light);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cv-neo-press:active:not(:disabled) {
+            transform: none;
+          }
         }
         /* Pressed/active surfaces invert to a carved-in look, which is the other
            half of the idiom: the same two shadows, inside. */

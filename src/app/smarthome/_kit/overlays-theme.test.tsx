@@ -58,7 +58,7 @@ describe("console theme is reachable from a portal", () => {
     expect(document.documentElement.style.getPropertyValue("--cv-input-bg")).toBe("");
   });
 
-  it("gives the portal root the theme classes, so class-scoped rules apply inside a modal", () => {
+  it("gives the portal the theme classes, so class-scoped rules apply inside a modal", () => {
     render(
       <ConsoleThemeProvider>
         <Modal open onClose={() => {}} title="New automation rule">
@@ -71,9 +71,14 @@ describe("console theme is reachable from a portal", () => {
 
     const portal = document.querySelector("[data-cv-portal]");
     expect(portal).not.toBeNull();
-    expect(portal?.className).toContain("cv-theme");
-    expect(portal?.className).toMatch(/cv-(aurora|glass|neo)/);
-    expect(portal?.className).toMatch(/cv-(dark|light)/);
+
+    // The theme rides on a wrapper inside the portal rather than on the host,
+    // so it stays declarative and updates when the theme changes.
+    const themed = portal?.querySelector(".cv-theme");
+    expect(themed).not.toBeNull();
+    expect(themed?.className).toMatch(/cv-(aurora|glass|neo)/);
+    expect(themed?.className).toMatch(/cv-(dark|light)/);
+    expect(themed?.contains(screen.getByLabelText("Rule name"))).toBe(true);
   });
 
   it("puts the field inside the themed portal rather than outside it", () => {

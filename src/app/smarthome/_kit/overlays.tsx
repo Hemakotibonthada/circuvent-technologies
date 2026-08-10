@@ -40,20 +40,17 @@ function Portal({ children }: { children: ReactNode }) {
   }, []);
 
   /*
-   * Carry the console's theme classes onto the portal root, and keep them in
-   * step when the theme changes while an overlay is open.
+   * The theme travels with the children rather than being written onto the
+   * host element.
    *
-   * The portal is a child of body, not of the themed wrapper, so every
-   * class-scoped console rule — .cv-theme's radius remap, .cv-neo's raised
-   * surfaces, the light-scheme shim — stopped at the portal boundary, and
-   * modals were styled by whatever the marketing shell happened to apply.
+   * Mutating the host after the fact worked and was the wrong shape — it
+   * assigns to a value React owns, and it has to be kept in step by hand when
+   * the theme changes. A wrapper inside the portal is declarative and always
+   * current. `display: contents` keeps it out of the layout entirely, so the
+   * overlay's own positioning is unaffected and no page-sized background is
+   * painted by .cv-theme.
    */
-  useEffect(() => {
-    if (!host) return;
-    host.className = themeClass;
-  }, [host, themeClass]);
-
-  return host ? createPortal(children, host) : null;
+  return host ? createPortal(<div className={themeClass} style={{ display: "contents" }}>{children}</div>, host) : null;
 }
 
 /** Body scroll lock that survives nested overlays via a reference count. */
