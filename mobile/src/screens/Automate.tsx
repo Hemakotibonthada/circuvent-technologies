@@ -4,16 +4,26 @@ import { Screen, useTheme } from "../ui";
 import Scenes from "./Scenes";
 import Rooms from "./Rooms";
 import Automations from "./Automations";
+import Schedules from "./more/Schedules";
 
-type Seg = "scenes" | "rooms" | "automations";
+type Seg = "scenes" | "rooms" | "timers" | "automations";
 
 export default function Automate({ initial = "scenes" }: { initial?: Seg }) {
   const { c } = useTheme();
   const [seg, setSeg] = useState<Seg>(initial);
 
+  /*
+   * Timers belong here.
+   *
+   * They existed all along, three taps deep under More > Tools > Switch timers,
+   * which is why this tab looked like it was missing the one feature people
+   * come to an "Automate" tab for. Nothing was built to fix this — the screen
+   * was already written and simply filed somewhere nobody would look.
+   */
   const segs: { key: Seg; label: string }[] = [
     { key: "scenes", label: "Scenes" },
     { key: "rooms", label: "Rooms" },
+    { key: "timers", label: "Timers" },
     { key: "automations", label: "Rules" },
   ];
 
@@ -31,6 +41,7 @@ export default function Automate({ initial = "scenes" }: { initial?: Seg }) {
       </View>
       {seg === "scenes" && <Scenes />}
       {seg === "rooms" && <Rooms />}
+      {seg === "timers" && <Schedules onBack={() => setSeg("scenes")} embedded />}
       {seg === "automations" && <Automations onBack={() => setSeg("scenes")} embedded />}
     </Screen>
   );

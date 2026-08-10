@@ -1,6 +1,7 @@
 // Circuvent mobile weather client — Open-Meteo (no API key). Mirrors the web
 // service shapes so the two stay consistent. Persists the chosen location.
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 
 export interface GeoPlace { id: number; name: string; country?: string; admin1?: string; latitude: number; longitude: number; timezone?: string }
 export interface CurrentWeather { time: string; temperature: number; apparent: number; humidity: number; isDay: boolean; precipitation: number; weatherCode: number; windSpeed: number; windDir: number; pressure: number | null; cloudCover: number | null }
@@ -131,6 +132,47 @@ export async function getWeatherByQuery(q: string): Promise<WeatherBundle> {
   const [p] = await geocode(q, 1);
   if (!p) throw new Error("No matching location");
   return getWeather(p.latitude, p.longitude, [p.name, p.admin1, p.country].filter(Boolean).join(", "));
+}
+
+/**
+ * Where to report the weather for, in order of what the person actually meant.
+ *
+ * A place they chose themselves wins — someone who set "Pune" wants Pune even
+ * while travelling. Otherwise ask the device, which is the honest answer to
+ * "the weather" and now possible because location is requested at first run.
+ * The named city is a last resort for a refusal or a phone with no fix; it used
+ * to be the only behaviour, so everybody in the country got Bengaluru.
+ */
+export async function resolveWeatherLocation(): Promise<
+  { kind: "saved" | "device"; lat: number; lon: number; name?: string } | { kind: "fallback"; query: string }
+> {
+  const saved = await getSavedLocation();
+  if (saved) return { kind: "saved", lat: saved.lat, lon: saved.lon, name: saved.name };
+
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status === "granted") {
+      /*
+       * Low accuracy on purpose. The weather does not change across a street,
+       * and a coarse fix is faster and costs far less battery than asking the
+       * GPS for metres of precision nobody is going to use.
+       */
+      const pos = await Location.getLastKnownPositionAsync({});
+      const fix = pos ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }));
+      if (fix) return { kind: "device", lat: fix.coords.latitude, lon: fix.coords.longitude };
+    }
+  } catch {
+    /* a location that will not resolve is not worth failing the strip over */
+  }
+
+  return { kind: "fallback", query: "Bengaluru" };
+}
+
+/** The weather for wherever `resolveWeatherLocation` decided. */
+export async function getLocalWeather(): Promise<WeatherBundle> {
+  const where = await resolveWeatherLocation();
+  if (where.kind === "fallback") return getWeatherByQuery(where.query);
+  return getWeather(where.lat, where.lon, where.name);
 }
 
 const SAVED_KEY = "cv-weather-loc";

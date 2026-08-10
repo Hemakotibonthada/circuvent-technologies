@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { api, actionList, Automation, AutomationAction, AutomationActions, AutomationTrigger, Device } from "../api";
+import { DAY_NAMES, normaliseDays, timeTriggerSummary, toggleDay } from "../schedule";
 import { buildFieldCommand } from "../command-map";
 import { useTheme } from "../ui";
 import type { Palette } from "../theme";
@@ -24,6 +25,8 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
 
   const [name, setName] = useState("");
   const [triggerType, setTriggerType] = useState<TriggerType>("state");
+  // Undefined means every day, which is how the trigger expresses it.
+  const [days, setDays] = useState<number[] | undefined>(undefined);
   const [triggerDeviceId, setTriggerDeviceId] = useState("");
   const [field, setField] = useState("");
   const [op, setOp] = useState<StateOp>("==");
@@ -79,6 +82,7 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
     setOp("==");
     setValue("");
     setAt("");
+    setDays(undefined);
     setActionType("notify");
     setActionDeviceId(devices[0]?.id || "");
     setTitle("");
@@ -149,7 +153,7 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
         setMsg("Enter a time in HH:MM.");
         return null;
       }
-      return { type: "time", at: trimmedAt };
+      return { type: "time", at: trimmedAt, days: normaliseDays(days) };
     }
 
     if (!triggerDeviceId || !field.trim()) {
@@ -254,6 +258,44 @@ export default function Automations({ onBack, embedded }: { onBack: () => void; 
             <>
               <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor={c.faint} value={at} onChangeText={setAt} autoCapitalize="none" keyboardType="numbers-and-punctuation" />
               <Text style={s.note}>IST</Text>
+              {/*
+                Which days it runs. The control plane has always accepted this
+                and the console has always offered it; the app could neither set
+                it nor show it, so a weekday timer made on the web appeared here
+                as if it ran every day.
+
+                All seven selected is the same as no filter, so unticking the
+                first day from an unfiltered timer removes one rather than
+                leaving a timer that runs on one day.
+              */}
+              <Text style={[s.note, { marginTop: 10 }]}>Repeats</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                {DAY_NAMES.map((name, i) => {
+                  const on = !days || days.includes(i);
+                  return (
+                    <Pressable
+                      key={name}
+                      onPress={() => setDays(normaliseDays(toggleDay(days, i)))}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={name}
+                      style={{
+                        minWidth: 44,
+                        minHeight: 36,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingHorizontal: 10,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        backgroundColor: on ? c.accent : c.card,
+                        borderColor: on ? c.accent : c.border,
+                      }}
+                    >
+                      <Text style={{ color: on ? c.onAccent : c.textDim, fontWeight: "700", fontSize: 12 }}>{name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </>
           )}
 
@@ -433,7 +475,7 @@ function parseValue(raw: string): number | string | boolean {
 }
 
 function triggerSummary(trigger: AutomationTrigger, deviceName: Map<string, string>): string {
-  if (trigger.type === "time") return `At ${trigger.at || "--:--"} IST`;
+  if (trigger.type === "time") return timeTriggerSummary(trigger.at, trigger.days);
   const name = trigger.deviceId ? deviceName.get(trigger.deviceId) || trigger.deviceId : "device";
   const op = trigger.op || "==";
   const suffix = op === "truthy" || op === "falsy" ? op : `${op} ${String(trigger.value ?? "")}`;

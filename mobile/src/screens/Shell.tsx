@@ -4,6 +4,7 @@ import { BlurView } from "expo-blur";
 import { Device } from "../api";
 import { useDevices } from "../store";
 import { useTheme, useBackHandler, useSafeArea, SwipeBack } from "../ui";
+import { elevate } from "../theme";
 import { Icon, type IconName } from "../icons";
 import { tapLight } from "../haptics";
 import Home from "./Home";
@@ -154,6 +155,10 @@ export default function Shell() {
               backgroundColor: c.isGlass ? "transparent" : c.card,
               borderColor: c.isGlass ? c.glassBorder : c.border,
             },
+            // Material's drop shadow is not what a neumorphic bar does. Its
+            // presence under the extrusion is the "3D effect" that made this
+            // look like a different design language on Android.
+            elevate(c.isNeo, 8),
           ]}
         >
           {c.isGlass && (
@@ -204,7 +209,9 @@ const s = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    // elevation is applied per-instance via elevate(), so a neumorphic
+    // theme can leave it off. See theme.ts.
+
   },
   navPill: {
     flex: 1,
@@ -220,7 +227,9 @@ const s = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    // elevation is applied per-instance via elevate(), so a neumorphic
+    // theme can leave it off. See theme.ts.
+
   },
   navPillFill: { borderRadius: 31 },
   navItem: { flex: 1, height: NAV_HEIGHT, alignItems: "center", justifyContent: "center" },

@@ -22,7 +22,7 @@ import { Icon, eventIcon, weatherIcon, type IconName } from "../icons";
 import { StaleNotice } from "../async";
 import { deviceMeta, greeting, CATEGORY_TINTS, deviceCategory, RADIUS, SPACE, MOTION } from "../theme";
 import { Sparkline } from "../charts";
-import { getSavedLocation, getWeather, getWeatherByQuery, wmo, type WeatherBundle } from "../weather";
+import { getLocalWeather, wmo, type WeatherBundle } from "../weather";
 
 /** How many live-power readings to keep for the hero trend line. */
 const WATT_HISTORY = 30;
@@ -571,8 +571,7 @@ function WeatherStrip({ onPress }: { onPress: () => void }) {
     let live = true;
     (async () => {
       try {
-        const saved = await getSavedLocation();
-        const bundle = saved ? await getWeather(saved.lat, saved.lon, saved.name) : await getWeatherByQuery("Bengaluru");
+        const bundle = await getLocalWeather();
         if (live) setB(bundle);
       } catch {
         /* offline or lookup failed — the strip simply stays hidden */

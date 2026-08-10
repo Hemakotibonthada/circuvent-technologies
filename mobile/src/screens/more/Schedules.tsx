@@ -51,7 +51,12 @@ function daysText(days?: number[]): string {
 /** Strips the marker so the list shows a clean name. */
 const displayName = (n: string) => (n.startsWith(MARK) ? n.slice(MARK.length).trim() : n);
 
-export default function Schedules({ onBack }: { onBack: () => void }) {
+/**
+ * `embedded` is for the Automate tab, which supplies its own screen and title.
+ * Rendering a Screen inside a Screen doubles the top padding and puts a second
+ * back arrow under the segment bar.
+ */
+export default function Schedules({ onBack, embedded }: { onBack: () => void; embedded?: boolean }) {
   const { c } = useTheme();
   const { devices } = useDevices();
   const [items, setItems] = useState<Automation[]>([]);
@@ -140,14 +145,14 @@ export default function Schedules({ onBack }: { onBack: () => void }) {
     await load();
   };
 
-  return (
-    <Screen>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: 90 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
-          <IconButton glyph={"\u2039"} onPress={onBack} />
-          <Title>Switch timers</Title>
-        </View>
-
+  const body = (
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: embedded ? 4 : 56, paddingBottom: 90 }}>
+        {embedded ? null : (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <IconButton glyph={"\u2039"} onPress={onBack} />
+            <Title>Switch timers</Title>
+          </View>
+        )}
         {err ? <Banner kind="error" text={err} /> : null}
         {note ? <Banner kind="success" text={note} /> : null}
 
@@ -250,8 +255,9 @@ export default function Schedules({ onBack }: { onBack: () => void }) {
           />
         ) : null}
       </ScrollView>
-    </Screen>
   );
+
+  return embedded ? body : <Screen>{body}</Screen>;
 }
 
 /**

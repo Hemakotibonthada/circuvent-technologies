@@ -4,7 +4,7 @@ import { Screen, Card, SectionLabel, useTheme, IconButton, useToast, ToastHost }
 import { useDevices } from "../store";
 import { TAP_SLOP } from "../theme";
 import {
-  getWeather, getWeatherByQuery, geocode, getSavedLocation, setSavedLocation,
+  getWeather, getWeatherByQuery, geocode, getSavedLocation, setSavedLocation, resolveWeatherLocation,
   wmo, aqiCategory, weatherTips, type WeatherBundle, type GeoPlace, type WeatherAction,
 } from "../weather";
 
@@ -38,7 +38,14 @@ export default function Weather({ onBack }: { onBack: () => void }) {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { (async () => { const s = await getSavedLocation(); if (s) load(s.lat, s.lon, s.name); else loadQuery("Bengaluru"); })(); }, [load, loadQuery]);
+    // Where the person is, not where the office is. resolveWeatherLocation
+  // prefers a place they picked, then the device, and only names a city when
+  // there is nothing else to go on.
+  useEffect(() => { (async () => {
+    const where = await resolveWeatherLocation();
+    if (where.kind === "fallback") loadQuery(where.query);
+    else load(where.lat, where.lon, where.name);
+  })(); }, [load, loadQuery]);
 
   useEffect(() => {
     if (!q.trim()) { setPlaces([]); return; }

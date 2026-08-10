@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Device } from "../api";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse, RoomChips } from "../ui";
+import { elevate } from "../theme";
 import { GRAD, deviceMeta, TAP_SLOP } from "../theme";
 import { Icon } from "../icons";
 import { toggleFeedback } from "../haptics";
@@ -152,7 +153,7 @@ function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpe
               shadowOpacity: 0.45,
               shadowRadius: 14,
               shadowOffset: { width: 0, height: 4 },
-              elevation: 7,
+              ...elevate(c.isNeo, 7),
             }
           : undefined
       }

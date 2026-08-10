@@ -1205,7 +1205,15 @@ export function PrimaryButton({
     const raised =
       Platform.OS === "ios"
         ? { shadowColor: c.neoDark, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.6, shadowRadius: 7 }
-        : { elevation: 5, shadowColor: c.neoDark };
+        : /*
+           * Nothing on Android.
+           *
+           * This used to be `elevation: 5`, which is a grey Material drop
+           * shadow — the one thing a neumorphic button is not. The raise here
+           * comes from the diagonal gradient over the accent below, which is
+           * what the surrounding surfaces do too.
+           */
+          {};
     return (
       <Pressable onPress={disabled || busy ? undefined : fire} onPressIn={press.onPressIn} onPressOut={press.onPressOut} accessibilityRole="button" accessibilityState={{ disabled: !!disabled, busy: !!busy }} style={({ pressed }) => [{ opacity: disabled ? 0.5 : 1 }, style]}>
         <Animated.View style={{ transform: [{ scale: press.scale }], borderRadius: RADIUS.control, overflow: "hidden", ...raised }}>

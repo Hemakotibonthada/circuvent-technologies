@@ -101,6 +101,23 @@ export const ELEV = {
   high: { shadowColor: "#000", shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.32, shadowRadius: 32, elevation: 12 },
 } as const;
 
+/*
+ * Elevation, unless the theme is neumorphic.
+ *
+ * Android's `elevation` is a Material drop shadow: one shadow, downward, in a
+ * colour the platform chooses. Neumorphism makes the opposite claim — a surface
+ * pushed out of the background by a light above and to the left, which needs
+ * two shadows in the palette's own colours. Applying both gives a grey drop
+ * shadow underneath a soft extrusion, which reads as neither, and is the "3D
+ * effect" that made the app look nothing like the neo theme on the web.
+ *
+ * iOS is unaffected: elevation does nothing there, which is part of why this
+ * only ever looked wrong on Android.
+ */
+export function elevate(isNeo: boolean, level: number): { elevation?: number } {
+  return isNeo ? {} : { elevation: level };
+}
+
 /** Motion. Expo.out-equivalent bezier — fast start, long settle. */
 export const MOTION = {
   bezier: [0.16, 1, 0.3, 1] as const,
