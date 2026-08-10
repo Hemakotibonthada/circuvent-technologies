@@ -11,7 +11,7 @@
       "sha1": "43:56:71:9A:11:FA:15:4E:A7:6C:B4:6E:62:C4:86:9A:D3:D8:5B:A0",
       "file": "credentials/circuvent-upload.keystore",
       "created": "2026-08-03",
-      "why": "Generated beside an existing circuvent-upload.jks by tooling that only looked for its own filename. Signing with it produces a bundle Play refuses. Every local artifact built so far carries it: 1.10.0-12 (aab and apk), 1.11.0-13, 1.12.0-14 — so no local build has ever been the one Play accepted."
+      "why": "Generated beside an existing circuvent-upload.jks by tooling that only looked for its own filename. Signing with it produces a bundle Play refuses. It signed 1.10.0-12, 1.11.0-13 and 1.12.0-14 — every local build from 3 August onwards."
     },
     {
       "sha1": "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
@@ -19,19 +19,25 @@
       "why": "React Native's debug key. Its password is published, so a release signed with it is one anybody could forge."
     }
   ],
+  "whenItBroke": {
+    "correctlySigned": "1.1.0-vc3, 1.2.0-vc4, 1.3.0-vc5, 1.4.0-vc6, 1.5.0-vc7, 1.6.0-vc8, 1.7.0-vc9, 1.8.0-vc10 — all carry 4C:89:1B:…, the key Play accepts. Confirmed by fingerprinting every artifact in mobile/dist.",
+    "wronglySigned": "1.10.0-12 onwards, all carrying 43:56:71:…",
+    "cause": "credentials/circuvent-upload.keystore was created on 3 August beside the existing circuvent-upload.jks from 24 July. scripts/build-android.sh was added on 2 August; the keystore that signed everything up to 1.8.0 predates it.",
+    "correction": "An earlier note in this file said no local build had ever been accepted by Play. That was wrong — it was written after checking only Downloads/circuvent-android and the newest files in dist/, and not the older dist/ artifacts, which are correctly signed."
+  },
   "whereIsTheRealKey": {
+    "almostCertainly": "credentials/circuvent-upload.jks — it is the only keystore that predates 3 August, and it is from exactly the period that produced the correctly-signed releases.",
+    "blocker": "Its store password is unknown. It is PKCS12 with encrypted content bags, so even the certificate cannot be read to confirm the fingerprint without it. Tried: the passwords in upload-keystore.properties (which was overwritten on 3 August alongside the wrong keystore), and Hemakoti@003 — each as both JKS and PKCS12, because keytool reports a wrongly-guessed store type and a wrong password identically.",
     "searched": [
-      "mobile/credentials/ — two keystores, neither matches",
-      "Downloads/circuvent-android/ — the same wrong .keystore, and three artifacts all signed with it",
-      "Desktop, Documents, Downloads, OneDrive, .android, .gradle, .expo — no other Android keystore",
-      "circuvent-upload.jks (24 July, PKCS12) — the only file older than every local build; will not open with the password on file, nor with the account password"
+      "mobile/credentials/ — two keystores",
+      "Downloads/circuvent-android/ — the same wrong .keystore, plus 1.10.0 and 1.11.0 artifacts",
+      "Desktop, Documents, Downloads, OneDrive, .android, .gradle, .expo — no other Android keystore anywhere"
     ],
-    "mostLikely": "The first release was built by EAS (Expo's cloud build). EAS generates PKCS12 keystores and keeps them server-side with a generated password, which fits the .jks exactly: PKCS12 format, earliest date, no local password. eas.json is present in this repo and no Expo account is currently logged in on this machine.",
     "recover": [
-      "npx eas-cli login",
-      "npx eas-cli credentials --platform android    # shows the keystore and its password; can download it",
-      "node scripts/try-keystore-password.mjs <password> <downloaded-keystore>   # confirms the fingerprint before any upload",
-      "If EAS does not have it either, Play Console > Setup > App signing > Request upload key reset. Play App Signing is enabled, so the app's real signing key is held by Google and is not at risk — only the upload key needs replacing."
+      "1. The password for circuvent-upload.jks. Check wherever the 24 July build was set up from; the properties file that held it was overwritten on 3 August.",
+      "   Test any candidate without building: node scripts/try-keystore-password.mjs <password> credentials/circuvent-upload.jks",
+      "2. If that key came from EAS: npx eas-cli login && npx eas-cli credentials --platform android — Expo keeps Android keystores server-side with their passwords.",
+      "3. Last resort: Play Console > Setup > App signing > Request upload key reset. Play App Signing is enabled, so Google holds the app's real signing key and existing installs are unaffected; only the upload key is replaced."
     ]
   }
 }

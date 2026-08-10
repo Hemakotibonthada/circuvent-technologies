@@ -105,6 +105,34 @@ function signerSha1(file) {
 
 const latest = ARTIFACTS.filter(existsSync).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
 
+/*
+ * Fingerprint everything in dist/, not just the newest.
+ *
+ * The moment the key changed is obvious from the list and invisible from any
+ * single artifact: 1.1.0 through 1.8.0 carry the key Play accepts, and
+ * everything from 1.10.0 carries the one it refuses. Reading only the latest
+ * build tells you that it is wrong; reading the series tells you when it went
+ * wrong, which is what leads to the keystore that did it.
+ */
+function auditHistory() {
+  const dist = join(ROOT, "dist");
+  if (!existsSync(dist)) return;
+  const files = readdirSync(dist)
+    .filter((f) => /\.(aab|apk)$/i.test(f))
+    .sort();
+  if (!files.length) return;
+
+  const want = EXPECTED.uploadCertificate.sha1.toUpperCase();
+  const rows = files.map((f) => ({ f, sha1: signerSha1(join(dist, f)) }));
+  const good = rows.filter((r) => r.sha1 === want).map((r) => r.f);
+  const bad = rows.filter((r) => r.sha1 && r.sha1 !== want);
+
+  console.log(`\n  dist/ — ${good.length} signed with the key Play accepts, ${bad.length} not`);
+  if (bad.length) {
+    for (const r of bad) console.log(`         wrong: ${r.f}  ${r.sha1}`);
+  }
+}
+
 if (!latest) {
   console.log("  --   no built artifact to check yet");
 } else {
@@ -131,6 +159,8 @@ if (!latest) {
     ]);
   }
 }
+
+auditHistory();
 
 if (failed) {
   process.exitCode = 1;
