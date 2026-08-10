@@ -122,6 +122,10 @@ export interface AnprSettings {
   overstayHours: number | null;
   alertUnknown: boolean;
   alertFull: boolean;
+  /** Where the daily report goes. Null means no report is sent. */
+  reportEmail: string | null;
+  /** Hour of day in IST, matching the automation scheduler's zone. */
+  reportHour: number;
 }
 
 /** One vehicle, aggregated across every sighting. */
@@ -778,6 +782,14 @@ export const controlPlane = {
   anprSettings: () => req<{ settings: AnprSettings }>("/anpr/settings"),
   saveAnprSettings: (body: Partial<AnprSettings>) =>
     req<{ settings: AnprSettings }>("/anpr/settings", { method: "PATCH", body: JSON.stringify(body) }),
+  /**
+   * Send today's report immediately.
+   *
+   * Runs the same code the 07:00 scheduler runs, not a preview — the failures
+   * worth catching are all in delivery, and a preview cannot see them.
+   */
+  sendTestReport: () =>
+    req<{ sent: boolean; to: string; error?: string }>("/anpr/report/test", { method: "POST" }),
   vehicle: (plate: string) =>
     req<VehicleProfile>("/anpr/vehicles/" + encodeURIComponent(plate)),
   /**

@@ -127,7 +127,8 @@ Number-plate reads and the allow / deny / watch list. See
 | GET | `/anpr/vehicles` | [auth] | The vehicle register: passes, entries, exits, who is inside now |
 | GET | `/anpr/vehicles/:plate` | [auth] | One vehicle: visit history with in/out times, dwell, and every capture |
 | GET | `/anpr/occupancy` | [auth] | Live count, free spaces and the overdue list |
-| GET / PATCH | `/anpr/settings` | [auth] | Capacity, overstay limit and alert policy |
+| GET / PATCH | `/anpr/settings` | [auth] | Capacity, overstay limit, alert policy and the daily-report recipient |
+| POST | `/anpr/report/test` | [auth] | Send today's report now, through the real delivery path |
 | GET | `/anpr/rules` | [auth] | The allow / deny / watch list |
 | POST | `/anpr/rules` | [auth] | Add a plate to a list |
 | PATCH | `/anpr/rules/:id` | [auth] | Change or disable a rule |
@@ -240,6 +241,7 @@ start half-working.
 | `ANPR_RETENTION_DAYS` | no | `90` | Plate history retention |
 | `ANPR_IMAGE_RETENTION_DAYS` | no | `30` | Capture images are cleared **before** the metadata is deleted |
 | `ANPR_THUMBNAIL_MAX_KB` | no | `96` | Captures above this are recorded without an image |
+| `REPORT_FROM` | no | `Circuvent <info@circuvent.com>` | Sender for the daily gate report. Separate from `EMAIL_FROM` on purpose, and must stay on a DKIM-signed domain |
 
 If neither SMTP nor Resend is configured, OTP codes are logged in development
 (or when `OTP_DEBUG=true`) so sign-up still works while email is being set up.

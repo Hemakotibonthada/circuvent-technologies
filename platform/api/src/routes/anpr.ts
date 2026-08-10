@@ -7,6 +7,7 @@ import { logger } from "../logger";
 import { analysePlate, normalisePlate, prettyPlate } from "../anpr/plate";
 import { listVehicles, visitsFor } from "../anpr/visits";
 import { getSettings, listOverstays, occupancy, saveSettings } from "../anpr/site";
+import { sendReport } from "../anpr/report";
 import { config } from "../config";
 
 /**
@@ -248,6 +249,11 @@ const settingsSchema = z.object({
   overstayHours: z.number().int().min(1).max(8760).nullable().optional(),
   alertUnknown: z.boolean().optional(),
   alertFull: z.boolean().optional(),
+  // An empty string is normalised to null below rather than rejected: clearing
+  // the field in the console is how somebody turns the report off, and making
+  // that a validation error would be a strange way to say "stop emailing me".
+  reportEmail: z.string().trim().max(200).nullable().optional(),
+  reportHour: z.number().int().min(0).max(23).optional(),
 });
 
 anprRouter.patch("/settings", requireAuth, async (req: AuthedRequest, res) => {
@@ -256,11 +262,57 @@ anprRouter.patch("/settings", requireAuth, async (req: AuthedRequest, res) => {
     res.status(400).json({ error: "Invalid settings", details: parsed.error.flatten().fieldErrors });
     return;
   }
+  const patch = { ...parsed.data };
+  if (patch.reportEmail !== undefined) {
+    const email = (patch.reportEmail ?? "").trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: "That does not look like an email address.", code: "invalid_email" });
+      return;
+    }
+    patch.reportEmail = email || null;
+  }
   try {
-    res.json({ settings: await saveSettings(req.user!.uid, parsed.data) });
+    res.json({ settings: await saveSettings(req.user!.uid, patch) });
   } catch (err) {
     logger.error({ err }, "anpr settings save failed");
     res.status(500).json({ error: "Could not save settings." });
+  }
+});
+
+/**
+ * POST /anpr/report/test — send today's report now.
+ *
+ * Runs `sendReport`, the same function the scheduler runs, rather than a
+ * preview built by a second path. A preview that renders correctly proves
+ * nothing about the mail that actually arrives at 07:00 — the interesting
+ * failures are in delivery: a wrong sender domain failing DMARC, an SMTP host
+ * that rejects the mailbox, a recipient with a typo.
+ */
+anprRouter.post("/report/test", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const settings = await getSettings(req.user!.uid);
+    if (!settings.reportEmail) {
+      res.status(400).json({ error: "Set a report address first.", code: "no_recipient" });
+      return;
+    }
+    const { rows } = await pool.query<{ name: string; email: string }>(
+      `SELECT name, email FROM users WHERE id = $1`,
+      [req.user!.uid]
+    );
+    const sent = await sendReport(req.user!.uid, rows[0]?.name || rows[0]?.email || "Your site");
+    if (!sent) {
+      // The mail layer already logged why. Saying "sent" when nothing left the
+      // building is the one answer this endpoint must never give.
+      res.status(502).json({
+        error: "The report could not be sent. Check the mail server settings on the control plane.",
+        code: "send_failed",
+      });
+      return;
+    }
+    res.json({ sent: true, to: settings.reportEmail });
+  } catch (err) {
+    logger.error({ err }, "test report failed");
+    res.status(500).json({ error: "Could not send the report." });
   }
 });
 

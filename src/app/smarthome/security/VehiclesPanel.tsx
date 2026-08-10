@@ -881,6 +881,12 @@ function VehicleProfileView({ plate, onBack }: { plate: string; onBack: () => vo
   );
 }
 
+/** Delivery times, in IST. Labelled so 07 is not mistaken for 7pm. */
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => ({
+  value: String(h),
+  label: `${String(h).padStart(2, "0")}:00 ${h < 12 ? "am" : "pm"}`.replace("00:00 am", "12:00 am (midnight)"),
+}));
+
 /**
  * Site — occupancy, overstays and the policy that governs both.
  *
@@ -893,6 +899,10 @@ function SitePanel() {
   const [settings, setSettings] = useState<AnprSettings | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Held locally while it is typed, rather than PATCHed on every keystroke.
+  const [reportEmail, setReportEmail] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const load = useCallback(() => {
     void controlPlane.occupancy().then((r) => {
@@ -904,7 +914,10 @@ function SitePanel() {
       }
     });
     void controlPlane.anprSettings().then((r) => {
-      if (r.ok) setSettings(r.data.settings);
+      if (r.ok) {
+        setSettings(r.data.settings);
+        setReportEmail(r.data.settings.reportEmail ?? "");
+      }
     });
   }, []);
 
@@ -913,16 +926,33 @@ function SitePanel() {
 
   const patch = async (body: Partial<AnprSettings>) => {
     setSaving(true);
+    setTestResult(null);
     try {
       const r = await controlPlane.saveAnprSettings(body);
       if (r.ok) {
         setSettings(r.data.settings);
+        setReportEmail(r.data.settings.reportEmail ?? "");
         load();
       } else {
         setError((r.data as { error?: string })?.error || "Could not save.");
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await controlPlane.sendTestReport();
+      setTestResult(
+        r.ok
+          ? { ok: true, message: `Sent to ${r.data.to}` }
+          : { ok: false, message: (r.data as { error?: string })?.error || "Could not send." }
+      );
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -1048,6 +1078,64 @@ function SitePanel() {
           onChange={(v) => void patch({ alertUnknown: v })}
           disabled={saving}
         />
+      </Surface>
+
+      <SectionTitle>Daily report</SectionTitle>
+      <Surface>
+        <p className="mb-4 text-[13px] leading-relaxed" style={{ color: "var(--cv-text-dim)" }}>
+          A summary of the previous day — traffic, who is still on site, blocked vehicles and the
+          vehicles that come most — sent from <b>info@circuvent.com</b> each morning.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Send to"
+            hint="Leave empty for no report. This is usually a facilities or security inbox rather than your own address."
+          >
+            <TextInput
+              value={reportEmail}
+              onChange={setReportEmail}
+              placeholder="security@yourcompany.com"
+              type="email"
+              disabled={saving}
+            />
+          </Field>
+          <Field label="Time" hint="India Standard Time, the same zone schedules use.">
+            <SelectInput
+              value={String(settings.reportHour)}
+              onChange={(v) => void patch({ reportHour: Number(v) })}
+              options={HOUR_OPTIONS}
+              disabled={saving || !settings.reportEmail}
+            />
+          </Field>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => void patch({ reportEmail: reportEmail.trim() || null })}
+            disabled={saving || reportEmail.trim() === (settings.reportEmail ?? "")}
+          >
+            Save address
+          </Button>
+          {/*
+            Sends through the real path rather than rendering a preview. A
+            preview that looks right proves nothing about the mail that arrives
+            at 07:00 — the interesting failures are all in delivery.
+          */}
+          <Button
+            variant="ghost"
+            onClick={() => void sendTest()}
+            disabled={saving || !settings.reportEmail}
+            busy={testing}
+          >
+            Send one now
+          </Button>
+          {testResult && (
+            <span className="text-[13px]" style={{ color: testResult.ok ? "#22c55e" : "#f59e0b" }}>
+              {testResult.message}
+            </span>
+          )}
+        </div>
       </Surface>
     </div>
   );

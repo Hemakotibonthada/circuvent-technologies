@@ -84,6 +84,20 @@ const schema = z.object({
    * half-written JPEG renders as a grey box and looks like a camera fault.
    */
   ANPR_THUMBNAIL_MAX_KB: z.coerce.number().min(0).max(2048).default(96),
+  /*
+   * Sender for the daily report.
+   *
+   * Separate from EMAIL_FROM, which signs OTP and password-reset mail. Those
+   * are transactional and belong to a no-reply identity; a daily operations
+   * report is something a facilities manager will hit reply on, and it should
+   * arrive from a mailbox a person actually reads.
+   *
+   * The default matches the indigenous Postfix server in Mail.circuvent —
+   * mail.circuvent.com signs circuvent.com with DKIM, so a From on that domain
+   * is what passes SPF and DMARC. Setting this to an address on another domain
+   * is the fastest way to have every report land in spam.
+   */
+  REPORT_FROM: z.string().default("Circuvent <info@circuvent.com>"),
 });
 
 const parsed = schema.safeParse(process.env);

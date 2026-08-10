@@ -111,6 +111,11 @@ services:
       ANPR_RETENTION_DAYS: ${ANPR_RETENTION_DAYS:-90}
       ANPR_IMAGE_RETENTION_DAYS: ${ANPR_IMAGE_RETENTION_DAYS:-30}
       ANPR_THUMBNAIL_MAX_KB: ${ANPR_THUMBNAIL_MAX_KB:-96}
+      # Sender for the daily gate report. Separate from EMAIL_FROM, which signs
+      # OTP and password-reset mail from a no-reply identity — a report is
+      # something a facilities manager replies to. Must stay on a domain
+      # mail.circuvent.com signs with DKIM, or every report fails DMARC.
+      REPORT_FROM: ${REPORT_FROM:-Circuvent <info@circuvent.com>}
     depends_on:
       postgres:
         condition: service_healthy
