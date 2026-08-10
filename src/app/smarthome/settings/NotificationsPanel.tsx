@@ -19,6 +19,7 @@ import {
   usePersistentState,
 } from "../_kit/primitives";
 import { useToast } from "../_kit/overlays";
+import { useWebPush } from "@/lib/useWebPush";
 import {
   DEFAULT_NOTIFY_PREFS,
   NOTIFY_PREFS_KEY,
@@ -27,6 +28,7 @@ import {
 
 export default function NotificationsPanel() {
   const { notifyPermission, enableNotifications } = useConsole();
+  const push = useWebPush();
   const toast = useToast();
   const [prefs, setPrefs] = usePersistentState<NotifyPrefs>(
     NOTIFY_PREFS_KEY,
@@ -64,6 +66,44 @@ export default function NotificationsPanel() {
 
   return (
     <div className="space-y-6 pt-1">
+      {/* ── Push subscription ─────────────────────────── */}
+      <SectionTitle>Notifications to this browser</SectionTitle>
+      <Surface>
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{
+              background: push.state === "enabled" ? "var(--cv-gradient)" : "var(--cv-input-bg)",
+              color: push.state === "enabled" ? "#fff" : "var(--cv-muted)",
+            }}
+          >
+            {push.state === "enabled" ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold" style={{ color: "var(--cv-text)" }}>
+              {push.state === "enabled" ? "On for this browser" : "Off"}
+            </div>
+            {/*
+              Every state has its own sentence. "Cannot", "blocked", "not
+              configured" and "not yet enabled" all look like off, and mean
+              completely different things — one of them the user can fix, one
+              only their browser settings can, and one only the deployment can.
+            */}
+            <div className="mt-0.5 text-xs" style={{ color: "var(--cv-muted)" }}>
+              {push.message}
+            </div>
+          </div>
+          {(push.state === "idle" || push.state === "error") && (
+            <Button onClick={() => void push.enable()}>Turn on</Button>
+          )}
+          {push.state === "enabled" && (
+            <Button variant="ghost" onClick={() => void push.disable()}>
+              Turn off
+            </Button>
+          )}
+        </div>
+      </Surface>
+
       {/* ── Browser permission ────────────────────────── */}
       <SectionTitle>Browser permission</SectionTitle>
       <Surface>
@@ -80,7 +120,9 @@ export default function NotificationsPanel() {
                 Permission granted
               </div>
               <div className="text-xs" style={{ color: "var(--cv-muted)" }}>
-                This browser will receive push notifications for device events.
+                This browser may show notifications. Permission on its own does
+                not deliver anything — the switch above is what registers it to
+                actually receive them.
               </div>
             </div>
             <Check className="h-5 w-5 shrink-0" style={{ color: "#16a34a" }} />

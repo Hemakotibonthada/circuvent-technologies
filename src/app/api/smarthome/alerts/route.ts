@@ -5,6 +5,7 @@ import { analyseHome } from "@/lib/ai/analysis";
 import { sweep, acknowledge, summarise, type Alert } from "@/lib/anomaly-monitor";
 import { accountKey, readAlerts, writeAlerts, lastSweepAt } from "@/lib/alerts-store";
 import { recordSamples } from "@/lib/device-history";
+import { sendToAccount } from "@/lib/web-push";
 import { logger } from "@/lib/logger";
 import type { Device, AppEvent } from "@/lib/control-plane";
 
@@ -141,6 +142,33 @@ export async function POST(request: Request) {
         escalated: result.escalated.length,
         open: result.alerts.filter((a) => a.state === "open").length,
         samplesRecorded: recorded,
+      });
+    }
+
+    /*
+     * Notify the browser for exactly what the monitor decided was worth
+     * interrupting somebody for.
+     *
+     * toNotify already excludes alerts that are merely still true, ones that
+     * have been acknowledged, and anything informational — so this cannot
+     * become a notification every time the panel polls. The fingerprint is
+     * used as the tag, which collapses repeats of the same problem into one
+     * notification rather than a column of identical ones.
+     *
+     * Deliberately not awaited into the response: a slow push service must not
+     * hold up the sweep the user is waiting on.
+     */
+    if (result.toNotify.length) {
+      const worst = result.toNotify.find((a) => a.severity === "critical") ?? result.toNotify[0];
+      void sendToAccount(key, {
+        title: result.toNotify.length === 1 ? worst.title : `${result.toNotify.length} devices need attention`,
+        body: result.toNotify.length === 1 ? worst.detail : result.toNotify.map((a) => a.title).join(", "),
+        url: "/smarthome/insights?tab=alerts",
+        tag: result.toNotify.length === 1 ? worst.fingerprint : "circuvent-alerts",
+        severity: worst.severity,
+        renotify: result.escalated.length > 0,
+      }).catch(() => {
+        // A failed notification must not fail the sweep.
       });
     }
 
