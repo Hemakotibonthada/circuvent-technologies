@@ -11,12 +11,27 @@
       "sha1": "43:56:71:9A:11:FA:15:4E:A7:6C:B4:6E:62:C4:86:9A:D3:D8:5B:A0",
       "file": "credentials/circuvent-upload.keystore",
       "created": "2026-08-03",
-      "why": "Generated beside an existing circuvent-upload.jks by tooling that only looked for its own filename. Signing with it produces a bundle Play refuses."
+      "why": "Generated beside an existing circuvent-upload.jks by tooling that only looked for its own filename. Signing with it produces a bundle Play refuses. Every local artifact built so far carries it: 1.10.0-12 (aab and apk), 1.11.0-13, 1.12.0-14 — so no local build has ever been the one Play accepted."
     },
     {
       "sha1": "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
       "file": "android/app/debug.keystore",
       "why": "React Native's debug key. Its password is published, so a release signed with it is one anybody could forge."
     }
-  ]
+  ],
+  "whereIsTheRealKey": {
+    "searched": [
+      "mobile/credentials/ — two keystores, neither matches",
+      "Downloads/circuvent-android/ — the same wrong .keystore, and three artifacts all signed with it",
+      "Desktop, Documents, Downloads, OneDrive, .android, .gradle, .expo — no other Android keystore",
+      "circuvent-upload.jks (24 July, PKCS12) — the only file older than every local build; will not open with the password on file, nor with the account password"
+    ],
+    "mostLikely": "The first release was built by EAS (Expo's cloud build). EAS generates PKCS12 keystores and keeps them server-side with a generated password, which fits the .jks exactly: PKCS12 format, earliest date, no local password. eas.json is present in this repo and no Expo account is currently logged in on this machine.",
+    "recover": [
+      "npx eas-cli login",
+      "npx eas-cli credentials --platform android    # shows the keystore and its password; can download it",
+      "node scripts/try-keystore-password.mjs <password> <downloaded-keystore>   # confirms the fingerprint before any upload",
+      "If EAS does not have it either, Play Console > Setup > App signing > Request upload key reset. Play App Signing is enabled, so the app's real signing key is held by Google and is not at risk — only the upload key needs replacing."
+    ]
+  }
 }
