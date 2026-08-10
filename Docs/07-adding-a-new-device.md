@@ -66,8 +66,19 @@ Usually **nothing to do**. `devices.type` is a free-form `TEXT` column and the
 API does not enumerate types. A new type provisions, stores state and accepts
 commands with no server change.
 
-You only touch the server if the device needs new behaviour, for example a new
-event kind or a bespoke endpoint.
+One exception, which is easy to miss because nothing fails: add a three-letter
+entry to `PRODUCT_CODES` in `platform/api/src/serial.ts`.
+
+`productCode()` falls back to the first three letters of the type, so the device
+still gets a perfectly valid serial and the label prints correctly. But
+`typeFromProductCode()` only searches the explicit table, so a serial built from
+the fallback resolves to **no device type at all** — and the registry silently
+loses the ability to answer the one question a serial exists for: what is this
+unit, from the number on its case. `serial.test.ts` fails the build if a
+shipping type has no entry.
+
+You only touch the rest of the server if the device needs new behaviour, for
+example a new event kind or a bespoke endpoint.
 
 If you add a field to an automation trigger or action, add it to
 `triggerSchema` / `actionSchema` in
@@ -220,17 +231,20 @@ under `pcb/`, plus `DATASHEET.md`, `MANUAL.md`, `enclosure/` and `listings/`.
 - [ ] `firmware/<type>/` compiles with `pio run`
 - [ ] Device connects, publishes `state`, honours `cmd`
 - [ ] Every output publishes its state at boot, including the ones that are off
+- [ ] **Three-letter `PRODUCT_CODES` entry** in `platform/api/src/serial.ts`
 - [ ] Command map entry added (+ `masterPower` if it has an "all")
 - [ ] `getCommandFields` added; mode-like booleans also in `NON_LOAD_FIELDS`
 - [ ] `DEVICE_META` + `case` in `DeviceControls.tsx`
+- [ ] `projectCommand` case, so optimistic updates resolve instead of hanging
 - [ ] `deviceMetric` + floorplan status
 - [ ] `deviceMeta` + `TYPE_CATEGORY` + icon + control + **`KNOWN` array** in mobile
 - [ ] `npm run icons:check` passes
 - [ ] `capabilities()` updated if it has a primary switch
-- [ ] `onOff()` in `smarthome.ts` if it should reach Google/Alexa
+- [ ] `onOff()` in `smarthome.ts` if it should reach Google/Alexa — and a
+      deliberate decision, recorded, if it should not
 - [ ] Product added to `shop-data.ts` with a unique id and slug
 - [ ] Artwork generated **and visually checked**
-- [ ] `npx tsc --noEmit` clean in both `/` and `mobile/`
+- [ ] `npx tsc --noEmit` clean in `/`, `mobile/` **and `platform/api/`**
 - [ ] `npm run build` clean
 - [ ] Provisioned a real unit end to end
 
@@ -243,6 +257,16 @@ under `pcb/`, plus `DATASHEET.md`, `MANUAL.md`, `enclosure/` and `listings/`.
    every save.
 
 None of these produce an error. All three have happened.
+
+Two more found while adding `anpr-cam`, with the same shape — correct-looking
+output, no error anywhere:
+
+4. **No `PRODUCT_CODES` entry** → the serial still prints, and still validates,
+   and resolves back to no device type at all.
+5. **No `projectCommand` case** → the optimistic update never matches what the
+   device echoes, so the control spins until it times out. Worse if the case
+   exists but projects a field the firmware computes for itself: then it waits
+   for a confirmation that can never arrive.
 
 ## One more, if the board comes in variants
 
