@@ -1045,10 +1045,13 @@ interface CardProps {
   onPress?: () => void;
   hi?: boolean; // slightly elevated variant
   padded?: boolean;
+  /** A pressable card is a button, and a screen reader has to be told so. */
+  accessibilityRole?: "button" | "link";
+  accessibilityLabel?: string;
 }
 
 /** Adaptive surface: frosted glass / neumorphic extrusion / solid aurora card. */
-export function Card({ children, style, onPress, hi, padded = true }: CardProps) {
+export function Card({ children, style, onPress, hi, padded = true, accessibilityRole, accessibilityLabel }: CardProps) {
   const { c, scheme } = useTheme();
   const radius = RADIUS.card;
   const pad = padded ? SPACE.lg : 0;
@@ -1078,7 +1081,8 @@ export function Card({ children, style, onPress, hi, padded = true }: CardProps)
         onPress={onPress}
         onPressIn={press.onPressIn}
         onPressOut={press.onPressOut}
-        accessibilityRole="button"
+        accessibilityRole={accessibilityRole ?? "button"}
+        accessibilityLabel={accessibilityLabel}
       >
         {/* The visual style lives on the animated node so the whole surface
             depresses, not just its contents. */}

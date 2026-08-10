@@ -99,6 +99,7 @@ export default function Shell() {
         {tab === "home" && (
           <Home
             onOpenDevice={openControl}
+            onOpenDevices={() => setTab("devices")}
             onOpenNotifications={() => setOverlay({ kind: "notifications" })}
             onOpenSettings={() => setTab("settings")}
             onOpenAutomate={openAutomate}

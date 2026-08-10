@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
 import { C, GRAD, TAP_SLOP } from "../theme";
@@ -49,8 +49,26 @@ export default function Login() {
 
   return (
     <LinearGradient colors={GRAD.screen} style={s.wrap}>
+      {/*
+        The password field used to end up underneath the keyboard on Android.
+        KeyboardAvoidingView was given `behavior={undefined}` there, which makes
+        it an ordinary View that does nothing — the whole component is its
+        behaviour. iOS got "padding" and worked, which is why it only happened
+        on one platform.
+
+        Rather than guess an Android behaviour that fights the window resize,
+        the content scrolls: whatever the keyboard leaves visible can be
+        scrolled to, which is also the right answer on a small screen with no
+        keyboard at all. `keyboardShouldPersistTaps` matters because otherwise
+        the first tap on "Sign in" is swallowed dismissing the keyboard.
+      */}
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.flex}>
-        <View style={s.center}>
+        <ScrollView
+          contentContainerStyle={s.center}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           <LinearGradient colors={GRAD.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.logoPill}>
             <Image source={require("../../assets/icon.png")} style={s.logoImg} resizeMode="contain" />
           </LinearGradient>
@@ -118,7 +136,7 @@ export default function Login() {
               <Text style={s.link}>‹ Back to sign up</Text>
             </Pressable>
           )}
-        </View>
+        </ScrollView>
         <Text style={s.footer}>Self-hosted control plane · end-to-end encrypted</Text>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -137,7 +155,7 @@ function Field({ icon, children }: { icon: string; children: React.ReactNode }) 
 const s = StyleSheet.create({
   wrap: { flex: 1 },
   flex: { flex: 1 },
-  center: { flex: 1, padding: 24, justifyContent: "center" },
+  center: { flexGrow: 1, padding: 24, justifyContent: "center" },
   logoPill: { width: 76, height: 76, borderRadius: 22, alignSelf: "center", alignItems: "center", justifyContent: "center", marginBottom: 16 },
   logoImg: { width: 46, height: 46 },
   logo: { color: "#fff", fontSize: 32, fontWeight: "800", textAlign: "center", letterSpacing: 0.3 },

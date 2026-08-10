@@ -356,10 +356,16 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
 
   return (
     <View style={s.wrap}>
+      {/*
+        No back control here.
+        
+        The overlay is wrapped in SwipeBack and the Android hardware button is
+        handled below, so there were three ways out of this screen and one of
+        them was a violet word competing with the title for the top-left corner.
+        The gestures are the ones people already use everywhere else in the app.
+      */}
       <View style={s.top}>
-        <Pressable onPress={goBack} hitSlop={10}><Text style={s.back}>{step === "mode" ? "✕ Close" : "‹ Back"}</Text></Pressable>
         <Text style={s.title}>Add a device</Text>
-        <View style={{ width: 54 }} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 40 }}>

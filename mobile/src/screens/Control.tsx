@@ -232,7 +232,12 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
         <Card padded style={{ marginBottom: 10 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <Text style={{ color: c.text, fontSize: 16 }}>{cap.fan.label}</Text>
-            <Text style={{ color: c.faint, fontWeight: "700" }}>{fanHint(d, cap.fan)}</Text>
+            {/* The percentage as well as the name. "Medium" does not tell you
+                where you are between the two you can feel the difference
+                between, and the slider is continuous. */}
+            <Text style={{ color: c.faint, fontWeight: "700" }}>
+              {fanHint(d, cap.fan)} · {Math.round(fanLevel(d, cap.fan))}%
+            </Text>
           </View>
           {/*
             Continuous, not four positions.

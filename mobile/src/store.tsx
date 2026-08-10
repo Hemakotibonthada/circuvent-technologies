@@ -3,6 +3,7 @@ import { api, Device } from "./api";
 import { projectCommand } from "./command-map";
 import { useLive, refreshLiveSubscription } from "./live";
 import { loadChannelPrefs, onChannelPrefsChange, channelLabel } from "./channel-prefs";
+import { withState } from "./device-shape";
 
 interface DevicesCtx {
   devices: Device[];
@@ -49,7 +50,7 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
     const r = await api.devices();
     if (r.ok && mounted.current) {
       setDevices((prev) => {
-        const next = r.data.devices || [];
+        const next = (r.data.devices || []).map(withState);
         // A device the socket doesn't know about yet gets no live pushes, so
         // nudge the server to re-read ownership whenever the list changes.
         if (next.length !== prev.length) refreshLiveSubscription();

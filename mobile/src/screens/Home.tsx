@@ -32,6 +32,7 @@ const GAP = 12;
 
 export default function Home({
   onOpenDevice,
+  onOpenDevices,
   onOpenNotifications,
   onOpenSettings,
   onOpenAutomate,
@@ -41,6 +42,8 @@ export default function Home({
   onOpenWeather,
 }: {
   onOpenDevice: (d: Device) => void;
+  /** The whole device list, from the Devices count. */
+  onOpenDevices: () => void;
   onOpenNotifications: () => void;
   onOpenSettings: () => void;
   onOpenAutomate: (tab?: "scenes" | "rooms" | "automations") => void;
@@ -206,10 +209,10 @@ export default function Home({
 
         {/* at-a-glance */}
         <View style={s.glanceRow}>
-          <GlanceTile icon="devices" value={devices.length} label="Devices" loading={loading} />
-          <GlanceTile icon="rooms" value={rooms.length} label="Rooms" loading={loading} />
-          <GlanceTile icon="scenes" value={scenes.length} label="Scenes" loading={loading} />
-          <GlanceTile icon="alerts" value={unread} label="Alerts" tint={unread > 0 ? c.red : undefined} loading={loading} />
+          <GlanceTile icon="devices" value={devices.length} label="Devices" loading={loading} onPress={onOpenDevices} />
+          <GlanceTile icon="rooms" value={rooms.length} label="Rooms" loading={loading} onPress={() => onOpenAutomate("rooms")} />
+          <GlanceTile icon="scenes" value={scenes.length} label="Scenes" loading={loading} onPress={() => onOpenAutomate("scenes")} />
+          <GlanceTile icon="alerts" value={unread} label="Alerts" tint={unread > 0 ? c.red : undefined} loading={loading} onPress={onOpenNotifications} />
         </View>
 
         {/* quick actions */}
@@ -520,16 +523,30 @@ function GlanceTile({
   label,
   tint,
   loading,
+  onPress,
 }: {
   icon: IconName;
   value: number;
   label: string;
   tint?: string;
   loading?: boolean;
+  onPress?: () => void;
 }) {
   const { c } = useTheme();
+  /*
+   * These read as buttons — a card with an icon, a count and a noun — so they
+   * have to behave like buttons. They were four pieces of static text, and
+   * tapping the one labelled "Alerts" while an alert was outstanding did
+   * nothing at all.
+   */
   return (
-    <Card padded style={{ flex: 1, alignItems: "center", paddingVertical: 12 }}>
+    <Card
+      padded
+      style={{ flex: 1, alignItems: "center", paddingVertical: 12 }}
+      onPress={onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={onPress ? `${value} ${label}` : undefined}
+    >
       <Icon name={icon} size={18} color={tint || c.textDim} />
       {loading ? (
         <Skeleton width={24} height={20} radius={6} style={{ marginTop: 4 }} />

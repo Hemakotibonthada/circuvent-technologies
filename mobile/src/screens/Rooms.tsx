@@ -36,7 +36,15 @@ export default function Rooms() {
     load();
   };
 
-  if (open) return <RoomDetail name={open} onBack={() => { setOpen(null); load(); }} onChanged={load} />;
+  /*
+   * `open === null` means nothing is open. Empty string means Unassigned.
+   *
+   * `if (open)` treated the empty string as "nothing is open", so the
+   * Unassigned card set the state and the screen simply re-rendered itself:
+   * the one room whose name is legitimately empty was the one that could never
+   * be opened.
+   */
+  if (open !== null) return <RoomDetail name={open} onBack={() => { setOpen(null); load(); }} onChanged={load} />;
 
   const unassigned = devices.filter((d) => !d.room);
 
