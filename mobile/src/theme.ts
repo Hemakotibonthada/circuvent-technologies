@@ -166,6 +166,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   // category would be a tab with one device in it, so it sits with the
   // other things that watch rather than switch.
   "drone-link": "sensor",
+  "drone-x1": "sensor",
   curtain: "entry",
   "smart-plug": "power",
   "energy-monitor": "power",
@@ -226,6 +227,7 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   // accidental tap would silently ground an aircraft somebody is about to
   // fly — or, read the other way, look like a launch button.
   "drone-link": { glyph: "🚁", icon: "drone-link", accent: C.violet, grad: GRAD.violet, label: "Drone Link" },
+  "drone-x1": { glyph: "🚁", icon: "drone-link", accent: C.violet, grad: GRAD.violet, label: "Drone X1" },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

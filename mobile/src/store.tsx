@@ -227,6 +227,7 @@ export function capabilities(type: string): Capability {
         },
       };
     case "drone-link":
+    case "drone-x1":
       /*
        * No `power`, and the reason is stronger than for a camera.
        *

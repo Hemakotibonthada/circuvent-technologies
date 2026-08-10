@@ -63,6 +63,7 @@ const NEVER_SHIFTABLE = new Set([
   // A drone charges when the pilot needs it charged. Advice to shift that is
   // advice to be somewhere else when the aircraft is due to fly.
   "drone-link",
+  "drone-x1",
   "guardian",
   "motion-sensor",
   "smart-lock",

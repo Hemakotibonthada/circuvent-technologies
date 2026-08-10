@@ -72,6 +72,7 @@ function kindOf(type: string): SiriDevicePayload["kind"] {
      * out of `onOff()` in the control plane's Google and Alexa fulfilment.
      */
     case "drone-link":
+    case "drone-x1":
       return "sensor";
     default:
       return "switch";

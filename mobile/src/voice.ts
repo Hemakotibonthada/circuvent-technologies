@@ -31,6 +31,7 @@ const TYPE_WORDS: Record<string, string[]> = {
   // action (see kindOf / onOff), so these words exist purely so "where is the
   // drone" resolves to the right thing rather than to nothing.
   "drone-link": ["drone", "quadcopter", "aircraft", "uav"],
+  "drone-x1": ["drone", "quadcopter", "aircraft", "uav", "x1"],
   watertank: ["tank", "water", "sump", "overhead"],
   aquaguard: ["tank", "water", "aquaguard"],
   thermostat: ["ac", "air conditioner", "thermostat", "climate"],

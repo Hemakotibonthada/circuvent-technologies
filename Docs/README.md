@@ -30,6 +30,7 @@ something is unverified or inconsistent, it says so rather than guessing.
 | Add Siri voice control (and why Apple Home is different) | [18 — Siri and Apple Home](./18-siri-and-apple-home.md) |
 | **Read vehicle number plates (ANPR)** | [20 — ANPR](./20-anpr.md) |
 | **Fly and log a drone** | [21 — Drone Link](./21-drone.md) |
+| **Fly our own aircraft** | [22 — Drone X1](./22-drone-x1.md) |
 
 ## The system in one paragraph
 

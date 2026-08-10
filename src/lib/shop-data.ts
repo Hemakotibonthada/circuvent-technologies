@@ -577,6 +577,43 @@ export const products: Product[] = [
     badge: "New",
     rating: 4.5,
   },
+  {
+    id: "drone-x1",
+    slug: "circuvent-drone-x1",
+    name: "Circuvent Drone X1",
+    tagline: "Our own airframe, our own flight stack",
+    /*
+     * Written from firmware/drone-fc/ and hardware/drone-x1/, not from
+     * ambition — the rule in Docs/07-adding-a-new-device.md.
+     *
+     * The maturity statement is in the description rather than buried in the
+     * specs, and it is the first thing after what the product is. A flight
+     * controller is safety-critical software; a buyer who does not know this
+     * stack is new will skip the commissioning steps, and the failure mode of
+     * skipping them is an aircraft inverting into the ground at full throttle.
+     *
+     * Sold as a development platform, because that is what it is.
+     */
+    description:
+      "A 5-inch quadcopter running Circuvent's own flight stack — our attitude estimator, our control cascade, our mixer, our ESC driver. It arms only when the aircraft is level, calibrated, on a live radio link and above the battery floor, drops into a controlled descent if the radio goes quiet, and cuts power past 75 degrees of tilt. Every flight is logged to your Circuvent account with attitude, battery and timing, alongside any other aircraft you fly. Sold as a development platform: this flight stack is new, and it ships with a commissioning procedure that starts on the bench with the propellers off. Follow it in order.",
+    price: 24999,
+    compareAt: 28999,
+    category: "Safety",
+    image: "/img/product-drone-x1.svg",
+    accent: "#6366f1",
+    icon: "🚁",
+    specs: [
+      "Circuvent flight stack, 1 kHz rate loop",
+      "ESP32-S3, control loop isolated on its own core",
+      "5\" props, 4S, DShot300 ESCs",
+      "Arms only when level, calibrated and linked",
+      "Radio-loss failsafe descends under control",
+      "Flights logged to your Circuvent account",
+    ],
+    stock: 4,
+    badge: "Dev platform",
+    rating: 0,
+  },
 ];
 
 export function getProduct(slug: string): Product | undefined {

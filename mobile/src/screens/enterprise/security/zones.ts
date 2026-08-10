@@ -216,7 +216,7 @@ export function isSecurityCapable(device: Device): boolean {
    * zones, which is the same failure the ANPR camera had and looks equally
    * like a working feature.
    */
-  if (type === "drone-link") return false;
+  if (type === "drone-link" || type === "drone-x1") return false;
   return type === "guardian" || type === "facedoor" || securityFieldKeys(device).length > 0 || hasOwn(device.state ?? {}, "armed") || hasOwn(device.state ?? {}, "alarmMode");
 }
 

@@ -47,7 +47,7 @@ async function ownedAircraft(
   );
   const row = rows[0];
   if (!row) return null;
-  if (row.type !== "drone-link") return null;
+  if (row.type !== "drone-link" && row.type !== "drone-x1") return null;
   return { state: row.state };
 }
 
