@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import { neoLayers } from "./neo";
+import { NEO, NEO_SMALL, shadowLayers, withAlpha, type NeoSpec } from "./neo";
 import { BlurView } from "expo-blur";
 import Svg, { Path, Circle } from "react-native-svg";
 import { Icon, ICONS, type IconName } from "./icons";
@@ -100,7 +100,7 @@ const KEY = "cv-theme-v2";
  * it is built on.
  *
  * Neo does not need a backdrop. Its depth comes from a light shadow up-left and
- * a dark one down-right, which NeoShadow paints as gradient layers rather than
+ * a dark one down-right, which NeoShadows paints as stacked layers rather than
  * relying on `elevation` (Android casts only one downward shadow, at a colour
  * the platform picks, so the highlight that reads as "raised" is unavailable
  * to it). Painted layers render identically on every Android version.
@@ -307,84 +307,51 @@ function mixHex(a: string, b: string, t: number): string {
   return `#${to2(r1 + (r2 - r1) * k)}${to2(g1 + (g2 - g1) * k)}${to2(b1 + (b2 - b1) * k)}`;
 }
 
-/**
- * The soft double shadow that makes a neumorphic surface look extruded, drawn
- * for Android.
- *
- * WHY THIS IS NECESSARY AT ALL
- *
- * Neumorphism is two shadows: a light one up-left, a dark one down-right, as
- * if a single lamp sits above and to the left. iOS renders that directly —
- * shadowColor/shadowOffset accept any colour, so two nested Views give the
- * real effect.
- *
- * Android has no equivalent. `elevation` draws exactly one shadow, always
- * downward, and its colour is fixed by the platform on every version before
- * 28 (and only partially settable after). There is no way to ask it for a
- * light shadow, which is the half that actually reads as "raised" — a dark
- * shadow alone just looks like a card sitting on a page, which is why the
- * Android build has never had the depth the iPhone one does.
- *
- * So the shadows are painted rather than cast. Two rounded gradient layers sit
- * behind the surface, each offset diagonally and fading to transparent, which
- * Android composites cheaply and correctly. It is not a blur — it is a ramp —
- * but at these radii the eye reads them the same way, and unlike `elevation`
- * it respects the palette, so the effect survives every theme.
- *
- * The geometry lives in ./neo, free of react-native, because the mistake it
- * guards against is invisible on screen: both layers were oriented so that the
- * sliver sticking out past the card edge — the only part of them anyone ever
- * sees — was their transparent end. Everything rendered, correctly, underneath
- * an opaque rectangle. iOS uses real shadows and never ran this path, which is
- * exactly why the same theme looked right there and flat here.
- */
 
-function NeoShadow({
-  radius,
-  c,
-  depth,
-  children,
-  style,
-}: {
-  radius: number;
-  c: Palette;
-  depth?: number;
-  children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-}) {
-  const layers = neoLayers(mixHex(c.surface, c.neoLight, 0.92), mixHex(c.surface, c.neoDark, 0.85), depth);
+/**
+ * The two soft shadows that make a neumorphic surface look extruded.
+ *
+ * Android has no blur to lend us. `elevation` is one grey drop shadow whose
+ * colour and direction belong to the platform; the installed react-native-svg
+ * ships no filter elements, so there is no feGaussianBlur either; expo-blur
+ * blurs what is behind a view, which is a different thing. So the falloff is
+ * built: the same rounded rectangle drawn several times, each slightly larger
+ * and more transparent, so the accumulated alpha is a gradient of light rather
+ * than a band of colour. See ./neo, where the geometry is tested.
+ *
+ * These are plain Views. They cannot silently fail to render, which two
+ * previous attempts here both managed to do.
+ */
+function NeoShadows({ radius, c, spec }: { radius: number; c: Palette; spec: NeoSpec }) {
+  /*
+   * The light half is drawn second so it wins where the two overlap — which is
+   * what a single lamp above and to the left actually produces.
+   */
+  const halves: { dir: 1 | -1; hex: string }[] = [
+    { dir: 1, hex: c.neoDark },
+    { dir: -1, hex: c.neoLight },
+  ];
+
   return (
-    <View style={style}>
-      {/* Dark first, so the light one wins where they overlap — which is what a
-          single light source up and to the left actually produces. Each layer
-          is this card's rectangle, shifted, so all that is ever visible is the
-          sliver past one edge; the gradients are oriented to be solid there.
-          See mobile/src/neo.ts, which is where that orientation is tested. */}
-      {([layers.dark, layers.light] as const).map((layer, i) => (
-        <View
-          key={i}
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: layer.inset.left,
-            top: layer.inset.top,
-            right: layer.inset.right,
-            bottom: layer.inset.bottom,
-            borderRadius: radius,
-            overflow: "hidden",
-          }}
-        >
-          <LinearGradient
-            colors={layer.colors}
-            locations={layer.locations}
-            start={layer.start}
-            end={layer.end}
-            style={{ flex: 1, borderRadius: radius }}
+    <>
+      {halves.map(({ dir, hex }) =>
+        shadowLayers(dir, radius, spec).map((l, i) => (
+          <View
+            key={`${dir}-${i}`}
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: l.left,
+              top: l.top,
+              right: l.right,
+              bottom: l.bottom,
+              borderRadius: l.borderRadius,
+              backgroundColor: withAlpha(hex, l.opacity),
+            }}
           />
-        </View>
-      ))}
-      {children}
-    </View>
+        ))
+      )}
+    </>
   );
 }
 
@@ -403,17 +370,18 @@ function NeoShadow({
 function NeoRaised({
   radius,
   c,
-  depth = 5,
+  spec = NEO,
   style,
   children,
 }: {
   radius: number;
   c: Palette;
-  depth?: number;
+  spec?: NeoSpec;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }) {
   if (Platform.OS === "ios") {
+    // Real shadows, in any colour, for free. Nothing here needs imitating.
     return (
       <View
         style={[
@@ -421,9 +389,9 @@ function NeoRaised({
             borderRadius: radius,
             backgroundColor: c.surface,
             shadowColor: c.neoDark,
-            shadowOffset: { width: depth, height: depth },
+            shadowOffset: { width: spec.depth, height: spec.depth },
             shadowOpacity: 1,
-            shadowRadius: depth * 1.6,
+            shadowRadius: spec.blur,
           },
           style,
         ]}
@@ -433,9 +401,9 @@ function NeoRaised({
             borderRadius: radius,
             backgroundColor: c.surface,
             shadowColor: c.neoLight,
-            shadowOffset: { width: -depth, height: -depth },
+            shadowOffset: { width: -spec.depth, height: -spec.depth },
             shadowOpacity: 1,
-            shadowRadius: depth * 1.6,
+            shadowRadius: spec.blur,
           }}
         >
           {children}
@@ -443,10 +411,17 @@ function NeoRaised({
       </View>
     );
   }
+
+  /*
+   * The shadows sit behind the children and reach outside this View's box.
+   * Nothing on the way up may set `overflow: "hidden"`, or the soft edge is
+   * cut back to a straight line and the surface looks bevelled again.
+   */
   return (
-    <NeoShadow radius={radius} c={c} depth={depth} style={style}>
+    <View style={style}>
+      <NeoShadows radius={radius} c={c} spec={spec} />
       {children}
-    </NeoShadow>
+    </View>
   );
 }
 
@@ -1105,58 +1080,19 @@ export function Card({ children, style, onPress, hi, padded = true, accessibilit
   }
 
   if (c.isNeo) {
-    // iOS gets the real thing: two shadows, light from the top-left and dark
-    // from the bottom-right, on nested views.
-    if (Platform.OS === "ios") {
-      return (
-        wrap(style, (
-          <View
-            style={{
-              borderRadius: radius,
-              backgroundColor: c.surface,
-              shadowColor: c.neoDark,
-              shadowOffset: { width: 5, height: 5 },
-              shadowOpacity: 1,
-              shadowRadius: 8,
-            }}
-          >
-            <View
-              style={{
-                borderRadius: radius,
-                backgroundColor: c.surface,
-                padding: pad,
-                shadowColor: c.neoLight,
-                shadowOffset: { width: -5, height: -5 },
-                shadowOpacity: 1,
-                shadowRadius: 8,
-              }}
-            >
-              {children}
-            </View>
-          </View>
-        ))
-      );
-    }
-
-    // Android cannot cast a light shadow — `elevation` is one dark shadow,
-    // always downward, with a platform-fixed colour. NeoShadow paints both
-    // halves instead, which is what actually reads as extruded.
-    //
-    // The face itself is a flat `c.surface`, matching iOS exactly. An earlier
-    // version painted a diagonal gradient across it and added top/left
-    // hairlines, which iOS does not do — so the two platforms rendered visibly
-    // different cards from the same theme. The point of NeoShadow is to
-    // reproduce what iOS gets for free from a real shadow, not to design a
-    // second look for Android.
-    return (
-      wrap(style, (
-        <NeoShadow radius={radius} c={c}>
-          <View style={{ borderRadius: radius, padding: pad, backgroundColor: c.surface }}>
-            {children}
-          </View>
-        </NeoShadow>
-      ))
-    );
+    /*
+     * One path for both platforms now.
+     *
+     * Card and PrimaryButton each carried their own copy of the iOS/Android
+     * split, which is how they drifted: the offsets here were 5 and 8 while
+     * NeoRaised used its own, so the same theme extruded by different amounts
+     * depending on which component you were looking at.
+     */
+    return wrap(style, (
+      <NeoRaised radius={radius} c={c}>
+        <View style={{ borderRadius: radius, padding: pad, backgroundColor: c.surface }}>{children}</View>
+      </NeoRaised>
+    ));
   }
 
   // aurora
@@ -1364,7 +1300,7 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   // different things, and "which one is on" must stay the louder signal.
   if (c.isNeo && !active) {
     return (
-      <NeoRaised radius={RADIUS.pill} c={c} depth={3}>
+      <NeoRaised radius={RADIUS.pill} c={c} spec={NEO_SMALL}>
         {chip}
       </NeoRaised>
     );

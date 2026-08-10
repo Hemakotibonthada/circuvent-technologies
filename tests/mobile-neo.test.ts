@@ -1,60 +1,129 @@
-import { neoLayers, colorAt, NEO_DEPTH, type NeoLayer } from "../mobile/src/neo";
+import {
+  NEO,
+  NEO_SMALL,
+  shadowExtent,
+  shadowLayers,
+  withAlpha,
+} from "../mobile/src/neo";
 
-const LIGHT = "#ffffff";
-const DARK = "#0b1120";
+/*
+ * Android has no blur primitive available to this app — elevation is a single
+ * grey drop shadow, and the installed react-native-svg ships no filter
+ * elements. So the falloff is built by stacking the same rounded rectangle at
+ * increasing sizes and decreasing alpha.
+ *
+ * Two earlier attempts failed silently, which is why the properties that make
+ * this read as a shadow rather than a bevel are asserted rather than eyeballed.
+ */
 
-describe("the neumorphic shadow Android has to paint by hand", () => {
-  const { dark, light } = neoLayers(LIGHT, DARK);
+describe("the shape of one shadow", () => {
+  const dark = shadowLayers(1, 16);
+  const light = shadowLayers(-1, 16);
+
+  it("falls down-right for the dark half and up-left for the light half", () => {
+    // A single light source above and to the left is the whole convention.
+    const darkCore = dark[dark.length - 1];
+    const lightCore = light[light.length - 1];
+    expect(darkCore.left).toBeGreaterThan(0);
+    expect(darkCore.top).toBeGreaterThan(0);
+    expect(lightCore.left).toBeLessThan(0);
+    expect(lightCore.top).toBeLessThan(0);
+  });
+
+  it("reaches past the surface, or there would be nothing to see", () => {
+    // Every layer must extend beyond at least one edge; a shadow entirely
+    // under an opaque face is the exact bug that shipped twice.
+    for (const l of dark) {
+      expect(Math.min(l.right, l.bottom)).toBeLessThan(0);
+    }
+  });
 
   /*
-   * The defect this exists to prevent. Each layer is the card's rectangle,
-   * shifted, with the opaque face drawn over it -- so the only visible part is
-   * the sliver past one edge. Both gradients used to put their transparent end
-   * exactly there, so both shadows rendered perfectly and invisibly.
+   * With a linear ramp the outermost layer still carries a visible fraction of
+   * the alpha, so the shadow ends on a step you can see — a hard edge, which is
+   * a bevel rather than a shadow.
    */
-  it("is opaque where it can actually be seen", () => {
-    expect(colorAt(dark, dark.visibleAt)).toBe(DARK);
-    expect(colorAt(light, light.visibleAt)).toBe(LIGHT);
+  it("fades to almost nothing at its outer edge", () => {
+    expect(dark[0].opacity).toBeLessThan(0.02);
+    expect(dark[dark.length - 1].opacity).toBeCloseTo(NEO.strength, 5);
   });
 
-  it("fades out under the face, not at the edge", () => {
-    expect(colorAt(dark, { x: 0.25, y: 0.25 })).toBe("transparent");
-    expect(colorAt(light, { x: 0.75, y: 0.75 })).toBe("transparent");
+  it("gets stronger and tighter towards the surface", () => {
+    for (let i = 1; i < dark.length; i++) {
+      expect(dark[i].opacity).toBeGreaterThan(dark[i - 1].opacity);
+      // Each layer is drawn inside the previous one.
+      expect(dark[i].left).toBeGreaterThan(dark[i - 1].left);
+      expect(dark[i].borderRadius).toBeLessThan(dark[i - 1].borderRadius);
+    }
   });
 
-  it("puts the dark half down-right and the light half up-left", () => {
-    expect(dark.inset).toEqual({ left: NEO_DEPTH, top: NEO_DEPTH, right: -NEO_DEPTH, bottom: -NEO_DEPTH });
-    expect(light.inset).toEqual({ left: -NEO_DEPTH, top: -NEO_DEPTH, right: NEO_DEPTH, bottom: NEO_DEPTH });
+  /*
+   * A rounded rectangle grown outwards keeps a constant border width, so its
+   * corner radius has to grow with it. Holding the radius fixed makes the outer
+   * layers visibly squarer than the surface, which shows up as corner fringing.
+   */
+  it("grows the corner radius along with the size", () => {
+    expect(dark[0].borderRadius).toBeCloseTo(16 + NEO.blur, 5);
+    expect(dark[dark.length - 1].borderRadius).toBeCloseTo(16, 5);
   });
 
-  it("shows each layer at the corner its offset exposes", () => {
-    // A layer shifted down-right can only be seen past the bottom-right edge.
-    expect(dark.visibleAt).toEqual({ x: 1, y: 1 });
-    expect(light.visibleAt).toEqual({ x: 0, y: 0 });
+  it("puts the same number of layers in each half", () => {
+    expect(dark).toHaveLength(NEO.steps);
+    expect(light).toHaveLength(NEO.steps);
   });
 
-  it("extrudes by the same distance in both directions, or it reads as lopsided", () => {
-    expect(Math.abs(dark.inset.left)).toBe(Math.abs(light.inset.left));
-    expect(Math.abs(dark.inset.top)).toBe(Math.abs(light.inset.top));
+  it("is symmetric: the two halves are mirror images", () => {
+    for (let i = 0; i < dark.length; i++) {
+      expect(light[i].left).toBeCloseTo(-dark[i].left - 2 * (NEO.blur * (1 - (NEO.steps === 1 ? 1 : i / (NEO.steps - 1)))), 5);
+      expect(light[i].opacity).toBeCloseTo(dark[i].opacity, 5);
+      expect(light[i].borderRadius).toBeCloseTo(dark[i].borderRadius, 5);
+    }
+  });
+
+  it("survives being asked for a single layer", () => {
+    const one = shadowLayers(1, 12, { ...NEO, steps: 1 });
+    expect(one).toHaveLength(1);
+    expect(one[0].opacity).toBeCloseTo(NEO.strength, 5);
   });
 });
 
-describe("projecting a point onto a gradient", () => {
-  const layer: NeoLayer = {
-    inset: { left: 0, top: 0, right: 0, bottom: 0 },
-    colors: ["#aaaaaa", "#aaaaaa", "transparent"],
-    locations: [0, 0.5, 1],
-    start: { x: 0, y: 0 },
-    end: { x: 1, y: 0 },
-    visibleAt: { x: 0, y: 0 },
-  };
+describe("the small variant", () => {
+  it("is shallower and cheaper, for controls that repeat", () => {
+    expect(NEO_SMALL.depth).toBeLessThan(NEO.depth);
+    expect(NEO_SMALL.blur).toBeLessThan(NEO.blur);
+    expect(NEO_SMALL.steps).toBeLessThan(NEO.steps);
+  });
+});
 
-  it("clamps past either end rather than extrapolating", () => {
-    expect(colorAt(layer, { x: -5, y: 0 })).toBe("#aaaaaa");
-    expect(colorAt(layer, { x: 5, y: 0 })).toBe("transparent");
+describe("how far a parent must not clip", () => {
+  it("covers the offset and the spread together", () => {
+    expect(shadowExtent()).toBe(NEO.depth + NEO.blur);
+    const layers = shadowLayers(1, 10);
+    // Nothing may reach further out than the extent we ask parents to allow.
+    for (const l of layers) {
+      expect(-Math.min(l.right, l.bottom)).toBeLessThanOrEqual(shadowExtent());
+      expect(-Math.min(l.left, l.top)).toBeLessThanOrEqual(shadowExtent());
+    }
+  });
+});
+
+describe("per-layer alpha", () => {
+  it("turns a hex colour into rgba", () => {
+    expect(withAlpha("#ffffff", 0.5)).toBe("rgba(255,255,255,0.5)");
+    expect(withAlpha("0b1120", 1)).toBe("rgba(11,17,32,1)");
   });
 
-  it("holds the colour across a band with the same colour at both ends", () => {
-    expect(colorAt(layer, { x: 0.25, y: 0 })).toBe("#aaaaaa");
+  it("expands the three-digit form", () => {
+    expect(withAlpha("#fff", 1)).toBe("rgba(255,255,255,1)");
+  });
+
+  it("clamps rather than emitting an alpha a platform will reject", () => {
+    expect(withAlpha("#000000", 5)).toBe("rgba(0,0,0,1)");
+    expect(withAlpha("#000000", -1)).toBe("rgba(0,0,0,0)");
+    expect(withAlpha("#000000", Number.NaN)).toBe("rgba(0,0,0,0)");
+  });
+
+  it("falls back to a usable colour rather than throwing on rubbish", () => {
+    expect(withAlpha("not-a-colour", 0.3)).toMatch(/^rgba\(/);
   });
 });
