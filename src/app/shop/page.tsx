@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, Sparkles } from "lucide-react";
 import ShopGrid from "@/components/shop/ShopGrid";
-import ShopHero3D from "@/components/shop/ShopHero3D";
+import ShopStage from "@/components/shop/ShopStage";
 import { ProductGridSkeleton } from "@/components/shop/ProductCardSkeleton";
 import JsonLd from "@/components/JsonLd";
 import { getMergedProducts } from "@/lib/shop-catalog";
@@ -120,18 +120,6 @@ export default async function ShopPage({
   const cheapest = products.length ? Math.min(...products.map((p) => p.price)) : 0;
   const bestDiscount = products.reduce((max, p) => Math.max(max, discountPct(p)), 0);
 
-  /*
-   * The three devices on the 3D stage.
-   *
-   * Only products that actually have artwork - the stage is a visual, and a
-   * card with no image on it is an empty rectangle floating in perspective,
-   * which reads as a loading failure rather than as a product.
-   */
-  const heroDevices = products
-    .filter((p) => !!p.image)
-    .slice(0, 3)
-    .map((p) => ({ name: p.name, image: p.image as string, accent: p.accent, href: `/shop/${p.slug}` }));
-
   const stats = [
     { value: `${products.length}`, label: "Devices in stock" },
     { value: `${categories.length}`, label: "Categories" },
@@ -193,50 +181,72 @@ export default async function ShopPage({
             )}
           </ol>
         </nav>
-
-        {/* Hero */}
         {/*
           * Hero.
           *
-          * A Bento Grid with one decorative 3D stage, chosen over the
-          * Immersive/Interactive pattern the design database also surfaced:
-          * Immersive scores 40% higher engagement but carries an explicit
-          * "Performance trade-off. Mobile fallback essential." note, and this
-          * page is the store's crawlable, revenue-carrying entry point. Bento
-          * scored Excellent on performance and WCAG AA.
+          * A full-bleed product stage: one product at a time, an oversized
+          * extruded headline behind it, and the product staged in a lit
+          * alcove. Light mode is the airy reference, dark mode is the
+          * showroom one -- same geometry, different lighting, driven from CSS
+          * variables in globals.css.
           *
-          * ShopHero3D is a Client Component, so it is a leaf: the page above it
-          * stays a Server Component, and the category links below it stay
-          * server-rendered anchors rather than becoming client-side state.
+          * The stage replaced a Bento grid. Bento scored better on the design
+          * database's performance axis and was the safer choice; the stage is
+          * what was actually asked for, and it earns its place by staying a
+          * showcase rather than becoming the navigation -- the grid, the
+          * filters and every category link below are untouched and still
+          * server-rendered.
+          *
+          * ShopStage is a Client Component and therefore a leaf: the page
+          * stays a Server Component and the category links stay real anchors.
           */}
         <header className="mb-8">
-          <ShopHero3D
-            title={
-              activeCategory ? (
-                <>
-                  <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
-                    {activeCategory}
-                  </span>{" "}
-                  devices
-                </>
-              ) : (
-                <>
-                  Bring home{" "}
-                  <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
-                    Circuvent
-                  </span>
-                </>
-              )
-            }
-            blurb={
-              activeCategory
-                ? `Every ${activeCategory.toLowerCase()} device we make - designed, flashed and shipped by our own R&D lab in India, with a 6-month warranty and free shipping over ${formatINR(SHIPPING.freeOver)}.`
-                : `Smart, made-in-India devices - designed, flashed and shipped by our own R&D lab. Free shipping over ${formatINR(SHIPPING.freeOver)}, cash on delivery or wallet, and a 6-month warranty on every product.`
-            }
-            stats={stats}
-            devices={heroDevices}
-            bestDiscount={bestDiscount}
+          <ShopStage
+            products={products}
+            eyebrow="Circuvent Store"
+            headline={activeCategory ?? "Smart home"}
           />
+
+          {/*
+            * The h1 is visually hidden because the stage carries the visual
+            * headline, but it must still exist and stay first: it is what a
+            * crawler and a screen reader read as the page's title, and the
+            * oversized type behind the stage is aria-hidden precisely so it
+            * does not compete for that role.
+            */}
+          <h1 id="shop-hero-title" className="sr-only">
+            {activeCategory ? `${activeCategory} devices` : "Bring home Circuvent"}
+          </h1>
+          <p className="mt-6 max-w-2xl text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
+            {activeCategory
+              ? `Every ${activeCategory.toLowerCase()} device we make - designed, flashed and shipped by our own R&D lab in India, with a 6-month warranty and free shipping over ${formatINR(SHIPPING.freeOver)}.`
+              : `Smart, made-in-India devices - designed, flashed and shipped by our own R&D lab. Free shipping over ${formatINR(SHIPPING.freeOver)}, cash on delivery or wallet, and a 6-month warranty on every product.`}
+          </p>
+
+          {/*
+            * Stats stay, below the stage rather than inside it. They are the
+            * kind of proof a buyer scans on the way to the grid, and putting
+            * them in the glass panel would have pushed the price and the buy
+            * button below the fold on a phone.
+            */}
+          <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {stats.map((s) => (
+              <div key={s.label}>
+                <dt className="sr-only">{s.label}</dt>
+                <dd>
+                  <span className="block text-xl font-extrabold tabular-nums" style={{ color: "var(--text-primary)" }}>
+                    {s.value}
+                  </span>
+                  {/* --text-tertiary, not --text-muted: the latter measures
+                      2.36:1 on the dark surface, well under the 4.5:1 floor. */}
+                  <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                    {s.label}
+                  </span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+
           {/* Crawlable category entry points — each is a real, shareable filter URL. */}
           <nav aria-label="Shop by category" className="mt-6 flex flex-wrap gap-2">
             <Link

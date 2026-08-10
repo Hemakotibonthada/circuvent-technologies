@@ -99,6 +99,80 @@ test.describe("product card depth", () => {
   });
 });
 
+test.describe("product stage", () => {
+  /*
+   * The stage is a showcase, never the navigation. A product reachable only by
+   * clicking through five slides is a product nobody buys, so the grid and the
+   * category links have to survive alongside it.
+   */
+  test("does not replace the grid or the category links", async ({ page }) => {
+    await page.goto("/shop");
+    await expect(page.locator("article").first()).toBeVisible();
+    expect(await page.locator('a[href*="/shop?cat="]').count()).toBeGreaterThan(0);
+  });
+
+  test("announces itself as a carousel and names each slide", async ({ page }) => {
+    await page.goto("/shop");
+    const stage = page.locator('[aria-roledescription="carousel"]');
+    await expect(stage).toHaveAttribute("aria-label", /featured/i);
+    // Thumbnails are real named buttons, not 6px dots: "go to slide 3" tells a
+    // screen-reader user nothing and is under any sane touch target.
+    await expect(stage.getByRole("button", { name: /previous product/i })).toBeVisible();
+    await expect(stage.getByRole("button", { name: /next product/i })).toBeVisible();
+  });
+
+  test("the next arrow actually changes the product", async ({ page }) => {
+    await page.goto("/shop");
+    const stage = page.locator('[aria-roledescription="carousel"]');
+    const heading = stage.locator("h2");
+    const before = await heading.textContent();
+    await stage.getByRole("button", { name: /next product/i }).click();
+    await page.waitForTimeout(600);
+    expect(await heading.textContent()).not.toBe(before);
+  });
+
+  /*
+   * The regression this guards is the most-complained-about pattern on the
+   * web: a carousel that advances while somebody is reading a price or
+   * reaching for the buy button.
+   */
+  test("stops auto-advancing while the pointer is over it", async ({ page }) => {
+    await page.goto("/shop");
+    const stage = page.locator('[aria-roledescription="carousel"]');
+    await stage.hover();
+    const before = await stage.locator("h2").textContent();
+    // Longer than the 6.5 s auto-advance interval.
+    await page.waitForTimeout(7500);
+    expect(await stage.locator("h2").textContent()).toBe(before);
+  });
+
+  test("does not auto-advance at all under prefers-reduced-motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/shop");
+    const heading = page.locator('[aria-roledescription="carousel"] h2');
+    const before = await heading.textContent();
+    await page.waitForTimeout(7500);
+    expect(await heading.textContent()).toBe(before);
+  });
+
+  test("the oversized headline is hidden from assistive technology", async ({ page }) => {
+    await page.goto("/shop");
+    // It repeats the eyebrow and the section label; announcing "Smart home"
+    // twice before the product is noise.
+    const type = page.locator(".cv-stage-type");
+    await expect(type).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("Add to bag reaches the real cart", async ({ page }) => {
+    await page.goto("/shop");
+    const stage = page.locator('[aria-roledescription="carousel"]');
+    await stage.getByRole("button", { name: /add to bag/i }).click();
+    // The toast is the observable proof the cart accepted it, rather than the
+    // button merely being clickable.
+    await expect(page.getByText(/added to cart/i).first()).toBeVisible({ timeout: 5000 });
+  });
+});
+
 test.describe("responsive", () => {
   for (const width of [375, 768, 1024, 1440]) {
     test(`has no horizontal scroll at ${width}px`, async ({ page }) => {
