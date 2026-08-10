@@ -168,11 +168,6 @@ export const allProjects: ProjectDetail[] = [
       "Built encrypted data pipeline with audit logging and access controls",
       "Added Grad-CAM visualizations highlighting detection reasoning areas",
     ],
-    testimonial: {
-      quote: "The ML pipeline was meticulously engineered. ChromaDB vector storage, custom model training, and a clean API — all containerized.",
-      author: "Sankar Nagarapu",
-      role: "Co-Founder & Head of Software & AI, Circuvent Technologies",
-    },
     color: "#ec4899",
     icon: "🏥",
   },

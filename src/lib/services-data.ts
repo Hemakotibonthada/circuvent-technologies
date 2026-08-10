@@ -271,17 +271,6 @@ export const testimonials: Testimonial[] = [
     service: "IoT & Embedded Systems",
   },
   {
-    id: "2",
-    name: "Sankar Nagarapu",
-    role: "Co-Founder & Head of Software & AI",
-    company: "Circuvent Technologies",
-    avatar: "👨‍💻",
-    content:
-      "The CancerGuard AI system we built has a 94% prediction accuracy. Our ensemble learning approach and HIPAA-aligned architecture ensured confidence to deploy in a healthcare setting. Truly impressive AI engineering.",
-    rating: 5,
-    service: "AI & ML Solutions",
-  },
-  {
     id: "3",
     name: "Chiru Kotcherla",
     role: "Co-Founder & Marketing Director",
@@ -313,17 +302,6 @@ export const testimonials: Testimonial[] = [
       "The StockMarket Agent is exactly what we needed — a local-first trading engine with proper walk-forward backtesting. No cloud dependency means strategies stay private. The DuckDB + Parquet data stack is lightning fast.",
     rating: 5,
     service: "FinTech Solutions",
-  },
-  {
-    id: "6",
-    name: "Kishore Mandapalli",
-    role: "Co-Founder & Head of Wiring Design",
-    company: "Circuvent Technologies",
-    avatar: "👨‍🏫",
-    content:
-      "EduKanban transformed our online learning platform. The AI course generation saves instructors hours of content creation, and the real-time chat keeps students engaged. The Kanban task management is a unique differentiator.",
-    rating: 5,
-    service: "Full-Stack Web Development",
   },
 ];
 
