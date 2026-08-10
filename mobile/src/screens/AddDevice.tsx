@@ -248,10 +248,38 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
 
   const goWifi = (auto = false) => { setStep("wifi"); setRetryNote(""); setNetworks([]); setScanErr("Reading nearby networks from the device…"); setTimeout(() => scan(), auto ? 400 : 800); };
 
+  /*
+   * The dialog connects. It does not hand you back to a form.
+   *
+   * Entering the password used to close the dialog and return to the network
+   * list, where a second password field and an "Encrypt & send" button waited
+   * further down — so the password was typed once, shown again, and the real
+   * next step was below the fold. Two fields for one secret is also how they
+   * disagree.
+   *
+   * The draft is passed explicitly because setPass has not applied yet in this
+   * tick; reading state here would encrypt the previous password.
+   */
+  const connectWithPass = () => {
+    const entered = passDraft;
+    setPass(entered);
+    setAskPassFor("");
+    void sendToDevice(entered, askPassFor || ssid);
+  };
+
   // Step 3 — encrypt {ssid,pass,token} to the device and push (local, mobile data OFF).
-  const sendToDevice = async () => {
+  /*
+   * `overridePass` exists because the dialog sends immediately on submit.
+   *
+   * setPass is asynchronous, so reading `pass` here in the same tick as the
+   * dialog closes would encrypt the previous password — or an empty string on
+   * the first attempt — and the device would fail to join with no clue why.
+   */
+  const sendToDevice = async (overridePass?: string, overrideSsid?: string) => {
+    const wifiPass = overridePass ?? pass;
+    const wifiSsid = overrideSsid ?? ssid;
     setError("");
-    if (!ssid.trim()) { setError("Pick or enter your Wi-Fi network."); return; }
+    if (!wifiSsid.trim()) { setError("Pick or enter your Wi-Fi network."); return; }
     setStep("sending");
     setLog([{ msg: "Account prepared ✓", state: "ok" }, { msg: "Securing the connection to the device…", state: "run" }]);
 
@@ -271,7 +299,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
 
     let sealed;
     try {
-      const plaintext = `ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}&token=${encodeURIComponent(token)}`;
+      const plaintext = `ssid=${encodeURIComponent(wifiSsid)}&pass=${encodeURIComponent(wifiPass)}&token=${encodeURIComponent(token)}`;
       sealed = sealToDevice(pk, plaintext);
     } catch {
       setLast("err", "Encryption failed.");
@@ -542,9 +570,14 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
                     setAskPassFor(nw.ssid);
                     setPassDraft(ssid === nw.ssid ? pass : "");
                   } else {
-                    // An open network has no password to ask for; inventing a
-                    // prompt for one would only be a dead end.
+                    /*
+                     * An open network has no password to ask for, so there is
+                     * no dialog — and now no button underneath either. Tapping
+                     * it has to be the whole action, or the one case with
+                     * nothing to type would be the one that could not proceed.
+                     */
                     setPass("");
+                    void sendToDevice("", nw.ssid);
                   }
                 }}
               >
@@ -554,13 +587,22 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             ))}
             <Pressable onPress={() => setManual((m) => !m)} hitSlop={8}><Text style={[s.link, { marginTop: 10 }]}>{manual ? "‹ Pick from the list" : "Enter network name manually"}</Text></Pressable>
             {manual && <View style={{ marginTop: 8 }}><Field label="Wi-Fi name (SSID)" value={ssid} onChangeText={setSsid} placeholder="Your 2.4 GHz Wi-Fi" autoCapitalize="none" /></View>}
-            {(ssid.length > 0 || manual) && (
+            {/*
+              The password field only appears for a manually typed network,
+              which has no row to tap and therefore no dialog. Picking from the
+              list asks in the dialog and connects from there; leaving this here
+              for that path gave two fields for one secret and put the real next
+              step below the fold.
+            */}
+            {manual && (
               <View style={{ marginTop: 8 }}>
                 <Field label={`Password for "${ssid || "your Wi-Fi"}"`} value={pass} onChangeText={setPass} placeholder="Wi-Fi password" secureTextEntry />
               </View>
             )}
             {!!error && <Text style={s.err}>{error}</Text>}
-            <Primary label="🔒 Encrypt & send" onPress={sendToDevice} />
+            {/* Only the manual path still needs a button; the list path has
+                already sent by the time it returns here. */}
+            {manual && <Primary label="🔒 Encrypt & send" onPress={() => sendToDevice()} />}
           </View>
         )}
 
@@ -625,7 +667,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
               autoCapitalize="none"
               autoCorrect={false}
               accessibilityLabel={`Password for ${askPassFor}`}
-              onSubmitEditing={() => { setPass(passDraft); setAskPassFor(""); }}
+              onSubmitEditing={connectWithPass}
               returnKeyType="done"
             />
             <Pressable onPress={() => setShowPass((v) => !v)} hitSlop={10} style={{ paddingVertical: 10 }}>
@@ -638,9 +680,9 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
               <Pressable
                 style={[s.btn, { flex: 1, marginTop: 0 }, !passDraft && { opacity: 0.5 }]}
                 disabled={!passDraft}
-                onPress={() => { setPass(passDraft); setAskPassFor(""); }}
+                onPress={connectWithPass}
               >
-                <Text style={s.btnT}>Use this</Text>
+                <Text style={s.btnT}>Connect</Text>
               </Pressable>
             </View>
           </View>
