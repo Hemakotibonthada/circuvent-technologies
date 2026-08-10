@@ -46,6 +46,48 @@
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "circuvent.com",
+              "pathPrefix": "/shop"
+            },
+            {
+              "scheme": "https",
+              "host": "circuvent.com",
+              "pathPrefix": "/track"
+            },
+            {
+              "scheme": "https",
+              "host": "circuvent.com",
+              "pathPrefix": "/smarthome"
+            },
+            {
+              "scheme": "https",
+              "host": "www.circuvent.com",
+              "pathPrefix": "/shop"
+            },
+            {
+              "scheme": "https",
+              "host": "www.circuvent.com",
+              "pathPrefix": "/track"
+            },
+            {
+              "scheme": "https",
+              "host": "www.circuvent.com",
+              "pathPrefix": "/smarthome"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "extra": {

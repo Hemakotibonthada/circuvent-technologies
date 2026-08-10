@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.circuvent.app",
+      "sha256_cert_fingerprints": [
+        "DF:01:B7:56:8A:66:D0:6F:9B:A0:65:01:F1:35:81:43:6A:3F:14:21:31:3D:FF:66:46:20:A5:60:22:4C:42:AF"
+      ]
+    }
+  }
+]
