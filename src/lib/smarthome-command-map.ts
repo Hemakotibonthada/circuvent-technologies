@@ -267,7 +267,37 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       return patch;
     }
 
-    // -------------------------------------------------------------- lock --
+    // ------------------------------------------------------------- meter --
+    case "meter":
+    case "meter-1ch":
+    case "meter-3ch":
+    case "energy-monitor": {
+      /*
+       * A meter is read, not driven. The only two things it accepts are a
+       * calibration trim and a total reset, and both are verbs the sketch
+       * switches on rather than fields it stores — projecting them as state
+       * would claim the device had changed something it merely acted on.
+       *
+       * Nothing else is projected. watts, amps, volts, pf and kwh are outputs
+       * of a measurement; a command that appeared to set them would be a
+       * console lying about physics.
+       */
+      if (action === "reset") {
+        // Only the running total moves, and only for the channel named.
+        const ch = isNum(cmd.ch) ? clamp(Math.round(cmd.ch), 0, 2) : null;
+        if (ch === null) {
+          patch.kwh = 0;
+          patch.kwh2 = 0;
+          patch.kwh3 = 0;
+        } else {
+          patch[ch === 0 ? "kwh" : `kwh${ch + 1}`] = 0;
+        }
+      }
+      // "calibrate" changes a multiplier inside the device; the next reading
+      // reflects it. There is no state key to predict, so nothing is projected.
+      return patch;
+    }
+
     case "smart-lock": {
       if (action === "lock") patch.locked = true;
       else if (action === "unlock") patch.locked = false;
@@ -678,6 +708,37 @@ export function buildFieldCommand(
         return { action: "set", power: value };
       }
       break;
+    }
+
+    // ------------------------------------------------------------- meter --
+    case "meter":
+    case "meter-1ch":
+    case "meter-3ch":
+    case "energy-monitor": {
+      if (field === "reset") {
+        // The channel travels as `ch`, matching the sketch. A bare reset
+        // clears every channel.
+        const ch = Number(value);
+        return Number.isFinite(ch) && ch >= 0
+          ? { action: "reset", ch: clamp(Math.round(ch), 0, 2) }
+          : { action: "reset" };
+      }
+      if (field === "calibrateWatts" || field === "calibrateVolts" || field === "calibrateAmps") {
+        const num = Number(value);
+        if (!Number.isFinite(num) || num <= 0) return null;
+        const key = field === "calibrateWatts" ? "watts" : field === "calibrateVolts" ? "volts" : "amps";
+        return { action: "calibrate", [key]: num };
+      }
+      /*
+       * Everything else is a reading.
+       *
+       * The generic fall-through below would happily publish
+       * { action:"set", watts: 500 } for a control that offered it, and the
+       * sketch would ignore it — a switch that appears to work and does
+       * nothing, which is the failure this map exists to prevent. Refusing
+       * here means such a control cannot be built by accident.
+       */
+      return null;
     }
 
     default:
