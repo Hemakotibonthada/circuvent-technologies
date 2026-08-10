@@ -175,6 +175,43 @@ ${plate(360, 300)}
   </g>`,
 
   // ---- products that had no illustration ---------------------------------
+  "anpr-cam": `  <g transform="translate(400 350)">
+    <!-- housing: a bullet camera on a bracket, not a dome -->
+    <rect x="-176" y="-96" width="300" height="172" rx="42" fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <rect x="124" y="-70" width="34" height="120" rx="14" fill="url(#metal)"/>
+    <!-- lens -->
+    <circle cx="-64" cy="-10" r="78" fill="#0f172a"/>
+    <circle cx="-64" cy="-10" r="78" fill="none" stroke="url(#metal)" stroke-width="8"/>
+    <circle cx="-64" cy="-10" r="46" fill="url(#accentFill)" opacity="0.35"/>
+    <circle cx="-64" cy="-10" r="26" fill="#020617"/>
+    <circle cx="-84" cy="-30" r="10" fill="#e2e8f0" opacity="0.75"/>
+    <!-- IR illuminator ring -->
+    <g fill="${"#0ea5e9"}" opacity="0.85">
+      <circle cx="58" cy="-52" r="11"/><circle cx="92" cy="-52" r="11"/>
+      <circle cx="58" cy="-16" r="11"/><circle cx="92" cy="-16" r="11"/>
+    </g>
+    <!-- mount -->
+    <rect x="-40" y="76" width="60" height="46" rx="12" fill="#475569"/>
+    <rect x="-92" y="122" width="164" height="26" rx="12" fill="url(#metal)"/>
+    <!--
+      The number plate. Drawn with real geometry rather than a single stroked
+      line: a straight line stroked with an objectBoundingBox gradient has a
+      zero-width bounding box and paints nothing at all, which is the trap
+      Docs/07-adding-a-new-device.md warns about.
+    -->
+    <g transform="translate(0 218)">
+      <rect x="-190" y="-46" width="380" height="92" rx="12" fill="#f8fafc" stroke="#0f172a" stroke-width="6"/>
+      <rect x="-190" y="-46" width="52" height="92" rx="12" fill="${"#0ea5e9"}"/>
+      <text x="-164" y="10" fill="#f8fafc" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="800" text-anchor="middle">IND</text>
+      <text x="26" y="18" fill="#0f172a" font-family="ui-monospace,Menlo,monospace" font-size="52" font-weight="800" text-anchor="middle">KA 01 AB</text>
+    </g>
+    <!-- scan brackets over the plate -->
+    <g stroke="${"#0ea5e9"}" stroke-width="8" fill="none" stroke-linecap="round">
+      <path d="M-226 148 v-32 h32"/><path d="M226 148 v-32 h-32"/>
+      <path d="M-226 288 v32 h32"/><path d="M226 288 v32 h-32"/>
+    </g>
+  </g>`,
+
   "energy-monitor": `  <g transform="translate(400 350)">
     <rect x="-190" y="-150" width="380" height="290" rx="26" fill="#1e293b" stroke="#475569" stroke-width="6"/>
     <rect x="-160" y="-120" width="320" height="150" rx="14" fill="#0f172a"/>
@@ -305,6 +342,7 @@ const LABELS = {
   facedoor: ["FaceDoor", "#f43f5e"],
   "rfid-gate": ["RFID Gate", "#f59e0b"],
   camera: ["Camera", "#a855f7"],
+  "anpr-cam": ["ANPR Camera", "#0ea5e9"],
   "energy-monitor": ["Energy Monitor", "#f59e0b"],
   "home-hub": ["Home Hub", "#14b8a6"],
   "smart-switch": ["Smart Switch", "#22d3ee"],

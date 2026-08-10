@@ -85,6 +85,12 @@ export function connectMqtt(): Promise<void> {
         client!.subscribe(topics.allFrames, { qos: 0 }, (err) => {
           if (err) logger.error({ err }, "MQTT frame subscribe failed");
         });
+        // ANPR captures, also QoS 0. A retransmitted capture of a car that has
+        // already gone through the gate is worth nothing, and the burst gives
+        // the redundancy that QoS 1 would otherwise be buying.
+        client!.subscribe(topics.allAnpr, { qos: 0 }, (err) => {
+          if (err) logger.error({ err }, "MQTT anpr subscribe failed");
+        });
       }, 1500);
       resolve();
     });
@@ -154,12 +160,28 @@ function logDynsecResponse(buf: Buffer): void {
 async function handleMessage(topic: string, buf: Buffer): Promise<void> {
   const deviceId = deviceIdFromTopic(topic);
   if (!deviceId) return;
-  const kind = topic.split("/")[2] as DeviceUpdate["kind"] | "frame";
+  const kind = topic.split("/")[2] as DeviceUpdate["kind"] | "frame" | "anpr";
 
   // Frames are binary JPEG — they must be intercepted before any utf8 decode,
   // and must never reach persistMessage.
   if (kind === "frame") {
     handleFrame(deviceId, buf);
+    return;
+  }
+
+  /*
+   * ANPR captures are also binary, and are handled by their own pipeline.
+   *
+   * Deliberately NOT gated on `watchedDevices` the way frames are: a gate
+   * camera does its work when nobody is looking, so requiring a live viewer
+   * would mean plates were only ever read while an operator happened to have
+   * the console open.
+   *
+   * Imported lazily to keep the module graph acyclic — anpr/index.ts publishes
+   * commands and emits on the bus, so it depends on this file.
+   */
+  if (kind === "anpr") {
+    void import("./anpr").then((m) => m.handleAnprCapture(deviceId, buf));
     return;
   }
 

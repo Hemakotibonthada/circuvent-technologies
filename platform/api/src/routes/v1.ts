@@ -13,6 +13,8 @@ import {
 } from "./automations";
 import { logger } from "../logger";
 import { onlineColumn, onlineSql } from "../device-online";
+import { analysePlate, normalisePlate, prettyPlate } from "../anpr/plate";
+import { listVehicles, visitsFor } from "../anpr/visits";
 
 /**
  * The public, versioned developer API.
@@ -144,6 +146,13 @@ route.get("/", (_req, res) => {
       { method: "PATCH", path: "/v1/automations/{id}", scope: "automations:write" },
       { method: "DELETE", path: "/v1/automations/{id}", scope: "automations:write" },
       { method: "GET", path: "/v1/events", scope: "events:read" },
+      { method: "GET", path: "/v1/plates", scope: "plates:read" },
+      { method: "GET", path: "/v1/plates/{id}/image", scope: "plates:read" },
+      { method: "GET", path: "/v1/vehicles", scope: "plates:read" },
+      { method: "GET", path: "/v1/vehicles/{plate}", scope: "plates:read" },
+      { method: "GET", path: "/v1/plate-rules", scope: "plates:read" },
+      { method: "POST", path: "/v1/plate-rules", scope: "plates:write" },
+      { method: "DELETE", path: "/v1/plate-rules/{id}", scope: "plates:write" },
     ],
   });
 });
@@ -597,6 +606,274 @@ route.get("/events", requireApiAccess("events:read"), async (req: ApiRequest, re
       at: e.ts.toISOString(),
     })),
   });
+});
+
+/* ------------------------------------------------------------------ */
+/* ANPR                                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * GET /v1/plates?deviceId=&plate=&decision=&status=&since=&limit=
+ *
+ * The endpoint an integration actually wants: a parking system, a visitor
+ * log, a billing job. Deliberately does not return the capture image —
+ * `hasImage` plus a URL keeps a page of 100 reads a few KB instead of several
+ * MB, and most rows are never opened.
+ */
+route.get("/plates", requireApiAccess("plates:read"), async (req: ApiRequest, res) => {
+  const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 50));
+  const since = typeof req.query.since === "string" ? new Date(req.query.since) : null;
+  if (since && Number.isNaN(since.getTime())) {
+    res.status(400).json({ error: "`since` must be an ISO-8601 timestamp.", code: "invalid_query" });
+    return;
+  }
+  const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId : null;
+  const decision = typeof req.query.decision === "string" ? req.query.decision : null;
+  const status = typeof req.query.status === "string" ? req.query.status : null;
+  // Normalised on the way in, so a caller may send "KA 01 AB 1234" or
+  // "ka-01-ab-1234" and get the same rows the console would show.
+  const plate = typeof req.query.plate === "string" ? normalisePlate(req.query.plate) : null;
+
+  const { rows } = await pool.query<{
+    id: string; device_id: string; capture_id: string; plate: string; confidence: number;
+    votes: number; samples: number; kind: string; status: string; reason: string;
+    decision: string; trigger: string; ts: Date; has_thumb: boolean;
+  }>(
+    `SELECT id, device_id, capture_id, plate, confidence, votes, samples, kind,
+            status, reason, decision, trigger, ts, (thumb IS NOT NULL) AS has_thumb
+       FROM plate_reads
+      WHERE owner_id = $1
+        AND ($3::text IS NULL OR device_id = $3)
+        AND ($4::text IS NULL OR decision = $4)
+        AND ($5::text IS NULL OR status = $5)
+        AND ($6::text IS NULL OR plate = $6)
+        AND ($7::timestamptz IS NULL OR ts > $7)
+      ORDER BY ts DESC LIMIT $2`,
+    [req.user!.uid, limit, deviceId, decision, status, plate || null, since]
+  );
+
+  res.json({
+    plates: rows.map((r) => ({
+      id: Number(r.id),
+      deviceId: r.device_id,
+      captureId: Number(r.capture_id),
+      plate: r.plate || null,
+      formatted: r.plate ? prettyPlate(r.plate) : null,
+      confidence: r.confidence,
+      votes: r.votes,
+      samples: r.samples,
+      plateKind: r.kind,
+      status: r.status,
+      reason: r.reason || null,
+      decision: r.decision,
+      trigger: r.trigger,
+      hasImage: r.has_thumb,
+      imageUrl: r.has_thumb ? `/v1/plates/${r.id}/image` : null,
+      at: r.ts.toISOString(),
+    })),
+  });
+});
+
+/** GET /v1/plates/:id/image — the capture the plate was read from, as JPEG. */
+route.get("/plates/:id/image", requireApiAccess("plates:read"), async (req: ApiRequest, res) => {
+  const { rows } = await pool.query<{ thumb: string | null }>(
+    `SELECT thumb FROM plate_reads WHERE id = $1 AND owner_id = $2`,
+    [Number(req.params.id), req.user!.uid]
+  );
+  const thumb = rows[0]?.thumb;
+  if (!thumb) {
+    res.status(404).json({ error: "No image for that read.", code: "not_found" });
+    return;
+  }
+  const buf = Buffer.from(thumb, "base64");
+  res.setHeader("content-type", "image/jpeg");
+  res.setHeader("cache-control", "private, max-age=86400, immutable");
+  res.end(buf);
+});
+
+/**
+ * GET /v1/vehicles?days=&limit=
+ *
+ * The vehicle register: one row per distinct plate rather than per sighting.
+ * This is what a parking, billing or visitor-management integration needs —
+ * "how many times has this van been here and is it here now" cannot be
+ * answered by paging /v1/plates.
+ */
+route.get("/vehicles", requireApiAccess("plates:read"), async (req: ApiRequest, res) => {
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 200));
+  const vehicles = await listVehicles(req.user!.uid, days, limit);
+  res.json({
+    days,
+    insideNow: vehicles.filter((v) => v.inside).length,
+    vehicles: vehicles.map((v) => ({
+      plate: v.plate,
+      formatted: prettyPlate(v.plate),
+      passes: v.passes,
+      entries: v.entries,
+      exits: v.exits,
+      visits: v.visits,
+      inside: v.inside,
+      firstSeen: v.firstSeen,
+      lastSeen: v.lastSeen,
+      averageStaySeconds: v.avgStaySec,
+      totalStaySeconds: v.totalStaySec,
+      cameras: v.devices,
+      list: v.rule,
+      label: v.label,
+    })),
+  });
+});
+
+/** GET /v1/vehicles/{plate} — visit history for one vehicle. */
+route.get("/vehicles/:plate", requireApiAccess("plates:read"), async (req: ApiRequest, res) => {
+  // Normalised on the way in, so a caller may pass "KA 01 AB 1234" or
+  // "ka-01-ab-1234" and reach the same vehicle the camera recorded.
+  const plate = normalisePlate(req.params.plate);
+  if (!plate) {
+    res.status(400).json({ error: "Not a plate.", code: "invalid_plate" });
+    return;
+  }
+
+  const { rows: seen } = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM plate_reads WHERE owner_id = $1 AND plate = $2`,
+    [req.user!.uid, plate]
+  );
+  // 404 rather than an empty profile: "came zero times" reads like a working
+  // answer to what is actually a typo.
+  if (Number(seen[0]?.n ?? 0) === 0) {
+    res.status(404).json({ error: "No sightings of that plate.", code: "not_found" });
+    return;
+  }
+
+  const visits = await visitsFor(req.user!.uid, plate, 500);
+  const closed = visits.filter((v) => v.durationSec != null);
+  res.json({
+    plate,
+    formatted: prettyPlate(plate),
+    passes: Number(seen[0].n),
+    visits: visits.map((v) => ({
+      id: v.id,
+      entryAt: v.entryAt,
+      exitAt: v.exitAt,
+      entryCamera: v.entryDevice,
+      exitCamera: v.exitDevice,
+      status: v.status,
+      // Null, never 0, when a read was missed — a fabricated duration is worse
+      // than an absent one for anything billed or audited.
+      staySeconds: v.durationSec,
+    })),
+    inside: visits.some((v) => v.status === "open"),
+    totalStaySeconds: closed.reduce((n, v) => n + (v.durationSec ?? 0), 0),
+  });
+});
+
+/** GET /v1/plate-rules — the allow / deny / watch list. */route.get("/plate-rules", requireApiAccess("plates:read"), async (req: ApiRequest, res) => {
+  const { rows } = await pool.query<{
+    id: string; plate: string; kind: string; label: string; device_id: string | null;
+    valid_from: Date | null; valid_to: Date | null; enabled: boolean; hits: string;
+  }>(
+    `SELECT id, plate, kind, label, device_id, valid_from, valid_to, enabled, hits
+       FROM plate_rules WHERE owner_id = $1 ORDER BY plate`,
+    [req.user!.uid]
+  );
+  res.json({
+    rules: rows.map((r) => ({
+      id: Number(r.id),
+      plate: r.plate,
+      formatted: prettyPlate(r.plate),
+      kind: r.kind,
+      label: r.label,
+      deviceId: r.device_id,
+      validFrom: r.valid_from ? r.valid_from.toISOString() : null,
+      validTo: r.valid_to ? r.valid_to.toISOString() : null,
+      enabled: r.enabled,
+      hits: Number(r.hits),
+    })),
+  });
+});
+
+const v1PlateRuleSchema = z.object({
+  plate: z.string().trim().min(4).max(20),
+  kind: z.enum(["allow", "deny", "watch"]).default("allow"),
+  label: z.string().trim().max(80).default(""),
+  deviceId: z.string().min(1).nullable().default(null),
+  validFrom: z.string().datetime().nullable().default(null),
+  validTo: z.string().datetime().nullable().default(null),
+});
+
+/** POST /v1/plate-rules — put a plate on a list. */
+route.post("/plate-rules", requireApiAccess("plates:write"), async (req: ApiRequest, res) => {
+  const parsed = v1PlateRuleSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "Invalid rule.",
+      code: "invalid_body",
+      details: parsed.error.flatten().fieldErrors,
+    });
+    return;
+  }
+  const { kind, label, deviceId, validFrom, validTo } = parsed.data;
+
+  // Validated and corrected by the same analyser a camera read goes through,
+  // so a rule and a read of the same vehicle can never be different strings.
+  const analysis = analysePlate(parsed.data.plate);
+  if (!analysis.valid) {
+    res.status(400).json({
+      error: `"${parsed.data.plate}" is not a valid registration.`,
+      code: "invalid_plate",
+    });
+    return;
+  }
+
+  if (deviceId && !(await ownsDevice(req.user!.uid, deviceId))) {
+    res.status(404).json({ error: "No such device.", code: "not_found" });
+    return;
+  }
+
+  try {
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO plate_rules (owner_id, plate, kind, label, device_id, valid_from, valid_to)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [req.user!.uid, analysis.plate, kind, label, deviceId, validFrom, validTo]
+    );
+    res.status(201).json({
+      rule: {
+        id: Number(rows[0].id),
+        plate: analysis.plate,
+        formatted: prettyPlate(analysis.plate),
+        kind,
+        label,
+        deviceId,
+        validFrom,
+        validTo,
+        enabled: true,
+        hits: 0,
+      },
+    });
+  } catch (err) {
+    if ((err as { code?: string }).code === "23505") {
+      res.status(409).json({
+        error: `${prettyPlate(analysis.plate)} is already on a list for that scope.`,
+        code: "duplicate_plate",
+      });
+      return;
+    }
+    throw err;
+  }
+});
+
+/** DELETE /v1/plate-rules/:id */
+route.delete("/plate-rules/:id", requireApiAccess("plates:write"), async (req: ApiRequest, res) => {
+  const { rowCount } = await pool.query(`DELETE FROM plate_rules WHERE id = $1 AND owner_id = $2`, [
+    Number(req.params.id),
+    req.user!.uid,
+  ]);
+  if (!rowCount) {
+    res.status(404).json({ error: "No such rule.", code: "not_found" });
+    return;
+  }
+  res.json({ deleted: true });
 });
 
 v1Router.use((_req, res) => {

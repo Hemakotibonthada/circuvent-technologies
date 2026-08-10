@@ -55,12 +55,20 @@ and left in place, but do not edit it expecting an effect.
 | `cv/<id>/state` | device → control plane | 1 | **yes** | Full authoritative state |
 | `cv/<id>/telemetry` | device → control plane | 0/1 | no | Time-series readings |
 | `cv/<id>/frame` | device → control plane | 0 | **no** | Raw binary JPEG from cameras |
+| `cv/<id>/anpr` | device → control plane | 0 | **no** | Vehicle capture: 16-byte header + JPEG. See [20 — ANPR](./20-anpr.md) |
 | `cv/<id>/status` | device (and Last-Will) | 1 | **yes** | `{"online":true|false}` |
 
 `state` and `status` are retained so a newly connected app sees the current
 value immediately instead of waiting for the next change. `frame` must never be
 retained — a retained frame hands the camera's last picture to anything that
 subscribes later.
+
+`anpr` is a separate topic from `frame` rather than a reuse of it, and the
+difference is load-bearing: a frame is **dropped unless somebody is watching**
+(see `watchedDevices` below), whereas an ANPR capture must be processed
+precisely when nobody is watching — an unattended gate is the entire use case.
+Reusing `frame` would mean plates were only ever read while an operator happened
+to have the live view open.
 
 ## Payloads
 

@@ -93,6 +93,19 @@ services:
       OTP_DEBUG: ${OTP_DEBUG:-false}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       FEDERATION_SECRET: ${FEDERATION_SECRET:-}
+      # ANPR. These MUST be listed here, not only in .env.example: compose
+      # passes through exactly what is named below, which is how
+      # FEDERATION_SECRET stayed silently unset and SSO kept returning 501.
+      ANPR_PROVIDER: ${ANPR_PROVIDER:-none}
+      ANPR_BASE_URL: ${ANPR_BASE_URL:-}
+      ANPR_API_KEY: ${ANPR_API_KEY:-}
+      ANPR_MODEL: ${ANPR_MODEL:-gpt-4o-mini}
+      ANPR_REGION: ${ANPR_REGION:-in}
+      ANPR_TIMEOUT_MS: ${ANPR_TIMEOUT_MS:-12000}
+      ANPR_MIN_CONFIDENCE: ${ANPR_MIN_CONFIDENCE:-70}
+      ANPR_RETENTION_DAYS: ${ANPR_RETENTION_DAYS:-90}
+      ANPR_IMAGE_RETENTION_DAYS: ${ANPR_IMAGE_RETENTION_DAYS:-30}
+      ANPR_THUMBNAIL_MAX_KB: ${ANPR_THUMBNAIL_MAX_KB:-96}
     depends_on:
       postgres:
         condition: service_healthy

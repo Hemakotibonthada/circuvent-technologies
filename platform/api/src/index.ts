@@ -24,11 +24,13 @@ import { eventsRouter } from "./routes/events";
 import { energyRouter } from "./routes/energy";
 import { adminRouter } from "./routes/admin";
 import { gateRouter } from "./routes/gate";
+import { anprRouter } from "./routes/anpr";
 import { v1Router } from "./routes/v1";
 import { developerRouter } from "./routes/developer";
 import { consoleRouter } from "./routes/console";
 import { startAutomationScheduler } from "./automations";
 import { startWebhooks } from "./webhooks";
+import { startAnpr } from "./anpr";
 import { startLivenessSweeper } from "./liveness";
 
 async function main(): Promise<void> {
@@ -104,6 +106,7 @@ async function main(): Promise<void> {
   app.use("/energy", energyRouter);
   app.use("/admin", adminRouter);
   app.use("/gate", gateRouter);
+  app.use("/anpr", anprRouter);
   // Mounted last so it can never shadow an API path: it only claims "/" and
   // "/index.json", and every route above is matched first.
   app.use("/", consoleRouter);
@@ -115,6 +118,7 @@ async function main(): Promise<void> {
 
   startAutomationScheduler();
   startWebhooks();
+  startAnpr();
   startLivenessSweeper();
 
   server.listen(config.PORT, () => logger.info(`Control plane listening on :${config.PORT}`));

@@ -20,6 +20,7 @@ project. All of them speak the same protocol
 | `facedoor` | FaceDoor | PIN + fingerprint + face door controller |
 | `rfid-gate` | RFID Gate | Long-range UHF vehicle barrier |
 | `camera` | Camera | ESP32-CAM live video node |
+| `anpr-cam` | ANPR Camera | Reads vehicle number plates at a gate — see [20 — ANPR](./20-anpr.md) |
 | `motion-sensor` | Motion Sensor | PIR intrusion detection |
 | `guardian` | Guardian | Safety / SOS unit |
 | `energy-monitor` | Energy Monitor | Whole-home CT clamp metering |

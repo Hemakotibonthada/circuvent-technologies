@@ -19,11 +19,39 @@ const ownershipCache = new Map<string, number>();
 
 export const OWNERSHIP_TTL_MS = 5_000;
 
+/**
+ * Other caches keyed by device that must be dropped whenever ownership moves.
+ *
+ * A registration list rather than a direct import, so this module keeps no
+ * dependency on the subsystems that use it — `anpr/index.ts` already imports
+ * mqtt, which lazily imports anpr, and adding ownership to that ring is how a
+ * module cycle gets created.
+ *
+ * It exists because the contract above ("every path that mutates owner_id must
+ * invalidate") is only worth anything if one call clears *everything* keyed by
+ * that device. The ANPR pipeline caches owner + lane for 30 s; without this, a
+ * device unclaimed and re-claimed by a different account inside that window
+ * would file the new owner's number-plate reads into the previous owner's log.
+ */
+type DeviceCacheHook = (id: string) => void;
+const deviceHooks: DeviceCacheHook[] = [];
+
+export function onOwnershipChange(hook: DeviceCacheHook): void {
+  deviceHooks.push(hook);
+}
+
 /** Drop cached ownership for one device (claim, unclaim, admin reassign/delete). */
 export function invalidateOwnership(id: string): void {
   const suffix = `:${id}`;
   for (const key of ownershipCache.keys()) {
     if (key.endsWith(suffix)) ownershipCache.delete(key);
+  }
+  for (const hook of deviceHooks) {
+    try {
+      hook(id);
+    } catch {
+      /* a downstream cache must never break an ownership change */
+    }
   }
 }
 

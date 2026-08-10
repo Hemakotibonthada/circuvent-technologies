@@ -2325,8 +2325,7 @@ function AnprCamera({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
   const lastPlate = typeof d.state.lastPlate === "string" ? d.state.lastPlate : "";
   const lastDecision = typeof d.state.lastDecision === "string" ? d.state.lastDecision : "";
   const lastConfidence = n(d.state.lastConfidence);
-  const hasLoop = b(d.state.hasLoop);
-  const hasRelay = b(d.state.hasRelay);
+  const hasLoop = b(d.state.hasLoop);  const hasRelay = b(d.state.hasRelay);
   const resolution = typeof d.state.resolution === "string" ? d.state.resolution : "SVGA";
   const lane = d.state.direction === "in" || d.state.direction === "out" ? d.state.direction : "both";
 

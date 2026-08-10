@@ -43,6 +43,18 @@ export const API_SCOPES = [
   "automations:read",
   "automations:write",
   "events:read",
+  /*
+   * Plate data is its own scope, not part of `telemetry:read`.
+   *
+   * A telemetry key reads power and water level. A plate log is a record of
+   * which vehicles came to a property and when — about people who never
+   * agreed to anything and are not the account holder. Granting that silently
+   * alongside a meter reading is exactly the kind of over-broad credential
+   * the whole scope system exists to prevent, so a key must be given it
+   * deliberately.
+   */
+  "plates:read",
+  "plates:write",
 ] as const;
 
 export type ApiScope = (typeof API_SCOPES)[number];
@@ -68,6 +80,8 @@ export const SCOPE_DESCRIPTIONS: Record<ApiScope, string> = {
   "automations:read": "List automation rules.",
   "automations:write": "Create, update, enable, disable and delete automation rules.",
   "events:read": "Read the event and activity feed.",
+  "plates:read": "Read ANPR number-plate reads and the allow / deny / watch list.",
+  "plates:write": "Add, change and remove entries on the plate allow / deny / watch list.",
 };
 
 /** Environment marker in the key body. Both are real keys against real data. */

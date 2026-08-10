@@ -33,7 +33,19 @@ async function ownerDevices(uid: number): Promise<Dev[]> {
   return rows;
 }
 
-/** On/off mapping per device type. Returns null for non-switchable devices. */
+/**
+ * On/off mapping per device type. Returns null for non-switchable devices.
+ *
+ * The omissions are deliberate and are the security boundary for voice: a type
+ * that is absent here simply does not exist to Google or Alexa. Locks, gates,
+ * cameras and `anpr-cam` are all left out on purpose — their only boolean is a
+ * *mode* (locked, armed) rather than a load, so exposing it would put "turn off
+ * the gate camera" or "unlock the front door" behind anything that can reach a
+ * smart speaker, including a voice through a window.
+ *
+ * Adding a type here is therefore a decision about physical security, not a
+ * feature toggle.
+ */
 function onOff(type: string): { field: string; cmd: (v: boolean) => Record<string, unknown> } | null {
   switch (type) {
     case "smart-plug":

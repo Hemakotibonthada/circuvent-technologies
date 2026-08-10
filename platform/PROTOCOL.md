@@ -16,6 +16,7 @@ Everything is JSON over MQTT on our own broker (`mqtts://mqtt.circuvent.com:8883
 | `cv/<id>/state` | device → control-plane | 1 | yes | Current authoritative state (retained so the app sees it instantly) |
 | `cv/<id>/telemetry` | device → control-plane | 0/1 | no | Time-series readings (power, level, temp…) |
 | `cv/<id>/frame` | device → control-plane | 0 | **no** | **Raw binary JPEG** from camera devices. Relayed live, never stored. |
+| `cv/<id>/anpr` | device → control-plane | 0 | **no** | **Vehicle capture** from an ANPR camera: 16-byte header + JPEG. Never stored as telemetry. See Docs/20-anpr.md |
 | `cv/<id>/status` | device (LWT) | 1 | yes | `{"online":true}` on connect, `{"online":false}` via Last-Will |
 
 ### Why frames are not telemetry

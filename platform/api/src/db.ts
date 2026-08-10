@@ -341,6 +341,155 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_device_audit_device ON device_audit(device_id, ts DESC);
     CREATE INDEX IF NOT EXISTS idx_device_audit_actor ON device_audit(actor_id, ts DESC);
+
+    /*
+     * ANPR plate reads.
+     *
+     * A separate table rather than rows in "telemetry", for three reasons that
+     * telemetry cannot satisfy:
+     *
+     *  - it is queried by plate, not by device and time. "Has KA01AB1234 been
+     *    here before" against a JSONB column on the fleet-wide telemetry table
+     *    is a sequential scan; here it is an index.
+     *  - it holds an image. Telemetry rows are small and are read in bulk for
+     *    charts, and a base64 thumbnail on every row would make the energy
+     *    dashboard drag megabytes it never looks at.
+     *  - it has its own retention. Plate reads are personal data about people
+     *    who never agreed to anything, so they expire on a schedule of their
+     *    own (ANPR_RETENTION_DAYS) rather than living as long as a power
+     *    reading.
+     *
+     * "plate" is the normalised form (no spaces, corrected) because that is
+     * what is compared; "plate_raw" keeps what the recogniser actually said so
+     * a disputed read can be investigated rather than argued about.
+     */
+    CREATE TABLE IF NOT EXISTS plate_reads (
+      id           BIGSERIAL PRIMARY KEY,
+      device_id    TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id     BIGINT REFERENCES users(id) ON DELETE CASCADE,
+      capture_id   BIGINT NOT NULL DEFAULT 0,
+      plate        TEXT NOT NULL DEFAULT '',
+      plate_raw    TEXT NOT NULL DEFAULT '',
+      confidence   INT NOT NULL DEFAULT 0,
+      votes        INT NOT NULL DEFAULT 0,
+      samples      INT NOT NULL DEFAULT 0,
+      kind         TEXT NOT NULL DEFAULT 'unknown',
+      -- recognised | unrecognised
+      status       TEXT NOT NULL DEFAULT 'unrecognised',
+      -- why an unrecognised read failed: no_recogniser | no_plate | timeout |
+      -- provider_error | invalid_format
+      reason       TEXT NOT NULL DEFAULT '',
+      -- allow | deny | watch | unknown — what the rules said at the time.
+      -- Stored rather than recomputed: a rule edited next week must not
+      -- silently rewrite what the gate did last night.
+      decision     TEXT NOT NULL DEFAULT 'unknown',
+      rule_id      BIGINT,
+      trigger      TEXT NOT NULL DEFAULT 'motion',
+      -- Base64 JPEG of the frame the plate was read from. Nullable because a
+      -- deployment may turn images off entirely, and because the retention
+      -- sweep clears it before deleting the row.
+      thumb        TEXT,
+      ms           INT NOT NULL DEFAULT 0,
+      ts           TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_plate_reads_device_ts ON plate_reads(device_id, ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_plate_reads_owner_ts ON plate_reads(owner_id, ts DESC);
+    -- The "have I seen this vehicle" lookup, and the retention sweep.
+    CREATE INDEX IF NOT EXISTS idx_plate_reads_plate ON plate_reads(owner_id, plate, ts DESC) WHERE plate <> '';
+    CREATE INDEX IF NOT EXISTS idx_plate_reads_ts ON plate_reads(ts);
+
+    /*
+     * The allow / deny / watch list.
+     *
+     * "plate" is stored normalised, by the same function that normalises a
+     * read (normalisePlate in anpr/plate.ts), so "KA 01 AB 1234" typed by a
+     * person and "KA01AB1234" read by a camera are the same row. Doing this
+     * anywhere other than at both ends is how an allow-list silently stops
+     * matching.
+     *
+     * A rule may be scoped to one device or left global for the account: a
+     * household wants one list across the front and back gates, while a
+     * business with two sites does not.
+     */
+    CREATE TABLE IF NOT EXISTS plate_rules (
+      id          BIGSERIAL PRIMARY KEY,
+      owner_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plate       TEXT NOT NULL,
+      -- allow | deny | watch
+      kind        TEXT NOT NULL DEFAULT 'allow',
+      label       TEXT NOT NULL DEFAULT '',
+      -- NULL means every ANPR camera on the account.
+      device_id   TEXT REFERENCES devices(id) ON DELETE CASCADE,
+      -- Optional validity window, for a contractor or a visitor.
+      valid_from  TIMESTAMPTZ,
+      valid_to    TIMESTAMPTZ,
+      enabled     BOOLEAN NOT NULL DEFAULT true,
+      hits        BIGINT NOT NULL DEFAULT 0,
+      last_hit_at TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_plate_rules_owner ON plate_rules(owner_id, plate);
+    -- One rule per plate per scope. A plate that is both allowed and denied is
+    -- not a policy, it is a bug waiting to be argued about at a barrier, so the
+    -- database refuses to hold that state at all.
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plate_rules_unique
+      ON plate_rules(owner_id, plate, COALESCE(device_id, ''));
+
+    /*
+     * Visits — one vehicle's stay, pairing an entry read with an exit read.
+     *
+     * Derived rather than raw, and stored rather than recomputed, for one
+     * reason: the question "how long was that van inside" cannot be answered
+     * by looking at a read. It needs two reads matched across time, and
+     * matching them on every page load means re-pairing months of history for
+     * every plate on every request.
+     *
+     * THE UNPAIRED STATES ARE FIRST-CLASS, NOT ERRORS
+     *
+     * A gate camera misses reads. A car tailgates another through one barrier
+     * cycle, a plate is obscured by rain, a van leaves while the device is
+     * rebooting. If the model only allowed clean entry/exit pairs, the first
+     * missed read would corrupt every subsequent pairing for that vehicle —
+     * every later entry would close a visit that never ended, and dwell times
+     * would be nonsense from then on. So a visit may legitimately have no
+     * entry or no exit, it says which, and pairing resumes correctly at the
+     * next clean read.
+     *
+     *   open          inside now: entry seen, no exit yet
+     *   closed        entry and exit both read
+     *   entry_missed  seen leaving with no recorded arrival
+     *   exit_missed   arrived again before the previous departure was read
+     */
+    CREATE TABLE IF NOT EXISTS plate_visits (
+      id             BIGSERIAL PRIMARY KEY,
+      owner_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plate          TEXT NOT NULL,
+      entry_at       TIMESTAMPTZ,
+      exit_at        TIMESTAMPTZ,
+      entry_read_id  BIGINT,
+      exit_read_id   BIGINT,
+      entry_device   TEXT,
+      exit_device    TEXT,
+      status         TEXT NOT NULL DEFAULT 'open',
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_plate_visits_owner_plate
+      ON plate_visits(owner_id, plate, COALESCE(entry_at, exit_at) DESC);
+    -- "Who is inside right now" is the query a gate operator runs most, and it
+    -- must not scan closed history to answer it.
+    CREATE INDEX IF NOT EXISTS idx_plate_visits_open
+      ON plate_visits(owner_id, plate) WHERE status = 'open';
+    CREATE INDEX IF NOT EXISTS idx_plate_visits_created ON plate_visits(created_at);
+
+    /*
+     * Direction of travel for the read, resolved by the control plane from the
+     * camera's lane setting. Nullable because reads predating this column, and
+     * reads from a lane whose direction could not be resolved, genuinely have
+     * no answer — and "unknown" must not be silently rendered as "in".
+     */
+    ALTER TABLE plate_reads ADD COLUMN IF NOT EXISTS direction TEXT;
+    ALTER TABLE plate_reads ADD COLUMN IF NOT EXISTS visit_id BIGINT;
   `);
 
   await backfillSerials();

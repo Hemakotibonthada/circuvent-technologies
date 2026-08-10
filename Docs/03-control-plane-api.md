@@ -114,6 +114,25 @@ ordered array of up to 12 steps**, each optionally carrying a `delayMs` pause.
 | --- | --- | --- |
 | GET | `/energy/summary` | [auth] |
 
+### `/anpr`
+
+Number-plate reads and the allow / deny / watch list. See
+[20 — ANPR](./20-anpr.md).
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| GET | `/anpr/reads` | [auth] | The plate log, filterable by device, plate, decision and status |
+| GET | `/anpr/reads/:id/image` | [auth] | The capture the plate was read from, as `image/jpeg` |
+| GET | `/anpr/summary` | [auth] | Counts, busiest hours and frequent vehicles |
+| GET | `/anpr/vehicles` | [auth] | The vehicle register: passes, entries, exits, who is inside now |
+| GET | `/anpr/vehicles/:plate` | [auth] | One vehicle: visit history with in/out times, dwell, and every capture |
+| GET | `/anpr/rules` | [auth] | The allow / deny / watch list |
+| POST | `/anpr/rules` | [auth] | Add a plate to a list |
+| PATCH | `/anpr/rules/:id` | [auth] | Change or disable a rule |
+| DELETE | `/anpr/rules/:id` | [auth] | Remove a rule |
+| POST | `/anpr/rules/from-read/:id` | [auth] | Add the plate of an existing read — never re-typed from a photograph |
+| POST | `/anpr/devices/:id/capture` | [auth] | Take a burst now (the installer's tool) |
+
 ### `/account`
 
 | Method | Path | Auth | Purpose |
@@ -211,6 +230,14 @@ start half-working.
 | `OTP_DEBUG` | no | `false` | Log OTP codes when email is unconfigured |
 | `ADMIN_EMAILS` | no | `""` | Comma-separated emails auto-granted admin on login |
 | `FEDERATION_SECRET` | no | `""` | Shop ↔ console SSO. **Empty disables the endpoint entirely.** |
+| `ANPR_PROVIDER` | no | `none` | `none` \| `platerecognizer` \| `openai` \| `http`. **`none` still captures and logs vehicles — it only skips reading the plate.** See [20 — ANPR](./20-anpr.md) |
+| `ANPR_BASE_URL` / `ANPR_API_KEY` / `ANPR_MODEL` | no | `""` | Recogniser endpoint and credentials |
+| `ANPR_REGION` | no | `in` | Region hint passed to the recogniser |
+| `ANPR_TIMEOUT_MS` | no | `12000` | Per-frame recogniser timeout |
+| `ANPR_MIN_CONFIDENCE` | no | `70` | Below this a read is stored but never resolves to `allow` |
+| `ANPR_RETENTION_DAYS` | no | `90` | Plate history retention |
+| `ANPR_IMAGE_RETENTION_DAYS` | no | `30` | Capture images are cleared **before** the metadata is deleted |
+| `ANPR_THUMBNAIL_MAX_KB` | no | `96` | Captures above this are recorded without an image |
 
 If neither SMTP nor Resend is configured, OTP codes are logged in development
 (or when `OTP_DEBUG=true`) so sign-up still works while email is being set up.

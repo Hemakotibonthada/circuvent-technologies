@@ -19,6 +19,20 @@ export const WEBHOOK_EVENTS = [
   "device.telemetry",
   "device.online",
   "device.offline",
+  /*
+   * ANPR plate reads.
+   *
+   * Split out of `device.telemetry` rather than left inside it. A plate read
+   * is the event an integration actually wants — a barrier controller, a
+   * visitor log, a parking billing system — and making it subscribe to every
+   * power reading from every device to find them would mean filtering
+   * thousands of irrelevant deliveries a day.
+   *
+   * A read is therefore delivered as `plate.read` and NOT also as
+   * `device.telemetry`. Nothing regresses, because no plate events existed
+   * before this event did.
+   */
+  "plate.read",
 ] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
@@ -183,7 +197,12 @@ let queue = 0;
 
 function eventFor(u: DeviceUpdate): WebhookEvent | null {
   if (u.kind === "state") return "device.state";
-  if (u.kind === "telemetry") return "device.telemetry";
+  if (u.kind === "telemetry") {
+    // A plate read rides the telemetry channel but is its own event; see the
+    // note on WEBHOOK_EVENTS.
+    const t = (u.payload as { type?: unknown } | null)?.type;
+    return t === "plate" ? "plate.read" : "device.telemetry";
+  }
   if (u.kind === "status") {
     return (u.payload as { online?: boolean }).online ? "device.online" : "device.offline";
   }

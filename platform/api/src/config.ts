@@ -38,6 +38,52 @@ const schema = z.object({
   // disables federation entirely, so a deployment that has not configured it
   // cannot be talked into minting sessions.
   FEDERATION_SECRET: z.string().default(""),
+  /*
+   * ANPR plate recognition.
+   *
+   * Optional by design. With none of this set the ANPR pipeline still runs
+   * end to end — captures are received, vehicle arrivals are recorded, the
+   * thumbnail is kept and automations fire — and every read is stored with
+   * `status: "unrecognised"` and the reason `no_recogniser`. That is the same
+   * bargain the AI assistant makes in Docs/16-ai-assistant.md: the
+   * deterministic part always works, and the model only ever adds to it.
+   *
+   * The alternative, refusing to accept captures without a recogniser, would
+   * mean a customer who has not bought OCR gets a camera that appears broken.
+   */
+  ANPR_PROVIDER: z.enum(["none", "platerecognizer", "openai", "http"]).default("none"),
+  ANPR_BASE_URL: z.string().default(""),
+  ANPR_API_KEY: z.string().default(""),
+  ANPR_MODEL: z.string().default("gpt-4o-mini"),
+  /** Two-letter region hint, e.g. `in`. Improves format disambiguation. */
+  ANPR_REGION: z.string().default("in"),
+  ANPR_TIMEOUT_MS: z.coerce.number().default(12000),
+  /** Reads below this are stored but never drive a gate. 0-100. */
+  ANPR_MIN_CONFIDENCE: z.coerce.number().min(0).max(100).default(70),
+  /** Days of plate history to keep. The retention sweep runs daily. */
+  ANPR_RETENTION_DAYS: z.coerce.number().min(1).max(3650).default(90),
+  /*
+   * Images expire before the metadata does, and that gap is the point.
+   *
+   * "A vehicle with this plate arrived at 19:42" is what a dispute or an
+   * access review needs months later. The photograph of it — which also
+   * contains whoever was walking past, and the inside of the car — is only
+   * useful for the few weeks in which somebody might question a specific
+   * read. Keeping both for the same period means keeping pictures of the
+   * street for no reason anyone can state.
+   */
+  ANPR_IMAGE_RETENTION_DAYS: z.coerce.number().min(0).max(3650).default(30),
+  /*
+   * Largest capture kept as a stored thumbnail, in KB.
+   *
+   * The arithmetic that matters: a busy gate sees ~50 vehicles a day, and an
+   * SVGA capture is 60-100 KB, which base64 inflates by a third. At 30 days of
+   * images that is roughly 200 MB — real, but survivable on the 20 GB minimum
+   * disk in Docs/12-vm-runbook.md alongside telemetry. Anything over the cap is
+   * recorded without its image rather than stored truncated, because a
+   * half-written JPEG renders as a grey box and looks like a camera fault.
+   */
+  ANPR_THUMBNAIL_MAX_KB: z.coerce.number().min(0).max(2048).default(96),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -63,11 +109,25 @@ export const topics = {
    * clients and then dropped.
    */
   frame: (deviceId: string) => `cv/${deviceId}/frame`,
+  /**
+   * ANPR vehicle captures. A separate topic from `frame` because the two have
+   * opposite delivery rules: a frame is dropped unless somebody is watching
+   * live, whereas a capture must be processed precisely when nobody is
+   * watching — that is the entire point of an unattended gate camera. Reusing
+   * `frame` would mean plates were only ever read while an operator happened
+   * to have the live view open.
+   *
+   * Binary, QoS 0, never retained. The payload is a 16-byte header followed by
+   * the JPEG; see `anpr/protocol.ts` and the `AnprHeader` struct in
+   * firmware/anpr-cam/anpr-cam.ino.
+   */
+  anpr: (deviceId: string) => `cv/${deviceId}/anpr`,
   // Wildcards the control-plane subscribes to.
   allState: "cv/+/state",
   allTelemetry: "cv/+/telemetry",
   allStatus: "cv/+/status",
   allFrames: "cv/+/frame",
+  allAnpr: "cv/+/anpr",
 };
 
 /** Extract the deviceId from an inbound topic like cv/<id>/state. */
