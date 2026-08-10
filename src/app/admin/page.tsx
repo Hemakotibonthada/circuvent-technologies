@@ -45,6 +45,7 @@ import AuditLogPanel from "./AuditLogPanel";
 import MessagesPanel from "./MessagesPanel";
 import AdminAlerts from "./AdminAlerts";
 import Admin2fa from "./Admin2fa";
+import AdminPasskeys from "./AdminPasskeys";
 import AdminPassword, { ForcePasswordChange } from "./AdminPassword";
 import { FileBarChart, Inbox, Cpu, Mail, Gauge } from "lucide-react";
 import DevicesPanel from "./DevicesPanel";
@@ -72,6 +73,8 @@ import BundlesPanel from "./BundlesPanel";
 import MacrosPanel from "./MacrosPanel";
 import SurveysPanel from "./SurveysPanel";
 import { Coins, ShieldQuestion, LineChart, FileSpreadsheet, Settings } from "lucide-react";
+import { KeyRound } from "lucide-react";
+import { usePasskey, usePasskeySupport } from "@/lib/usePasskey";
 import CurrencyPanel from "./CurrencyPanel";
 import PrivacyPanel from "./PrivacyPanel";
 import StaffActivityPanel from "./StaffActivityPanel";
@@ -233,6 +236,8 @@ export default function AdminDashboard() {
   const [checking, setChecking] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const passkeySupported = usePasskeySupport();
+  const passkey = usePasskey("/api/admin/passkey");
   const [authError, setAuthError] = useState("");
   const [twoFA, setTwoFA] = useState(false);
   const [twoFAMethod, setTwoFAMethod] = useState<"email" | "totp">("email");
@@ -330,6 +335,42 @@ export default function AdminDashboard() {
     } catch {
       setAuthError("Connection error");
     }
+  };
+
+  /*
+   * Sign in with a passkey.
+   *
+   * Sets the same session the password path does — the response carries a token
+   * minted the same way, so nothing downstream needs to know which route got
+   * somebody here. There is no 2FA step because there is nothing left to prove:
+   * the ceremony already required the device and a biometric or PIN on it.
+   */
+  const loginWithPasskey = async () => {
+    const addr = email.trim();
+    if (!addr) {
+      setAuthError("Enter your email first, then use your passkey.");
+      return;
+    }
+    setAuthError("");
+
+    const r = await passkey.signIn(addr);
+    if (!r.ok) {
+      // A cancelled prompt reports nothing; leaving the form alone is the right
+      // response to somebody changing their mind.
+      if (r.error) setAuthError(r.error);
+      return;
+    }
+
+    const d = r.data as { token?: string; admin?: { email: string; name: string; role: string } };
+    if (!d?.token || !d.admin) {
+      setAuthError("Could not complete that sign-in.");
+      return;
+    }
+    sessionStorage.setItem("admin-token", d.token);
+    setRole(d.admin.role || "superadmin");
+    setAdminName(d.admin.name || "");
+    setAdminEmail(d.admin.email);
+    setAuthenticated(true);
   };
 
   const verify2fa = async (e: React.FormEvent) => {
@@ -516,6 +557,37 @@ export default function AdminDashboard() {
             >
               <LogIn className="w-4 h-4" /> Sign In
             </button>
+
+            {/*
+              Only where it can work. A passkey button that is present and then
+              fails on a browser without WebAuthn, or on an insecure origin, is
+              worse than one that was never offered.
+            */}
+            {passkeySupported && (
+              <>
+                <div className="flex items-center gap-3 pt-1">
+                  <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
+                  <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                    or
+                  </span>
+                  <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
+                </div>
+                <button
+                  type="button"
+                  onClick={loginWithPasskey}
+                  disabled={passkey.busy}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
+                  style={{
+                    background: "var(--bg-glass)",
+                    border: "1px solid var(--border-primary)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <KeyRound className="w-4 h-4" />
+                  {passkey.busy ? "Waiting for your device…" : "Use a passkey"}
+                </button>
+              </>
+            )}
           </form>
           )}
         </motion.div>
@@ -559,6 +631,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <AdminAlerts onGoto={(t) => setTab(t as typeof tab)} />
             <Admin2fa />
+            <AdminPasskeys />
             <AdminPassword email={adminEmail} name={adminName} />
             {canSee("overview") && (
               <>

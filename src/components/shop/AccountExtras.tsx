@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Loader2, Gift, User, MapPin, Plus, Trash2, Save, Star, Share2, Copy, Check, Ticket, Bell, CheckCheck, KeyRound, Building2 } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
+import { PasskeyManager } from "@/components/PasskeyManager";
 
 type Headers = () => Record<string, string>;
 
@@ -387,6 +388,15 @@ function SecurityCard({ authHeaders }: { authHeaders: Headers }) {
           </span>
         )}
         {err && <span className="text-xs text-rose-500">{err}</span>}
+      </div>
+
+      {/*
+        Beneath the password, not instead of it. A passkey is the better way in
+        and the password is still the fallback for a device that is not to hand,
+        so removing one because the other exists would strand people.
+      */}
+      <div className="mt-5">
+        <PasskeyManager endpoint="/api/account/passkey" authHeaders={authHeaders} tone="themed" />
       </div>
     </div>
   );
