@@ -93,6 +93,11 @@ ui-audit.json
 !**/public/**/*.key
 upload-keystore.properties
 credentials/
+# `Creds/` is the same idea under a different name, and `*.key` above would
+# already hide the keys themselves — but not a README, a host list or an
+# exported known_hosts sitting beside them. The directory is excluded whole so
+# that nothing in it can be added by name either.
+Creds/
 *.vault
 circuvent-vault/
 id_rsa
