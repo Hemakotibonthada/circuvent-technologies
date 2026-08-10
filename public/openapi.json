@@ -5,21 +5,54 @@
     "version": "1.0.0",
     "summary": "Read device state, send commands, and receive signed webhooks from Circuvent smart-home hardware.",
     "description": "The public API for the Circuvent control plane — the same one our own console and mobile apps use.\n\nAuthenticate with an API key created in Console → Settings → Developer. Keys are scoped; a scope does not imply any other scope. Full guide at https://circuvent.com/developers",
-    "contact": { "name": "Circuvent Technologies", "url": "https://circuvent.com/contact" },
-    "license": { "name": "Proprietary", "identifier": "LicenseRef-Circuvent" }
+    "contact": {
+      "name": "Circuvent Technologies",
+      "url": "https://circuvent.com/contact"
+    },
+    "license": {
+      "name": "Proprietary",
+      "identifier": "LicenseRef-Circuvent"
+    }
   },
-  "servers": [{ "url": "https://api.circuvent.com", "description": "Production" }],
-  "security": [{ "ApiKeyAuth": [] }],
+  "servers": [
+    {
+      "url": "https://api.circuvent.com",
+      "description": "Production"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
   "tags": [
-    { "name": "Discovery", "description": "Index and credential introspection." },
-    { "name": "Devices", "description": "Read state and send commands." },
-    { "name": "Telemetry", "description": "Historical series." },
-    { "name": "Organisation", "description": "Rooms, scenes, automations and events." }
+    {
+      "name": "Discovery",
+      "description": "Index and credential introspection."
+    },
+    {
+      "name": "Devices",
+      "description": "Read state and send commands."
+    },
+    {
+      "name": "Telemetry",
+      "description": "Historical series."
+    },
+    {
+      "name": "Organisation",
+      "description": "Rooms, scenes, automations and events."
+    },
+    {
+      "name": "ANPR",
+      "description": "Number-plate reads, the vehicle register and site occupancy. Scoped separately from telemetry: a plate log is a record of which vehicles came to a property, about people who are not the account holder."
+    }
   ],
   "paths": {
     "/v1": {
       "get": {
-        "tags": ["Discovery"],
+        "tags": [
+          "Discovery"
+        ],
         "operationId": "getIndex",
         "summary": "API index",
         "description": "Scopes, webhook events and the endpoint list. No authentication required — use it to confirm the base URL is reachable before debugging a credential.",
@@ -32,20 +65,37 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "version": { "type": "string" },
-                    "documentation": { "type": "string", "format": "uri" },
-                    "openapi": { "type": "string", "format": "uri" },
+                    "version": {
+                      "type": "string"
+                    },
+                    "documentation": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "openapi": {
+                      "type": "string",
+                      "format": "uri"
+                    },
                     "scopes": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "scope": { "type": "string" },
-                          "description": { "type": "string" }
+                          "scope": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
-                    "webhookEvents": { "type": "array", "items": { "type": "string" } }
+                    "webhookEvents": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
@@ -56,11 +106,19 @@
     },
     "/v1/me": {
       "get": {
-        "tags": ["Discovery"],
+        "tags": [
+          "Discovery"
+        ],
         "operationId": "getMe",
         "summary": "Identify this credential",
         "description": "Returns the account the key belongs to and the scopes it actually holds. The fastest way to diagnose a 403.",
-        "security": [{ "ApiKeyAuth": ["devices:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "devices:read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Credential details.",
@@ -70,21 +128,51 @@
                   "type": "object",
                   "properties": {
                     "account": {
-                      "type": ["object", "null"],
+                      "type": [
+                        "object",
+                        "null"
+                      ],
                       "properties": {
-                        "id": { "type": "integer" },
-                        "email": { "type": "string" },
-                        "name": { "type": "string" }
+                        "id": {
+                          "type": "integer"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
                       }
                     },
-                    "deviceCount": { "type": "integer" },
+                    "deviceCount": {
+                      "type": "integer"
+                    },
                     "auth": {
                       "type": "object",
                       "properties": {
-                        "method": { "type": "string", "enum": ["api_key", "session"] },
-                        "keyName": { "type": "string" },
-                        "env": { "type": "string", "enum": ["live", "test"] },
-                        "scopes": { "type": "array", "items": { "type": "string" } }
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "api_key",
+                            "session"
+                          ]
+                        },
+                        "keyName": {
+                          "type": "string"
+                        },
+                        "env": {
+                          "type": "string",
+                          "enum": [
+                            "live",
+                            "test"
+                          ]
+                        },
+                        "scopes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   }
@@ -92,20 +180,50 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
     "/v1/devices": {
       "get": {
-        "tags": ["Devices"],
+        "tags": [
+          "Devices"
+        ],
         "operationId": "listDevices",
         "summary": "List devices",
-        "security": [{ "ApiKeyAuth": ["devices:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "devices:read"
+            ]
+          }
+        ],
         "parameters": [
-          { "name": "room", "in": "query", "schema": { "type": "string" }, "description": "Exact room name." },
-          { "name": "type", "in": "query", "schema": { "type": "string" }, "description": "Device type, e.g. home-hub." },
-          { "name": "online", "in": "query", "schema": { "type": "boolean" } }
+          {
+            "name": "room",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact room name."
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Device type, e.g. home-hub."
+          },
+          {
+            "name": "online",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -115,24 +233,45 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "devices": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } }
+                    "devices": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Device"
+                      }
+                    }
                   }
                 }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       }
     },
     "/v1/devices/{id}": {
-      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DeviceId"
+        }
+      ],
       "get": {
-        "tags": ["Devices"],
+        "tags": [
+          "Devices"
+        ],
         "operationId": "getDevice",
         "summary": "Get one device",
-        "security": [{ "ApiKeyAuth": ["devices:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "devices:read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "The device.",
@@ -140,19 +279,33 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "device": { "$ref": "#/components/schemas/Device" } }
+                  "properties": {
+                    "device": {
+                      "$ref": "#/components/schemas/Device"
+                    }
+                  }
                 }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       },
       "patch": {
-        "tags": ["Devices"],
+        "tags": [
+          "Devices"
+        ],
         "operationId": "updateDevice",
         "summary": "Rename, assign a room, or set favourite",
-        "security": [{ "ApiKeyAuth": ["devices:write"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "devices:write"
+            ]
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -160,9 +313,17 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string", "maxLength": 120 },
-                  "room": { "type": "string", "maxLength": 80 },
-                  "favorite": { "type": "boolean" }
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "room": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "favorite": {
+                    "type": "boolean"
+                  }
                 }
               }
             }
@@ -175,36 +336,96 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "device": { "$ref": "#/components/schemas/Device" } }
+                  "properties": {
+                    "device": {
+                      "$ref": "#/components/schemas/Device"
+                    }
+                  }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     },
     "/v1/devices/{id}/commands": {
-      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DeviceId"
+        }
+      ],
       "post": {
-        "tags": ["Devices"],
+        "tags": [
+          "Devices"
+        ],
         "operationId": "sendCommand",
         "summary": "Send a command",
         "description": "The body is forwarded to the device unchanged; the accepted fields are defined by that product's firmware. Responds 202 — the broker has accepted the command for delivery, not that the relay has closed. Observe the result by re-reading the device or taking a webhook.",
-        "security": [{ "ApiKeyAuth": ["devices:control"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "devices:control"
+            ]
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "type": "object", "additionalProperties": true },
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              },
               "examples": {
-                "hubChannel": { "summary": "Hub channel 1 on", "value": { "ch": 0, "on": true } },
-                "allRelays": { "summary": "All four channels on", "value": { "relays": [true, true, true, true] } },
-                "singleRelay": { "summary": "Plug or light", "value": { "power": true } },
-                "dimmer": { "summary": "Dimmable light at 60%", "value": { "power": true, "brightness": 60 } },
-                "fan": { "summary": "Fan speed 3", "value": { "speed": 3 } },
-                "scene": { "summary": "Named hub scene", "value": { "scene": "movie" } }
+                "hubChannel": {
+                  "summary": "Hub channel 1 on",
+                  "value": {
+                    "ch": 0,
+                    "on": true
+                  }
+                },
+                "allRelays": {
+                  "summary": "All four channels on",
+                  "value": {
+                    "relays": [
+                      true,
+                      true,
+                      true,
+                      true
+                    ]
+                  }
+                },
+                "singleRelay": {
+                  "summary": "Plug or light",
+                  "value": {
+                    "power": true
+                  }
+                },
+                "dimmer": {
+                  "summary": "Dimmable light at 60%",
+                  "value": {
+                    "power": true,
+                    "brightness": 60
+                  }
+                },
+                "fan": {
+                  "summary": "Fan speed 3",
+                  "value": {
+                    "speed": 3
+                  }
+                },
+                "scene": {
+                  "summary": "Named hub scene",
+                  "value": {
+                    "scene": "movie"
+                  }
+                }
               }
             }
           }
@@ -217,31 +438,74 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "accepted": { "type": "boolean" },
-                    "deviceId": { "type": "string" },
-                    "command": { "type": "object", "additionalProperties": true }
+                    "accepted": {
+                      "type": "boolean"
+                    },
+                    "deviceId": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
                   }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
         }
       }
     },
     "/v1/devices/{id}/telemetry": {
-      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DeviceId"
+        }
+      ],
       "get": {
-        "tags": ["Telemetry"],
+        "tags": [
+          "Telemetry"
+        ],
         "operationId": "getTelemetry",
         "summary": "Telemetry history",
-        "security": [{ "ApiKeyAuth": ["telemetry:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "telemetry:read"
+            ]
+          }
+        ],
         "parameters": [
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } },
-          { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -251,14 +515,22 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "deviceId": { "type": "string" },
+                    "deviceId": {
+                      "type": "string"
+                    },
                     "telemetry": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "at": { "type": "string", "format": "date-time" },
-                          "data": { "type": "object", "additionalProperties": true }
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "data": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
                         }
                       }
                     }
@@ -267,22 +539,54 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     },
     "/v1/devices/{id}/energy": {
-      "parameters": [{ "$ref": "#/components/parameters/DeviceId" }],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DeviceId"
+        }
+      ],
       "get": {
-        "tags": ["Telemetry"],
+        "tags": [
+          "Telemetry"
+        ],
         "operationId": "getEnergy",
         "summary": "Bucketed energy series",
         "description": "Buckets hourly for windows up to 48 hours, daily beyond that. kWh is the integral of the averaged metric across the buckets.",
-        "security": [{ "ApiKeyAuth": ["telemetry:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "telemetry:read"
+            ]
+          }
+        ],
         "parameters": [
-          { "name": "hours", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 2160, "default": 24 } },
-          { "name": "metric", "in": "query", "schema": { "type": "string", "default": "watts" } }
+          {
+            "name": "hours",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2160,
+              "default": 24
+            }
+          },
+          {
+            "name": "metric",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "watts"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -292,18 +596,37 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "deviceId": { "type": "string" },
-                    "metric": { "type": "string" },
-                    "granularity": { "type": "string", "enum": ["hour", "day"] },
-                    "kwh": { "type": "number" },
+                    "deviceId": {
+                      "type": "string"
+                    },
+                    "metric": {
+                      "type": "string"
+                    },
+                    "granularity": {
+                      "type": "string",
+                      "enum": [
+                        "hour",
+                        "day"
+                      ]
+                    },
+                    "kwh": {
+                      "type": "number"
+                    },
                     "series": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "at": { "type": "string", "format": "date-time" },
-                          "avg": { "type": "number" },
-                          "max": { "type": "number" }
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "avg": {
+                            "type": "number"
+                          },
+                          "max": {
+                            "type": "number"
+                          }
                         }
                       }
                     }
@@ -312,16 +635,26 @@
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     },
     "/v1/rooms": {
       "get": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "listRooms",
         "summary": "List rooms",
-        "security": [{ "ApiKeyAuth": ["rooms:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "rooms:read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Rooms with device counts.",
@@ -335,11 +668,21 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "integer" },
-                          "name": { "type": "string" },
-                          "icon": { "type": "string" },
-                          "sort": { "type": "integer" },
-                          "deviceCount": { "type": "integer" }
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "icon": {
+                            "type": "string"
+                          },
+                          "sort": {
+                            "type": "integer"
+                          },
+                          "deviceCount": {
+                            "type": "integer"
+                          }
                         }
                       }
                     }
@@ -353,10 +696,18 @@
     },
     "/v1/scenes": {
       "get": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "listScenes",
         "summary": "List scenes",
-        "security": [{ "ApiKeyAuth": ["scenes:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "scenes:read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Scenes and their actions.",
@@ -365,7 +716,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "scenes": { "type": "array", "items": { "$ref": "#/components/schemas/Scene" } }
+                    "scenes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Scene"
+                      }
+                    }
                   }
                 }
               }
@@ -376,14 +732,29 @@
     },
     "/v1/scenes/{id}/activate": {
       "parameters": [
-        { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
       ],
       "post": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "activateScene",
         "summary": "Run a scene",
         "description": "Actions naming a device the caller no longer owns are skipped rather than failing the whole scene, and are listed in `skipped`.",
-        "security": [{ "ApiKeyAuth": ["scenes:run"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "scenes:run"
+            ]
+          }
+        ],
         "responses": {
           "202": {
             "description": "Commands dispatched.",
@@ -392,25 +763,46 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "accepted": { "type": "boolean" },
-                    "scene": { "type": "string" },
-                    "sent": { "type": "integer" },
-                    "skipped": { "type": "array", "items": { "type": "string" } }
+                    "accepted": {
+                      "type": "boolean"
+                    },
+                    "scene": {
+                      "type": "string"
+                    },
+                    "sent": {
+                      "type": "integer"
+                    },
+                    "skipped": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     },
     "/v1/automations": {
       "get": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "listAutomations",
         "summary": "List automation rules",
-        "security": [{ "ApiKeyAuth": ["automations:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "automations:read"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Automation rules.",
@@ -419,7 +811,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "automations": { "type": "array", "items": { "$ref": "#/components/schemas/Automation" } }
+                    "automations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Automation"
+                      }
+                    }
                   }
                 }
               }
@@ -428,31 +825,66 @@
         }
       },
       "post": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "createAutomation",
         "summary": "Create an automation rule",
         "description": "Every device the rule names — in the trigger as well as the actions — must belong to the calling account, or the request is refused with 403 device_not_owned.",
-        "security": [{ "ApiKeyAuth": ["automations:write"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "automations:write"
+            ]
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/AutomationInput" },
+              "schema": {
+                "$ref": "#/components/schemas/AutomationInput"
+              },
               "examples": {
                 "sunsetLights": {
                   "summary": "Switch a light on at 18:30 on weekdays",
                   "value": {
                     "name": "Porch light at dusk",
-                    "trigger": { "type": "time", "at": "18:30", "days": [1, 2, 3, 4, 5] },
-                    "action": { "type": "command", "deviceId": "light-01", "command": { "power": true } }
+                    "trigger": {
+                      "type": "time",
+                      "at": "18:30",
+                      "days": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5
+                      ]
+                    },
+                    "action": {
+                      "type": "command",
+                      "deviceId": "light-01",
+                      "command": {
+                        "power": true
+                      }
+                    }
                   }
                 },
                 "leakAlert": {
                   "summary": "Notify when a sensor reports a leak",
                   "value": {
                     "name": "Leak alert",
-                    "trigger": { "type": "state", "deviceId": "aqua-01", "field": "leak", "op": "truthy" },
-                    "action": { "type": "notify", "title": "Leak detected", "body": "Check the utility room." }
+                    "trigger": {
+                      "type": "state",
+                      "deviceId": "aqua-01",
+                      "field": "leak",
+                      "op": "truthy"
+                    },
+                    "action": {
+                      "type": "notify",
+                      "title": "Leak detected",
+                      "body": "Check the utility room."
+                    }
                   }
                 }
               }
@@ -466,30 +898,62 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "automation": { "$ref": "#/components/schemas/Automation" } }
+                  "properties": {
+                    "automation": {
+                      "$ref": "#/components/schemas/Automation"
+                    }
+                  }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "403": { "$ref": "#/components/responses/Forbidden" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
         }
       }
     },
     "/v1/automations/{id}": {
-      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "patch": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "updateAutomation",
         "summary": "Update or enable/disable a rule",
-        "security": [{ "ApiKeyAuth": ["automations:write"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "automations:write"
+            ]
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/AutomationInput" },
+              "schema": {
+                "$ref": "#/components/schemas/AutomationInput"
+              },
               "examples": {
-                "disable": { "summary": "Turn a rule off", "value": { "enabled": false } }
+                "disable": {
+                  "summary": "Turn a rule off",
+                  "value": {
+                    "enabled": false
+                  }
+                }
               }
             }
           }
@@ -501,43 +965,94 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": { "automation": { "$ref": "#/components/schemas/Automation" } }
+                  "properties": {
+                    "automation": {
+                      "$ref": "#/components/schemas/Automation"
+                    }
+                  }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       },
       "delete": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "deleteAutomation",
         "summary": "Delete a rule",
-        "security": [{ "ApiKeyAuth": ["automations:write"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "automations:write"
+            ]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Deleted.",
             "content": {
               "application/json": {
-                "schema": { "type": "object", "properties": { "deleted": { "type": "boolean" } } }
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     },
     "/v1/events": {
       "get": {
-        "tags": ["Organisation"],
+        "tags": [
+          "Organisation"
+        ],
         "operationId": "listEvents",
         "summary": "Event and activity feed",
-        "security": [{ "ApiKeyAuth": ["events:read"] }],
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "events:read"
+            ]
+          }
+        ],
         "parameters": [
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 } },
-          { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 50
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -552,13 +1067,31 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "integer" },
-                          "deviceId": { "type": ["string", "null"] },
-                          "kind": { "type": "string" },
-                          "title": { "type": "string" },
-                          "body": { "type": "string" },
-                          "read": { "type": "boolean" },
-                          "at": { "type": "string", "format": "date-time" }
+                          "id": {
+                            "type": "integer"
+                          },
+                          "deviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "read": {
+                            "type": "boolean"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
                         }
                       }
                     }
@@ -567,7 +1100,824 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/plates": {
+      "get": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "listPlateReads",
+        "summary": "Number-plate reads",
+        "description": "One row per sighting. The capture image is advertised rather than inlined: a page of 100 reads stays a few KB, and most rows are never opened.",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plate",
+            "in": "query",
+            "description": "Normalised on the way in, so 'KA 01 AB 1234' and 'ka-01-ab-1234' both work.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decision",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "allow",
+                "deny",
+                "watch",
+                "unknown"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recognised",
+                "unrecognised"
+              ]
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reads, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "deviceId": {
+                            "type": "string"
+                          },
+                          "captureId": {
+                            "type": "integer"
+                          },
+                          "plate": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "formatted": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Grouped for display, e.g. 'KA 01 AB 1234'."
+                          },
+                          "confidence": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "votes": {
+                            "type": "integer",
+                            "description": "Frames of the burst that produced this plate."
+                          },
+                          "samples": {
+                            "type": "integer",
+                            "description": "Frames the recogniser was run on."
+                          },
+                          "plateKind": {
+                            "type": "string",
+                            "enum": [
+                              "standard",
+                              "bharat",
+                              "legacy",
+                              "unknown"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "recognised",
+                              "unrecognised"
+                            ]
+                          },
+                          "reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Why an unrecognised read failed: no_recogniser, no_plate, invalid_format, timeout, provider_error."
+                          },
+                          "decision": {
+                            "type": "string",
+                            "enum": [
+                              "allow",
+                              "deny",
+                              "watch",
+                              "unknown"
+                            ]
+                          },
+                          "direction": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "in",
+                              "out",
+                              null
+                            ],
+                            "description": "Null when the lane's direction could not be resolved — never guessed."
+                          },
+                          "trigger": {
+                            "type": "string",
+                            "enum": [
+                              "motion",
+                              "loop",
+                              "manual",
+                              "periodic"
+                            ]
+                          },
+                          "hasImage": {
+                            "type": "boolean"
+                          },
+                          "imageUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/plates/{id}/image": {
+      "get": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "getPlateReadImage",
+        "summary": "The capture a plate was read from",
+        "description": "Real image/jpeg rather than base64 in JSON, so it caches and can be pointed at directly. Images expire before the metadata does — see ANPR_IMAGE_RETENTION_DAYS.",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The JPEG.",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/vehicles": {
+      "get": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "listVehicles",
+        "summary": "The vehicle register",
+        "description": "One row per distinct plate rather than per sighting. 'How often does this van come, and is it here now' cannot be answered by paging /v1/plates.",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vehicles, most recently seen first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "days": {
+                      "type": "integer"
+                    },
+                    "insideNow": {
+                      "type": "integer"
+                    },
+                    "vehicles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "plate": {
+                            "type": "string"
+                          },
+                          "formatted": {
+                            "type": "string"
+                          },
+                          "passes": {
+                            "type": "integer"
+                          },
+                          "entries": {
+                            "type": "integer"
+                          },
+                          "exits": {
+                            "type": "integer"
+                          },
+                          "visits": {
+                            "type": "integer"
+                          },
+                          "inside": {
+                            "type": "boolean",
+                            "description": "Has an open visit: arrived and not yet seen leaving."
+                          },
+                          "firstSeen": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastSeen": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "averageStaySeconds": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "totalStaySeconds": {
+                            "type": "integer"
+                          },
+                          "cameras": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "list": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "allow",
+                              "deny",
+                              "watch",
+                              null
+                            ]
+                          },
+                          "label": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vehicles/{plate}": {
+      "get": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "getVehicle",
+        "summary": "One vehicle's visit history",
+        "description": "404 rather than an empty profile when the plate has never been seen — 'came zero times' reads like a working answer to what is actually a typo.",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plate",
+            "in": "path",
+            "required": true,
+            "description": "Normalised on the way in; spacing and dashes do not matter.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The vehicle and every visit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plate": {
+                      "type": "string"
+                    },
+                    "formatted": {
+                      "type": "string"
+                    },
+                    "passes": {
+                      "type": "integer"
+                    },
+                    "inside": {
+                      "type": "boolean"
+                    },
+                    "totalStaySeconds": {
+                      "type": "integer"
+                    },
+                    "visits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "entryAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "exitAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "entryCamera": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "exitCamera": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "closed",
+                              "entry_missed",
+                              "exit_missed"
+                            ],
+                            "description": "Gate cameras miss reads. entry_missed and exit_missed are normal states, not errors — pairing resynchronises at the next clean read."
+                          },
+                          "staySeconds": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Null, never 0, when a read was missed. A fabricated duration is worse than an absent one for anything billed or audited."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/occupancy": {
+      "get": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "getOccupancy",
+        "summary": "How full the site is right now",
+        "description": "Counted from open visits, never tallied — a running total is biased permanently by one missed read. Capacity is reported, never enforced: the gate still opens for an allowed vehicle when the site is full.",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Live site state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "inside": {
+                      "type": "integer"
+                    },
+                    "capacity": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "Null when capacity is not managed — different from zero."
+                    },
+                    "free": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "full": {
+                      "type": "boolean"
+                    },
+                    "percent": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/plate-rules": {
+      "get": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "listPlateRules",
+        "summary": "The allow / deny / watch list",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rules.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "plate": {
+                            "type": "string"
+                          },
+                          "formatted": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "allow",
+                              "deny",
+                              "watch"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "deviceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "validFrom": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "validTo": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "hits": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "createPlateRule",
+        "summary": "Put a plate on a list",
+        "description": "The plate is validated and corrected by the same analyser a camera read goes through, so a rule and a read of the same vehicle can never be different strings. Deny wins over allow.",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plate"
+                ],
+                "properties": {
+                  "plate": {
+                    "type": "string",
+                    "description": "Spacing and dashes are accepted."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "allow",
+                      "deny",
+                      "watch"
+                    ],
+                    "default": "allow"
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "deviceId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Null applies the rule to every ANPR camera on the account."
+                  },
+                  "validFrom": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "validTo": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "For a contractor or a visitor."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rule": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "plate": {
+                          "type": "string"
+                        },
+                        "formatted": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "allow",
+                            "deny",
+                            "watch"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "deviceId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "validFrom": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "validTo": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "hits": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "description": "That plate is already on a list for this scope."
+          }
+        }
+      }
+    },
+    "/v1/plate-rules/{id}": {
+      "delete": {
+        "tags": [
+          "ANPR"
+        ],
+        "operationId": "deletePlateRule",
+        "summary": "Remove a plate from its list",
+        "security": [
+          {
+            "ApiKeyAuth": [
+              "plates:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     }
@@ -582,23 +1932,47 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["id", "event", "deviceId", "data", "at"],
+                "required": [
+                  "id",
+                  "event",
+                  "deviceId",
+                  "data",
+                  "at"
+                ],
                 "properties": {
-                  "id": { "type": "string", "description": "Unique delivery id — use it to de-duplicate." },
+                  "id": {
+                    "type": "string",
+                    "description": "Unique delivery id — use it to de-duplicate."
+                  },
                   "event": {
                     "type": "string",
-                    "enum": ["device.state", "device.telemetry", "device.online", "device.offline"]
+                    "enum": [
+                      "device.state",
+                      "device.telemetry",
+                      "device.online",
+                      "device.offline"
+                    ]
                   },
-                  "deviceId": { "type": "string" },
-                  "data": { "type": "object", "additionalProperties": true },
-                  "at": { "type": "string", "format": "date-time" }
+                  "deviceId": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Acknowledged. Any 2xx counts as success." }
+          "200": {
+            "description": "Acknowledged. Any 2xx counts as success."
+          }
         }
       }
     }
@@ -617,23 +1991,63 @@
         "name": "id",
         "in": "path",
         "required": true,
-        "schema": { "type": "string" },
+        "schema": {
+          "type": "string"
+        },
         "description": "The device id, as shown in the console and used in its MQTT topics."
       }
     },
     "schemas": {
       "Device": {
         "type": "object",
-        "required": ["id", "name", "type", "online", "state"],
+        "required": [
+          "id",
+          "name",
+          "type",
+          "online",
+          "state"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "name": { "type": "string" },
-          "type": { "type": "string", "examples": ["home-hub", "smart-plug", "camera", "sentinel"] },
-          "room": { "type": ["string", "null"] },
-          "favorite": { "type": "boolean" },
-          "online": { "type": "boolean" },
-          "lastSeen": { "type": ["string", "null"], "format": "date-time" },
-          "firmware": { "type": ["string", "null"] },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "examples": [
+              "home-hub",
+              "smart-plug",
+              "camera",
+              "sentinel"
+            ]
+          },
+          "room": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "firmware": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "state": {
             "type": "object",
             "additionalProperties": true,
@@ -644,17 +2058,30 @@
       "Scene": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer" },
-          "name": { "type": "string" },
-          "icon": { "type": "string" },
-          "favorite": { "type": "boolean" },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
           "actions": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "deviceId": { "type": "string" },
-                "command": { "type": "object", "additionalProperties": true }
+                "deviceId": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           }
@@ -662,47 +2089,141 @@
       },
       "AutomationTrigger": {
         "type": "object",
-        "required": ["type"],
+        "required": [
+          "type"
+        ],
         "properties": {
-          "type": { "type": "string", "enum": ["state", "time", "event"] },
-          "deviceId": { "type": "string" },
-          "field": { "type": "string", "description": "State field to watch, for type=state." },
-          "op": { "type": "string", "enum": ["<", "<=", ">", ">=", "==", "!=", "truthy", "falsy"] },
-          "value": { "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "boolean" }] },
-          "at": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "description": "HH:MM for type=time, evaluated in IST." },
+          "type": {
+            "type": "string",
+            "enum": [
+              "state",
+              "time",
+              "event"
+            ]
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string",
+            "description": "State field to watch, for type=state."
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "<",
+              "<=",
+              ">",
+              ">=",
+              "==",
+              "!=",
+              "truthy",
+              "falsy"
+            ]
+          },
+          "value": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{2}:\\d{2}$",
+            "description": "HH:MM for type=time, evaluated in IST."
+          },
           "days": {
             "type": "array",
             "maxItems": 7,
-            "items": { "type": "integer", "minimum": 0, "maximum": 6 },
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            },
             "description": "Day filter for time triggers. 0 = Sunday. Omit to run daily."
           },
-          "eventType": { "type": "string" },
-          "match": { "type": "object", "additionalProperties": true }
+          "eventType": {
+            "type": "string"
+          },
+          "match": {
+            "type": "object",
+            "additionalProperties": true
+          }
         }
       },
       "AutomationAction": {
         "type": "object",
-        "required": ["type"],
+        "required": [
+          "type"
+        ],
         "properties": {
-          "type": { "type": "string", "enum": ["command", "notify", "tts"] },
-          "deviceId": { "type": "string" },
-          "command": { "type": "object", "additionalProperties": true },
-          "title": { "type": "string", "maxLength": 120 },
-          "body": { "type": "string", "maxLength": 300 },
-          "text": { "type": "string", "maxLength": 300 },
-          "delayMs": { "type": "integer", "minimum": 0, "maximum": 30000 }
+          "type": {
+            "type": "string",
+            "enum": [
+              "command",
+              "notify",
+              "tts"
+            ]
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "command": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "delayMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30000
+          }
         }
       },
       "AutomationInput": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
-          "enabled": { "type": "boolean" },
-          "trigger": { "$ref": "#/components/schemas/AutomationTrigger" },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTrigger"
+          },
           "action": {
             "oneOf": [
-              { "$ref": "#/components/schemas/AutomationAction" },
-              { "type": "array", "maxItems": 12, "items": { "$ref": "#/components/schemas/AutomationAction" } }
+              {
+                "$ref": "#/components/schemas/AutomationAction"
+              },
+              {
+                "type": "array",
+                "maxItems": 12,
+                "items": {
+                  "$ref": "#/components/schemas/AutomationAction"
+                }
+              }
             ]
           }
         }
@@ -710,50 +2231,115 @@
       "Automation": {
         "type": "object",
         "properties": {
-          "id": { "type": "integer" },
-          "name": { "type": "string" },
-          "enabled": { "type": "boolean" },
-          "trigger": { "$ref": "#/components/schemas/AutomationTrigger" },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTrigger"
+          },
           "action": {
             "oneOf": [
-              { "$ref": "#/components/schemas/AutomationAction" },
-              { "type": "array", "items": { "$ref": "#/components/schemas/AutomationAction" } }
+              {
+                "$ref": "#/components/schemas/AutomationAction"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AutomationAction"
+                }
+              }
             ]
           },
-          "createdAt": { "type": "string", "format": "date-time" }
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "Error": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
-          "error": { "type": "string", "description": "Human-readable. Wording may change — do not match on it." },
-          "code": { "type": "string", "description": "Stable machine-readable code. Branch on this." },
-          "required": { "type": "string", "description": "On insufficient_scope: the scope needed." },
-          "granted": { "type": "array", "items": { "type": "string" }, "description": "On insufficient_scope: the scopes the key holds." }
+          "error": {
+            "type": "string",
+            "description": "Human-readable. Wording may change — do not match on it."
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable code. Branch on this."
+          },
+          "required": {
+            "type": "string",
+            "description": "On insufficient_scope: the scope needed."
+          },
+          "granted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "On insufficient_scope: the scopes the key holds."
+          }
         }
       }
     },
     "responses": {
       "BadRequest": {
         "description": "Malformed request.",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "Unauthorized": {
         "description": "Missing, invalid, expired or revoked key. `code` is one of key_invalid, key_expired, key_revoked, key_blocked.",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "Forbidden": {
         "description": "The key is valid but lacks the required scope (insufficient_scope) or was used from a disallowed browser origin (origin_not_allowed).",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "NotFound": {
         "description": "No such resource, or it belongs to another account. Returned instead of 403 so an id cannot be confirmed to exist.",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "RateLimited": {
         "description": "More than 600 requests in a minute for this key. RateLimit-* headers describe the window.",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       }
     }
   }

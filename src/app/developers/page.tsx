@@ -34,6 +34,8 @@ const SCOPES: { scope: string; description: string }[] = [
   { scope: "automations:read", description: "List automation rules." },
   { scope: "automations:write", description: "Create, update, enable, disable and delete automation rules." },
   { scope: "events:read", description: "Read the event and activity feed." },
+  { scope: "plates:read", description: "Read ANPR number-plate reads, the vehicle register and site occupancy." },
+  { scope: "plates:write", description: "Add, change and remove entries on the plate allow / deny / watch list." },
 ];
 
 const ENDPOINTS: { method: string; path: string; scope: string; desc: string }[] = [
@@ -53,6 +55,14 @@ const ENDPOINTS: { method: string; path: string; scope: string; desc: string }[]
   { method: "PATCH", path: "/v1/automations/{id}", scope: "automations:write", desc: "Update or enable/disable a rule." },
   { method: "DELETE", path: "/v1/automations/{id}", scope: "automations:write", desc: "Delete a rule." },
   { method: "GET", path: "/v1/events", scope: "events:read", desc: "Event feed. ?limit= (max 500) and ?since=<ISO-8601>." },
+  { method: "GET", path: "/v1/plates", scope: "plates:read", desc: "Number-plate reads. Filter with ?plate=, ?deviceId=, ?decision=, ?status= and ?since=." },
+  { method: "GET", path: "/v1/plates/{id}/image", scope: "plates:read", desc: "The capture a plate was read from, as image/jpeg. Images expire before the metadata does." },
+  { method: "GET", path: "/v1/vehicles", scope: "plates:read", desc: "The vehicle register: passes, entries, exits, average stay, and who is on site now." },
+  { method: "GET", path: "/v1/vehicles/{plate}", scope: "plates:read", desc: "One vehicle's visit history with in/out times. Spacing in the plate does not matter." },
+  { method: "GET", path: "/v1/occupancy", scope: "plates:read", desc: "How full the site is right now. Cheap enough for a gate display to poll." },
+  { method: "GET", path: "/v1/plate-rules", scope: "plates:read", desc: "The allow / deny / watch list." },
+  { method: "POST", path: "/v1/plate-rules", scope: "plates:write", desc: "Put a plate on a list. Optionally time-boxed with validFrom / validTo." },
+  { method: "DELETE", path: "/v1/plate-rules/{id}", scope: "plates:write", desc: "Remove a plate from its list." },
 ];
 
 const ERRORS: { status: string; code: string; meaning: string }[] = [
@@ -74,6 +84,11 @@ const WEBHOOK_EVENTS: { event: string; when: string }[] = [
   { event: "device.telemetry", when: "A device published a telemetry sample." },
   { event: "device.online", when: "A device connected to the broker." },
   { event: "device.offline", when: "A device's last-will fired, or it disconnected." },
+  {
+    event: "plate.read",
+    when:
+      "An ANPR camera read a number plate. Carries the plate, direction, decision and visit — so a receiver never has to re-derive the pairing. Deliberately NOT also delivered as device.telemetry: an integration should not subscribe to every power reading in the fleet to find plate reads.",
+  },
 ];
 
 /* ------------------------------------------------------------------ */
