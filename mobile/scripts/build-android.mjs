@@ -36,8 +36,20 @@ const die = (s, extra = []) => {
 
 /* ------------------------------------------------------------ preflight -- */
 
-say("Checking the signing key before building anything");
-const pre = spawnSync(process.execPath, [join(ROOT, "scripts/check-signing-key.js")], { stdio: "inherit" });
+/*
+ * An APK is sideloaded and an AAB is uploaded, so they answer to different
+ * rules. The signing check is told which one is being built: for a Play bundle
+ * it enforces the upload certificate, for an APK alone it reports a mismatch
+ * and carries on. It refuses the debug key either way.
+ */
+const forPlay = wantAab;
+
+say(`Checking the signing key before building anything${forPlay ? "" : " (apk only — not checked against Play)"}`);
+const pre = spawnSync(
+  process.execPath,
+  [join(ROOT, "scripts/check-signing-key.js"), ...(forPlay ? [] : ["--not-for-play"])],
+  { stdio: "inherit" },
+);
 if (pre.status !== 0) {
   die("Not building: the signing check failed.", [
     "Building now would produce an artifact Google Play refuses, which is a",
@@ -115,7 +127,17 @@ if (wantApk) tasks.push("assembleRelease");
 if (wantAab) tasks.push("bundleRelease");
 
 say(`gradle ${tasks.join(" ")}`);
-const gradlew = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+/*
+ * .\ is not optional, even though cmd normally searches the working directory.
+ *
+ * It searches it unless NoDefaultCurrentDirectoryInExePath is set, which it is
+ * on this machine -- a hardening measure against dropping a lookalike binary
+ * into a directory someone is about to run a command in. With it set, a bare
+ * gradlew.bat is "not recognized" while sitting in the same folder, which reads
+ * as a missing Android toolchain rather than a path rule. The unix branch has
+ * always had ./ for the same reason and never hit it.
+ */
+const gradlew = process.platform === "win32" ? ".\\gradlew.bat" : "./gradlew";
 const build = spawnSync(gradlew, [...tasks, "--no-daemon"], { cwd: join(ROOT, "android"), stdio: "inherit", shell: true });
 if (build.status !== 0) die("gradle failed");
 
@@ -137,9 +159,17 @@ for (const [kind, file] of outputs) {
   console.log(`  ${named.replace(ROOT, ".")}`);
 }
 
-const post = spawnSync(process.execPath, [join(ROOT, "scripts/check-signing-key.js")], { stdio: "inherit" });
+const post = spawnSync(
+  process.execPath,
+  [join(ROOT, "scripts/check-signing-key.js"), ...(forPlay ? [] : ["--not-for-play"])],
+  { stdio: "inherit" },
+);
 if (post.status !== 0) {
   die("The build finished but is signed with the wrong key. Do not upload it.");
 }
 
-console.log("\n✓ built and signed with the key Play expects");
+console.log(
+  forPlay
+    ? "\n✓ built and signed with the key Play expects"
+    : "\n✓ built and signed — sideload this; it is not the key Play accepts",
+);

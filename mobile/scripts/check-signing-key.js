@@ -29,6 +29,23 @@ const ROOT = join(__dirname, "..");
 const CRED = join(ROOT, "credentials");
 const EXPECTED = JSON.parse(readFileSync(join(ROOT, "play-upload-key.json"), "utf8"));
 
+/*
+ * --not-for-play: this artifact is being sideloaded, not uploaded.
+ *
+ * Only the AAB goes to Play. An APK is installed directly, and Play never sees
+ * it, so "Play would refuse this" is not a reason to refuse to build one. While
+ * the upload key reset is pending that distinction is the difference between
+ * being able to test the app at all and not, and a guard that blocks work it
+ * was never meant to block is one that gets disabled wholesale -- taking the
+ * checks that did matter with it.
+ *
+ * The debug key is exempt from the exemption. Its password is published in the
+ * React Native template, so anyone can sign an update that Android accepts as
+ * the same app. That is worse on a sideloaded build, not better: there is no
+ * store in front of it.
+ */
+const NOT_FOR_PLAY = process.argv.includes("--not-for-play");
+
 let failed = false;
 const fail = (title, lines) => {
   failed = true;
@@ -106,8 +123,8 @@ function jdkTool(name) {
   return name;
 }
 
-/** SHA1 of the signing certificate. Works for both .apk and .aab. */
-function signerSha1(file) {
+/** SHA1 and owner of the signing certificate. Works for both .apk and .aab. */
+function signerInfo(file) {
   try {
     // keytool -printcert -jarfile reads the signature block out of any signed
     // JAR-format archive, which both an APK and an AAB are. jarsigner was tried
@@ -120,11 +137,27 @@ function signerSha1(file) {
       stdio: ["ignore", "pipe", "ignore"],
     });
     const m = out.match(/SHA1:\s*([0-9A-F:]{40,})/i);
-    return m ? m[1].toUpperCase() : null;
+    const owner = out.match(/Owner:\s*(.+)/i);
+    return { sha1: m ? m[1].toUpperCase() : null, owner: owner ? owner[1].trim() : "" };
   } catch {
-    return null;
+    return { sha1: null, owner: "" };
   }
 }
+
+const signerSha1 = (file) => signerInfo(file).sha1;
+
+/*
+ * A debug certificate is identified by its subject, not its fingerprint.
+ *
+ * android/app/debug.keystore is generated per machine, so its fingerprint is
+ * whatever was rolled here -- the one recorded in play-upload-key.json is only
+ * this machine's. A fresh clone, or CI, produces a different fingerprint that
+ * matches no record, and matching on the record alone would wave it through as
+ * merely "unrecognised". The distinguished name is fixed by the Android tooling
+ * that creates it, so it is the same everywhere and is what actually says
+ * "debug".
+ */
+const isDebugCert = (owner) => /\bCN=Android Debug\b/i.test(owner || "");
 
 const latest = ARTIFACTS.filter(existsSync).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
 
@@ -146,7 +179,7 @@ function auditHistory() {
   if (!files.length) return;
 
   const want = REQUIRED;
-  const rows = files.map((f) => ({ f, sha1: signerSha1(join(dist, f)) }));
+  const rows = files.map((f) => ({ f, ...signerInfo(join(dist, f)) }));
   const good = rows.filter((r) => r.sha1 === want).map((r) => r.f);
   const bad = rows.filter((r) => r.sha1 && r.sha1 !== want);
 
@@ -154,12 +187,34 @@ function auditHistory() {
   if (bad.length) {
     for (const r of bad) console.log(`         wrong: ${r.f}  ${r.sha1}`);
   }
+
+  /*
+   * A forgeable artifact anywhere in dist/ fails the run, not just the newest.
+   *
+   * Everything above this point judges one artifact -- whichever was written
+   * last. A build that emits both an apk and an aab therefore has only one of
+   * them checked, and the other is mentioned in a list and otherwise ignored.
+   * That is survivable for the upload key, where the artifact that goes to Play
+   * is the one being examined. It is not survivable for the debug key: dist/ is
+   * where builds are picked up from to be handed round, and an entry in a
+   * printed list is not a guard.
+   */
+  const forgeable = rows.filter((r) => isDebugCert(r.owner));
+  if (forgeable.length) {
+    fail(`${forgeable.length === 1 ? "an artifact in dist/ is" : `${forgeable.length} artifacts in dist/ are`} signed with a debug key`, [
+      ...forgeable.map((r) => `${r.f}  ${r.sha1}  ${r.owner}`),
+      "",
+      "A debug certificate's password is published in the Android tooling that",
+      "generates it, so anyone can sign an update Android will install over the",
+      "top of this app. Delete these, or rebuild them with the release key.",
+    ]);
+  }
 }
 
 if (!latest) {
   console.log("  --   no built artifact to check yet");
 } else {
-  const sha1 = signerSha1(latest);
+  const { sha1, owner } = signerInfo(latest);
   const want = REQUIRED;
 
   if (!sha1) {
@@ -169,7 +224,25 @@ if (!latest) {
   } else {
     const known = EXPECTED.knownWrongKeys.find((k) => k.sha1.toUpperCase() === sha1);
     const isReplacement = EXPECTED.replacementKey && EXPECTED.replacementKey.sha1.toUpperCase() === sha1;
-    fail("this build would be rejected by Google Play", [
+    const isDebugKey = isDebugCert(owner) || (known && /debug\.keystore$/i.test(known.file));
+
+    if (NOT_FOR_PLAY && !isDebugKey) {
+      console.log(`\n  !    ${latest.replace(ROOT, ".")} is not the key Play accepts — fine for sideloading, not uploadable`);
+      console.log(`       signed by ${sha1}`);
+      console.log(`       Play expects ${want}  (${REQUIRED_LABEL})`);
+      console.log("       Build with --aab, or without a target, to have this enforced.");
+    } else if (isDebugKey) {
+      fail("this release artifact is signed with the debug key", [
+        `artifact  ${latest.replace(ROOT, ".")}`,
+        `signed by ${sha1}   ${known ? known.file : owner}`,
+        "",
+        ...(known ? [known.why, ""] : ["Its password is published in the Android tooling that generates it.", ""]),
+        "This is refused for a sideloaded build too. Android identifies an app by",
+        "its signing certificate, so anyone who wanted to could build an 'update'",
+        "this device would install over the top of it.",
+      ]);
+    } else {
+      fail("this build would be rejected by Google Play", [
       `artifact  ${latest.replace(ROOT, ".")}`,
       `signed by ${sha1}`,
       `expected  ${want}  (${REQUIRED_LABEL})`,
@@ -187,7 +260,8 @@ if (!latest) {
           : ["That key is not one of the ones recorded in play-upload-key.json.", ""]),
       "Point CV_UPLOAD_STORE_FILE at the keystore whose certificate matches, and rebuild.",
       "If the matching keystore is lost, see howToCompleteTheReset in play-upload-key.json.",
-    ]);
+      ]);
+    }
   }
 }
 
@@ -195,6 +269,8 @@ auditHistory();
 
 if (failed) {
   process.exitCode = 1;
+} else if (NOT_FOR_PLAY) {
+  console.log("\n✓ signing:key — nothing here is signed with a forgeable key (Play acceptance not checked)");
 } else {
   console.log("\n✓ signing:key — nothing here would be refused by Play");
 }

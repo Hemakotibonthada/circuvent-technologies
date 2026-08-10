@@ -45,14 +45,30 @@ interface PushDB {
 
 const store = createFileStore<PushDB>("web-push.json", () => ({ subscriptions: [] }));
 
+/*
+ * Read a key with the whitespace taken off.
+ *
+ * A VAPID key is base64url and reaches the deployment through a copy and paste
+ * or a file, either of which can bring a trailing newline with it -- and one
+ * did: the deployed public key came back ending in CRLF. Nothing server-side
+ * notices, because a key is only ever handed onwards. The browser notices: it
+ * base64-decodes applicationServerKey, a newline is not in the alphabet, and
+ * subscribe() rejects. So every user would have failed to subscribe, with the
+ * error surfacing in their browser rather than anywhere we would see it.
+ *
+ * Trimmed at the point of reading rather than at the point of setting, because
+ * the environment can be set again by anyone at any time.
+ */
+const envKey = (name: string): string => (process.env[name] || "").trim();
+
 /** True when the keys are present and push can actually be sent. */
 export function pushConfigured(): boolean {
-  return Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+  return Boolean(envKey("VAPID_PUBLIC_KEY") && envKey("VAPID_PRIVATE_KEY"));
 }
 
 /** The public key a browser needs to subscribe. Safe to serve. */
 export function publicKey(): string | null {
-  return process.env.VAPID_PUBLIC_KEY || null;
+  return envKey("VAPID_PUBLIC_KEY") || null;
 }
 
 let configured = false;
@@ -60,9 +76,9 @@ function ensureConfigured(): boolean {
   if (configured) return true;
   if (!pushConfigured()) return false;
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:support@circuvent.com",
-    process.env.VAPID_PUBLIC_KEY as string,
-    process.env.VAPID_PRIVATE_KEY as string
+    envKey("VAPID_SUBJECT") || "mailto:support@circuvent.com",
+    envKey("VAPID_PUBLIC_KEY"),
+    envKey("VAPID_PRIVATE_KEY")
   );
   configured = true;
   return true;

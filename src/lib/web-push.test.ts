@@ -60,6 +60,23 @@ describe("configuration", () => {
     expect(r.sent).toBe(0);
     expect(sendNotification).not.toHaveBeenCalled();
   });
+
+  /*
+   * The deployed key came back ending in CRLF, from the file it was set out of.
+   * The browser base64-decodes this to subscribe and a newline is not in the
+   * alphabet, so subscribe() rejects and no one can turn notifications on --
+   * a failure that only ever appears in the user's browser.
+   */
+  it("serves a key with no surrounding whitespace, however it was set", () => {
+    process.env.VAPID_PUBLIC_KEY = "BMMKevJh08j71N7\r\n";
+    expect(push.publicKey()).toBe("BMMKevJh08j71N7");
+  });
+
+  it("treats a key that is only whitespace as absent", () => {
+    process.env.VAPID_PUBLIC_KEY = "  \r\n";
+    expect(push.pushConfigured()).toBe(false);
+    expect(push.publicKey()).toBeNull();
+  });
 });
 
 describe("subscriptions", () => {
