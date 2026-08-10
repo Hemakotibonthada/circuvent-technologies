@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     { "path": "/api/admin/alerts/run", "schedule": "0 8 * * *" },
-    { "path": "/api/admin/reports/send", "schedule": "0 4 * * *" }
+    { "path": "/api/admin/reports/send", "schedule": "0 4 * * *" },
+    { "path": "/api/smarthome/alerts/cron", "schedule": "*/30 * * * *" }
   ]
 }
