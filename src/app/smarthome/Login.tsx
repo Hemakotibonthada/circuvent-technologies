@@ -480,10 +480,26 @@ export default function Login() {
         }
         .cv-input:-webkit-autofill,
         .cv-input:-webkit-autofill:hover,
-        .cv-input:-webkit-autofill:focus {
+        .cv-input:-webkit-autofill:focus,
+        .cv-input:-webkit-autofill:active {
+          /*
+           * Chrome paints its own background on an autofilled field and will
+           * not let a stylesheet set it, so on this dark glass card the two
+           * inputs came back solid white with grey text in them.
+           *
+           * The usual counter is an inset box-shadow painted over the top --
+           * but it has to be an OPAQUE colour to cover anything, and this said
+           * "transparent", which paints nothing at all. So the rule was here,
+           * looked like the fix, and did nothing.
+           *
+           * Clipping the background to the glyphs is what actually removes it,
+           * and unlike an opaque shadow it keeps the field transparent, so the
+           * blurred card still shows through. The 9999s transition stays as a
+           * second line for older WebKit, where it is the technique that works.
+           */
           -webkit-text-fill-color: #e2e8f0;
-          -webkit-box-shadow: 0 0 0 1000px transparent inset;
-          box-shadow: 0 0 0 1000px transparent inset;
+          -webkit-background-clip: text;
+          background-clip: text;
           caret-color: #e2e8f0;
           transition: background-color 9999s ease-in-out 0s;
         }
