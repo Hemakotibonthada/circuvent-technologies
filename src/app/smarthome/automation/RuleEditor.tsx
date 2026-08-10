@@ -34,6 +34,26 @@ type ActionType = "command" | "notify" | "tts";
 
 /** The control plane caps a single step's pause at 30s. */
 const MAX_DELAY_MS = 30000;
+
+/**
+ * Event types the fleet actually publishes, so the common cases are a choice
+ * rather than a spelling test.
+ *
+ * The values are the `type` field each firmware puts on its telemetry event:
+ * facedoor and rfid-gate for access, camera for motion, anpr-cam for vehicles.
+ * "Something else…" stays available so a device type this build does not know
+ * about is still automatable, and so an existing rule with a custom type is
+ * not silently rewritten to whichever option happens to be first.
+ */
+const KNOWN_EVENT_TYPES = [
+  { value: "", label: "Any event" },
+  { value: "plate", label: "Number plate read (ANPR)" },
+  { value: "vehicle", label: "Vehicle detected (ANPR)" },
+  { value: "access", label: "Door access (face, fingerprint, PIN)" },
+  { value: "rfid", label: "RFID tag scanned" },
+  { value: "bell", label: "Doorbell pressed" },
+  { value: "motion", label: "Motion detected" },
+] as const;
 /** And accepts at most 12 steps in one automation. */
 const MAX_STEPS = 12;
 
@@ -199,6 +219,11 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
       .map(([k, v]) => `${k}=${String(v)}`)
       .join(", ")
   );
+  // Plate triggers get their own fields rather than the key=value box, so they
+  // are seeded from the same stored `match` an existing rule already holds.
+  const [matchPlate, setMatchPlate] = useState(() => String(rule?.trigger.match?.plate ?? ""));
+  const [matchDirection, setMatchDirection] = useState(() => String(rule?.trigger.match?.direction ?? ""));
+  const [matchDecision, setMatchDecision] = useState(() => String(rule?.trigger.match?.decision ?? ""));
 
   // ---- action steps ----
   const [steps, setSteps] = useState<Step[]>(() => {
@@ -248,6 +273,23 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
 
   /** `a=1, b=true` → `{ a: 1, b: true }`. Blank keys are ignored. */
   const parsedMatch = useMemo((): Record<string, unknown> => {
+    /*
+     * A plate trigger builds its match from real fields instead of the
+     * key=value box, so the two must not both contribute — otherwise a rule
+     * switched from a custom type to `plate` would carry the old pairs along
+     * invisibly and match nothing.
+     */
+    if (eventType === "plate") {
+      const out: Record<string, unknown> = {};
+      // Sent as typed; the server normalises it with the same function the
+      // recognition pipeline uses, so "KA 01 AB 1234" and "ka-01-ab-1234"
+      // both end up matching the read of that vehicle.
+      if (matchPlate.trim()) out.plate = matchPlate.trim();
+      if (matchDirection) out.direction = matchDirection;
+      if (matchDecision) out.decision = matchDecision;
+      return out;
+    }
+
     const out: Record<string, unknown> = {};
     for (const pair of matchText.split(",")) {
       const [k, ...rest] = pair.split("=");
@@ -259,7 +301,7 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
       else out[key] = raw;
     }
     return out;
-  }, [matchText]);
+  }, [matchText, eventType, matchPlate, matchDirection, matchDecision]);
 
   // ---- step helpers ----
   const patchStep = (id: string, patch: Partial<Step>) =>
@@ -617,16 +659,75 @@ export default function RuleEditor({ rule, onClose, onSaved }: Props) {
               </Field>
               <Field
                 label="Event type"
-                hint="The event's type field — e.g. access, rfid, bell. Leave blank to match any event."
+                hint="Which kind of event fires this rule."
               >
-                <TextInput value={eventType} onChange={setEventType} placeholder="access" />
+                <SelectInput
+                  value={KNOWN_EVENT_TYPES.some((t) => t.value === eventType) ? eventType : "__custom"}
+                  onChange={(v) => setEventType(v === "__custom" ? "" : v)}
+                  options={[
+                    ...KNOWN_EVENT_TYPES,
+                    // Kept so a rule written against a device type this build
+                    // does not know about still works, and so existing rules
+                    // with a custom type stay editable rather than being
+                    // silently rewritten to the first option in the list.
+                    { value: "__custom", label: "Something else…" },
+                  ]}
+                />
               </Field>
-              <Field
-                label="Only when (optional)"
-                hint="Comma-separated key=value pairs that must all match, e.g. granted=true, name=Hema"
-              >
-                <TextInput value={matchText} onChange={setMatchText} placeholder="granted=true" />
-              </Field>
+
+              {!KNOWN_EVENT_TYPES.some((t) => t.value === eventType) && (
+                <Field label="Custom event type" hint="The event's `type` field, exactly as the firmware publishes it.">
+                  <TextInput value={eventType} onChange={setEventType} placeholder="access" />
+                </Field>
+              )}
+
+              {/*
+                Plates get real fields instead of key=value text.
+                
+                Reading a number plate is the headline reason to own one of
+                these cameras, and "type plate=KA01AB1234 into a free-text box,
+                without spaces, or it silently never fires" is not a feature
+                anybody can use. The plate is normalised server-side on save,
+                so it can be typed the way it is written on the car.
+              */}
+              {eventType === "plate" ? (
+                <div className="space-y-3">
+                  <Field label="Plate" hint="Leave blank for any vehicle. Spacing does not matter.">
+                    <TextInput value={matchPlate} onChange={setMatchPlate} placeholder="KA 01 AB 1234" />
+                  </Field>
+                  <Field label="Direction">
+                    <SelectInput
+                      value={matchDirection}
+                      onChange={setMatchDirection}
+                      options={[
+                        { value: "", label: "Arriving or leaving" },
+                        { value: "in", label: "Arriving" },
+                        { value: "out", label: "Leaving" },
+                      ]}
+                    />
+                  </Field>
+                  <Field label="Only when the vehicle is">
+                    <SelectInput
+                      value={matchDecision}
+                      onChange={setMatchDecision}
+                      options={[
+                        { value: "", label: "Any vehicle" },
+                        { value: "allow", label: "On the allow list" },
+                        { value: "deny", label: "On the block list" },
+                        { value: "watch", label: "On the watchlist" },
+                        { value: "unknown", label: "Not on any list" },
+                      ]}
+                    />
+                  </Field>
+                </div>
+              ) : (
+                <Field
+                  label="Only when (optional)"
+                  hint="Comma-separated key=value pairs that must all match, e.g. granted=true, name=Hema"
+                >
+                  <TextInput value={matchText} onChange={setMatchText} placeholder="granted=true" />
+                </Field>
+              )}
             </div>
           )}
         </Section>

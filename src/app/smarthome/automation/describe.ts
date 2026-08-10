@@ -36,8 +36,30 @@ export function triggerText(
   }
   if (trigger.type === "event") {
     const dev = deviceName(trigger.deviceId);
+    const match = trigger.match ?? {};
+
+    /*
+     * Plate rules get a sentence rather than a key=value dump.
+     *
+     * This string is what somebody scans down a list of rules to find the one
+     * they need to change, and "plate event where plate = KA01AB1234 and
+     * direction = in" is a description of the data structure rather than of
+     * what the rule does.
+     */
+    if (trigger.eventType === "plate") {
+      const plate = typeof match.plate === "string" && match.plate ? formatPlate(match.plate) : "any vehicle";
+      const dir = match.direction === "in" ? "arrives" : match.direction === "out" ? "leaves" : "is seen";
+      const listed =
+        match.decision === "allow" ? " (on the allow list)"
+        : match.decision === "deny" ? " (on the block list)"
+        : match.decision === "watch" ? " (on the watchlist)"
+        : match.decision === "unknown" ? " (not on any list)"
+        : "";
+      return `When ${plate}${listed} ${dir} at ${dev}`;
+    }
+
     const kind = trigger.eventType ? `${trigger.eventType} event` : "any event";
-    const pairs = Object.entries(trigger.match ?? {});
+    const pairs = Object.entries(match);
     const where = pairs.length
       ? ` where ${pairs.map(([k, v]) => `${k} = ${String(v)}`).join(" and ")}`
       : "";
@@ -404,10 +426,24 @@ export function getCommandFields(type: string): CommandField[] {
 }
 
 /**
- * Build the command object from a CommandField and its chosen value.
- * Action-type fields (rfid-gate barrier) use the `action` key; all others
- * use the field key directly — matching what each firmware sketch reads.
+ * Groups a stored plate for display: `KA01AB1234` → `KA 01 AB 1234`.
+ *
+ * Display only. The authoritative grouping lives in `prettyPlate` on the
+ * control plane, which derives it from the shape the plate actually matched;
+ * this is a cosmetic regex over an already-normalised string, so the worst it
+ * can do is space a rule description oddly. It deliberately cannot affect
+ * matching — the value sent to the server is the raw text the user typed, and
+ * the server normalises it with the same function the recogniser uses.
  */
+function formatPlate(plate: string): string {
+  const s = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const m = /^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{4})$/.exec(s);
+  if (m) return `${m[1]} ${m[2]} ${m[3]} ${m[4]}`;
+  const bh = /^(\d{2})(BH)(\d{4})([A-Z]{1,2})$/.exec(s);
+  if (bh) return `${bh[1]} ${bh[2]} ${bh[3]} ${bh[4]}`;
+  return s;
+}
+
 /**
  * Build the command object from a CommandField and its chosen value.
  *

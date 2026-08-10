@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../db";
 import { requireAuth, type AuthedRequest } from "../auth";
+import { analysePlate, normalisePlate } from "../anpr/plate";
 
 export const automationRouter = Router();
 
@@ -19,6 +20,32 @@ const triggerSchema = z.object({
   eventType: z.string().max(40).optional(),
   match: z.record(z.string(), z.unknown()).optional(),
 });
+
+/**
+ * Normalises a plate inside an event trigger's `match`.
+ *
+ * The ANPR pipeline publishes `payload.plate` already normalised — no spaces,
+ * upper case, character confusions corrected against the plate's shape. A rule
+ * saved as "KA 01 AB 1234" would therefore never match the read of that exact
+ * vehicle, and would fail the way rules fail worst: silently, with the rule
+ * showing as enabled and simply never firing.
+ *
+ * Done on the server rather than in the console so every client — the web
+ * console, the app, and anything driving /v1 — gets it, and so there is one
+ * normaliser (anpr/plate.ts) rather than a copy per client that can drift from
+ * what the pipeline actually emits.
+ */
+function normaliseTriggerMatch(trigger: z.infer<typeof triggerSchema>): z.infer<typeof triggerSchema> {
+  if (trigger.type !== "event" || !trigger.match) return trigger;
+  const raw = trigger.match.plate;
+  if (typeof raw !== "string" || !raw) return trigger;
+  const analysis = analysePlate(raw);
+  // A string that is not a registration is left exactly as typed. It cannot
+  // match a real read either way, and rewriting it would hide the mistake from
+  // the person reading their own rule back.
+  const plate = analysis.valid ? analysis.plate : normalisePlate(raw);
+  return { ...trigger, match: { ...trigger.match, plate } };
+}
 const actionSchema = z.object({
   type: z.enum(["command", "notify", "tts"]),
   deviceId: z.string().optional(),
@@ -90,7 +117,8 @@ automationRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
     res.status(400).json({ error: "Invalid automation", details: p.error.flatten().fieldErrors });
     return;
   }
-  const { name, enabled, trigger, action } = p.data;
+  const { name, enabled, action } = p.data;
+  const trigger = normaliseTriggerMatch(p.data.trigger);
   if (!(await ownsReferencedDevices(req.user!.uid, trigger, action))) {
     res.status(403).json({ error: "That automation references a device you do not own." });
     return;
@@ -110,7 +138,7 @@ automationRouter.patch("/:id", requireAuth, async (req: AuthedRequest, res) => {
     res.status(400).json({ error: "Invalid automation", details: p.error.flatten().fieldErrors });
     return;
   }
-  const body = p.data;
+  const body = { ...p.data, trigger: p.data.trigger ? normaliseTriggerMatch(p.data.trigger) : undefined };
   const { rowCount } = await pool.query(`SELECT 1 FROM automations WHERE id = $1 AND owner_id = $2`, [id, req.user!.uid]);
   if (!rowCount) {
     res.status(404).json({ error: "Not found" });

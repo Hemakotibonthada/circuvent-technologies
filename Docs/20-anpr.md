@@ -534,8 +534,24 @@ matches the **existing** `event` trigger with no new trigger kind:
 
 ```json
 { "type": "event", "deviceId": "anpr-cam-a1b2c3",
-  "eventType": "plate", "match": { "plate": "KA01AB1234" } }
+  "eventType": "plate",
+  "match": { "plate": "KA01AB1234", "direction": "in", "decision": "allow" } }
 ```
+
+The rule builder offers plate, direction and list membership as real fields
+rather than the raw `key=value` box. Reading a plate is the headline reason to
+own one of these cameras, and "type `plate=KA01AB1234`, without spaces, or it
+silently never fires" is not a feature anybody can use.
+
+**The plate in a trigger is normalised server-side, in `routes/automations.ts`.**
+The pipeline publishes `payload.plate` already normalised, so a rule stored as
+typed — `KA 01 AB 1234` — could never equal the read of that exact vehicle, and
+would fail the way rules fail worst: enabled, correct-looking, never firing.
+Normalising in the route rather than the console means every client gets it and
+there is one normaliser rather than a copy per client that can drift from what
+the pipeline emits. A string that is *not* a registration is left as typed —
+rewriting it would hide the mistake from somebody reading their own rule back.
+`plate-trigger.test.ts` proves this over real HTTP.
 
 ### Webhooks
 
