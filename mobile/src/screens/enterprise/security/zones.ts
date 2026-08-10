@@ -97,6 +97,24 @@ const FIELD_MAP: Record<string, Partial<Record<ZoneKind, string[]>>> = {
     motion: ["motion", "motionDetected", "personDetected"],
     tamper: ["tamper", "tampered"],
   },
+  /*
+   * ANPR camera.
+   *
+   * Without an entry here it matched no field pattern — its motion key is
+   * `motionActive`, not `motion` — while still being security-capable via
+   * `armed`, so `deriveZones` fell to the raw branch and dumped the first
+   * eight state keys as zones: "Has Camera", "Psram", "Board", "Fps". Eight
+   * meaningless rows on the security screen is the mobile twin of the raw-JSON
+   * card, and it looks like a working feature.
+   *
+   * `vehiclePresent` is mapped as motion rather than contact: it answers "is
+   * something in the zone right now", which is what a motion zone means here,
+   * and it is the field an operator actually wants on this screen.
+   */
+  "anpr-cam": {
+    motion: ["vehiclePresent", "motionActive"],
+    tamper: ["tamper", "tampered"],
+  },
   touchboard: { contact: ["door", "doorOpen"], tamper: ["tamper"] },
   // A gas alarm is an alarm condition, and the firmware sounds its buzzer on
   // it, so the security screen treats it as a siren zone rather than hiding it.

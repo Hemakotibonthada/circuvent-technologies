@@ -7,6 +7,7 @@ import { api, Device } from "../api";
 import { useDevices, capabilities } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
+import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
 import { deviceMeta, type Palette, TAP_SLOP } from "../theme";
 import { useSwitchWidgets, CHANNEL_KINDS, channelKind, type Gang } from "../widgets";
 import { useCameraFrames } from "../live";
@@ -91,6 +92,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
         {d.type === "facedoor" && <FaceDoor d={d} send={send} c={c} />}
         {d.type === "touchboard" && <TouchBoard d={d} send={send} c={c} />}
         {d.type === "sentinel" && <Sentinel d={d} send={send} c={c} />}
+        {d.type === "anpr-cam" && <AnprCamera d={d} send={send} command={command} c={c} />}
         {isCamera(d) && <CameraDevice d={d} send={send} c={c} />}
 
         {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
@@ -120,7 +122,16 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
   );
 }
 
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel"];
+/**
+ * Types that have a real control panel above.
+ *
+ * A type missing from this array falls through to the raw-JSON card even when
+ * a control component was written for it, because the card's condition is
+ * driven by this list rather than by which components rendered. That is
+ * precisely how the camera shipped showing JSON on the phone, and it is why
+ * adding to this array is on the checklist in Docs/07-adding-a-new-device.md.
+ */
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -220,42 +231,48 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
         <Card padded style={{ marginBottom: 10 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <Text style={{ color: c.text, fontSize: 16 }}>{cap.fan.label}</Text>
-            <Text style={{ color: c.faint, fontWeight: "700" }}>
-              {Number(d.state[cap.fan.field] ?? 0) === 0 ? "Off" : `Speed ${Number(d.state[cap.fan.field] ?? 0)}`}
-            </Text>
+            <Text style={{ color: c.faint, fontWeight: "700" }}>{fanHint(d, cap.fan)}</Text>
           </View>
           {/*
-            Buttons alone meant no way to sweep through the speeds -- you had
-            to hit one of six small targets, and there was no gesture for
-            "a bit faster". The slider is the same shape the dimmer already
-            uses: drag freely, commit on release so the fan gets one command
-            rather than one per pixel. The buttons stay as direct picks.
+            Continuous, not four positions.
+
+            The fan drives an 8-bit PWM and the firmware used four of its 256
+            values, so the control could only ever be a four-way switch however
+            it was drawn. This is the range the hardware always had. A fan on
+            the previous firmware ignores `level` and obeys the `speed` the
+            command map sends beside it, so the same slider works there too --
+            it just lands on the nearest of the four speeds.
+
+            Commit on release, so the fan gets one command rather than one per
+            pixel of travel.
           */}
           <Slider
             style={{ width: "100%" }}
             minimumValue={0}
-            maximumValue={cap.fan.steps}
+            maximumValue={100}
             step={1}
-            value={Number(d.state[cap.fan.field] ?? 0)}
-            onSlidingComplete={(v) => { tapLight(); send({ [cap.fan!.field]: Math.round(v) }); }}
+            value={fanLevel(d, cap.fan)}
+            onSlidingComplete={(v) => { tapLight(); send(fanCommand(v)); }}
             minimumTrackTintColor={c.accent}
             maximumTrackTintColor={c.border}
             thumbTintColor={c.accentHi}
-            accessibilityLabel={`${cap.fan.label}, ${Number(d.state[cap.fan.field] ?? 0)} of ${cap.fan.steps}`}
+            accessibilityLabel={`${cap.fan.label}, ${fanLevel(d, cap.fan)} percent`}
           />
+          {/* The named speeds stay as direct picks: most of the time somebody
+              wants "medium", not a particular percentage. */}
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-            {Array.from({ length: cap.fan.steps + 1 }).map((_, i) => {
-              const active = Number(d.state[cap.fan!.field] ?? 0) === i;
+            {FAN_PRESETS.map((p) => {
+              const active = Math.round(fanLevel(d, cap.fan!)) === p.level;
               return (
                 <Pressable
-                  key={i}
-                  onPress={() => send({ [cap.fan!.field]: i })}
+                  key={p.label}
+                  onPress={() => send(fanCommand(p.level))}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
-                  accessibilityLabel={i === 0 ? "Fan off" : `Fan speed ${i}`}
+                  accessibilityLabel={p.level === 0 ? "Fan off" : `Fan ${p.label}`}
                   style={{ flex: 1, minHeight: 44, justifyContent: "center", borderRadius: 10, alignItems: "center", backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}
                 >
-                  <Text style={{ color: active ? c.onAccent : c.textDim, fontWeight: "700" }}>{i === 0 ? "Off" : i}</Text>
+                  <Text style={{ color: active ? c.onAccent : c.textDim, fontWeight: "700" }}>{p.label}</Text>
                 </Pressable>
               );
             })}
@@ -746,8 +763,125 @@ function RfidGate({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
   );
 }
 
-function FaceDoor({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const locked = !!d.state.locked;
+/**
+ * ANPR camera.
+ *
+ * Deliberately not the camera panel. This firmware does not read `motion` or
+ * `flash`, and the camera panel's snapshot and record buttons have nothing to
+ * act on here — offering them would produce controls that acknowledge a tap
+ * and do nothing, which is worse than not offering them.
+ *
+ * Live view is offered because aiming a camera without seeing through it is
+ * guesswork, and it is labelled as an aiming tool rather than a feed: the
+ * firmware drops resolution while streaming and cancels the lease after 20 s.
+ */
+function AnprCamera({
+  d,
+  send,
+  command,
+  c,
+}: {
+  d: Device;
+  send: (p: Record<string, unknown>) => void;
+  command: (id: string, body: Record<string, unknown>) => void | Promise<unknown>;
+  c: Palette;
+}) {
+  const armed = !!d.state.armed;
+  const ready = d.state.ready == null ? true : !!d.state.ready;
+  const phase = String(d.state.phase ?? "idle");
+  const plate = String(d.state.lastPlate ?? "");
+  const decision = String(d.state.lastDecision ?? "");
+  const confidence = Number(d.state.lastConfidence ?? 0);
+  const busy = phase === "settle" || phase === "burst";
+
+  const decisionColor = decision === "deny" ? c.red : decision === "allow" ? c.green : decision === "watch" ? c.amber : c.faint;
+  const decisionLabel =
+    decision === "deny" ? "BLOCKED" : decision === "allow" ? "ALLOWED" : decision === "watch" ? "WATCHLIST" : "";
+
+  return (
+    <View>
+      {!ready && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1 }}>
+          <Text style={{ color: c.red, fontWeight: "800" }}>Camera sensor did not start</Text>
+          <Text style={{ color: c.faint, fontSize: 12, marginTop: 4 }}>
+            No plates can be captured until it does. Check the ribbon cable and the 5 V supply, then reboot.
+          </Text>
+        </Card>
+      )}
+
+      <Card padded style={{ marginBottom: 12, alignItems: "center" }}>
+        <Text style={{ color: c.faint, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}>Last plate</Text>
+        <Text style={{ fontSize: 28, fontWeight: "800", color: plate ? c.text : c.faint, fontFamily: "monospace", marginTop: 4 }}>
+          {plate || "—"}
+        </Text>
+        {!!decisionLabel && (
+          <Text style={{ color: decisionColor, fontWeight: "800", fontSize: 12, marginTop: 6 }}>
+            {decisionLabel} · {confidence}%
+          </Text>
+        )}
+        <Text style={{ color: busy ? c.cyan : c.faint, fontSize: 13, marginTop: 8 }}>
+          {!armed ? "Disarmed" : busy ? "🚗 Vehicle at the lane" : "Watching the lane"}
+        </Text>
+      </Card>
+
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+        <Pressable
+          onPress={() => { tapLight(); void command(d.id, { action: "capture" }); }}
+          disabled={!d.online || !ready}
+          style={{ flex: 1, backgroundColor: c.accent, borderRadius: 12, paddingVertical: 14, alignItems: "center", opacity: d.online && ready ? 1 : 0.4 }}
+        >
+          <Text style={{ color: c.onAccent, fontWeight: "800" }}>Capture now</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { tapLight(); void command(d.id, { action: "stream", on: !d.state.streaming }); }}
+          disabled={!d.online || !ready}
+          style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center", opacity: d.online && ready ? 1 : 0.4 }}
+        >
+          <Text style={{ color: c.text, fontWeight: "800" }}>{d.state.streaming ? "Stop view" : "Aim camera"}</Text>
+        </Pressable>
+      </View>
+
+      {!!d.state.hasRelay && (
+        <Pressable
+          onPress={() => { tapLight(); void command(d.id, { action: "open" }); }}
+          disabled={!d.online}
+          style={{ backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginBottom: 12, opacity: d.online ? 1 : 0.4 }}
+        >
+          <Text style={{ color: c.onAccent, fontWeight: "800" }}>Open barrier</Text>
+        </Pressable>
+      )}
+
+      <Row label="Armed" c={c}>
+        <Sw v={armed} on={(v) => send({ armed: v })} c={c} />
+      </Row>
+
+      <Card padded style={{ marginBottom: 10, flexDirection: "row", justifyContent: "space-between" }}>
+        <View>
+          <Text style={{ color: c.text, fontWeight: "700" }}>{Number(d.state.captures ?? 0)}</Text>
+          <Text style={{ color: c.faint, fontSize: 12 }}>vehicles</Text>
+        </View>
+        <View>
+          <Text style={{ color: c.text, fontWeight: "700" }}>{Number(d.state.reads ?? 0)}</Text>
+          <Text style={{ color: c.faint, fontSize: 12 }}>plates read</Text>
+        </View>
+        <View>
+          <Text style={{ color: Number(d.state.dropped ?? 0) > 0 ? c.amber : c.text, fontWeight: "700" }}>
+            {Number(d.state.dropped ?? 0)}
+          </Text>
+          <Text style={{ color: c.faint, fontSize: 12 }}>dropped</Text>
+        </View>
+      </Card>
+
+      <Text style={{ color: c.faint, fontSize: 12, marginBottom: 10, lineHeight: 17 }}>
+        Plates are read by the control plane, not on the device — the camera decides when a vehicle is
+        present and sends the sharpest frames. Allow and block lists live with your account, so they
+        apply across every ANPR camera you own.
+      </Text>
+    </View>
+  );
+}
+
+function FaceDoor({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {  const locked = !!d.state.locked;
   const als = Number(d.state.autoLockSec ?? 8);
   return (
     <View>

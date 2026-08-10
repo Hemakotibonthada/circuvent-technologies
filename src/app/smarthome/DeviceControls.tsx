@@ -42,9 +42,15 @@ import {
   Mic,
   Ear,
   Volume2,
+  ScanBarcode,
+  ScanSearch,
+  Crosshair,
+  ShieldCheck,
+  Ban,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { controlPlane, type Device } from "@/lib/control-plane";
 import type { FieldStatus } from "@/lib/smarthome-realtime";
 import { haptic } from "@/lib/smarthome-realtime";
@@ -58,6 +64,7 @@ import {
 } from "@/lib/smarthome-prefs";
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 import { Slider } from "./_kit/Slider";
+import { FAN_STEP_LEVEL, levelToSpeed } from "@/lib/smarthome-command-map";
 import { effectiveDeviceType } from "./_data/device-type";
 import { useRemoteCamera } from "./useRemoteCamera";
 import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } from "./recording";
@@ -88,6 +95,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   camera: { label: "Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   cctv: { label: "CCTV Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   doorbell: { label: "Video Doorbell", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
+  "anpr-cam": { label: "ANPR Camera", icon: ScanBarcode, accent: "#0ea5e9", blurb: "Reads vehicle number plates" },
 };
 
 export function deviceMeta(type: string): DeviceTypeMeta {
@@ -264,6 +272,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
     case "cctv":
     case "doorbell":
       return <CameraDevice d={device} send={send} st={st} />;
+    case "anpr-cam":
+      return <AnprCamera d={device} send={send} st={st} />;
     default:
       return <>{generic}<RawState d={device} /></>;
   }
@@ -287,7 +297,7 @@ function sensorName(pid: number): string {
 export interface Capability {
   power?: { field: string; label: string };
   dimmer?: { field: string; label: string; min: number; max: number };
-  fan?: { field: string; label: string; steps: number };
+  fan?: { field: string; label: string; steps: number; legacyField?: string };
   color?: { field: string };
   thermostat?: { field: string; label: string; min: number; max: number };
 }
@@ -307,7 +317,10 @@ export function capabilities(type: string): Capability {
       return { power: { field: "power", label: "Power" }, dimmer: { field: "brightness", label: "Brightness", min: 0, max: 100 }, color: { field: "color" } };
     case "fan":
     case "ceiling-fan":
-      return { power: { field: "power", label: "Power" }, fan: { field: "speed", label: "Speed", steps: 3 } };
+      // `level` is the continuous 0..100 the hardware always had; `speed` is
+      // the four-position table it used to be limited to. buildFieldCommand
+      // sends both, so this slider works on a fan that has not been updated.
+      return { power: { field: "power", label: "Power" }, fan: { field: "level", label: "Speed", steps: 3, legacyField: "speed" } };
     case "thermostat":
     case "ac":
       return { power: { field: "power", label: "Power" }, thermostat: { field: "target", label: "Target", min: 16, max: 30 } };
@@ -318,6 +331,32 @@ export function capabilities(type: string): Capability {
 
 export function primaryPowerField(type: string): string {
   return capabilities(type).power?.field ?? "power";
+}
+
+/**
+ * Where the slider sits for a fan.
+ *
+ * A fan running current firmware reports `level`. One that has not been
+ * updated reports only `speed`, so the level is reconstructed from the same
+ * step table both sides use — otherwise the slider would sit at zero on a fan
+ * that is running, and the first touch would appear to jump it.
+ */
+function fanLevel(d: Device, cap: { field: string; legacyField?: string }): number {
+  const raw = d.state[cap.field];
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  const legacy = cap.legacyField ? d.state[cap.legacyField] : undefined;
+  if (typeof legacy === "number" && Number.isFinite(legacy)) {
+    return FAN_STEP_LEVEL[Math.max(0, Math.min(3, Math.round(legacy)))] ?? 0;
+  }
+  return 0;
+}
+
+/** "Off", or a percentage with the nearest named step, e.g. "48% · Low". */
+function fanHint(d: Device, cap: { field: string; legacyField?: string }): string {
+  const level = fanLevel(d, cap);
+  if (level <= 0) return "Off";
+  const names = ["Off", "Low", "Medium", "High"];
+  return `${level}% · ${names[levelToSpeed(level)]}`;
 }
 
 function GenericCapabilities({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
@@ -353,21 +392,27 @@ function GenericCapabilities({ d, send, st }: { d: Device; send: SendFn; st: Sta
         </ControlRow>
       )}
       {caps.fan && (
-        <ControlRow label={caps.fan.label} hint={`${n(d.state[caps.fan.field])} / ${caps.fan.steps}`}>
+        <ControlRow label={caps.fan.label} hint={fanHint(d, caps.fan)}>
           {/*
-            A row of numbered buttons meant a five-speed fan needed you to hit
-            one of six 36px targets, and there was no way to sweep through the
-            speeds. Same slider, snapped to whole steps, with the speeds marked.
+            Continuous, not four buttons.
+            
+            The hardware drives an 8-bit PWM and the firmware used four of its
+            256 values, so the old control was a row of numbered buttons — six
+            36px targets, no way to sweep. This is the real range. A fan still
+            running the previous firmware ignores `level` and obeys the `speed`
+            the command map derives alongside it, so the same slider works on
+            both; it just lands on the nearest of four speeds there.
           */}
           <div className="w-48">
             <Slider
               label={caps.fan.label}
-              value={n(d.state[caps.fan.field])}
+              value={fanLevel(d, caps.fan)}
               min={0}
-              max={caps.fan.steps}
+              max={100}
               step={1}
-              ticks={Array.from({ length: caps.fan.steps + 1 }, (_, i) => i)}
-              tickLabels={{ 0: "Off" }}
+              unit="%"
+              ticks={[0, 33, 66, 100]}
+              tickLabels={{ 0: "Off", 33: "Low", 66: "Med", 100: "High" }}
               onCommit={(v) => send({ [caps.fan!.field]: v })}
             />
           </div>
@@ -2220,6 +2265,464 @@ function CameraAudio({ d }: { d: Device }) {
         Listening stops on its own after two minutes and when this page closes — a microphone in your
         home should not stay open because a tab was left behind. Talking sends one clip at a time, up
         to 20 seconds; the camera fetches it and plays it once.
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* ANPR camera                                                         */
+/* ------------------------------------------------------------------ */
+
+const ANPR_RES = ["QVGA", "VGA", "SVGA", "XGA", "SXGA", "UXGA"] as const;
+
+/** Phase -> what the lane is doing, in words an installer can act on. */
+const ANPR_PHASE: Record<string, { label: string; tint: string }> = {
+  idle: { label: "Watching", tint: "#64748b" },
+  settle: { label: "Vehicle detected", tint: "#f59e0b" },
+  burst: { label: "Capturing", tint: "#0ea5e9" },
+  cooldown: { label: "Lane clearing", tint: "#8b5cf6" },
+};
+
+/** Decision -> badge. Kept next to the read so the two cannot be read apart. */
+function DecisionBadge({ decision }: { decision: string }) {
+  const map: Record<string, { label: string; bg: string; fg: string; Icon: LucideIcon }> = {
+    allow: { label: "Allowed", bg: "rgba(34,197,94,0.15)", fg: "#22c55e", Icon: ShieldCheck },
+    deny: { label: "Blocked", bg: "rgba(239,68,68,0.15)", fg: "#ef4444", Icon: Ban },
+    watch: { label: "Watchlist", bg: "rgba(245,158,11,0.15)", fg: "#f59e0b", Icon: ScanSearch },
+  };
+  const m = map[decision];
+  if (!m) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold"
+      style={{ background: m.bg, color: m.fg }}
+    >
+      <m.Icon className="h-3 w-3" />
+      {m.label}
+    </span>
+  );
+}
+
+/**
+ * The ANPR camera panel.
+ *
+ * Two jobs, and they are deliberately not the same screen as the plate log:
+ * this aims and tunes one camera, while /smarthome/traffic answers "what came
+ * through". Mixing them produces a page that is wrong for both — an installer
+ * on a ladder does not want a week of history, and somebody reviewing last
+ * night does not want a sensitivity slider.
+ *
+ * Live view is present only because aiming a camera without seeing through it
+ * is guesswork. The firmware drops to a lighter resolution while streaming and
+ * expires the lease after 20 s, so leaving this open cannot degrade capture.
+ */
+function AnprCamera({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const armed = b(d.state.armed);
+  const ready = d.state.ready == null ? true : b(d.state.ready);
+  const streaming = b(d.state.streaming);
+  const psram = b(d.state.psram);
+  const phase = typeof d.state.phase === "string" ? d.state.phase : "idle";
+  const lastPlate = typeof d.state.lastPlate === "string" ? d.state.lastPlate : "";
+  const lastDecision = typeof d.state.lastDecision === "string" ? d.state.lastDecision : "";
+  const lastConfidence = n(d.state.lastConfidence);
+  const hasLoop = b(d.state.hasLoop);
+  const hasRelay = b(d.state.hasRelay);
+  const resolution = typeof d.state.resolution === "string" ? d.state.resolution : "SVGA";
+  const lane = d.state.direction === "in" || d.state.direction === "out" ? d.state.direction : "both";
+
+  const roi = {
+    x: n(d.state.roiX),
+    y: n(d.state.roiY, 25),
+    w: n(d.state.roiW, 100),
+    h: n(d.state.roiH, 65),
+  };
+
+  const [frame, setFrame] = useState<LiveFrame | null>(null);
+  const [capturing, setCapturing] = useState(false);
+
+  /**
+   * The ROI is always sent whole, never one edge at a time.
+   *
+   * The firmware applies x before clamping w against it, so a partial update
+   * lets a half-applied rectangle — a new origin with the old width — exist
+   * between two messages, and that rectangle is what motion is judged against.
+   * Sending all four keeps the device's copy and this one identical at every
+   * instant.
+   */
+  const setRoi = (patch: Partial<typeof roi>) => {
+    const next = { ...roi, ...patch };
+    next.w = Math.min(next.w, 100 - next.x);
+    next.h = Math.min(next.h, 100 - next.y);
+    send({ roi: next });
+  };
+
+  useCameraFrames(d.online ? d.id : null, (f) => {
+    setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: Date.now(), bytes: f.bytes });
+  });
+
+  // Same keep-alive contract as the camera panel: the firmware arms the stream
+  // for 20 s and then stops it by itself, so a viewer that does not re-arm
+  // simply watches the picture die and never come back.
+  useEffect(() => {
+    if (!d.online || !streaming) return;
+    const arm = () => void controlPlane.command(d.id, { action: "stream", on: true });
+    arm();
+    const t = setInterval(arm, STREAM_REARM_MS);
+    return () => clearInterval(t);
+  }, [d.online, d.id, streaming]);
+
+  const capture = async () => {
+    setCapturing(true);
+    haptic();
+    try {
+      await controlPlane.command(d.id, { action: "capture" });
+    } finally {
+      // Long enough to cover settle + a default burst, so the button does not
+      // re-arm before the frames it asked for have even been taken.
+      setTimeout(() => setCapturing(false), 2500);
+    }
+  };
+
+  const phaseMeta = ANPR_PHASE[phase] ?? ANPR_PHASE.idle;
+  const busy = phase !== "idle";
+
+  return (
+    <div>
+      {!ready && (
+        <div
+          className="mb-4 flex items-start gap-2 rounded-xl border p-3 text-sm"
+          style={{ borderColor: "rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.08)", color: "#fca5a5" }}
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            The camera sensor did not start. Plate capture cannot work until it does — check the ribbon
+            cable seating and the 5 V supply, then reboot the device.
+          </span>
+        </div>
+      )}
+
+      {/* Viewport, with the region of interest drawn over it. Showing the ROI
+          on the live picture is the only way an installer can tell whether the
+          rectangle covers the lane rather than the hedge behind it. */}
+      <div
+        className="relative w-full overflow-hidden rounded-2xl border"
+        style={{
+          aspectRatio: "4 / 3",
+          background: "#000",
+          borderColor: busy ? phaseMeta.tint : "var(--cv-border)",
+        }}
+      >
+        {frame ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={frame.src}
+            alt={`Lane view from ${d.name || d.id}`}
+            className="h-full w-full object-contain"
+            style={{ transform: n(d.state.rotation) === 180 ? "rotate(180deg)" : undefined }}
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center px-6">
+            <ScanBarcode className="h-8 w-8" style={{ color: "var(--cv-text-dim)" }} />
+            <p className="text-sm" style={{ color: "var(--cv-text-dim)" }}>
+              {d.online
+                ? "Start the live view to aim the camera. It is not needed for plate capture."
+                : "Device is offline."}
+            </p>
+          </div>
+        )}
+
+        <div
+          className="pointer-events-none absolute border-2 border-dashed"
+          style={{
+            left: `${roi.x}%`,
+            top: `${roi.y}%`,
+            width: `${roi.w}%`,
+            height: `${roi.h}%`,
+            borderColor: "rgba(14,165,233,0.85)",
+            background: "rgba(14,165,233,0.07)",
+          }}
+        >
+          <span
+            className="absolute left-0 top-0 -translate-y-full rounded-t px-1.5 py-0.5 text-[11px] font-semibold"
+            style={{ background: "rgba(14,165,233,0.85)", color: "#04202e" }}
+          >
+            Watched lane
+          </span>
+        </div>
+
+        <div className="absolute right-2 top-2 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold"
+          style={{ background: "rgba(0,0,0,0.6)", color: phaseMeta.tint }}
+        >
+          <Circle className="h-2.5 w-2.5 fill-current" />
+          {phaseMeta.label}
+        </div>
+      </div>
+
+      {/* Last read. Placed directly under the picture because it is the answer
+          to the question the installer is asking while standing at the lens. */}
+      <div
+        className="mt-3 rounded-xl border px-4 py-3"
+        style={{ borderColor: "var(--cv-border)", background: "var(--cv-card-hi)" }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[12px] font-medium" style={{ color: "var(--cv-muted)" }}>
+              Last plate read
+            </div>
+            <div className="cv-num truncate text-[24px] font-bold" style={{ color: "var(--cv-text)" }}>
+              {lastPlate || "—"}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <DecisionBadge decision={lastDecision} />
+            {lastPlate && (
+              <span className="text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
+                {lastConfidence}% confidence
+              </span>
+            )}
+          </div>
+        </div>
+        <p className="mt-2 text-[12px] leading-relaxed" style={{ color: "var(--cv-text-dim)" }}>
+          Plates are read by the control plane, not on the device. The camera decides when a vehicle is
+          present and sends the sharpest frames; the reading, the allow list and the decision all happen
+          server-side. <Link href="/smarthome/security?tab=vehicles" className="underline">See the full log</Link>.
+        </p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          onClick={capture}
+          disabled={!d.online || !ready || capturing}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-40 ${pendCls(st("capture"))}`}
+          style={{ background: "var(--cv-card-hi)", color: "var(--cv-text)" }}
+        >
+          <Crosshair className="h-4 w-4" />
+          {capturing ? "Capturing…" : "Capture now"}
+        </button>
+        <button
+          onClick={() => {
+            haptic();
+            void controlPlane.command(d.id, { action: "stream", on: !streaming });
+          }}
+          disabled={!d.online || !ready}
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-40"
+          style={{ background: "var(--cv-card-hi)", color: "var(--cv-text)" }}
+        >
+          {streaming ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+          {streaming ? "Stop live view" : "Live view (aim)"}
+        </button>
+        {hasRelay && (
+          <button
+            onClick={() => {
+              haptic();
+              void controlPlane.command(d.id, { action: "open" });
+            }}
+            disabled={!d.online}
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-40"
+            style={{ background: "var(--cv-card-hi)", color: "var(--cv-text)" }}
+          >
+            <LockOpen className="h-4 w-4" />
+            Open barrier
+          </button>
+        )}
+      </div>
+
+      <SectionLabel>Detection</SectionLabel>
+
+      <ControlRow
+        label="Armed"
+        hint={
+          armed
+            ? hasLoop
+              ? "Triggered by the loop detector, falling back to image motion."
+              : "Triggered by image motion inside the watched lane."
+            : "Nothing is captured while disarmed."
+        }
+        status={st("armed")}
+      >
+        <Toggle checked={armed} onChange={(v) => send({ armed: v })} status={st("armed")} disabled={!d.online} />
+      </ControlRow>
+
+      <ControlRow
+        label="Motion sensitivity"
+        hint="Higher fires on smaller movement. Lower it if headlights, shadows or rain trigger captures."
+        status={st("sensitivity")}
+      >
+        <Slider
+          value={n(d.state.sensitivity, 55)}
+          onCommit={(v) => send({ sensitivity: v })}
+          label="Motion sensitivity"
+          min={1}
+          max={100}
+          step={5}
+          unit="%"
+          disabled={!d.online || !armed}
+        />
+      </ControlRow>
+
+      <ControlRow
+        label="Frames per vehicle"
+        hint="More frames read more reliably and cost more per arrival. Three is the sweet spot at a gate."
+        status={st("burst")}
+      >
+        <Stepper
+          value={n(d.state.burst, 3)}
+          onChange={(v) => send({ burst: v })}
+          min={1}
+          max={8}
+          step={1}
+          disabled={!d.online}
+        />
+      </ControlRow>
+
+      <ControlRow
+        label="Capture delay"
+        hint="How long to wait after a vehicle is detected before the first frame, so the plate is in shot rather than entering it."
+        status={st("settleMs")}
+      >
+        <Stepper
+          value={n(d.state.settleMs, 350)}
+          onChange={(v) => send({ settleMs: v })}
+          min={0}
+          max={2000}
+          step={50}
+          suffix=" ms"
+          disabled={!d.online}
+        />
+      </ControlRow>
+
+      <ControlRow
+        label="Re-trigger delay"
+        hint="Quiet period after a capture. Raise it if one vehicle produces several reads."
+        status={st("cooldownMs")}
+      >
+        <Stepper
+          value={n(d.state.cooldownMs, 6000)}
+          onChange={(v) => send({ cooldownMs: v })}
+          min={1000}
+          max={30000}
+          step={1000}
+          suffix=" ms"
+          disabled={!d.online}
+        />
+      </ControlRow>
+
+      <SectionLabel>Watched lane</SectionLabel>
+      <p className="-mt-2 mb-3 text-xs leading-relaxed" style={{ color: "var(--cv-text-dim)" }}>
+        Only movement inside this rectangle triggers a capture. Cover the road surface and nothing
+        else — trees, sky, a footpath or next door&apos;s gate inside it will trigger captures all
+        day. Values are a percentage of the picture, so they survive a resolution change.
+      </p>
+
+      <ControlRow
+        label="Traffic direction"
+        hint={
+          lane === "both"
+            ? "One camera covering both ways. Arrivals and departures are told apart by alternating against each vehicle's last movement — accurate, but a dedicated lane is more reliable."
+            : lane === "in"
+              ? "Every vehicle read here is treated as arriving."
+              : "Every vehicle read here is treated as leaving."
+        }
+        status={st("direction")}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          <ScenePill label="Entry" active={lane === "in"} onClick={() => send({ direction: "in" })} status={st("direction")} />
+          <ScenePill label="Exit" active={lane === "out"} onClick={() => send({ direction: "out" })} status={st("direction")} />
+          <ScenePill label="Both ways" active={lane === "both"} onClick={() => send({ direction: "both" })} status={st("direction")} />
+        </div>
+      </ControlRow>
+
+      <ControlRow label="Left edge" status={st("roiX")}>
+        <Stepper value={roi.x} onChange={(v) => setRoi({ x: v })} min={0} max={95} step={5} suffix="%" disabled={!d.online} />
+      </ControlRow>
+      <ControlRow label="Top edge" status={st("roiY")}>
+        <Stepper value={roi.y} onChange={(v) => setRoi({ y: v })} min={0} max={95} step={5} suffix="%" disabled={!d.online} />
+      </ControlRow>
+      <ControlRow label="Width" status={st("roiW")}>
+        <Stepper value={roi.w} onChange={(v) => setRoi({ w: v })} min={5} max={100 - roi.x} step={5} suffix="%" disabled={!d.online} />
+      </ControlRow>
+      <ControlRow label="Height" status={st("roiH")}>
+        <Stepper value={roi.h} onChange={(v) => setRoi({ h: v })} min={5} max={100 - roi.y} step={5} suffix="%" disabled={!d.online} />
+      </ControlRow>
+
+      <SectionLabel>Image</SectionLabel>
+
+      <ControlRow
+        label="Capture resolution"
+        hint={
+          psram
+            ? "A plate needs roughly 100 px across its characters. SVGA is the practical floor at 4 m."
+            : "No PSRAM on this board — anything above VGA is clamped automatically."
+        }
+        status={st("resolution")}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {ANPR_RES.map((r) => (
+            <ScenePill
+              key={r}
+              label={r}
+              active={resolution.toUpperCase() === r}
+              onClick={() => send({ resolution: r })}
+              status={st("resolution")}
+            />
+          ))}
+        </div>
+      </ControlRow>
+
+      <ControlRow
+        label="JPEG quality"
+        hint="Lower is sharper and larger. Plates need detail, so this sits far below the value a normal camera would use."
+        status={st("quality")}
+      >
+        <Slider
+          value={n(d.state.quality, 10)}
+          onCommit={(v) => send({ quality: v })}
+          label="JPEG quality"
+          min={4}
+          max={40}
+          step={2}
+          disabled={!d.online}
+        />
+      </ControlRow>
+
+      <ControlRow label="Illuminator" hint="IR lamp brightness. Leave at 0 in daylight." status={st("illum")}>
+        <Slider
+          value={n(d.state.illum)}
+          onCommit={(v) => send({ illum: v })}
+          label="Illuminator"
+          min={0}
+          max={100}
+          step={10}
+          unit="%"
+          disabled={!d.online}
+        />
+      </ControlRow>
+
+      <ControlRow label="Rotation" hint="For a camera mounted upside down." status={st("rotation")}>
+        <div className="flex gap-1.5">
+          <ScenePill label="0°" active={n(d.state.rotation) !== 180} onClick={() => send({ rotation: 0 })} status={st("rotation")} />
+          <ScenePill label="180°" active={n(d.state.rotation) === 180} onClick={() => send({ rotation: 180 })} status={st("rotation")} />
+        </div>
+      </ControlRow>
+
+      <SectionLabel>Since boot</SectionLabel>
+      <div className="flex flex-wrap gap-2">
+        <StatTile label="Vehicles" value={String(n(d.state.captures))} accent="#0ea5e9" />
+        <StatTile label="Plates read" value={String(n(d.state.reads))} accent="#22c55e" />
+        <StatTile label="Frames sent" value={String(n(d.state.published))} />
+        <StatTile
+          label="Dropped"
+          value={String(n(d.state.dropped))}
+          accent={n(d.state.dropped) > 0 ? "#f59e0b" : undefined}
+          hint={n(d.state.dropped) > 0 ? "Weak Wi-Fi at the gate" : undefined}
+        />
+      </div>
+
+      <p className="mt-4 text-xs leading-relaxed" style={{ color: "var(--cv-text-dim)" }}>
+        {hasLoop
+          ? "A loop detector is wired to this unit. It is the more reliable trigger — it cannot be fooled by a shadow, a headlight sweep or rain — so image motion is only consulted while the loop reads clear."
+          : "No loop detector is wired to this unit, so arrivals are detected from the picture alone. Fitting an inductive loop or IR beam is the single biggest improvement you can make to trigger reliability."}
       </p>
     </div>
   );

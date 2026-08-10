@@ -28,7 +28,33 @@ int brightness = 100, savedBrightness = 100;
 String color = "#FFFFFF", savedColor = "#FFFFFF";
 unsigned long lastBtn = 0;
 
-int pctToDuty(int pct) { return map(constrain(pct, 0, 100), 0, 100, 0, 255); }
+/*
+ * Lowest duty that still emits visible light rather than nothing.
+ *
+ * A linear map sent brightness 1 to duty 2, which on most LED drivers is below
+ * the forward-voltage knee: the lamp goes dark and the user concludes the
+ * bottom of the slider is broken.
+ */
+#define MIN_LED_DUTY 3
+
+/*
+ * Perceived brightness is not duty cycle.
+ *
+ * The eye's response is roughly a power law, so a linear percent-to-duty map
+ * spends most of the slider's travel in a range that all looks the same:
+ * 50% appears far brighter than half, and the bottom third does almost
+ * nothing. Applying a gamma of about 2.2 makes equal movements of the slider
+ * look like equal changes in brightness, which is the whole point of a dimmer.
+ *
+ * The wire format is unchanged — still 0..100 — so nothing else has to know.
+ */
+int pctToDuty(int pct) {
+  pct = constrain(pct, 0, 100);
+  if (pct <= 0) return 0;
+  float f = (float)pct / 100.0f;
+  int duty = (int)(powf(f, 2.2f) * 255.0f + 0.5f);
+  return constrain(duty, MIN_LED_DUTY, 255);
+}
 
 bool parseHexColor(const String &value, uint8_t &r, uint8_t &g, uint8_t &b) {
   String s = value;
@@ -56,12 +82,15 @@ void applyLight() {
   uint8_t r = 255, g = 255, b = 255;
   parseHexColor(color, r, g, b);
   int whiteDuty = power ? pctToDuty(brightness) : 0;
-  int scale = power ? brightness : 0;
   digitalWrite(RELAY_PIN, power ? HIGH : LOW);
   ledcWrite(WHITE_CH, whiteDuty);
-  ledcWrite(RED_CH, (int)r * scale / 100);
-  ledcWrite(GREEN_CH, (int)g * scale / 100);
-  ledcWrite(BLUE_CH, (int)b * scale / 100);
+  /* The colour channels scale by the same gamma-corrected duty as white.
+     Scaling them linearly by percent while white was corrected made a dimmed
+     colour drift — the RGB mix fell away faster than the white channel, so
+     warm white turned blue-grey on the way down. */
+  ledcWrite(RED_CH, (int)r * whiteDuty / 255);
+  ledcWrite(GREEN_CH, (int)g * whiteDuty / 255);
+  ledcWrite(BLUE_CH, (int)b * whiteDuty / 255);
   saveState();
   cv.set("power", power);
   cv.set("brightness", brightness);

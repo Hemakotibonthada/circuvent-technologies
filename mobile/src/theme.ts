@@ -144,6 +144,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   "smart-lock": "entry",
   facedoor: "entry",
   "rfid-gate": "entry",
+  "anpr-cam": "entry",
   curtain: "entry",
   "smart-plug": "power",
   "energy-monitor": "power",
@@ -194,6 +195,10 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   camera: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "Camera" },
   cctv: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "CCTV Camera" },
   doorbell: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "Video Doorbell" },
+  // No `toggle`: the primary switch is `armed`, which is a mode rather than a
+  // load. Offering it as a tile toggle would put "turn the ANPR camera off"
+  // one accidental tap away on the dashboard, next to the lamps.
+  "anpr-cam": { glyph: "🔢", icon: "anpr-cam", accent: C.cyan, grad: GRAD.cyan, label: "ANPR Camera" },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

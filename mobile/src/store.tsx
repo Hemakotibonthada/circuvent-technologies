@@ -114,7 +114,7 @@ export function useDevices(): DevicesCtx {
 export interface Capability {
   power?: { field: string; label: string };
   dimmer?: { field: string; label: string; min: number; max: number };
-  fan?: { field: string; label: string; steps: number };
+  fan?: { field: string; label: string; steps: number; legacyField?: string };
   color?: { field: string };
   thermostat?: { field: string; label: string; min: number; max: number };
   metric?: (d: Device) => string;
@@ -158,6 +158,25 @@ export function capabilities(type: string): Capability {
       // No `power` field: a camera's primary tile action is "watch", not
       // "toggle", and offering a switch that maps to nothing would lie.
       return { metric: (d) => (d.state.motionActive ? "Motion" : d.state.streaming ? "Live" : "Idle") };
+    case "anpr-cam":
+      /*
+       * No `power`, for the same reason as a camera and one more: this
+       * device's only boolean is `armed`, which is a mode rather than a load.
+       * Exposing it as the tile switch would put "stop watching the gate" one
+       * accidental tap away, in a grid of lamps.
+       *
+       * The metric leads with the plate, because that is the thing somebody
+       * opening the app actually wants to know.
+       */
+      return {
+        metric: (d) => {
+          if (d.state.ready === false) return "No sensor";
+          if (!d.state.armed) return "Disarmed";
+          if (d.state.lastPlate) return String(d.state.lastPlate);
+          const phase = String(d.state.phase ?? "idle");
+          return phase === "settle" || phase === "burst" ? "Vehicle" : "Watching";
+        },
+      };
     // Dimmable / speed / motorised device types (match firmware type ids).
     case "smart-light":
     case "light":
@@ -169,7 +188,10 @@ export function capabilities(type: string): Capability {
     case "smart-fan":
     case "fan":
     case "ceiling-fan":
-      return { power: { field: "power", label: "Power" }, fan: { field: "speed", label: "Speed", steps: 3 } };
+      // `level` is the continuous 0..100 the hardware always had; `speed` is
+      // the four-position table it used to be limited to. Both are sent, so
+      // the same control works on a fan that has not been updated.
+      return { power: { field: "power", label: "Power" }, fan: { field: "level", label: "Speed", steps: 3, legacyField: "speed" } };
     case "curtain":
       return { dimmer: { field: "position", label: "Position", min: 0, max: 100 }, metric: (d) => `${Number(d.state.position ?? 0)}%` };
     case "smart-lock":

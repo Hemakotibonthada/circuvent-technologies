@@ -105,6 +105,7 @@ export const ICONS = {
   offline: mci("wifi-off"),
   wifi: mci("wifi"),
   camera: mci("cctv"),
+  "anpr-cam": mci("car-info"),
   lock: mci("lock"),
   unlock: mci("lock-open-variant"),
   empty: mci("tray-remove"),

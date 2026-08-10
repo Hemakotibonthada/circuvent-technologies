@@ -42,6 +42,36 @@ export const CAM_FPS_MAX = 30;
 /** The frame rates worth offering as presets. The device accepts any 1..30. */
 export const CAM_FPS_PRESETS = [1, 5, 8, 10, 15, 20, 25, 30] as const;
 
+/**
+ * Fan speed, in the two forms the fleet understands.
+ *
+ * firmware/smart-fan drives an 8-bit PWM and used four of its 256 duty values,
+ * so `speed` is 0..3 and `level` is the continuous 0..100 the hardware could
+ * always do. STEP_LEVEL is the same table the firmware uses, so a `speed` and
+ * the `level` derived from it mean the same physical airflow on both sides.
+ *
+ * Level 1 is not one percent of duty. Below roughly a third, a fan motor
+ * stalls rather than turning slowly — it hums and draws locked-rotor current
+ * through a winding its own airflow is no longer cooling — so the firmware
+ * maps 1..100 onto the usable band above that floor.
+ */
+export const FAN_STEP_LEVEL = [0, 33, 66, 100] as const;
+
+/** Nearest named step for a continuous level, matching levelToSpeed() in the firmware. */
+export function levelToSpeed(level: number): number {
+  if (!Number.isFinite(level) || level <= 0) return 0;
+  let best = 1;
+  let bestDiff = Infinity;
+  for (let s = 1; s <= 3; s++) {
+    const d = Math.abs(level - FAN_STEP_LEVEL[s]);
+    if (d < bestDiff) {
+      bestDiff = d;
+      best = s;
+    }
+  }
+  return best;
+}
+
 export type StatePatch = Record<string, unknown>;
 
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
@@ -199,7 +229,36 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       // firmware/smart-fan: speed 0 forces power off; a non-zero speed without
       // an explicit power key forces power on.
       if (isBool(cmd.power)) patch.power = cmd.power;
-      if (isNum(cmd.speed)) {
+
+      /*
+       * A fan command carries both forms of the same intent.
+       *
+       * Current firmware reads `level` (0..100, continuous). Every fan already
+       * installed reads `speed` (0..3) and silently ignores anything else — so
+       * sending only `level` would produce a slider that moves, saves, reports
+       * success and changes nothing, which is precisely the failure the camera
+       * automations had. That is handled in buildFieldCommand, which emits
+       * both.
+       *
+       * What is projected here is only what EVERY fan reports back: speed and
+       * power. `level` is deliberately absent even though the command carries
+       * it, because a projection is a promise about the state the device will
+       * publish, and patchSatisfied requires every projected key to match
+       * before it considers a command confirmed. A fan on the older firmware
+       * never publishes `level`, so projecting it would leave every command
+       * from this slider pending forever on exactly the devices the dual-key
+       * command exists to support. An existing test caught this.
+       *
+       * The cost is that two levels sharing a step confirm as soon as the step
+       * matches. Optimistic by a few percent is a far better failure than a
+       * control that never stops spinning.
+       */
+      if (isNum(cmd.level)) {
+        const level = clamp(Math.round(cmd.level), 0, 100);
+        patch.speed = levelToSpeed(level);
+        if (level === 0) patch.power = false;
+        else if (!isBool(cmd.power)) patch.power = true;
+      } else if (isNum(cmd.speed)) {
         const speed = clamp(Math.round(cmd.speed), 0, 3);
         patch.speed = speed;
         if (speed === 0) patch.power = false;
@@ -306,9 +365,65 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       return patch;
     }
 
+    // -------------------------------------------------------- ANPR camera --
+    // firmware/anpr-cam/anpr-cam.ino. Separate from the camera case above:
+    // this sketch reads neither `motion` nor `flash`, and reads `armed`,
+    // `burst`, `settleMs` and `cooldownMs`, which that one does not.
+    case "anpr-cam": {
+      if (action === "stream") {
+        patch.streaming = isBool(cmd.on) ? cmd.on : true;
+        return patch;
+      }
+      /*
+       * `capture`, `open`, `reboot` and `result` project nothing, deliberately.
+       *
+       * A capture's outcome is a plate the device cannot know — it is read on
+       * the server and echoed back minutes later at the earliest. Optimistically
+       * setting `phase` or `lastPlate` here would pin a field waiting for a
+       * confirmation with a completely different value, which is the hang this
+       * projection exists to avoid.
+       */
+      if (action !== "set") return patch;
+
+      if (isBool(cmd.armed)) patch.armed = cmd.armed;
+      if (isStr(cmd.direction)) {
+        // Only the three the firmware accepts. Echoing anything else would pin
+        // the field on a value the device validates away and never publishes.
+        const dir = cmd.direction.toLowerCase();
+        if (dir === "in" || dir === "out" || dir === "both") patch.direction = dir;
+      }
+      if (isStr(cmd.resolution)) patch.resolution = cmd.resolution.toUpperCase();
+      if (isNum(cmd.quality)) patch.quality = clamp(Math.round(cmd.quality), 4, 63);
+      if (isNum(cmd.rotation)) patch.rotation = cmd.rotation === 180 ? 180 : 0;
+      if (isNum(cmd.illum)) patch.illum = clamp(Math.round(cmd.illum), 0, 100);
+      if (isNum(cmd.sensitivity)) patch.sensitivity = clamp(Math.round(cmd.sensitivity), 1, 100);
+      if (isNum(cmd.burst)) patch.burst = clamp(Math.round(cmd.burst), 1, 8);
+      if (isNum(cmd.burstGapMs)) patch.burstGapMs = clamp(Math.round(cmd.burstGapMs), 80, 2000);
+      if (isNum(cmd.settleMs)) patch.settleMs = clamp(Math.round(cmd.settleMs), 0, 5000);
+      if (isNum(cmd.cooldownMs)) patch.cooldownMs = clamp(Math.round(cmd.cooldownMs), 500, 60000);
+      /*
+       * The ROI is sent as a nested object but published as four flat keys.
+       *
+       * The firmware clamps width against roiX *after* applying any new x, so
+       * the origin used here has to be the new value when one was sent and the
+       * stored one otherwise. Getting that wrong pins `roiW` at a number the
+       * device will never report, and the optimistic field waits forever.
+       */
+      if (cmd.roi && typeof cmd.roi === "object") {
+        const r = cmd.roi as Record<string, unknown>;
+        const stored = (k: string) => (isNum(state?.[k]) ? (state![k] as number) : 0);
+        const originX = isNum(r.x) ? clamp(Math.round(r.x), 0, 99) : stored("roiX");
+        const originY = isNum(r.y) ? clamp(Math.round(r.y), 0, 99) : stored("roiY");
+        if (isNum(r.x)) patch.roiX = originX;
+        if (isNum(r.y)) patch.roiY = originY;
+        if (isNum(r.w)) patch.roiW = clamp(Math.round(r.w), 1, 100 - originX);
+        if (isNum(r.h)) patch.roiH = clamp(Math.round(r.h), 1, 100 - originY);
+      }
+      return patch;
+    }
+
     // ------------------------------------------------------------- gate ---
-    case "rfid-gate": {
-      if (action === "open" || action === "grantOpen") patch.barrier = "open";
+    case "rfid-gate": {      if (action === "open" || action === "grantOpen") patch.barrier = "open";
       else if (action === "close") patch.barrier = "closed";
       if (isStr(cmd.mode)) patch.mode = cmd.mode;
       return patch;
@@ -479,6 +594,90 @@ export function buildFieldCommand(
         return { action: "set", resolution: value };
       }
       return null;
+    }
+
+    /*
+     * ANPR camera.
+     *
+     * Shares the camera's `set` shape but not its fields, which is exactly why
+     * it needs its own case rather than being folded into the block above:
+     * `motion` and `flash` do not exist in this firmware, and `armed`,
+     * `burst`, `settleMs` and `cooldownMs` do. Falling through to the camera
+     * case would offer four controls that are silently discarded on arrival
+     * and hide the four that actually work.
+     *
+     * `capture` is a verb, not a field — the sketch switches on the action —
+     * so it is projected the same way rfid-gate's barrier is.
+     */
+    case "anpr-cam": {
+      if (field === "armed") {
+        if (typeof value !== "boolean") return null;
+        return { action: "set", armed: value };
+      }
+      if (field === "streaming") {
+        if (typeof value !== "boolean") return null;
+        // A stream is a lease here too, so it is started with the verb the
+        // firmware actually reads rather than a stored setting.
+        return { action: "stream", on: value };
+      }
+      if (field === "capture" || field === "action") {
+        return String(value) === "capture" || value === true ? { action: "capture" } : null;
+      }
+      if (field === "rotation") {
+        const deg = Number(value);
+        if (!Number.isFinite(deg)) return null;
+        return { action: "set", rotation: deg === 180 ? 180 : 0 };
+      }
+      if (
+        field === "sensitivity" || field === "quality" || field === "illum" ||
+        field === "burst" || field === "burstGapMs" || field === "settleMs" || field === "cooldownMs"
+      ) {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return null;
+        return { action: "set", [field]: Math.round(num) };
+      }
+      if (field === "resolution") {
+        if (typeof value !== "string" || !value) return null;
+        return { action: "set", resolution: value };
+      }
+      if (field === "direction") {
+        // Only the three lanes the sketch validates. Anything else is refused
+        // rather than sent, so a rule cannot be saved against a lane setting
+        // the device discards on arrival.
+        const dir = String(value).toLowerCase();
+        return dir === "in" || dir === "out" || dir === "both"
+          ? { action: "set", direction: dir }
+          : null;
+      }
+      return null;
+    }
+
+    // --------------------------------------------------------------- fan --
+    case "smart-fan":
+    case "fan":
+    case "ceiling-fan": {
+      if (field === "level" || field === "speed") {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return null;
+
+        /*
+         * Emit both forms, whichever the caller asked for.
+         *
+         * The generic fall-through below would send exactly the field it was
+         * given, which for `level` means a command every fan currently
+         * installed ignores — firmware in the field reads `speed` and drops
+         * anything it does not recognise, so the slider would move, the
+         * request would succeed, and the fan would keep spinning at whatever
+         * it was already doing. That is the camera-automation failure again,
+         * and it is silent in exactly the same way.
+         */
+        const level = field === "level" ? clamp(Math.round(num), 0, 100) : FAN_STEP_LEVEL[clamp(Math.round(num), 0, 3)];
+        return { action: "set", level, speed: levelToSpeed(level) };
+      }
+      if (field === "power" && typeof value === "boolean") {
+        return { action: "set", power: value };
+      }
+      break;
     }
 
     default:

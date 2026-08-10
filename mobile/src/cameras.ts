@@ -51,12 +51,23 @@ export async function updateCamera(id: string, patch: Partial<Camera>): Promise<
 }
 
 /**
- * Is this control-plane device a camera? Matched on the type name or on the
- * device advertising a video source, so a "camera", "cctv" or "doorbell" board
- * and anything reporting hasCamera all count. Shared so the camera list and the
- * device detail screen can never disagree about what a camera is.
+ * Is this control-plane device a camera the Cameras screen should show?
+ *
+ * Matched on the type name or on the device advertising a video source, so a
+ * "camera", "cctv" or "doorbell" board and anything reporting hasCamera all
+ * count. Shared so the camera list and the device detail screen can never
+ * disagree about what a camera is.
+ *
+ * `anpr-cam` is excluded despite matching both tests. It reports
+ * `hasCamera: true` — correctly, it has a sensor and can stream — but its live
+ * view exists only to aim the lens during installation: the firmware drops to
+ * a lower resolution while streaming and expires the lease after 20 s. Putting
+ * it on a camera wall would give everyone watching a degraded picture *and*
+ * degrade plate capture for as long as anyone had the wall open. It has its
+ * own screen, under Vehicles.
  */
 export function isCameraDevice(d: Device): boolean {
+  if (d.type === "anpr-cam") return false;
   return /cam|cctv|doorbell/i.test(d.type) || d.state?.hasCamera === true;
 }
 

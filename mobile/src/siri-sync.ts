@@ -44,6 +44,19 @@ function kindOf(type: string): SiriDevicePayload["kind"] {
     case "energy-monitor":
     case "camera":
       return "sensor";
+    /*
+     * ANPR camera: reportable, never controllable by voice.
+     *
+     * Falling through to the "switch" default gave it an empty toggle field —
+     * Siri would offer "turn on the ANPR camera" and the tap would do nothing,
+     * because there is no load to switch. Its only boolean is `armed`, and
+     * that is deliberately NOT exposed: disarming the camera that watches the
+     * gate must not be reachable by a voice through a window. The same
+     * reasoning keeps it out of `onOff()` in the control plane's Google and
+     * Alexa fulfilment.
+     */
+    case "anpr-cam":
+      return "sensor";
     default:
       return "switch";
   }

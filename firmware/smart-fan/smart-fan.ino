@@ -1,7 +1,28 @@
 /*
  * Circuvent Smart Fan — ESP32 firmware
- * Relay power + PWM speed steps with local button and Circuvent cloud control.
+ * Relay power + continuous PWM speed with local button and Circuvent cloud control.
  * Deps: CircuventDevice, ArduinoJson. Board: ESP32.
+ *
+ * SPEED, IN TWO FORMS.
+ *
+ * The PWM here is 8-bit — 256 distinct duty values — and this firmware used
+ * four of them. `speed` 0..3 indexed a table, so the app could only ever offer
+ * a four-position switch no matter what the slider looked like. `level`
+ * 0..100 exposes what the hardware could already do.
+ *
+ * `speed` is still accepted and still published, because fans already in
+ * people's homes run the old firmware and every existing automation, schedule
+ * and scene sends `speed`. A command carrying both is normal: the app sends
+ * `level` for fine control and a `speed` derived from it, so an un-updated fan
+ * still responds to the same slider. Where both arrive, `level` wins, because
+ * it is the more precise statement of the same intent.
+ *
+ * MIN_DUTY is not a preference. A fan motor below roughly a third of full duty
+ * does not turn slowly — it stalls, hums, and draws locked-rotor current
+ * through a winding no longer being cooled by its own airflow. The original
+ * table started at 85 for that reason and that floor is preserved: level 1
+ * means the slowest speed the motor will actually run at, not one percent of
+ * duty. Below that is off, with nothing in between.
  */
 #include <CircuventDevice.h>
 #include <Preferences.h>
@@ -13,34 +34,78 @@
 #define PWM_FREQ 25000
 #define PWM_BITS 8
 
+/* Lowest duty the motor will turn at rather than stall. See the note above. */
+#define MIN_DUTY 85
+#define MAX_DUTY 255
+
 CircuventDevice cv("smart-fan");
 Preferences store;
 
 bool power = false, savedPower = false;
-int speed = 1, savedSpeed = 1;
+int level = 33, savedLevel = 33;   /* 0..100, the real setting */
 unsigned long lastBtn = 0;
-const uint8_t SPEED_DUTY[4] = {0, 85, 170, 255};
+
+/* The four positions the button cycles, and what `speed` means. */
+const uint8_t STEP_LEVEL[4] = {0, 33, 66, 100};
+
+int levelToDuty(int pct) {
+  if (pct <= 0) return 0;
+  if (pct > 100) pct = 100;
+  /* 1% is the slowest the motor turns, not 1% of duty. */
+  return MIN_DUTY + ((long)(pct - 1) * (MAX_DUTY - MIN_DUTY)) / 99;
+}
+
+/* Nearest step, for `speed` and for the button. */
+int levelToSpeed(int pct) {
+  if (pct <= 0) return 0;
+  int best = 1, bestDiff = 1000;
+  for (int s = 1; s <= 3; s++) {
+    int d = abs(pct - (int)STEP_LEVEL[s]);
+    if (d < bestDiff) { bestDiff = d; best = s; }
+  }
+  return best;
+}
 
 void saveState() {
   if (power != savedPower) { store.putBool("power", power); savedPower = power; }
-  if (speed != savedSpeed) { store.putInt("speed", speed); savedSpeed = speed; }
+  if (level != savedLevel) { store.putInt("level", level); savedLevel = level; }
 }
 
 void applyFan() {
-  speed = constrain(speed, 0, 3);
+  level = constrain(level, 0, 100);
   digitalWrite(FAN_RELAY, power ? HIGH : LOW);
-  ledcWrite(SPEED_CH, power ? SPEED_DUTY[speed] : 0);
+  ledcWrite(SPEED_CH, power ? levelToDuty(level) : 0);
   saveState();
   cv.set("power", power);
-  cv.set("speed", speed);
+  /* Both are published: `speed` so older apps, automations and the timer
+     engine keep reading something they understand, `level` for anything that
+     can show the real setting. */
+  cv.set("speed", levelToSpeed(level));
+  cv.set("level", level);
 }
 
 void onCommand(const String &action, JsonObjectConst p) {
   if (action != "set") return;
   if (p["power"].is<bool>()) power = p["power"].as<bool>();
-  if (p["speed"].is<int>()) {
-    speed = constrain(p["speed"].as<int>(), 0, 3);
-    if (speed == 0) power = false;
+
+  bool changed = false;
+  /* `level` is checked first and wins: when a command carries both, it is the
+     precise version of the same intent. */
+  if (p["level"].is<int>()) {
+    level = constrain(p["level"].as<int>(), 0, 100);
+    changed = true;
+  } else if (p["speed"].is<int>()) {
+    int s = constrain(p["speed"].as<int>(), 0, 3);
+    level = STEP_LEVEL[s];
+    changed = true;
+  }
+
+  if (changed) {
+    /* A speed of zero means off, and setting a speed on a fan that is off
+       means turn it on — otherwise dragging the slider does nothing until the
+       user also finds the power switch. An explicit power in the same command
+       still wins. */
+    if (level == 0) power = false;
     else if (!p["power"].is<bool>()) power = true;
   }
   applyFan();
@@ -55,8 +120,13 @@ void setup() {
 
   store.begin("fan", false);
   power = store.getBool("power", false);
-  speed = constrain(store.getInt("speed", 1), 0, 3);
-  savedPower = power; savedSpeed = speed;
+  /* Migrate: fans flashed with the previous firmware stored a 0..3 step under
+     "speed" and have no "level" yet. Reading the old key keeps a fan at the
+     speed its owner left it on across the update. */
+  level = store.getInt("level", -1);
+  if (level < 0) level = STEP_LEVEL[constrain(store.getInt("speed", 1), 0, 3)];
+  level = constrain(level, 0, 100);
+  savedPower = power; savedLevel = level;
   applyFan();
 
   cv.onCommand(onCommand);
@@ -68,9 +138,13 @@ void setup() {
 void loop() {
   if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 400) {
     lastBtn = millis();
-    if (!power) { power = true; if (speed == 0) speed = 1; }
-    else if (speed < 3) speed++;
-    else { power = false; speed = 0; }
+    /* The button still walks four positions: off, low, medium, high. A
+       continuous slider is for the app; a wall button wants detents. */
+    int s = levelToSpeed(level);
+    if (!power) { power = true; if (s == 0) s = 1; }
+    else if (s < 3) s++;
+    else { power = false; s = 0; }
+    level = STEP_LEVEL[s];
     applyFan();
   }
   cv.loop();

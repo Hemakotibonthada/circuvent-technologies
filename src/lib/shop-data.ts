@@ -486,6 +486,45 @@ export const products: Product[] = [
     badge: "New",
     rating: 4.5,
   },
+  {
+    id: "anpr-cam",
+    slug: "circuvent-anpr-camera",
+    name: "Circuvent ANPR Camera",
+    tagline: "Reads number plates at your gate, and knows whose car it is",
+    /*
+     * Written from firmware/anpr-cam/anpr-cam.ino and platform/api/src/anpr/,
+     * not from ambition — the rule in Docs/07-adding-a-new-device.md.
+     *
+     * Two claims are stated as limits rather than omitted, because both change
+     * whether this is the right product for a buyer and neither is discoverable
+     * before purchase:
+     *
+     *   1. Plate reading happens on the server, not the device. A customer
+     *      running fully offline will get vehicle detection and capture but no
+     *      plates, and needs to know that before the box arrives.
+     *   2. It is designed for a stopping or slow vehicle. Sold as a general
+     *      traffic camera it would be returned, because it is not one.
+     */
+    description:
+      "Watches the lane at your gate, detects each vehicle that arrives, and reads its number plate. Known cars are recognised and let straight in; a plate on your block list raises an alert instead. Every arrival is logged with a photograph, so there is a record of who came and when. Plate reading runs on the Circuvent control plane rather than on the camera, and the camera is built for a vehicle that slows or stops at a gate, driveway or parking entry — not for open-road traffic.",
+    price: 8999,
+    compareAt: 10999,
+    category: "Safety",
+    image: "/img/product-anpr-cam.svg",
+    accent: "#0ea5e9",
+    icon: "🔢",
+    specs: [
+      "Reads Indian number plates",
+      "Allow, block and watch lists",
+      "Photograph kept with every arrival",
+      "Loop detector or IR beam input",
+      "Watches only the lane you mark",
+      "Opens a barrier on a known plate",
+    ],
+    stock: 6,
+    badge: "New",
+    rating: 4.6,
+  },
 ];
 
 export function getProduct(slug: string): Product | undefined {

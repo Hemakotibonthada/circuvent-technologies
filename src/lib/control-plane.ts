@@ -54,8 +54,127 @@ export interface GatePass {
   qr: string;
 }
 
-export interface AutomationTrigger {
-  type: "state" | "time" | "event";
+/** One ANPR capture, after the plate was read (or found unreadable). */
+export interface PlateRead {
+  id: number;
+  deviceId: string;
+  deviceName: string;
+  captureId: number;
+  /** Normalised, e.g. "KA01AB1234". Null when nothing was read. */
+  plate: string | null;
+  /** Grouped for display, e.g. "KA 01 AB 1234". */
+  pretty: string | null;
+  /** Exactly what the recogniser returned, before correction. */
+  raw: string | null;
+  confidence: number;
+  votes: number;
+  samples: number;
+  kind: string;
+  status: "recognised" | "unrecognised";
+  /** Why an unrecognised read failed — no_recogniser, no_plate, timeout… */
+  reason: string | null;
+  decision: "allow" | "deny" | "watch" | "unknown";
+  ruleId: number | null;
+  trigger: string;
+  ms: number;
+  at: string;
+  hasImage: boolean;
+  /** `in` or `out`, or null when the lane's direction could not be resolved. */
+  direction: "in" | "out" | null;
+  visitId: number | null;
+}
+
+export interface PlateSummary {
+  days: number;
+  total: number;
+  recognised: number;
+  denied: number;
+  allowed: number;
+  watched: number;
+  uniquePlates: number;
+  /** Which recogniser is configured; "none" explains a low read rate. */
+  recogniser: string;
+  byHour: { hour: number; count: number }[];
+  frequent: { plate: string; pretty: string; count: number; lastAt: string }[];
+}
+
+/** One vehicle, aggregated across every sighting. */
+export interface Vehicle {
+  plate: string;
+  pretty: string;
+  passes: number;
+  entries: number;
+  exits: number;
+  firstSeen: string;
+  lastSeen: string;
+  /** True when it has an open visit — arrived and not yet seen leaving. */
+  inside: boolean;
+  visits: number;
+  avgStaySec: number | null;
+  totalStaySec: number;
+  devices: string[];
+  rule: "allow" | "deny" | "watch" | null;
+  label: string | null;
+  lastConfidence: number;
+}
+
+/** One stay: an arrival paired with the departure that ended it. */
+export interface Visit {
+  id: number;
+  entryAt: string | null;
+  exitAt: string | null;
+  entryDevice: string | null;
+  exitDevice: string | null;
+  entryReadId: number | null;
+  exitReadId: number | null;
+  /**
+   * `open` = inside now. `entry_missed` / `exit_missed` mean a read was lost,
+   * which is normal for a gate camera and is shown rather than hidden.
+   */
+  status: "open" | "closed" | "entry_missed" | "exit_missed";
+  /** Null unless both ends were observed — never zero for a missed read. */
+  durationSec: number | null;
+}
+
+export interface VehicleProfile {
+  plate: string;
+  pretty: string;
+  summary: {
+    passes: number;
+    entries: number;
+    exits: number;
+    visits: number;
+    inside: boolean;
+    firstSeen: string;
+    lastSeen: string;
+    totalStaySec: number;
+    avgStaySec: number | null;
+    longestStaySec: number | null;
+    missedReads: number;
+    cameras: string[];
+    bestConfidence: number;
+    truncated: boolean;
+  };
+  rule: PlateRule | null;
+  visits: Visit[];
+  reads: PlateRead[];
+}
+
+export interface PlateRule {  id: number;
+  plate: string;
+  pretty: string;
+  kind: "allow" | "deny" | "watch";
+  label: string;
+  deviceId: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  enabled: boolean;
+  hits: number;
+  lastHitAt: string | null;
+  createdAt: string;
+}
+
+export interface AutomationTrigger {  type: "state" | "time" | "event";
   deviceId?: string;
   field?: string;
   op?: "<" | "<=" | ">" | ">=" | "==" | "!=" | "truthy" | "falsy";
@@ -498,7 +617,31 @@ async function req<T = unknown>(
 
 // ------------------------------------------------------------------- client --
 
+/**
+ * Fetches a binary response with the caller's bearer token.
+ *
+ * `req` assumes JSON, and an authenticated image cannot simply be handed to
+ * an `<img src>`: the browser sends no Authorization header on an image
+ * request, so the tag renders a broken icon that looks exactly like a missing
+ * capture. Callers turn the blob into an object URL instead.
+ */
+export async function authedBlob(url: string): Promise<Blob> {
+  const fetchOnce = async () => {
+    const t = getToken();
+    return fetch(url, { headers: t ? { Authorization: "Bearer " + t } : {} });
+  };
+  let res = await fetchOnce();
+  // Same one-shot rotation as req(): an access token that aged out mid-page
+  // must not turn every thumbnail into a broken image.
+  if (res.status === 401 && getRefreshToken() && (await withRefreshLock())) {
+    res = await fetchOnce();
+  }
+  if (!res.ok) throw new Error(`Image request failed (${res.status})`);
+  return res.blob();
+}
+
 export const controlPlane = {
+  authedBlob,
   login: (email: string, password: string) =>
     req<AuthResp>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false),
   register: (name: string, email: string, password: string) =>
@@ -592,6 +735,45 @@ export const controlPlane = {
   updateRoom: (id: number, body: { name?: string; icon?: string; sort?: number }) =>
     req<{ success: boolean }>("/rooms/" + id, { method: "PATCH", body: JSON.stringify(body) }),
   deleteRoom: (id: number) => req<{ success: boolean }>("/rooms/" + id, { method: "DELETE" }),
+
+  // ---- ANPR: plate reads and the allow / deny / watch list ----------------
+  plateReads: (q: { deviceId?: string; plate?: string; decision?: string; status?: string; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.deviceId) p.set("deviceId", q.deviceId);
+    if (q.plate) p.set("plate", q.plate);
+    if (q.decision) p.set("decision", q.decision);
+    if (q.status) p.set("status", q.status);
+    p.set("limit", String(q.limit ?? 100));
+    return req<{ reads: PlateRead[] }>("/anpr/reads?" + p.toString());
+  },
+  plateSummary: (days = 7) => req<PlateSummary>("/anpr/summary?days=" + days),
+  vehicles: (days = 30) => req<{ days: number; vehicles: Vehicle[]; insideNow: number }>("/anpr/vehicles?days=" + days),
+  vehicle: (plate: string) =>
+    req<VehicleProfile>("/anpr/vehicles/" + encodeURIComponent(plate)),
+  /**
+   * The capture image lives behind an authenticated endpoint, so an <img src>
+   * cannot fetch it — the browser would send no Authorization header. Callers
+   * fetch the blob and hand it an object URL.
+   */
+  plateReadImageUrl: (id: number) => CONTROL_PLANE_URL + "/anpr/reads/" + id + "/image",
+  plateRules: () => req<{ rules: PlateRule[] }>("/anpr/rules"),
+  createPlateRule: (body: {
+    plate: string;
+    kind?: "allow" | "deny" | "watch";
+    label?: string;
+    deviceId?: string | null;
+    validTo?: string | null;
+  }) => req<{ rule: PlateRule; error?: string }>("/anpr/rules", { method: "POST", body: JSON.stringify(body) }),
+  updatePlateRule: (id: number, body: { kind?: string; label?: string; enabled?: boolean }) =>
+    req<{ rule: PlateRule }>("/anpr/rules/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deletePlateRule: (id: number) => req<{ success: boolean }>("/anpr/rules/" + id, { method: "DELETE" }),
+  addPlateRuleFromRead: (readId: number, kind: "allow" | "deny" | "watch", label = "") =>
+    req<{ rule: PlateRule; error?: string }>("/anpr/rules/from-read/" + readId, {
+      method: "POST",
+      body: JSON.stringify({ kind, label }),
+    }),
+  anprCapture: (deviceId: string) =>
+    req<{ success: boolean }>("/anpr/devices/" + encodeURIComponent(deviceId) + "/capture", { method: "POST" }),
 
   // ---- gate guest passes (Zone 1) ----------------------------------------
   gatePasses: (deviceId?: string) =>

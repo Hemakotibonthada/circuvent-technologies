@@ -24,6 +24,9 @@ const TYPE_WORDS: Record<string, string[]> = {
   "smart-lock": ["lock", "door lock", "deadbolt"],
   facedoor: ["door", "front door", "entry"],
   "rfid-gate": ["gate", "barrier"],
+  // Not "gate": that belongs to rfid-gate, and a household with both would get
+  // the ANPR camera when it asked for the barrier. These name the camera.
+  "anpr-cam": ["anpr", "plate camera", "number plate camera", "vehicle camera"],
   watertank: ["tank", "water", "sump", "overhead"],
   aquaguard: ["tank", "water", "aquaguard"],
   thermostat: ["ac", "air conditioner", "thermostat", "climate"],
@@ -92,6 +95,12 @@ function statusOf(d: Device): string {
   if (d.type === "aquaguard") return `${d.name} is at ${Number(s.level ?? 0)} percent`;
   if (d.type === "facedoor" || d.type === "smart-lock") return `${d.name} is ${s.locked ? "locked" : "unlocked"}`;
   if (d.type === "rfid-gate") return `${d.name} barrier is ${s.barrier || "closed"}`;
+  if (d.type === "anpr-cam") {
+    if (!s.armed) return `${d.name} is disarmed`;
+    return s.lastPlate
+      ? `${d.name} last read ${String(s.lastPlate).split("").join(" ")}`
+      : `${d.name} is watching, no plates read yet`;
+  }
   const meta = deviceMeta(d.type);
   const field = meta.toggle?.field || capabilities(d.type).power?.field;
   if (field) return `${d.name} is ${s[field] ? "on" : "off"}`;
