@@ -22,7 +22,8 @@
           "NSAllowsLocalNetworking": true
         },
         "UIFileSharingEnabled": true,
-        "LSSupportsOpeningDocumentsInPlace": true
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "NSFaceIDUsageDescription": "Circuvent uses Face ID to unlock the app, so your home stays private if your phone is unlocked and in someone else's hands."
       }
     },
     "android": {
@@ -39,7 +40,8 @@
         "CHANGE_WIFI_STATE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "NEARBY_WIFI_DEVICES"
+        "NEARBY_WIFI_DEVICES",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",

@@ -3,6 +3,8 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth";
 import { ThemeProvider, useTheme } from "./src/ui";
+import { FirstRunPermissions, firstRunNeeded } from "./src/FirstRunPermissions";
+import { BiometricGate } from "./src/BiometricGate";
 import { DevicesProvider } from "./src/store";
 import { SiriSync } from "./src/siri-sync";
 import { initHaptics } from "./src/haptics";
@@ -71,15 +73,40 @@ function Root() {
 }
 
 export default function App() {
+  const [firstRun, setFirstRun] = React.useState<boolean | null>(null);
+
   React.useEffect(() => {
     initHaptics().catch(() => {});
   }, []);
 
+  React.useEffect(() => {
+    firstRunNeeded()
+      .then(setFirstRun)
+      .catch(() => setFirstRun(false));
+  }, []);
+
+  /*
+   * The permission screen sits outside the providers and above the lock.
+   *
+   * Outside, because it asks for notifications, and the notification module is
+   * what several providers set themselves up against — asking after they have
+   * already decided there is no permission means the answer arrives too late to
+   * be used until the next launch.
+   *
+   * Above the lock, because on a first launch there is nothing to protect yet
+   * and a fingerprint prompt stacked on top of a permission prompt is two
+   * system sheets fighting over the same screen.
+   */
+  if (firstRun === null) return null;
+  if (firstRun) return <ThemeProvider><FirstRunPermissions onDone={() => setFirstRun(false)} /></ThemeProvider>;
+
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <Root />
-      </AuthProvider>
+      <BiometricGate>
+        <AuthProvider>
+          <Root />
+        </AuthProvider>
+      </BiometricGate>
     </ThemeProvider>
   );
 }
