@@ -4,6 +4,11 @@ PS1,1,HLK-PM03 (5V 3W),SIP,230VAC -> 5VDC isolated PSU,3 relay coils + logic
 U2,1,AMS1117-3.3,SOT-223,5V -> 3.3V LDO,MCU rail
 U3-U5,3,PC817,DIP-4,Opto-isolators,One per gang
 U6,1,BL0937 / HLW8012,SOP,Energy metering front-end,V/A/W/PF/kWh
+U7,1,PC817,DIP-4,Metering isolator CF pulses,Meter -> MCU
+U8,1,PC817,DIP-4,Metering isolator CF1 pulses,Meter -> MCU
+U9,1,PC817,DIP-4,Metering isolator SEL select,MCU -> meter
+PD8,1,S1M,SMA,Metering aux rectifier,From T1 winding 7-8
+PZ6,1,100uF/16V,electrolytic,Metering aux rail,Referenced to MTR_GND
 Q1-Q3,3,S8050,SOT-23,NPN relay drivers,
 Q4,1,S8050,SOT-23,LED backlight driver,PWM from IO5
 D1-D3,3,1N4007,DO-41,Flyback diodes,Across each coil
@@ -20,7 +25,7 @@ J2,1,3P 5.08mm,terminal,Switched-L outputs + common N,Loads
 J3,1,3P 5.08mm,terminal,Switched-L outputs + common N,Loads
 J4,1,3P 2.54mm,header,LED backlight string (5V/drain/GND),PWM low-side via Q4
 JP,1,3P 2.54mm,header,UART (TX/RX/GND),Factory flashing
-R1-R12,12,10k/1k/330,0805,Pull-ups/base/LED resistors,
+R1-R16,16,10k/1k/330,0805,Pull-ups/base/LED resistors,
 C1,1,470uF/10V,electrolytic,5V bulk,
 C2,1,100uF/6.3V,electrolytic,3.3V rail,
 C3-C8,6,100nF,0805,Decoupling,

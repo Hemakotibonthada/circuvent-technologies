@@ -10,7 +10,12 @@ Design source: SCHEMATIC.md (netlist) + BOM.csv. Open cv-tb3.kicad_pro in KiCad,
 
 ## Pre-fab (DFM) checklist
 - [ ] ERC/DRC clean at fab rules; mains clearances as keepout
-- [ ] **Resolve the metering isolation question in SCHEMATIC.md before fab**
+- [x] **Metering isolation resolved** — U6 runs on MTR_VDD/MTR_GND from T1's
+      third winding, and CF/CF1/SEL cross through U7/U8/U9. No SELV net
+      reaches the metering chip.
+- [ ] Confirm T1's third winding (pins 7-8) is specified to the winding house
+      with the same reinforced insulation as the main secondary
+- [ ] Only T1, CY1, U3/U4/U5 and U7/U8/U9 cross the barrier — check the plot
 - [ ] Fuse + MOV at entry; single L-bus to all three relay COMs
 - [ ] Kelvin sense pair on Rsh, short and paired
 - [ ] Per-gang derating on silk; total <= fuse/PSU/copper

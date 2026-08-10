@@ -76,7 +76,8 @@ DEVICES = [
     dict(folder="water-tank-controller", model="aquaguard", title="Circuvent AquaGuard",
          w=80, h=60, mounts=4, mains=True, creepage=8.0, psu_inline=True),
     dict(folder="touchboard", model="cv-tb3", title="Circuvent Touch Switchboard",
-         w=80, h=60, mounts=4, mains=True, creepage=8.0, psu_inline=True),
+         w=80, h=60, mounts=4, mains=True, creepage=8.0, psu_inline=True,
+         meter_iso=True),
     dict(folder="facedoor", model="cv-door", title="Circuvent FaceDoor",
          w=70, h=55, mounts=4, mains=True, creepage=8.0),
     dict(folder="rfid-gate", model="cv-gate", title="Circuvent RFID Gate",
@@ -1373,14 +1374,57 @@ def build_netlist(dev, parts):
                   if key_of(r) in ("soic8", "sop") and r not in used), None)
     if meter:
         mtr = [s for _, s, _ in rows if re.search(r"MTR|CF|SEL", s)]
-        m = {4: GND, 8: V3}
-        m[1] = hot if mains else V5
-        if shunt:
-            m[2] = nl.net_of(shunt, 1) or V5
-            m[3] = nl.net_of(shunt, 2) or GND
-        for i, s in enumerate(mtr[:3]):
-            m[5 + i] = s
-            consumed_sigs.add(s)
+        if dev.get("meter_iso"):
+            # The front end measures a shunt in the switched live, so its
+            # ground reference IS a mains node. Wiring its GND/VDD to the SELV
+            # rails bonds the secondary to the mains through the chip and
+            # defeats the transformer, the Y capacitor and the 8 mm barrier at
+            # once - the board then looks isolated and is not. Owning the
+            # magnetics is what makes the honest fix affordable: T1 carries a
+            # third winding referenced to the meter ground, and the three pulse
+            # lines cross through optocouplers.
+            nl.mark_mains(MTR_VDD, MTR_GND, "MTR_SEC")
+            m = {1: hot, 4: MTR_GND, 8: MTR_VDD}
+            if shunt:
+                m[2] = nl.net_of(shunt, 1) or hot
+                m[3] = nl.net_of(shunt, 2) or MTR_GND
+            if "T1" in by_ref:
+                nl.tie_many("T1", {7: "MTR_SEC", 8: MTR_GND})
+            if "PD8" in by_ref:
+                nl.tie_many("PD8", {1: MTR_VDD, 2: "MTR_SEC"}); used.add("PD8")
+            if "PZ6" in by_ref:
+                nl.tie_many("PZ6", {1: MTR_VDD, 2: MTR_GND}); used.add("PZ6")
+            for ref, i, direction in (("U7", 0, "out"), ("U8", 1, "out"),
+                                      ("U9", 2, "in")):
+                if ref not in by_ref or i >= len(mtr):
+                    continue
+                sig = mtr[i]
+                far = "%s_MTR" % sig
+                nl.mark_mains(far)
+                if direction == "out":       # meter drives LED, MCU reads
+                    a = MTR_VDD
+                    if r_pool:
+                        rr = r_pool.pop(0); a = "%s_LEDA" % sig
+                        nl.mark_mains(a)
+                        nl.tie_many(rr, {1: MTR_VDD, 2: a}); used.add(rr)
+                    nl.tie_many(ref, {1: a, 2: far, 3: GND, 4: sig})
+                else:                         # MCU drives LED, meter reads
+                    a = sig
+                    if r_pool:
+                        rr = r_pool.pop(0); a = "%s_LEDA" % sig
+                        nl.tie_many(rr, {1: sig, 2: a}); used.add(rr)
+                    nl.tie_many(ref, {1: a, 2: GND, 3: MTR_GND, 4: far})
+                m[5 + i] = far
+                used.add(ref); consumed_sigs.add(sig)
+        else:
+            m = {4: GND, 8: V3}
+            m[1] = hot if mains else V5
+            if shunt:
+                m[2] = nl.net_of(shunt, 1) or V5
+                m[3] = nl.net_of(shunt, 2) or GND
+            for i, s in enumerate(mtr[:3]):
+                m[5 + i] = s
+                consumed_sigs.add(s)
         nl.tie_many(meter, m)
         used.add(meter)
 
@@ -1619,6 +1663,9 @@ PSU_INLINE_ROWS = [
 
 PSU_HV_NETS = (HV_P, HV_N, SW_D, CLAMP, "CLAMP_MID", BIAS, VBIAS,
                "EN_UV", "BYPASS")
+
+# Mains-referenced auxiliary rail for an isolated metering front end.
+MTR_VDD, MTR_GND = "MTR_VDD", "MTR_GND"
 
 
 def psu_inline_rows():

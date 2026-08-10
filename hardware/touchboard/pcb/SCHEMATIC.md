@@ -44,27 +44,33 @@ The touch pads deliberately carry **no pull-up**. `touchRead()` measures the
 pad's charge/discharge time, and a resistor to 3V3 swamps exactly the signal
 the firmware is looking for.
 
-## Metering front end
+## Metering front end — isolated
 ```
 K1 NO --> Rsh (1 mR 2512) --> AC_LOAD bus --> J2/J3 outputs
-U6 HLW8012: 1=V2P(mains L) 2=V1P 3=V1N (across Rsh) 4=GND 5=CF 6=CF1 7=SEL 8=VDD
+U6 HLW8012: 1=V2P(mains L) 2=V1P 3=V1N (across Rsh)
+            4=GND -> MTR_GND    8=VDD -> MTR_VDD
+T1 pins 7-8 : third winding, referenced to MTR_GND
+              --[PD8]--> MTR_VDD --[PZ6 100u]-- MTR_GND
+U7  CF  : meter drives the LED, transistor pulls IO34   (meter -> MCU)
+U8  CF1 : meter drives the LED, transistor pulls IO35   (meter -> MCU)
+U9  SEL : IO18 drives the LED, transistor drives meter pin 7 (MCU -> meter)
 ```
 
-## !! SAFETY - metering is NOT galvanically isolated !!
-The HLW8012 measures the shunt directly, so **its ground reference sits in the
-mains path**. Tying it to the ESP32 ground puts the whole low-voltage section
-at mains potential and defeats the opto/PSU barrier that the rest of the board
-is built around. Two acceptable resolutions, both of which need to be settled
-by a qualified engineer **before** this board is fabricated:
+The metering chip measures a shunt sitting in the switched live, so **its
+ground reference is a mains node**. The obvious wiring — GND and VDD to the
+board's 3V3 rail — bonds the secondary to the mains through the chip and
+defeats the transformer, the Y capacitor and the 8 mm barrier all at once. The
+board then looks isolated and is not, which is worse than an honestly
+non-isolated design because nobody treats it with the right caution.
 
-1. Treat the entire board as live. The enclosure must then be non-conductive
-   and fully sealed, the UART header must not be reachable in service, and
-   flashing may only happen with the mains disconnected.
-2. Isolate the pulse outputs (CF/CF1/SEL through their own optocouplers, or a
-   digital isolator) and give the meter its own floating supply.
+Owning the magnetics is what makes the honest fix affordable. T1 carries a
+third winding referenced to the meter's own ground, so the front end gets a
+supply that floats with the shunt, and the three pulse lines cross the barrier
+through optocouplers. An HLK module could never have provided that rail; this
+is the concrete reason the in-house supply earns its keep on this board.
 
-The generated layout keeps the meter and shunt on the **mains** side of the
-barrier, so option 2 is the change that the copper is arranged to accept.
+**Barrier crossings on this board, and nothing else may cross:** T1, CY1
+(Y1-rated), U3/U4/U5 (gang drive optos) and U7/U8/U9 (metering optos).
 
 ## Layout / safety rules
 - Single mains-L bus to the 3 relay COMs; keep switched-L outputs separated.
