@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
+import { neoLayers } from "./neo";
 import { BlurView } from "expo-blur";
 import Svg, { Path, Circle } from "react-native-svg";
 import { Icon, ICONS, type IconName } from "./icons";
@@ -329,79 +330,123 @@ function mixHex(a: string, b: string, t: number): string {
  * Android composites cheaply and correctly. It is not a blur — it is a ramp —
  * but at these radii the eye reads them the same way, and unlike `elevation`
  * it respects the palette, so the effect survives every theme.
- */
-/**
- * Offset of both painted shadows, in points.
  *
- * 5 because that is iOS's `shadowOffset` on the same card. The two platforms
- * must extrude by the same amount or the same theme reads as two designs; this
- * was 7, which made Android's cards sit visibly further off the page.
+ * The geometry lives in ./neo, free of react-native, because the mistake it
+ * guards against is invisible on screen: both layers were oriented so that the
+ * sliver sticking out past the card edge — the only part of them anyone ever
+ * sees — was their transparent end. Everything rendered, correctly, underneath
+ * an opaque rectangle. iOS uses real shadows and never ran this path, which is
+ * exactly why the same theme looked right there and flat here.
  */
-const NEO_DEPTH = 5;
 
 function NeoShadow({
   radius,
   c,
+  depth,
   children,
   style,
 }: {
   radius: number;
   c: Palette;
+  depth?: number;
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  const light = mixHex(c.surface, c.neoLight, 0.92);
-  const dark = mixHex(c.surface, c.neoDark, 0.85);
+  const layers = neoLayers(mixHex(c.surface, c.neoLight, 0.92), mixHex(c.surface, c.neoDark, 0.85), depth);
   return (
     <View style={style}>
-      {/* Dark shadow, down-right. Drawn first so the light one wins where they
-          overlap, which is what a single top-left light produces.
-          The rect is the card's, shifted outward: negative right/bottom push
-          it past the card's edge, which is the only part that stays visible
-          once the opaque face is drawn on top. */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: NEO_DEPTH,
-          top: NEO_DEPTH,
-          right: -NEO_DEPTH,
-          bottom: -NEO_DEPTH,
-          borderRadius: radius,
-          overflow: "hidden",
-        }}
-      >
-        <LinearGradient
-          colors={[dark, dark, "transparent"]}
-          locations={[0, 0.55, 1]}
-          start={{ x: 0.25, y: 0.25 }}
-          end={{ x: 1, y: 1 }}
-          style={{ flex: 1, borderRadius: radius }}
-        />
-      </View>
-      {/* Light shadow, up-left — the half Android cannot cast. */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: -NEO_DEPTH,
-          top: -NEO_DEPTH,
-          right: NEO_DEPTH,
-          bottom: NEO_DEPTH,
-          borderRadius: radius,
-          overflow: "hidden",
-        }}
-      >
-        <LinearGradient
-          colors={[light, light, "transparent"]}
-          locations={[0, 0.55, 1]}
-          start={{ x: 0.75, y: 0.75 }}
-          end={{ x: 0, y: 0 }}
-          style={{ flex: 1, borderRadius: radius }}
-        />
-      </View>
+      {/* Dark first, so the light one wins where they overlap — which is what a
+          single light source up and to the left actually produces. Each layer
+          is this card's rectangle, shifted, so all that is ever visible is the
+          sliver past one edge; the gradients are oriented to be solid there.
+          See mobile/src/neo.ts, which is where that orientation is tested. */}
+      {([layers.dark, layers.light] as const).map((layer, i) => (
+        <View
+          key={i}
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: layer.inset.left,
+            top: layer.inset.top,
+            right: layer.inset.right,
+            bottom: layer.inset.bottom,
+            borderRadius: radius,
+            overflow: "hidden",
+          }}
+        >
+          <LinearGradient
+            colors={layer.colors}
+            locations={layer.locations}
+            start={layer.start}
+            end={layer.end}
+            style={{ flex: 1, borderRadius: radius }}
+          />
+        </View>
+      ))}
       {children}
     </View>
+  );
+}
+
+/**
+ * A surface that looks extruded, on whichever platform is asking.
+ *
+ * Card and PrimaryButton each grew their own copy of the iOS/Android split, and
+ * everything else — chips, tabs, toggles, the KPI tiles — simply had none, so
+ * in neo they were flat rectangles sitting in the middle of a style whose whole
+ * premise is that surfaces are raised out of the background. This is that split
+ * written once.
+ *
+ * Layout-neutral by construction: the shadow halves are absolutely positioned,
+ * so wrapping an existing control in this adds no size and shifts nothing.
+ */
+function NeoRaised({
+  radius,
+  c,
+  depth = 5,
+  style,
+  children,
+}: {
+  radius: number;
+  c: Palette;
+  depth?: number;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+}) {
+  if (Platform.OS === "ios") {
+    return (
+      <View
+        style={[
+          {
+            borderRadius: radius,
+            backgroundColor: c.surface,
+            shadowColor: c.neoDark,
+            shadowOffset: { width: depth, height: depth },
+            shadowOpacity: 1,
+            shadowRadius: depth * 1.6,
+          },
+          style,
+        ]}
+      >
+        <View
+          style={{
+            borderRadius: radius,
+            backgroundColor: c.surface,
+            shadowColor: c.neoLight,
+            shadowOffset: { width: -depth, height: -depth },
+            shadowOpacity: 1,
+            shadowRadius: depth * 1.6,
+          }}
+        >
+          {children}
+        </View>
+      </View>
+    );
+  }
+  return (
+    <NeoShadow radius={radius} c={c} depth={depth} style={style}>
+      {children}
+    </NeoShadow>
   );
 }
 
@@ -1292,17 +1337,27 @@ export function IconButton({
 
 export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void }) {
   const { c } = useTheme();
-  return (
+  const chip = (
     <Pressable
       onPress={onPress ? () => { tapLight(); onPress(); } : undefined}
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
       hitSlop={6}
-      style={{ minHeight: 38, justifyContent: "center", paddingHorizontal: SPACE.lg, paddingVertical: 9, borderRadius: RADIUS.pill, backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.border }}
+      style={{ minHeight: 38, justifyContent: "center", paddingHorizontal: SPACE.lg, paddingVertical: 9, borderRadius: RADIUS.pill, backgroundColor: active ? c.accent : c.isNeo ? c.surface : c.card, borderWidth: 1, borderColor: active ? c.accent : c.isNeo ? "transparent" : c.border }}
     >
       <Text style={{ color: active ? c.onAccent : c.textDim, fontWeight: "700", fontSize: 14 }}>{label}</Text>
     </Pressable>
   );
+  // Selected keeps the accent fill: an extruded chip and a filled chip say
+  // different things, and "which one is on" must stay the louder signal.
+  if (c.isNeo && !active) {
+    return (
+      <NeoRaised radius={RADIUS.pill} c={c} depth={3}>
+        {chip}
+      </NeoRaised>
+    );
+  }
+  return chip;
 }
 
 export function SectionLabel({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
@@ -1369,7 +1424,7 @@ export function ProgressBar({ value, max = 100, color }: { value: number; max?: 
 export function SegmentedControl<T extends string>({ options, value, onChange }: { options: readonly T[]; value: T; onChange: (v: T) => void }) {
   const { c } = useTheme();
   return (
-    <View style={{ flexDirection: "row", padding: 3, borderRadius: RADIUS.pill, backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.border, gap: 2 }}>
+    <View style={{ flexDirection: "row", padding: 3, borderRadius: RADIUS.pill, backgroundColor: c.isNeo ? c.bg : c.cardHi, borderWidth: c.isNeo ? 0 : 1, borderColor: c.border, gap: 2 }}>
       {options.map((o) => {
         const on = value === o;
         return (

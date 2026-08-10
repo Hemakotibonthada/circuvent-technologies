@@ -19,6 +19,7 @@ import {
   type ControlUser,
 } from "@/lib/control-plane";
 import { useControlLive, type DeviceUpdate, type LiveStatus } from "@/lib/control-plane-live";
+import { signInToConsole, storedShopToken } from "@/lib/console-signin";
 
 interface ConsoleContextValue {
   user: ControlUser | null;
@@ -39,26 +40,6 @@ interface ConsoleContextValue {
 }
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null);
-
-/**
- * Where the storefront keeps its session (see components/shop/AccountProvider).
- * It stores an object, not a bare token, so the shape is read defensively —
- * this is a best-effort convenience and must never throw on the console's
- * critical path.
- */
-const SHOP_ACCOUNT_KEY = "circuvent-account";
-
-function readShopToken(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(SHOP_ACCOUNT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { token?: unknown };
-    return typeof parsed?.token === "string" && parsed.token ? parsed.token : null;
-  } catch {
-    return null;
-  }
-}
 
 interface Flags {
   dryRun?: boolean;
@@ -93,7 +74,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       const stored = getStoredUser();
 
       if (!stored) {
-        const shopToken = readShopToken();
+        const shopToken = storedShopToken();
         if (shopToken) {
           try {
             const res = await fetch("/api/account/sso/console", {
@@ -173,15 +154,52 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const liveStatus = useControlLive(handleUpdate);
 
   const login = useCallback(async (email: string, password: string) => {
-    const r = await controlPlane.login(email, password);
-    if (r.ok && r.data?.token) {
-      setToken(r.data.token);
-      setRefreshToken(r.data.refreshToken ?? null);
-      setStoredUser(r.data.user);
-      setUser(r.data.user);
+    const r = await signInToConsole(email, password, {
+      consoleLogin: async (e, p) => {
+        const res = await controlPlane.login(e, p);
+        return {
+          ok: Boolean(res.ok && res.data?.token),
+          token: res.data?.token,
+          refreshToken: res.data?.refreshToken ?? null,
+          user: res.data?.user,
+          error: (res.data as { error?: string })?.error,
+        };
+      },
+      shopLogin: async (e, p) => {
+        const res = await fetch("/api/account/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: e, password: p }),
+        });
+        const data = (await res.json().catch(() => null)) as { success?: boolean; token?: string } | null;
+        return { ok: Boolean(res.ok && data?.success && data.token), token: data?.token };
+      },
+      exchangeShopToken: async (shopToken) => {
+        const res = await fetch("/api/account/sso/console", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${shopToken}` },
+        });
+        const data = (await res.json().catch(() => null)) as
+          | { success?: boolean; token?: string; user?: ControlUser; message?: string }
+          | null;
+        return {
+          ok: Boolean(res.ok && data?.success),
+          status: res.status,
+          token: data?.token,
+          user: data?.user,
+          message: data?.message,
+        };
+      },
+    });
+
+    if (r.ok && r.token && r.user) {
+      setToken(r.token);
+      setRefreshToken(r.refreshToken ?? null);
+      setStoredUser(r.user);
+      setUser(r.user);
       return { ok: true };
     }
-    return { ok: false, error: (r.data as { error?: string })?.error || "Invalid email or password" };
+    return { ok: false, error: r.error || "Invalid email or password" };
   }, []);
 
   const forgotPassword = useCallback(async (email: string) => {
