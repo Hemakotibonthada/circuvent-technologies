@@ -451,9 +451,21 @@ const DeviceCard = React.memo(
             padding: SPACE.lg,
             minHeight: 124,
             justifyContent: "space-between",
-            backgroundColor: lit ? tint : c.card,
+            /*
+             * A lit tile must not be grey.
+             *
+             * The tint comes from the device's category, and anything without
+             * one falls to "neutral" — #8e8e93. So a switchboard that was ON
+             * rendered as a flat battleship-grey block, which reads as disabled
+             * and looked like a rendering fault beside the neumorphic cards
+             * around it. Grey is the one colour that cannot mean "on".
+             *
+             * The accent is the right substitute: it is the theme's own word
+             * for active, and it follows whatever palette is in use.
+             */
+            backgroundColor: lit ? (tint === CATEGORY_TINTS.neutral ? c.accent : tint) : c.card,
             borderWidth: 1,
-            borderColor: lit ? tint : c.border,
+            borderColor: lit ? (tint === CATEGORY_TINTS.neutral ? c.accent : tint) : c.border,
             opacity: offline ? 0.62 : 1,
           }}
         >

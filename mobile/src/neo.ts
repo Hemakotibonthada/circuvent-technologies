@@ -54,14 +54,36 @@ export interface NeoSpec {
   blur: number;
   /** Layers per shadow. More is smoother and costs a View each. */
   steps: number;
-  /** Alpha of the innermost, strongest layer. */
+  /** Alpha of the innermost, strongest layer of the dark half. */
   strength: number;
+  /**
+   * The light half, separately.
+   *
+   * On a pale canvas a white shadow at the same alpha as the dark one reads as
+   * a bright ring hugging the card rather than as light falling on it — which
+   * is exactly how the first Android version differed from iOS.
+   */
+  lightStrength: number;
 }
 
-export const NEO: NeoSpec = { depth: 6, blur: 10, steps: 6, strength: 0.5 };
+/*
+ * These numbers are chosen against iOS, not in the abstract.
+ *
+ * A real gaussian blur redistributes a shadow's alpha across its whole radius,
+ * so the darkest pixel is far fainter than the source colour. Stacked layers do
+ * not: whatever `strength` says lands at full value right against the card
+ * edge. Carrying iOS's shadowOpacity of 1 across to this technique is what made
+ * Android look embossed and hard next to the same theme on an iPhone.
+ *
+ * So the strengths are low and the step count is high. Nine steps over
+ * fourteen points is about 1.5pt per band, which is below what reads as a
+ * ring; six steps over ten was 1.7pt at three times the alpha, and the bands
+ * were visible as contour lines around every tile.
+ */
+export const NEO: NeoSpec = { depth: 5, blur: 14, steps: 9, strength: 0.22, lightStrength: 0.4 };
 
 /** Small controls get a shallower, cheaper version of the same treatment. */
-export const NEO_SMALL: NeoSpec = { depth: 3, blur: 5, steps: 4, strength: 0.45 };
+export const NEO_SMALL: NeoSpec = { depth: 3, blur: 7, steps: 5, strength: 0.18, lightStrength: 0.34 };
 
 /**
  * The stack for one shadow.
@@ -74,7 +96,9 @@ export const NEO_SMALL: NeoSpec = { depth: 3, blur: 5, steps: 4, strength: 0.45 
  * widest one is furthest back, and each stronger layer sits on top.
  */
 export function shadowLayers(dir: 1 | -1, radius: number, spec: NeoSpec = NEO): NeoShadowLayer[] {
-  const { depth, blur, steps, strength } = spec;
+  const { depth, blur, steps } = spec;
+  // The light half is the one that has to stay subtle; see NeoSpec.
+  const strength = dir === 1 ? spec.strength : spec.lightStrength;
   const out: NeoShadowLayer[] = [];
 
   for (let i = 0; i < steps; i++) {
@@ -83,14 +107,17 @@ export function shadowLayers(dir: 1 | -1, radius: number, spec: NeoSpec = NEO): 
     const grow = blur * (1 - t);
 
     /*
-     * Quadratic, not linear.
+     * Cubic, not linear and not quadratic.
      *
-     * With a linear ramp the outermost layer still carries a visible fraction
-     * of the alpha, so the shadow ends on a step you can see — which is the
-     * hard edge this exists to avoid. Squaring pulls the outer layers close
-     * enough to nothing that the edge disappears into the background.
+     * The falloff decides whether this reads as a shadow or as a ring. A linear
+     * ramp leaves the outermost layer carrying a visible fraction of the alpha,
+     * so the shadow ends on a step you can see. Quadratic fixed the outer edge
+     * but still stacked enough alpha in the middle bands to show contour lines
+     * around every tile, which is what made Android look embossed beside iOS.
+     * Cubing pushes almost all of the weight into the last band or two, which
+     * is where a real blur puts it as well.
      */
-    const opacity = strength * t * t;
+    const opacity = strength * t * t * t;
 
     const offset = depth * dir;
     out.push({

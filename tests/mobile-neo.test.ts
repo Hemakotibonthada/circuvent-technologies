@@ -48,6 +48,30 @@ describe("the shape of one shadow", () => {
     expect(dark[dark.length - 1].opacity).toBeCloseTo(NEO.strength, 5);
   });
 
+  /*
+   * The step between two adjacent bands is what shows up as a contour line
+   * around a tile. Stacked layers cannot be a true blur, but if no single step
+   * is large enough to see, the eye reads the stack as continuous.
+   *
+   * This is the difference the side-by-side against iOS showed: the first
+   * version stepped by as much as 0.18 between bands and every card had a ring
+   * around it.
+   */
+  it("never steps by enough between bands to draw a contour line", () => {
+    for (let i = 1; i < dark.length; i++) {
+      expect(dark[i].opacity - dark[i - 1].opacity).toBeLessThan(0.09);
+    }
+  });
+
+  /*
+   * A white shadow at the dark half's alpha reads as a bright ring hugging the
+   * card on a pale canvas, rather than as light falling across it.
+   */
+  it("keeps the light half gentler than a real blur's peak would be", () => {
+    expect(NEO.lightStrength).toBeLessThan(0.5);
+    expect(NEO.strength).toBeLessThan(0.3);
+  });
+
   it("gets stronger and tighter towards the surface", () => {
     for (let i = 1; i < dark.length; i++) {
       expect(dark[i].opacity).toBeGreaterThan(dark[i - 1].opacity);
@@ -75,7 +99,7 @@ describe("the shape of one shadow", () => {
   it("is symmetric: the two halves are mirror images", () => {
     for (let i = 0; i < dark.length; i++) {
       expect(light[i].left).toBeCloseTo(-dark[i].left - 2 * (NEO.blur * (1 - (NEO.steps === 1 ? 1 : i / (NEO.steps - 1)))), 5);
-      expect(light[i].opacity).toBeCloseTo(dark[i].opacity, 5);
+      expect(light[i].opacity / NEO.lightStrength).toBeCloseTo(dark[i].opacity / NEO.strength, 5);
       expect(light[i].borderRadius).toBeCloseTo(dark[i].borderRadius, 5);
     }
   });
