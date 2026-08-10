@@ -1,0 +1,29 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+J1,1,2P 3.5mm,term 3.5/2,Mains reference L/N,Voltage sense + dropper feed
+F1,1,T100mA 250V,1206,Dropper fuse,Protects the aux supply only
+CX1,1,470nF X2 275VAC,film X2,Capacitive dropper,Safety-rated X2 ONLY
+R1,1,470R 1206,0603,Dropper inrush limiter,In series with CX1
+D1,1,S1M,SMA,Dropper rectifier,
+D2,1,BZT52C3V9,SMA,Zener 3.9V,Clamps MTR_VDD
+C1,1,220uF/10V,electrolytic,Aux rail bulk,Three meters share this rail
+U1,1,BL0937 / HLW8012,SOP,Energy metering front-end CH1,
+U2,1,BL0937 / HLW8012,SOP,Energy metering front-end CH2,
+U3,1,BL0937 / HLW8012,SOP,Energy metering front-end CH3,
+Rsh1,1,1mR 2W,2512,Current shunt CH1,In the load return
+Rsh2,1,1mR 2W,2512,Current shunt CH2,In the load return
+Rsh3,1,1mR 2W,2512,Current shunt CH3,In the load return
+C2-C4,3,100nF/50V,0603,Meter decoupling,One per meter
+U4,1,PC817,DIP-4,Isolator CH1 CF,Meter -> host
+U5,1,PC817,DIP-4,Isolator CH1 CF1,Meter -> host
+U6,1,PC817,DIP-4,Isolator CH2 CF,Meter -> host
+U7,1,PC817,DIP-4,Isolator CH2 CF1,Meter -> host
+U8,1,PC817,DIP-4,Isolator CH3 CF,Meter -> host
+U9,1,PC817,DIP-4,Isolator CH3 CF1,Meter -> host
+U10,1,PC817,DIP-4,Isolator SEL,Host -> meter; shared by all three
+R2-R8,7,1k,0603,Opto LED resistors,
+J2,1,2P 3.5mm,term 3.5/2,Load CH1 in / return,
+J3,1,2P 3.5mm,term 3.5/2,Load CH2 in / return,
+J4,1,2P 3.5mm,term 3.5/2,Load CH3 in / return,
+JP,1,5P 2.54mm,header,Host interface A,3V3 / GND / CH1_CF / CH1_CF1 / CH2_CF
+JP2,1,5P 2.54mm,header,Host interface B,CH2_CF1 / CH3_CF / CH3_CF1 / SEL / GND
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm mains-to-host creepage

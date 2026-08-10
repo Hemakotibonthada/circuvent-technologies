@@ -1,0 +1,20 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+J1,1,2P 3.5mm,term 3.5/2,Mains reference L/N,Voltage sense + dropper feed
+F1,1,T100mA 250V,1206,Dropper fuse,Protects the aux supply only
+CX1,1,470nF X2 275VAC,film X2,Capacitive dropper,Safety-rated X2 ONLY
+R1,1,470R 1206,0603,Dropper inrush limiter,In series with CX1
+D1,1,S1M,SMA,Dropper rectifier,
+D2,1,BZT52C3V9,SMA,Zener 3.9V,Clamps MTR_VDD
+C1,1,100uF/10V,electrolytic,Aux rail bulk,MTR_VDD to MTR_GND
+U1,1,BL0937 / HLW8012,SOP,Energy metering front-end,V/A/W/PF/kWh
+Rsh1,1,1mR 2W,2512,Current shunt CH1,In the load return
+C2,1,100nF/50V,0603,Meter decoupling,
+U2,1,PC817,DIP-4,Isolator CH1 CF,Meter -> host
+U3,1,PC817,DIP-4,Isolator CH1 CF1,Meter -> host
+U4,1,PC817,DIP-4,Isolator SEL,Host -> meter
+R2,1,1k,0603,Opto LED resistor CF,
+R3,1,1k,0603,Opto LED resistor CF1,
+R4,1,1k,0603,Opto LED resistor SEL,
+J2,1,2P 3.5mm,term 3.5/2,Load CH1 in / return,Shunt sits between these
+JP,1,5P 2.54mm,header,Host interface,3V3 / GND / CF / CF1 / SEL
+PCB,1,2-layer FR4 1.6mm,-,Main board,>=8mm mains-to-host creepage

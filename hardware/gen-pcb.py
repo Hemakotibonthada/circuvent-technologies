@@ -93,6 +93,12 @@ DEVICES = [
          w=45, h=25, mounts=2, mains=True, creepage=8.0, psu=True, compact=True),
     dict(folder="psu-adapter-12v", model="cv-ad12", title="Circuvent Adapter 12V 1A",
          w=50, h=28, mounts=2, mains=True, creepage=8.0, psu=True, compact=True),
+    # Energy-metering modules. compact=True for the 0603 part set; meter=True
+    # routes them through build_netlist_meter(), which scales by channel count.
+    dict(folder="meter-1ch", model="cv-em1", title="Circuvent Energy Meter 1CH",
+         w=40, h=25, mounts=2, mains=True, creepage=8.0, meter=True, compact=True),
+    dict(folder="meter-3ch", model="cv-em3", title="Circuvent Energy Meter 3CH",
+         w=60, h=35, mounts=2, mains=True, creepage=8.0, meter=True, compact=True),
     # High-density USB-C board. `compact` selects build_netlist_compact() and
     # the 0402/0603 SMD footprint set; everything downstream is shared.
     dict(folder="load-controller", model="cv-duo",
@@ -141,6 +147,7 @@ FP = {
     "led3":      ("LED_THT", "LED_D3.0mm", 4.5, 4.5, True),
     "hdr3":      ("Connector_PinHeader_2.54mm", "PinHeader_1x03_P2.54mm_Vertical", 3.5, 9.0, True),
     "hdr4":      ("Connector_PinHeader_2.54mm", "PinHeader_1x04_P2.54mm_Vertical", 3.5, 11.5, True),
+    "hdr5":      ("Connector_PinHeader_2.54mm", "PinHeader_1x05_P2.54mm_Vertical", 3.5, 14.0, True),
     "mov":       ("Varistor", "RV_Disc_D7mm_W3.4mm_P5mm", 9.0, 5.0, True),
     "fuse5x20":  ("Fuse", "Fuseholder_Clip-5x20mm_Littelfuse_111_Inline_P20.00x5.00mm_D1.05mm_Horizontal", 26.0, 10.0, True),
     "fuse1206":  ("Fuse", "Fuse_1206_3216Metric", 3.6, 2.2, False),
@@ -188,7 +195,7 @@ FP = {
 PAD_COUNT = {
     "buzzer": 2, "c0805": 2, "coincell": 2, "dip4": 4, "do201": 2, "do41": 2,
     "elec": 2, "elec_sm": 2, "esp32": 39, "fiducial": 0, "fuse1206": 2,
-    "fuse5x20": 2, "hdr3": 3, "hdr4": 4, "hlk": 4, "led3": 2, "module_sm": 4,
+    "fuse5x20": 2, "hdr3": 3, "hdr4": 4, "hdr5": 5, "hlk": 4, "led3": 2, "module_sm": 4,
     "mount_m2": 0, "mount_m3": 0, "mov": 2, "r0805": 2, "r1206": 2, "r2512": 2,
     "relay": 5, "rf_sma": 2, "sma": 2, "smb": 2, "soic8": 8, "sop": 8,
     "sot223": 3, "sot23": 3, "sw6mm": 2, "term2": 2, "term3": 3,
@@ -410,6 +417,8 @@ def resolve(ref, value, package, desc):
         return "c0805"
     if pre in ("J", "JP", "CN"):
         if pkg == "header":
+            if re.search(r"\b5p|5-pin", val):
+                return "hdr5"
             return "hdr4" if re.search(r"\b4p|4-pin", val) else "hdr3"
         return "term3" if re.search(r"\b3p|3-pin|3 way", val) else "term2"
     if pre == "TP":
@@ -1163,6 +1172,8 @@ class Netlist:
 
 def build_netlist(dev, parts):
     """Derive a complete netlist: every pad of every part lands on a net."""
+    if dev.get("meter"):
+        return build_netlist_meter(dev, parts)
     if dev.get("psu"):
         return build_netlist_psu(dev, parts)
     if dev.get("compact"):
@@ -1731,6 +1742,159 @@ def wire_psu_block(nl, by_ref, hot):
     # The only intentional primary-to-secondary connection on the board.
     w("CY1", {1: HV_N, 2: GND})
     return used
+
+
+def build_netlist_meter(dev, parts):
+    """Netlist for the standalone energy-metering modules (1 and 3 channel).
+
+    Every channel is an HLW8012/BL0937 watching a shunt in its load's return,
+    so all of them share one mains-referenced ground and one isolated barrier
+    rather than needing one each. That is the whole reason a multi-channel
+    module is worth building instead of stacking single-channel ones.
+
+    The module carries its own aux supply: a capacitive dropper referenced to
+    the meter ground. A dropper is only acceptable *because* the pulse outputs
+    are opto-isolated - the meter side is deliberately live, and the optos are
+    what make that safe for whatever plugs into the header.
+    """
+    nl = Netlist()
+    by_ref = {p["ref"]: p for p in parts}
+
+    def of(*prefixes):
+        return sorted([r for r in by_ref if ref_prefix(r) in prefixes],
+                      key=lambda r: (len(r), r))
+
+    def key_of(r):
+        return by_ref[r]["key"]
+
+    nl.mark_mains(AC_L, AC_N, AC_LF, MTR_VDD, MTR_GND, "DROP")
+
+    meters = [r for r in of("U") if key_of(r) in ("soic8", "sop")]
+    nch = len(meters)
+    optos = [r for r in of("U", "PC") if key_of(r) == "dip4"]
+    shunts = [r for r in of("R") if key_of(r) == "r2512"]
+    caps = [r for r in of("C") if key_of(r) in ("elec", "elec_sm", "c0805",
+                                                "c0603", "r0805", "r0603")]
+    res = [r for r in of("R") if r not in shunts and
+           key_of(r) in ("r0805", "r0603", "r1206")]
+    dios = [r for r in of("D") if key_of(r) in ("sma", "smb", "sod123")]
+
+    def take(pool):
+        return pool.pop(0) if pool else None
+
+    # ---- mains entry -----------------------------------------------------
+    inlet = next((r for r in of("J") if key_of(r) in
+                  ("term2", "term3", "term2_35", "term3_35")), None)
+    if inlet:
+        nl.tie_many(inlet, {1: AC_L, 2: AC_N})
+        if key_of(inlet) in ("term3", "term3_35"):
+            nl.tie(inlet, 3, PE)
+    for r in of("F"):
+        nl.tie_many(r, {1: AC_L, 2: AC_LF})
+    hot = AC_LF if of("F") else AC_L
+
+    # ---- capacitive-dropper aux, referenced to the meter ground ----------
+    cx = next((r for r in by_ref if key_of(r) == "capx2"), None)
+    if cx:
+        nl.tie_many(cx, {1: hot, 2: "DROP"})
+    rd = take(res)
+    if rd:
+        nl.tie_many(rd, {1: "DROP", 2: "DROP_R"})
+        nl.mark_mains("DROP_R")
+    d = take(dios)
+    if d:
+        nl.tie_many(d, {1: MTR_VDD, 2: "DROP_R" if rd else "DROP"})
+    dz = take(dios)
+    if dz:                       # zener clamps the rail; cathode to VDD
+        nl.tie_many(dz, {1: MTR_VDD, 2: MTR_GND})
+    c = take(caps)
+    if c:
+        nl.tie_many(c, {1: MTR_VDD, 2: MTR_GND})
+    # Meter ground is the neutral side of the loads: every shunt returns here.
+    nl.tie_many(cx, {2: "DROP"}) if False else None
+
+    # Meter ground IS the neutral bus: each shunt sits between its load's
+    # return and neutral, low-side, so all channels share one reference and
+    # the capacitive dropper has something to work against.
+    inlet_n = inlet
+    if inlet_n:
+        nl.tie(inlet_n, 2, MTR_GND)
+
+    # ---- per channel: shunt, meter, opto pair ----------------------------
+    host_sigs = []
+    for i in range(nch):
+        ch = i + 1
+        load_in = "LOAD%d_IN" % ch
+        nl.mark_mains(load_in)
+        sh = take(shunts)
+        if sh:
+            nl.tie_many(sh, {1: load_in, 2: MTR_GND})
+        m = {1: hot, 4: MTR_GND, 8: MTR_VDD}
+        if sh:
+            m[2] = load_in
+            m[3] = MTR_GND
+        for j, sig in enumerate(("CF", "CF1")):
+            far = "CH%d_%s_M" % (ch, sig)
+            nl.mark_mains(far)
+            m[5 + j] = far
+            op = take(optos)
+            if op:
+                a = MTR_VDD
+                r = take(res)
+                if r:
+                    a = "CH%d_%s_A" % (ch, sig)
+                    nl.mark_mains(a)
+                    nl.tie_many(r, {1: MTR_VDD, 2: a})
+                out = "CH%d_%s" % (ch, sig)
+                nl.tie_many(op, {1: a, 2: far, 3: GND, 4: out})
+                host_sigs.append(out)
+        m[7] = "SEL_M"
+        nl.tie_many(meters[i], m)
+    nl.mark_mains("SEL_M")
+
+    # One SEL line drives every meter: they alternate V and I together, so a
+    # second isolator per channel would buy nothing.
+    op = take(optos)
+    if op:
+        a = "SEL"
+        r = take(res)
+        if r:
+            a = "SEL_A"
+            nl.tie_many(r, {1: "SEL", 2: a})
+        nl.tie_many(op, {1: a, 2: GND, 3: MTR_GND, 4: "SEL_M"})
+        host_sigs.append("SEL")
+
+    # ---- load terminals and host header ----------------------------------
+    terms = [r for r in of("J") if r != inlet and
+             key_of(r) in ("term2", "term3", "term2_35", "term3_35")]
+    slots = []
+    for i in range(nch):
+        slots += ["LOAD%d_IN" % (i + 1), MTR_GND]
+    for t in terms:
+        n = len(pad_ids(key_of(t)))
+        picks = [slots.pop(0) for _ in range(min(n, len(slots)))]
+        while len(picks) < n:
+            picks.append(AC_N)
+        nl.tie_many(t, {i + 1: v for i, v in enumerate(picks)})
+
+    hdrs = [r for r in of("J", "JP", "CN")
+            if key_of(r) in ("hdr3", "hdr4", "hdr5")
+            and r not in terms and r != inlet]
+    queue = [V3, GND] + host_sigs
+    for h in hdrs:
+        n = len(pad_ids(key_of(h)))
+        order = [queue.pop(0) if queue else GND for _ in range(n)]
+        nl.tie_many(h, {i + 1: v for i, v in enumerate(order)})
+
+    # Whatever capacitors are left decouple the meters' shared aux rail.
+    for c in caps:
+        nl.tie_many(c, {1: MTR_VDD, 2: MTR_GND})
+
+    for ref, p in by_ref.items():
+        for pad in pad_ids(p["key"]):
+            if (ref, str(pad)) not in nl.pads:
+                nl.tie(ref, pad, "N$%s.%s" % (ref, pad))
+    return nl
 
 
 def build_netlist_psu(dev, parts):
