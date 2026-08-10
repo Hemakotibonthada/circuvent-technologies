@@ -25,6 +25,10 @@ export interface AnprSettings {
   overstayHours: number | null;
   alertUnknown: boolean;
   alertFull: boolean;
+  /** Where the daily report goes. Null means no report is sent at all. */
+  reportEmail: string | null;
+  /** Hour of day in IST, matching the automation scheduler's zone. */
+  reportHour: number;
 }
 
 export const DEFAULT_SETTINGS: AnprSettings = {
@@ -32,6 +36,8 @@ export const DEFAULT_SETTINGS: AnprSettings = {
   overstayHours: null,
   alertUnknown: false,
   alertFull: true,
+  reportEmail: null,
+  reportHour: 7,
 };
 
 interface SettingsRow {
@@ -39,11 +45,14 @@ interface SettingsRow {
   overstay_hours: number | null;
   alert_unknown: boolean;
   alert_full: boolean;
+  report_email: string | null;
+  report_hour: number;
 }
 
 export async function getSettings(ownerId: number): Promise<AnprSettings> {
   const { rows } = await pool.query<SettingsRow>(
-    `SELECT capacity, overstay_hours, alert_unknown, alert_full FROM anpr_settings WHERE owner_id = $1`,
+    `SELECT capacity, overstay_hours, alert_unknown, alert_full, report_email, report_hour
+       FROM anpr_settings WHERE owner_id = $1`,
     [ownerId]
   );
   const r = rows[0];
@@ -53,6 +62,10 @@ export async function getSettings(ownerId: number): Promise<AnprSettings> {
     overstayHours: r.overstay_hours,
     alertUnknown: r.alert_unknown,
     alertFull: r.alert_full,
+    reportEmail: r.report_email,
+    // A row written before this column existed reads null; fall back rather
+    // than letting an undefined hour match every sweep or none.
+    reportHour: r.report_hour ?? DEFAULT_SETTINGS.reportHour,
   };
 }
 
@@ -60,15 +73,18 @@ export async function saveSettings(ownerId: number, s: Partial<AnprSettings>): P
   const current = await getSettings(ownerId);
   const next: AnprSettings = { ...current, ...s };
   await pool.query(
-    `INSERT INTO anpr_settings (owner_id, capacity, overstay_hours, alert_unknown, alert_full, updated_at)
-     VALUES ($1, $2, $3, $4, $5, now())
+    `INSERT INTO anpr_settings (owner_id, capacity, overstay_hours, alert_unknown, alert_full,
+                                report_email, report_hour, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
      ON CONFLICT (owner_id) DO UPDATE
         SET capacity = EXCLUDED.capacity,
             overstay_hours = EXCLUDED.overstay_hours,
             alert_unknown = EXCLUDED.alert_unknown,
             alert_full = EXCLUDED.alert_full,
+            report_email = EXCLUDED.report_email,
+            report_hour = EXCLUDED.report_hour,
             updated_at = now()`,
-    [ownerId, next.capacity, next.overstayHours, next.alertUnknown, next.alertFull]
+    [ownerId, next.capacity, next.overstayHours, next.alertUnknown, next.alertFull, next.reportEmail, next.reportHour]
   );
   return next;
 }

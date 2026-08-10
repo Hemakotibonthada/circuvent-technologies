@@ -514,6 +514,22 @@ export async function initDb(): Promise<void> {
       alert_unknown   BOOLEAN NOT NULL DEFAULT false,
       -- Notify when occupancy reaches capacity.
       alert_full      BOOLEAN NOT NULL DEFAULT true,
+      /*
+       * Daily report.
+       *
+       * The address is stored per account rather than taken from the login
+       * email, because the person who should read a gate report is often not
+       * the person who owns the account — a facilities inbox, a security desk,
+       * a building manager. Defaulting to the account holder and offering no
+       * way to change it would make the feature useless to exactly the sites
+       * that need it most.
+       *
+       * NULL means no report. "report_hour" is IST, matching the automation
+       * scheduler, so a report and a schedule set for the same hour mean the
+       * same hour.
+       */
+      report_email    TEXT,
+      report_hour     INT NOT NULL DEFAULT 7,
       updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
@@ -526,6 +542,10 @@ export async function initDb(): Promise<void> {
      * Sentinel's gas alarm latch rather than re-fire, and its mute expire.
      */
     ALTER TABLE plate_visits ADD COLUMN IF NOT EXISTS overstay_alerted_at TIMESTAMPTZ;
+
+    -- Added after anpr_settings shipped, so existing rows need them too.
+    ALTER TABLE anpr_settings ADD COLUMN IF NOT EXISTS report_email TEXT;
+    ALTER TABLE anpr_settings ADD COLUMN IF NOT EXISTS report_hour INT NOT NULL DEFAULT 7;
   `);
 
   await backfillSerials();

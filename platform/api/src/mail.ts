@@ -20,12 +20,20 @@ function smtp(): Transporter | null {
  * Send one email. Prefers SMTP (own-domain mailbox), falls back to Resend's
  * REST API (no SDK needed), and finally logs in dev so flows still work.
  * Returns true if the message was accepted by a provider.
+ *
+ * `from` overrides the default sender for mail that is not transactional. OTP
+ * and password-reset messages come from a no-reply identity; a daily operations
+ * report is something a recipient will hit reply on, so it is sent from a
+ * mailbox a person reads. Both must stay on a domain the mail server signs with
+ * DKIM — mail.circuvent.com signs circuvent.com — or they fail DMARC and land
+ * in spam.
  */
-export async function sendMail(to: string, subject: string, html: string): Promise<boolean> {
+export async function sendMail(to: string, subject: string, html: string, from?: string): Promise<boolean> {
+  const sender = from || config.EMAIL_FROM;
   const t = smtp();
   if (t) {
     try {
-      await t.sendMail({ from: config.EMAIL_FROM, to, subject, html });
+      await t.sendMail({ from: sender, to, subject, html });
       return true;
     } catch (err) {
       logger.error({ err }, "SMTP send failed; trying Resend");
@@ -36,7 +44,7 @@ export async function sendMail(to: string, subject: string, html: string): Promi
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: config.EMAIL_FROM, to, subject, html }),
+        body: JSON.stringify({ from: sender, to, subject, html }),
       });
       if (r.ok) return true;
       logger.error({ status: r.status, body: await r.text().catch(() => "") }, "Resend send failed");

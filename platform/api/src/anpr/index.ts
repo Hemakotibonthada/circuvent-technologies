@@ -10,6 +10,7 @@ import { getRecogniser, type RawCandidate } from "./recognizer";
 import { normalisePlate, prettyPlate, voteOnBurst, type PlateVerdict } from "./plate";
 import { applyRead, laneDirection, type Direction, type LaneDirection } from "./visits";
 import { isFirstSighting, onVehicleEntered, sweepOverstays } from "./site";
+import { sweepDailyReports } from "./report";
 
 /**
  * The ANPR pipeline: captures in, decisions out.
@@ -612,6 +613,7 @@ export async function sweepPlateRetention(): Promise<void> {
 
 let sweepTimer: NodeJS.Timeout | null = null;
 let overstayTimer: NodeJS.Timeout | null = null;
+let reportTimer: NodeJS.Timeout | null = null;
 
 /** Wires the retention and overstay sweeps. Call once at boot. */
 export function startAnpr(): void {
@@ -637,6 +639,18 @@ export function startAnpr(): void {
   overstayTimer = setInterval(() => void sweepOverstays(), 10 * 60 * 1000);
   overstayTimer.unref?.();
 
+  /*
+   * The daily report rides the same ten-minute tick.
+   *
+   * It only has to land inside the configured hour, and `scheduler_ticks`
+   * claims it per owner per IST day, so running the check six times an hour
+   * costs one indexed SELECT and cannot produce a second email. A dedicated
+   * hourly timer would be more precise about nothing and would miss the hour
+   * entirely if the process restarted across it.
+   */
+  reportTimer = setInterval(() => void sweepDailyReports(), 10 * 60 * 1000);
+  reportTimer.unref?.();
+
   logger.info({ provider: getRecogniser().name }, "ANPR pipeline started");
 }
 
@@ -650,6 +664,7 @@ export function __resetAnprForTests(): void {
   ownerCache.clear();
   if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; }
   if (overstayTimer) { clearInterval(overstayTimer); overstayTimer = null; }
+  if (reportTimer) { clearInterval(reportTimer); reportTimer = null; }
 }
 
 export { normalisePlate };

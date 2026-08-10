@@ -523,6 +523,55 @@ permanent resident.
 because a kiosk polls it every few seconds and must not drag a week of
 aggregate statistics along with it.
 
+### The daily report
+
+A summary of the previous IST day, emailed each morning: traffic and read rate,
+who is still on site, anything overdue, blocked vehicles, and the vehicles that
+come most.
+
+**It goes to a configured address, not to the account holder.** The person who
+should read a gate report is usually a facilities inbox, a security desk or a
+building manager. Defaulting to the login address with no way to change it
+would make the feature useless to exactly the sites that most want it.
+`anpr_settings.report_email` holds the recipient and **no address means no
+report** — nothing is sent to anybody by default.
+
+Sent **from `info@circuvent.com`** through the indigenous Postfix server in the
+`Mail.circuvent` repository, over the same `SMTP_*` transport OTP already uses,
+with Resend as the fallback. `REPORT_FROM` is deliberately separate from
+`EMAIL_FROM`: that one signs OTP and password resets and belongs to a no-reply
+identity, while a report is something a recipient hits reply on. Both must stay
+on a domain `mail.circuvent.com` signs with DKIM, or they fail DMARC and land
+in spam.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `report_email` | `NULL` | Recipient. Null = no report |
+| `report_hour` | `7` | IST, the same zone the automation scheduler uses |
+| `REPORT_FROM` | `Circuvent <info@circuvent.com>` | Sender |
+
+**Exactly once per day, per account.** The sweep claims
+`report:<owner>:<IST date>` in the same `scheduler_ticks` table the automation
+scheduler uses. That makes it exactly-once across replicas *and* across
+restarts — a process that crashes after sending would otherwise send again on
+boot, and a duplicate report every morning is how a report becomes something
+people filter away unread. It rides the ten-minute tick rather than an hourly
+timer, because it only has to land inside the configured hour and an hourly
+timer would miss it entirely if the process restarted across it.
+
+**The report explains its own zeroes.** A 0% read rate has two entirely
+different causes, and saying "0%" without saying which sends a facilities
+manager up a ladder to inspect a camera that is working exactly as configured.
+So the body distinguishes "no recogniser is configured — this is a setting, not
+a camera fault" from "fewer than 6 in 10 plates were read", and a day with no
+vehicles says so along with what to check.
+
+`POST /anpr/report/test` sends one immediately. It runs `sendReport`, the same
+function the scheduler runs, rather than rendering a preview: the failures
+worth catching are all in delivery — a sender domain that fails DMARC, an SMTP
+host that rejects the mailbox, a typo in the recipient — and a preview cannot
+see any of them.
+
 ---
 
 ## 9. Reaching it from outside
