@@ -48,6 +48,7 @@ import {
   toCsv,
   useVisiblePolling,
 } from "../_kit/primitives";
+import { BarChart } from "../_kit/charts";
 
 const DECISION: Record<string, { label: string; fg: string; bg: string }> = {
   allow: { label: "Allowed", fg: "#22c55e", bg: "rgba(34,197,94,0.14)" },
@@ -1053,6 +1054,141 @@ function SitePanel() {
 }
 
 /**
+ * Insights — traffic pattern and the vehicles that come most.
+ *
+ * `/anpr/summary` already returned the hourly histogram and the frequent list;
+ * nothing rendered them, so the request was paying for data that was thrown
+ * away on arrival. This is where "when is my gate busy" gets answered.
+ */
+function InsightsPanel({ onOpen }: { onOpen: (plate: string) => void }) {
+  const [summary, setSummary] = useState<PlateSummary | null>(null);
+  const [days, setDays] = useState<7 | 30 | 90>(7);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    void controlPlane.plateSummary(days).then((r) => {
+      if (r.ok) {
+        setSummary(r.data);
+        setError("");
+      } else {
+        setError((r.data as { error?: string })?.error || "Could not load insights.");
+      }
+    });
+  }, [days]);
+
+  useEffect(load, [load]);
+
+  if (error && !summary) return <ErrorState message={error} onRetry={load} />;
+  if (!summary) return <LoadingState label="Loading insights" />;
+
+  /*
+   * Every hour of the day, not just the ones with traffic.
+   *
+   * A histogram of only the hours that had a vehicle is unreadable: 03:00 next
+   * to 09:00 next to 17:00 with no gaps hides exactly the pattern somebody
+   * came here to see. Zero-filling makes the quiet hours visible as quiet.
+   */
+  const byHour = Array.from({ length: 24 }, (_, h) => ({
+    label: `${String(h).padStart(2, "0")}`,
+    value: summary.byHour.find((b) => b.hour === h)?.count ?? 0,
+  }));
+
+  const readRate = summary.total ? Math.round((summary.recognised / summary.total) * 100) : null;
+
+  return (
+    <div>
+      <div className="mb-5">
+        <FilterChips
+          value={String(days) as "7" | "30" | "90"}
+          onChange={(v) => setDays(Number(v) as 7 | 30 | 90)}
+          options={[
+            { value: "7", label: "7 days" },
+            { value: "30", label: "30 days" },
+            { value: "90", label: "90 days" },
+          ]}
+        />
+      </div>
+
+      <KpiGrid cols={4}>
+        <Kpi label="Vehicles" value={String(summary.total)} icon={Car} />
+        <Kpi label="Distinct" value={String(summary.uniquePlates)} icon={ListChecks} />
+        <Kpi
+          label="Plates read"
+          value={readRate == null ? "—" : `${readRate}%`}
+          icon={ScanSearch}
+          tone={readRate != null && readRate < 60 ? "warning" : undefined}
+          hint={
+            summary.recogniser === "none"
+              ? "No recogniser configured"
+              : `${summary.recognised} of ${summary.total}`
+          }
+        />
+        <Kpi label="Blocked" value={String(summary.denied)} icon={Ban} tone={summary.denied ? "warning" : undefined} />
+      </KpiGrid>
+
+      {/*
+        A low read rate has two completely different causes and the operator
+        needs to know which: nothing is configured, or the camera cannot see
+        the plates. Saying "40%" alone sends them to check the lens either way.
+      */}
+      {summary.recogniser === "none" ? (
+        <div className="mt-4">
+          <Callout tone="info" title="No plate recogniser is configured">
+            Vehicles are being counted and photographed, but no plates are read, so the read rate above
+            is 0% by configuration rather than by fault.
+          </Callout>
+        </div>
+      ) : readRate != null && readRate < 60 && summary.total > 10 ? (
+        <div className="mt-4">
+          <Callout tone="warning" title="Fewer than 6 in 10 plates are being read">
+            Usually the camera is too far from where vehicles stop, aimed too high, or the watched lane
+            covers more than the road. The unreadable captures are in the plate log with the reason
+            each one failed.
+          </Callout>
+        </div>
+      ) : null}
+
+      <div className="mt-6">
+        <BarChart
+          data={byHour}
+          title="When vehicles arrive"
+          unit=" vehicles"
+          height={200}
+        />
+        <p className="mt-2 text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
+          Hour of the day, India Standard Time — the same zone the automation scheduler uses, so a
+          rule set for a busy hour fires in the hour this chart shows.
+        </p>
+      </div>
+
+      <h3 className="mt-8 text-[17px] font-bold" style={{ color: "var(--cv-text)" }}>
+        Most frequent vehicles
+      </h3>
+      {!summary.frequent.length ? (
+        <p className="mt-2 text-sm" style={{ color: "var(--cv-text-dim)" }}>
+          No plates have been read in this period.
+        </p>
+      ) : (
+        <div className="mt-3 flex flex-col gap-2">
+          {summary.frequent.map((f) => (
+            <Surface key={f.plate} padded={false} interactive onClick={() => onOpen(f.plate)}>
+              <div className="flex items-center gap-3 p-3">
+                <span className="cv-num text-[17px] font-bold" style={{ color: "var(--cv-text)" }}>
+                  {f.pretty}
+                </span>
+                <span className="ml-auto text-[13px]" style={{ color: "var(--cv-muted)" }}>
+                  {f.count} passes · last <RelativeTime iso={f.lastAt} />
+                </span>
+              </div>
+            </Surface>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Vehicles — the ANPR plate log, the vehicle register, the site state and the
  * lists.
  *
@@ -1068,12 +1204,12 @@ function SitePanel() {
  * history, decide about it) and the actions move between them.
  */
 export function VehiclesPanel() {
-  const [view, setView] = useState<"log" | "vehicles" | "site" | "lists">("log");
+  const [view, setView] = useState<"log" | "vehicles" | "site" | "insights" | "lists">("log");
   const [plate, setPlate] = useState<string | null>(null);
 
   // A selected vehicle takes over the panel, so switching view must clear it —
   // otherwise the segmented control appears to do nothing.
-  const changeView = (v: "log" | "vehicles" | "site" | "lists") => {
+  const changeView = (v: "log" | "vehicles" | "site" | "insights" | "lists") => {
     setPlate(null);
     setView(v);
   };
@@ -1088,6 +1224,7 @@ export function VehiclesPanel() {
             { value: "log", label: "Plate log" },
             { value: "vehicles", label: "Vehicles" },
             { value: "site", label: "Site" },
+            { value: "insights", label: "Insights" },
             { value: "lists", label: "Allow & block" },
           ]}
         />
@@ -1100,6 +1237,8 @@ export function VehiclesPanel() {
         <VehicleList onOpen={setPlate} />
       ) : view === "site" ? (
         <SitePanel />
+      ) : view === "insights" ? (
+        <InsightsPanel onOpen={(p) => { setView("vehicles"); setPlate(p); }} />
       ) : (
         <PlateLists />
       )}
