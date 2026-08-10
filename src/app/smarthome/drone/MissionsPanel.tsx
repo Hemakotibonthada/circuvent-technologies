@@ -23,6 +23,8 @@ import {
   SectionTitle, SelectInput, Surface, TextInput,
 } from "../_kit/primitives";
 import { useToast } from "../_kit/overlays";
+import { describeFailure, isUnsupported } from "./errors";
+import { NeedsDeploy } from "./NeedsDeploy";
 
 const ACTIONS = [
   { value: "waypoint" as const, label: "Fly through" },
@@ -54,17 +56,24 @@ export function MissionsPanel() {
   const [missions, setMissions] = useState<Mission[] | null>(null);
   const [limits, setLimits] = useState<DroneLimits | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unsupported, setUnsupported] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
 
   const load = useCallback(() => {
     void Promise.all([controlPlane.droneMissions(), controlPlane.droneLive()]).then(([m, live]) => {
+      if (isUnsupported(m)) {
+        setUnsupported(true);
+        setMissions([]);
+        return;
+      }
+      setUnsupported(false);
       if (m.ok) {
         setMissions(m.data.missions ?? []);
         setError(null);
       } else {
-        setError((m.data as { error?: string })?.error || "Could not load missions.");
+        setError(describeFailure(m, "missions"));
         setMissions((prev) => prev ?? []);
       }
       if (live.ok) setLimits(live.data.limits ?? null);
@@ -98,7 +107,7 @@ export function MissionsPanel() {
       // The server refuses a mission whose waypoints breach the account
       // ceiling at save time rather than at fly time — discovering it standing
       // in a field with the aircraft already armed is the wrong moment.
-      toast.err((r.data as { error?: string })?.error || "Could not save that mission.");
+      toast.err(describeFailure(r, "that mission"));
     }
   }, [name, waypoints, load, toast]);
 
@@ -106,11 +115,12 @@ export function MissionsPanel() {
     async (m: Mission) => {
       const r = await controlPlane.deleteMission(m.id);
       if (r.ok) { toast.ok(`${m.name} deleted`); load(); }
-      else toast.err((r.data as { error?: string })?.error || "Could not delete that mission.");
+      else toast.err(describeFailure(r, "that mission"));
     },
     [load, toast]
   );
 
+  if (unsupported) return <NeedsDeploy />;
   if (error && !missions) return <ErrorState message={error} onRetry={load} />;
   if (!missions) return <LoadingState label="Loading missions" />;
 

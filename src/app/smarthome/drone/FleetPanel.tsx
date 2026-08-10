@@ -25,12 +25,15 @@ import {
   SectionTitle, StatusDot, Surface, TextInput, formatRelative,
 } from "../_kit/primitives";
 import { useToast } from "../_kit/overlays";
+import { describeFailure, isUnsupported } from "./errors";
+import { NeedsDeploy } from "./NeedsDeploy";
 
 export function FleetPanel() {
   const toast = useToast();
   const [aircraft, setAircraft] = useState<LiveAircraft[] | null>(null);
   const [batteries, setBatteries] = useState<Battery[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unsupported, setUnsupported] = useState(false);
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState("");
   const [cells, setCells] = useState(4);
@@ -39,15 +42,18 @@ export function FleetPanel() {
 
   const load = useCallback(() => {
     void Promise.all([controlPlane.droneLive(), controlPlane.batteries()]).then(([live, packs]) => {
+      if (isUnsupported(live) || isUnsupported(packs)) {
+        setUnsupported(true);
+        setAircraft([]);
+        setBatteries([]);
+        return;
+      }
+      setUnsupported(false);
       if (live.ok) setAircraft(live.data.aircraft ?? []);
       else setAircraft((prev) => prev ?? []);
       if (packs.ok) setBatteries(packs.data.batteries ?? []);
       else setBatteries((prev) => prev ?? []);
-      if (!live.ok && !packs.ok) {
-        setError((live.data as { error?: string })?.error || "Could not load the fleet.");
-      } else {
-        setError(null);
-      }
+      setError(live.ok || packs.ok ? null : describeFailure(live, "the fleet"));
     });
   }, []);
 
@@ -64,7 +70,7 @@ export function FleetPanel() {
       toast.ok("Battery added");
       load();
     } else {
-      toast.err((r.data as { error?: string })?.error || "Could not add that battery.");
+      toast.err(describeFailure(r, "that battery"));
     }
   }, [label, cells, capacity, retireAt, load, toast]);
 
@@ -72,7 +78,7 @@ export function FleetPanel() {
     async (b: Battery) => {
       const r = await controlPlane.deleteBattery(b.id);
       if (r.ok) { toast.ok(`${b.label} removed`); load(); }
-      else toast.err((r.data as { error?: string })?.error || "Could not remove that battery.");
+      else toast.err(describeFailure(r, "that battery"));
     },
     [load, toast]
   );
@@ -81,11 +87,12 @@ export function FleetPanel() {
     async (b: Battery) => {
       const r = await controlPlane.updateBattery(b.id, { retired: !b.retired });
       if (r.ok) load();
-      else toast.err((r.data as { error?: string })?.error || "Could not update that battery.");
+      else toast.err(describeFailure(r, "that battery"));
     },
     [load, toast]
   );
 
+  if (unsupported) return <NeedsDeploy />;
   if (error && !aircraft) return <ErrorState message={error} onRetry={load} />;
   if (!aircraft || !batteries) return <LoadingState label="Loading fleet" />;
 

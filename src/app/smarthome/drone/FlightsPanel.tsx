@@ -24,6 +24,8 @@ import {
   Badge, Button, EmptyState, ErrorState, LoadingState, SectionTitle,
   Surface, formatDateTime, formatRelative,
 } from "../_kit/primitives";
+import { describeFailure, isUnsupported } from "./errors";
+import { NeedsDeploy } from "./NeedsDeploy";
 
 function duration(sec: number | null): string {
   if (sec === null) return "—";
@@ -51,6 +53,7 @@ function outcomeBadge(f: Flight) {
 export function FlightsPanel() {
   const [flights, setFlights] = useState<Flight[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unsupported, setUnsupported] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -58,8 +61,12 @@ export function FlightsPanel() {
       if (r.ok) {
         setFlights(r.data.flights ?? []);
         setError(null);
+        setUnsupported(false);
+      } else if (isUnsupported(r)) {
+        setUnsupported(true);
+        setFlights([]);
       } else {
-        setError((r.data as { error?: string })?.error || "Could not load flights.");
+        setError(describeFailure(r, "the flight log"));
         setFlights((prev) => prev ?? []);
       }
     });
@@ -67,6 +74,7 @@ export function FlightsPanel() {
 
   useEffect(load, [load]);
 
+  if (unsupported) return <NeedsDeploy />;
   if (error && !flights) return <ErrorState message={error} onRetry={load} />;
   if (!flights) return <LoadingState label="Loading flights" />;
 
