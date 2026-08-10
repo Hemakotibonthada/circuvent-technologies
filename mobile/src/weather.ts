@@ -168,11 +168,35 @@ export async function resolveWeatherLocation(): Promise<
   return { kind: "fallback", query: "Bengaluru" };
 }
 
+/**
+ * The name of the place at some coordinates.
+ *
+ * Coordinates from the device arrive without one, and the weather API is a
+ * forecast service, not a gazetteer — it echoes back whatever name it was
+ * given. So a device-located forecast was headed "Current location", which is
+ * a description of how we found it rather than where you are.
+ *
+ * Returns null rather than a placeholder: the caller already has one, and a
+ * wrong city name is worse than an honest absence.
+ */
+export async function placeNameAt(lat: number, lon: number): Promise<string | null> {
+  try {
+    const [hit] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+    if (!hit) return null;
+    // City first. `district` is the neighbourhood, which is too fine for a
+    // weather header; `region` is the state, which is too coarse on its own.
+    return hit.city || hit.subregion || hit.region || null;
+  } catch {
+    return null;
+  }
+}
+
 /** The weather for wherever `resolveWeatherLocation` decided. */
 export async function getLocalWeather(): Promise<WeatherBundle> {
   const where = await resolveWeatherLocation();
   if (where.kind === "fallback") return getWeatherByQuery(where.query);
-  return getWeather(where.lat, where.lon, where.name);
+  const name = where.name ?? (await placeNameAt(where.lat, where.lon)) ?? undefined;
+  return getWeather(where.lat, where.lon, name);
 }
 
 const SAVED_KEY = "cv-weather-loc";

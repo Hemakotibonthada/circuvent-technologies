@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useKeyboardHeight } from "../keyboard";
 import { useAuth } from "../auth";
 import { C, GRAD, TAP_SLOP } from "../theme";
 
@@ -13,6 +14,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
+  // Measured, not inferred from the window resizing — see ../keyboard.
+  const kb = useKeyboardHeight();
   const [msg, setMsg] = useState("");
 
   const submit = async () => {
@@ -64,7 +67,7 @@ export default function Login() {
       */}
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.flex}>
         <ScrollView
-          contentContainerStyle={s.center}
+          contentContainerStyle={[s.center, { paddingBottom: 24 + kb }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}

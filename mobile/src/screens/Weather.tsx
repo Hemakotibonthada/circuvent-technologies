@@ -4,7 +4,7 @@ import { Screen, Card, SectionLabel, useTheme, IconButton, useToast, ToastHost }
 import { useDevices } from "../store";
 import { TAP_SLOP } from "../theme";
 import {
-  getWeather, getWeatherByQuery, geocode, getSavedLocation, setSavedLocation, resolveWeatherLocation,
+  getWeather, getWeatherByQuery, geocode, getSavedLocation, setSavedLocation, resolveWeatherLocation, placeNameAt,
   wmo, aqiCategory, weatherTips, type WeatherBundle, type GeoPlace, type WeatherAction,
 } from "../weather";
 
@@ -43,8 +43,11 @@ export default function Weather({ onBack }: { onBack: () => void }) {
   // there is nothing else to go on.
   useEffect(() => { (async () => {
     const where = await resolveWeatherLocation();
-    if (where.kind === "fallback") loadQuery(where.query);
-    else load(where.lat, where.lon, where.name);
+    if (where.kind === "fallback") { loadQuery(where.query); return; }
+    // Name the place rather than heading the screen "Current location", which
+    // describes how we found it instead of where you are.
+    const named = where.name ?? (await placeNameAt(where.lat, where.lon)) ?? undefined;
+    load(where.lat, where.lon, named);
   })(); }, [load, loadQuery]);
 
   useEffect(() => {

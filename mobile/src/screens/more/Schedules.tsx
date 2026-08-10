@@ -190,7 +190,17 @@ export default function Schedules({ onBack, embedded }: { onBack: () => void; em
                 onChange={setMode}
               />
 
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              {/*
+                Stacked, not side by side.
+
+                A TimePicker needs about 190pt: two 52pt stepper columns, a
+                colon, and a 56pt AM/PM button. Two of them sharing a phone
+                width left roughly 160pt each, so the contents overflowed their
+                own box — the hours ran into the minutes and the AM/PM button
+                sat off the edge of the screen. Full width each is the only
+                honest fit, and there is nothing else competing for the space.
+              */}
+              <View style={{ gap: 14, marginTop: 12 }}>
                 {mode !== "off" ? <TimeBox label="On at" value={onTime} onChange={setOnTime} /> : null}
                 {mode !== "on" ? <TimeBox label="Off at" value={offTime} onChange={setOffTime} /> : null}
               </View>

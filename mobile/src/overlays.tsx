@@ -39,6 +39,7 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useTheme, useSafeArea, useReduceMotion, PrimaryButton, GhostButton } from "./ui";
+import { useKeyboardHeight } from "./keyboard";
 import { RADIUS, SPACE, TYPE, MOTION } from "./theme";
 import { Icon, type IconName } from "./icons";
 
@@ -86,6 +87,13 @@ export function Sheet({
   const { c, scheme } = useTheme();
   const insets = useSafeArea();
   const reduceMotion = useReduceMotion();
+  /*
+   * The sheet sits at the bottom of the screen, which is where the keyboard
+   * appears — so a sheet with a text field in it was covered by the keyboard
+   * the moment that field was focused. Measured rather than left to
+   * KeyboardAvoidingView, which was doing nothing at all on Android.
+   */
+  const kb = useKeyboardHeight();
   const slide = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
 
@@ -127,7 +135,7 @@ export function Sheet({
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, justifyContent: "flex-end" }}
+        style={{ flex: 1, justifyContent: "flex-end", paddingBottom: kb }}
         pointerEvents="box-none"
       >
         <Animated.View
