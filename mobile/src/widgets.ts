@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Device } from "./api";
 import type { IconName } from "./icons";
-import { channelLabel, channelKind as savedChannelKind } from "./channel-prefs";
+import { channelLabel, channelKind as savedChannelKind, setChannelLabel, setChannelKind, clearChannelPrefs, onChannelPrefsChange } from "./channel-prefs";
 
 /**
  * What a relay is actually wired to.
@@ -84,22 +84,27 @@ export function defaultGangs(d: Device): Gang[] {
 
 const key = (id: string) => `cv-gangs-${id}`;
 
-// Merge saved overrides (labels/visibility/kind) onto the current default set so
-// new firmware fields still appear and removed ones drop out.
+/*
+ * Only visibility is a per-phone choice.
+ *
+ * Names and kinds used to be stored here too, and `label: s.label || d.label`
+ * meant the local copy beat the server's. That is the whole bug: rename a
+ * channel on the phone and the name was pinned locally and never sent anywhere;
+ * rename it on the web afterwards and the phone kept showing its own stale
+ * copy. It appeared to work exactly once — before any local rename existed,
+ * there was nothing to win, so the console's name came through.
+ *
+ * Which channels you hide is genuinely about this screen on this device, so it
+ * stays local. Everything a second person would expect to see now lives on the
+ * server, and this merge no longer has an opinion about it.
+ */
 function merge(defaults: Gang[], saved: Gang[] | null): Gang[] {
   if (!saved || !saved.length) return defaults;
   const byField = new Map(saved.map((g) => [g.field, g]));
   return defaults.map((d) => {
     const s = byField.get(d.field);
     if (!s) return d;
-    return {
-      field: d.field,
-      label: s.label || d.label,
-      visible: s.visible !== false,
-      // Saved before kinds existed, so absent means "not chosen yet" rather
-      // than a value to trust.
-      kind: s.kind ?? d.kind,
-    };
+    return { ...d, visible: s.visible !== false };
   });
 }
 
@@ -108,7 +113,7 @@ export function useSwitchWidgets(device: Device) {
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const derive = async () => {
       try {
         const raw = await AsyncStorage.getItem(key(device.id));
         const saved = raw ? (JSON.parse(raw) as Gang[]) : null;
@@ -116,8 +121,24 @@ export function useSwitchWidgets(device: Device) {
       } catch {
         if (alive) setGangs(defaultGangs(device));
       }
-    })();
-    return () => { alive = false; };
+    };
+    void derive();
+
+    /*
+     * Re-derive when the console's names arrive or change.
+     *
+     * Without this the names are read once, when the screen mounts, and a
+     * rename made on the web while somebody has the device open never appears —
+     * which is half of what "it does not sync" meant. defaultGangs reads
+     * straight from the shared prefs, so re-running it is the whole update.
+     */
+    const off = onChannelPrefsChange(() => {
+      void derive();
+    });
+    return () => {
+      alive = false;
+      off();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device.id, device.type]);
 
@@ -156,8 +177,13 @@ export function useSwitchWidgets(device: Device) {
   }, []);
 
   const rename = useCallback((field: string, label: string) => {
+    // Shown immediately, sent to the console, and re-read from there on the
+    // next refresh. setChannelLabel keeps its own cache, so the new name
+    // survives being offline and a restart without this screen storing a
+    // second, competing copy of it.
     update((prev) => prev.map((g) => (g.field === field ? { ...g, label } : g)));
-  }, [update]);
+    void setChannelLabel(device.id, field, label);
+  }, [update, device.id]);
 
   const setVisible = useCallback((field: string, visible: boolean) => {
     update((prev) => prev.map((g) => (g.field === field ? { ...g, visible } : g)));
@@ -165,13 +191,16 @@ export function useSwitchWidgets(device: Device) {
 
   const setKind = useCallback((field: string, kind: ChannelKind) => {
     update((prev) => prev.map((g) => (g.field === field ? { ...g, kind } : g)));
-  }, [update]);
+    void setChannelKind(device.id, field, kind);
+  }, [update, device.id]);
 
   const reset = useCallback(() => {
-    const defaults = defaultGangs(device);
-    setGangs(defaults);
+    // Clears the shared record as well as this screen's. Resetting on one
+    // device while the console kept the old names would not be a reset.
+    void clearChannelPrefs(device.id);
+    setGangs(defaultGangs(device));
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    AsyncStorage.setItem(key(device.id), JSON.stringify(defaults)).catch(() => { /* ignore */ });
+    AsyncStorage.removeItem(key(device.id)).catch(() => { /* ignore */ });
   }, [device]);
 
   return { gangs, visible: gangs.filter((g) => g.visible), rename, setVisible, setKind, reset };
