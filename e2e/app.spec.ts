@@ -63,7 +63,12 @@ test.describe("Projects Page", () => {
 test.describe("Blog Page", () => {
   test("displays blog posts", async ({ page }) => {
     await page.goto("/blog");
-    await expect(page.locator("text=Engineering Insights")).toBeVisible({ timeout: 10000 });
+    // By role, not by text. The heading reads "Engineering Insights" but the
+    // words sit in separate spans so the gradient can run across them, and a
+    // `text=` locator will not match across element boundaries — the assertion
+    // failed on a heading that was present and correct.
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('a[href^="/blog/"]').first()).toBeVisible({ timeout: 10000 });
   });
 
   test("blog post detail page loads", async ({ page }) => {
@@ -81,9 +86,14 @@ test.describe("Blog Page", () => {
 test.describe("Contact Page", () => {
   test("contact form renders", async ({ page }) => {
     await page.goto("/contact");
-    await expect(page.locator('input[placeholder*="John"]')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('textarea')).toBeVisible();
-    await expect(page.locator("text=Send Message")).toBeVisible();
+    // Located by label rather than placeholder. The old locator looked for a
+    // placeholder containing "John"; the field's example name has since been
+    // changed to a real one, and a placeholder is decoration that copy edits
+    // move freely. The label is the field's accessible name and the thing a
+    // user actually reads.
+    await expect(page.getByLabel(/full name/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("textarea")).toBeVisible();
+    await expect(page.getByRole("button", { name: /send message/i })).toBeVisible();
   });
 
   test("form validation works", async ({ page }) => {
@@ -114,8 +124,11 @@ test.describe("SEO", () => {
     const response = await page.goto("/robots.txt");
     expect(response?.status()).toBe(200);
     const content = await page.content();
-    expect(content).toContain("User-agent");
-    expect(content).toContain("Sitemap");
+    // Case-insensitive: the directive is spelled "User-Agent" in the generated
+    // file and this asserted "User-agent", so it failed on a file that was
+    // entirely correct. The field name is case-insensitive to crawlers too.
+    expect(content).toMatch(/user-agent/i);
+    expect(content).toMatch(/sitemap/i);
   });
 
   test("pages have proper meta titles", async ({ page }) => {
@@ -142,10 +155,26 @@ test.describe("Command Palette (Search)", () => {
     await page.keyboard.press("Control+k");
     const searchInput = page.locator('input[placeholder*="Search projects"]');
     await searchInput.fill("NEXUS");
-    await expect(page.locator("text=NEXUS AI OS")).toBeVisible({ timeout: 5000 });
-    // Press Enter to navigate
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
+    // .first(): the phrase appears in the result title and in its description,
+    // and a locator matching several elements fails strict mode rather than
+    // reporting what the test is about.
+    await expect(page.locator("text=NEXUS AI OS").first()).toBeVisible({ timeout: 5000 });
+
+    /*
+     * Assert that it actually goes somewhere.
+     *
+     * This test is named "searches and navigates" and used to press Enter and
+     * then end, asserting nothing — a palette that selected nothing would have
+     * passed it.
+     *
+     * It clicks rather than pressing Enter. Enter did not navigate in a
+     * headless run and I have not established whether that is a real defect in
+     * the palette's keyboard handling or an artefact of how the key reaches a
+     * just-hydrated input; asserting the click keeps the navigation covered
+     * without encoding a guess. The keyboard path is recorded as open.
+     */
+    await page.locator("text=NEXUS AI OS").first().click();
+    await expect(page).toHaveURL(/\/(projects|case-studies)/, { timeout: 10000 });
   });
 
   test("closes with Escape", async ({ page }) => {
@@ -160,7 +189,10 @@ test.describe("Command Palette (Search)", () => {
 test.describe("Theme Toggle", () => {
   test("theme toggle is visible", async ({ page }) => {
     await page.goto("/");
-    const themeButton = page.locator('button[aria-label*="Switch theme"]');
+    // The control is rendered in both the desktop bar and the mobile menu, so
+    // the locator matches twice and strict mode rejects it. Assert the one the
+    // user can actually see at this width.
+    const themeButton = page.locator('button[aria-label*="Switch theme"]:visible').first();
     await expect(themeButton).toBeVisible({ timeout: 10000 });
   });
 });
@@ -172,7 +204,14 @@ test.describe("Responsive Design", () => {
     const menuButton = page.locator('button[aria-label="Toggle menu"]');
     await expect(menuButton).toBeVisible({ timeout: 10000 });
     await menuButton.click();
-    // Navigation links should be visible
-    await expect(page.locator("text=Projects").first()).toBeVisible();
+    /*
+     * Assert the link, not the word.
+     *
+     * "Projects" appears in the desktop navigation too, which is present in
+     * the DOM and hidden at this width — so `text=Projects` matched eight
+     * elements and resolved to a hidden one. What the test is actually about
+     * is whether the menu opened and offers somewhere to go.
+     */
+    await expect(page.locator('a[href="/projects"]:visible').first()).toBeVisible({ timeout: 5000 });
   });
 });
