@@ -82,6 +82,11 @@ services:
       NODE_ENV: production
       SMARTHOME_CLIENT_ID: ${SMARTHOME_CLIENT_ID:-circuvent-smarthome}
       SMARTHOME_CLIENT_SECRET: ${SMARTHOME_CLIENT_SECRET}
+      # Was declared in config.ts and never passed through, so setting it in
+      # .env silently did nothing and an extra account-linking redirect URI
+      # could not be added at all. Same class of fault as FEDERATION_SECRET;
+      # config-passthrough.test.ts now fails the build on a missing key.
+      SMARTHOME_REDIRECT_URIS: ${SMARTHOME_REDIRECT_URIS:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
