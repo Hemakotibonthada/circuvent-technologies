@@ -50,7 +50,28 @@ async function request(key: PermissionKey): Promise<PermissionState> {
   const map = (status: string): PermissionState =>
     status === "granted" ? "granted" : status === "undetermined" ? "undetermined" : "denied";
   try {
-    if (key === "notifications") return map((await Notifications.requestPermissionsAsync()).status);
+    if (key === "notifications") {
+      /*
+       * Spelled out for iOS rather than left to the default.
+       *
+       * On iOS the alert/badge/sound set is decided at the moment of the
+       * request and cannot be widened later without the user going to
+       * Settings — so a default that happens not to include sound would mean
+       * a silent alert about a door left open, permanently, and nothing in the
+       * app could put it right.
+       *
+       * Announcements is deliberately absent: that is Siri reading
+       * notifications aloud through headphones, which is not something to take
+       * on somebody's behalf for device alerts.
+       */
+      return map(
+        (
+          await Notifications.requestPermissionsAsync({
+            ios: { allowAlert: true, allowBadge: true, allowSound: true },
+          })
+        ).status
+      );
+    }
     if (key === "location") return map((await Location.requestForegroundPermissionsAsync()).status);
     return map((await Camera.requestCameraPermissionsAsync()).status);
   } catch {

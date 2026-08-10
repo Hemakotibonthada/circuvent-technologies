@@ -26,6 +26,18 @@ const NEEDS = [
   { match: /MediaLibrary|saveToLibraryAsync|createAssetAsync/, key: "NSPhotoLibraryAddUsageDescription", android: "android.permission.WRITE_EXTERNAL_STORAGE", why: "saving to the photo library" },
   { match: /expo-contacts|Contacts\.getContactsAsync/, key: "NSContactsUsageDescription", android: "android.permission.READ_CONTACTS", why: "contacts" },
   { match: /Notifications\.requestPermissionsAsync|expo-notifications/, key: null, android: "android.permission.POST_NOTIFICATIONS", why: "notifications" },
+  /*
+   * Face ID is the sharpest version of what this script is for.
+   *
+   * Without NSFaceIDUsageDescription, authenticateAsync does not fail and does
+   * not warn -- iOS terminates the process. So an app lock, whose entire job is
+   * to run before anything else, would close the app on every launch on any
+   * Face ID iPhone, while behaving perfectly on Android and on Touch ID Macs.
+   *
+   * The string was added by hand when the lock was written and nothing was
+   * checking it, which is precisely the state this file exists to prevent.
+   */
+  { match: /expo-local-authentication|LocalAuthentication\.authenticateAsync/, key: "NSFaceIDUsageDescription", android: "android.permission.USE_BIOMETRIC", why: "Face ID / fingerprint app lock" },
 ];
 
 function walk(dir, out = []) {
