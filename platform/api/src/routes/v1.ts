@@ -15,6 +15,7 @@ import { logger } from "../logger";
 import { onlineColumn, onlineSql } from "../device-online";
 import { analysePlate, normalisePlate, prettyPlate } from "../anpr/plate";
 import { listVehicles, visitsFor } from "../anpr/visits";
+import { occupancy } from "../anpr/site";
 
 /**
  * The public, versioned developer API.
@@ -150,6 +151,7 @@ route.get("/", (_req, res) => {
       { method: "GET", path: "/v1/plates/{id}/image", scope: "plates:read" },
       { method: "GET", path: "/v1/vehicles", scope: "plates:read" },
       { method: "GET", path: "/v1/vehicles/{plate}", scope: "plates:read" },
+      { method: "GET", path: "/v1/occupancy", scope: "plates:read" },
       { method: "GET", path: "/v1/plate-rules", scope: "plates:read" },
       { method: "POST", path: "/v1/plate-rules", scope: "plates:write" },
       { method: "DELETE", path: "/v1/plate-rules/{id}", scope: "plates:write" },
@@ -765,6 +767,18 @@ route.get("/vehicles/:plate", requireApiAccess("plates:read"), async (req: ApiRe
     })),
     inside: visits.some((v) => v.status === "open"),
     totalStaySeconds: closed.reduce((n, v) => n + (v.durationSec ?? 0), 0),
+  });
+});
+
+/** GET /v1/occupancy — how full the site is right now. */
+route.get("/occupancy", requireApiAccess("plates:read"), async (req: ApiRequest, res) => {
+  const now = await occupancy(req.user!.uid);
+  res.json({
+    inside: now.inside,
+    capacity: now.capacity,
+    free: now.free,
+    full: now.full,
+    percent: now.percent,
   });
 });
 

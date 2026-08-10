@@ -9,6 +9,7 @@ import { parseCapture, type AnprCapture, type TriggerReasonName } from "./protoc
 import { getRecogniser, type RawCandidate } from "./recognizer";
 import { normalisePlate, prettyPlate, voteOnBurst, type PlateVerdict } from "./plate";
 import { applyRead, laneDirection, type Direction, type LaneDirection } from "./visits";
+import { isFirstSighting, onVehicleEntered, sweepOverstays } from "./site";
 
 /**
  * The ANPR pipeline: captures in, decisions out.
@@ -352,6 +353,11 @@ async function process(b: PendingBurst): Promise<void> {
   let visitId: number | null = null;
   let stayEndedSec: number | null = null;
   if (recognised) {
+    // Asked before pairing, and excluding the read just inserted: after
+    // pairing there is always a visit, and without the exclusion every vehicle
+    // looks like a returning one so the alert never fires.
+    const firstEver = await isFirstSighting(b.ownerId, plate, readId);
+
     const paired = await applyRead({
       ownerId: b.ownerId,
       plate,
@@ -371,6 +377,11 @@ async function process(b: PendingBurst): Promise<void> {
             visitId,
           ])
           .catch((err) => logger.error({ err }, "anpr read direction update failed"));
+      }
+      // Occupancy consequences only make sense for an arrival — a departure
+      // frees a space rather than filling one.
+      if (direction === "in") {
+        await onVehicleEntered(b.ownerId, plate, b.deviceId, firstEver);
       }
     }
   }
@@ -600,8 +611,9 @@ export async function sweepPlateRetention(): Promise<void> {
 }
 
 let sweepTimer: NodeJS.Timeout | null = null;
+let overstayTimer: NodeJS.Timeout | null = null;
 
-/** Wires the retention sweep. Call once at boot, next to startWebhooks(). */
+/** Wires the retention and overstay sweeps. Call once at boot. */
 export function startAnpr(): void {
   if (sweepTimer) return;
   // Ownership can move under a camera — claim, unclaim, admin reassignment —
@@ -612,6 +624,19 @@ export function startAnpr(): void {
   void sweepPlateRetention();
   sweepTimer = setInterval(() => void sweepPlateRetention(), 24 * 60 * 60 * 1000);
   sweepTimer.unref?.();
+
+  /*
+   * Overstay runs on its own, much shorter, clock.
+   *
+   * Retention is a daily housekeeping job; an overstay is something somebody
+   * is meant to act on, and a five-hour-late alert about a vehicle that should
+   * have left at noon is not worth sending. Ten minutes is well inside the
+   * resolution anyone configures (the limit is set in hours) while costing one
+   * indexed UPDATE per tick across the whole fleet.
+   */
+  overstayTimer = setInterval(() => void sweepOverstays(), 10 * 60 * 1000);
+  overstayTimer.unref?.();
+
   logger.info({ provider: getRecogniser().name }, "ANPR pipeline started");
 }
 
@@ -624,6 +649,7 @@ export function __resetAnprForTests(): void {
   inflight = 0;
   ownerCache.clear();
   if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; }
+  if (overstayTimer) { clearInterval(overstayTimer); overstayTimer = null; }
 }
 
 export { normalisePlate };

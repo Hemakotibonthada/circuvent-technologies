@@ -448,7 +448,84 @@ the log links straight to its profile.
 
 ---
 
-## 8. Reaching it from outside
+## 8. Site policy: occupancy, capacity and overstays
+
+The layer above a single vehicle. `visits.ts` answers "when did this car arrive
+and leave"; this answers "what is the state of the site right now", which is
+what a gate desk actually opens the console for.
+
+**Everything here is off by default and every limit is nullable.** A customer
+who bought a camera to see who comes to their house must not discover capacity
+management by having the console announce their driveway is full. `null` and
+`0` are deliberately different: a capacity of 0 would mean permanently full, so
+the console uses a toggle plus a number rather than an empty box meaning "off".
+
+### Occupancy is counted, never tallied
+
+`occupancy()` counts open visits. A running total incremented on entry and
+decremented on exit would be biased permanently by a single missed read — which
+is routine here — with no way to tell a real occupancy of 12 from a drifted
+one. Counting open visits is self-correcting: the retention sweep closes out
+stale visits, so the number heals rather than accumulating error.
+
+Over-capacity is reachable and is handled rather than hidden: entry is never
+refused, and a missed exit inflates the count, so free spaces clamp at zero and
+the percentage clamps at 100.
+
+**Capacity is reported, never enforced.** The gate still opens for an allowed
+vehicle when the site is full. A barrier that strands a resident outside their
+own home at midnight is a worse failure than an over-full car park, and the
+person at the gate can see the count and decide.
+
+### Alerts fire once
+
+| Setting | Default | Behaviour |
+| --- | --- | --- |
+| `capacity` | `null` | Unmanaged |
+| `overstay_hours` | `null` | Never flag |
+| `alert_full` | `true` | Only meaningful once a capacity is set |
+| `alert_unknown` | `false` | Notify the first time a plate is ever seen |
+
+The full-site alert is **edge-triggered** — it fires as the last space is taken,
+not on every arrival while full, the same rule every state trigger in
+`automations.ts` follows. Overstay is stamped with `overstay_alerted_at` in the
+same statement that selects it, so two overlapping sweeps cannot both alert and
+a vehicle is announced once rather than every ten minutes. An alert that repeats
+all afternoon gets muted, and a muted channel is where the next real one dies —
+the same reasoning behind the Sentinel's latching gas alarm.
+
+The overstay sweep runs every 10 minutes on its own timer, separate from the
+daily retention job: retention is housekeeping, an overstay is something
+somebody is meant to act on, and a five-hour-late alert is not worth sending.
+It is one indexed `UPDATE` across the whole fleet per tick, not one query per
+account.
+
+### Time-boxed access
+
+`plate_rules` carries `valid_from` / `valid_to`, and the console offers them as
+an expiry when a plate is added — a contractor for the day, a delivery for two
+hours. The window is sent as an **absolute instant**, not a duration, so a rule
+saved at 17:59 cannot mean something different by the time the request lands.
+An expired pass stays visible and is styled as expired: it must not read as an
+active one, or a contractor whose access lapsed at noon looks identical to a
+permanent resident.
+
+### Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/anpr/occupancy` | Live count, free spaces, and the overdue list |
+| GET | `/anpr/settings` | Current policy |
+| PATCH | `/anpr/settings` | Change it |
+| GET | `/v1/occupancy` | The same count for an integration or a gate display |
+
+`/anpr/occupancy` is its own endpoint rather than a field on `/anpr/summary`
+because a kiosk polls it every few seconds and must not drag a week of
+aggregate statistics along with it.
+
+---
+
+## 9. Reaching it from outside
 
 ### Automations
 
@@ -497,7 +574,7 @@ page of 100 reads stays a few KB, and most rows are never opened.
 
 ---
 
-## 9. Installing one
+## 10. Installing one
 
 1. Mount 3–5 m from where the vehicle stops, **1–1.5 m high**, angled so the
    plate is roughly square to the lens. A plate needs ~100 px across its

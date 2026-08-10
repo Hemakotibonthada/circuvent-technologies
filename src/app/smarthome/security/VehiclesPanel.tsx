@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import {
   controlPlane,
+  type AnprSettings,
+  type Occupancy,
   type PlateRead,
   type PlateRule,
   type PlateSummary,
@@ -33,10 +35,13 @@ import {
   Kpi,
   KpiGrid,
   LoadingState,
+  NumberInput,
   RelativeTime,
   SearchField,
+  SectionTitle,
   SelectInput,
   Surface,
+  SwitchRow,
   TextInput,
   downloadCsv,
   formatDateTime,
@@ -350,7 +355,13 @@ function PlateLists() {
   const [plate, setPlate] = useState("");
   const [label, setLabel] = useState("");
   const [kind, setKind] = useState<"allow" | "deny" | "watch">("allow");
+  const [expiry, setExpiry] = useState<"never" | "2h" | "8h" | "1d" | "7d" | "30d">("never");
   const [saving, setSaving] = useState(false);
+
+  /** Hours per option. `never` yields no window at all, not a huge one. */
+  const EXPIRY_HOURS: Record<string, number | null> = {
+    never: null, "2h": 2, "8h": 8, "1d": 24, "7d": 24 * 7, "30d": 24 * 30,
+  };
 
   const load = useCallback(() => {
     void controlPlane.plateRules().then((r) => {
@@ -371,12 +382,22 @@ function PlateLists() {
     setSaving(true);
     setError("");
     try {
-      const r = await controlPlane.createPlateRule({ plate, kind, label });
+      const hours = EXPIRY_HOURS[expiry];
+      const r = await controlPlane.createPlateRule({
+        plate,
+        kind,
+        label,
+        // Sent as an absolute instant rather than a duration, so a rule saved
+        // at 17:59 does not quietly mean something different by the time the
+        // request lands. The server stores the window; nothing re-derives it.
+        validTo: hours == null ? null : new Date(Date.now() + hours * 3600_000).toISOString(),
+      });
       if (!r.ok) {
         setError(r.data?.error || "Could not save that plate.");
       } else {
         setPlate("");
         setLabel("");
+        setExpiry("never");
         load();
       }
     } finally {
@@ -434,6 +455,22 @@ function PlateLists() {
               />
             </Field>
           </div>
+          <div className="w-44">
+            <Field label="Expires">
+              <SelectInput
+                value={expiry}
+                onChange={setExpiry}
+                options={[
+                  { value: "never", label: "Never" },
+                  { value: "2h", label: "In 2 hours" },
+                  { value: "8h", label: "In 8 hours" },
+                  { value: "1d", label: "Tomorrow" },
+                  { value: "7d", label: "In a week" },
+                  { value: "30d", label: "In a month" },
+                ]}
+              />
+            </Field>
+          </div>
           <Button onClick={() => void add()} disabled={saving || !plate.trim()}>
             {saving ? "Adding…" : "Add"}
           </Button>
@@ -469,32 +506,53 @@ function PlateLists() {
               </p>
             ) : (
               <div className="mt-3 flex flex-col gap-2">
-                {rows.map((r) => (
-                  <Surface key={r.id} padded={false}>
-                    <div className="flex items-center gap-3 p-3">
-                      <span className="cv-num text-[17px] font-bold" style={{ color: "var(--cv-text)" }}>
-                        {r.pretty}
-                      </span>
-                      {r.label && (
-                        <span className="text-[13px]" style={{ color: "var(--cv-muted)" }}>
-                          {r.label}
+                {rows.map((r) => {
+                  // An expired pass is still a row in the list, and it must not
+                  // read as an active one — a contractor whose access lapsed at
+                  // noon looks identical to a permanent resident otherwise.
+                  const expired = !!r.validTo && new Date(r.validTo).getTime() < Date.now();
+                  return (
+                    <Surface key={r.id} padded={false}>
+                      <div className="flex flex-wrap items-center gap-3 p-3">
+                        <span
+                          className="cv-num text-[17px] font-bold"
+                          style={{ color: expired ? "var(--cv-text-dim)" : "var(--cv-text)" }}
+                        >
+                          {r.pretty}
                         </span>
-                      )}
-                      <span className="ml-auto text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
-                        {r.hits > 0 ? (
-                          <>
-                            seen {r.hits}× · last <RelativeTime iso={r.lastHitAt} />
-                          </>
-                        ) : (
-                          "never seen"
+                        {r.label && (
+                          <span className="text-[13px]" style={{ color: "var(--cv-muted)" }}>
+                            {r.label}
+                          </span>
                         )}
-                      </span>
-                      <Button variant="ghost" onClick={() => void remove(r.id)}>
-                        Remove
-                      </Button>
-                    </div>
-                  </Surface>
-                ))}
+                        {r.validTo && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[12px] font-semibold"
+                            style={{
+                              background: expired ? "rgba(148,163,184,0.14)" : "rgba(14,165,233,0.14)",
+                              color: expired ? "#94a3b8" : "#0ea5e9",
+                            }}
+                          >
+                            {expired ? "Expired" : "Until "}
+                            {!expired && formatDateTime(r.validTo)}
+                          </span>
+                        )}
+                        <span className="ml-auto text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
+                          {r.hits > 0 ? (
+                            <>
+                              seen {r.hits}× · last <RelativeTime iso={r.lastHitAt} />
+                            </>
+                          ) : (
+                            "never seen"
+                          )}
+                        </span>
+                        <Button variant="ghost" onClick={() => void remove(r.id)}>
+                          Remove
+                        </Button>
+                      </div>
+                    </Surface>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -823,7 +881,180 @@ function VehicleProfileView({ plate, onBack }: { plate: string; onBack: () => vo
 }
 
 /**
- * Vehicles — the ANPR plate log, the vehicle register and the lists.
+ * Site — occupancy, overstays and the policy that governs both.
+ *
+ * Separate from the vehicle register because it answers a live question ("is
+ * there room, is anyone overdue") rather than a historical one, and it is the
+ * view a gate desk leaves open on a second screen.
+ */
+function SitePanel() {
+  const [occ, setOcc] = useState<Occupancy | null>(null);
+  const [settings, setSettings] = useState<AnprSettings | null>(null);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => {
+    void controlPlane.occupancy().then((r) => {
+      if (r.ok) {
+        setOcc(r.data);
+        setError("");
+      } else {
+        setError((r.data as { error?: string })?.error || "Could not load site state.");
+      }
+    });
+    void controlPlane.anprSettings().then((r) => {
+      if (r.ok) setSettings(r.data.settings);
+    });
+  }, []);
+
+  useEffect(load, [load]);
+  useVisiblePolling(load, 15000);
+
+  const patch = async (body: Partial<AnprSettings>) => {
+    setSaving(true);
+    try {
+      const r = await controlPlane.saveAnprSettings(body);
+      if (r.ok) {
+        setSettings(r.data.settings);
+        load();
+      } else {
+        setError((r.data as { error?: string })?.error || "Could not save.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (error && !occ) return <ErrorState message={error} onRetry={load} />;
+  if (!occ || !settings) return <LoadingState label="Loading site" />;
+
+  const managed = occ.capacity != null;
+
+  return (
+    <div>
+      <KpiGrid cols={managed ? 4 : 2}>
+        <Kpi label="On the property" value={String(occ.inside)} icon={Car} />
+        {managed && <Kpi label="Free spaces" value={String(occ.free)} icon={ArrowRightToLine} tone={occ.full ? "critical" : undefined} />}
+        {managed && <Kpi label="Capacity" value={String(occ.capacity)} icon={ListChecks} />}
+        <Kpi
+          label="Overdue"
+          value={String(occ.overstays.length)}
+          icon={Clock}
+          tone={occ.overstays.length ? "warning" : undefined}
+        />
+      </KpiGrid>
+
+      {occ.full && (
+        <div className="mt-4">
+          <Callout tone="critical" title="The site is full">
+            Every space is taken. The gate still opens for allowed vehicles — capacity is reported and
+            alerted on, never enforced by refusing entry, because a barrier that strands a resident
+            outside their own home is a worse failure than an over-full car park.
+          </Callout>
+        </div>
+      )}
+
+      {!!occ.overstays.length && (
+        <>
+          <h3 className="mt-6 text-[17px] font-bold" style={{ color: "var(--cv-text)" }}>
+            Overdue vehicles
+          </h3>
+          <div className="mt-3 flex flex-col gap-2">
+            {occ.overstays.map((o) => (
+              <Surface key={o.visitId} padded={false}>
+                <div className="flex flex-wrap items-center gap-3 p-3.5">
+                  <span className="cv-num text-[18px] font-bold" style={{ color: "var(--cv-text)" }}>
+                    {o.pretty}
+                  </span>
+                  <span className="text-[13px]" style={{ color: "var(--cv-muted)" }}>
+                    arrived {formatDateTime(o.entryAt)}
+                  </span>
+                  <span className="ml-auto text-[14px] font-semibold" style={{ color: "#f59e0b" }}>
+                    {o.hours}h on site
+                  </span>
+                </div>
+              </Surface>
+            ))}
+          </div>
+          <p className="mt-2 text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
+            Each of these was alerted once, when it passed the limit. They are not re-alerted every
+            sweep — an alert that repeats all afternoon gets muted, and a muted channel is where the
+            next real one goes to die.
+          </p>
+        </>
+      )}
+
+      <SectionTitle>Policy</SectionTitle>
+      <Surface>
+        {/*
+          A toggle governs each limit rather than an empty text field meaning
+          "off". Null and zero are genuinely different states here — a capacity
+          of 0 would mean permanently full — and a blank box cannot express
+          that difference to the person filling it in.
+        */}
+        <SwitchRow
+          label="Manage capacity"
+          hint="Track free spaces and report when the site fills up."
+          checked={managed}
+          onChange={(v) => void patch({ capacity: v ? 20 : null })}
+          disabled={saving}
+        />
+        {managed && (
+          <div className="mb-4 mt-2 max-w-[220px]">
+            <Field label="Spaces">
+              <NumberInput
+                value={occ.capacity ?? 20}
+                onChange={(v) => void patch({ capacity: Math.max(1, v) })}
+                min={1}
+                disabled={saving}
+              />
+            </Field>
+          </div>
+        )}
+
+        <SwitchRow
+          label="Flag overstaying vehicles"
+          hint="Alert once when a vehicle has been on site longer than the limit."
+          checked={settings.overstayHours != null}
+          onChange={(v) => void patch({ overstayHours: v ? 12 : null })}
+          disabled={saving}
+        />
+        {settings.overstayHours != null && (
+          <div className="mb-4 mt-2 max-w-[220px]">
+            <Field label="Hours before flagging">
+              <NumberInput
+                value={settings.overstayHours}
+                onChange={(v) => void patch({ overstayHours: Math.max(1, v) })}
+                min={1}
+                max={8760}
+                disabled={saving}
+              />
+            </Field>
+          </div>
+        )}
+
+        <SwitchRow
+          label="Alert when the site becomes full"
+          hint="Fires once, as the last space is taken — not on every arrival while full."
+          checked={settings.alertFull}
+          onChange={(v) => void patch({ alertFull: v })}
+          disabled={saving || !managed}
+        />
+        <SwitchRow
+          label="Alert on a vehicle never seen before"
+          hint="Useful at a private gate, noisy at a business with public parking."
+          checked={settings.alertUnknown}
+          onChange={(v) => void patch({ alertUnknown: v })}
+          disabled={saving}
+        />
+      </Surface>
+    </div>
+  );
+}
+
+/**
+ * Vehicles — the ANPR plate log, the vehicle register, the site state and the
+ * lists.
  *
  * A Security tab rather than a top-level section, following the direction this
  * console has already taken: `cameras`, `rooms`, `groups` and `floorplan` were
@@ -837,12 +1068,12 @@ function VehicleProfileView({ plate, onBack }: { plate: string; onBack: () => vo
  * history, decide about it) and the actions move between them.
  */
 export function VehiclesPanel() {
-  const [view, setView] = useState<"log" | "vehicles" | "lists">("log");
+  const [view, setView] = useState<"log" | "vehicles" | "site" | "lists">("log");
   const [plate, setPlate] = useState<string | null>(null);
 
   // A selected vehicle takes over the panel, so switching view must clear it —
   // otherwise the segmented control appears to do nothing.
-  const changeView = (v: "log" | "vehicles" | "lists") => {
+  const changeView = (v: "log" | "vehicles" | "site" | "lists") => {
     setPlate(null);
     setView(v);
   };
@@ -856,6 +1087,7 @@ export function VehiclesPanel() {
           options={[
             { value: "log", label: "Plate log" },
             { value: "vehicles", label: "Vehicles" },
+            { value: "site", label: "Site" },
             { value: "lists", label: "Allow & block" },
           ]}
         />
@@ -866,6 +1098,8 @@ export function VehiclesPanel() {
         <PlateLog onOpenVehicle={(p) => { setView("vehicles"); setPlate(p); }} />
       ) : view === "vehicles" ? (
         <VehicleList onOpen={setPlate} />
+      ) : view === "site" ? (
+        <SitePanel />
       ) : (
         <PlateLists />
       )}

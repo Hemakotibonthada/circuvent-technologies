@@ -126,6 +126,8 @@ Number-plate reads and the allow / deny / watch list. See
 | GET | `/anpr/summary` | [auth] | Counts, busiest hours and frequent vehicles |
 | GET | `/anpr/vehicles` | [auth] | The vehicle register: passes, entries, exits, who is inside now |
 | GET | `/anpr/vehicles/:plate` | [auth] | One vehicle: visit history with in/out times, dwell, and every capture |
+| GET | `/anpr/occupancy` | [auth] | Live count, free spaces and the overdue list |
+| GET / PATCH | `/anpr/settings` | [auth] | Capacity, overstay limit and alert policy |
 | GET | `/anpr/rules` | [auth] | The allow / deny / watch list |
 | POST | `/anpr/rules` | [auth] | Add a plate to a list |
 | PATCH | `/anpr/rules/:id` | [auth] | Change or disable a rule |

@@ -6,6 +6,7 @@ import { publishCommand } from "../mqtt";
 import { logger } from "../logger";
 import { analysePlate, normalisePlate, prettyPlate } from "../anpr/plate";
 import { listVehicles, visitsFor } from "../anpr/visits";
+import { getSettings, listOverstays, occupancy, saveSettings } from "../anpr/site";
 import { config } from "../config";
 
 /**
@@ -205,6 +206,61 @@ anprRouter.get("/summary", requireAuth, async (req: AuthedRequest, res) => {
   } catch (err) {
     logger.error({ err }, "anpr summary failed");
     res.status(500).json({ error: "Could not load the summary." });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* Site: occupancy, capacity and overstays                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * GET /anpr/occupancy — how full the site is right now.
+ *
+ * Deliberately its own endpoint rather than a field on /anpr/summary: a gate
+ * display or a kiosk polls this every few seconds and must not drag a week of
+ * aggregate statistics along with it.
+ */
+anprRouter.get("/occupancy", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const [now, overstays] = await Promise.all([
+      occupancy(req.user!.uid),
+      listOverstays(req.user!.uid),
+    ]);
+    res.json({
+      ...now,
+      overstays: overstays.map((o) => ({ ...o, pretty: prettyPlate(o.plate) })),
+    });
+  } catch (err) {
+    logger.error({ err }, "anpr occupancy failed");
+    res.status(500).json({ error: "Could not load occupancy." });
+  }
+});
+
+anprRouter.get("/settings", requireAuth, async (req: AuthedRequest, res) => {
+  res.json({ settings: await getSettings(req.user!.uid) });
+});
+
+const settingsSchema = z.object({
+  // Nullable throughout: null means "not managed", which is a different and
+  // valid state from zero. A capacity of 0 would mean the site is permanently
+  // full, so the two must not be conflated by a coercion.
+  capacity: z.number().int().min(1).max(100000).nullable().optional(),
+  overstayHours: z.number().int().min(1).max(8760).nullable().optional(),
+  alertUnknown: z.boolean().optional(),
+  alertFull: z.boolean().optional(),
+});
+
+anprRouter.patch("/settings", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = settingsSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid settings", details: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  try {
+    res.json({ settings: await saveSettings(req.user!.uid, parsed.data) });
+  } catch (err) {
+    logger.error({ err }, "anpr settings save failed");
+    res.status(500).json({ error: "Could not save settings." });
   }
 });
 

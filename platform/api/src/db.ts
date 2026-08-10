@@ -490,6 +490,42 @@ export async function initDb(): Promise<void> {
      */
     ALTER TABLE plate_reads ADD COLUMN IF NOT EXISTS direction TEXT;
     ALTER TABLE plate_reads ADD COLUMN IF NOT EXISTS visit_id BIGINT;
+
+    /*
+     * Per-account ANPR policy.
+     *
+     * One row per owner rather than per device: a site with an entry camera
+     * and an exit camera has one capacity and one overstay rule between them,
+     * and hanging those off a device would mean the answer changed depending
+     * on which lane a vehicle happened to use.
+     *
+     * Every limit is nullable and every limit off by default. A capacity of 0
+     * would mean "full", and a customer who never asked for capacity
+     * management must not discover it by having their gate start refusing
+     * cars.
+     */
+    CREATE TABLE IF NOT EXISTS anpr_settings (
+      owner_id        BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      -- Vehicles the site holds. NULL = unlimited.
+      capacity        INT,
+      -- Hours after which a vehicle still inside is flagged. NULL = never.
+      overstay_hours  INT,
+      -- Notify the first time a plate is ever seen on this account.
+      alert_unknown   BOOLEAN NOT NULL DEFAULT false,
+      -- Notify when occupancy reaches capacity.
+      alert_full      BOOLEAN NOT NULL DEFAULT true,
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    /*
+     * Overstay is announced once per visit, not once per sweep.
+     *
+     * A alert that repeats every ten minutes for a van that is legitimately
+     * parked gets muted within the hour, and a muted channel is where the
+     * next real alert goes to die. This is the same reasoning that makes the
+     * Sentinel's gas alarm latch rather than re-fire, and its mute expire.
+     */
+    ALTER TABLE plate_visits ADD COLUMN IF NOT EXISTS overstay_alerted_at TIMESTAMPTZ;
   `);
 
   await backfillSerials();

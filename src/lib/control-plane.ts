@@ -98,6 +98,32 @@ export interface PlateSummary {
   frequent: { plate: string; pretty: string; count: number; lastAt: string }[];
 }
 
+/** Live site state: how many vehicles are here and whether it is full. */
+export interface Occupancy {
+  inside: number;
+  /** Null when capacity is not managed — which is different from zero. */
+  capacity: number | null;
+  free: number | null;
+  full: boolean;
+  percent: number | null;
+  overstays: {
+    visitId: number;
+    plate: string;
+    pretty: string;
+    entryAt: string;
+    hours: number;
+    deviceId: string | null;
+  }[];
+}
+
+/** Per-account ANPR policy. Every limit is off by default. */
+export interface AnprSettings {
+  capacity: number | null;
+  overstayHours: number | null;
+  alertUnknown: boolean;
+  alertFull: boolean;
+}
+
 /** One vehicle, aggregated across every sighting. */
 export interface Vehicle {
   plate: string;
@@ -748,6 +774,10 @@ export const controlPlane = {
   },
   plateSummary: (days = 7) => req<PlateSummary>("/anpr/summary?days=" + days),
   vehicles: (days = 30) => req<{ days: number; vehicles: Vehicle[]; insideNow: number }>("/anpr/vehicles?days=" + days),
+  occupancy: () => req<Occupancy>("/anpr/occupancy"),
+  anprSettings: () => req<{ settings: AnprSettings }>("/anpr/settings"),
+  saveAnprSettings: (body: Partial<AnprSettings>) =>
+    req<{ settings: AnprSettings }>("/anpr/settings", { method: "PATCH", body: JSON.stringify(body) }),
   vehicle: (plate: string) =>
     req<VehicleProfile>("/anpr/vehicles/" + encodeURIComponent(plate)),
   /**
