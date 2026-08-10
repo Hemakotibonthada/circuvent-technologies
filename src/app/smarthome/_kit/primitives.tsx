@@ -81,7 +81,18 @@ export function Surface({
   title?: string;
 }) {
   const clickable = interactive || Boolean(onClick);
-  const cls = `cv-card ${clickable ? "cv-tile" : ""} text-left ${padded ? "p-5" : ""} ${
+  /*
+   * The mode class has to come from the theme, not be hardcoded.
+   *
+   * This said `cv-card` and nothing else, while the provider hands out
+   * `cv-card cv-neo` / `cv-card cv-glass` through cardClass. So every surface
+   * built on this primitive — which is most of the console — rendered without
+   * its mode, and neo's extrusion applied only to the handful of places that
+   * happened to use cardClass directly. That is the larger half of why the
+   * theme could be selected and not seen.
+   */
+  const themed = useOptionalConsoleTheme()?.cardClass ?? "cv-card";
+  const cls = `${themed} ${clickable ? "cv-tile" : ""} text-left ${padded ? "p-5" : ""} ${
     clickable ? "focus:outline-none focus-visible:ring-2" : ""
   } ${className}`;
   // Inline rather than a `rounded-*` utility: the radius is a theme token, and
@@ -622,6 +633,7 @@ export function SwitchRow({
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
+  const neo = useNeo();
   return (
     <div
       className="flex items-center justify-between gap-3 border-b py-3.5 last:border-0"
@@ -645,10 +657,24 @@ export function SwitchRow({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className="relative h-[31px] w-[51px] shrink-0 rounded-full transition disabled:opacity-40"
-        style={{
-          background: checked ? "var(--cv-gradient)" : "var(--cv-input-bg)",
-          border: checked ? "1px solid transparent" : "1px solid var(--cv-border)",
-        }}
+        style={
+          neo
+            ? {
+                // Off is a recessed groove, on is the gradient sitting in it.
+                // A raised track would compete with the raised knob and the
+                // control would read as two stacked pills rather than one
+                // switch.
+                background: checked ? "var(--cv-gradient)" : "var(--cv-input-bg)",
+                border: "none",
+                boxShadow: checked
+                  ? "inset 1px 1px 3px rgba(0,0,0,.35)"
+                  : "inset 2px 2px 5px var(--cv-neo-dark), inset -2px -2px 5px var(--cv-neo-light)",
+              }
+            : {
+                background: checked ? "var(--cv-gradient)" : "var(--cv-input-bg)",
+                border: checked ? "1px solid transparent" : "1px solid var(--cv-border)",
+              }
+        }
       >
         <span
           className="absolute top-1/2 block h-[27px] w-[27px] rounded-full bg-white transition-transform duration-200 motion-reduce:transition-none"
@@ -656,7 +682,9 @@ export function SwitchRow({
             left: 1,
             marginTop: -13.5,
             transform: `translateX(${checked ? 20 : 0}px)`,
-            boxShadow: "0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16)",
+            boxShadow: neo
+              ? "2px 2px 4px var(--cv-neo-dark), -1px -1px 3px var(--cv-neo-light)"
+              : "0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16)",
           }}
         />
       </button>
@@ -905,7 +933,7 @@ export function Meter({
           )}
         </div>
       )}
-      <div className="h-2 overflow-hidden rounded-full" style={{ background: "var(--cv-input-bg)" }}>
+      <div className="cv-track h-2 overflow-hidden rounded-full" style={{ background: "var(--cv-input-bg)" }}>
         <div
           className="h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none"
           style={{ width: `${pct}%`, background: tone ? color : "var(--cv-gradient)" }}

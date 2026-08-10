@@ -689,6 +689,19 @@ function SignedIn({
                       >
                         Invoice
                       </Link>
+                      {/* A warranty certificate only exists once the goods
+                          have arrived, because cover starts on delivery.
+                          Offering it earlier would produce a document
+                          certifying a term that has not begun. */}
+                      {o.status === "delivered" && (
+                        <Link
+                          href={`/shop/invoice/${encodeURIComponent(o.orderNo)}?kind=warranty-certificate`}
+                          className="text-xs font-medium"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          Warranty
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </li>
@@ -720,12 +733,21 @@ function SignedIn({
             <div className="w-full sm:w-auto">
               <div className="flex gap-2">
                 <div className="relative flex-1 sm:w-40">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: "var(--text-muted)" }}>
+                  <label htmlFor="wallet-topup" className="sr-only">
+                    Top-up amount in rupees
+                  </label>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: "var(--text-muted)" }} aria-hidden="true">
                     ₹
                   </span>
+                  {/* The ₹ prefix is decorative, so this field had no
+                      accessible name at all — announced as an unlabelled spin
+                      button, with the currency conveyed only visually. */}
                   <input
+                    id="wallet-topup"
+                    name="topupAmount"
                     type="number"
                     min={100}
+                    inputMode="numeric"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     className="w-full rounded-xl border py-2.5 pl-7 pr-3 text-sm outline-none"
@@ -935,8 +957,28 @@ function SupportSection({ authHeaders }: { authHeaders: () => Record<string, str
             Questions about an order or product? Send us a note.
           </p>
           <form onSubmit={submit} className="mt-4 space-y-2">
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" className={field} style={inputStyle} />
+            {/* Labelled rather than placeholder-only: the placeholder is gone
+                the moment somebody starts typing, which is when they most need
+                to know which box they are in, and it is never announced as a
+                label. */}
+            <label htmlFor="support-subject" className="sr-only">
+              Subject
+            </label>
+            <input
+              id="support-subject"
+              name="subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject"
+              className={field}
+              style={inputStyle}
+            />
+            <label htmlFor="support-message" className="sr-only">
+              Message
+            </label>
             <textarea
+              id="support-message"
+              name="message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="How can we help?"
@@ -947,11 +989,11 @@ function SupportSection({ authHeaders }: { authHeaders: () => Record<string, str
               <button type="submit" disabled={busy} className={primaryBtn} style={accentBg}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
               </button>
-              {msg && (
-                <span className="text-xs" style={{ color: "var(--accent-cyan)" }}>
-                  {msg}
-                </span>
-              )}
+              {/* The confirmation was shown and never announced, so anyone not
+                  looking at that corner of the page had no idea it sent. */}
+              <span aria-live="polite" className="text-xs" style={{ color: "var(--accent-cyan)" }}>
+                {msg}
+              </span>
             </div>
           </form>
           {tickets.length > 0 && (

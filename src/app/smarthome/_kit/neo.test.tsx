@@ -13,7 +13,7 @@
  */
 import { render, screen, cleanup } from "@testing-library/react";
 import { ConsoleThemeProvider, useConsoleTheme } from "../theme";
-import { Button, neoSurface } from "./primitives";
+import { Button, Surface, SwitchRow, neoSurface } from "./primitives";
 import { useEffect } from "react";
 
 afterEach(() => {
@@ -113,6 +113,48 @@ describe("Button in the flat modes is left alone", () => {
   it("does not add the press class outside neo", () => {
     renderIn("glass", <Button>Add device</Button>);
     expect(screen.getByRole("button", { name: "Add device" }).className).not.toContain("cv-neo-press");
+  });
+});
+
+describe("Surface carries the theme's mode", () => {
+  it("is neo in neo mode", () => {
+    // The primitive hardcoded `cv-card`, so most of the console rendered
+    // without its mode class and neo applied to almost nothing.
+    renderIn("neo", <Surface>panel</Surface>);
+    const card = screen.getByText("panel");
+    expect(card.className).toContain("cv-card");
+    expect(card.className).toContain("cv-neo");
+  });
+
+  it("is glass in glass mode", () => {
+    renderIn("glass", <Surface>panel</Surface>);
+    expect(screen.getByText("panel").className).toContain("cv-glass");
+  });
+
+  it("still renders with no provider", () => {
+    expect(() => render(<Surface>panel</Surface>)).not.toThrow();
+    expect(screen.getByText("panel").className).toContain("cv-card");
+  });
+});
+
+describe("SwitchRow in neo mode", () => {
+  it("cuts the off-state track into the surface rather than raising it", () => {
+    // A raised track would compete with the raised knob and the control would
+    // read as two stacked pills instead of one switch.
+    renderIn("neo", <SwitchRow label="Away mode" checked={false} onChange={() => {}} />);
+    const sw = screen.getByRole("switch", { name: "Away mode" });
+    expect(sw.style.boxShadow).toContain("inset");
+    expect(sw.style.border === "" || sw.style.border === "none").toBe(true);
+  });
+
+  it("keeps the gradient when on", () => {
+    renderIn("neo", <SwitchRow label="Away mode" checked onChange={() => {}} />);
+    expect(screen.getByRole("switch", { name: "Away mode" }).style.background).toContain("var(--cv-gradient)");
+  });
+
+  it("keeps its border in the flat themes", () => {
+    renderIn("glass", <SwitchRow label="Away mode" checked={false} onChange={() => {}} />);
+    expect(screen.getByRole("switch", { name: "Away mode" }).style.border).toContain("var(--cv-border)");
   });
 });
 

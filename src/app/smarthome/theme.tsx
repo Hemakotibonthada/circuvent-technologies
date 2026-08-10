@@ -462,6 +462,55 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
             inset 3px 3px 7px var(--cv-neo-dark),
             inset -3px -3px 7px var(--cv-neo-light);
         }
+        /*
+         * A segmented control is the clearest case in the whole style: the
+         * track is a groove cut into the surface and the selected segment is
+         * the one piece still standing proud of it. Rendered flat, the two are
+         * distinguished only by a faint fill, which is the version that made
+         * the theme unreadable in the first place.
+         */
+        .cv-neo .cv-seg {
+          box-shadow:
+            inset 2px 2px 5px var(--cv-neo-dark),
+            inset -2px -2px 5px var(--cv-neo-light);
+        }
+        .cv-neo .cv-seg-thumb {
+          box-shadow:
+            2px 2px 5px var(--cv-neo-dark),
+            -2px -2px 5px var(--cv-neo-light);
+        }
+        /* Chips and KPI tiles are small, so they take the smallest offsets --
+           a tile the size of a number badge carrying a card's shadow looks
+           like it is hovering rather than sitting on the surface. */
+        .cv-neo .cv-chip {
+          border: none;
+          box-shadow:
+            2px 2px 5px var(--cv-neo-dark),
+            -2px -2px 5px var(--cv-neo-light);
+        }
+        .cv-neo .cv-chip[aria-pressed="true"],
+        .cv-neo .cv-chip[data-active="true"] {
+          box-shadow:
+            inset 2px 2px 5px var(--cv-neo-dark),
+            inset -2px -2px 5px var(--cv-neo-light);
+        }
+        .cv-neo .cv-tile {
+          border: none;
+          box-shadow:
+            3px 3px 8px var(--cv-neo-dark),
+            -3px -3px 8px var(--cv-neo-light);
+        }
+        .cv-neo .cv-tile:active {
+          box-shadow:
+            inset 3px 3px 7px var(--cv-neo-dark),
+            inset -3px -3px 7px var(--cv-neo-light);
+        }
+        /* A progress track is a groove with the fill lying in it. */
+        .cv-neo .cv-track {
+          box-shadow:
+            inset 2px 2px 4px var(--cv-neo-dark),
+            inset -2px -2px 4px var(--cv-neo-light);
+        }
         @media (prefers-reduced-motion: reduce) {
           .cv-neo-press:active:not(:disabled) {
             transform: none;

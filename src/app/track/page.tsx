@@ -162,7 +162,9 @@ export default function TrackPage() {
     if (o) setOrderNo(o);
     if (em) setEmail(em);
     if (o && em) doLookup(o, em);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deliberately once, on mount: this reads the query string a customer
+    // arrived with. Re-running it on every change would fight whatever they
+    // then typed into the form.
   }, []);
 
   const cancelled = order?.status === "cancelled";
@@ -272,35 +274,78 @@ export default function TrackPage() {
       )}
       <form
         onSubmit={submit}
-        className="flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row"
+        className="flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row sm:items-end"
         style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
       >
+        {/*
+         * Real labels, not placeholders.
+         *
+         * A placeholder disappears the moment somebody types, so the only
+         * description of the field is gone exactly when it is needed to check
+         * the entry — and it is never read as a label by a screen reader. Both
+         * fields also carry autocomplete hints so a returning customer is
+         * offered the email they actually checked out with.
+         */}
+        <div className="min-w-0 flex-1">
+          <label htmlFor="track-order" className="mb-1.5 block text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+            Order number
+          </label>
           <input
+            id="track-order"
+            name="orderNumber"
+            autoComplete="off"
+            spellCheck={false}
             className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
             style={inputStyle}
-            placeholder="Order number (e.g. CV-20260722-ABCDE)"
+            placeholder="CV-20260722-ABCDE"
             value={orderNo}
             onChange={(e) => setOrderNo(e.target.value)}
           />
+        </div>
+        <div className="min-w-0 flex-1">
+          <label htmlFor="track-email" className="mb-1.5 block text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+            Email used at checkout
+          </label>
           <input
+            id="track-email"
+            name="email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
             className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
             style={inputStyle}
-            placeholder="Email used at checkout"
+            placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Track
-          </button>
-        </form>
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Track
+        </button>
+      </form>
 
-        {err && (
-          <p className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-500">{err}</p>
-        )}
+      {/* Announced, not just shown: somebody using a screen reader gets no
+          notification that a submit failed unless the region says so. */}
+      <p aria-live="polite" className="sr-only">
+        {loading ? "Looking up your order" : err ? err : ""}
+      </p>
+
+      {err && (
+        <p
+          className="mt-4 rounded-lg border px-3 py-2 text-sm"
+          style={{
+            borderColor: "var(--status-danger-border, rgba(244,63,94,.3))",
+            background: "var(--status-danger-bg, rgba(244,63,94,.1))",
+            color: "var(--status-danger-text, #f43f5e)",
+          }}
+        >
+          {err}
+        </p>
+      )}
 
         {order && (
           <div className="mt-8" ref={detailRef}>
