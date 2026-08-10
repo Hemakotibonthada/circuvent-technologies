@@ -22,7 +22,7 @@ bool pump = false, pumpIntent = false, savedPumpIntent = false;
 void applyPump() {
   bool power = digitalRead(MAINS_SENSE) == HIGH;
   pump = pumpIntent && power;
-  digitalWrite(PUMP_RELAY, pump ? HIGH : LOW);
+  cvRelayWrite(PUMP_RELAY, pump);
   cv.set("pump", pump);
 }
 
@@ -41,7 +41,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(PUMP_RELAY, OUTPUT);
+  cvRelayInit(PUMP_RELAY);
   pinMode(MAINS_SENSE, INPUT);
   store.begin("agri", false);
   pumpIntent = store.getBool("pump", false);

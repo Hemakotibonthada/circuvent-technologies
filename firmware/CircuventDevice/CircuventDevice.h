@@ -66,6 +66,54 @@ extern "C" void randombytes(unsigned char *p, unsigned long long n) {
 #define CV_FW_VERSION "1.0.0"
 #endif
 
+/*
+ * Relay polarity.
+ *
+ * The relay boards in use are opto-isolated and negative-trigger: pulling the
+ * GPIO LOW energises the coil. Driving them as if HIGH meant "on" inverts every
+ * channel — the switch says on and the load is off — which is what was
+ * happening in the field.
+ *
+ * Active LOW is the default because it is what the hardware is. A board wired
+ * the other way defines CV_RELAY_ACTIVE_LOW 0 before including this.
+ */
+#ifndef CV_RELAY_ACTIVE_LOW
+#define CV_RELAY_ACTIVE_LOW 1
+#endif
+
+/** The level that drives a relay to `on`, given the board's polarity. */
+static inline int cvRelayLevel(bool on) {
+#if CV_RELAY_ACTIVE_LOW
+  return on ? LOW : HIGH;
+#else
+  return on ? HIGH : LOW;
+#endif
+}
+
+/*
+ * Claim a relay pin without clicking it first.
+ *
+ * An ESP32 output latch reads LOW before anything is written to it, so on an
+ * active-low board `pinMode(pin, OUTPUT)` energises the relay the instant the
+ * pin becomes an output — every channel switches ON at power-up, for as long as
+ * it takes the sketch to reach its state restore. On a four-gang board that is
+ * four loads turning themselves on after every power cut.
+ *
+ * Writing the safe level BEFORE pinMode sets the latch first, so the pin drives
+ * "off" from the moment it starts driving anything at all. The second write is
+ * belt and braces on cores where the order is reversed internally.
+ */
+static inline void cvRelayInit(uint8_t pin) {
+  digitalWrite(pin, cvRelayLevel(false));
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, cvRelayLevel(false));
+}
+
+/** Drive a relay, honouring the board's polarity. */
+static inline void cvRelayWrite(uint8_t pin, bool on) {
+  digitalWrite(pin, cvRelayLevel(on));
+}
+
 // Circuvent's own device CA (public cert). Embedded so every device trusts our
 // self-hosted broker. The CA private key never leaves the server. Rotate via
 // setRootCA() if you ever regenerate it (platform/scripts/gen-certs.sh).

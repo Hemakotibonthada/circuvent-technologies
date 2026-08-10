@@ -21,8 +21,8 @@ bool savedPower = false;
 
 void applyPower(bool on) {
   power = on;
-  digitalWrite(RELAY_PIN, on ? HIGH : LOW);
-  digitalWrite(LED_PIN, on ? HIGH : LOW);
+  cvRelayWrite(RELAY_PIN, on);
+  cvRelayWrite(LED_PIN, on);
   if (power != savedPower) {
     store.putBool("power", power);
     savedPower = power;
@@ -36,7 +36,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(RELAY_PIN, OUTPUT);
+  cvRelayInit(RELAY_PIN);
   pinMode(LED_PIN, OUTPUT);
   pinMode(BTN_PIN, INPUT_PULLUP);
   store.begin("plug", false);

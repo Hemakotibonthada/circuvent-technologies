@@ -49,7 +49,7 @@ void applyBacklight() { analogWrite(BACKLIGHT_PIN, map(backlight, 0, 100, 0, 255
 
 void setRelay(int i, bool on, bool persist = true) {
   relay[i] = on;
-  digitalWrite(RELAY_PIN[i], on ? HIGH : LOW);
+  cvRelayWrite(RELAY_PIN[i], on);
   char k[3] = { 'g', (char)('1' + i), 0 };
   cv.set(k, on);
   if (persist && relay[i] != savedRelay[i]) {
@@ -76,7 +76,7 @@ void calibrateTouch() {
 
 void setup() {
   Serial.begin(115200);
-  for (int i = 0; i < 3; i++) { pinMode(RELAY_PIN[i], OUTPUT); }
+  for (int i = 0; i < 3; i++) { cvRelayInit(RELAY_PIN[i]); }
   pinMode(BACKLIGHT_PIN, OUTPUT);
   pinMode(HLW_CF, INPUT); pinMode(HLW_CF1, INPUT); pinMode(HLW_SEL, OUTPUT);
   digitalWrite(HLW_SEL, HIGH);
@@ -92,7 +92,7 @@ void setup() {
   kwh = store.getDouble("kwh", 0);
   applyBacklight();
   calibrateTouch();
-  for (int i = 0; i < 3; i++) { digitalWrite(RELAY_PIN[i], relay[i] ? HIGH : LOW); }
+  for (int i = 0; i < 3; i++) { cvRelayWrite(RELAY_PIN[i], relay[i]); }
 
   cv.onCommand(onCommand);
   cv.setInterval(6000);

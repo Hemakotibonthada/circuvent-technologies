@@ -82,7 +82,7 @@ void applyLight() {
   uint8_t r = 255, g = 255, b = 255;
   parseHexColor(color, r, g, b);
   int whiteDuty = power ? pctToDuty(brightness) : 0;
-  digitalWrite(RELAY_PIN, power ? HIGH : LOW);
+  cvRelayWrite(RELAY_PIN, power);
   ledcWrite(WHITE_CH, whiteDuty);
   /* The colour channels scale by the same gamma-corrected duty as white.
      Scaling them linearly by percent while white was corrected made a dimmed
@@ -110,7 +110,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(RELAY_PIN, OUTPUT);
+  cvRelayInit(RELAY_PIN);
   pinMode(BTN_PIN, INPUT_PULLUP);
   ledcSetup(WHITE_CH, PWM_FREQ, PWM_BITS); ledcAttachPin(WHITE_PWM_PIN, WHITE_CH);
   ledcSetup(RED_CH, PWM_FREQ, PWM_BITS); ledcAttachPin(RGB_R_PIN, RED_CH);

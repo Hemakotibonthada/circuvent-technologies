@@ -73,7 +73,7 @@ void saveState() {
 
 void applyFan() {
   level = constrain(level, 0, 100);
-  digitalWrite(FAN_RELAY, power ? HIGH : LOW);
+  cvRelayWrite(FAN_RELAY, power);
   ledcWrite(SPEED_CH, power ? levelToDuty(level) : 0);
   saveState();
   cv.set("power", power);
@@ -113,7 +113,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(FAN_RELAY, OUTPUT);
+  cvRelayInit(FAN_RELAY);
   pinMode(BTN_PIN, INPUT_PULLUP);
   ledcSetup(SPEED_CH, PWM_FREQ, PWM_BITS);
   ledcAttachPin(SPEED_PWM_PIN, SPEED_CH);

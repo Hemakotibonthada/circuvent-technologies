@@ -65,7 +65,7 @@ int lastAppliedMinute = -1;
 
 void writeRelay(int i, bool on) {
   relayOn[i] = on;
-  digitalWrite(RELAY[i], on ? HIGH : LOW);
+  cvRelayWrite(RELAY[i], on);
   char k[4]; snprintf(k, sizeof(k), "r%d", i);
   store.putBool(k, on);
   char t[8]; snprintf(t, sizeof(t), "power%s", i == 0 ? "" : String(i + 1).c_str());
@@ -153,7 +153,7 @@ void applySchedules() {
 void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, HIGH);
-  for (int i = 0; i < NUM_CH; i++) { pinMode(RELAY[i], OUTPUT); pinMode(BTN[i], INPUT_PULLUP); }
+  for (int i = 0; i < NUM_CH; i++) { cvRelayInit(RELAY[i]); pinMode(BTN[i], INPUT_PULLUP); }
   loadState();
   cv.onCommand(onCommand);
   cv.setInterval(10000);

@@ -21,8 +21,8 @@ bool p1 = false, p2 = false;
 bool savedP1 = false, savedP2 = false;
 
 void apply() {
-  digitalWrite(RELAY1, p1 ? HIGH : LOW);
-  digitalWrite(RELAY2, p2 ? HIGH : LOW);
+  cvRelayWrite(RELAY1, p1);
+  cvRelayWrite(RELAY2, p2);
   if (p1 != savedP1) {
     store.putBool("p1", p1);
     savedP1 = p1;
@@ -44,8 +44,8 @@ void onCommand(const String &action, JsonObjectConst prm) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(RELAY1, OUTPUT);
-  pinMode(RELAY2, OUTPUT);
+  cvRelayInit(RELAY1);
+  cvRelayInit(RELAY2);
   store.begin("switch", false);
   p1 = store.getBool("p1", false);
   p2 = store.getBool("p2", false);

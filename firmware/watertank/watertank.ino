@@ -117,8 +117,8 @@ void setPump(bool on) {
   }
   if (!on && pump) lastStop = millis();
   pump = on;
-  digitalWrite(PUMP_RELAY, on ? HIGH : LOW);
-  digitalWrite(LED_PIN, on ? HIGH : LOW);
+  cvRelayWrite(PUMP_RELAY, on);
+  cvRelayWrite(LED_PIN, on);
   saveRun();
   cv.set("pump", pump);
   cv.publishStateNow();
@@ -150,7 +150,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(PUMP_RELAY, OUTPUT); pinMode(LED_PIN, OUTPUT); pinMode(BUZZER_PIN, OUTPUT);
+  cvRelayInit(PUMP_RELAY); pinMode(LED_PIN, OUTPUT); pinMode(BUZZER_PIN, OUTPUT);
   pinMode(OH_TRIG, OUTPUT); pinMode(OH_ECHO, INPUT);
   pinMode(SUMP_TRIG, OUTPUT); pinMode(SUMP_ECHO, INPUT);
   pinMode(OH_FLOAT_HI, INPUT);      // input-only pin; external pull-up

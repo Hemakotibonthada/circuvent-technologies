@@ -91,7 +91,7 @@ void setPump(bool on) {
   saveRunState();
   if (on && (overflow || dryRun)) {
     pump = false;
-    digitalWrite(MOTOR_RELAY, LOW);
+    digitalWrite(MOTOR_RELAY, cvRelayLevel(false));
     digitalWrite(LED_PIN, LOW);
     cv.set("pump", pump);
     return;
@@ -105,7 +105,7 @@ void setPump(bool on) {
   }
   if (!on && pump) lastStop = millis();
   pump = on;
-  digitalWrite(MOTOR_RELAY, on ? HIGH : LOW);
+  cvRelayWrite(MOTOR_RELAY, on);
   digitalWrite(LED_PIN, on ? HIGH : LOW);
   cv.set("pump", pump);
 }
@@ -151,7 +151,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(MOTOR_RELAY, OUTPUT); pinMode(LED_PIN, OUTPUT); pinMode(BUZZER_PIN, OUTPUT);
+  cvRelayInit(MOTOR_RELAY); pinMode(LED_PIN, OUTPUT); pinMode(BUZZER_PIN, OUTPUT);
   pinMode(US_TRIG, OUTPUT); pinMode(US_ECHO, INPUT);
   pinMode(FLOAT_LOW, INPUT_PULLUP); pinMode(FLOAT_HIGH, INPUT_PULLUP);
   pinMode(BTN_PIN, INPUT_PULLUP);
