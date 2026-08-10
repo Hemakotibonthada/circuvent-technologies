@@ -39,21 +39,44 @@ const ok = (msg) => console.log(`  ok   ${msg}`);
 
 /* ---------------------------------------------------------------- 1 ---- */
 
+/*
+ * Which fingerprint must a build carry right now?
+ *
+ * There are two answers and the difference matters. Until Google approves the
+ * upload key reset, Play still only accepts the original key — so a build
+ * signed with the replacement is just as rejectable as one signed with the
+ * wrong key, and saying "ok" for it would recreate the exact failure this
+ * script exists to prevent. After approval the answer flips.
+ */
+const RESET_APPROVED = EXPECTED.resetStatus === "approved";
+const REQUIRED = (RESET_APPROVED && EXPECTED.replacementKey ? EXPECTED.replacementKey.sha1 : EXPECTED.uploadCertificate.sha1).toUpperCase();
+const REQUIRED_LABEL = RESET_APPROVED ? "the replacement upload key" : "the original upload key";
+
 if (!existsSync(CRED)) {
   console.log("  --   no credentials/ yet; nothing to check");
 } else {
   const keys = readdirSync(CRED).filter((f) => /\.(jks|keystore|p12|pfx)$/i.test(f));
+  const active = EXPECTED.activeKeystore;
 
-  if (keys.length > 1) {
-    fail("credentials/ holds more than one keystore", [
+  if (keys.length > 1 && !active) {
+    fail("credentials/ holds more than one keystore and none is designated", [
       ...keys.map((k) => `${k}  (${statSync(join(CRED, k)).mtime.toISOString().slice(0, 10)})`),
       "",
       "Only one of them signs the app on Play, and guessing is not safe.",
       `Play expects ${EXPECTED.uploadCertificate.sha1}.`,
-      "Keep the one you published with, move the others somewhere else, and re-run.",
+      'Set "activeKeystore" in play-upload-key.json to the one the build should use.',
       "",
       "Fingerprints of the ones already known to be wrong are in play-upload-key.json.",
     ]);
+  } else if (keys.length > 1 && active) {
+    if (!keys.includes(active)) {
+      fail(`play-upload-key.json names a keystore that is not in credentials/`, [
+        `activeKeystore  ${active}`,
+        `present         ${keys.join(", ")}`,
+      ]);
+    } else {
+      ok(`${keys.length} keystores, using ${active} (the others are recorded as superseded or wrong)`);
+    }
   } else if (keys.length === 1) {
     ok(`one keystore: ${keys[0]}`);
   } else {
@@ -122,12 +145,12 @@ function auditHistory() {
     .sort();
   if (!files.length) return;
 
-  const want = EXPECTED.uploadCertificate.sha1.toUpperCase();
+  const want = REQUIRED;
   const rows = files.map((f) => ({ f, sha1: signerSha1(join(dist, f)) }));
   const good = rows.filter((r) => r.sha1 === want).map((r) => r.f);
   const bad = rows.filter((r) => r.sha1 && r.sha1 !== want);
 
-  console.log(`\n  dist/ — ${good.length} signed with the key Play accepts, ${bad.length} not`);
+  console.log(`\n  dist/ — ${good.length} signed with ${REQUIRED_LABEL}, ${bad.length} not`);
   if (bad.length) {
     for (const r of bad) console.log(`         wrong: ${r.f}  ${r.sha1}`);
   }
@@ -137,25 +160,33 @@ if (!latest) {
   console.log("  --   no built artifact to check yet");
 } else {
   const sha1 = signerSha1(latest);
-  const want = EXPECTED.uploadCertificate.sha1.toUpperCase();
+  const want = REQUIRED;
 
   if (!sha1) {
     console.log(`  --   could not read the signer of ${latest.replace(ROOT, ".")} (needs a JDK on PATH or JAVA_HOME)`);
   } else if (sha1 === want) {
-    ok(`${latest.replace(ROOT, ".")} is signed with the key Play expects`);
+    ok(`${latest.replace(ROOT, ".")} is signed with ${REQUIRED_LABEL}`);
   } else {
     const known = EXPECTED.knownWrongKeys.find((k) => k.sha1.toUpperCase() === sha1);
+    const isReplacement = EXPECTED.replacementKey && EXPECTED.replacementKey.sha1.toUpperCase() === sha1;
     fail("this build would be rejected by Google Play", [
       `artifact  ${latest.replace(ROOT, ".")}`,
       `signed by ${sha1}`,
-      `expected  ${want}`,
+      `expected  ${want}  (${REQUIRED_LABEL})`,
       "",
-      ...(known
-        ? [`That is ${known.file}.`, known.why, ""]
-        : ["That key is not one of the ones recorded in play-upload-key.json.", ""]),
+      ...(isReplacement
+        ? [
+            "That is the replacement upload key, and the reset has not been approved yet.",
+            `play-upload-key.json says resetStatus is "${EXPECTED.resetStatus}".`,
+            "Play will keep refusing this until Google confirms the reset; once they do,",
+            'set resetStatus to "approved" and this build becomes the correct one.',
+            "",
+          ]
+        : known
+          ? [`That is ${known.file}.`, known.why, ""]
+          : ["That key is not one of the ones recorded in play-upload-key.json.", ""]),
       "Point CV_UPLOAD_STORE_FILE at the keystore whose certificate matches, and rebuild.",
-      "If the matching keystore is lost, Play support can reset an upload key --",
-      "that is a support request, not a five-minute job, so check your backups first.",
+      "If the matching keystore is lost, see howToCompleteTheReset in play-upload-key.json.",
     ]);
   }
 }

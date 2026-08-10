@@ -1,11 +1,50 @@
 {
   "_why": "Google Play identifies this app by the certificate that signs the upload. Play prints the fingerprint it expects when it rejects a bundle; that value is recorded here so a build can be checked BEFORE it is uploaded rather than after. A certificate fingerprint is public - it is in every copy of the app - so this file holds no secret.",
   "package": "com.circuvent.app",
+
+  "resetStatus": "not-yet-requested",
+  "_resetStatus": "One of: not-yet-requested | requested | approved. While it is anything other than 'approved', Play still only accepts the ORIGINAL upload key, so a build signed with the replacement will be rejected. check-signing-key.js reads this field to decide which fingerprint a build must carry.",
+
+  "activeKeystore": "circuvent-upload-2026.jks",
+  "_activeKeystore": "credentials/ deliberately holds more than one keystore during the reset. This names the one the build must use, so the guard can stop refusing outright and start checking the right thing.",
+
   "uploadCertificate": {
     "sha1": "4C:89:1B:90:7B:83:25:FE:11:50:02:EE:D9:97:46:9C:AD:57:07:CC",
-    "source": "Play Console rejection message, closed testing upload, 2026-08-09",
-    "note": "This is the UPLOAD key. Play App Signing re-signs with its own app signing key for distribution, so the fingerprint users see on a device is a different one."
+    "sha256": "1E:34:2C:74:A6:CE:AB:E9:12:32:78:C1:EF:99:AE:2B:4E:9E:D8:F6:EF:D3:76:85:14:DE:43:B8:55:D5:0D:3B",
+    "md5": "05:30:D4:99:E0:1C:04:D7:D7:0E:35:D7:18:8A:C4:B1",
+    "source": "Play Console > Setup > App signing > Upload key certificate, read 2026-08-09. The SHA-1 matches the value in the rejection message, which confirms the record was right.",
+    "note": "This is the UPLOAD key. Play App Signing re-signs with its own app signing key for distribution, so the fingerprint users see on a device is a different one.",
+    "status": "cannot be used — the private key's password is unknown, see whereIsTheRealKey"
   },
+
+  "appSigningKey": {
+    "sha256": "DF:01:B7:56:8A:66:D0:6F:9B:A0:65:01:F1:35:81:43:6A:3F:14:21:31:3D:FF:66:46:20:A5:60:22:4C:42:AF",
+    "source": "Play Console > App signing > Digital Asset Links JSON, 2026-08-09",
+    "note": "Held by Google, not by us, and unaffected by an upload key reset. This is the fingerprint that must appear in https://circuvent.com/.well-known/assetlinks.json before Android App Links will verify. That file currently returns 404 on both circuvent.com and dev.circuvent.com, and the app declares no intentFilters, so App Links are not in use yet."
+  },
+
+  "replacementKey": {
+    "file": "credentials/circuvent-upload-2026.jks",
+    "alias": "circuvent-upload",
+    "sha1": "E2:FD:C4:F4:79:FD:9C:35:C9:D6:FB:5D:A0:1B:9E:B6:B5:32:B3:87",
+    "sha256": "67:2D:55:C2:2F:CE:E3:57:92:90:15:BE:CA:AF:BB:95:08:65:86:E8:B0:70:BB:22:FB:BD:EF:D7:BB:E5:49:75",
+    "algorithm": "RSA 4096, SHA384withRSA",
+    "created": "2026-08-09",
+    "expires": "2056-08-01",
+    "certificateForGoogle": "~/circuvent-vault/upload_certificate.pem",
+    "passwordLocation": "~/circuvent-vault/NEW-UPLOAD-KEY.txt — outside the git repository, deliberately",
+    "note": "Generated for the upload key reset. Play will not accept builds signed with it until the reset is approved; until then resetStatus must stay 'not-yet-requested' or 'requested'."
+  },
+
+  "howToCompleteTheReset": [
+    "1. Play Console > Setup > App signing > Request upload key reset.",
+    "2. Upload ~/circuvent-vault/upload_certificate.pem when it asks for the new upload certificate (PEM).",
+    "3. Google confirms by email, usually within a couple of business days.",
+    "4. Set resetStatus to 'approved' in this file. That switches check-signing-key.js over to expecting E2:FD:C4:… and it will then reject anything signed with the old key.",
+    "5. Build with npm run build:android and upload.",
+    "This is safe: Play App Signing is enabled, so Google holds the app's real signing key. Install base is 0.0% on both the current and the previous app signing key, so no existing user is affected. A new app or a new applicationId is NOT needed — com.circuvent.app is kept."
+  ],
+
   "knownWrongKeys": [
     {
       "sha1": "43:56:71:9A:11:FA:15:4E:A7:6C:B4:6E:62:C4:86:9A:D3:D8:5B:A0",
@@ -19,15 +58,17 @@
       "why": "React Native's debug key. Its password is published, so a release signed with it is one anybody could forge."
     }
   ],
+
   "whenItBroke": {
     "correctlySigned": "1.1.0-vc3, 1.2.0-vc4, 1.3.0-vc5, 1.4.0-vc6, 1.5.0-vc7, 1.6.0-vc8, 1.7.0-vc9, 1.8.0-vc10 — all carry 4C:89:1B:…, the key Play accepts. Confirmed by fingerprinting every artifact in mobile/dist.",
     "wronglySigned": "1.10.0-12 onwards, all carrying 43:56:71:…",
     "cause": "credentials/circuvent-upload.keystore was created on 3 August beside the existing circuvent-upload.jks from 24 July. scripts/build-android.sh was added on 2 August; the keystore that signed everything up to 1.8.0 predates it.",
     "correction": "An earlier note in this file said no local build had ever been accepted by Play. That was wrong — it was written after checking only Downloads/circuvent-android and the newest files in dist/, and not the older dist/ artifacts, which are correctly signed."
   },
+
   "whereIsTheRealKey": {
     "almostCertainly": "credentials/circuvent-upload.jks — it is the only keystore that predates 3 August, and it is from exactly the period that produced the correctly-signed releases.",
-    "blocker": "Its store password is unknown. It is PKCS12 with encrypted content bags, so even the certificate cannot be read to confirm the fingerprint without it. Tried: the passwords in upload-keystore.properties (which was overwritten on 3 August alongside the wrong keystore), and Hemakoti@003 — each as both JKS and PKCS12, because keytool reports a wrongly-guessed store type and a wrong password identically.",
+    "blocker": "Its store password is unknown. It is PKCS12 with encrypted content bags, so even the certificate cannot be read to confirm the fingerprint without it. Tried: the passwords in upload-keystore.properties (which was overwritten on 3 August alongside the wrong keystore), and one candidate supplied by the user — each as both JKS and PKCS12, because keytool reports a wrongly-guessed store type and a wrong password identically.",
     "searched": [
       "mobile/credentials/ — two keystores",
       "Downloads/circuvent-android/ — the same wrong .keystore, plus 1.10.0 and 1.11.0 artifacts",
@@ -37,7 +78,8 @@
       "1. The password for circuvent-upload.jks. Check wherever the 24 July build was set up from; the properties file that held it was overwritten on 3 August.",
       "   Test any candidate without building: node scripts/try-keystore-password.mjs <password> credentials/circuvent-upload.jks",
       "2. If that key came from EAS: npx eas-cli login && npx eas-cli credentials --platform android — Expo keeps Android keystores server-side with their passwords.",
-      "3. Last resort: Play Console > Setup > App signing > Request upload key reset. Play App Signing is enabled, so Google holds the app's real signing key and existing installs are unaffected; only the upload key is replaced."
-    ]
+      "3. The upload key reset, which is now prepared — see howToCompleteTheReset. This no longer needs the old password at all."
+    ],
+    "stillWorthTrying": "Recovering the original password would avoid the reset wait entirely. But it is no longer on the critical path."
   }
 }

@@ -62,8 +62,32 @@ const props = Object.fromEntries(
 );
 
 const keystores = existsSync(CRED) ? readdirSync(CRED).filter((f) => /\.(jks|keystore|p12|pfx)$/i.test(f)) : [];
-if (keystores.length !== 1) die(`Expected exactly one keystore in credentials/, found ${keystores.length}.`);
-const keystore = join(CRED, keystores[0]).replace(/\\/g, "/");
+/*
+ * More than one keystore used to be an automatic refusal, because two of them
+ * appearing side by side is what got a bundle rejected by Play. During an
+ * upload key reset that state is legitimate and unavoidable — the old key has
+ * to stay until Google approves the replacement — so the rule is now that one
+ * of them must be *named*, in play-upload-key.json, rather than that only one
+ * may exist. Guessing is still refused.
+ */
+const expected = JSON.parse(readFileSync(join(ROOT, "play-upload-key.json"), "utf8"));
+let chosen;
+if (keystores.length === 1) {
+  chosen = keystores[0];
+} else if (keystores.length === 0) {
+  die("No keystore in credentials/.");
+} else if (!expected.activeKeystore) {
+  die(
+    `Found ${keystores.length} keystores in credentials/ (${keystores.join(", ")}) and play-upload-key.json does not say which to use.\n` +
+      `Set "activeKeystore" to one of them.`
+  );
+} else if (!keystores.includes(expected.activeKeystore)) {
+  die(`play-upload-key.json names "${expected.activeKeystore}", which is not in credentials/ (${keystores.join(", ")}).`);
+} else {
+  chosen = expected.activeKeystore;
+}
+const keystore = join(CRED, chosen).replace(/\\/g, "/");
+say(`signing with ${chosen}`);
 
 say("expo prebuild");
 execFileSync("npx", ["expo", "prebuild", "--platform", "android", "--no-install"], { cwd: ROOT, stdio: "inherit", shell: true });
