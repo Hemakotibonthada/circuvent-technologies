@@ -20,14 +20,35 @@ describe("the shape of one shadow", () => {
   const dark = shadowLayers(1, 16);
   const light = shadowLayers(-1, 16);
 
-  it("falls down-right for the dark half and up-left for the light half", () => {
-    // A single light source above and to the left is the whole convention.
+  it("falls down-right, away from a light above and to the left", () => {
     const darkCore = dark[dark.length - 1];
-    const lightCore = light[light.length - 1];
     expect(darkCore.left).toBeGreaterThan(0);
     expect(darkCore.top).toBeGreaterThan(0);
-    expect(lightCore.left).toBeLessThan(0);
-    expect(lightCore.top).toBeLessThan(0);
+  });
+
+  /*
+   * The white half is off, and this is the point of the whole exercise.
+   *
+   * Neumorphism is nominally two shadows, and iOS draws both — a real gaussian
+   * spreads the light one thin enough to be felt rather than seen. A stack of
+   * rectangles cannot spread white that thin against a pale canvas, so instead
+   * of light across the top-left corner you get a halo blooming out of it,
+   * which was plainly visible next to the iPhone.
+   *
+   * No layers at all, rather than nine transparent ones: an invisible View
+   * still costs a measure, a layout and a draw, and every card renders a stack.
+   */
+  it("draws no white shadow at all, rather than a faint one", () => {
+    expect(light).toHaveLength(0);
+    expect(NEO.lightStrength).toBe(0);
+    expect(NEO_SMALL.lightStrength).toBe(0);
+  });
+
+  it("still supports a light half, for a palette where it is the half that reads", () => {
+    const both = shadowLayers(-1, 16, { ...NEO, lightStrength: 0.3 });
+    expect(both).toHaveLength(NEO.steps);
+    expect(both[both.length - 1].left).toBeLessThan(0);
+    expect(both[both.length - 1].top).toBeLessThan(0);
   });
 
   it("reaches past the surface, or there would be nothing to see", () => {
@@ -91,19 +112,23 @@ describe("the shape of one shadow", () => {
     expect(dark[dark.length - 1].borderRadius).toBeCloseTo(16, 5);
   });
 
-  it("puts the same number of layers in each half", () => {
+  it("puts one layer per step in the half that is drawn", () => {
     expect(dark).toHaveLength(NEO.steps);
-    expect(light).toHaveLength(NEO.steps);
   });
 
-  it("is symmetric: the two halves are mirror images", () => {
-    for (let i = 0; i < dark.length; i++) {
-      expect(light[i].left).toBeCloseTo(-dark[i].left - 2 * (NEO.blur * (1 - (NEO.steps === 1 ? 1 : i / (NEO.steps - 1)))), 5);
-      expect(light[i].opacity / NEO.lightStrength).toBeCloseTo(dark[i].opacity / NEO.strength, 5);
-      expect(light[i].borderRadius).toBeCloseTo(dark[i].borderRadius, 5);
+  it("is symmetric when both halves are drawn", () => {
+    const spec = { ...NEO, lightStrength: NEO.strength };
+    const d2 = shadowLayers(1, 16, spec);
+    const l2 = shadowLayers(-1, 16, spec);
+    for (let i = 0; i < d2.length; i++) {
+      expect(l2[i].opacity).toBeCloseTo(d2[i].opacity, 5);
+      expect(l2[i].borderRadius).toBeCloseTo(d2[i].borderRadius, 5);
+      // A mirrored layer is the same rectangle with its sides swapped.
+      expect(l2[i].left).toBeCloseTo(d2[i].right, 5);
+      expect(l2[i].right).toBeCloseTo(d2[i].left, 5);
+      expect(l2[i].top).toBeCloseTo(d2[i].bottom, 5);
     }
   });
-
   it("survives being asked for a single layer", () => {
     const one = shadowLayers(1, 12, { ...NEO, steps: 1 });
     expect(one).toHaveLength(1);

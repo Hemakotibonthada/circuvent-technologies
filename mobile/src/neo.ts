@@ -57,11 +57,20 @@ export interface NeoSpec {
   /** Alpha of the innermost, strongest layer of the dark half. */
   strength: number;
   /**
-   * The light half, separately.
+   * The light half, separately — and zero by default.
    *
-   * On a pale canvas a white shadow at the same alpha as the dark one reads as
-   * a bright ring hugging the card rather than as light falling on it — which
-   * is exactly how the first Android version differed from iOS.
+   * Neumorphism is nominally two shadows, and on iOS the light one is what
+   * makes a surface look pushed out rather than dropped on. A real gaussian
+   * spreads it thin enough to be felt and not seen.
+   *
+   * A stack of rectangles cannot spread it that thin. White against a pale
+   * canvas stays white, so instead of light falling across the top-left corner
+   * you get a bright halo blooming out of it — clearly visible against the
+   * iPhone, which has none. A single soft dark shadow is closer to the
+   * reference than a badly approximated pair.
+   *
+   * Kept as a number rather than deleted because on a dark palette the light
+   * half is the half that reads, and it can be turned back up there.
    */
   lightStrength: number;
 }
@@ -80,10 +89,10 @@ export interface NeoSpec {
  * ring; six steps over ten was 1.7pt at three times the alpha, and the bands
  * were visible as contour lines around every tile.
  */
-export const NEO: NeoSpec = { depth: 5, blur: 14, steps: 9, strength: 0.22, lightStrength: 0.4 };
+export const NEO: NeoSpec = { depth: 5, blur: 14, steps: 9, strength: 0.22, lightStrength: 0 };
 
 /** Small controls get a shallower, cheaper version of the same treatment. */
-export const NEO_SMALL: NeoSpec = { depth: 3, blur: 7, steps: 5, strength: 0.18, lightStrength: 0.34 };
+export const NEO_SMALL: NeoSpec = { depth: 3, blur: 7, steps: 5, strength: 0.18, lightStrength: 0 };
 
 /**
  * The stack for one shadow.
@@ -99,6 +108,11 @@ export function shadowLayers(dir: 1 | -1, radius: number, spec: NeoSpec = NEO): 
   const { depth, blur, steps } = spec;
   // The light half is the one that has to stay subtle; see NeoSpec.
   const strength = dir === 1 ? spec.strength : spec.lightStrength;
+
+  // No layers at all rather than nine transparent ones. An invisible View still
+  // costs a measure, a layout and a draw, and a card renders a stack of them.
+  if (strength <= 0) return [];
+
   const out: NeoShadowLayer[] = [];
 
   for (let i = 0; i < steps; i++) {
