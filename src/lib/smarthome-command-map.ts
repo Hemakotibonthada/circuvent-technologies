@@ -452,6 +452,34 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       return patch;
     }
 
+    // ------------------------------------------------------------ drone ---
+    case "drone-link": {
+      /*
+       * Almost nothing is projected, and that is the design rather than an
+       * omission.
+       *
+       * Every flight command here is a *request to the autopilot*, which is
+       * free to refuse it: a takeoff in the wrong mode, an arm that fails a
+       * check the flight controller makes and this device does not, an RTL on
+       * an aircraft that has no home position. Optimistically setting `armed`
+       * or `inAir` would pin the console on a state the aircraft never
+       * reaches — and, far worse, would show "airborne" for an aircraft
+       * sitting on the pad with a failed arm.
+       *
+       * The aircraft publishes what is actually true at 1 Hz. That is fast
+       * enough that there is nothing to gain by guessing, and everything to
+       * lose.
+       */
+      if (action !== "set") return patch;
+
+      // Only the settings the firmware stores and echoes verbatim.
+      if (isBool(cmd.allowArm)) patch.allowArm = cmd.allowArm;
+      if (isNum(cmd.trackHz)) patch.trackHz = clamp(Math.round(cmd.trackHz), 1, 10);
+      if (isNum(cmd.maxAlt)) patch.maxAlt = clamp(Math.round(cmd.maxAlt), 5, 500);
+      if (isNum(cmd.maxRange)) patch.maxRange = clamp(Math.round(cmd.maxRange), 10, 5000);
+      return patch;
+    }
+
     // ------------------------------------------------------------- gate ---
     case "rfid-gate": {      if (action === "open" || action === "grantOpen") patch.barrier = "open";
       else if (action === "close") patch.barrier = "closed";
@@ -678,6 +706,34 @@ export function buildFieldCommand(
         return dir === "in" || dir === "out" || dir === "both"
           ? { action: "set", direction: dir }
           : null;
+      }
+      return null;
+    }
+
+    // ------------------------------------------------------------ drone ---
+    case "drone-link": {
+      /*
+       * Only the settings a rule has any business changing.
+       *
+       * `armed`, `inAir`, `mode` and everything else the aircraft publishes
+       * are deliberately absent. An automation that could arm an aircraft — or
+       * take one off — is an automation that flies a drone when nobody
+       * intended to, and there is no schedule, sensor threshold or scene for
+       * which that is the right outcome. Flight commands come from a person
+       * looking at the aircraft, through /smarthome/drone, and are checked
+       * against the safety envelope on the way.
+       *
+       * `allowArm` is the exception and points the safe way: a rule may
+       * *ground* an aircraft, never launch one.
+       */
+      if (field === "allowArm") {
+        if (typeof value !== "boolean") return null;
+        return { action: "set", allowArm: value };
+      }
+      if (field === "trackHz" || field === "maxAlt" || field === "maxRange") {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return null;
+        return { action: "set", [field]: Math.round(num) };
       }
       return null;
     }

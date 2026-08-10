@@ -212,6 +212,62 @@ ${plate(360, 300)}
     </g>
   </g>`,
 
+  "drone-link": `  <g transform="translate(400 340)">
+    <!--
+      A quadcopter seen from slightly above, with the companion board on top.
+      The board is the product; the airframe is context, so it is drawn darker
+      and the board carries the accent.
+
+      Every arm is a real rect rather than a stroked line: a straight line
+      stroked with an objectBoundingBox gradient has a zero-width bounding box
+      and paints nothing at all, which is the trap Docs/07-adding-a-new-device.md
+      warns about.
+    -->
+    <g stroke="none">
+      <!-- arms -->
+      <rect x="-16" y="-150" width="32" height="150" rx="14" fill="#334155" transform="rotate(45)"/>
+      <rect x="-16" y="-150" width="32" height="150" rx="14" fill="#334155" transform="rotate(135)"/>
+      <rect x="-16" y="-150" width="32" height="150" rx="14" fill="#334155" transform="rotate(225)"/>
+      <rect x="-16" y="-150" width="32" height="150" rx="14" fill="#334155" transform="rotate(315)"/>
+    </g>
+    <!-- motors and prop discs -->
+    <g>
+      <circle cx="-106" cy="-106" r="62" fill="${"#6366f1"}" opacity="0.13"/>
+      <circle cx="106"  cy="-106" r="62" fill="${"#6366f1"}" opacity="0.13"/>
+      <circle cx="-106" cy="106"  r="62" fill="${"#6366f1"}" opacity="0.13"/>
+      <circle cx="106"  cy="106"  r="62" fill="${"#6366f1"}" opacity="0.13"/>
+      <circle cx="-106" cy="-106" r="22" fill="url(#metal)"/>
+      <circle cx="106"  cy="-106" r="22" fill="url(#metal)"/>
+      <circle cx="-106" cy="106"  r="22" fill="url(#metal)"/>
+      <circle cx="106"  cy="106"  r="22" fill="url(#metal)"/>
+    </g>
+    <!-- body -->
+    <rect x="-96" y="-72" width="192" height="144" rx="30" fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <!-- the companion board, sitting on the deck -->
+    <rect x="-64" y="-44" width="128" height="88" rx="12" fill="#0f172a" stroke="${"#6366f1"}" stroke-width="5"/>
+    <rect x="-46" y="-28" width="52" height="34" rx="6" fill="url(#accentFill)" opacity="0.6"/>
+    <circle cx="34" cy="-12" r="8" fill="${"#6366f1"}"/>
+    <!--
+      Antenna and telemetry arcs, in the centre column.
+
+      They were first drawn off the body's top-right corner, which put them
+      inside the top-right prop disc (centre 106,-106 r 62). The arcs read as a
+      broken circle rather than as radiating signal — an artefact that parses
+      perfectly and looks like a rendering fault. The column between the two
+      front discs (x -44..44 above y -168) is the only clear space, so that is
+      where they go.
+    -->
+    <rect x="-6" y="-150" width="12" height="82" rx="6" fill="#475569"/>
+    <circle cx="0" cy="-156" r="11" fill="${"#6366f1"}"/>
+    <g stroke="${"#6366f1"}" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.85">
+      <path d="M-26 -178 a36 36 0 0 1 52 0"/>
+      <path d="M-46 -202 a66 66 0 0 1 92 0"/>
+    </g>
+    <!-- landing legs -->
+    <rect x="-70" y="66" width="16" height="52" rx="8" fill="#475569"/>
+    <rect x="54"  y="66" width="16" height="52" rx="8" fill="#475569"/>
+  </g>`,
+
   "energy-monitor": `  <g transform="translate(400 350)">
     <rect x="-190" y="-150" width="380" height="290" rx="26" fill="#1e293b" stroke="#475569" stroke-width="6"/>
     <rect x="-160" y="-120" width="320" height="150" rx="14" fill="#0f172a"/>
@@ -343,6 +399,7 @@ const LABELS = {
   "rfid-gate": ["RFID Gate", "#f59e0b"],
   camera: ["Camera", "#a855f7"],
   "anpr-cam": ["ANPR Camera", "#0ea5e9"],
+  "drone-link": ["Drone Link", "#6366f1"],
   "energy-monitor": ["Energy Monitor", "#f59e0b"],
   "home-hub": ["Home Hub", "#14b8a6"],
   "smart-switch": ["Smart Switch", "#22d3ee"],

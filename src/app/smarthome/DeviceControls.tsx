@@ -43,6 +43,7 @@ import {
   Ear,
   Volume2,
   ScanBarcode,
+  Plane,
   ScanSearch,
   Crosshair,
   ShieldCheck,
@@ -96,6 +97,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   cctv: { label: "CCTV Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   doorbell: { label: "Video Doorbell", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   "anpr-cam": { label: "ANPR Camera", icon: ScanBarcode, accent: "#0ea5e9", blurb: "Reads vehicle number plates" },
+  "drone-link": { label: "Drone Link", icon: Plane, accent: "#6366f1", blurb: "Flight telemetry & mission bridge" },
 };
 
 export function deviceMeta(type: string): DeviceTypeMeta {
@@ -274,6 +276,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <CameraDevice d={device} send={send} st={st} />;
     case "anpr-cam":
       return <AnprCamera d={device} send={send} st={st} />;
+    case "drone-link":
+      return <DroneLink d={device} send={send} st={st} />;
     default:
       return <>{generic}<RawState d={device} /></>;
   }
@@ -2720,6 +2724,104 @@ function AnprCamera({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
         {hasLoop
           ? "A loop detector is wired to this unit. It is the more reliable trigger — it cannot be fooled by a shadow, a headlight sweep or rain — so image motion is only consulted while the loop reads clear."
           : "No loop detector is wired to this unit, so arrivals are detected from the picture alone. Fitting an inductive loop or IR beam is the single biggest improvement you can make to trigger reliability."}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Drone Link — the device tile.
+ *
+ * This is deliberately NOT a ground station. There is no arm, no take-off and
+ * no mode change here: those live at /smarthome/drone, where the safety
+ * envelope, the preflight verdict and the refusal reasons are all on screen
+ * together. A flight command hidden in a device list, one row below a light
+ * switch, is a flight command somebody sends by accident.
+ *
+ * What this tile offers is status, and the one control that is safe from
+ * anywhere: grounding the aircraft.
+ */
+function DroneLink({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const armed = b(d.state.armed);
+  const inAir = b(d.state.inAir);
+  const linked = b(d.state.link);
+  const ready = b(d.state.ready);
+  const allowArm = d.state.allowArm == null ? true : b(d.state.allowArm);
+  const mode = typeof d.state.mode === "string" ? d.state.mode : "—";
+  const readyReason = typeof d.state.readyReason === "string" ? d.state.readyReason : "";
+  const battPct = n(d.state.battPct, -1);
+  const sats = n(d.state.sats);
+  const alt = n(d.state.alt);
+  const fix = typeof d.state.fix === "string" ? d.state.fix : "none";
+
+  return (
+    <div className="space-y-4">
+      {!linked && (
+        <AlertBanner text="No autopilot link. This companion computer is online but is not hearing a flight controller — check the TELEM wiring and baud rate." />
+      )}
+
+      {inAir && (
+        <AlertBanner
+          text={`Airborne in ${mode}${alt ? ` at ${alt.toFixed(0)} m` : ""}. Flight controls are on the Drone page.`}
+        />
+      )}
+
+      <div className="flex gap-2">
+        <StatTile
+          label="State"
+          value={inAir ? "Airborne" : armed ? "Armed" : "Grounded"}
+          accent={inAir ? "#6366f1" : armed ? "#f59e0b" : undefined}
+        />
+        <StatTile label="Battery" value={battPct < 0 ? "—" : `${battPct}%`} />
+        <StatTile label="GPS" value={fix === "none" ? "No fix" : `${sats}`} hint={fix} />
+      </div>
+
+      <div>
+        <SectionLabel>Status</SectionLabel>
+        <ControlRow label="Mode" hint="Reported by the flight controller">
+          <span className="text-sm font-semibold">{mode}</span>
+        </ControlRow>
+        <ControlRow
+          label="Preflight"
+          hint={readyReason && readyReason !== "ready" ? readyReason : "All checks passed"}
+        >
+          <span className="text-sm font-semibold" style={{ color: ready ? "#16a34a" : "#b45309" }}>
+            {ready ? "Ready" : "Not ready"}
+          </span>
+        </ControlRow>
+      </div>
+
+      <div>
+        <SectionLabel>Safety</SectionLabel>
+        {/*
+          * Grounding is the one flight-related control that is safe to put
+          * anywhere, because it only ever removes a capability. A fleet
+          * manager can stop an airframe being flown without walking to it,
+          * and no accidental tap can start anything.
+          */}
+        <ControlRow
+          label="Allow arming"
+          hint="Turn off to ground this aircraft. It cannot be armed until this is turned back on."
+          status={st("allowArm")}
+        >
+          <Toggle
+            checked={allowArm}
+            onChange={(v) => send({ action: "set", allowArm: v })}
+            status={st("allowArm")}
+            disabled={inAir}
+          />
+        </ControlRow>
+        {inAir && (
+          <p className="px-1 text-[13px]" style={{ color: "var(--cv-muted)" }}>
+            Grounding is disabled while the aircraft is flying — it would do nothing until the next
+            arm, and offering it here would suggest it could stop a flight in progress.
+          </p>
+        )}
+      </div>
+
+      <p className="text-[13px]" style={{ color: "var(--cv-muted)" }}>
+        Take-off, landing, return-to-home and missions are on the Drone page, where the flight
+        envelope and preflight checks are shown with them.
       </p>
     </div>
   );

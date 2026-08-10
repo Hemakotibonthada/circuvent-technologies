@@ -249,7 +249,6 @@ under `pcb/`, plus `DATASHEET.md`, `MANUAL.md`, `enclosure/` and `listings/`.
 - [ ] Provisioned a real unit end to end
 
 ## The three silent failures
-
 1. **No `case` in `DeviceControls.tsx`** → raw JSON on the web.
 2. **Type missing from `KNOWN`** in `mobile/src/screens/Control.tsx` → raw JSON
    on the phone.
@@ -275,3 +274,29 @@ firmware and read it everywhere instead of hardcoding the larger board. A
 two-relay unit that inherits a four-relay assumption shows two dead switches, a
 misleading "1/4 on" readout, and an optimistic toggle that hangs waiting for a
 relay it does not have.
+
+## Two more found while adding `drone-link`
+
+Both are build failures rather than silent ones, but both fail somewhere other
+than the change that caused them, which costs the same afternoon.
+
+6. **A header file in the sketch folder turns the project into a library.**
+   `lib_extra_dirs = ..` makes every folder under `firmware/` a candidate
+   library — that is how the shared `CircuventDevice` resolves. The moment a
+   project gains a `.h` of its own, PlatformIO treats the sketch folder as a
+   library too, compiles it outside the src build, and it loses access to
+   `lib_deps`. The error is `ArduinoJson.h: No such file or directory` inside
+   the shared library, which points at everything except the new header. Add
+   `lib_ignore = <project>` to the env.
+
+7. **Arduino inserts every function prototype above your own declarations.**
+   A function taking `const MyStruct &` gets an auto-generated prototype placed
+   near the top of the `.ino`, above the `struct` that defines it, and the
+   build fails on a line number that has nothing to do with the change. Types
+   used in a function signature must live in an included header, not in the
+   sketch.
+
+Also worth knowing, though the build does catch it: on an **ESP32-C3**,
+`ARDUINO_USB_CDC_ON_BOOT=1` alone leaves `Serial` undeclared. The C3's USB is a
+Serial/JTAG peripheral rather than the S3's OTG controller and also needs
+`ARDUINO_USB_MODE=1`. The failure appears inside `CircuventDevice.h`.

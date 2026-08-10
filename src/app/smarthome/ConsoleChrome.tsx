@@ -27,6 +27,7 @@ import {
   LogOut,
   Moon,
   MoreHorizontal,
+  Plane,
   Radio,
   Settings,
   ShieldAlert,
@@ -118,6 +119,18 @@ export const NAV: NavItem[] = [
       { id: "cameras", label: "Cameras" },
       { id: "vehicles", label: "Vehicles" },
       { id: "modes", label: "Modes" },
+    ],
+  },
+  {
+    href: "/smarthome/drone",
+    label: "Drone",
+    icon: Plane,
+    tabs: [
+      { id: "live", label: "Live" },
+      { id: "flights", label: "Log book" },
+      { id: "missions", label: "Missions" },
+      { id: "fleet", label: "Fleet" },
+      { id: "safety", label: "Safety" },
     ],
   },
   {

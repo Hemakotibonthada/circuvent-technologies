@@ -533,6 +533,50 @@ export const products: Product[] = [
     badge: "New",
     rating: 4.6,
   },
+  {
+    id: "drone-link",
+    slug: "circuvent-drone-link",
+    name: "Circuvent Drone Link",
+    tagline: "Puts your drone's telemetry, flight log and safety limits online",
+    /*
+     * Written from firmware/drone-link/drone-link.ino and
+     * platform/api/src/drone/, not from ambition — the rule in
+     * Docs/07-adding-a-new-device.md.
+     *
+     * Three claims are stated as limits rather than omitted, because each one
+     * decides whether this is the right product and none is discoverable
+     * before purchase:
+     *
+     *   1. It is NOT a flight controller and does not fly anything. A buyer
+     *      expecting an autopilot would be returning a box that cannot do the
+     *      job, and — far worse — one who believed it could would fly a drone
+     *      with nothing stabilising it.
+     *   2. It needs an existing ArduPilot or PX4 aircraft with a free TELEM
+     *      port. No autopilot, no product.
+     *   3. There is no manual stick control, ever, and that is a design
+     *      decision rather than a missing feature. Somebody buying it as a
+     *      "fly my drone over the internet" device must know that up front.
+     */
+    description:
+      "A companion computer for a drone that already has an ArduPilot or PX4 flight controller. It plugs into a spare TELEM port and puts the aircraft on your Circuvent account: live position, altitude, battery and GPS quality while it flies, a complete flight log afterwards, and a daily report by email. Take-off, landing, return-to-home and stored waypoint missions can be commanded from the console, and a preflight check refuses to arm on a poor GPS fix or a low pack. It does not fly the aircraft — your flight controller does that, and keeps doing it if this link drops. There is deliberately no manual stick control over the internet.",
+    price: 6499,
+    compareAt: 7999,
+    category: "Safety",
+    image: "/img/product-drone-link.svg",
+    accent: "#6366f1",
+    icon: "🚁",
+    specs: [
+      "For ArduPilot or PX4 aircraft",
+      "MAVLink v2 over the TELEM port",
+      "Live telemetry at up to 10 Hz",
+      "Flight log book, exportable as CSV",
+      "Preflight check before arming",
+      "Altitude and range limits held on the aircraft",
+    ],
+    stock: 8,
+    badge: "New",
+    rating: 4.5,
+  },
 ];
 
 export function getProduct(slug: string): Product | undefined {

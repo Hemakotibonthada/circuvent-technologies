@@ -38,10 +38,17 @@ async function ownerDevices(uid: number): Promise<Dev[]> {
  *
  * The omissions are deliberate and are the security boundary for voice: a type
  * that is absent here simply does not exist to Google or Alexa. Locks, gates,
- * cameras and `anpr-cam` are all left out on purpose — their only boolean is a
- * *mode* (locked, armed) rather than a load, so exposing it would put "turn off
- * the gate camera" or "unlock the front door" behind anything that can reach a
- * smart speaker, including a voice through a window.
+ * cameras, `anpr-cam` and `drone-link` are all left out on purpose — their only
+ * boolean is a *mode* (locked, armed, allowed to fly) rather than a load, so
+ * exposing it would put "turn off the gate camera" or "unlock the front door"
+ * behind anything that can reach a smart speaker, including a voice through a
+ * window.
+ *
+ * `drone-link` is the sharpest case and worth stating outright: its boolean is
+ * an aircraft's permission to take off. There is no phrasing of "turn on the
+ * drone" that a voice assistant should be able to act on, and no phrasing of
+ * "turn it off" that should be able to ground an aircraft a pilot is about to
+ * fly. It stays out permanently, not until somebody asks for it.
  *
  * Adding a type here is therefore a decision about physical security, not a
  * feature toggle.

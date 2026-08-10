@@ -45,8 +45,14 @@ export interface SwitchTarget {
  * Fields that are boolean but are *not* a switchable load — arming a sensor or
  * locking a door is a mode, not a relay, and grouping them under "switches"
  * would make a schedule list read as if the front door were a lamp.
+ *
+ * `allowArm` is here for a sharper reason than tidiness: it is a drone's
+ * permission to fly. Left out of this set it would appear in the schedule list
+ * as an ordinary switch, and "turn on at 07:00" against an aircraft reads —
+ * and would be built by somebody — as a scheduled take-off. It is a permission
+ * that can be withdrawn, never an instruction to launch.
  */
-const NON_LOAD_FIELDS = new Set(["armed", "auto", "locked", "all", "away", "muted"]);
+const NON_LOAD_FIELDS = new Set(["armed", "auto", "locked", "all", "away", "muted", "allowArm"]);
 
 /**
  * Drops channels a *particular unit* does not have.

@@ -93,6 +93,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
         {d.type === "touchboard" && <TouchBoard d={d} send={send} c={c} />}
         {d.type === "sentinel" && <Sentinel d={d} send={send} c={c} />}
         {d.type === "anpr-cam" && <AnprCamera d={d} send={send} command={command} c={c} />}
+        {d.type === "drone-link" && <DroneLink d={d} send={send} c={c} />}
         {isCamera(d) && <CameraDevice d={d} send={send} c={c} />}
 
         {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
@@ -131,7 +132,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
  * precisely how the camera shipped showing JSON on the phone, and it is why
  * adding to this array is on the checklist in Docs/07-adding-a-new-device.md.
  */
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam", "drone-link"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -775,6 +776,132 @@ function RfidGate({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
  * guesswork, and it is labelled as an aiming tool rather than a feed: the
  * firmware drops resolution while streaming and cancels the lease after 20 s.
  */
+/**
+ * Drone Link — the phone's view of an aircraft.
+ *
+ * Status, and one control: grounding.
+ *
+ * Take-off, landing, return-to-home and mode changes are deliberately absent
+ * from the phone's device screen. Not because a phone cannot be trusted, but
+ * because *this* screen cannot: it is reached by scrolling a list of household
+ * devices, and a flight command sitting two rows below a bedroom lamp is a
+ * flight command somebody sends with their thumb while walking. Those controls
+ * live in the console's Drone page, where the preflight verdict, the flight
+ * envelope and the refusal reasons are on screen with them.
+ *
+ * Grounding is the exception and points the safe way: it only ever removes a
+ * capability. Nothing here can start a flight.
+ */
+function DroneLink({
+  d,
+  send,
+  c,
+}: {
+  d: Device;
+  send: (p: Record<string, unknown>) => void;
+  c: Palette;
+}) {
+  const armed = !!d.state.armed;
+  const inAir = !!d.state.inAir;
+  const linked = !!d.state.link;
+  const ready = d.state.ready == null ? false : !!d.state.ready;
+  const allowArm = d.state.allowArm == null ? true : !!d.state.allowArm;
+  const mode = String(d.state.mode ?? "—");
+  const readyReason = String(d.state.readyReason ?? "");
+  const battPct = Number(d.state.battPct ?? -1);
+  const sats = Number(d.state.sats ?? 0);
+  const alt = Number(d.state.alt ?? 0);
+  const distHome = Number(d.state.distHome ?? 0);
+  const fix = String(d.state.fix ?? "none");
+  const failsafe = !!d.state.failsafe;
+
+  const stateLabel = inAir ? "Airborne" : armed ? "Armed" : "On the ground";
+  const stateColor = inAir ? c.violet : armed ? c.amber : c.faint;
+
+  return (
+    <View>
+      {failsafe && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1 }}>
+          <Text style={{ color: c.red, fontWeight: "800" }}>Autopilot failsafe active</Text>
+          <Text style={{ color: c.faint, fontSize: 12, marginTop: 4 }}>
+            The flight controller is handling this on its own — lost radio, lost GPS or a critical
+            battery. Do not send commands unless you can see the aircraft.
+          </Text>
+        </Card>
+      )}
+
+      {!linked && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.amber, borderWidth: 1 }}>
+          <Text style={{ color: c.amber, fontWeight: "800" }}>No autopilot link</Text>
+          <Text style={{ color: c.faint, fontSize: 12, marginTop: 4 }}>
+            This bridge is online but is not hearing a flight controller. Check the TELEM wiring and
+            the baud rate.
+          </Text>
+        </Card>
+      )}
+
+      <Card padded style={{ marginBottom: 12, alignItems: "center" }}>
+        <Text style={{ color: c.faint, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+          {inAir ? "Altitude" : "Status"}
+        </Text>
+        <Text style={{ fontSize: 40, fontWeight: "800", color: stateColor, marginTop: 4 }}>
+          {inAir ? `${alt.toFixed(0)} m` : stateLabel}
+        </Text>
+        <Text style={{ color: c.faint, fontSize: 13, marginTop: 6 }}>
+          {inAir ? `${stateLabel} · ${mode} · ${distHome.toFixed(0)} m from home` : `Mode ${mode}`}
+        </Text>
+      </Card>
+
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+        <Card padded style={{ flex: 1, alignItems: "center" }}>
+          <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }}>
+            {battPct < 0 ? "—" : `${battPct}%`}
+          </Text>
+          <Text style={{ color: c.faint, fontSize: 12, marginTop: 2 }}>Battery</Text>
+        </Card>
+        <Card padded style={{ flex: 1, alignItems: "center" }}>
+          <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }}>
+            {fix === "none" ? "—" : sats}
+          </Text>
+          <Text style={{ color: c.faint, fontSize: 12, marginTop: 2 }}>
+            {fix === "none" ? "No GPS fix" : `Satellites · ${fix}`}
+          </Text>
+        </Card>
+      </View>
+
+      {!inAir && (
+        <Card padded style={{ marginBottom: 12 }}>
+          <Text style={{ color: ready ? c.green : c.amber, fontWeight: "800" }}>
+            {ready ? "Ready to fly" : "Not ready to fly"}
+          </Text>
+          {!!readyReason && readyReason !== "ready" && (
+            <Text style={{ color: c.faint, fontSize: 12, marginTop: 4 }}>{readyReason}</Text>
+          )}
+        </Card>
+      )}
+
+      <Section c={c}>Safety</Section>
+      <Card padded>
+        <Row label="Allow arming" c={c}>
+          <Sw v={allowArm} on={(b) => send({ action: "set", allowArm: b })} c={c} />
+        </Row>
+        <Text style={{ color: c.faint, fontSize: 12, marginTop: 6 }}>
+          {inAir
+            ? "The aircraft is flying. Turning this off will not bring it down — it only stops the next arm."
+            : "Turn off to ground this aircraft. It cannot be armed again until this is switched back on."}
+        </Text>
+      </Card>
+
+      <Card padded style={{ marginTop: 12 }}>
+        <Text style={{ color: c.faint, fontSize: 12, lineHeight: 18 }}>
+          Take-off, landing, return-to-home and missions are in the web console under Drone, where
+          the flight envelope and preflight checks are shown alongside them.
+        </Text>
+      </Card>
+    </View>
+  );
+}
+
 function AnprCamera({
   d,
   send,

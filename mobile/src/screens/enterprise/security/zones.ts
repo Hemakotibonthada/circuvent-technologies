@@ -198,6 +198,25 @@ export function securityFieldKeys(device: Device): string[] {
 
 export function isSecurityCapable(device: Device): boolean {
   const type = String(device.type || "").toLowerCase();
+  /*
+   * A drone is not a security zone, and the generic `armed` test would make it
+   * one.
+   *
+   * This screen lists zones that guard a place — a door, a window, a room. An
+   * aircraft is not a place. And the word that would pull it in means something
+   * entirely different here: a sensor's `armed` is "watching", whereas a
+   * drone's `armed` is "the motors are live". Listing "Armed" on a security
+   * screen next to a front door, meaning propellers, is worse than not listing
+   * it at all.
+   *
+   * Excluded before the field scan rather than given a FIELD_MAP entry, because
+   * there is no honest mapping: `failsafe` and `fence` are aircraft states, not
+   * zone states. Without this, `deriveZones` would fall to its raw branch and
+   * dump eight state keys — "Board", "Link", "Mode", "Hdop" — as security
+   * zones, which is the same failure the ANPR camera had and looks equally
+   * like a working feature.
+   */
+  if (type === "drone-link") return false;
   return type === "guardian" || type === "facedoor" || securityFieldKeys(device).length > 0 || hasOwn(device.state ?? {}, "armed") || hasOwn(device.state ?? {}, "alarmMode");
 }
 
@@ -236,8 +255,7 @@ export function deriveZones(devices: Device[]): SecurityZone[] {
       for (const field of typed[kind] ?? []) add(kind, field);
       for (const field of GENERIC_FIELDS[kind] ?? []) add(kind, field);
     }
-    if (!seen.size && isSecurityCapable(device)) {
-      for (const [field, value] of Object.entries(state).slice(0, 8)) {
+    if (!seen.size && isSecurityCapable(device)) {      for (const [field, value] of Object.entries(state).slice(0, 8)) {
         zones.push({ id: `${device.id}:${field}`, deviceId: device.id, deviceName: device.name, room: device.room, kind: "raw", label: labelFor(device, field, "raw"), field, value, status: "unknown", online: device.online, lastChanged: device.last_seen, icon: "sensors" });
       }
     }

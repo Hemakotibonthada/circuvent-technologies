@@ -420,6 +420,29 @@ export function getCommandFields(type: string): CommandField[] {
         },
       ];
 
+    /*
+     * Drone Link.
+     *
+     * Deliberately only the safety envelope — there is no arm, take-off, mode
+     * or goto field here. An automation that could launch an aircraft is an
+     * automation that flies a drone when nobody intended to, and there is no
+     * schedule, sensor threshold or scene for which that is the right outcome.
+     *
+     * `allowArm` points the safe way: a rule may ground an aircraft, never
+     * launch one. It is a mode rather than a load, so it is also listed in
+     * NON_LOAD_FIELDS — without that, the schedule list would offer to switch
+     * an aircraft on and off at 7 pm as if it were a lamp.
+     *
+     * Ranges come from firmware/drone-link/drone-link.ino.
+     */
+    case "drone-link":
+      return [
+        { key: "allowArm", label: "Allow arming", kind: "bool" },
+        { key: "maxAlt", label: "Altitude ceiling", kind: "number", unit: " m", min: 5, max: 500, step: 5 },
+        { key: "maxRange", label: "Range from home", kind: "number", unit: " m", min: 10, max: 5000, step: 50 },
+        { key: "trackHz", label: "Position samples", kind: "number", unit: " /s", min: 1, max: 10, step: 1 },
+      ];
+
     default:
       return [{ key: "power", label: "Power", kind: "bool" }];
   }

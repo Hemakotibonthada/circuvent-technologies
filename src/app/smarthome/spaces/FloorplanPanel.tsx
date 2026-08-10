@@ -55,6 +55,20 @@ function pinColor(d: Device): { fill: string; active: boolean; label: string } {
       return String(s.barrier) === "open"
         ? { fill: "#22c55e", active: true, label: "open" }
         : { fill: "#38bdf8", active: false, label: "closed" };
+    case "drone-link": {
+      /*
+       * Airborne is the state the plan has to show, because it is the one that
+       * changes what somebody standing in the building does. Battery would be
+       * the obvious readout and is the wrong one — a parked aircraft on a
+       * charger reads 100% and a crashed one reads whatever it read last.
+       */
+      if (s.inAir === true) return { fill: "#6366f1", active: true, label: "airborne" };
+      if (s.armed === true) return { fill: "#f59e0b", active: true, label: "armed" };
+      if (s.link === false) return { fill: "#ef4444", active: true, label: "no autopilot" };
+      if (s.allowArm === false) return { fill: "#475569", active: false, label: "grounded" };
+      if (s.ready === false) return { fill: "#b45309", active: false, label: "not ready" };
+      return { fill: "#38bdf8", active: false, label: "ready" };
+    }
     case "anpr-cam": {
       if (s.armed === false) return { fill: "#475569", active: false, label: "disarmed" };
       // `ready:false` means the sensor never started, which is a fault the pin
@@ -118,6 +132,7 @@ function deviceGlyph(type: string): string {
     guardian: "🛡️",
     "agri-starter": "🌿",
     "anpr-cam": "🔢",
+  "drone-link": "🚁",
     camera: "📷",
     cctv: "📷",
     doorbell: "🔔",
