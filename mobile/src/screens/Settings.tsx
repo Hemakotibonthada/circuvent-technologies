@@ -3,6 +3,9 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert, Switch } from "re
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../auth";
+import { useDevices } from "../store";
+import { Device } from "../api";
+import { deviceMeta } from "../theme";
 import { Screen, Card, SectionLabel, GhostButton, useTheme, useSafeArea } from "../ui";
 import { Icon, type IconName } from "../icons";
 import { ACCENTS, ThemeMode, TAP_SLOP } from "../theme";
@@ -21,10 +24,11 @@ const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = 
 /** Themes that only exist in the dark. A "light OLED" is a contradiction. */
 const DARK_ONLY: ThemeMode[] = ["oled", "neon"];
 
-export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onKiosk?: () => void }) {
+export default function Settings({ onBack, onKiosk, onChangeWifi }: { onBack?: () => void; onKiosk?: () => void; onChangeWifi?: (d: Device) => void }) {
   const { c, mode, scheme, accentKey, setMode, setScheme, setAccentKey } = useTheme();
   const insets = useSafeArea();
   const { account, logout } = useAuth();
+  const { devices } = useDevices();
 
   const [haptics, setHapticsState] = React.useState(hapticsEnabled());
   const setHaptics = (v: boolean) => {
@@ -175,6 +179,50 @@ export default function Settings({ onBack, onKiosk }: { onBack?: () => void; onK
           <Pressable onPress={setKioskPin} style={{ borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" }}>
             <Text style={{ color: c.text, fontWeight: "700" }}>Set exit PIN</Text>
           </Pressable>
+        </Card>
+
+        <SectionLabel>Device setup</SectionLabel>
+        {/*
+          Wi-Fi setup lives here, once, instead of on the bottom of every
+          device's control screen.
+
+          Changing a device's network is a rare, per-installation act — you do
+          it when the router changes — but it was pinned under the controls you
+          use daily, so every visit to a light scrolled past "reset the device
+          and push new Wi-Fi". Settings is where infrequent, destructive-ish
+          setup belongs, and gathering them makes "which devices are on the old
+          router" answerable in one place instead of N.
+        */}
+        <Card padded style={{ marginBottom: 16 }}>
+          <Text style={{ color: c.textDim, fontSize: 13, lineHeight: 20, marginBottom: devices.length ? 12 : 0 }}>
+            Moved house or changed router? Push new Wi-Fi credentials to a device.
+          </Text>
+          {devices.length === 0 && (
+            <Text style={{ color: c.faint, fontSize: 13 }}>No devices yet.</Text>
+          )}
+          {devices.map((d, i) => (
+            <Pressable
+              key={d.id}
+              onPress={() => onChangeWifi?.(d)}
+              accessibilityRole="button"
+              accessibilityLabel={`Change Wi-Fi for ${d.name || d.id}`}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                paddingVertical: 12,
+                borderTopWidth: i === 0 ? 0 : 1,
+                borderTopColor: c.border,
+              }}
+            >
+              <Icon name={deviceMeta(d.type).icon} size={20} color={deviceMeta(d.type).accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: c.text, fontSize: 15, fontWeight: "700" }} numberOfLines={1}>{d.name || d.id}</Text>
+                <Text style={{ color: c.faint, fontSize: 12, marginTop: 2 }}>{d.online ? "online" : "offline"}</Text>
+              </View>
+              <Text style={{ color: c.faint, fontSize: 20 }}>›</Text>
+            </Pressable>
+          ))}
         </Card>
 
         <SectionLabel>About</SectionLabel>

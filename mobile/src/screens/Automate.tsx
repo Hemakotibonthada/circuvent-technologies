@@ -8,7 +8,7 @@ import Schedules from "./more/Schedules";
 
 type Seg = "scenes" | "rooms" | "timers" | "automations";
 
-export default function Automate({ initial = "scenes" }: { initial?: Seg }) {
+export default function Automate({ initial = "scenes", initialRoom }: { initial?: Seg; initialRoom?: string }) {
   const { c } = useTheme();
   const [seg, setSeg] = useState<Seg>(initial);
 
@@ -40,7 +40,7 @@ export default function Automate({ initial = "scenes" }: { initial?: Seg }) {
         </View>
       </View>
       {seg === "scenes" && <Scenes />}
-      {seg === "rooms" && <Rooms />}
+      {seg === "rooms" && <Rooms initialRoom={initialRoom} />}
       {seg === "timers" && <Schedules onBack={() => setSeg("scenes")} embedded />}
       {seg === "automations" && <Automations onBack={() => setSeg("scenes")} embedded />}
     </Screen>

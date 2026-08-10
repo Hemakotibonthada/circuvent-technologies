@@ -12,6 +12,7 @@ import {
   Avatar,
   PillToggle,
   RoomChips,
+  NeoRaised,
   Skeleton,
   CountUp,
   Stagger,
@@ -438,36 +439,32 @@ const DeviceCard = React.memo(
     const fg = lit ? c.onAccent : offline ? c.faint : c.text;
     const sub = lit ? "rgba(28,28,30,0.62)" : c.faint;
 
-    return (
-      <Pressable
-        onPress={() => onOpen(d)}
-        accessibilityRole="button"
-        accessibilityLabel={`${d.name || d.id}. ${subtitle}`}
-        style={({ pressed }) => [{ width }, pressed && { transform: [{ scale: MOTION.pressScale }] }]}
-      >
-        <View
-          style={{
-            borderRadius: RADIUS.tile,
-            padding: SPACE.lg,
-            minHeight: 124,
-            justifyContent: "space-between",
-            /*
-             * A lit tile must not be grey.
-             *
-             * The tint comes from the device's category, and anything without
-             * one falls to "neutral" — #8e8e93. So a switchboard that was ON
-             * rendered as a flat battleship-grey block, which reads as disabled
-             * and looked like a rendering fault beside the neumorphic cards
-             * around it. Grey is the one colour that cannot mean "on".
-             *
-             * The accent is the right substitute: it is the theme's own word
-             * for active, and it follows whatever palette is in use.
-             */
-            backgroundColor: lit ? (tint === CATEGORY_TINTS.neutral ? c.accent : tint) : c.card,
-            borderWidth: 1,
-            borderColor: lit ? (tint === CATEGORY_TINTS.neutral ? c.accent : tint) : c.border,
-            opacity: offline ? 0.62 : 1,
-          }}
+    const litFill = tint === CATEGORY_TINTS.neutral ? c.accent : tint;
+
+    /*
+     * The device tiles are the widgets people actually look at, and they were
+     * the flattest thing on the screen — a plain bordered rectangle sitting
+     * between neumorphic stat tiles above and a neumorphic nav bar below. They
+     * never went through Card, so nothing had ever given them the theme's
+     * surface treatment.
+     *
+     * A lit tile keeps its own colour as the face and is still extruded: the
+     * shadow is behind it, so it works over an accent exactly as over the
+     * surface. In neo the border goes — an extruded surface with an outline
+     * reads as a sticker of a card rather than a card.
+     */
+    const body = (
+      <View
+        style={{
+          borderRadius: RADIUS.tile,
+          padding: SPACE.lg,
+          minHeight: 124,
+          justifyContent: "space-between",
+          backgroundColor: lit ? litFill : c.isNeo ? c.surface : c.card,
+          borderWidth: c.isNeo ? 0 : 1,
+          borderColor: lit ? litFill : c.border,
+          opacity: offline ? 0.62 : 1,
+        }}
         >
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
             <View
@@ -499,6 +496,22 @@ const DeviceCard = React.memo(
             </Text>
           </View>
         </View>
+    );
+
+    return (
+      <Pressable
+        onPress={() => onOpen(d)}
+        accessibilityRole="button"
+        accessibilityLabel={`${d.name || d.id}. ${subtitle}`}
+        style={({ pressed }) => [{ width, minHeight: 124 }, pressed && { transform: [{ scale: MOTION.pressScale }] }]}
+      >
+        {c.isNeo ? (
+          <NeoRaised radius={RADIUS.tile} c={c} surface={lit ? litFill : c.surface}>
+            {body}
+          </NeoRaised>
+        ) : (
+          body
+        )}
       </Pressable>
     );
   },

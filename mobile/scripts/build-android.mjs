@@ -24,8 +24,34 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
-const wantApk = args.includes("--apk") || !args.includes("--aab");
-const wantAab = args.includes("--aab") || !args.includes("--apk");
+
+/*
+ * Reject flags this script does not understand.
+ *
+ * `--not-for-play` is the *checker's* flag, and passing it here looked exactly
+ * like it worked: no error, no warning, and a build that then failed the Play
+ * check anyway. An unrecognised argument silently doing nothing is worse than
+ * refusing it, because the only symptom is the thing you were trying to avoid.
+ */
+const KNOWN = new Set(["--apk", "--aab", "--not-for-play"]);
+const unknown = args.filter((a) => !KNOWN.has(a));
+if (unknown.length) {
+  console.log(`\n✗ Unknown option${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")}`);
+  console.log("    usage: build-android.mjs [--apk] [--aab] [--not-for-play]");
+  console.log("    --apk           sideload build; skips the Play upload-key check");
+  console.log("    --aab           Play bundle; enforces the upload key");
+  console.log("    --not-for-play  same as --apk, kept because the checker spells it this way");
+  process.exit(1);
+}
+
+/*
+ * `--not-for-play` is accepted as a synonym for `--apk`: it is what the
+ * signing checker calls the same idea, and having the two scripts disagree on
+ * the spelling is how the silent no-op happened in the first place.
+ */
+const apkOnly = args.includes("--apk") || args.includes("--not-for-play");
+const wantApk = apkOnly || !args.includes("--aab");
+const wantAab = args.includes("--aab") || !apkOnly;
 
 const say = (s) => console.log(`\n=== ${s}`);
 const die = (s, extra = []) => {
@@ -54,6 +80,25 @@ if (pre.status !== 0) {
   die("Not building: the signing check failed.", [
     "Building now would produce an artifact Google Play refuses, which is a",
     "seven-minute build and an upload before anything tells you.",
+  ]);
+}
+
+/*
+ * The version the app *displays* has to match the one it is built as.
+ *
+ * `version:check` already existed and already catches this, but it only ran
+ * under `npm run typecheck` — so bumping app.json and building produced an APK
+ * whose About screen confidently reported the previous build number. Nothing
+ * failed; the artifact was just quietly mislabelled, which is the worst way to
+ * get a bug report about a version that was never shipped.
+ */
+say("Checking the displayed version matches the build");
+const ver = spawnSync(process.execPath, [join(ROOT, "scripts/version-check.js")], {
+  stdio: "inherit",
+});
+if (ver.status !== 0) {
+  die("Not building: app.json and src/version.ts disagree.", [
+    "The About screen would report a different build than the one produced.",
   ]);
 }
 

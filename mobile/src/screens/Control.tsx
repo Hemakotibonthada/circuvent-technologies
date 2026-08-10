@@ -5,7 +5,8 @@ import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
-import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow, NeoRaised } from "../ui";
+import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow, NeoRaised, ColorGrid } from "../ui";
+import { useThrottled } from "../throttle";
 import { tapLight, toggleFeedback } from "../haptics";
 import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
 import { deviceMeta, type Palette, TAP_SLOP } from "../theme";
@@ -17,9 +18,9 @@ import { isCameraDevice as isCamera } from "../cameras";
 import { Icon, type IconName } from "../icons";
 import { usePrompt } from "../overlays";
 
-const COLORS = ["#ffffff", "#ffd27f", "#ff7f7f", "#7fd0ff", "#7fff9e", "#c79bff", "#ff9be0"];
 
-export default function Control({ device, onBack, onChangeWifi }: { device: Device; onBack: () => void; onChangeWifi?: (d: Device) => void }) {
+
+export default function Control({ device, onBack }: { device: Device; onBack: () => void }) {
   const { c } = useTheme();
   const { byId, command, patch } = useDevices();
   const d = byId(device.id) ?? device;
@@ -108,17 +109,15 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
           </Card>
         )}
 
-        <Section c={c}>Device setup</Section>
-        <Pressable onPress={() => onChangeWifi?.(d)}>
-          <Card padded style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <Text style={{ fontSize: 22 }}>📶</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: c.text, fontSize: 16, fontWeight: "700" }}>Change Wi-Fi network</Text>
-              <Text style={{ color: c.faint, fontSize: 12, marginTop: 2 }}>Moved house or router? Reset the device and push new Wi-Fi.</Text>
-            </View>
-            <Text style={{ color: c.faint, fontSize: 22 }}>›</Text>
-          </Card>
-        </Pressable>
+        {/*
+          "Change Wi-Fi" used to sit here, at the bottom of every device.
+
+          It is setup, not control: you touch it when the router changes, and
+          never otherwise, yet it was the last thing under the switch you use
+          daily. It now lives once in Settings › Device setup, which also makes
+          the fleet-wide question — which devices still point at the old
+          network — answerable in one place.
+        */}
       </ScrollView>
       {promptNode}
     </Screen>
@@ -187,6 +186,12 @@ function Sw({ v, on, c }: { v: boolean; on: (b: boolean) => void; c: Palette }) 
 
 function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const cap = capabilitiesFor(d);
+  /*
+   * Declared above the early return below — this is a hook, and a hook after a
+   * conditional return is a hook that runs on some renders and not others,
+   * which React fails on outright.
+   */
+  const sendLive = useThrottled<Record<string, unknown>>(send, 100);
   const showPower = !!cap.power && !KNOWN.includes(d.type);
   if (!showPower && !cap.dimmer && !cap.fan && !cap.color && !cap.thermostat) return null;
   return (
@@ -225,6 +230,9 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
             style={{ width: "100%", marginTop: 6 }}
             minimumValue={cap.dimmer.min} maximumValue={cap.dimmer.max} step={1}
             value={Number(d.state[cap.dimmer.field] ?? 0)}
+            /* Live while dragging, throttled, so the lamp fades with the thumb
+               instead of jumping when you let go. */
+            onValueChange={(v) => sendLive({ [cap.dimmer!.field]: Math.round(v) })}
             onSlidingComplete={(v) => { tapLight(); send({ [cap.dimmer!.field]: Math.round(v) }); }}
             minimumTrackTintColor={c.accent} maximumTrackTintColor={c.border} thumbTintColor={c.accentHi}
           />
@@ -309,12 +317,18 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
       )}
       {cap.color && (
         <Card padded style={{ marginBottom: 10 }}>
-          <Text style={{ color: c.text, fontSize: 16, marginBottom: 10 }}>Colour</Text>
-          <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-            {COLORS.map((col) => (
-              <Pressable hitSlop={TAP_SLOP} key={col} accessibilityRole="button" accessibilityLabel={`Set colour to ${col}`} accessibilityState={{ selected: d.state[cap.color!.field] === col }} onPress={() => send({ [cap.color!.field]: col })} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: col, borderWidth: d.state[cap.color!.field] === col ? 3 : 1, borderColor: d.state[cap.color!.field] === col ? c.text : c.border }} />
-            ))}
-          </View>
+          <Text style={{ color: c.text, fontSize: 16, marginBottom: 12 }}>Colour</Text>
+          <ColorGrid
+            value={String(d.state[cap.color.field] ?? "#ffffff")}
+            /*
+             * Preview is throttled, commit is not. Dragging across the grid
+             * generates a touch event per frame, and a bulb given sixty
+             * commands a second falls behind and then lurches through the
+             * backlog. Roughly ten a second is smooth to the eye and keeps up.
+             */
+            onPreview={(hex) => sendLive({ [cap.color!.field]: hex })}
+            onCommit={(hex) => send({ [cap.color!.field]: hex })}
+          />
         </Card>
       )}
     </View>

@@ -9,10 +9,15 @@ import { Icon } from "../icons";
 
 const ICONS = ["🏠", "🛋️", "🛏️", "🍳", "🚿", "🖥️", "🌿", "🚗", "🏢", "🛁", "🎮", "📺"];
 
-export default function Rooms() {
+export default function Rooms({ initialRoom }: { initialRoom?: string } = {}) {
   const { c } = useTheme();
   const { devices, patch, toggle } = useDevices();
-  const [open, setOpen] = useState<string | null>(null);
+  /*
+   * Opening straight into a room is how the search results get here: tapping
+   * "Living Room" in the palette should land in Living Room, not on the list
+   * of every room with the one you asked for somewhere in it.
+   */
+  const [open, setOpen] = useState<string | null>(initialRoom ?? null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newIcon, setNewIcon] = useState("🏠");

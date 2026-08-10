@@ -16,7 +16,7 @@ export default function CommandPalette({
 }: {
   onClose: () => void;
   onOpenDevice: (d: Device) => void;
-  onOpenAutomate: (seg?: Seg) => void;
+  onOpenAutomate: (seg?: Seg, room?: string) => void;
   onOpenEnergy: () => void;
   onOpenDevices: () => void;
   onOpenSettings: () => void;
@@ -127,7 +127,7 @@ export default function CommandPalette({
               <SectionLabel>Rooms</SectionLabel>
               <Card padded={false} style={{ marginBottom: 16, overflow: "hidden" }}>
                 {fRooms.map((r, i) => (
-                  <Pressable key={r.name} onPress={() => onOpenAutomate("rooms")} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
+                  <Pressable key={r.name} onPress={() => onOpenAutomate("rooms", r.name)} style={[row, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
                     <Text style={{ fontSize: 18 }}>{r.icon}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: c.text, fontWeight: "600" }}>{r.name}</Text>

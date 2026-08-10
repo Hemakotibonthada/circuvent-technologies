@@ -42,6 +42,8 @@ export default function Shell() {
   const { refresh } = useDevices();
   const [tab, setTab] = useState<Tab>("home");
   const [seg, setSeg] = useState<Seg>("scenes");
+  /* Which room to open on arrival, when the user got here by searching for it. */
+  const [room, setRoom] = useState<string | undefined>(undefined);
   const [overlay, setOverlay] = useState<Overlay>(null);
 
   // Clearance so scrolled content ends above the floating nav rather than
@@ -70,7 +72,24 @@ export default function Shell() {
     <SwipeBack onBack={() => goBack()} enabled={canGoBack}>{node}</SwipeBack>
   );
 
-  if (overlay?.kind === "control") return swipe(<Control device={overlay.device} onBack={() => setOverlay(null)} onChangeWifi={(d) => setOverlay({ kind: "changewifi", device: d })} />);
+  /*
+   * Declared before the early returns below, not after them.
+   *
+   * These are `const` arrow functions, so they are only initialised when
+   * execution reaches them. The overlay branches below return early — so in a
+   * render that shows the command palette, execution never got this far and
+   * the binding stayed in the temporal dead zone. The palette's callback still
+   * closed over it happily, because nothing evaluates it until a tap: opening
+   * search worked, and tapping a room in the results crashed the app with
+   * "undefined is not a function".
+   *
+   * Anything referenced by an overlay's props has to be defined above the
+   * overlay's return.
+   */
+  const openControl = (d: Device) => setOverlay({ kind: "control", device: d });
+  const openAutomate = (s?: Seg, room?: string) => { setSeg(s ?? "scenes"); setRoom(room); setTab("automate"); };
+
+  if (overlay?.kind === "control") return swipe(<Control device={overlay.device} onBack={() => setOverlay(null)} />);
   if (overlay?.kind === "changewifi") return swipe(<ChangeWifi device={overlay.device} onBack={() => { setOverlay(null); refresh(); }} />);
   if (overlay?.kind === "add") return swipe(<AddDevice onClose={(added) => { setOverlay(null); if (added) refresh(); }} />);
   if (overlay?.kind === "notifications") return swipe(<Notifications onBack={() => setOverlay(null)} />);
@@ -83,16 +102,13 @@ export default function Shell() {
       <CommandPalette
         onClose={() => setOverlay(null)}
         onOpenDevice={(d) => setOverlay({ kind: "control", device: d })}
-        onOpenAutomate={(sg) => { setOverlay(null); openAutomate(sg); }}
+        onOpenAutomate={(sg, rm) => { setOverlay(null); openAutomate(sg, rm); }}
         onOpenEnergy={() => { setOverlay(null); setTab("energy"); }}
         onOpenDevices={() => { setOverlay(null); setTab("devices"); }}
         onOpenSettings={() => { setOverlay(null); setTab("settings"); }}
         onAddDevice={() => setOverlay({ kind: "add" })}
       />
     );
-
-  const openControl = (d: Device) => setOverlay({ kind: "control", device: d });
-  const openAutomate = (s?: Seg) => { setSeg(s ?? "scenes"); setTab("automate"); };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -111,9 +127,9 @@ export default function Shell() {
           />
         )}
         {tab === "devices" && <Devices onOpen={openControl} onAdd={() => setOverlay({ kind: "add" })} />}
-        {tab === "automate" && <Automate key={seg} initial={seg} />}
+        {tab === "automate" && <Automate key={`${seg}:${room ?? ""}`} initial={seg} initialRoom={room} />}
         {tab === "energy" && <Energy />}
-        {tab === "settings" && <Settings onKiosk={() => setOverlay({ kind: "kiosk" })} />}
+        {tab === "settings" && <Settings onKiosk={() => setOverlay({ kind: "kiosk" })} onChangeWifi={(d) => setOverlay({ kind: "changewifi", device: d })} />}
         {tab === "more" && (
           <More
             onOpenDevice={openControl}

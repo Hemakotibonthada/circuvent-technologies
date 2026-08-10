@@ -23,6 +23,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { NEO, NEO_SMALL, shadowLayers, withAlpha, type NeoSpec } from "./neo";
+import { HUE_STOPS, COLOR_PRESETS, clamp01, hexToHsv, hsvToHex, wrapHue, type Hsv } from "./color";
 import { BlurView } from "expo-blur";
 import Svg, { Path, Circle } from "react-native-svg";
 import { Icon, ICONS, type IconName } from "./icons";
@@ -36,6 +37,7 @@ import {
   TYPE,
   ELEV,
   MOTION,
+  TAP_SLOP,
   type Palette,
   type ThemeMode,
   type Scheme,
@@ -367,19 +369,24 @@ function NeoShadows({ radius, c, spec }: { radius: number; c: Palette; spec: Neo
  * Layout-neutral by construction: the shadow halves are absolutely positioned,
  * so wrapping an existing control in this adds no size and shifts nothing.
  */
-function NeoRaised({
+export function NeoRaised({
   radius,
   c,
   spec = NEO,
+  surface,
   style,
   children,
 }: {
   radius: number;
   c: Palette;
   spec?: NeoSpec;
+  /** The face colour. Defaults to the theme surface; a lit tile passes its own. */
+  surface?: string;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }) {
+  const face = surface ?? c.surface;
+
   if (Platform.OS === "ios") {
     // Real shadows, in any colour, for free. Nothing here needs imitating.
     return (
@@ -387,7 +394,7 @@ function NeoRaised({
         style={[
           {
             borderRadius: radius,
-            backgroundColor: c.surface,
+            backgroundColor: face,
             shadowColor: c.neoDark,
             shadowOffset: { width: spec.depth, height: spec.depth },
             shadowOpacity: 1,
@@ -399,7 +406,7 @@ function NeoRaised({
         <View
           style={{
             borderRadius: radius,
-            backgroundColor: c.surface,
+            backgroundColor: face,
             shadowColor: c.neoLight,
             shadowOffset: { width: -spec.depth, height: -spec.depth },
             shadowOpacity: 1,
@@ -498,6 +505,216 @@ export function GlowTile({
     </View>
   );
 }
+
+/**
+ * Two-dimensional colour picker: hue left-to-right, saturation top-to-bottom,
+ * with a pointer you drag.
+ *
+ * Replaces a row of seven swatches. Seven colours is not a colour picker — it
+ * is seven colours, and every RGB bulb sold can do sixteen million. The grid
+ * makes the whole space reachable in one gesture, and the pointer means you can
+ * see where the current colour sits rather than guessing which swatch is
+ * closest.
+ *
+ * The paint is two stacked gradients — a hue spectrum with white washed in
+ * towards the bottom — which is the standard construction and, more to the
+ * point, the only one available: Android has no shader primitive here, and
+ * react-native-svg ships no filters in this version.
+ *
+ * `onPreview` fires continuously while dragging and `onCommit` once on
+ * release. The light follows your finger without being sent a command per
+ * pixel of travel.
+ */
+export function ColorGrid({
+  value,
+  onPreview,
+  onCommit,
+  height = 190,
+}: {
+  value: string;
+  onPreview: (hex: string) => void;
+  onCommit: (hex: string) => void;
+  height?: number;
+}) {
+  const { c } = useTheme();
+  const [width, setWidth] = useState(0);
+
+  /*
+   * The pointer follows the device while idle, and the finger while dragging.
+   *
+   * Without the drag flag the two fight: every preview echoes back through the
+   * device's reported state a moment later, so the pointer jumps between where
+   * you are pointing and where the light has got to. Dragging wins until you
+   * let go.
+   */
+  const [dragging, setDragging] = useState(false);
+  const [local, setLocal] = useState<Hsv | null>(null);
+
+  const fromDevice = hexToHsv(value);
+  const hsv = (dragging ? local : null) ?? local ?? fromDevice ?? { h: 0, s: 0, v: 1 };
+
+  /*
+   * Saturation is the vertical axis; value is not on the grid at all. A light's
+   * brightness is the dimmer — the control right above this one — and having
+   * two things that both dim it is how you end up at "10% brightness of a 10%
+   * colour" wondering why the lamp is off.
+   */
+  const toHsv = (x: number, y: number): Hsv => ({
+    h: wrapHue((clamp01(width ? x / width : 0)) * 360),
+    s: 1 - clamp01(height ? y / height : 0),
+    v: 1,
+  });
+
+  const geom = useRef({ width: 0, height });
+  geom.current = { width, height };
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        /*
+         * Claim the gesture outright. This sits inside a ScrollView, and
+         * without this a mostly-vertical drag is read as a scroll: dragging
+         * towards a deeper colour scrolls the page instead, which is the one
+         * direction the control most needs.
+         */
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+        onPanResponderGrant: (e) => {
+          setDragging(true);
+          const g = geom.current;
+          const next = {
+            h: wrapHue(clamp01(g.width ? e.nativeEvent.locationX / g.width : 0) * 360),
+            s: 1 - clamp01(g.height ? e.nativeEvent.locationY / g.height : 0),
+            v: 1,
+          };
+          setLocal(next);
+          onPreview(hsvToHex(next));
+        },
+        onPanResponderMove: (e) => {
+          const g = geom.current;
+          const next = {
+            h: wrapHue(clamp01(g.width ? e.nativeEvent.locationX / g.width : 0) * 360),
+            s: 1 - clamp01(g.height ? e.nativeEvent.locationY / g.height : 0),
+            v: 1,
+          };
+          setLocal(next);
+          onPreview(hsvToHex(next));
+        },
+        onPanResponderRelease: () => {
+          setDragging(false);
+          tapLight();
+          setLocal((cur) => {
+            if (cur) onCommit(hsvToHex(cur));
+            return cur;
+          });
+        },
+        onPanResponderTerminate: () => setDragging(false),
+      }),
+    [onPreview, onCommit]
+  );
+
+  const px = (hsv.h / 360) * width;
+  const py = (1 - hsv.s) * height;
+  const hex = hsvToHex(hsv);
+
+  return (
+    <View>
+      <View
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        style={{ height, borderRadius: RADIUS.tile, overflow: "hidden", borderWidth: 1, borderColor: c.border }}
+        {...pan.panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityLabel="Colour picker"
+        accessibilityValue={{ text: hex }}
+      >
+        <LinearGradient
+          colors={HUE_STOPS as unknown as readonly [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={["rgba(255,255,255,0)", "rgba(255,255,255,1)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {width > 0 && (
+          /*
+           * A white ring around the live colour, so the pointer is visible
+           * against every part of the grid it can be dragged to — including
+           * the white corner, where a plain white dot would vanish.
+           */
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: px - POINTER / 2,
+              top: py - POINTER / 2,
+              width: POINTER,
+              height: POINTER,
+              borderRadius: POINTER / 2,
+              backgroundColor: hex,
+              borderWidth: 3,
+              borderColor: "#fff",
+              shadowColor: "#000",
+              shadowOpacity: 0.35,
+              shadowRadius: 4,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 4,
+            }}
+          />
+        )}
+      </View>
+
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 }}>
+        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: hex, borderWidth: 1, borderColor: c.border }} />
+        <Text style={{ color: c.faint, fontSize: 13, fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" }}>
+          {hex.toUpperCase()}
+        </Text>
+      </View>
+
+      {/*
+        Presets alongside the grid, not instead of it. The whites are a single
+        row of pixels along the bottom edge of the grid, so "warm white" — the
+        single most asked-for setting on a lamp — is the hardest thing on it to
+        hit. One tap each.
+      */}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+        {COLOR_PRESETS.map((p) => {
+          const sel = value.toLowerCase() === p.hex.toLowerCase();
+          return (
+            <Pressable
+              key={p.hex}
+              onPress={() => { tapLight(); setLocal(hexToHsv(p.hex)); onCommit(p.hex); }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: sel }}
+              accessibilityLabel={p.label}
+              hitSlop={TAP_SLOP}
+              style={{ alignItems: "center", gap: 4 }}
+            >
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  backgroundColor: p.hex,
+                  borderWidth: sel ? 3 : 1,
+                  borderColor: sel ? c.accent : c.border,
+                }}
+              />
+              <Text style={{ color: sel ? c.accent : c.faint, fontSize: 11, fontWeight: "700" }}>{p.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const POINTER = 26;
 
 /**
  * Preset percentages for a dimmable output.
