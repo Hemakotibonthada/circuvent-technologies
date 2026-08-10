@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Circuvent Drone X1">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1226"/><stop offset="1" stop-color="#0a0f1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#6366f1" stop-opacity="0.45"/><stop offset="1" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6366f1" stop-opacity="0.95"/><stop offset="1" stop-color="#6366f1" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#5b6488" stroke-width="1">
+    <path d="M0 100H800M0 200H800M0 300H800M0 400H800M0 500H800M0 600H800M0 700H800"/>
+    <path d="M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800"/>
+  </g>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <g transform="translate(400 340)">
+    <!--
+      The X1 seen from above: four arms, four props, and the flight controller
+      as the lit centre. The board is the product here, not the airframe, so it
+      carries the accent while the frame stays dark.
+
+      Arms are rects rather than stroked lines: a straight line stroked with an
+      objectBoundingBox gradient has a zero-width bounding box and paints
+      nothing, which is the trap Docs/07-adding-a-new-device.md warns about.
+    -->
+    <g stroke="none">
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(45)"/>
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(135)"/>
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(225)"/>
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(315)"/>
+    </g>
+    <!-- prop discs, alternating rotation shown by the arc direction -->
+    <g fill="#6366f1" opacity="0.14">
+      <circle cx="-112" cy="-112" r="70"/><circle cx="112" cy="-112" r="70"/>
+      <circle cx="-112" cy="112"  r="70"/><circle cx="112" cy="112"  r="70"/>
+    </g>
+    <g stroke="#6366f1" stroke-width="5" fill="none" opacity="0.75" stroke-linecap="round">
+      <path d="M-152 -112 a40 40 0 0 1 80 0"/>
+      <path d="M152 -112 a40 40 0 0 0 -80 0"/>
+      <path d="M-152 112 a40 40 0 0 0 80 0"/>
+      <path d="M152 112 a40 40 0 0 1 -80 0"/>
+    </g>
+    <g fill="url(#metal)">
+      <circle cx="-112" cy="-112" r="24"/><circle cx="112" cy="-112" r="24"/>
+      <circle cx="-112" cy="112"  r="24"/><circle cx="112" cy="112"  r="24"/>
+    </g>
+    <!-- centre stack: frame plate, then the flight controller -->
+    <rect x="-84" y="-64" width="168" height="128" rx="26" fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <rect x="-56" y="-40" width="112" height="80" rx="12" fill="#0f172a" stroke="#6366f1" stroke-width="5"/>
+    <rect x="-40" y="-24" width="46" height="30" rx="6" fill="url(#accentFill)" opacity="0.65"/>
+    <circle cx="30" cy="-8" r="7" fill="#6366f1"/>
+    <circle cx="30" cy="14" r="5" fill="#22c55e"/>
+    <!-- battery strap -->
+    <rect x="-84" y="6" width="168" height="16" rx="8" fill="#475569" opacity="0.85"/>
+  </g>
+  <circle cx="120" cy="690" r="10" fill="url(#brand)"/>
+  <text x="146" y="697" fill="#e7ecff" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="800">Circuvent</text>
+  <text x="680" y="697" fill="#6366f1" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="26" font-weight="700" text-anchor="end">Drone X1</text>
+</svg>

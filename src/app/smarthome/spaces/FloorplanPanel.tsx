@@ -55,7 +55,8 @@ function pinColor(d: Device): { fill: string; active: boolean; label: string } {
       return String(s.barrier) === "open"
         ? { fill: "#22c55e", active: true, label: "open" }
         : { fill: "#38bdf8", active: false, label: "closed" };
-    case "drone-link": {
+    case "drone-link":
+    case "drone-x1": {
       /*
        * Airborne is the state the plan has to show, because it is the one that
        * changes what somebody standing in the building does. Battery would be
@@ -133,6 +134,7 @@ function deviceGlyph(type: string): string {
     "agri-starter": "🌿",
     "anpr-cam": "🔢",
   "drone-link": "🚁",
+  "drone-x1": "🚁",
     camera: "📷",
     cctv: "📷",
     doorbell: "🔔",

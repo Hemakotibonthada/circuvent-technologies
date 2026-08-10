@@ -266,7 +266,7 @@ export interface LiveAircraft {
   warnings: string[];
 }
 
-/** Every drone-link on an account, with its live state and current flight. */
+/** Every aircraft on an account, with its live state and current flight. */
 export async function liveAircraft(ownerId: number): Promise<LiveAircraft[]> {
   const { onlineColumn } = await import("../device-online");
   const { rows } = await pool.query<{
@@ -278,9 +278,15 @@ export async function liveAircraft(ownerId: number): Promise<LiveAircraft[]> {
      * that lost power in a field — the exact case worth knowing about — would
      * otherwise read "online" forever, and this panel would show it as
      * reachable and armed next to a live-looking battery figure.
+     *
+     * Both airframes are listed: `drone-link` bridges somebody else's
+     * autopilot, `drone-x1` is our own flight stack. They publish the same
+     * state keys and the same track records, so everything downstream — the
+     * log book, the safety gate, the daily report — treats them identically.
      */
     `SELECT id, name, ${onlineColumn()}, state FROM devices
-      WHERE owner_id = $1 AND type = 'drone-link' ORDER BY name NULLS LAST, id`,
+      WHERE owner_id = $1 AND type IN ('drone-link','drone-x1')
+      ORDER BY name NULLS LAST, id`,
     [ownerId]
   );
   if (!rows.length) return [];

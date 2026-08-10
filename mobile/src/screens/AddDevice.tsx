@@ -20,6 +20,8 @@ import { api } from "../api";
 import { sealToDevice } from "../crypto";
 import { parseSetupQr } from "../qr";
 import { useBackHandler, useTheme } from "../ui";
+import { usePrompt } from "../overlays";
+import { useKeyboardHeight } from "../keyboard";
 import { Icon, type IconName } from "../icons";
 import { deviceMeta, DEVICE_META, TAP_SLOP, type Palette } from "../theme";
 import {
@@ -55,7 +57,7 @@ const BASE = "http://192.168.4.1";
 const ORDER = [
   "smart-plug", "smart-switch", "touchboard", "home-hub",
   "smart-light", "smart-fan", "curtain", "smart-lock",
-  "facedoor", "rfid-gate", "anpr-cam", "drone-link",
+  "facedoor", "rfid-gate", "anpr-cam", "drone-link", "drone-x1",
   "aquaguard", "watertank", "agri-starter",
   "sentinel", "guardian", "motion-sensor", "energy-monitor",
   "camera", "cctv", "doorbell",
@@ -96,6 +98,8 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
   const [step, setStep] = useState<Step>("mode");
   const [type, setType] = useState("");
   const [name, setName] = useState("");
+  const { prompt, promptNode } = usePrompt();
+  const kb = useKeyboardHeight();
   const [ssid, setSsid] = useState("");
   const [pass, setPass] = useState("");
   const [manual, setManual] = useState(false);
@@ -163,6 +167,30 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
   };
 
   // Step 1 — prepare: snapshot existing devices + mint a provisioning token (internet).
+  /*
+   * Picking a type asks for the name there and then.
+   *
+   * The name is what the device will be called everywhere afterwards, and it is
+   * far easier to give while you are looking at the thing you just chose than
+   * to hunt for a field further down a grid that is taller than the screen.
+   *
+   * Cancelling still selects the type: somebody who does not want to name it
+   * has picked what they are setting up, and the default name is fine.
+   */
+  const pickType = async (id: string) => {
+    setType(id);
+    setError("");
+    const suggested = name || TYPES.find((t) => t.id === id)?.label || "";
+    const next = await prompt({
+      title: "Name this device",
+      message: "This is what you will see everywhere — on the home screen, in scenes and in automations.",
+      placeholder: "e.g. Living room lamp",
+      initialValue: suggested,
+      maxLength: 40,
+    });
+    if (next !== null) setName(next.trim());
+  };
+
   const prepare = async () => {
     setError(""); setLog([]); setStep("prep");
     addLog("Preparing a secure setup for your account…");
@@ -456,14 +484,30 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
             <StepTag>Step 1 of 3 · What are you setting up?</StepTag>
             <View style={s.typeGrid}>
               {TYPES.map((t) => (
-                <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.label} accessibilityState={{ selected: type === t.id }} style={[s.typeChip, type === t.id && s.typeChipOn]} onPress={() => setType(t.id)}>
+                <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.label} accessibilityState={{ selected: type === t.id }} style={[s.typeChip, type === t.id && s.typeChipOn]} onPress={() => pickType(t.id)}>
                   <Icon name={deviceMeta(t.id).icon as IconName} size={22} color={type === t.id ? c.accent : c.textDim} />
                   <Text style={[s.typeLabel, type === t.id && { color: "#fff" }]}>{t.label}</Text>
                 </Pressable>
               ))}
             </View>
-            <View style={{ height: 10 }} />
-            <Field label="Device name (optional)" value={name} onChangeText={setName} placeholder="e.g. Overhead tank" />
+            {/*
+              The name is asked for in a dialog the moment a type is picked,
+              rather than in a field below the grid. With eleven device types
+              the grid is taller than the screen, so the field and the Next
+              button were both under the fold: choosing a type appeared to do
+              nothing, and the obvious next move was to scroll looking for
+              one.
+
+              What was chosen is shown here instead, so the step still says
+              what it knows.
+            */}
+            {!!type && (
+              <Pressable onPress={() => pickType(type)} style={s.chosenRow} accessibilityRole="button" accessibilityLabel={`Name: ${name || "not set"}. Tap to change.`}>
+                <Icon name={deviceMeta(type).icon as IconName} size={18} color={c.accent} />
+                <Text style={s.chosenName} numberOfLines={1}>{name || TYPES.find((t) => t.id === type)?.label}</Text>
+                <Text style={s.chosenEdit}>Rename</Text>
+              </Pressable>
+            )}
             {!!error && <Text style={s.err}>{error}</Text>}
             <Primary label="Next" onPress={() => { if (!type) { setError("Pick what you're setting up."); return; } setError(""); prepare(); }} />
           </View>
@@ -496,10 +540,21 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
 
             {deviceAPs.map((ap) => (
               <Pressable key={ap.ssid} style={[s.apRow, connectingSsid === ap.ssid && s.apRowOn]} onPress={() => pickDeviceAP(ap)} disabled={!!connectingSsid}>
-                <Text style={s.apGlyph}>📶</Text>
+                {/*
+                  The device's own icon, not a generic signal glyph, and the
+                  name it was just given rather than the raw hotspot SSID.
+                  "Circuvent-Setup-4F2A91" is the right thing for the radio to
+                  be called and the wrong thing to show somebody who has just
+                  said they are setting up a water tank.
+                */}
+                <View style={s.apIcon}>
+                  <Icon name={deviceMeta(type || "").icon as IconName} size={20} color={c.accent} />
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.apName} numberOfLines={1}>{ap.ssid}</Text>
-                  <Text style={s.apSub}>Circuvent device · {ap.hwid}</Text>
+                  <Text style={s.apName} numberOfLines={1}>
+                    {name || TYPES.find((t) => t.id === type)?.label || ap.ssid}
+                  </Text>
+                  <Text style={s.apSub}>Found nearby · {ap.hwid}</Text>
                 </View>
                 {connectingSsid === ap.ssid ? <ActivityIndicator color={c.accent} /> : <Text style={s.apBars}>{rssiBars(ap.rssi)}</Text>}
               </Pressable>
@@ -521,6 +576,19 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
         {step === "connect" && (
           <View>
             <StepTag>Step 2 of 3 · Connect manually</StepTag>
+            {/*
+              iOS never reaches the radar — Apple exposes no API for scanning
+              nearby Wi-Fi, so there is no list of hotspots to put an icon on.
+              This step is what iOS gets instead, so the device being set up is
+              named and shown here rather than the user reading four numbered
+              instructions with no indication of what they apply to.
+            */}
+            {!!type && (
+              <View style={s.chosenRow}>
+                <Icon name={deviceMeta(type).icon as IconName} size={18} color={c.accent} />
+                <Text style={s.chosenName} numberOfLines={1}>{name || TYPES.find((t) => t.id === type)?.label}</Text>
+              </View>
+            )}
             <ProgressLog items={[{ msg: "Account prepared ✓", state: "ok" }]} />
             <Text style={[s.lead, { marginTop: 14 }]}>
               1. Power on the device, wait ~15s.{"\n"}
@@ -650,7 +718,7 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
         <Pressable style={s.modalScrim} onPress={() => setAskPassFor("")} accessibilityLabel="Dismiss" />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={s.modalWrap}
+          style={[s.modalWrap, { paddingBottom: 22 + kb }]}
           pointerEvents="box-none"
         >
           <View style={s.modalCard}>
@@ -688,6 +756,9 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {/* The name dialog. Rendered here or `prompt()` resolves to a sheet that
+          was never mounted, and awaiting it would hang forever. */}
+      {promptNode}
     </View>
   );
 }
@@ -803,7 +874,10 @@ function makeStyles(c: Palette) {
   radarGlyph: { fontSize: 46 },
   apRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 10 },
   apRowOn: { borderColor: c.accent },
-  apGlyph: { fontSize: 22 },
+  apIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: c.cardHi },
+  chosenRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, marginTop: 12, marginBottom: 4 },
+  chosenName: { flex: 1, color: c.text, fontWeight: "700", fontSize: 15 },
+  chosenEdit: { color: c.accent, fontSize: 13, fontWeight: "700" },
   apName: { color: c.text, fontSize: 15, fontWeight: "700" },
   apSub: { color: c.faint, fontSize: 12, marginTop: 2 },
   apBars: { color: c.accent, fontSize: 16 },

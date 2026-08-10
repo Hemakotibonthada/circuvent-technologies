@@ -212,6 +212,46 @@ ${plate(360, 300)}
     </g>
   </g>`,
 
+  "drone-x1": `  <g transform="translate(400 340)">
+    <!--
+      The X1 seen from above: four arms, four props, and the flight controller
+      as the lit centre. The board is the product here, not the airframe, so it
+      carries the accent while the frame stays dark.
+
+      Arms are rects rather than stroked lines: a straight line stroked with an
+      objectBoundingBox gradient has a zero-width bounding box and paints
+      nothing, which is the trap Docs/07-adding-a-new-device.md warns about.
+    -->
+    <g stroke="none">
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(45)"/>
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(135)"/>
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(225)"/>
+      <rect x="-14" y="-158" width="28" height="158" rx="12" fill="#334155" transform="rotate(315)"/>
+    </g>
+    <!-- prop discs, alternating rotation shown by the arc direction -->
+    <g fill="${"#6366f1"}" opacity="0.14">
+      <circle cx="-112" cy="-112" r="70"/><circle cx="112" cy="-112" r="70"/>
+      <circle cx="-112" cy="112"  r="70"/><circle cx="112" cy="112"  r="70"/>
+    </g>
+    <g stroke="${"#6366f1"}" stroke-width="5" fill="none" opacity="0.75" stroke-linecap="round">
+      <path d="M-152 -112 a40 40 0 0 1 80 0"/>
+      <path d="M152 -112 a40 40 0 0 0 -80 0"/>
+      <path d="M-152 112 a40 40 0 0 0 80 0"/>
+      <path d="M152 112 a40 40 0 0 1 -80 0"/>
+    </g>
+    <g fill="url(#metal)">
+      <circle cx="-112" cy="-112" r="24"/><circle cx="112" cy="-112" r="24"/>
+      <circle cx="-112" cy="112"  r="24"/><circle cx="112" cy="112"  r="24"/>
+    </g>
+    <!-- centre stack: frame plate, then the flight controller -->
+    <rect x="-84" y="-64" width="168" height="128" rx="26" fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <rect x="-56" y="-40" width="112" height="80" rx="12" fill="#0f172a" stroke="${"#6366f1"}" stroke-width="5"/>
+    <rect x="-40" y="-24" width="46" height="30" rx="6" fill="url(#accentFill)" opacity="0.65"/>
+    <circle cx="30" cy="-8" r="7" fill="${"#6366f1"}"/>
+    <circle cx="30" cy="14" r="5" fill="#22c55e"/>
+    <!-- battery strap -->
+    <rect x="-84" y="6" width="168" height="16" rx="8" fill="#475569" opacity="0.85"/>
+  </g>`,
   "drone-link": `  <g transform="translate(400 340)">
     <!--
       A quadcopter seen from slightly above, with the companion board on top.
@@ -400,6 +440,7 @@ const LABELS = {
   camera: ["Camera", "#a855f7"],
   "anpr-cam": ["ANPR Camera", "#0ea5e9"],
   "drone-link": ["Drone Link", "#6366f1"],
+  "drone-x1": ["Drone X1", "#6366f1"],
   "energy-monitor": ["Energy Monitor", "#f59e0b"],
   "home-hub": ["Home Hub", "#14b8a6"],
   "smart-switch": ["Smart Switch", "#22d3ee"],

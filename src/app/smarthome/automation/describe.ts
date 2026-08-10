@@ -436,6 +436,7 @@ export function getCommandFields(type: string): CommandField[] {
      * Ranges come from firmware/drone-link/drone-link.ino.
      */
     case "drone-link":
+    case "drone-x1":
       return [
         { key: "allowArm", label: "Allow arming", kind: "bool" },
         { key: "maxAlt", label: "Altitude ceiling", kind: "number", unit: " m", min: 5, max: 500, step: 5 },

@@ -453,7 +453,8 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
     }
 
     // ------------------------------------------------------------ drone ---
-    case "drone-link": {
+    case "drone-link":
+    case "drone-x1": {
       /*
        * Almost nothing is projected, and that is the design rather than an
        * omission.
@@ -711,7 +712,8 @@ export function buildFieldCommand(
     }
 
     // ------------------------------------------------------------ drone ---
-    case "drone-link": {
+    case "drone-link":
+    case "drone-x1": {
       /*
        * Only the settings a rule has any business changing.
        *

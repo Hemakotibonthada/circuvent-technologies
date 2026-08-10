@@ -74,7 +74,8 @@ export function deviceMetric(d: Device): string | null {
       return "locked" in s ? (s.locked ? "Locked" : "Unlocked") : null;
     case "rfid-gate":
       return s.barrier == null ? null : String(s.barrier);
-    case "drone-link": {
+    case "drone-link":
+    case "drone-x1": {
       /*
        * What the aircraft is doing, not a number.
        *

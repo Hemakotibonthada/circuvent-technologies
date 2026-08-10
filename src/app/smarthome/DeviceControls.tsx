@@ -98,6 +98,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   doorbell: { label: "Video Doorbell", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   "anpr-cam": { label: "ANPR Camera", icon: ScanBarcode, accent: "#0ea5e9", blurb: "Reads vehicle number plates" },
   "drone-link": { label: "Drone Link", icon: Plane, accent: "#6366f1", blurb: "Flight telemetry & mission bridge" },
+  "drone-x1": { label: "Drone X1", icon: Plane, accent: "#6366f1", blurb: "Circuvent flight stack" },
 };
 
 export function deviceMeta(type: string): DeviceTypeMeta {
@@ -277,6 +278,7 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
     case "anpr-cam":
       return <AnprCamera d={device} send={send} st={st} />;
     case "drone-link":
+    case "drone-x1":
       return <DroneLink d={device} send={send} st={st} />;
     default:
       return <>{generic}<RawState d={device} /></>;

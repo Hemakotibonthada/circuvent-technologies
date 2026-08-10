@@ -5,11 +5,13 @@ import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
-import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow } from "../ui";
+import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow, NeoRaised } from "../ui";
 import { tapLight, toggleFeedback } from "../haptics";
 import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
 import { deviceMeta, type Palette, TAP_SLOP } from "../theme";
+import { elevate } from "../theme";
 import { useSwitchWidgets, CHANNEL_KINDS, channelKind, defaultLabelFor, type Gang } from "../widgets";
+import { NEO_SMALL } from "../neo";
 import { useCameraFrames } from "../live";
 import { isCameraDevice as isCamera } from "../cameras";
 import { Icon, type IconName } from "../icons";
@@ -93,7 +95,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
         {d.type === "touchboard" && <TouchBoard d={d} send={send} c={c} />}
         {d.type === "sentinel" && <Sentinel d={d} send={send} c={c} />}
         {d.type === "anpr-cam" && <AnprCamera d={d} send={send} command={command} c={c} />}
-        {d.type === "drone-link" && <DroneLink d={d} send={send} c={c} />}
+        {(d.type === "drone-link" || d.type === "drone-x1") && <DroneLink d={d} send={send} c={c} />}
         {isCamera(d) && <CameraDevice d={d} send={send} c={c} />}
 
         {/* Generic capability controls (appear for dimmable / fan / climate / colour devices) */}
@@ -132,7 +134,7 @@ export default function Control({ device, onBack, onChangeWifi }: { device: Devi
  * precisely how the camera shipped showing JSON on the phone, and it is why
  * adding to this array is on the checklist in Docs/07-adding-a-new-device.md.
  */
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam", "drone-link"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -408,7 +410,13 @@ function ChannelTile({ gang, on, onToggle, c }: { gang: Gang; on: boolean; onTog
   const spin = useSpin(meta.motion === "spin" && on);
   const glow = useGlowPulse(meta.motion === "glow" && on);
 
-  return (
+  /*
+   * The channel rows are the widgets on this screen, and in neo they were the
+   * only flat things on it — a bordered rectangle under an extruded card. The
+   * shadow goes behind the row, so a lit row keeps its accent wash and its
+   * ring while still standing off the background.
+   */
+  const tile = (
     <Pressable
       onPress={() => { toggleFeedback(!on); onToggle(!on); }}
       accessibilityRole="switch"
@@ -417,14 +425,19 @@ function ChannelTile({ gang, on, onToggle, c }: { gang: Gang; on: boolean; onTog
       style={({ pressed }) => [
         ch.tile,
         {
-          backgroundColor: on ? meta.accent + "1F" : c.card,
+          backgroundColor: on ? meta.accent + "1F" : c.isNeo ? c.surface : c.card,
+          // In neo the surface is extruded, and an outline on top of that reads
+          // as a sticker of a tile rather than a tile. The lit state keeps its
+          // border, because that is what says "on" at a glance.
+          borderWidth: c.isNeo && !on ? 0 : 1,
           borderColor: on ? meta.accent : c.border,
           opacity: pressed ? 0.85 : 1,
           shadowColor: meta.accent,
           shadowOpacity: on ? 0.35 : 0,
           shadowRadius: 12,
           shadowOffset: { width: 0, height: 3 },
-          elevation: on ? 6 : 0,
+          // Material's own shadow would sit under the neumorphic one and undo it.
+          ...elevate(c.isNeo, on ? 6 : 0),
         },
       ]}
     >
@@ -443,6 +456,13 @@ function ChannelTile({ gang, on, onToggle, c }: { gang: Gang; on: boolean; onTog
 
       <Sw v={on} on={onToggle} c={c} />
     </Pressable>
+  );
+
+  if (!c.isNeo) return tile;
+  return (
+    <NeoRaised radius={16} c={c} spec={NEO_SMALL}>
+      {tile}
+    </NeoRaised>
   );
 }
 
