@@ -23,7 +23,7 @@ interface Msg {
   degraded?: boolean;
 }
 
-type Surface = "shop" | "smarthome" | "admin" | "site";
+export type Surface = "shop" | "smarthome" | "admin" | "site";
 
 const SUGGESTIONS: Record<Surface, string[]> = {
   smarthome: ["Is everything OK at home?", "What's using the most power?", "Is anything offline?"],
@@ -33,13 +33,28 @@ const SUGGESTIONS: Record<Surface, string[]> = {
 };
 
 /** Where the user is, which decides the opening suggestions and the prompt tone. */
-function surfaceFromPath(path: string | null): Surface {
+export function surfaceFromPath(path: string | null): Surface {
   if (!path) return "site";
   if (path.startsWith("/smarthome/admin")) return "admin";
   if (path.startsWith("/smarthome")) return "smarthome";
   if (path.startsWith("/shop")) return "shop";
   return "site";
 }
+
+/**
+ * Where the assistant is not offered.
+ *
+ * The console already has its own controls in the bottom-right — the section
+ * switcher sits there on smaller screens — and a second floating circle beside
+ * it was crowding the corner rather than adding anything. The assistant remains
+ * mounted everywhere else, and nothing about it is removed: the surface is
+ * still recognised, the API still accepts "smarthome", so bringing it back is a
+ * matter of taking a string out of this list.
+ *
+ * The staff console at /smarthome/admin resolves to "admin", not "smarthome",
+ * so it keeps its assistant.
+ */
+export const HIDDEN_ON: Surface[] = ["smarthome"];
 
 /**
  * Mounted once in the root layout. The surface is derived from the pathname
@@ -128,6 +143,10 @@ export default function Assistant({ surface: surfaceProp }: { surface?: Surface 
   );
 
   const suggestions = SUGGESTIONS[surface] ?? SUGGESTIONS.site;
+
+  // After the hooks, never before: an early return above them would change the
+  // hook order between surfaces, which React treats as a different component.
+  if (HIDDEN_ON.includes(surface)) return null;
 
   if (!open) {
     return (
