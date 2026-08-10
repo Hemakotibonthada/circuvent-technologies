@@ -23,6 +23,8 @@ import {
   SelectInput, Surface, SwitchRow, TextInput,
 } from "../_kit/primitives";
 import { useToast } from "../_kit/overlays";
+import { describeFailure, isUnsupported } from "./errors";
+import { NeedsDeploy } from "./NeedsDeploy";
 
 const HOURS = Array.from({ length: 24 }, (_, h) => ({
   value: String(h),
@@ -33,6 +35,7 @@ export function SafetyPanel() {
   const toast = useToast();
   const [settings, setSettings] = useState<DroneSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unsupported, setUnsupported] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -41,8 +44,18 @@ export function SafetyPanel() {
       if (r.ok) {
         setSettings(r.data.settings);
         setError(null);
+        setUnsupported(false);
+      } else if (isUnsupported(r)) {
+        /*
+         * This is the case that produced a red "Not found" banner on a live
+         * console. The control plane was 68 commits old and had no /drone
+         * routes at all, so Express fell through to its terminal handler and
+         * the raw body reached the screen. Nothing was broken and nothing
+         * could be retried — it needed a deploy, and now it says so.
+         */
+        setUnsupported(true);
       } else {
-        setError((r.data as { error?: string })?.error || "Could not load settings.");
+        setError(describeFailure(r, "drone settings"));
       }
     });
   }, []);
@@ -61,7 +74,7 @@ export function SafetyPanel() {
         // would leave the form claiming a limit that is not in force.
         if (r.ok) setSettings(r.data.settings);
         else {
-          toast.err((r.data as { error?: string })?.error || "Could not save.");
+          toast.err(describeFailure(r, "those settings"));
           load();
         }
       } finally {
@@ -76,12 +89,13 @@ export function SafetyPanel() {
     try {
       const r = await controlPlane.sendTestFlightReport();
       if (r.ok) toast.ok(r.data.sentTo ? `Report sent to ${r.data.sentTo}` : "Report sent");
-      else toast.err((r.data as { error?: string })?.error || "Could not send the report.");
+      else toast.err(describeFailure(r, "the report"));
     } finally {
       setSending(false);
     }
   }, [toast]);
 
+  if (unsupported) return <NeedsDeploy />;
   if (error && !settings) return <ErrorState message={error} onRetry={load} />;
   if (!settings) return <LoadingState label="Loading settings" />;
 

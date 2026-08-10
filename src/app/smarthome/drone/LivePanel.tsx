@@ -29,6 +29,8 @@ import {
   NumberInput, SectionTitle, StatusDot, Surface, useVisiblePolling,
 } from "../_kit/primitives";
 import { useToast } from "../_kit/overlays";
+import { describeFailure, isUnsupported } from "./errors";
+import { NeedsDeploy } from "./NeedsDeploy";
 
 function num(state: Record<string, unknown>, key: string): number | null {
   const v = state[key];
@@ -54,6 +56,7 @@ export function LivePanel() {
   const [aircraft, setAircraft] = useState<LiveAircraft[] | null>(null);
   const [limits, setLimits] = useState<DroneLimits | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unsupported, setUnsupported] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [takeoffAlt, setTakeoffAlt] = useState(15);
@@ -65,9 +68,15 @@ export function LivePanel() {
         setAircraft(r.data.aircraft ?? []);
         setLimits(r.data.limits ?? null);
         setError(null);
+        setUnsupported(false);
         setSelected((cur) => cur ?? r.data.aircraft?.[0]?.deviceId ?? null);
+      } else if (isUnsupported(r)) {
+        // The control plane predates this feature. Not an error, and retrying
+        // cannot help — so it gets guidance instead of a red banner.
+        setUnsupported(true);
+        setAircraft([]);
       } else {
-        setError((r.data as { error?: string })?.error || "Could not load aircraft.");
+        setError(describeFailure(r, "aircraft"));
         setAircraft((prev) => prev ?? []);
       }
     });
@@ -105,7 +114,7 @@ export function LivePanel() {
            * an operator who taps "return home" and sees nothing happen will
            * tap it again, and then start looking for the transmitter.
            */
-          toast.err((r.data as { error?: string })?.error || `${label} was refused.`);
+          toast.err(describeFailure(r, "that command"));
         }
       } finally {
         setBusy(null);
@@ -115,6 +124,7 @@ export function LivePanel() {
     [active, load, toast]
   );
 
+  if (unsupported) return <NeedsDeploy />;
   if (error && !aircraft) return <ErrorState message={error} onRetry={load} />;
   if (!aircraft) return <LoadingState label="Loading aircraft" />;
 
