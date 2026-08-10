@@ -117,7 +117,7 @@ export function warrantyStats(): { registrations: number; openCases: number; clo
 interface DeliveredOrderLike {
   orderNo: string;
   customer?: { email?: string };
-  items?: { name: string; qty?: number }[];
+  items?: { name: string; qty?: number; warrantyMonths?: number }[];
   history?: { status: string; at: string }[];
   status?: string;
   updatedAt?: string;
@@ -159,6 +159,12 @@ export function autoRegisterForDeliveredOrder(order: DeliveredOrderLike): Warran
     const items = Array.isArray(order.items) ? order.items : [];
     items.forEach((item, itemIndex) => {
       const qty = Math.max(1, Math.min(99, Number(item.qty) || 1));
+      // The term recorded on the line at purchase, not whatever the catalogue
+      // says today. A product edited later must not change cover already sold.
+      const months =
+        Number.isFinite(item.warrantyMonths) && (item.warrantyMonths as number) > 0
+          ? Math.round(item.warrantyMonths as number)
+          : WARRANTY_MONTHS;
       for (let unit = 0; unit < qty; unit++) {
         created.push({
           id: shortId("wty"),
@@ -167,7 +173,7 @@ export function autoRegisterForDeliveredOrder(order: DeliveredOrderLike): Warran
           deviceOrSerial: `${order.orderNo}/${itemIndex + 1}${qty > 1 ? `-${unit + 1}` : ""}`,
           customerEmail: email,
           purchaseDate: started.at,
-          warrantyMonths: WARRANTY_MONTHS,
+          warrantyMonths: months,
           createdAt: new Date().toISOString(),
           auto: true,
           basis: started.basis,

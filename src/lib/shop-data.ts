@@ -28,6 +28,14 @@ export interface Product {
   releaseAt?: string | null;
   /** Permanently withdrawn — distinct from out of stock, it is not returning. */
   discontinued?: boolean;
+  /**
+   * Months of warranty for this product.
+   *
+   * Absent means the published default at /warranty. A longer term on a
+   * particular product is a promise made per product, so it belongs on the
+   * product rather than in a constant every device is measured against.
+   */
+  warrantyMonths?: number;
   rating: number;
   reviewCount?: number;
 }

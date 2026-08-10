@@ -74,6 +74,18 @@ export function deviceMetric(d: Device): string | null {
       return "locked" in s ? (s.locked ? "Locked" : "Unlocked") : null;
     case "rfid-gate":
       return s.barrier == null ? null : String(s.barrier);
+    case "anpr-cam": {
+      // The last plate is the readout that matters at a glance. Falling back
+      // to the phase rather than a count, because "Watching" tells you the
+      // lane is being covered while "0 vehicles" reads like a fault.
+      const plate = typeof s.lastPlate === "string" && s.lastPlate ? s.lastPlate : null;
+      if (plate) return plate;
+      if (s.armed === false) return "Disarmed";
+      if (s.ready === false) return "No sensor";
+      const ph = typeof s.phase === "string" ? s.phase : null;
+      if (ph === "settle" || ph === "burst") return "Vehicle";
+      return ph ? "Watching" : null;
+    }
     case "agri-starter":
       return "pump" in s ? (s.pump ? "Pump on" : "Pump off") : null;
     default: {

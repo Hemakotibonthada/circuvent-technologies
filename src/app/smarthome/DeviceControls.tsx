@@ -1602,7 +1602,6 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
             src={shownFrame.src}
             alt={`Live view from ${d.name || d.id}`}
             className="h-full w-full object-contain"
-            style={{ transform: n(d.state.rotation) === 180 ? "rotate(180deg)" : undefined }}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
@@ -2419,7 +2418,6 @@ function AnprCamera({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
             src={frame.src}
             alt={`Lane view from ${d.name || d.id}`}
             className="h-full w-full object-contain"
-            style={{ transform: n(d.state.rotation) === 180 ? "rotate(180deg)" : undefined }}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center px-6">

@@ -51,6 +51,26 @@ function richFields(body: Record<string, unknown>) {
   if (typeof body.badge === "string") out.badge = plainText(body.badge, 40);
   if (body.featured !== undefined) out.featured = !!body.featured;
   if (typeof body.accent === "string") out.accent = plainText(body.accent, 40);
+  /*
+   * Warranty term and release date.
+   *
+   * This function is a whitelist, so a field the admin form sends and this
+   * does not name is dropped without complaint — the form would appear to
+   * save and the value would never exist. Both are validated rather than
+   * trusted: a warranty of 600 months or a release date of "soon" would be
+   * printed on a customer's invoice.
+   */
+  if (body.warrantyMonths !== undefined) {
+    const m = Math.round(Number(body.warrantyMonths) || 0);
+    // Zero is not "no warranty"; it means the field was left blank, and blank
+    // means the published default applies.
+    out.warrantyMonths = m > 0 && m <= 120 ? m : undefined;
+  }
+  if (body.releaseAt !== undefined) {
+    const at = new Date(String(body.releaseAt));
+    out.releaseAt = Number.isNaN(at.getTime()) ? undefined : at.toISOString();
+  }
+  if (body.discontinued !== undefined) out.discontinued = !!body.discontinued;
   return out;
 }
 

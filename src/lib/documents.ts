@@ -67,6 +67,16 @@ export interface BusinessDocument {
   /** Order-level cover — the shortest remaining term across the lines. */
   warranty: WarrantyTerm;
 
+  /**
+   * How it was paid.
+   *
+   * An invoice without a payment reference cannot be reconciled: a customer
+   * disputing a charge, or an accountant matching a bank line to a purchase,
+   * has the gateway's reference and nothing to match it against. It is on the
+   * order record already; it simply was not printed.
+   */
+  transaction: DocumentTransaction | null;
+
   trackingNumber?: string | null;
   carrier?: string | null;
   paymentMethod?: string;
@@ -82,11 +92,24 @@ export interface BusinessDocument {
   };
 }
 
+export interface DocumentTransaction {
+  /** "razorpay", "cod", "wallet" … as recorded on the order. */
+  method: string;
+  /** "paid", "pending", "refunded" … */
+  status: string;
+  /** The gateway's own reference, when there is one. */
+  reference: string | null;
+  /** When the money moved, when that is known. */
+  paidAt: string | null;
+  /** The amount the transaction settled, in rupees. */
+  amount: number;
+}
+
 export interface DocumentOrderLike extends OrderLike {
   orderNo: string;
   placedAt: string;
   status: string;
-  items: { name: string; price?: number; qty?: number; lineTotal?: number }[];
+  items: { name: string; price?: number; qty?: number; lineTotal?: number; warrantyMonths?: number }[];
   subtotal?: number;
   shipping?: number;
   discount?: number;
@@ -98,6 +121,8 @@ export interface DocumentOrderLike extends OrderLike {
   carrier?: string | null;
   paymentMethod?: string;
   paymentStatus?: string;
+  /** The payment gateway's own reference for the transaction. */
+  paymentId?: string | null;
 }
 
 const TITLES: Record<DocumentKind, string> = {
@@ -156,6 +181,35 @@ function round2(n: number): number {
 }
 
 /**
+ * The payment, as far as the order record knows it.
+ *
+ * Returns null when there is nothing to state — a cash-on-delivery order that
+ * has not been collected yet has a method and no transaction, and printing an
+ * empty "Payment" block on it is worse than printing nothing.
+ *
+ * The paid time is taken from the order's own history rather than assumed to
+ * be the order date: a bank transfer or a COD collection can settle days
+ * later, and the date on the invoice is the one an accountant reconciles
+ * against a statement.
+ */
+function buildTransaction(order: DocumentOrderLike, total: number): DocumentTransaction | null {
+  const method = (order.paymentMethod || "").trim();
+  const status = (order.paymentStatus || "").trim();
+  if (!method && !status) return null;
+
+  const history = Array.isArray(order.history) ? order.history : [];
+  const paidEvent = [...history].reverse().find((e) => e && /paid|payment/i.test(e.status) && e.at);
+
+  return {
+    method,
+    status,
+    reference: order.paymentId?.trim() || null,
+    paidAt: status.toLowerCase() === "paid" ? paidEvent?.at ?? order.placedAt ?? null : null,
+    amount: round2(total),
+  };
+}
+
+/**
  * Build the document.
  *
  * `now` is injectable so a reprint of an old document can be rendered as it
@@ -173,7 +227,12 @@ export function buildDocument(
     const qty = Math.max(1, Number(it.qty) || 1);
     const lineTotal = round2(typeof it.lineTotal === "number" ? it.lineTotal : (Number(it.price) || 0) * qty);
     const unitPrice = round2(typeof it.price === "number" ? it.price : lineTotal / qty);
-    return { name: it.name, qty, unitPrice, lineTotal, warranty: term };
+    // A line carrying its own term gets its own term. Products can be sold
+    // with different cover, and printing the default against all of them would
+    // contradict the registration that was actually created on delivery.
+    const months = Number.isFinite(it.warrantyMonths) && (it.warrantyMonths as number) > 0 ? Math.round(it.warrantyMonths as number) : undefined;
+    const lineWarranty = months ? warrantyTerm(order, { now, months }) : term;
+    return { name: it.name, qty, unitPrice, lineTotal, warranty: lineWarranty };
   });
 
   const billTo = addressOf(order.customer);
@@ -202,6 +261,7 @@ export function buildDocument(
     lines,
     totals: { subtotal, shipping, discount, total },
     warranty: term,
+    transaction: buildTransaction(order, total),
 
     trackingNumber: order.trackingNumber ?? null,
     carrier: order.carrier ?? null,

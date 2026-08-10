@@ -55,6 +55,16 @@ function pinColor(d: Device): { fill: string; active: boolean; label: string } {
       return String(s.barrier) === "open"
         ? { fill: "#22c55e", active: true, label: "open" }
         : { fill: "#38bdf8", active: false, label: "closed" };
+    case "anpr-cam": {
+      if (s.armed === false) return { fill: "#475569", active: false, label: "disarmed" };
+      // `ready:false` means the sensor never started, which is a fault the pin
+      // has to show — a disarmed-looking camera and a blind one need different
+      // responses from whoever is looking at the plan.
+      if (s.ready === false) return { fill: "#ef4444", active: true, label: "no sensor" };
+      const phase = String(s.phase ?? "idle");
+      if (phase === "settle" || phase === "burst") return { fill: "#0ea5e9", active: true, label: "vehicle" };
+      return { fill: "#38bdf8", active: false, label: "watching" };
+    }
     case "facedoor":
     case "smart-lock":
       return s.locked
@@ -107,6 +117,10 @@ function deviceGlyph(type: string): string {
     "home-hub": "🏠",
     guardian: "🛡️",
     "agri-starter": "🌿",
+    "anpr-cam": "🔢",
+    camera: "📷",
+    cctv: "📷",
+    doorbell: "🔔",
   };
   return MAP[type] ?? "📟";
 }

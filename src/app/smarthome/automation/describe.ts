@@ -337,6 +337,67 @@ export function getCommandFields(type: string): CommandField[] {
         },
       ];
 
+    /*
+     * ANPR camera.
+     *
+     * Deliberately NOT folded in with the cameras above. This firmware reads
+     * `armed`, `burst`, `settleMs` and `cooldownMs`, and does not read
+     * `motion` or `flash` at all, so inheriting the camera list would offer
+     * four controls that are discarded on arrival while hiding the four that
+     * work — the exact failure the camera block above exists to fix.
+     *
+     * `streaming` is omitted on purpose even though the device accepts it. A
+     * stream is a 20-second lease the firmware cancels by itself, so a
+     * schedule that turned it on would save happily, show a next-run time,
+     * fire correctly, and leave nothing running twenty seconds later. A
+     * control that cannot meaningfully be scheduled must not appear in the
+     * scheduler.
+     *
+     * Ranges come from firmware/anpr-cam/anpr-cam.ino.
+     */
+    case "anpr-cam":
+      return [
+        { key: "armed", label: "Armed", kind: "bool" },
+      {
+        key: "direction",
+        label: "Traffic direction",
+        kind: "select",
+        choices: [
+          { value: "in", label: "Entry lane" },
+          { value: "out", label: "Exit lane" },
+          { value: "both", label: "Both ways" },
+        ],
+      },
+        { key: "sensitivity", label: "Motion sensitivity", kind: "number", unit: "%", min: 1, max: 100, step: 5 },
+        { key: "burst", label: "Frames per vehicle", kind: "number", min: 1, max: 8, step: 1 },
+        { key: "settleMs", label: "Capture delay", kind: "number", unit: " ms", min: 0, max: 2000, step: 50 },
+        { key: "cooldownMs", label: "Re-trigger delay", kind: "number", unit: " ms", min: 1000, max: 30000, step: 1000 },
+        { key: "quality", label: "JPEG quality (lower is sharper)", kind: "number", min: 4, max: 40, step: 2 },
+        { key: "illum", label: "Illuminator", kind: "number", unit: "%", min: 0, max: 100, step: 10 },
+        {
+          key: "resolution",
+          label: "Capture resolution",
+          kind: "select",
+          choices: [
+            { value: "QVGA", label: "QVGA (320×240)" },
+            { value: "VGA", label: "VGA (640×480)" },
+            { value: "SVGA", label: "SVGA (800×600)" },
+            { value: "XGA", label: "XGA (1024×768)" },
+            { value: "SXGA", label: "SXGA (1280×1024)" },
+            { value: "UXGA", label: "UXGA (1600×1200)" },
+          ],
+        },
+        {
+          key: "rotation",
+          label: "Rotation",
+          kind: "select",
+          choices: [
+            { value: "0", label: "Upright" },
+            { value: "180", label: "Rotated 180°" },
+          ],
+        },
+      ];
+
     default:
       return [{ key: "power", label: "Power", kind: "bool" }];
   }

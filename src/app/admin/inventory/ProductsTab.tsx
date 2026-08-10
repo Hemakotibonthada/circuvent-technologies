@@ -5,6 +5,7 @@ import {
   RefreshCw, Search, Pencil, History, Barcode, SlidersHorizontal, Download, CheckSquare, Square, Plus,
 } from "lucide-react";
 import { invGet, invSend, money, card, inputStyle, inputCls, inputSm, Btn, Spinner, Empty, Badge, Field, Modal, fmtDateTime, tok, type ProductRow } from "./lib";
+import { WARRANTY_MONTHS } from "@/lib/warranty";
 
 interface Supplier { id: string; name: string }
 interface Cat { id: string; name: string }
@@ -303,6 +304,7 @@ function AddProductModal({ categories, onClose, onSaved }: { categories: Cat[]; 
   const [f, setF] = useState({
     name: "", tagline: "", category: "", price: "", compareAt: "", stock: "0",
     description: "", specs: "", badge: "", featured: false,
+    warrantyMonths: "", releaseAt: "",
   });
   const [image, setImage] = useState<string>("");
   const [gallery, setGallery] = useState<string[]>([]);
@@ -368,6 +370,10 @@ function AddProductModal({ categories, onClose, onSaved }: { categories: Cat[]; 
           specs: f.specs.split("\n").map((s) => s.trim()).filter(Boolean),
           badge: f.badge.trim() || undefined,
           featured: f.featured,
+          // Blank means "use the published default", which is different from
+          // zero — zero would be a product sold with no cover at all.
+          warrantyMonths: Number(f.warrantyMonths) > 0 ? Math.round(Number(f.warrantyMonths)) : undefined,
+          releaseAt: f.releaseAt ? new Date(f.releaseAt).toISOString() : undefined,
           image: image || undefined,
           images: gallery.length ? gallery : undefined,
           available: true,
@@ -395,6 +401,28 @@ function AddProductModal({ categories, onClose, onSaved }: { categories: Cat[]; 
         <Field label="Badge (offer/label)"><input className={inputCls + " w-full"} style={inputStyle} value={f.badge} onChange={set("badge")} placeholder="New · Best seller · Limited" /></Field>
         <Field label="Selling price (₹) *"><input type="number" min={0} className={inputCls + " w-full"} style={inputStyle} value={f.price} onChange={set("price")} /></Field>
         <Field label="Compare-at / MRP (₹)"><input type="number" min={0} className={inputCls + " w-full"} style={inputStyle} value={f.compareAt} onChange={set("compareAt")} placeholder="Shows a strikethrough + % off" /></Field>
+        <Field label="Warranty (months)">
+          <input
+            type="number"
+            min={0}
+            max={120}
+            className={inputCls + " w-full"}
+            style={inputStyle}
+            value={f.warrantyMonths}
+            onChange={set("warrantyMonths")}
+            placeholder={`Leave blank for the standard ${WARRANTY_MONTHS} months`}
+          />
+        </Field>
+        <Field label="Available from">
+          <input
+            type="date"
+            className={inputCls + " w-full"}
+            style={inputStyle}
+            value={f.releaseAt}
+            onChange={set("releaseAt")}
+            placeholder="Leave blank to sell immediately"
+          />
+        </Field>
         <Field label="Opening stock"><input type="number" min={0} className={inputCls + " w-full"} style={inputStyle} value={f.stock} onChange={set("stock")} /></Field>
         <Field label="Featured">
           <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>

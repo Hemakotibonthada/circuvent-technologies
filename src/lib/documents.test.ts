@@ -176,6 +176,76 @@ describe("buildDocument — warranty", () => {
   });
 });
 
+describe("buildDocument — transaction", () => {
+  it("prints the gateway reference, which is the point of the block", () => {
+    // Without it a customer disputing a charge, or an accountant matching a
+    // bank line to a purchase, has nothing to match against.
+    const doc = buildDocument(order({ paymentId: "pay_QxYz123456" }), "invoice", { now: NOW });
+    expect(doc.transaction?.reference).toBe("pay_QxYz123456");
+  });
+
+  it("states method, status and the amount settled", () => {
+    const doc = buildDocument(order(), "invoice", { now: NOW });
+    expect(doc.transaction?.method).toBe("razorpay");
+    expect(doc.transaction?.status).toBe("paid");
+    expect(doc.transaction?.amount).toBe(8997);
+  });
+
+  it("has no reference when the gateway gave none, rather than an empty string", () => {
+    expect(buildDocument(order(), "invoice", { now: NOW }).transaction?.reference).toBeNull();
+  });
+
+  it("does not claim a paid date for an unpaid order", () => {
+    // A cash-on-delivery order that has not been collected has a method and no
+    // transaction date; inventing one would be a false statement on an invoice.
+    const doc = buildDocument(order({ paymentMethod: "cod", paymentStatus: "pending" }), "invoice", { now: NOW });
+    expect(doc.transaction?.paidAt).toBeNull();
+  });
+
+  it("returns no transaction at all when nothing is known about payment", () => {
+    const doc = buildDocument(order({ paymentMethod: undefined, paymentStatus: undefined }), "invoice", { now: NOW });
+    expect(doc.transaction).toBeNull();
+  });
+});
+
+describe("buildDocument — per-product warranty", () => {
+  it("uses the term recorded on the line, not the default", () => {
+    const doc = buildDocument(
+      order({ items: [{ name: "Industrial Controller", price: 9999, qty: 1, lineTotal: 9999, warrantyMonths: 24 }] }),
+      "invoice",
+      { now: NOW }
+    );
+    expect(doc.lines[0].warranty.months).toBe(24);
+    expect(doc.lines[0].warranty.expiry?.slice(0, 10)).toBe("2028-01-20");
+  });
+
+  it("falls back to the published default when a line carries no term", () => {
+    const doc = buildDocument(order(), "invoice", { now: NOW });
+    expect(doc.lines[0].warranty.months).toBe(6);
+  });
+
+  it("lets two lines on one order carry different cover", () => {
+    // Which is the reason this is per line rather than per order.
+    const doc = buildDocument(
+      order({
+        items: [
+          { name: "Switch", price: 2499, qty: 1, lineTotal: 2499 },
+          { name: "Controller", price: 9999, qty: 1, lineTotal: 9999, warrantyMonths: 24 },
+        ],
+      }),
+      "invoice",
+      { now: NOW }
+    );
+    expect(doc.lines[0].warranty.months).toBe(6);
+    expect(doc.lines[1].warranty.months).toBe(24);
+  });
+
+  it("ignores a nonsensical term rather than printing it", () => {
+    const doc = buildDocument(order({ items: [{ name: "X", qty: 1, lineTotal: 100, warrantyMonths: 0 }] }), "invoice", { now: NOW });
+    expect(doc.lines[0].warranty.months).toBe(6);
+  });
+});
+
 describe("availableDocuments", () => {
   it("offers no warranty certificate before delivery", () => {
     // Certifying cover that has not started would be a false statement.

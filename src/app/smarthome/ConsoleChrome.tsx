@@ -116,6 +116,7 @@ export const NAV: NavItem[] = [
       { id: "alerts", label: "Alerts" },
       { id: "access", label: "Access" },
       { id: "cameras", label: "Cameras" },
+      { id: "vehicles", label: "Vehicles" },
       { id: "modes", label: "Modes" },
     ],
   },

@@ -2,6 +2,7 @@ import {
   HUB_CHANNEL_FIELDS,
   HUB_SCENE_EFFECTS,
   TOUCHBOARD_GANG_FIELDS,
+  buildFieldCommand,
   masterPower,
   patchSatisfied,
   projectCommand,
@@ -241,5 +242,105 @@ describe("masterPower — bulk/quick power must match firmware command shapes", 
 
   it("tolerates a device with no state object", () => {
     expect(masterPower({ type: "smart-plug" })!.on).toBe(false);
+  });
+});
+
+/*
+ * ANPR camera.
+ *
+ * These pin the two failure modes Docs/07-adding-a-new-device.md calls silent:
+ * a command the firmware discards (the rule saves, fires and does nothing), and
+ * an optimistic patch the firmware never echoes (the field pins forever waiting
+ * for a confirmation that cannot arrive).
+ *
+ * Assertions mirror firmware/anpr-cam/anpr-cam.ino onCommand().
+ */
+describe("anpr-cam", () => {
+  const dev = (type: string, state: Record<string, unknown> = {}) => ({ type, state });
+
+  it("projects the settings the sketch actually reads", () => {
+    expect(projectCommand("anpr-cam", { action: "set", armed: false })).toEqual({ armed: false });
+    expect(projectCommand("anpr-cam", { action: "set", burst: 5 })).toEqual({ burst: 5 });
+    expect(projectCommand("anpr-cam", { action: "set", sensitivity: 70 })).toEqual({ sensitivity: 70 });
+    expect(projectCommand("anpr-cam", { action: "set", cooldownMs: 8000 })).toEqual({ cooldownMs: 8000 });
+  });
+
+  it("clamps to the ranges the firmware enforces", () => {
+    expect(projectCommand("anpr-cam", { action: "set", burst: 99 })).toEqual({ burst: 8 });
+    expect(projectCommand("anpr-cam", { action: "set", quality: 1 })).toEqual({ quality: 4 });
+    expect(projectCommand("anpr-cam", { action: "set", sensitivity: 0 })).toEqual({ sensitivity: 1 });
+    expect(projectCommand("anpr-cam", { action: "set", rotation: 90 })).toEqual({ rotation: 0 });
+  });
+
+  it("maps the stream lease to the streaming state key", () => {
+    // The command key and the state key differ ({action:"stream", on} ->
+    // state.streaming), which is exactly what a default echo gets wrong.
+    expect(projectCommand("anpr-cam", { action: "stream", on: true })).toEqual({ streaming: true });
+    expect(projectCommand("anpr-cam", { action: "stream", on: false })).toEqual({ streaming: false });
+  });
+
+  it("projects nothing for actions whose result the device cannot predict", () => {
+    // A capture's outcome is a plate read on the server minutes later. Pinning
+    // a field here would wait for a confirmation with a different value.
+    expect(projectCommand("anpr-cam", { action: "capture" })).toEqual({});
+    expect(projectCommand("anpr-cam", { action: "open" })).toEqual({});
+    expect(projectCommand("anpr-cam", { action: "reboot" })).toEqual({});
+    expect(projectCommand("anpr-cam", { action: "result", plate: "KA01AB1234" })).toEqual({});
+  });
+
+  it("flattens the ROI object into the four published keys", () => {
+    expect(projectCommand("anpr-cam", { action: "set", roi: { x: 10, y: 20, w: 60, h: 50 } })).toEqual({
+      roiX: 10, roiY: 20, roiW: 60, roiH: 50,
+    });
+  });
+
+  it("clamps ROI width against the NEW origin when one is sent", () => {
+    expect(projectCommand("anpr-cam", { action: "set", roi: { x: 60, w: 90 } })).toEqual({
+      roiX: 60, roiW: 40,
+    });
+  });
+
+  it("clamps ROI width against the STORED origin when none is sent", () => {
+    // The firmware clamps against its own roiX. Assuming 0 here would pin roiW
+    // at a value the device never reports.
+    expect(projectCommand("anpr-cam", { action: "set", roi: { w: 90 } }, { roiX: 30 })).toEqual({
+      roiW: 70,
+    });
+  });
+
+  it("does not offer a one-tap master toggle", () => {
+    // `armed` is a mode, not a load. A dashboard power button that silently
+    // stops the gate camera watching is not a power button.
+    expect(masterPower(dev("anpr-cam", { armed: true }))).toBeNull();
+  });
+
+  it("builds commands the sketch reads, and refuses fields it does not", () => {
+    expect(buildFieldCommand("anpr-cam", "armed", true)).toEqual({ action: "set", armed: true });
+    expect(buildFieldCommand("anpr-cam", "burst", 4)).toEqual({ action: "set", burst: 4 });
+    expect(buildFieldCommand("anpr-cam", "streaming", true)).toEqual({ action: "stream", on: true });
+    expect(buildFieldCommand("anpr-cam", "rotation", "180")).toEqual({ action: "set", rotation: 180 });
+    // The ANPR sketch reads neither of these; inheriting the camera case would
+    // have produced commands that are accepted, acknowledged and discarded.
+    expect(buildFieldCommand("anpr-cam", "motion", true)).toBeNull();
+    expect(buildFieldCommand("anpr-cam", "flash", 50)).toBeNull();
+  });
+});
+
+describe("anpr-cam direction", () => {
+  it("projects the three lane settings the firmware accepts", () => {
+    expect(projectCommand("anpr-cam", { action: "set", direction: "in" })).toEqual({ direction: "in" });
+    expect(projectCommand("anpr-cam", { action: "set", direction: "OUT" })).toEqual({ direction: "out" });
+    expect(projectCommand("anpr-cam", { action: "set", direction: "both" })).toEqual({ direction: "both" });
+  });
+
+  it("refuses a lane the firmware would validate away", () => {
+    // The sketch ignores anything outside in/out/both. Echoing it would pin the
+    // field on a value the device never publishes, so the control hangs.
+    expect(projectCommand("anpr-cam", { action: "set", direction: "sideways" })).toEqual({});
+    expect(buildFieldCommand("anpr-cam", "direction", "sideways")).toBeNull();
+  });
+
+  it("builds the command the sketch reads", () => {
+    expect(buildFieldCommand("anpr-cam", "direction", "in")).toEqual({ action: "set", direction: "in" });
   });
 });

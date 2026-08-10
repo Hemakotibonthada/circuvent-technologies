@@ -104,6 +104,8 @@ export interface StoredProduct {
   releaseAt?: string | null;
   /** Permanently withdrawn. Distinct from out of stock: it is not coming back. */
   discontinued?: boolean;
+  /** Months of warranty. Absent means the published default at /warranty. */
+  warrantyMonths?: number;
   featured?: boolean;
   accent?: string; // brand accent colour for the media tile
 }

@@ -5,6 +5,7 @@ import { products, computeTotals, formatINR } from "./shop-data";
 import { validateCoupon } from "./coupons";
 import { listProducts } from "./store";
 import { productAvailability, type AvailabilityInput } from "./product-availability";
+import { BRAND } from "./brand";
 import { recordEmail } from "./email-log";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
@@ -139,6 +140,16 @@ export interface OrderLine {
   price: number;
   qty: number;
   lineTotal: number;
+  /**
+   * Warranty months as they stood when the order was placed.
+   *
+   * Snapshotted rather than looked up later, because a term is a promise made
+   * at the moment of sale. If the catalogue is edited afterwards — shortened
+   * for a new batch, or the product withdrawn entirely — reading it live would
+   * silently rewrite the cover somebody already bought, and there would be no
+   * record that it had changed.
+   */
+  warrantyMonths?: number;
 }
 
 export interface CustomerInfo {
@@ -208,7 +219,7 @@ export function priceItems(items: IncomingItem[], couponCode?: string): PriceRes
     if (lp && typeof lp.stock === "number" && qty > lp.stock) {
       return { ok: false, error: `Only ${lp.stock} unit(s) of ${name} left in stock.` };
     }
-    lines.push({ name, price, qty, lineTotal: price * qty });
+    lines.push({ name, price, qty, lineTotal: price * qty, warrantyMonths: lp?.warrantyMonths ?? cat?.warrantyMonths });
   }
   const { subtotal, shipping } = computeTotals(lines);
   let discount = 0;
@@ -299,7 +310,7 @@ export async function sendOrderEmails(a: EmailArgs): Promise<boolean> {
       a.customer.email as string,
       `Your Circuvent order ${a.orderNo}`,
       customerHtml,
-      process.env.EMAIL_REPLY_TO || process.env.CONTACT_EMAIL || "hema@circuvent.com",
+      process.env.EMAIL_REPLY_TO || process.env.CONTACT_EMAIL || BRAND.supportEmail,
       { type: "order", related: a.orderNo }
     ),
     sendMail(

@@ -240,8 +240,29 @@ class CircuventDevice {
    * hand the last picture taken to anything that subscribes later.
    */
   bool publishFrame(const uint8_t *data, size_t len) {
+    return publishBinary("frame", data, len);
+  }
+
+  /**
+   * Publishes a raw binary payload to cv/<id>/<leaf>, in two parts if `head`
+   * is given. Same streaming write as publishFrame, and the implementation
+   * publishFrame now delegates to, so there is one chunking loop to get right.
+   *
+   * The two-part form exists because a binary topic has nowhere to put
+   * metadata: `head` lets a caller prefix a fixed-size record (which capture
+   * this frame belongs to, its index in a burst, why it was taken) without
+   * copying the image out of the camera's DMA buffer to concatenate them.
+   *
+   * QoS 0 and never retained, for the same reasons as a frame: a late capture
+   * is worth less than the memory to retransmit it, and a retained one would
+   * hand the last picture taken to anything that subscribes later.
+   */
+  bool publishBinary(const char *leaf, const uint8_t *data, size_t len,
+                     const uint8_t *head = nullptr, size_t headLen = 0) {
     if (!_mqttUp || !data || len == 0) return false;
-    if (!_mqtt.beginPublish(_topic("frame").c_str(), len, false)) return false;
+    if (!head) headLen = 0;
+    if (!_mqtt.beginPublish(_topic(leaf).c_str(), headLen + len, false)) return false;
+    if (headLen && _mqtt.write(head, headLen) != headLen) { _mqtt.endPublish(); return false; }
     size_t sent = 0;
     while (sent < len) {
       // Chunked so a large frame cannot stall the TCP write in one call.

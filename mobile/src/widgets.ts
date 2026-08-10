@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Device } from "./api";
 import type { IconName } from "./icons";
+import { channelLabel, channelKind as savedChannelKind } from "./channel-prefs";
 
 /**
  * What a relay is actually wired to.
@@ -51,8 +52,15 @@ export interface Gang { field: string; label: string; visible: boolean; kind: Ch
 // The switchable fields a device exposes, with sensible default labels.
 export function defaultGangs(d: Device): Gang[] {
   const s = d.state || {};
+  /*
+   * The user's own name wins over the generic one.
+   *
+   * These defaults are what a board ships with, not what anybody calls it once
+   * it is wired to something. The console has always let people rename a
+   * channel; this simply asks for the answer instead of assuming "Channel 1".
+   */
   const mk = (field: string, label: string, kind: ChannelKind = "generic"): Gang =>
-    ({ field, label, visible: true, kind });
+    ({ field, label: channelLabel(d.id, field, label), visible: true, kind: (savedChannelKind(d.id, field) as ChannelKind) ?? kind });
   switch (d.type) {
     case "touchboard":
       return [mk("g1", "Gang 1"), mk("g2", "Gang 2"), mk("g3", "Gang 3")];

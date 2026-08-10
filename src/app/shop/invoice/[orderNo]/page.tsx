@@ -7,6 +7,7 @@ import { formatINR } from "@/lib/shop-data";
 import { formatAddress, warrantyFooter, type BusinessDocument, type DocumentKind, type DocumentAddress } from "@/lib/documents";
 import { warrantyDate } from "@/lib/warranty";
 import { useAccount } from "@/components/shop/AccountProvider";
+import { BRAND, documentContactLine } from "@/lib/brand";
 
 interface CoverUnit {
   id: string;
@@ -193,7 +194,7 @@ export default function InvoicePage() {
               <img src="/logo-mark-160.png" alt="Circuvent" width={36} height={36} />
               <span className="text-xl font-bold">Circuvent Technologies</span>
             </div>
-            <p className="mt-1 text-xs text-slate-500">circuvent.com · support: hema@circuvent.com</p>
+            <p className="mt-1 text-xs text-slate-500">{documentContactLine()}</p>
           </div>
           <div className="text-right">
             <h1 className="text-lg font-extrabold">{doc.title}</h1>
@@ -280,6 +281,39 @@ export default function InvoicePage() {
               <span>Total</span>
               <span>{formatINR(doc.totals.total)}</span>
             </div>
+          </div>
+        )}
+
+        {doc.shows.payment && doc.transaction && (
+          <div className="mt-6 rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Payment</p>
+            <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
+              <div>
+                <p className="text-xs text-slate-400">Method</p>
+                <p className="capitalize">{doc.transaction.method || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Status</p>
+                <p className="capitalize">{doc.transaction.status || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Paid on</p>
+                <p>{doc.transaction.paidAt ? warrantyDate(doc.transaction.paidAt) : "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Amount</p>
+                <p className="font-semibold">{formatINR(doc.transaction.amount)}</p>
+              </div>
+            </div>
+            {/* The gateway reference is the point of this block: without it a
+                customer disputing a charge, or an accountant matching a bank
+                line, has nothing to match against. */}
+            {doc.transaction.reference && (
+              <div className="mt-2">
+                <p className="text-xs text-slate-400">Transaction reference</p>
+                <p className="font-mono text-xs">{doc.transaction.reference}</p>
+              </div>
+            )}
           </div>
         )}
 

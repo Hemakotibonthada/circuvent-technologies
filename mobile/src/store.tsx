@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { api, Device } from "./api";
 import { projectCommand } from "./command-map";
 import { useLive, refreshLiveSubscription } from "./live";
+import { loadChannelPrefs, onChannelPrefsChange } from "./channel-prefs";
 
 interface DevicesCtx {
   devices: Device[];
@@ -22,8 +23,29 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [unread, setUnread] = useState(0);
   const mounted = useRef(true);
+  /*
+   * Channel names live with the device list because that is when they are
+   * needed and when a stale one is visible.
+   *
+   * `prefsVersion` exists only to re-render: the names are held in a module,
+   * not in state, so that every screen reads the same answer without the value
+   * being threaded through a dozen components. Bumping a counter when they
+   * arrive is what turns "Channel 1" into "Porch light" without a refresh.
+   */
+  const [, setPrefsVersion] = useState(0);
+
+  useEffect(() => {
+    const off = onChannelPrefsChange(() => {
+      if (mounted.current) setPrefsVersion((v) => v + 1);
+    });
+    void loadChannelPrefs();
+    return off;
+  }, []);
 
   const refresh = useCallback(async () => {
+    // Names can change on the web while the app is open, so they are re-read
+    // with the devices rather than once at launch.
+    void loadChannelPrefs();
     const r = await api.devices();
     if (r.ok && mounted.current) {
       setDevices((prev) => {
