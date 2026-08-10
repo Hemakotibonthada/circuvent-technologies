@@ -1,0 +1,22 @@
+{
+  "_why": "Google Play identifies this app by the certificate that signs the upload. Play prints the fingerprint it expects when it rejects a bundle; that value is recorded here so a build can be checked BEFORE it is uploaded rather than after. A certificate fingerprint is public - it is in every copy of the app - so this file holds no secret.",
+  "package": "com.circuvent.app",
+  "uploadCertificate": {
+    "sha1": "4C:89:1B:90:7B:83:25:FE:11:50:02:EE:D9:97:46:9C:AD:57:07:CC",
+    "source": "Play Console rejection message, closed testing upload, 2026-08-09",
+    "note": "This is the UPLOAD key. Play App Signing re-signs with its own app signing key for distribution, so the fingerprint users see on a device is a different one."
+  },
+  "knownWrongKeys": [
+    {
+      "sha1": "43:56:71:9A:11:FA:15:4E:A7:6C:B4:6E:62:C4:86:9A:D3:D8:5B:A0",
+      "file": "credentials/circuvent-upload.keystore",
+      "created": "2026-08-03",
+      "why": "Generated beside an existing circuvent-upload.jks by tooling that only looked for its own filename. Signing with it produces a bundle Play refuses."
+    },
+    {
+      "sha1": "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
+      "file": "android/app/debug.keystore",
+      "why": "React Native's debug key. Its password is published, so a release signed with it is one anybody could forge."
+    }
+  ]
+}

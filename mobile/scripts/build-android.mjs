@@ -1,0 +1,121 @@
+#!/usr/bin/env node
+/*
+ * Build the Android release on any platform, with the signing checks that
+ * matter run before and after.
+ *
+ * scripts/build-android.sh is the documented path and it is a good script --
+ * it refuses to build when credentials/ holds more than one keystore, which is
+ * exactly the mistake that got a bundle rejected by Play. It could not run on
+ * this machine: `bash` here is WSL with no distribution installed. So the build
+ * was driven through expo prebuild and gradle by hand, which walked straight
+ * past every check the script performs.
+ *
+ * A guard that only exists on one platform is a guard that gets skipped on the
+ * day it matters. This is the same sequence in Node.
+ *
+ *   node scripts/build-android.mjs            # apk + aab
+ *   node scripts/build-android.mjs --apk      # apk only
+ *   node scripts/build-android.mjs --aab      # play bundle only
+ */
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const args = process.argv.slice(2);
+const wantApk = args.includes("--apk") || !args.includes("--aab");
+const wantAab = args.includes("--aab") || !args.includes("--apk");
+
+const say = (s) => console.log(`\n=== ${s}`);
+const die = (s, extra = []) => {
+  console.log(`\n✗ ${s}`);
+  for (const l of extra) console.log(`    ${l}`);
+  process.exit(1);
+};
+
+/* ------------------------------------------------------------ preflight -- */
+
+say("Checking the signing key before building anything");
+const pre = spawnSync(process.execPath, [join(ROOT, "scripts/check-signing-key.js")], { stdio: "inherit" });
+if (pre.status !== 0) {
+  die("Not building: the signing check failed.", [
+    "Building now would produce an artifact Google Play refuses, which is a",
+    "seven-minute build and an upload before anything tells you.",
+  ]);
+}
+
+/* -------------------------------------------------------------- gradle --- */
+
+const CRED = join(ROOT, "credentials");
+const propsFile = join(CRED, "upload-keystore.properties");
+if (!existsSync(propsFile)) die(`No ${propsFile.replace(ROOT, ".")} — a keystore cannot be opened without its password.`);
+
+const props = Object.fromEntries(
+  readFileSync(propsFile, "utf8")
+    .split(/\r?\n/)
+    .filter((l) => l.startsWith("CV_UPLOAD"))
+    .map((l) => {
+      const i = l.indexOf("=");
+      return [l.slice(0, i), l.slice(i + 1)];
+    })
+);
+
+const keystores = existsSync(CRED) ? readdirSync(CRED).filter((f) => /\.(jks|keystore|p12|pfx)$/i.test(f)) : [];
+if (keystores.length !== 1) die(`Expected exactly one keystore in credentials/, found ${keystores.length}.`);
+const keystore = join(CRED, keystores[0]).replace(/\\/g, "/");
+
+say("expo prebuild");
+execFileSync("npx", ["expo", "prebuild", "--platform", "android", "--no-install"], { cwd: ROOT, stdio: "inherit", shell: true });
+
+say("Writing signing properties");
+const gp = join(ROOT, "android", "gradle.properties");
+let text = readFileSync(gp, "utf8");
+/*
+ * The trailing newline is load-bearing. Appending to a file that does not end
+ * in one produced `android.extraMavenRepos=[]CV_UPLOAD_STORE_FILE=...`, which
+ * gradle read as a single unknown property -- so the release build silently
+ * fell back to the debug key and shipped an APK anybody could forge.
+ */
+if (!text.endsWith("\n")) text += "\n";
+text = text.replace(/^CV_UPLOAD_.*\n/gm, "");
+text +=
+  `CV_UPLOAD_STORE_FILE=${keystore}\n` +
+  `CV_UPLOAD_STORE_PASSWORD=${props.CV_UPLOAD_STORE_PASSWORD}\n` +
+  `CV_UPLOAD_KEY_ALIAS=${props.CV_UPLOAD_KEY_ALIAS}\n` +
+  `CV_UPLOAD_KEY_PASSWORD=${props.CV_UPLOAD_KEY_PASSWORD}\n`;
+writeFileSync(gp, text);
+
+const tasks = [];
+if (wantApk) tasks.push("assembleRelease");
+if (wantAab) tasks.push("bundleRelease");
+
+say(`gradle ${tasks.join(" ")}`);
+const gradlew = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+const build = spawnSync(gradlew, [...tasks, "--no-daemon"], { cwd: join(ROOT, "android"), stdio: "inherit", shell: true });
+if (build.status !== 0) die("gradle failed");
+
+/* -------------------------------------------------------------- verify --- */
+
+say("Verifying what was actually produced");
+const version = JSON.parse(readFileSync(join(ROOT, "app.json"), "utf8")).expo;
+const dist = join(ROOT, "dist");
+mkdirSync(dist, { recursive: true });
+
+const outputs = [
+  ["apk", join(ROOT, "android/app/build/outputs/apk/release/app-release.apk")],
+  ["aab", join(ROOT, "android/app/build/outputs/bundle/release/app-release.aab")],
+];
+for (const [kind, file] of outputs) {
+  if (!existsSync(file)) continue;
+  const named = join(dist, `circuvent-${version.version}-${version.android.versionCode}.${kind}`);
+  copyFileSync(file, named);
+  console.log(`  ${named.replace(ROOT, ".")}`);
+}
+
+const post = spawnSync(process.execPath, [join(ROOT, "scripts/check-signing-key.js")], { stdio: "inherit" });
+if (post.status !== 0) {
+  die("The build finished but is signed with the wrong key. Do not upload it.");
+}
+
+console.log("\n✓ built and signed with the key Play expects");
