@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, Sparkles } from "lucide-react";
 import ShopGrid from "@/components/shop/ShopGrid";
+import ShopHero3D from "@/components/shop/ShopHero3D";
 import { ProductGridSkeleton } from "@/components/shop/ProductCardSkeleton";
 import JsonLd from "@/components/JsonLd";
 import { getMergedProducts } from "@/lib/shop-catalog";
@@ -119,10 +120,22 @@ export default async function ShopPage({
   const cheapest = products.length ? Math.min(...products.map((p) => p.price)) : 0;
   const bestDiscount = products.reduce((max, p) => Math.max(max, discountPct(p)), 0);
 
+  /*
+   * The three devices on the 3D stage.
+   *
+   * Only products that actually have artwork - the stage is a visual, and a
+   * card with no image on it is an empty rectangle floating in perspective,
+   * which reads as a loading failure rather than as a product.
+   */
+  const heroDevices = products
+    .filter((p) => !!p.image)
+    .slice(0, 3)
+    .map((p) => ({ name: p.name, image: p.image as string, accent: p.accent, href: `/shop/${p.slug}` }));
+
   const stats = [
     { value: `${products.length}`, label: "Devices in stock" },
     { value: `${categories.length}`, label: "Categories" },
-    { value: avgRating > 0 ? `${avgRating.toFixed(1)}★` : "New", label: "Average rating" },
+    { value: avgRating > 0 ? avgRating.toFixed(1) : "New", label: "Average rating", star: avgRating > 0 },
     { value: `from ${formatINR(cheapest)}`, label: "Entry price" },
   ];
 
@@ -182,73 +195,48 @@ export default async function ShopPage({
         </nav>
 
         {/* Hero */}
+        {/*
+          * Hero.
+          *
+          * A Bento Grid with one decorative 3D stage, chosen over the
+          * Immersive/Interactive pattern the design database also surfaced:
+          * Immersive scores 40% higher engagement but carries an explicit
+          * "Performance trade-off. Mobile fallback essential." note, and this
+          * page is the store's crawlable, revenue-carrying entry point. Bento
+          * scored Excellent on performance and WCAG AA.
+          *
+          * ShopHero3D is a Client Component, so it is a leaf: the page above it
+          * stays a Server Component, and the category links below it stay
+          * server-rendered anchors rather than becoming client-side state.
+          */}
         <header className="mb-8">
-          <span
-            className="text-xs font-semibold uppercase tracking-[0.2em]"
-            style={{ color: "var(--accent-cyan-text)" }}
-          >
-            Circuvent Store
-          </span>
-          {activeCategory ? (
-            <>
-              <h1 className="mt-2 text-3xl font-bold sm:text-4xl" style={{ color: "var(--text-primary)" }}>
-                <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
-                  {activeCategory}
-                </span>{" "}
-                devices
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
-                Every {activeCategory.toLowerCase()} device we make — designed, flashed and shipped by
-                our own R&amp;D lab in India, with a 6-month warranty and free shipping over{" "}
-                {formatINR(SHIPPING.freeOver)}.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 className="mt-2 text-3xl font-bold sm:text-4xl" style={{ color: "var(--text-primary)" }}>
-                Bring home{" "}
-                <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
-                  Circuvent
-                </span>
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
-                Smart, made-in-India devices — designed, flashed and shipped by our own R&amp;D lab. Free
-                shipping over {formatINR(SHIPPING.freeOver)}, cash on delivery or wallet, and a 6-month
-                warranty on every product.
-              </p>
-            </>
-          )}
-
-          {bestDiscount > 0 && (
-            <p
-              className="mt-4 inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold"
-              style={{
-                borderColor: "var(--border-accent)",
-                background: "var(--accent-cyan-muted)",
-                color: "var(--accent-cyan)",
-              }}
-            >
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              Save up to {bestDiscount}% on this month&apos;s launch offers
-            </p>
-          )}
-
-          <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {stats.map((s) => (
-              <div key={s.label}>
-                <dt className="sr-only">{s.label}</dt>
-                <dd>
-                  <span className="block text-xl font-extrabold" style={{ color: "var(--text-primary)" }}>
-                    {s.value}
+          <ShopHero3D
+            title={
+              activeCategory ? (
+                <>
+                  <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
+                    {activeCategory}
+                  </span>{" "}
+                  devices
+                </>
+              ) : (
+                <>
+                  Bring home{" "}
+                  <span className="bg-gradient-to-r from-cyan-500 via-violet-500 to-pink-500 bg-clip-text text-transparent">
+                    Circuvent
                   </span>
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {s.label}
-                  </span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-
+                </>
+              )
+            }
+            blurb={
+              activeCategory
+                ? `Every ${activeCategory.toLowerCase()} device we make - designed, flashed and shipped by our own R&D lab in India, with a 6-month warranty and free shipping over ${formatINR(SHIPPING.freeOver)}.`
+                : `Smart, made-in-India devices - designed, flashed and shipped by our own R&D lab. Free shipping over ${formatINR(SHIPPING.freeOver)}, cash on delivery or wallet, and a 6-month warranty on every product.`
+            }
+            stats={stats}
+            devices={heroDevices}
+            bestDiscount={bestDiscount}
+          />
           {/* Crawlable category entry points — each is a real, shareable filter URL. */}
           <nav aria-label="Shop by category" className="mt-6 flex flex-wrap gap-2">
             <Link

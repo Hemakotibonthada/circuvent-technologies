@@ -12,6 +12,24 @@ import { useCompare, MAX_COMPARE } from "./CompareProvider";
 import { useToast } from "./ToastProvider";
 import ProductMedia from "./ProductMedia";
 import Stars from "./Stars";
+import Tilt3D, { Depth } from "./Tilt3D";
+
+/**
+ * Puts the media block in a perspective frustum, or leaves it flat.
+ *
+ * A component rather than a ternary in the middle of the card so the two
+ * branches wrap identical children — the version that inserted the tilt only
+ * on one branch had the badges positioned against a different ancestor in grid
+ * and list view, which moved them by a few pixels for no visible reason.
+ */
+function MediaStage({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <Tilt3D max={7} perspective={820} lift={10} className="h-full w-full">
+      {children}
+    </Tilt3D>
+  );
+}
 
 interface ProductCardProps {
   product: Product;
@@ -208,26 +226,44 @@ export default function ProductCard({
     >
       {/* Media */}
       <div className={`relative shrink-0 ${isList ? "sm:w-56" : ""}`}>
-        <Link href={href} className="block" tabIndex={-1} aria-hidden="true">
-          <ProductMedia
-            image={product.image}
-            accent={product.accent}
-            icon={product.icon}
-            name={product.name}
-            priority={priority}
-            sizes={
-              isList
-                ? "(max-width: 640px) 100vw, 224px"
-                : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            }
-            className={isList ? "h-44 w-full sm:h-full sm:min-h-[200px]" : "h-48 w-full"}
-          />
-        </Link>
+        {/*
+          * Tilt only in grid view.
+          *
+          * A list row's image is a 224px side thumbnail next to a block of
+          * text; tipping it does not read as depth, it reads as a wobble, and
+          * it puts a moving element right beside the copy somebody is trying
+          * to read. Tilt3D returns a plain wrapper when it is off, so the list
+          * path costs nothing.
+          */}
+        <MediaStage enabled={!isList}>
+          <Link href={href} className="block" tabIndex={-1} aria-hidden="true">
+            <ProductMedia
+              image={product.image}
+              accent={product.accent}
+              icon={product.icon}
+              name={product.name}
+              priority={priority}
+              sizes={
+                isList
+                  ? "(max-width: 640px) 100vw, 224px"
+                  : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              }
+              className={isList ? "h-44 w-full sm:h-full sm:min-h-[200px]" : "h-48 w-full"}
+            />
+          </Link>
 
-        <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">{badges}</div>
+        <div
+          className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5"
+          style={{ transform: "translateZ(34px)" }}
+        >
+          {badges}
+        </div>
 
         {/* Save / compare — always visible on touch, revealed on hover for pointers. */}
-        <div className="absolute right-3 top-3 flex flex-col gap-2 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+        <div
+          className="absolute right-3 top-3 flex flex-col gap-2 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          style={{ transform: "translateZ(42px)" }}
+        >
           {iconButton(
             saved ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`,
             saved,
@@ -251,20 +287,30 @@ export default function ProductCard({
         </div>
 
         {onQuickView && !isList && (
-          <button
-            type="button"
-            onClick={() => onQuickView(product)}
-            className="min-h-[44px] absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold backdrop-blur transition-all duration-200 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100"
-            style={{
-              background: "var(--bg-glass-strong)",
-              borderColor: "var(--border-primary)",
-              color: "var(--text-primary)",
-            }}
-          >
-            <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Quick view
-            <span className="sr-only"> of {product.name}</span>
-          </button>
+          /*
+           * Wrapped rather than given an inline `transform`, because the button
+           * already animates with Tailwind's translate utilities on hover. An
+           * inline transform would win over the utility and the slide-up would
+           * silently stop working — while still looking fine at rest, which is
+           * the worst kind of regression to notice.
+           */
+          <Depth z={50} className="absolute inset-x-3 bottom-3">
+            <button
+              type="button"
+              onClick={() => onQuickView(product)}
+              className="min-h-[44px] w-full flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold backdrop-blur transition-all duration-200 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100 motion-reduce:transform-none"
+              style={{
+                background: "var(--bg-glass-strong)",
+                borderColor: "var(--border-primary)",
+                color: "var(--text-primary)",
+              }}
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Quick view
+              <span className="sr-only"> of {product.name}</span>
+            </button>
+          </Depth>
         )}
+        </MediaStage>
       </div>
 
       {/* Body */}
