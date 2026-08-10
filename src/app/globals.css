@@ -692,3 +692,88 @@ select:-webkit-autofill {
   50%      { opacity: 0.55; }
 }
 .cv-breathe { animation: cv-breathe-kf 2.8s ease-in-out infinite; }
+
+/* ---------------------------------------------------------------------------
+   Shop stage — /shop hero.
+
+   Two reference designs, and the brief was "both". They share a structure but
+   have opposite palettes: one light and airy with soft colour auras, one a
+   dark showroom with a product in a lit alcove and extruded type.
+
+   Rather than average them into something that is neither, each is mapped onto
+   the theme it was designed for. The component's markup and geometry are
+   identical in both; only these variables change. A blended version would
+   have produced a washed-out showroom and a muddy airy one.
+   --------------------------------------------------------------------------- */
+:root {
+  /* Airy: near-white, so the product reads as floating in light. */
+  --stage-bg: linear-gradient(160deg, #ffffff 0%, #f4f7fb 55%, #eef3f9 100%);
+  --stage-type-color: rgba(12, 18, 34, 0.055);
+  --stage-type-shadow: none;
+  --alcove-bg: radial-gradient(70% 70% at 50% 32%, #ffffff, #eef2f8 78%);
+  --alcove-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 18px 40px -24px rgba(12, 18, 34, 0.28);
+  --alcove-light: transparent;
+  --stage-panel-bg: rgba(255, 255, 255, 0.72);
+  --stage-panel-border: rgba(12, 18, 34, 0.08);
+}
+
+.dark {
+  /* Showroom: the stage is the room, the alcove is lit from inside. */
+  --stage-bg: linear-gradient(160deg, #12161d 0%, #0e1218 55%, #0b0e13 100%);
+  /*
+   * The extrusion is a stack of 1px shadows rather than one blurred shadow.
+   * A blur reads as a drop shadow; a stack of hard offsets reads as depth,
+   * which is what makes the type look cut from a solid rather than printed.
+   */
+  --stage-type-color: rgba(226, 232, 240, 0.13);
+  --stage-type-shadow:
+    1px 1px 0 rgba(148, 163, 184, 0.10), 2px 2px 0 rgba(148, 163, 184, 0.09),
+    3px 3px 0 rgba(148, 163, 184, 0.08), 4px 4px 0 rgba(148, 163, 184, 0.07),
+    5px 5px 0 rgba(148, 163, 184, 0.06), 6px 6px 0 rgba(148, 163, 184, 0.05),
+    7px 7px 0 rgba(148, 163, 184, 0.04), 8px 8px 14px rgba(0, 0, 0, 0.45);
+  --alcove-bg: radial-gradient(80% 62% at 50% 8%, #2b3440 0%, #171c24 46%, #0f1319 100%);
+  --alcove-inset: inset 0 2px 22px rgba(0, 0, 0, 0.72), inset 0 -1px 0 rgba(148, 163, 184, 0.10);
+  --alcove-light: linear-gradient(90deg, transparent, #e8eef6 18%, #ffffff 50%, #e8eef6 82%, transparent);
+  --stage-panel-bg: rgba(23, 28, 36, 0.62);
+  --stage-panel-border: rgba(148, 163, 184, 0.16);
+}
+
+.cv-stage-type {
+  /* Clamped rather than a fixed size: this is the one element that has to
+     scale with the viewport, and a fixed size either overflows a phone or
+     looks timid on a desktop. */
+  font-size: clamp(3rem, 13vw, 10rem);
+  line-height: 0.86;
+  color: var(--stage-type-color);
+  text-shadow: var(--stage-type-shadow);
+}
+
+.cv-stage-panel {
+  background: var(--stage-panel-bg);
+  border: 1px solid var(--stage-panel-border);
+  /* backdrop-blur is what makes the panel read as glass over the stage rather
+     than as a flat card sitting on it. */
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.cv-alcove {
+  background: var(--alcove-bg);
+  box-shadow: var(--alcove-inset);
+}
+
+.cv-alcove-light {
+  background: var(--alcove-light);
+  /* The glow only exists in dark mode; in light the gradient is transparent
+     and this resolves to nothing rather than to a grey smear. */
+  box-shadow: 0 0 26px 6px rgba(232, 238, 246, 0.30);
+  opacity: var(--alcove-light-opacity, 1);
+}
+
+:root .cv-alcove-light { box-shadow: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The stage still works: it simply stops moving on its own. Slides change
+     only when somebody asks for them. */
+  .cv-stage * { animation: none !important; }
+}
