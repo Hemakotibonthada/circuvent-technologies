@@ -17,7 +17,9 @@
     "audit:admin-theme": "node scripts/audit-admin-theme.js",
     "audit:perf": "node scripts/perf-probe.mjs",
     "audit:live": "node scripts/audit-live.mjs",
-    "audit:images": "node scripts/audit-images.mjs"
+    "audit:images": "node scripts/audit-images.mjs",
+    "verify:secrets": "node scripts/check-no-secrets.js",
+    "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

@@ -80,3 +80,20 @@ ui-audit.json
 # Isolated production build used by scripts/audit-ui.js so a running dev
 # server cannot overwrite it.
 .next-audit/
+
+# Secrets. scripts/check-no-secrets.js is the guard that actually enforces
+# this; these entries only stop the accidental git add .. A keystore or an
+# SSH key committed once is in every clone and every fork forever.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+!**/public/**/*.key
+upload-keystore.properties
+credentials/
+*.vault
+circuvent-vault/
+id_rsa
+id_ed25519
