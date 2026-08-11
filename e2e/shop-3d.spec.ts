@@ -67,30 +67,41 @@ test.describe("product card depth", () => {
      */
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/shop");
+
+    /*
+     * Dismiss consent before hovering. The banner is fixed to the viewport and
+     * will swallow a pointer move aimed at whatever sits beneath it.
+     */
+    await page
+      .getByRole("button", { name: /accept all/i })
+      .click({ timeout: 4000 })
+      .catch(() => {});
+
     const card = page.locator("article").first();
     await card.scrollIntoViewIfNeeded();
-
-    const box = await card.boundingBox();
-    expect(box).not.toBeNull();
 
     /*
      * `matrix3d` rather than `matrix` is the whole assertion. A 2D skew would
      * look broadly similar in a screenshot and serialise as `matrix(...)`, so
      * this is what distinguishes a perspective projection from a cheap fake.
      *
-     * The hover is re-issued on every poll instead of once up front. The tilt
-     * is driven by a mousemove listener attached at hydration, so a single
-     * move sent before the component is interactive is simply lost — and no
-     * amount of waiting afterwards brings it back, because nothing will move
-     * the pointer again. That is what failed here while the page tilted
-     * correctly in a browser. Two positions per attempt, since the spring
-     * ignores a move to the coordinate it is already at.
+     * Everything about the hover is redone on each attempt, because both halves
+     * of it go stale. The tilt is driven by a mousemove listener attached at
+     * hydration, so a move sent before the component is interactive is simply
+     * discarded and never redelivered. And the card's position is not fixed
+     * while the page is still settling — entrance animations and images
+     * arriving shift it — so coordinates measured once at the start end up
+     * pointing at empty space. Re-measuring inside the loop is what makes this
+     * deterministic. Two positions per attempt, since the spring ignores a move
+     * to the coordinate it already holds.
      */
     await expect
       .poll(
         async () => {
-          await page.mouse.move(box!.x + box!.width * 0.5, box!.y + box!.height * 0.5);
-          await page.mouse.move(box!.x + box!.width * 0.85, box!.y + box!.height * 0.2);
+          const box = await card.boundingBox();
+          if (!box) return "none";
+          await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+          await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.2);
           await page.waitForTimeout(250);
           return page.evaluate(() => {
             const el = document.querySelector("article [style*='preserve-3d'] > div");
