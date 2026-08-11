@@ -33,6 +33,8 @@ import AuthForm from "@/components/shop/AuthForm";
 import AccountExtras from "@/components/shop/AccountExtras";
 import AccountSectionNav, { type AccountSection } from "@/components/shop/AccountSectionNav";
 import { Skeleton } from "@/components/ui/skeleton";
+import ShopDialog from "@/components/shop/ShopDialog";
+import { returnEligibility } from "@/lib/return-eligibility";
 import { formatINR, products as CATALOG } from "@/lib/shop-data";
 
 // Module-level so the nav's IntersectionObserver isn't rebuilt every render.
@@ -66,6 +68,12 @@ interface OrderRow {
   total: number;
   status: string;
   paymentMethod: string;
+  /* Needed to work out when the return window opened and whether it is still
+     open; `history` carries the delivery event, `updatedAt` covers older
+     records that were marked delivered without one. */
+  updatedAt?: string | null;
+  history?: { status: string; at: string }[];
+  returnStatus?: string | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -219,6 +227,13 @@ function SignedIn({
   const [ordersError, setOrdersError] = useState(false);
   const [orderFilter, setOrderFilter] = useState("all");
   const [orderQuery, setOrderQuery] = useState("");
+  /* Return request dialog: which order, the reason being typed, and the
+     outcome. Replaces window.prompt/alert, which are unstyled, unlocalised,
+     and suppressed outright by some browsers. */
+  const [returnFor, setReturnFor] = useState<OrderRow | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnBusy, setReturnBusy] = useState(false);
+  const [returnResult, setReturnResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [amount, setAmount] = useState("500");
   const [topupBusy, setTopupBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -335,9 +350,8 @@ function SignedIn({
     }
   };
 
-  const requestReturn = async (orderNo: string) => {
-    const reason = window.prompt("What's the reason for returning this order?");
-    if (!reason || reason.trim().length < 3) return;
+  const requestReturn = async (orderNo: string, reason: string) => {
+    setReturnBusy(true);
     try {
       const res = await fetch("/api/returns", {
         method: "POST",
@@ -345,10 +359,17 @@ function SignedIn({
         body: JSON.stringify({ orderNo, reason }),
       });
       const d = await res.json();
-      alert(d.success ? "Return requested — we'll review it and refund to your wallet." : d.message || "Could not request the return.");
+      setReturnResult(
+        d.success
+          ? { ok: true, message: "Return requested — we'll review it and refund to your wallet." }
+          : { ok: false, message: d.message || "Could not request the return." }
+      );
+      // Refresh so the order shows the request that now exists against it.
+      if (d.success) loadOrders();
     } catch {
-      alert("Network error. Please try again.");
+      setReturnResult({ ok: false, message: "Network error. Please try again." });
     }
+    setReturnBusy(false);
   };
 
   const reorder = async (orderNo: string) => {
@@ -661,13 +682,58 @@ function SignedIn({
                           Cancel
                         </button>
                       )}
-                      <button
-                        onClick={() => requestReturn(o.orderNo)}
-                        className="flex items-center gap-1 text-xs font-medium"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        <RotateCcw className="h-3 w-3" /> Return
-                      </button>
+                      {/* The Return control used to be shown on every order,
+                          including ones not yet delivered, already cancelled,
+                          or long past the window — so clicking it typed out a
+                          reason only to be refused. Gated on the same rule the
+                          server enforces, and when it cannot be offered the
+                          reason is shown instead of nothing. */}
+                      {(() => {
+                        const el = returnEligibility(
+                          { status: o.status, updatedAt: o.updatedAt ?? undefined, history: o.history, placedAt: o.placedAt },
+                          { existingStatus: o.returnStatus ?? null }
+                        );
+                        if (el.canRequest) {
+                          return (
+                            <button
+                              onClick={() => {
+                                setReturnFor(o);
+                                setReturnReason("");
+                                setReturnResult(null);
+                              }}
+                              className="flex items-center gap-1 text-xs font-medium"
+                              style={{ color: "var(--text-tertiary)" }}
+                              title={el.reason}
+                            >
+                              <RotateCcw className="h-3 w-3" /> Return
+                              {typeof el.daysLeft === "number" && el.daysLeft <= 3 && (
+                                <span style={{ color: "var(--status-warning-text)" }}>({el.daysLeft}d left)</span>
+                              )}
+                            </button>
+                          );
+                        }
+                        if (el.state === "already-requested") {
+                          return (
+                            <span className="flex items-center gap-1 text-xs" style={{ color: "var(--status-warning-text)" }}>
+                              <RotateCcw className="h-3 w-3" /> Return {o.returnStatus}
+                            </span>
+                          );
+                        }
+                        /* Say so when the window has closed. The FAQ tells
+                           people to start returns from here, so a delivered
+                           order with no control and no explanation reads as a
+                           missing feature and turns into a support ticket. An
+                           order still in transit needs no note — the tracking
+                           link beside it already tells that story. */
+                        if (el.state === "window-closed") {
+                          return (
+                            <span className="text-xs" style={{ color: "var(--text-muted)" }} title={el.reason}>
+                              Return window closed
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                       <button
                         onClick={() => reorder(o.orderNo)}
                         className="flex items-center gap-1 text-xs font-medium"
@@ -712,6 +778,82 @@ function SignedIn({
           )}
         </div>
       </section>
+
+      <ShopDialog
+        open={returnFor !== null}
+        onClose={() => setReturnFor(null)}
+        title="Request a return"
+        description={returnFor ? `Order ${returnFor.orderNo}` : undefined}
+        maxWidthClass="max-w-md"
+      >
+        <div className="p-5">
+          {returnResult?.ok ? (
+            <>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                {returnResult.message}
+              </p>
+              <button
+                type="button"
+                onClick={() => setReturnFor(null)}
+                className={`mt-5 w-full ${primaryBtn}`}
+                style={accentBg}
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              <label
+                htmlFor="return-reason"
+                className="mb-1.5 block text-sm font-medium"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Why are you returning this?
+              </label>
+              <textarea
+                id="return-reason"
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                rows={4}
+                placeholder="Tell us what went wrong — it helps us put it right."
+                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{
+                  background: "var(--bg-glass)",
+                  borderColor: "var(--border-primary)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                Items must be unused and in their original packaging. Approved refunds go to your Circuvent Wallet.
+              </p>
+              {returnResult && !returnResult.ok && (
+                <p className="mt-3 text-sm" style={{ color: "var(--status-danger-text)" }} role="alert">
+                  {returnResult.message}
+                </p>
+              )}
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setReturnFor(null)}
+                  className="min-h-[44px] flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold"
+                  style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={returnBusy || returnReason.trim().length < 3}
+                  onClick={() => returnFor && requestReturn(returnFor.orderNo, returnReason.trim())}
+                  className={`flex-1 ${primaryBtn} disabled:opacity-50`}
+                  style={accentBg}
+                >
+                  {returnBusy ? "Sending…" : "Request return"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </ShopDialog>
 
       {/* Wallet */}
       <section id="account-wallet" className="mt-10 scroll-mt-28">
