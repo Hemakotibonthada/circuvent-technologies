@@ -452,6 +452,10 @@ export default function CheckoutPage() {
     return (
       <section className="relative z-10 mx-auto max-w-xl px-6 pb-24 pt-32 lg:px-8">
         <AuthForm
+          /* This form replaces the whole page when signed out, so its title is
+             the page title. Without h1 the document starts at h2 and a screen
+             reader jumping by heading finds no top-level landmark. */
+          as="h1"
           heading="Sign in to check out"
           sub="Please sign in or create an account to place your order, pay with wallet and track it. Your cart is saved."
         />

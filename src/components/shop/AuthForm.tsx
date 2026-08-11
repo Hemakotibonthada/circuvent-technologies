@@ -5,7 +5,24 @@ import { Loader2, LogIn, UserPlus, ShieldCheck, MailCheck, ArrowLeft, KeyRound }
 import { useAccount } from "./AccountProvider";
 
 /** Reusable sign-in / register form with email OTP verification on sign-up. */
-export default function AuthForm({ heading, sub }: { heading?: string; sub?: string }) {
+export default function AuthForm({
+  heading,
+  sub,
+  as: Heading = "h2",
+}: {
+  heading?: string;
+  sub?: string;
+  /**
+   * Heading level for this form's title.
+   *
+   * Defaults to h2, which is right when the form sits inside a page that has
+   * its own h1 (/shop/devices, /shop/account). The checkout gate replaces the
+   * whole page, so there the form's title *is* the page title and must be an
+   * h1 — otherwise the page starts at h2 and a screen reader jumping by
+   * heading finds no top-level landmark at all.
+   */
+  as?: "h1" | "h2";
+}) {
   const { login, register, verifyOtp } = useAccount();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [step, setStep] = useState<"form" | "otp" | "forgot-request" | "forgot-reset">("form");
@@ -126,9 +143,9 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
             <MailCheck className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
           </span>
         </div>
-        <h2 className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+        <Heading className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
           Enter verification code
-        </h2>
+        </Heading>
         <p className="mt-1 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
           {info || `We've emailed a 6-digit code to ${email}.`}
         </p>
@@ -183,9 +200,9 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
             <KeyRound className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
           </span>
         </div>
-        <h2 className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+        <Heading className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
           Reset your password
-        </h2>
+        </Heading>
         <p className="mt-1 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
           Enter your account email and we&apos;ll send a 6-digit reset code.
         </p>
@@ -224,9 +241,9 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
             <KeyRound className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
           </span>
         </div>
-        <h2 className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+        <Heading className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
           Enter code &amp; new password
-        </h2>
+        </Heading>
         <p className="mt-1 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
           {info || `We've emailed a reset code to ${email}.`}
         </p>
@@ -287,9 +304,9 @@ export default function AuthForm({ heading, sub }: { heading?: string; sub?: str
           <ShieldCheck className="h-6 w-6" style={{ color: "var(--accent-cyan)" }} />
         </span>
       </div>
-      <h2 className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+      <Heading className="text-center text-lg font-bold" style={{ color: "var(--text-primary)" }}>
         {heading || "Sign in to continue"}
-      </h2>
+      </Heading>
       <p className="mt-1 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
         {sub || "Create an account or sign in to place your order, use your wallet and track deliveries."}
       </p>
