@@ -80,11 +80,54 @@ async function bearerUid(req: Request): Promise<number | null> {
 
 // ------------------------------------------------------------- Google Home --
 
-function googleType(t: string): string {
-  if (t === "smart-plug") return "action.devices.types.OUTLET";
-  if (t === "aquaguard" || t === "agri-starter") return "action.devices.types.SWITCH";
-  return "action.devices.types.SWITCH";
+/**
+ * The Google device type for a Circuvent type.
+ *
+ * This is not cosmetic, and it is the reason this function is no longer two
+ * lines. Google groups by device type: "turn off the lights" reaches everything
+ * typed as a LIGHT, and a goodnight routine reaches everything that will
+ * listen. Typing a water pump as a SWITCH — which is what this did, and is the
+ * obvious mapping since electrically that is what it is — means going to bed
+ * cuts the water supply, and an irrigation cycle stops halfway.
+ *
+ * VALVE and WATERHEATER are the two types Google keeps out of those sweeps.
+ * Both still work when named directly, which is what somebody says when they
+ * actually mean it.
+ */
+export function googleTypeFor(t: string): string {
+  switch (t) {
+    case "smart-plug":
+      return "action.devices.types.OUTLET";
+    case "smart-light":
+      return "action.devices.types.LIGHT";
+    case "smart-fan":
+      return "action.devices.types.FAN";
+    case "aquaguard":
+    case "agri-starter":
+      return "action.devices.types.VALVE";
+    default:
+      return "action.devices.types.SWITCH";
+  }
 }
+
+/** Alexa's equivalent. Exported alongside so the two cannot drift apart. */
+export function alexaCategoryFor(t: string): string {
+  switch (t) {
+    case "smart-plug":
+      return "SMARTPLUG";
+    case "smart-light":
+      return "LIGHT";
+    case "smart-fan":
+      return "FAN";
+    case "aquaguard":
+    case "agri-starter":
+      return "WATER_HEATER";
+    default:
+      return "SWITCH";
+  }
+}
+
+const googleType = googleTypeFor;
 
 smarthomeRouter.post("/google", async (req: Request, res: Response) => {
   const uid = await bearerUid(req);
@@ -168,7 +211,13 @@ function aHeader(namespace: string, name: string, correlationToken?: string) {
 }
 
 function alexaEndpoint(d: Dev) {
-  const cat = d.type === "smart-plug" ? "SMARTPLUG" : "SWITCH";
+  /*
+   * Same reasoning as googleTypeFor: Alexa groups by display category, so a
+   * pump categorised as a SWITCH joins "turn everything off" and every
+   * goodnight routine. WATER_HEATER is the category Alexa keeps out of those
+   * sweeps, and it is the honest description of a tank pump's role in a house.
+   */
+  const cat = alexaCategoryFor(d.type);
   return {
     endpointId: d.id,
     friendlyName: d.name || d.id,

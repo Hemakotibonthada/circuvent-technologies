@@ -172,6 +172,22 @@ be the wrong words.
 `onOff()` decides what the voice assistants see. A type missing from it is
 simply absent from both, with no error.
 
+`googleTypeFor()` and `alexaCategoryFor()` decide *what kind of thing* it is,
+and that is a physical-consequence decision rather than a cosmetic one.
+
+Both assistants group by device type. "Turn off the lights" reaches everything
+typed as a light, and a goodnight routine reaches everything that will listen.
+A water pump typed as a plain switch — the obvious mapping, since electrically
+that is what it is — means going to bed cuts the water supply, and an
+irrigation cycle stops halfway. `aquaguard` and `agri-starter` are therefore a
+Google `VALVE` and an Alexa `WATER_HEATER`: both are excluded from those
+sweeps, and both still work when named directly, which is what somebody says
+when they actually mean it.
+
+So when adding a type, ask what happens if a voice assistant switches it as
+part of "turn everything off" at 11pm. If the answer is worse than a dark room,
+it needs its own category and a line in `src/smarthome-typing.test.ts`.
+
 ---
 
 ## 5. Shop listing
