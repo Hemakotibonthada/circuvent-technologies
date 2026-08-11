@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, Minus, Plus, ShoppingCart, Zap, ShieldCheck, Star, Truck, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, Minus, Plus, ShoppingCart, Zap, Star } from "lucide-react";
 import { type Product, formatINR } from "@/lib/shop-data";
 import { useCart } from "./CartProvider";
 import DeliveryEstimate from "./DeliveryEstimate";
+import ProductAssurance from "./ProductAssurance";
 import ProductMedia from "./ProductMedia";
 import ProductReviews from "./ProductReviews";
 import ProductQA from "./ProductQA";
@@ -190,22 +191,15 @@ export default function ProductDetailClient({
             */}
           <DeliveryEstimate />
 
-          <div className="mt-6 grid grid-cols-3 gap-3">
-            {[
-              { icon: ShieldCheck, label: "6-month warranty" },
-              { icon: Truck, label: "Free ship over ₹999" },
-              { icon: RotateCcw, label: "7-day returns" },
-            ].map((b) => (
-              <div
-                key={b.label}
-                className="flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-center"
-                style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
-              >
-                <b.icon className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
-                <span className="text-[11px] leading-tight" style={{ color: "var(--text-tertiary)" }}>{b.label}</span>
-              </div>
-            ))}
-          </div>
+          {/*
+            * Warranty, returns and delivery cost were hardcoded here as three
+            * unlinked labels, duplicating figures whose real source is the
+            * policy pages. A shopper could not check them without leaving, and
+            * editing /warranty would have left this quietly advertising the old
+            * terms. ProductAssurance reads them from one module that a test
+            * pins to those pages, and links each to the page it came from.
+            */}
+          <ProductAssurance />
           <p className="mt-3 text-center text-xs" style={{ color: "var(--text-muted)" }}>
             Cash on delivery available · Ships across India · Works with Alexa &amp; Google
           </p>
@@ -227,7 +221,13 @@ export default function ProductDetailClient({
               <Link
                 key={r.id}
                 href={`/shop/${r.slug}`}
-                className="group flex items-center gap-4 rounded-2xl border p-5 transition-all hover:-translate-y-1"
+                /* min-w-0 on the grid item itself, not just the text inside it.
+                   A grid item defaults to min-width:auto and so will not shrink
+                   below its min-content, and `truncate` sets white-space:nowrap,
+                   which makes that min-content the full untruncated tagline. The
+                   item then held the column open past the viewport and the page
+                   scrolled sideways on a phone. */
+                className="group flex min-w-0 items-center gap-4 rounded-2xl border p-5 transition-all hover:-translate-y-1"
                 style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", boxShadow: "var(--shadow-sm)" }}
               >
                 <ProductMedia

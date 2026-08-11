@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";import { ArrowRight, Check, Heart, Minus, Plus, ShoppingCart, Truck, ShieldCheck } from "lucide-react";
 import { formatINR, SHIPPING, type Product } from "@/lib/shop-data";
+import { WARRANTY_MONTHS } from "@/lib/shop-policy";
 import { discountPct, isLowStock, isSoldOut, savingOf } from "@/lib/shop-filters";
 import { useCart } from "./CartProvider";
 import { useWishlist } from "./WishlistProvider";
@@ -157,7 +158,7 @@ export default function QuickViewModal({
               {freeShipping ? "Free shipping" : `${formatINR(SHIPPING.flat)} shipping`}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--accent-cyan)" }} /> 6-month warranty
+              <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--accent-cyan)" }} /> {WARRANTY_MONTHS}-month warranty
             </span>
           </div>
 

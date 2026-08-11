@@ -27,10 +27,11 @@ import ShopDialog from "./ShopDialog";
 import QuickViewModal from "./QuickViewModal";
 import CompareBar from "./CompareBar";
 import RecentlyViewed from "./RecentlyViewed";
+import { WARRANTY_MONTHS } from "@/lib/shop-policy";
 
 const BENEFITS = [
   { icon: Truck, title: "Free shipping", sub: `On orders over ${formatINR(SHIPPING.freeOver)}` },
-  { icon: ShieldCheck, title: "6-month warranty", sub: "On every device we ship" },
+  { icon: ShieldCheck, title: `${WARRANTY_MONTHS}-month warranty`, sub: "On every device we ship" },
   { icon: Wallet, title: "COD & wallet", sub: "Pay the way you prefer" },
   { icon: MapPin, title: "Made in India", sub: "Built by our own R&D lab" },
 ];
