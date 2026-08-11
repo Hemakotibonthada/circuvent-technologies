@@ -43,6 +43,7 @@ import { discountPct, isSoldOut } from "@/lib/shop-filters";
 import { useCart } from "./CartProvider";
 import { useToast } from "./ToastProvider";
 import Tilt3D from "./Tilt3D";
+import DeliveryEstimate from "./DeliveryEstimate";
 
 interface ShopStageProps {
   products: Product[];
@@ -60,7 +61,27 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
   const { add } = useCart();
   const { toast } = useToast();
 
-  const slides = useMemo(() => products.filter((p) => !!p.image).slice(0, 6), [products]);
+  /*
+   * In-stock products first.
+   *
+   * Production caught this: the stage led with a sold-out Smart Plug, so the
+   * first thing a visitor saw was a hero-sized product with a disabled buy
+   * button. `products` arrives in the catalogue's own "featured" order, which
+   * knows nothing about stock — the grid can afford that because a sold-out
+   * card sits among nineteen others, but the stage shows one product at a
+   * time and it is the first thing on the page.
+   *
+   * Sold-out items are not removed, only pushed back: a product somebody
+   * specifically wants to see should still be reachable, and hiding it would
+   * make the stage disagree with the grid below about what the catalogue
+   * contains.
+   */
+  const slides = useMemo(() => {
+    const withArt = products.filter((p) => !!p.image);
+    const inStock = withArt.filter((p) => !isSoldOut(p));
+    const rest = withArt.filter((p) => isSoldOut(p));
+    return [...inStock, ...rest].slice(0, 6);
+  }, [products]);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   // Direction drives which side a slide enters from, so forward and backward
@@ -213,6 +234,8 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
                   </>
                 )}
               </div>
+
+              <DeliveryEstimate />
 
               <div className="mt-5 flex flex-wrap items-center gap-2.5">
                 <button

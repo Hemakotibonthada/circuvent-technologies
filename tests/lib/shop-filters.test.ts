@@ -201,10 +201,23 @@ describe("shop-filters — facets", () => {
     expect(facets.prices.every((b) => b.count > 0)).toBe(true);
   });
 
-  it("reports rating thresholds", () => {
+  it("reports rating thresholds, and drops bands that cannot narrow anything", () => {
     const facets = computeFacets(CATALOG, base());
+    // 3 of 5 are 4.5+, so this band is a real filter and survives.
     expect(facets.ratings.find((r) => r.value === 4.5)!.count).toBe(3);
-    expect(facets.ratings.find((r) => r.value === 3.5)!.count).toBe(5);
+
+    /*
+     * Every product in the fixture is 3.5+, so selecting that band returns the
+     * same list it was already showing. A band matching everything is as
+     * useless as one matching nothing, and the price buckets above already
+     * drop the empty case — this makes the two consistent.
+     *
+     * It is not hypothetical: the live catalogue is entirely 4.5+, so all
+     * three bands showed the full count and the section occupied prime
+     * sidebar space while being incapable of filtering.
+     */
+    expect(facets.ratings.find((r) => r.value === 3.5)).toBeUndefined();
+    expect(facets.ratings.every((r) => r.count > 0 && r.count < CATALOG.length)).toBe(true);
   });
 });
 
