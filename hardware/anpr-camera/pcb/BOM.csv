@@ -1,0 +1,24 @@
+Ref,Qty,Value/Part,Package,Description,Notes
+M1,1,ESP32-CAM (AI-Thinker),ESP32-CAM,Camera module socket,2x8 female headers 22.86mm apart
+J1,1,2P 3.5mm,term 3.5/2,12V DC input,From psu-adapter-12v
+D1,1,SS34,SMA,Reverse-polarity protection,Series in the 12V feed
+U1,1,AMS1117-5.0,SOT-223,12V -> 5V LDO,Feeds the module 5V pin
+C1,1,100uF/25V,electrolytic,12V bulk,
+C2,1,100uF/10V,electrolytic,5V bulk,
+C3,1,100nF/50V,0603,5V HF decoupling,
+C4,1,100nF/50V,0603,3V3 decoupling,
+Q1,1,SQ2360EES,SOT-23,IR illuminator low-side switch,N-channel; PWM from IO12
+R1,1,100R,0603,MOSFET gate series,
+R2,1,100k,0603,MOSFET gate pull-down,Illuminator dark on reset
+J2,1,2P 3.5mm,term 3.5/2,IR illuminator array,12V and switched cathode
+U2,1,PC817,DIP-4,Trigger input isolator,Loop detector / RFID gate
+U3,1,PC817,DIP-4,Gate output isolator,Dry contact to the gate controller
+R3,1,1k,0603,Trigger opto LED resistor,
+R4,1,10k,0603,Trigger pull-up,Idle reads high
+R5,1,1k,0603,Gate opto LED resistor,
+J3,1,4P 2.54mm,header,Trigger in / gate contact out,TRIG+/TRIG-/OUT-C/OUT-E
+JP,1,5P 2.54mm,header,Programming,TX/RX/GND/5V/IO0
+SW1,1,6mm tactile,THT,BOOT / flash,Pulls IO0 low
+R6,1,10k,0603,IO0 pull-up,
+PCB,1,2-layer FR4 1.6mm,-,Main board,Outdoor: conformal coat after test
+ENC,1,ABS IP65 (UL94 V-0),-,Gate-post enclosure,IR-transparent window over the LEDs

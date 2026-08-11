@@ -99,6 +99,10 @@ DEVICES = [
          w=40, h=25, mounts=2, mains=True, creepage=8.0, meter=True, compact=True),
     dict(folder="meter-3ch", model="cv-em3", title="Circuvent Energy Meter 3CH",
          w=60, h=35, mounts=2, mains=True, creepage=8.0, meter=True, compact=True),
+    # ANPR gate camera. No mains on this board - it runs from the 12 V adapter,
+    # so mains=False and there is no isolation barrier to place.
+    dict(folder="anpr-camera", model="cv-anpr", title="Circuvent ANPR Gate Camera",
+         w=55, h=50, mounts=4, mains=False, creepage=0.0, anpr=True, compact=True),
     # High-density USB-C board. `compact` selects build_netlist_compact() and
     # the 0402/0603 SMD footprint set; everything downstream is shared.
     dict(folder="load-controller", model="cv-duo",
@@ -188,6 +192,7 @@ FP = {
     "capx2":     ("Circuvent", "C_Film_X2_L10.5_W5.0_P7.50mm", 10.5, 5.0, True),
     "capy1":     ("Circuvent", "C_Disc_Y1_D12_P10.00mm", 12.0, 5.0, True),
     "dip8":      ("Package_DIP", "DIP-8_W7.62mm", 10.5, 8.0, True),
+    "esp32cam":  ("Circuvent", "ESP32-CAM_Module_Socket", 27.1, 40.2, True),
 }
 
 # Distinct pad numbers per footprint (measured from the stock libraries).
@@ -213,6 +218,10 @@ PAD_COUNT = {
 PAD_NAMES = {
     "usbc": ["A1", "A4", "A5", "A6", "A7", "A8", "A9", "A12",
              "B1", "B4", "B5", "B6", "B7", "B8", "B9", "B12", "SH"],
+    # ESP32-CAM pads carry function names, not numbers - that is how every
+    # published pinout for the module is written.
+    "esp32cam": ["GND1", "U0T", "U0R", "VOUT", "GND", "IO0", "IO16", "3V3",
+                 "IO4", "IO2", "IO14", "IO15", "IO13", "IO12", "GND2", "5V"],
     # Omron G5Q-1A is a Form A part: pad 4 (NC) is simply not fitted.
     "relay_g5q": [1, 2, 3, 5],
 }
@@ -234,6 +243,7 @@ COMPACT_PKG = {
     "0603led": "led0603", "sod-123": "sod123", "tactile smd": "sw_smd",
     "term 3.5/2": "term2_35", "term 3.5/3": "term3_35", "jst-xh/2": "jst2",
     "ee13": "xfmr", "film x2": "capx2", "disc y1": "capy1", "dip-8": "dip8",
+    "esp32-cam": "esp32cam",
 }
 
 # KiCad's pcbnew.FootprintLoad() re-guesses the plugin per call and can hand back
@@ -1172,6 +1182,8 @@ class Netlist:
 
 def build_netlist(dev, parts):
     """Derive a complete netlist: every pad of every part lands on a net."""
+    if dev.get("anpr"):
+        return build_netlist_anpr(dev, parts)
     if dev.get("meter"):
         return build_netlist_meter(dev, parts)
     if dev.get("psu"):
@@ -1742,6 +1754,143 @@ def wire_psu_block(nl, by_ref, hot):
     # The only intentional primary-to-secondary connection on the board.
     w("CY1", {1: HV_N, 2: GND})
     return used
+
+
+def build_netlist_anpr(dev, parts):
+    """ESP32-CAM carrier for number-plate capture at a gate.
+
+    The module keeps the camera bus, PSRAM and SD inside itself, which is the
+    point of using it: a DVP bus is not something to autoroute on two layers.
+    The carrier adds what the module has no room for and an ANPR install
+    actually needs - an IR illuminator that can be switched, a trigger input
+    from the gate loop, a dry-contact output back to the gate controller, and
+    a way to flash a board that has no USB.
+
+    Pin budget is taken from firmware/camera/camera.ino: the module leaves
+    IO12, IO13, IO16 and the UART pins free once the SD card runs in 1-bit
+    mode, and IO4 is the on-module flash LED.
+    """
+    nl = Netlist()
+    by_ref = {p["ref"]: p for p in parts}
+
+    def of(*prefixes):
+        return sorted([r for r in by_ref if ref_prefix(r) in prefixes],
+                      key=lambda r: (len(r), r))
+
+    def key_of(r):
+        return by_ref[r]["key"]
+
+    def take(pool):
+        return pool.pop(0) if pool else None
+
+    IR_GATE, TRIG, GATE_OUT = "IR_GATE", "TRIG_IN", "GATE_OUT"
+    res = [r for r in of("R") if key_of(r) in ("r0603", "r0805", "r1206")]
+    caps = [r for r in of("C")]
+    dios = [r for r in of("D") if key_of(r) in ("sma", "smb", "sod123")]
+
+    # ---- 12 V in, 5 V rail for the module --------------------------------
+    jin = next((r for r in of("J") if key_of(r) in ("term2_35", "term2")), None)
+    if jin:
+        nl.tie_many(jin, {1: "VIN12", 2: GND})
+    reg = next((r for r in by_ref if key_of(r) in ("sot223", "sot235")), None)
+    if reg:
+        if key_of(reg) == "sot223":
+            nl.tie_many(reg, {1: GND, 2: V5, 3: "VIN12"})
+        else:
+            nl.tie_many(reg, {1: "VIN12", 2: GND, 3: "VIN12",
+                              4: "N$%s.4" % reg, 5: V5})
+    d = take(dios)
+    if d:                                   # reverse-polarity protection
+        nl.tie_many(d, {1: "VIN12", 2: "VIN_RAW"})
+        if jin:
+            nl.tie(jin, 1, "VIN_RAW")
+    for c in caps[:3]:
+        nl.tie_many(c, {1: V5, 2: GND})
+    caps = caps[3:]
+
+    # ---- the module ------------------------------------------------------
+    cam = next((r for r in by_ref if key_of(r) == "esp32cam"), None)
+    if cam:
+        nl.tie_many(cam, {
+            "5V": V5, "GND": GND, "GND1": GND, "GND2": GND, "3V3": V3,
+            "VOUT": V3,
+            "U0T": "UART_TX", "U0R": "UART_RX", "IO0": "BOOT",
+            "IO16": TRIG,        # loop / RFID trigger in
+            "IO12": IR_GATE,     # IR illuminator enable (free in 1-bit SD mode)
+            "IO13": GATE_OUT,    # dry-contact drive back to the gate
+            "IO14": "N$%s.IO14" % cam, "IO15": "N$%s.IO15" % cam,
+            "IO2": "N$%s.IO2" % cam, "IO4": "N$%s.IO4" % cam,
+        })
+
+    # ---- IR illuminator: MOSFET low-side switch --------------------------
+    fet = next((r for r in by_ref if key_of(r) in ("sot23", "to220")
+                and ref_prefix(r) == "Q"), None)
+    if fet:
+        g = IR_GATE
+        r = take(res)
+        if r:
+            g = "IR_G"
+            nl.tie_many(r, {1: IR_GATE, 2: g})
+        nl.tie_many(fet, {1: g, 2: GND, 3: "IR_K"})
+        r = take(res)
+        if r:                                # gate pull-down: dark on reset
+            nl.tie_many(r, {1: g, 2: GND})
+    jir = next((r for r in of("J") if key_of(r) in ("term2_35", "term2")
+                and r != jin), None)
+    if jir:
+        nl.tie_many(jir, {1: "VIN12", 2: "IR_K"})
+
+    # ---- opto-isolated trigger in and gate contact out -------------------
+    optos = [r for r in of("U", "PC") if key_of(r) == "dip4"]
+    op = take(optos)
+    jtr = next((r for r in of("J") if key_of(r) in ("hdr3", "hdr4")), None)
+    if op:
+        a = "TRIG_A"
+        r = take(res)
+        if r:
+            nl.tie_many(r, {1: "TRIG_EXT", 2: a})
+        else:
+            a = "TRIG_EXT"
+        nl.tie_many(op, {1: a, 2: "TRIG_RET", 3: GND, 4: TRIG})
+        r = take(res)
+        if r:                                # pull-up so idle reads high
+            nl.tie_many(r, {1: V3, 2: TRIG})
+    op = take(optos)
+    if op:
+        a = GATE_OUT
+        r = take(res)
+        if r:
+            a = "GATE_A"
+            nl.tie_many(r, {1: GATE_OUT, 2: a})
+        nl.tie_many(op, {1: a, 2: GND, 3: "GATE_C", 4: "GATE_E"})
+    if jtr:
+        n = len(pad_ids(key_of(jtr)))
+        order = ["TRIG_EXT", "TRIG_RET", "GATE_C", "GATE_E"][:n]
+        nl.tie_many(jtr, {i + 1: v for i, v in enumerate(order)})
+
+    # ---- programming header + boot/reset ---------------------------------
+    jp = next((r for r in of("JP") if key_of(r) in ("hdr3", "hdr4", "hdr5")), None)
+    if jp:
+        n = len(pad_ids(key_of(jp)))
+        order = ["UART_TX", "UART_RX", GND, V5, "BOOT"][:n]
+        nl.tie_many(jp, {i + 1: v for i, v in enumerate(order)})
+    for sw in of("SW"):
+        nl.tie_many(sw, {1: "BOOT", 2: GND})
+    r = take(res)
+    if r:
+        nl.tie_many(r, {1: V3, 2: "BOOT"})
+    for c in caps:
+        nl.tie_many(c, {1: V3, 2: GND})
+    for r in res:
+        nl.tie_many(r, {1: "N$%s.1" % r, 2: "N$%s.2" % r})
+    for d in dios:
+        nl.tie_many(d, {1: "N$%s.1" % d, 2: "N$%s.2" % d})
+
+    for ref, p in by_ref.items():
+        for pad in pad_ids(p["key"]):
+            if (ref, str(pad)) not in nl.pads:
+                nl.tie(ref, pad, "N$%s.%s" % (ref, pad))
+    return nl
 
 
 def build_netlist_meter(dev, parts):

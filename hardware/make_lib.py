@@ -36,6 +36,21 @@ Y1_PITCH = 10.0
 Y1_W, Y1_D = 12.0, 5.0
 Y1_DRILL, Y1_PAD = 1.0, 1.8
 
+# --- AI-Thinker ESP32-CAM module socket -----------------------------------
+# 22.86 mm between rows (= 9 x 2.54), NOT the widely-repeated 25.4 mm.
+CAM_ROWS = 22.86
+CAM_PITCH = 2.54
+CAM_BODY_W = 27.07
+CAM_BODY_L = 40.13
+CAM_DRILL = 1.0
+CAM_PAD = 1.93
+
+
+def _npad(name, x, y, drill, size, shape="circle"):
+    return ['  (pad "%s" thru_hole %s (at %.3f %.3f) (size %.2f %.2f) '
+            '(drill %.2f) (layers "*.Cu" "*.Mask"))'
+            % (name, shape, x, y, size, size, drill)]
+
 
 def _hdr(name, descr, tags):
     return [
@@ -117,9 +132,53 @@ def y1cap():
     return "C_Disc_Y1_D12_P10.00mm", L
 
 
+def esp32cam():
+    """AI-Thinker ESP32-CAM module socket.
+
+    Coordinates are taken from the SnapEDA footprint embedded in a published
+    KiCad project, cross-checked two further ways (a purpose-built carrier PCB
+    and its dimensioned SVG). All three agree the header rows are 22.86 mm
+    apart, NOT the 25.4 mm / "one inch" that is repeated all over the internet.
+    A board built to 25.4 mm does not accept the module at all.
+
+    Pad names are functions rather than numbers because that is how every
+    ESP32-CAM pinout is published, and the netlist addresses them by name.
+
+    CAUTION - positions 4-8 of the U0T/U0R/VOUT/GND column disagree between
+    SnapEDA and the popular tutorial pinouts. The 5V/GND/IO12/IO13/IO15/IO14/
+    IO2/IO4 column is consistent everywhere. See the board README: confirm with
+    a continuity check on a physical module before fabricating.
+    """
+    L = _hdr("ESP32-CAM_Module_Socket",
+             "AI-Thinker ESP32-CAM module, 2x8 headers 22.86mm apart, "
+             "2.54mm pitch - VERIFY U0T/U0R/VOUT/GND order before fab",
+             "esp32-cam ai-thinker module socket camera")
+    left = ["GND1", "U0T", "U0R", "VOUT", "GND", "IO0", "IO16", "3V3"]
+    right = ["IO4", "IO2", "IO14", "IO15", "IO13", "IO12", "GND2", "5V"]
+    y0 = 6.35
+    for i, nm in enumerate(left):
+        L += _npad(nm, -CAM_ROWS / 2.0, y0 + i * CAM_PITCH, CAM_DRILL, CAM_PAD,
+                   "rect" if i == 0 else "circle")
+    for i, nm in enumerate(right):
+        L += _npad(nm, CAM_ROWS / 2.0, y0 + i * CAM_PITCH, CAM_DRILL, CAM_PAD)
+    # Module outline, origin centred on the pad field.
+    cy = y0 + 3.5 * CAM_PITCH
+    for lay, w in (("F.SilkS", 0.12), ("F.Fab", 0.1)):
+        L += ['  (fp_rect (start %.3f %.3f) (end %.3f %.3f) (stroke (width %.2f) '
+              '(type solid)) (fill none) (layer "%s"))'
+              % (-CAM_BODY_W / 2.0, cy - CAM_BODY_L / 2.0,
+                 CAM_BODY_W / 2.0, cy + CAM_BODY_L / 2.0, w, lay)]
+    L += ['  (fp_rect (start %.3f %.3f) (end %.3f %.3f) (stroke (width 0.05) '
+          '(type solid)) (fill none) (layer "F.CrtYd"))'
+          % (-CAM_BODY_W / 2.0 - 0.25, cy - CAM_BODY_L / 2.0 - 0.25,
+             CAM_BODY_W / 2.0 + 0.25, cy + CAM_BODY_L / 2.0 + 0.25)]
+    L.append(")")
+    return "ESP32-CAM_Module_Socket", L
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for fn in (transformer, x2cap, y1cap):
+    for fn in (transformer, x2cap, y1cap, esp32cam):
         name, lines = fn()
         path = os.path.join(OUT, name + ".kicad_mod")
         with open(path, "w", encoding="utf-8") as f:
