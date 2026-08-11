@@ -55,27 +55,51 @@ test.describe("shop hero", () => {
 
 test.describe("product card depth", () => {
   test("tilts into a real 3D transform on hover", async ({ page }) => {
+    /*
+     * Pin the motion preference rather than inheriting the machine's.
+     *
+     * Tilt3D correctly refuses to tilt under prefers-reduced-motion, so on a
+     * developer machine with that accessibility setting enabled this test
+     * failed while the code was entirely correct — and it would have passed on
+     * the next machine, which is worse than failing outright. The companion
+     * test below emulates "reduce" explicitly; this one has to be just as
+     * explicit about the opposite.
+     */
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/shop");
     const card = page.locator("article").first();
     await card.scrollIntoViewIfNeeded();
 
     const box = await card.boundingBox();
     expect(box).not.toBeNull();
-    // Off-centre, so both rotateX and rotateY are non-zero.
-    await page.mouse.move(box!.x + box!.width * 0.85, box!.y + box!.height * 0.2);
-    await page.waitForTimeout(450);
-
-    const transform = await page.evaluate(() => {
-      const el = document.querySelector("article [style*='preserve-3d'] > div");
-      return el ? getComputedStyle(el).transform : "none";
-    });
 
     /*
      * `matrix3d` rather than `matrix` is the whole assertion. A 2D skew would
      * look broadly similar in a screenshot and serialise as `matrix(...)`, so
      * this is what distinguishes a perspective projection from a cheap fake.
+     *
+     * The hover is re-issued on every poll instead of once up front. The tilt
+     * is driven by a mousemove listener attached at hydration, so a single
+     * move sent before the component is interactive is simply lost — and no
+     * amount of waiting afterwards brings it back, because nothing will move
+     * the pointer again. That is what failed here while the page tilted
+     * correctly in a browser. Two positions per attempt, since the spring
+     * ignores a move to the coordinate it is already at.
      */
-    expect(transform.startsWith("matrix3d")).toBe(true);
+    await expect
+      .poll(
+        async () => {
+          await page.mouse.move(box!.x + box!.width * 0.5, box!.y + box!.height * 0.5);
+          await page.mouse.move(box!.x + box!.width * 0.85, box!.y + box!.height * 0.2);
+          await page.waitForTimeout(250);
+          return page.evaluate(() => {
+            const el = document.querySelector("article [style*='preserve-3d'] > div");
+            return el ? getComputedStyle(el).transform : "none";
+          });
+        },
+        { message: "card never reached a 3D transform", timeout: 20_000 }
+      )
+      .toMatch(/^matrix3d/);
   });
 
   test("stays completely flat under prefers-reduced-motion", async ({ page }) => {
