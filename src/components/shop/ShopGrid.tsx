@@ -108,6 +108,42 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
     setVisible(PAGE_SIZE);
   }
 
+  /*
+   * How far the shopper had scrolled, remembered across navigation.
+   *
+   * Without this the catalogue loses your place in the most ordinary journey
+   * there is: load more twice, open the twentieth product, press back — and
+   * the list is nine items long again, with the product you were looking at
+   * not rendered. Browser scroll restoration then cannot help either, because
+   * the page it is restoring into is a third of the height it was.
+   *
+   * Keyed by the filter state, so it restores the page depth for *these*
+   * results and a different filter still starts at the top. sessionStorage
+   * rather than the URL: a `?shown=27` parameter would multiply the crawlable
+   * URL space of an already filter-heavy listing for something that is pure
+   * view state and means nothing to anyone else.
+   */
+  const depthKey = `cv.shop.depth:${resultsKey}`;
+
+  useEffect(() => {
+    try {
+      const saved = Number(window.sessionStorage.getItem(depthKey));
+      // Only ever restores *more* than the default, never less: a stale entry
+      // must not be able to hide products the shopper has not seen.
+      if (Number.isFinite(saved) && saved > PAGE_SIZE) setVisible(saved);
+    } catch {
+      /* storage disabled — the list simply starts at the first page */
+    }
+  }, [depthKey]);
+
+  useEffect(() => {
+    try {
+      if (visible > PAGE_SIZE) window.sessionStorage.setItem(depthKey, String(visible));
+    } catch {
+      /* not essential */
+    }
+  }, [depthKey, visible]);
+
   const openQuickView = useCallback((p: Product) => {
     setQuickView(p);
     setQuickViewOpen(true);
