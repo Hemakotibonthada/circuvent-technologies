@@ -184,9 +184,14 @@ export default function ShopFilters({
         </p>
       </Section>
 
-      <Section title="Customer rating">
-        <ul className="space-y-0.5">
-          {facets.ratings.map((r) => {
+      {/* Hidden entirely when no band can narrow the list — buildFacets drops
+          bands that match everything, so an all-4.5+ catalogue leaves none and
+          a bare "Customer rating" heading over nothing would be worse than
+          the useless buttons it replaced. */}
+      {facets.ratings.length > 0 && (
+        <Section title="Customer rating">
+          <ul className="space-y-0.5">
+            {facets.ratings.map((r) => {
             const active = state.minRating === r.value;
             return (
               <li key={r.value}>
@@ -209,8 +214,9 @@ export default function ShopFilters({
               </li>
             );
           })}
-        </ul>
-      </Section>
+          </ul>
+        </Section>
+      )}
 
       <Section title="Availability & offers">
         <ul className="space-y-0.5">

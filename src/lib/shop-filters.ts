@@ -214,10 +214,22 @@ export function computeFacets(
     inStock: stockPool.filter((p) => !isSoldOut(p)).length,
     onSale: salePool.filter((p) => discountPct(p) > 0).length,
     saved: savedPool.filter((p) => (opts.isSaved ?? (() => false))(p.id)).length,
-    ratings: [4.5, 4, 3.5].map((value) => ({
-      value,
-      count: ratingPool.filter((p) => (p.rating ?? 0) >= value).length,
-    })),
+    /*
+     * Rating bands that cannot narrow anything are dropped, the same way empty
+     * price buckets are below.
+     *
+     * A band matching *every* product is as useless as one matching none —
+     * selecting it returns the same list. With a curated catalogue where
+     * everything is rated 4.5+, all three bands showed the full count, so the
+     * section occupied prime sidebar space while being incapable of filtering.
+     * Dropping them hides the whole section, which is the honest outcome.
+     */
+    ratings: [4.5, 4, 3.5]
+      .map((value) => ({
+        value,
+        count: ratingPool.filter((p) => (p.rating ?? 0) >= value).length,
+      }))
+      .filter((r) => r.count > 0 && r.count < ratingPool.length),
     prices: PRICE_BUCKETS.map((b) => ({
       ...b,
       count: pricePool.filter(
