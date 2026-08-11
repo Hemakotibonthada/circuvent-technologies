@@ -6,6 +6,7 @@
 
 import type { Product } from "@/lib/shop-data";
 import { cannotBuy, isLowStockNow, type AvailabilityInput } from "@/lib/product-availability";
+import { fuzzyMatchesToken, nearestToken, squash, tokenize } from "@/lib/fuzzy";
 
 export type SortId = "featured" | "price-asc" | "price-desc" | "rating" | "discount" | "name";
 export type ViewMode = "grid" | "list";
@@ -86,15 +87,91 @@ export function discountPct(p: Product): number {
   return saving > 0 && p.compareAt ? Math.round((saving / p.compareAt) * 100) : 0;
 }
 
-/** Free-text match across the fields a shopper would reasonably search by. */
+/** The fields a shopper would reasonably search by, as one lowercase string. */
+function searchText(p: Product): string {
+  return [p.name, p.tagline, p.category, p.badge ?? "", p.description, ...(p.specs ?? [])]
+    .join(" ")
+    .toLowerCase();
+}
+
+/**
+ * Free-text match.
+ *
+ * Substring first, so an exact query keeps exact precision. Only terms that
+ * fail outright fall back to typo tolerance — a shopper who types "plgu" or
+ * "swich" otherwise hits a dead end and leaves, which is the single most
+ * expensive failure on a listing page.
+ */
 export function matchesQuery(p: Product, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
+
   const terms = q.split(/\s+/);
-  const haystack = [p.name, p.tagline, p.category, p.badge ?? "", p.description, ...(p.specs ?? [])]
-    .join(" ")
-    .toLowerCase();
-  return terms.every((t) => haystack.includes(t));
+  const haystack = searchText(p);
+  let squashed: string | null = null;
+  let tokens: string[] | null = null;
+
+  return terms.every((t) => {
+    if (haystack.includes(t)) return true;
+    // Only pay for these once a term has actually missed.
+    squashed ??= squash(haystack);
+    if (squashed.includes(t)) return true;
+    tokens ??= tokenize(haystack);
+    return fuzzyMatchesToken(t, tokens);
+  });
+}
+
+/**
+ * Every distinct word in the catalogue, in catalogue order, for spell
+ * correction. Order matters: `nearestToken` breaks ties by first-seen, and
+ * products are ordered with the most prominent first.
+ */
+function vocabulary(products: Product[]): string[] {
+  const seen = new Set<string>();
+  for (const p of products) {
+    for (const tok of tokenize(searchText(p))) seen.add(tok);
+  }
+  return [...seen];
+}
+
+export interface QueryCorrection {
+  /** The query actually used for matching. */
+  effective: string;
+  /** True when it differs from what the shopper typed. */
+  corrected: boolean;
+}
+
+/**
+ * "Showing results for ..." — the correction Amazon and Flipkart both surface.
+ *
+ * Only offered when the raw query matches nothing exactly anywhere in the
+ * catalogue; if a term is a real substring hit we must not second-guess it.
+ * Returns the original query unchanged when no correction is available, so
+ * callers can render the result without a null check.
+ */
+export function correctQuery(products: Product[], query: string): QueryCorrection {
+  const q = query.trim().toLowerCase();
+  const unchanged: QueryCorrection = { effective: query.trim(), corrected: false };
+  if (!q) return unchanged;
+
+  // A query that already finds something needs no correction.
+  if (products.some((p) => searchText(p).includes(q) || squash(searchText(p)).includes(q))) {
+    return unchanged;
+  }
+
+  const vocab = vocabulary(products);
+  const terms = q.split(/\s+/);
+  let changed = false;
+
+  const fixed = terms.map((t) => {
+    if (vocab.some((tok) => tok.startsWith(t))) return t;
+    const near = nearestToken(t, vocab);
+    if (!near) return t;
+    changed = true;
+    return near;
+  });
+
+  return changed ? { effective: fixed.join(" "), corrected: true } : unchanged;
 }
 
 /* ── Filtering & sorting ────────────────────────────────────────────────── */

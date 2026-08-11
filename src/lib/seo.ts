@@ -187,6 +187,13 @@ export const pageMetadata: Record<string, PageMeta> = {
     path: "/shop/account",
     noIndex: true,
   },
+  devices: {
+    title: "My Devices",
+    description: "Control and monitor your linked Circuvent devices from anywhere.",
+    keywords: ["Devices", "Control", "Smart Home"],
+    path: "/shop/devices",
+    noIndex: true,
+  },
 };
 
 // ============================================================

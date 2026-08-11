@@ -7,6 +7,7 @@ import { products as STATIC, formatINR, SHIPPING, type Product } from "@/lib/sho
 import {
   clearFilters,
   computeFacets,
+  correctQuery,
   countActiveFilters,
   parseFilters,
   priceBounds,
@@ -94,6 +95,7 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
 
   const filterOpts = useMemo(() => ({ isSaved }), [isSaved]);
   const results = useMemo(() => selectProducts(list, state, filterOpts), [list, state, filterOpts]);
+  const correction = useMemo(() => correctQuery(list, state.q), [list, state.q]);
   const facets = useMemo(() => computeFacets(list, state, filterOpts), [list, state, filterOpts]);
   const bounds = useMemo(() => priceBounds(list), [list]);
   const activeCount = countActiveFilters(state);
@@ -213,6 +215,18 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
           />
 
           <div className="mt-5">
+            {!loading && correction.corrected && results.length > 0 && (
+              <p
+                className="mb-4 text-sm"
+                role="status"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Showing results for{" "}
+                <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                  {correction.effective}
+                </span>
+              </p>
+            )}
             {loading ? (
               <ProductGridSkeleton count={6} view={state.view} />
             ) : results.length > 0 ? (
@@ -257,12 +271,18 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
               >
                 <PackageX className="h-8 w-8" aria-hidden="true" style={{ color: "var(--text-muted)" }} />
                 <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                  {state.saved ? "Nothing saved yet" : "No products match your filters"}
+                  {state.saved
+                    ? "Nothing saved yet"
+                    : state.q.trim()
+                      ? `No results for “${state.q.trim()}”`
+                      : "No products match your filters"}
                 </p>
                 <p className="max-w-sm text-sm" style={{ color: "var(--text-tertiary)" }}>
                   {state.saved
                     ? "Tap the heart on any product to save it here for later."
-                    : "Try removing a filter or searching for something broader."}
+                    : state.q.trim()
+                      ? "Check the spelling, try a broader word, or browse the categories."
+                      : "Try removing a filter or searching for something broader."}
                 </p>
                 {activeCount > 0 && (
                   <button
