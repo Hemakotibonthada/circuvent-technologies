@@ -83,6 +83,20 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   aquaguard: { label: "AquaGuard", icon: Droplets, accent: "#06b6d4", blurb: "Water tank & pump" },
   "home-hub": { label: "Home Hub", icon: Home, accent: "#8b5cf6", blurb: "Multi-channel + scenes" },
   "smart-plug": { label: "Smart Plug", icon: Plug, accent: "#06b6d4", blurb: "Metered outlet" },
+  /*
+   * Four shipped products that the console did not know existed.
+   *
+   * All four are sold in the shop, have firmware, and are offered by Add
+   * Device — but were absent here, so the console fell back to showing the raw
+   * type slug as the name. A customer's Circuvent Smart Light appeared in their
+   * own dashboard as "smart-light" with a generic chip icon. Icons match the
+   * phone's (lightbulb, fan, curtains, lock) so the same device does not look
+   * like two different things on two screens.
+   */
+  "smart-light": { label: "Smart Light", icon: Lightbulb, accent: "#f59e0b", blurb: "Dimmable, colour" },
+  "smart-fan": { label: "Smart Fan", icon: Fan, accent: "#22d3ee", blurb: "Variable speed" },
+  curtain: { label: "Curtain", icon: Blinds, accent: "#8b5cf6", blurb: "Motorised curtain" },
+  "smart-lock": { label: "Smart Lock", icon: Lock, accent: "#10b981", blurb: "Keyless entry" },
   "smart-switch": { label: "Smart Switch", icon: ToggleRight, accent: "#8b5cf6", blurb: "2-gang wall switch" },
   "energy-monitor": { label: "Energy Monitor", icon: Gauge, accent: "#f59e0b", blurb: "Whole-home metering" },
   guardian: { label: "Guardian", icon: ShieldAlert, accent: "#ef4444", blurb: "Personal safety" },
@@ -306,6 +320,10 @@ export interface Capability {
   fan?: { field: string; label: string; steps: number; legacyField?: string };
   color?: { field: string };
   thermostat?: { field: string; label: string; min: number; max: number };
+  /** A bolt, not a switch: true is locked. */
+  lock?: { field: string; label: string };
+  /** How far open something is, 0 closed to 100 open. */
+  position?: { field: string; label: string; min: number; max: number };
 }
 
 export function capabilities(type: string): Capability {
@@ -346,6 +364,21 @@ export function capabilities(type: string): Capability {
     case "thermostat":
     case "ac":
       return { power: { field: "power", label: "Power" }, thermostat: { field: "target", label: "Target", min: 16, max: 30 } };
+    /*
+     * Deliberately no `power` on either of these.
+     *
+     * The command map refuses to build a power command for a lock or a
+     * curtain, because neither has one — the lock has a bolt and the curtain
+     * has a position. Declaring one anyway would render a toggle that builds
+     * nothing: a switch that moves, reports success and does not touch the
+     * hardware.
+     */
+    case "smart-lock":
+      // `locked` true/false becomes action lock/unlock, both of which
+      // firmware/smart-lock handles alongside a plain { locked } set.
+      return { lock: { field: "locked", label: "Deadbolt" } };
+    case "curtain":
+      return { position: { field: "position", label: "Position", min: 0, max: 100 } };
     default:
       return { power: { field: "power", label: "Power" } };
   }
@@ -393,7 +426,7 @@ function GenericCapabilities({ d, send, st }: { d: Device; send: SendFn; st: Sta
    * capability, so it decided nothing and only offered a second place to
    * forget a device.
    */
-  if (!caps.dimmer && !caps.fan && !caps.color && !caps.thermostat) return null;
+  if (!caps.dimmer && !caps.fan && !caps.color && !caps.thermostat && !caps.lock && !caps.position) return null;
   const colors = ["#ffffff", "#f87171", "#fb923c", "#facc15", "#4ade80", "#22d3ee", "#60a5fa", "#a78bfa"];
   return (
     <div className="mb-5">
@@ -401,6 +434,44 @@ function GenericCapabilities({ d, send, st }: { d: Device; send: SendFn; st: Sta
       {caps.power && (
         <ControlRow label={caps.power.label}>
           <Toggle checked={b(d.state[caps.power.field])} onChange={(v) => send({ [caps.power!.field]: v })} status={st(caps.power!.field)} label={caps.power.label} />
+        </ControlRow>
+      )}
+      {caps.lock && (
+        <ControlRow label={caps.lock.label} hint={b(d.state[caps.lock.field]) ? "Locked" : "Unlocked"}>
+          {/*
+            A toggle, on the device page only.
+            
+            masterPower deliberately gives locks no one-tap control, so this
+            does not appear on a tile or in a bulk room action — an accidental
+            tap in a list should not open a front door. Here, where the device
+            has been opened on purpose, a labelled switch is the clearest
+            control there is.
+          */}
+          <Toggle checked={b(d.state[caps.lock.field])} onChange={(v) => send({ [caps.lock!.field]: v })} status={st(caps.lock!.field)} label={caps.lock.label} />
+        </ControlRow>
+      )}
+      {caps.position && (
+        <ControlRow
+          label={caps.position.label}
+          hint={d.state.moving ? "Moving…" : `${n(d.state[caps.position.field])}% open`}
+        >
+          {/*
+            A curtain takes seconds to travel, so the slider commits on release
+            like the others — sending on every frame would queue a command per
+            pixel and the motor would chase a position the user left long ago.
+          */}
+          <div className="w-48">
+            <Slider
+              label={caps.position.label}
+              value={n(d.state[caps.position.field])}
+              min={caps.position.min}
+              max={caps.position.max}
+              unit="%"
+              ticks={[0, 50, 100]}
+              tickLabels={{ 0: "Closed", 50: "Half", 100: "Open" }}
+              onCommit={(v) => send({ [caps.position!.field]: v })}
+            />
+          </div>
         </ControlRow>
       )}
       {caps.dimmer && (
