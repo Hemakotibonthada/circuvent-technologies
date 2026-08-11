@@ -307,6 +307,15 @@ export interface Palette {
   glassTint: "light" | "dark" | "default";
   glassFill: string;
   glassBorder: string;
+  /*
+   * The two ambient lights behind a glass screen. Held on the palette rather
+   * than hardcoded in the component so a light glass room can be lit by
+   * daylight instead of by a lamp.
+   */
+  warmGlow: string;
+  coolGlow: string;
+  /** Opaque-enough backing for modals; see buildPalette. */
+  overlay: string;
   isGlass: boolean;
   isNeo: boolean;
 }
@@ -315,12 +324,39 @@ const STATUS = { green: "#22c55e", amber: "#f59e0b", red: "#ef4444", cyan: "#06b
 
 /** Build the active palette from mode + scheme + accent. */
 export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string): Palette {
+  const p = buildModePalette(mode, scheme, accentKey);
+  return {
+    ...p,
+    /*
+     * The surface a modal sits on.
+     *
+     * Translucency over content is decoration; translucency under a dialog is a
+     * legibility bug. The glass sheet relied entirely on BlurView for its
+     * opacity, and Android's blur is weak where it works and absent where it
+     * does not — so once the glass fill came down to 4.5% the editor sheet was
+     * genuinely see-through, with the home screen legible through the text.
+     *
+     * A near-opaque base under the blur fixes it everywhere: where blur works
+     * it still reads as frosted, and where it does not the sheet is simply a
+     * dark panel. Non-glass themes already have an opaque card.
+     */
+    overlay: p.isGlass ? (scheme === "dark" ? "rgba(17,17,21,0.94)" : "rgba(249,250,253,0.94)") : p.card,
+  };
+}
+
+function buildModePalette(mode: ThemeMode, scheme: Scheme, accentKey: string): Omit<Palette, "overlay"> {
   const a = accentByKey(accentKey);
   const base = {
     accent: a.color,
     accentHi: a.colorHi,
     accentGrad: a.grad,
     ...STATUS,
+    /*
+     * Amber and a cold blue: the colours of a lit room after dark. Overridden
+     * per mode where a different room is called for.
+     */
+    warmGlow: "#ff8a3d",
+    coolGlow: "#3d7bff",
     isGlass: mode === "glass",
     isNeo: mode === "neo",
   };
@@ -395,24 +431,44 @@ export function buildPalette(mode: ThemeMode, scheme: Scheme, accentKey: string)
     if (scheme === "light") {
       return {
         ...base, mode, scheme,
-        screenGrad: [a.grad[0], a.grad[1]],
-        bg: "#eef2ff", surface: "rgba(255,255,255,0.5)", surfaceHi: "rgba(255,255,255,0.62)",
-        card: "rgba(255,255,255,0.5)", cardHi: "rgba(255,255,255,0.62)",
-        border: "rgba(255,255,255,0.6)", borderHi: "rgba(255,255,255,0.85)",
-        text: "#0b1020", textDim: "#33405e", faint: "#7c8aa5",
+        /*
+         * A near-white room rather than a coloured one. The dark scheme is the
+         * one the look was designed for; light glass works when the canvas is
+         * almost paper and the panes are what carry the tint.
+         */
+        screenGrad: ["#f2f3f7", "#e8eaf1"],
+        bg: "#f0f1f6", surface: "rgba(255,255,255,0.66)", surfaceHi: "rgba(255,255,255,0.8)",
+        card: "rgba(255,255,255,0.66)", cardHi: "rgba(255,255,255,0.8)",
+        border: "rgba(15,20,35,0.07)", borderHi: "rgba(15,20,35,0.12)",
+        text: "#0b1020", textDim: "#3b4661", faint: "#7c8aa5",
         onAccent: "#ffffff", neoLight: "#ffffff", neoDark: "#c3c9da",
-        glassTint: "light", glassFill: "rgba(255,255,255,0.35)", glassBorder: "rgba(255,255,255,0.6)",
+        glassTint: "light", glassFill: "rgba(255,255,255,0.5)", glassBorder: "rgba(15,20,35,0.08)",
+        /* Daylight, not lamplight: cooler and far weaker, or a white room goes muddy. */
+        warmGlow: "#ffd9a8", coolGlow: "#a8c8ff",
       };
     }
+    /*
+     * Deep neutral black, not navy.
+     *
+     * The old glass put frosted white panes over a vivid accent gradient, which
+     * is the 2020 glassmorphism poster and reads as washed-out on a phone: the
+     * backdrop competed with the content, and every card was the same milky
+     * grey regardless of what was in it.
+     *
+     * This is the darkroom version: the canvas is almost black and almost
+     * colourless, the panes are barely lighter than it, and the only colour in
+     * the room comes from the things that are on — a lit tile blooms, and
+     * everything else recedes. Contrast comes from light, not from fill.
+     */
     return {
       ...base, mode, scheme,
-      screenGrad: [a.grad[0], a.grad[1]],
-      bg: "#0b1024", surface: "rgba(255,255,255,0.08)", surfaceHi: "rgba(255,255,255,0.14)",
-      card: "rgba(255,255,255,0.08)", cardHi: "rgba(255,255,255,0.14)",
-      border: "rgba(255,255,255,0.16)", borderHi: "rgba(255,255,255,0.28)",
-      text: "#f4f7ff", textDim: "rgba(233,238,255,0.72)", faint: "rgba(233,238,255,0.5)",
-      onAccent: "#ffffff", neoLight: "#2b3350", neoDark: "#141a2b",
-      glassTint: "dark", glassFill: "rgba(255,255,255,0.1)", glassBorder: "rgba(255,255,255,0.22)",
+      screenGrad: ["#0d0d10", "#08080a"],
+      bg: "#0a0a0c", surface: "rgba(255,255,255,0.045)", surfaceHi: "rgba(255,255,255,0.075)",
+      card: "rgba(255,255,255,0.045)", cardHi: "rgba(255,255,255,0.075)",
+      border: "rgba(255,255,255,0.07)", borderHi: "rgba(255,255,255,0.13)",
+      text: "#f7f8fa", textDim: "rgba(240,242,248,0.66)", faint: "rgba(240,242,248,0.42)",
+      onAccent: "#ffffff", neoLight: "#1a1a1f", neoDark: "#050506",
+      glassTint: "dark", glassFill: "rgba(255,255,255,0.05)", glassBorder: "rgba(255,255,255,0.08)",
     };
   }
 

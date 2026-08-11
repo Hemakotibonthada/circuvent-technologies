@@ -147,17 +147,36 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
     } as React.CSSProperties;
   }
   if (mode === "glass") {
+    /*
+     * A darkroom, not a poster.
+     *
+     * Glass used to be frosted white panes over a vivid accent gradient — the
+     * backdrop was the loudest thing on the page, and every card came out the
+     * same milky grey regardless of what was in it. The canvas is now almost
+     * black and almost colourless: the panes are barely lighter than it, and the
+     * only colour in the room is a warm bloom high on the left and a cold one
+     * low on the right, both too faint to read as shapes.
+     *
+     * Contrast comes from light rather than from fill, which is what makes a lit
+     * accessory tile stand out without being painted in.
+     *
+     * Kept in step with the app's glass palette in mobile/src/theme.ts; a test
+     * checks they have not drifted, because two applications agreeing on a look
+     * by eye is how they stop agreeing.
+     */
     return {
       ...base,
-      "--cv-bg": `radial-gradient(circle at top left, ${accent.grad[0]}55, transparent 35%), radial-gradient(circle at 80% 20%, ${accent.grad[1]}44, transparent 30%), ${dark ? "#050508" : "#eef1f8"}`,
-      "--cv-card": dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.62)",
-      "--cv-card-hi": dark ? "rgba(255,255,255,.14)" : "rgba(255,255,255,.78)",
-      "--cv-input-bg": dark ? "rgba(0,0,0,.32)" : "rgba(255,255,255,.76)",
-      "--cv-border": dark ? "rgba(255,255,255,.14)" : "rgba(255,255,255,.7)",
-      "--cv-text": dark ? "#ffffff" : "#0b1020",
-      "--cv-muted": dark ? "rgba(235,235,245,.68)" : "rgba(60,60,67,.68)",
-      "--cv-neo-light": "#ffffff",
-      "--cv-neo-dark": "#111827",
+      "--cv-bg": dark
+        ? `radial-gradient(880px 520px at 8% -10%, rgba(255,138,61,.10), transparent 60%), radial-gradient(760px 480px at 96% 104%, rgba(61,123,255,.08), transparent 58%), #0a0a0c`
+        : `radial-gradient(880px 520px at 8% -10%, rgba(255,217,168,.5), transparent 60%), radial-gradient(760px 480px at 96% 104%, rgba(168,200,255,.45), transparent 58%), #f0f1f6`,
+      "--cv-card": dark ? "rgba(255,255,255,.045)" : "rgba(255,255,255,.66)",
+      "--cv-card-hi": dark ? "rgba(255,255,255,.075)" : "rgba(255,255,255,.8)",
+      "--cv-input-bg": dark ? "rgba(0,0,0,.35)" : "rgba(255,255,255,.8)",
+      "--cv-border": dark ? "rgba(255,255,255,.07)" : "rgba(15,20,35,.07)",
+      "--cv-text": dark ? "#f7f8fa" : "#0b1020",
+      "--cv-muted": dark ? "rgba(240,242,248,.66)" : "rgba(59,70,97,.75)",
+      "--cv-neo-light": dark ? "#1a1a1f" : "#ffffff",
+      "--cv-neo-dark": dark ? "#050506" : "#c3c9da",
     } as React.CSSProperties;
   }
   /* Default surface. Apple's Home uses a near-black (dark) or systemGrouped

@@ -25,7 +25,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { NEO, NEO_SMALL, shadowLayers, withAlpha, type NeoSpec } from "./neo";
 import { HUE_STOPS, COLOR_PRESETS, clamp01, hexToHsv, hsvToHex, wrapHue, type Hsv } from "./color";
 import { BlurView } from "expo-blur";
-import Svg, { Path, Circle } from "react-native-svg";
+import Svg, { Path, Circle, Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 import { Icon, ICONS, type IconName } from "./icons";
 
 const ICON_KEYS: Record<string, true> = Object.fromEntries(Object.keys(ICONS).map((k) => [k, true]));
@@ -232,20 +232,56 @@ export function Screen({ children, style }: { children: React.ReactNode; style?:
   const { c } = useTheme();
   return (
     <LinearGradient colors={c.screenGrad} style={[{ flex: 1 }, style]}>
-      {c.isGlass && (
-        <>
-          <View style={[blob.base, { backgroundColor: c.accentHi, top: -60, left: -40 }]} />
-          <View style={[blob.base, { backgroundColor: c.violet, bottom: 40, right: -50, opacity: 0.35 }]} />
-        </>
-      )}
+      {c.isGlass && <AmbientGlow warm={c.warmGlow} cool={c.coolGlow} />}
       {children}
     </LinearGradient>
   );
 }
 
-const blob = StyleSheet.create({
-  base: { position: "absolute", width: 220, height: 220, borderRadius: 130, opacity: 0.4 },
-});
+/**
+ * The two lamps lighting a glass room.
+ *
+ * Drawn as SVG radial gradients, not coloured circles. A View with a
+ * borderRadius has a hard edge however faint the fill is, so the "glow" was
+ * visibly a brown disc in one corner and a navy one in the other — the same
+ * hard-boundary problem that made the first attempts at the neumorphic shadows
+ * look like bevels. A radial gradient fades to nothing, which is the entire
+ * point of an ambient light.
+ *
+ * Worth noting for anyone reaching for a blur here: react-native-svg ships no
+ * filter primitives in this version, so FeGaussianBlur is not an option.
+ * Gradients are, and they are the correct tool anyway.
+ */
+function AmbientGlow({ warm, cool }: { warm: string; cool: string }) {
+  const { width, height } = useWindowDimensions();
+  return (
+    <Svg
+      width={width}
+      height={height}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Defs>
+        <RadialGradient id="cvWarm" cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor={warm} stopOpacity="0.22" />
+          <Stop offset="0.55" stopColor={warm} stopOpacity="0.07" />
+          <Stop offset="1" stopColor={warm} stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id="cvCool" cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor={cool} stopOpacity="0.16" />
+          <Stop offset="0.55" stopColor={cool} stopOpacity="0.05" />
+          <Stop offset="1" stopColor={cool} stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      {/* Ellipses rather than circles, and larger than the screen, so the
+          brightest part sits off-canvas and only the falloff is visible. */}
+      <Ellipse cx={width * 0.1} cy={-height * 0.02} rx={width * 0.85} ry={height * 0.3} fill="url(#cvWarm)" />
+      <Ellipse cx={width * 0.95} cy={height * 1.0} rx={width * 0.8} ry={height * 0.28} fill="url(#cvCool)" />
+    </Svg>
+  );
+}
 
 /**
  * Placeholder rows for a list that has not loaded yet.

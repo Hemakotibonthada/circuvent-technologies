@@ -20,6 +20,10 @@ import {
   useAppActive,
 } from "../ui";
 import { Icon, eventIcon, weatherIcon, type IconName } from "../icons";
+import { withAlpha } from "../neo";
+import { useVisibleSections, HomeEditor } from "../home-editor";
+import { Sheet } from "../overlays";
+import type { HomeSection } from "../home-layout";
 import { StaleNotice } from "../async";
 import { deviceMeta, greeting, CATEGORY_TINTS, deviceCategory, RADIUS, SPACE, MOTION } from "../theme";
 import { Sparkline } from "../charts";
@@ -129,6 +133,8 @@ export default function Home({
     [scenes],
   );
   const firstName = (account?.name || "").trim().split(" ")[0];
+  const order = useVisibleSections();
+  const [editing, setEditing] = useState(false);
   const roomNames = useMemo(() => ["All", ...rooms.map((r) => r.name)], [rooms]);
   const shownDevices = roomIdx === 0 ? devices : devices.filter((d) => d.room === roomNames[roomIdx]);
 
@@ -137,196 +143,176 @@ export default function Home({
   const trend =
     wattHistory.length >= 2 ? wattHistory[wattHistory.length - 1] - wattHistory[wattHistory.length - 2] : 0;
 
-  return (
-    <Screen>
-      <ScrollView
-        contentContainerStyle={{ padding: GUTTER, paddingTop: insets.top + 12, paddingBottom: 28 }}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accentHi} onRefresh={onRefresh} />}
-      >
-        <StaleNotice error={syncError} onRetry={loadExtras} />
-        {/* header */}
-        <View style={s.header}>
-          <Pressable onPress={onOpenSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Account and settings">
-            <Avatar name={account?.name} size={46} />
-          </Pressable>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={{ color: c.textDim, fontSize: 13 }}>
-              {greeting()}
-              {firstName ? "," : ""}
-            </Text>
-            <Text style={{ color: c.text, fontSize: 21, fontWeight: "800", marginTop: 1 }} numberOfLines={1}>
-              {firstName || "Welcome home"}
+  /*
+   * Every section of the home screen, keyed.
+   *
+   * These used to be written out in source order, which made the file's layout
+   * the user's layout. Keying them means the order on screen comes from the
+   * user's saved arrangement, and hiding a section is dropping a key rather
+   * than threading a boolean through nine conditionals.
+   *
+   * The header is not in here on purpose: the greeting, search and
+   * notifications are how you get anywhere else, so they are not the user's to
+   * move or remove.
+   */
+  const sections: Record<HomeSection, React.ReactNode> = {
+    power: (
+      <Pressable key="power" onPress={onOpenEnergy} accessibilityRole="button" accessibilityLabel="Live power. Open energy details">
+        <LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.heroLabel}>LIVE POWER</Text>
+            {energy ? (
+              <View style={s.heroValueRow}>
+                <CountUp value={energy.liveWatts} style={s.heroValue} />
+                <Text style={s.heroUnit}> W</Text>
+                {Math.abs(trend) >= 1 && (
+                  <View style={s.trendChip}>
+                    <Icon name={trend > 0 ? "trendUp" : "trendDown"} size={12} color="#fff" />
+                    <Text style={s.trendT}>{Math.abs(Math.round(trend))}</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <Skeleton width={140} height={40} radius={10} style={{ marginTop: 6, opacity: 0.4 }} />
+            )}
+            <Text style={s.heroSub} numberOfLines={1}>
+              {energy ? `${energy.todayKwh.toFixed(2)} kWh today` : "Reading meter…"}
             </Text>
           </View>
-          <HeaderButton icon="search" label="Search devices and scenes" onPress={onOpenSearch} />
-          <HeaderButton
-            icon="bell"
-            label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
-            onPress={onOpenNotifications}
-            style={{ marginLeft: 8 }}
-          >
-            {unread > 0 && (
-              <View style={[s.badge, { backgroundColor: c.red, borderColor: c.bg }]}>
-                <Text style={s.badgeT}>{unread > 9 ? "9+" : unread}</Text>
-              </View>
+          <View style={s.heroRight}>
+            {wattHistory.length >= 3 && (
+              <Sparkline data={wattHistory} color="rgba(255,255,255,0.9)" width={72} height={26} />
             )}
-          </HeaderButton>
+            <Text style={s.heroStat}>
+              {online}/{devices.length}
+            </Text>
+            <Text style={s.heroStatLabel}>online</Text>
+          </View>
+        </LinearGradient>
+      </Pressable>
+    ),
+
+    glance: (
+      <View key="glance" style={s.glanceRow}>
+        <GlanceTile icon="devices" value={devices.length} label="Devices" loading={loading} onPress={onOpenDevices} />
+        <GlanceTile icon="rooms" value={rooms.length} label="Rooms" loading={loading} onPress={() => onOpenAutomate("rooms")} />
+        <GlanceTile icon="scenes" value={scenes.length} label="Scenes" loading={loading} onPress={() => onOpenAutomate("scenes")} />
+        <GlanceTile icon="alerts" value={unread} label="Alerts" tint={unread > 0 ? c.red : undefined} loading={loading} onPress={onOpenNotifications} />
+      </View>
+    ),
+
+    quickActions: (
+      <View key="quickActions" style={s.quickRow}>
+        <QuickAction icon="scenes" label="Scenes" onPress={() => onOpenAutomate("scenes")} />
+        <QuickAction icon="rooms" label="Rooms" onPress={() => onOpenAutomate("rooms")} />
+        <QuickAction icon="rules" label="Rules" onPress={() => onOpenAutomate("automations")} />
+        <QuickAction icon="add" label="Add" onPress={onAddDevice} />
+      </View>
+    ),
+
+    weather: <WeatherStrip key="weather" onPress={onOpenWeather} />,
+
+    scenes:
+      favScenes.length > 0 ? (
+        <View key="scenes">
+          <SectionLabel>Scenes</SectionLabel>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 20 }}
+            contentContainerStyle={{ gap: 10 }}
+          >
+            {favScenes.map((sc) => (
+              <Pressable
+                key={sc.id}
+                onPress={() => api.activateScene(sc.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Activate scene ${sc.name}`}
+              >
+                <Card padded style={{ width: 130 }}>
+                  <Text style={{ fontSize: 26 }}>{sc.icon}</Text>
+                  <Text style={{ color: c.text, fontWeight: "700", marginTop: 8 }} numberOfLines={1}>
+                    {sc.name}
+                  </Text>
+                  <Text style={{ color: c.faint, fontSize: 12, marginTop: 2 }}>
+                    {sc.actions.length} action{sc.actions.length === 1 ? "" : "s"}
+                  </Text>
+                </Card>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
+      ) : null,
 
-        {/* live power hero */}
-        <Pressable onPress={onOpenEnergy} accessibilityRole="button" accessibilityLabel="Live power. Open energy details">
-          <LinearGradient colors={c.accentGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.heroLabel}>LIVE POWER</Text>
-              {energy ? (
-                <View style={s.heroValueRow}>
-                  <CountUp value={energy.liveWatts} style={s.heroValue} />
-                  <Text style={s.heroUnit}> W</Text>
-                  {Math.abs(trend) >= 1 && (
-                    <View style={s.trendChip}>
-                      <Icon name={trend > 0 ? "trendUp" : "trendDown"} size={12} color="#fff" />
-                      <Text style={s.trendT}>{Math.abs(Math.round(trend))}</Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <Skeleton width={140} height={40} radius={10} style={{ marginTop: 6, opacity: 0.4 }} />
-              )}
-              <Text style={s.heroSub} numberOfLines={1}>
-                {energy ? `${energy.todayKwh.toFixed(2)} kWh today` : "Reading meter…"}
-              </Text>
-            </View>
-            <View style={s.heroRight}>
-              {wattHistory.length >= 3 && (
-                <Sparkline data={wattHistory} color="rgba(255,255,255,0.9)" width={72} height={26} />
-              )}
-              <Text style={s.heroStat}>
-                {online}/{devices.length}
-              </Text>
-              <Text style={s.heroStatLabel}>online</Text>
-            </View>
-          </LinearGradient>
-        </Pressable>
-
-        {/* at-a-glance */}
-        <View style={s.glanceRow}>
-          <GlanceTile icon="devices" value={devices.length} label="Devices" loading={loading} onPress={onOpenDevices} />
-          <GlanceTile icon="rooms" value={rooms.length} label="Rooms" loading={loading} onPress={() => onOpenAutomate("rooms")} />
-          <GlanceTile icon="scenes" value={scenes.length} label="Scenes" loading={loading} onPress={() => onOpenAutomate("scenes")} />
-          <GlanceTile icon="alerts" value={unread} label="Alerts" tint={unread > 0 ? c.red : undefined} loading={loading} onPress={onOpenNotifications} />
+    favorites:
+      favorites.length > 0 ? (
+        <View key="favorites">
+          <SectionLabel>Favorites</SectionLabel>
+          <View style={s.grid}>
+            {favorites.map((d, i) => (
+              <Stagger key={d.id} index={i}>
+                <DeviceCard device={d} width={col} onOpen={onOpenDevice} onToggle={handleToggle} />
+              </Stagger>
+            ))}
+          </View>
         </View>
+      ) : null,
 
-        {/* quick actions */}
-        <View style={s.quickRow}>
-          <QuickAction icon="scenes" label="Scenes" onPress={() => onOpenAutomate("scenes")} />
-          <QuickAction icon="rooms" label="Rooms" onPress={() => onOpenAutomate("rooms")} />
-          <QuickAction icon="rules" label="Rules" onPress={() => onOpenAutomate("automations")} />
-          <QuickAction icon="add" label="Add" onPress={onAddDevice} />
-        </View>
-
-        {/* weather */}
-        <WeatherStrip onPress={onOpenWeather} />
-
-        {/* scene shortcuts */}
-        {favScenes.length > 0 && (
-          <>
-            <SectionLabel>Scenes</SectionLabel>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: 20 }}
-              contentContainerStyle={{ gap: 10 }}
-            >
-              {favScenes.map((sc) => (
-                <Pressable
-                  key={sc.id}
-                  onPress={() => api.activateScene(sc.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Activate scene ${sc.name}`}
-                >
-                  <Card padded style={{ width: 130 }}>
-                    <Text style={{ fontSize: 26 }}>{sc.icon}</Text>
-                    <Text style={{ color: c.text, fontWeight: "700", marginTop: 8 }} numberOfLines={1}>
-                      {sc.name}
-                    </Text>
-                    <Text style={{ color: c.faint, fontSize: 12, marginTop: 2 }}>
-                      {sc.actions.length} action{sc.actions.length === 1 ? "" : "s"}
-                    </Text>
-                  </Card>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        {/* favorites */}
-        {favorites.length > 0 && (
-          <>
-            <SectionLabel>Favorites</SectionLabel>
+    devices:
+      devices.length > 0 ? (
+        <View key="devices">
+          <SectionLabel>Your devices</SectionLabel>
+          <RoomChips options={roomNames} value={roomIdx} onChange={setRoomIdx} style={{ marginBottom: 14 }} />
+          {shownDevices.length === 0 ? (
+            <Card padded>
+              <Text style={{ color: c.faint, fontSize: 13 }}>No devices in this room yet.</Text>
+            </Card>
+          ) : (
             <View style={s.grid}>
-              {favorites.map((d, i) => (
+              {shownDevices.map((d, i) => (
                 <Stagger key={d.id} index={i}>
-                  <DeviceCard device={d} width={col} onOpen={onOpenDevice} onToggle={handleToggle} />
+                  <DeviceCard device={d} width={col} onOpen={onOpenDevice} onToggle={handleToggle} showRoom />
                 </Stagger>
               ))}
             </View>
-          </>
-        )}
+          )}
+        </View>
+      ) : null,
 
-        {/* room filter + device grid */}
-        {devices.length > 0 && (
-          <>
-            <SectionLabel>Your devices</SectionLabel>
-            <RoomChips options={roomNames} value={roomIdx} onChange={setRoomIdx} style={{ marginBottom: 14 }} />
-            {shownDevices.length === 0 ? (
-              <Card padded>
-                <Text style={{ color: c.faint, fontSize: 13 }}>No devices in this room yet.</Text>
-              </Card>
-            ) : (
-              <View style={s.grid}>
-                {shownDevices.map((d, i) => (
-                  <Stagger key={d.id} index={i}>
-                    <DeviceCard device={d} width={col} onOpen={onOpenDevice} onToggle={handleToggle} showRoom />
-                  </Stagger>
-                ))}
-              </View>
-            )}
-          </>
-        )}
+    rooms:
+      rooms.length > 0 ? (
+        <View key="rooms">
+          <SectionLabel>Rooms</SectionLabel>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 20 }}
+            contentContainerStyle={{ gap: 10 }}
+          >
+            {rooms.map((r) => (
+              <Pressable
+                key={r.name}
+                onPress={() => onOpenAutomate("rooms")}
+                accessibilityRole="button"
+                accessibilityLabel={`${r.name}, ${r.count} devices`}
+              >
+                <Card padded style={{ width: 120, alignItems: "flex-start" }}>
+                  <Text style={{ fontSize: 24 }}>{r.icon}</Text>
+                  <Text style={{ color: c.text, fontWeight: "700", marginTop: 8 }} numberOfLines={1}>
+                    {r.name}
+                  </Text>
+                  <Text style={{ color: c.faint, fontSize: 12 }}>
+                    {r.count} device{r.count === 1 ? "" : "s"}
+                  </Text>
+                </Card>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null,
 
-        {/* rooms */}
-        {rooms.length > 0 && (
-          <>
-            <SectionLabel>Rooms</SectionLabel>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: 20 }}
-              contentContainerStyle={{ gap: 10 }}
-            >
-              {rooms.map((r) => (
-                <Pressable
-                  key={r.name}
-                  onPress={() => onOpenAutomate("rooms")}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${r.name}, ${r.count} devices`}
-                >
-                  <Card padded style={{ width: 120, alignItems: "flex-start" }}>
-                    <Text style={{ fontSize: 24 }}>{r.icon}</Text>
-                    <Text style={{ color: c.text, fontWeight: "700", marginTop: 8 }} numberOfLines={1}>
-                      {r.name}
-                    </Text>
-                    <Text style={{ color: c.faint, fontSize: 12 }}>
-                      {r.count} device{r.count === 1 ? "" : "s"}
-                    </Text>
-                  </Card>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        {/* recent activity */}
+    activity: (
+      <View key="activity">
         <SectionLabel>Recent activity</SectionLabel>
         <Card padded>
           {loading && activity.length === 0 ? (
@@ -359,7 +345,72 @@ export default function Home({
             ))
           )}
         </Card>
+      </View>
+    ),
+  };
+
+  return (
+    <Screen>
+      <ScrollView
+        contentContainerStyle={{ padding: GUTTER, paddingTop: insets.top + 12, paddingBottom: 28 }}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accentHi} onRefresh={onRefresh} />}
+      >
+        <StaleNotice error={syncError} onRetry={loadExtras} />
+        {/* header */}
+        <View style={s.header}>
+          <Pressable onPress={onOpenSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Account and settings">
+            <Avatar name={account?.name} size={46} />
+          </Pressable>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={{ color: c.textDim, fontSize: 13 }}>
+              {greeting()}
+              {firstName ? "," : ""}
+            </Text>
+            <Text style={{ color: c.text, fontSize: 21, fontWeight: "800", marginTop: 1 }} numberOfLines={1}>
+              {firstName || "Welcome home"}
+            </Text>
+          </View>
+          <HeaderButton icon="search" label="Search devices and scenes" onPress={onOpenSearch} />
+          {/*
+            Customise sits on the home screen it customises. Burying it in
+            Settings would mean leaving the thing you are arranging in order to
+            arrange it, and then walking back to see the result.
+          */}
+          <HeaderButton
+            icon="edit"
+            label="Customise home screen"
+            onPress={() => setEditing(true)}
+            style={{ marginLeft: 8 }}
+          />
+          <HeaderButton
+            icon="bell"
+            label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+            onPress={onOpenNotifications}
+            style={{ marginLeft: 8 }}
+          >
+            {unread > 0 && (
+              <View style={[s.badge, { backgroundColor: c.red, borderColor: c.bg }]}>
+                <Text style={s.badgeT}>{unread > 9 ? "9+" : unread}</Text>
+              </View>
+            )}
+          </HeaderButton>
+        </View>
+
+        {/*
+          The sections, in the order the user arranged them.
+        
+          Rendering from a list rather than writing them out here is what
+          makes the layout theirs: a hidden section is a key that is not in
+          the list, and reordering is reordering the list. It also means
+          adding a section is one entry in the catalogue and one key here,
+          rather than a decision about where in this file it belongs.
+        */}
+        {order.map((key) => sections[key])}
       </ScrollView>
+
+      <Sheet visible={editing} onClose={() => setEditing(false)} maxHeightRatio={0.86}>
+        <HomeEditor onClose={() => setEditing(false)} />
+      </Sheet>
     </Screen>
   );
 }
@@ -442,17 +493,25 @@ const DeviceCard = React.memo(
     const litFill = tint === CATEGORY_TINTS.neutral ? c.accent : tint;
 
     /*
-     * The device tiles are the widgets people actually look at, and they were
-     * the flattest thing on the screen — a plain bordered rectangle sitting
-     * between neumorphic stat tiles above and a neumorphic nav bar below. They
-     * never went through Card, so nothing had ever given them the theme's
-     * surface treatment.
+     * Glass lights the tile rather than painting it.
      *
-     * A lit tile keeps its own colour as the face and is still extruded: the
-     * shadow is behind it, so it works over an accent exactly as over the
-     * surface. In neo the border goes — an extruded surface with an outline
-     * reads as a sticker of a card rather than a card.
+     * Filling a lit tile with solid category colour is right for neo and wrong
+     * for a dark glass room: it produces a saturated block sitting on near-black
+     * with nothing between them, which is the opposite of a pane you can see
+     * through. Here the pane stays dark and the colour arrives as a wash from
+     * within — the same information, carried by light instead of by paint, so
+     * the text stays legible against a dark face and the tile still obviously
+     * reads as on.
      */
+    const glassLit = c.isGlass && lit;
+    const face = glassLit ? withAlpha(litFill, 0.16) : lit ? litFill : c.isNeo ? c.surface : c.card;
+    const edge = glassLit ? withAlpha(litFill, 0.42) : lit ? litFill : c.border;
+
+    /* On a lit glass tile the face is dark, so the dark-on-light foreground
+       that suits a painted tile would be unreadable. */
+    const fgFinal = glassLit ? c.text : fg;
+    const subFinal = glassLit ? c.textDim : sub;
+
     const body = (
       <View
         style={{
@@ -460,9 +519,9 @@ const DeviceCard = React.memo(
           padding: SPACE.lg,
           minHeight: 124,
           justifyContent: "space-between",
-          backgroundColor: lit ? litFill : c.isNeo ? c.surface : c.card,
+          backgroundColor: face,
           borderWidth: c.isNeo ? 0 : 1,
-          borderColor: lit ? litFill : c.border,
+          borderColor: edge,
           opacity: offline ? 0.62 : 1,
         }}
         >
@@ -474,10 +533,10 @@ const DeviceCard = React.memo(
                 borderRadius: RADIUS.control,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: lit ? "rgba(28,28,30,0.12)" : offline ? c.cardHi : `${tint}22`,
+                backgroundColor: glassLit ? withAlpha(litFill, 0.22) : lit ? "rgba(28,28,30,0.12)" : offline ? c.cardHi : `${tint}22`,
               }}
             >
-              <Icon name={meta.icon} size={21} color={lit ? c.onAccent : offline ? c.faint : tint} />
+              <Icon name={meta.icon} size={21} color={glassLit ? litFill : lit ? c.onAccent : offline ? c.faint : tint} />
             </View>
             {pf && !offline ? (
               <View onStartShouldSetResponder={() => true}>
@@ -488,10 +547,10 @@ const DeviceCard = React.memo(
             )}
           </View>
           <View style={{ marginTop: SPACE.md }}>
-            <Text style={{ color: fg, fontWeight: "700", fontSize: 15, letterSpacing: -0.2 }} numberOfLines={1}>
+            <Text style={{ color: fgFinal, fontWeight: "700", fontSize: 15, letterSpacing: -0.2 }} numberOfLines={1}>
               {d.name || d.id}
             </Text>
-            <Text style={{ color: sub, fontSize: 13, marginTop: 1 }} numberOfLines={1}>
+            <Text style={{ color: subFinal, fontSize: 13, marginTop: 1 }} numberOfLines={1}>
               {subtitle}
             </Text>
           </View>

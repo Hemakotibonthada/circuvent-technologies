@@ -156,6 +156,11 @@ export function Sheet({
           accessibilityViewIsModal
         >
           {c.isGlass ? (
+            /* Opaque base first: the blur below it is an effect, not the thing
+               keeping the sheet readable. */
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay }]} />
+          ) : null}
+          {c.isGlass ? (
             <BlurView
               intensity={scheme === "dark" ? 60 : 80}
               tint={scheme === "dark" ? "dark" : "light"}

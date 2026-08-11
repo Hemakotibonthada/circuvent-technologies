@@ -907,7 +907,9 @@ function makeStyles(c: Palette) {
   logMsg: { color: c.text, fontSize: 14, flex: 1 },
   modalScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
   modalWrap: { flex: 1, justifyContent: "center", padding: 22 },
-  modalCard: { backgroundColor: c.card, borderColor: c.borderHi, borderWidth: 1, borderRadius: 18, padding: 18 },
+  /* c.overlay, not c.card: a modal has to stay readable even when the card
+     fill is a few percent of white, which is what glass is. */
+  modalCard: { backgroundColor: c.overlay, borderColor: c.borderHi, borderWidth: 1, borderRadius: 18, padding: 18 },
   modalTitle: { color: c.text, fontSize: 18, fontWeight: "800" },
   modalSub: { color: c.textDim, fontSize: 13, marginTop: 4 },
   });

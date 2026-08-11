@@ -53,10 +53,32 @@ import {
 import { CHART_COLORS, LineChart, BarChart, Sparkline } from "./_kit/charts";
 import { DeviceTile } from "./_kit/device";
 import OverviewDiagnostics from "./OverviewDiagnostics";
+import { DashboardCustomiser, useConsoleLayout } from "./DashboardCustomiser";
+import type { ConsoleSection } from "@/lib/console-layout";
 import { useEnergy, useEvents, useFleet, useHomeEnergyHistory, useRooms, useScenes, useControlPlaneProbe } from "./_data/hooks";
 
 export default function OverviewPage() {
   const { user, liveStatus } = useConsole();
+  /*
+   * The user's panel arrangement, read once here and threaded through `panel`
+   * below rather than by each section calling the hook — every call is its own
+   * fetch, and eight of them for one document would be eight requests to say
+   * the same thing.
+   */
+  const { layout: dashLayout } = useConsoleLayout();
+  const panel = (key: ConsoleSection, node: React.ReactNode) =>
+    dashLayout.hidden.includes(key) ? null : (
+      /*
+       * CSS `order` rather than sorting the JSX. The sections are large,
+       * deeply nested trees with their own state; moving them in the markup
+       * would remount them on every reorder, throwing away scroll position and
+       * any open disclosure. `order` moves the boxes and leaves the React tree
+       * alone.
+       */
+      <div key={key} style={{ order: dashLayout.order.indexOf(key) }}>
+        {node}
+      </div>
+    );
   const fleet = useFleet();
   const energy = useEnergy();
   const events = useEvents(120);
@@ -153,6 +175,7 @@ export default function OverviewPage() {
         }
         actions={
           <>
+            <DashboardCustomiser />
             <Button icon={RefreshCw} onClick={refreshAll} busy={refreshing} disabled={cooling}>
               Refresh
             </Button>
@@ -185,7 +208,11 @@ export default function OverviewPage() {
           }
         />
       ) : (
-        <>
+        <div className="flex flex-col">
+          {/* A flex column so the panels can be reordered with CSS `order`,
+              which moves the boxes without remounting their React trees. */}
+          {panel("health", (
+            <>
           {/* ------------------------------------------------ health strip -- */}
           <Surface className="mb-6" padded={false}>
             <div className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-y-0" style={{ borderColor: "var(--cv-border)" }}>
@@ -217,7 +244,10 @@ export default function OverviewPage() {
               />
             </div>
           </Surface>
-
+            </>
+          ))}
+          {panel("kpis", (
+            <>
           {/* -------------------------------------------------------- KPIs -- */}
           <KpiGrid>
             <Kpi
@@ -244,7 +274,10 @@ export default function OverviewPage() {
               hint={energy.todayKwh == null ? "Awaiting metering" : "Since local midnight"}
             />
           </KpiGrid>
-
+            </>
+          ))}
+          {panel("alerts", (
+            <>
           {/* ------------------------------------------- alerts + trend ----- */}
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
@@ -323,10 +356,16 @@ export default function OverviewPage() {
               )}
             </Surface>
           </div>
-
+            </>
+          ))}
+          {panel("diagnostics", (
+            <>
           {/* ---------------------------------------------- diagnostics ----- */}
           <OverviewDiagnostics />
-
+            </>
+          ))}
+          {panel("scenes", (
+            <>
           {/* --------------------------------------------------- scenes ----- */}
           {favScenes.length > 0 && (
             <>
@@ -353,7 +392,10 @@ export default function OverviewPage() {
               </div>
             </>
           )}
-
+            </>
+          ))}
+          {panel("control", (
+            <>
           {/* -------------------------------------------- live control ------ */}
           <SectionTitle
             right={
@@ -388,7 +430,10 @@ export default function OverviewPage() {
               Star a device to pin it here.
             </p>
           )}
-
+            </>
+          ))}
+          {panel("rooms", (
+            <>
           {/* ---------------------------------------------- load by room ---- */}
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             {roomLoad.length > 0 ? (
@@ -449,7 +494,10 @@ export default function OverviewPage() {
               )}
             </Surface>
           </div>
-
+            </>
+          ))}
+          {panel("latency", (
+            <>
           {/* -------------------------------------------- latency footer ---- */}
           <SectionTitle
             right={
@@ -493,7 +541,9 @@ export default function OverviewPage() {
               </div>
             </div>
           </Surface>
-        </>
+            </>
+          ))}
+        </div>
       )}
     </div>
   );
