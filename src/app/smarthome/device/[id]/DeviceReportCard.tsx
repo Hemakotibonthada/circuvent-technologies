@@ -9,16 +9,49 @@
  * Nothing on this screen needs to redact anything.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileText, Download, Printer, RefreshCcw, QrCode, ChevronDown } from "lucide-react";
 import { controlPlane, CONTROL_PLANE_URL, getToken, type DeviceReport } from "@/lib/control-plane";
+import { telemetrySeries, isFlat } from "@/lib/telemetry-series";
 import { buildFallbackReport } from "./fallbackReport";
 import { Button, Callout, EmptyState, SectionTitle, Surface, DetailRow } from "../../_kit/primitives";
+import { CHART_COLORS, LineChart } from "../../_kit/charts";
 
 function fmt(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
+}
+
+/**
+ * Line charts for whatever the device has actually been reporting.
+ *
+ * Renders nothing at all when there is no numeric history — a device that has
+ * only ever published booleans, or has two readings of the same value, gets the
+ * raw list and no empty chart frame promising data that does not exist.
+ */
+function TelemetryCharts({ telemetry }: { telemetry: DeviceReport["telemetry"] }) {
+  const series = useMemo(() => telemetrySeries(telemetry), [telemetry]);
+  if (series.length === 0) return null;
+
+  return (
+    <div className="mb-4 grid gap-4 lg:grid-cols-2">
+      {series.map((s, i) => (
+        <LineChart
+          key={s.field}
+          title={s.unit ? `${s.label} (${s.unit})` : s.label}
+          unit={s.unit}
+          height={170}
+          series={[{ name: s.label, color: CHART_COLORS[i % CHART_COLORS.length], points: s.points }]}
+          footer={
+            isFlat(s)
+              ? `Unchanged at ${s.points[0].v}${s.unit} across ${s.points.length} readings`
+              : `${s.points.length} readings`
+          }
+        />
+      ))}
+    </div>
+  );
 }
 
 function useQr(payload: string | null): string | null {
@@ -317,6 +350,22 @@ export default function DeviceReportCard({ deviceId }: { deviceId: string }) {
       </Section>
 
       <Section title={`Readings (${report.telemetry.length})`}>
+        {/*
+          * The trend first, then the raw records.
+          *
+          * This section was the records alone — one JSON object per line,
+          * newest first. Everything needed to see that a load was climbing or
+          * a tank draining was on screen and none of it was legible, because a
+          * trend is a shape and a list of numbers cannot show a shape. The raw
+          * lines stay: they are what you read when you are debugging a field
+          * the chart does not know how to plot.
+          *
+          * One chart per field rather than every field on one axis. A plug
+          * reports watts in the hundreds and a tank a percentage; together the
+          * percentage is a flat line on the floor of the chart and implies
+          * nothing ever moved.
+          */}
+        <TelemetryCharts telemetry={report.telemetry} />
         {report.telemetry.length === 0 ? (
           <p className="text-[13px]" style={{ color: "var(--cv-muted)" }}>No readings.</p>
         ) : (
