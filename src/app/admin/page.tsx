@@ -7,6 +7,8 @@ import {
   Eye,
   TrendingUp,
   Activity,
+  Siren,
+  Radar,
   Globe,
   Database,
   Server,
@@ -51,6 +53,8 @@ import { FileBarChart, Inbox, Cpu, Mail, Gauge } from "lucide-react";
 import DevicesPanel from "./DevicesPanel";
 import EmailsPanel from "./EmailsPanel";
 import LatencyPanel from "./LatencyPanel";
+import IcmPanel from "./IcmPanel";
+import AppInsightsPanel from "./AppInsightsPanel";
 import { BookOpen, Target, Percent, Building2, ShieldAlert, FlaskConical, Link2, Receipt, Contact2, CreditCard, Handshake, Wrench, Timer, FileUp } from "lucide-react";
 import ContentStudioPanel from "./ContentStudioPanel";
 import MarketingPanel from "./MarketingPanel";
@@ -175,6 +179,14 @@ const TAB_META: Record<string, { label: string; icon: IconType; category: string
   reports: { label: "Reports", icon: FileBarChart, category: "overview" },
   monitoring: { label: "Monitoring", icon: Activity, category: "overview" },
   latency: { label: "Latency", icon: Gauge, category: "overview" },
+  /*
+   * Reliability is its own category rather than another two entries under
+   * Overview. An engineer responding to a page needs the incident queue and
+   * the telemetry next to each other and nothing else in the way, and burying
+   * them among revenue charts is how a Sev1 gets found late.
+   */
+  icm: { label: "Incidents (ICM)", icon: Siren, category: "reliability" },
+  insights: { label: "App Insights", icon: Radar, category: "reliability" },
 
   orders: { label: "Orders", icon: ShoppingBag, category: "commerce" },
   inventory: { label: "Inventory", icon: Boxes, category: "commerce" },
@@ -223,6 +235,7 @@ const TAB_META: Record<string, { label: string; icon: IconType; category: string
 
 const CATEGORY_META: { id: string; label: string; icon: IconType }[] = [
   { id: "overview", label: "Overview", icon: BarChart3 },
+  { id: "reliability", label: "Reliability", icon: Siren },
   { id: "commerce", label: "Orders & Inventory", icon: ShoppingBag },
   { id: "customers", label: "Customers & Support", icon: Users2 },
   { id: "marketing", label: "Marketing & Growth", icon: Target },
@@ -257,6 +270,7 @@ export default function AdminDashboard() {
     | "cms" | "marketing" | "pricing" | "vendors" | "fraud" | "flags" | "integrations" | "tax" | "crm" | "subscriptions" | "affiliates" | "warranty" | "jobs" | "bulk"
     | "seo" | "shipping" | "bundles" | "macros" | "surveys"
     | "currency" | "privacy" | "forecasting" | "reportbuilder"
+    | "icm" | "insights"
   >("overview");
 
   const canSee = useCallback(
@@ -736,6 +750,8 @@ export default function AdminDashboard() {
         )}
         {tab === "emails" && <EmailsPanel />}
         {tab === "latency" && <LatencyPanel />}
+        {tab === "icm" && <IcmPanel />}
+        {tab === "insights" && <AppInsightsPanel />}
         {tab === "monitoring" && (
           <>
             <MonitoringPanel />

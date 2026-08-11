@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { MapPin, Truck } from "lucide-react";
+import { CreditCard, MapPin, Truck } from "lucide-react";
 import {
   estimateDelivery,
   formatWindow,
@@ -131,6 +131,28 @@ export default function DeliveryEstimate({ compact = false }: { compact?: boolea
       {est?.ok && (
         <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
           Estimated, from dispatch in 24–48 h. Not a guaranteed date.
+        </p>
+      )}
+
+      {/*
+        * What payment actually accepts — read off the options in
+        * app/checkout/page.tsx rather than written from ambition.
+        *
+        * EMI is deliberately absent. It is the obvious thing to advertise
+        * next to a price and it is the one claim here that could not be
+        * honoured: checkout offers Razorpay, cash on delivery and the wallet,
+        * and nothing in this codebase establishes that EMI is enabled on the
+        * Razorpay account. A buyer who chose this product *because* the page
+        * said EMI would discover otherwise at the payment step, having already
+        * decided. An accurate list of what works is worth more than an
+        * attractive one that strands somebody at checkout.
+        */}
+      {est?.ok && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-muted)" }}>
+          <CreditCard className="h-3 w-3 shrink-0" aria-hidden="true" />
+          {est.cod
+            ? "UPI, cards, netbanking, wallet or cash on delivery"
+            : "UPI, cards, netbanking or wallet"}
         </p>
       )}
     </div>

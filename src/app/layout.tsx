@@ -12,6 +12,7 @@ import { AccountProvider } from "@/components/shop/AccountProvider";
 import { WishlistProvider } from "@/components/shop/WishlistProvider";
 import CartDrawer from "@/components/shop/CartDrawer";
 import AnalyticsGate from "@/components/AnalyticsGate";
+import { TelemetryCollector } from "@/components/TelemetryCollector";
 import CookieConsent from "@/components/CookieConsent";
 import VisitorTracker from "@/components/VisitorTracker";
 import Assistant from "@/components/ai/Assistant";
@@ -157,6 +158,13 @@ export default function RootLayout({
         </ThemeProvider>
         <CookieConsent />
         <AnalyticsGate />
+        {/*
+          Engineering telemetry: which routes are reached and what fails.
+          Distinct from AnalyticsGate, which is marketing analytics and is
+          gated on consent — this records no identity and honours Do Not
+          Track server-side, in the beacon endpoint.
+        */}
+        <TelemetryCollector />
       </body>
     </html>
   );

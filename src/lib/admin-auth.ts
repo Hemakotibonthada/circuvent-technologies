@@ -76,7 +76,16 @@ export type AdminArea =
   | "currency"
   | "privacy"
   | "forecasting"
-  | "reportbuilder";
+  | "reportbuilder"
+  /*
+   * Incident management and telemetry. Separate areas rather than folded into
+   * "monitoring" because the people who run incidents are not necessarily the
+   * people who run the shop — an on-call engineer needs the incident queue and
+   * nothing else, and support staff need to raise incidents without seeing
+   * revenue.
+   */
+  | "icm"
+  | "insights";
 
 /** What each role is allowed to touch. superadmin is allowed everything. */
 const ROLE_AREAS: Record<AdminRole, AdminArea[]> = {
@@ -114,6 +123,8 @@ const ROLE_AREAS: Record<AdminRole, AdminArea[]> = {
     "privacy",
     "forecasting",
     "reportbuilder",
+    "icm",
+    "insights",
   ],
   manager: [
     "overview",
@@ -142,10 +153,17 @@ const ROLE_AREAS: Record<AdminRole, AdminArea[]> = {
     "privacy",
     "forecasting",
     "reportbuilder",
+    "icm",
+    "insights",
   ],
   inventory: ["inventory", "vendors", "pricing", "shipping", "bundles", "forecasting"],
   orders: ["orders", "returns", "customers", "fraud", "warranty", "shipping"],
-  support: ["support", "returns", "customers", "warranty", "macros", "surveys", "privacy"],
+  /*
+   * Support gets the incident queue: they are usually the first to hear that
+   * something is broken, and an incident nobody can file is an incident nobody
+   * responds to. They do not get telemetry, which is an engineering tool.
+   */
+  support: ["support", "returns", "customers", "warranty", "macros", "surveys", "privacy", "icm"],
 };
 
 export const ROLE_LABELS: Record<AdminRole, string> = {
