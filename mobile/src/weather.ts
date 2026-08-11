@@ -143,14 +143,52 @@ export async function getWeatherByQuery(q: string): Promise<WeatherBundle> {
  * The named city is a last resort for a refusal or a phone with no fix; it used
  * to be the only behaviour, so everybody in the country got Bengaluru.
  */
-export async function resolveWeatherLocation(): Promise<
-  { kind: "saved" | "device"; lat: number; lon: number; name?: string } | { kind: "fallback"; query: string }
+/**
+ * Where to show the weather for.
+ *
+ * A place they chose themselves wins — someone who set "Pune" wants Pune even
+ * while travelling. Otherwise ask the device, which is the honest answer to
+ * "the weather". The named city is a last resort for a refusal or a phone with
+ * no fix; it used to be the only behaviour, so everybody in the country got
+ * Bengaluru.
+ *
+ * The fallback now says *why* it fell back. It used to return a bare city, so
+ * "Bengaluru, Karnataka, India" appeared in exactly the same shape as a real
+ * answer and somebody in Hyderabad had no way to tell that their location had
+ * been declined rather than mistaken. A confidently wrong answer is worse than
+ * an honest "I could not tell".
+ *
+ * `ask` requests permission when it has never been asked for. Weather is the
+ * one screen where the reason for wanting a location is self-evident, so it is
+ * the right place to ask — and without this the only prompt was at first run,
+ * which means anyone who declined it once, or who upgraded into this build, was
+ * stuck on Bengaluru forever with nothing in the UI to change it.
+ */
+export type FallbackReason = "denied" | "no-fix" | "unavailable";
+
+export async function resolveWeatherLocation(
+  opts: { ask?: boolean } = {}
+): Promise<
+  | { kind: "saved" | "device"; lat: number; lon: number; name?: string }
+  | { kind: "fallback"; query: string; reason: FallbackReason }
 > {
   const saved = await getSavedLocation();
   if (saved) return { kind: "saved", lat: saved.lat, lon: saved.lon, name: saved.name };
 
   try {
-    const { status } = await Location.getForegroundPermissionsAsync();
+    let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+
+    /*
+     * Only when explicitly asked to. A permission dialog that appears because a
+     * card happened to render is the kind of prompt people decline on reflex,
+     * and a reflexive denial is much harder to undo than a considered one.
+     */
+    if (status !== "granted" && opts.ask && canAskAgain) {
+      const next = await Location.requestForegroundPermissionsAsync();
+      status = next.status;
+      canAskAgain = next.canAskAgain;
+    }
+
     if (status === "granted") {
       /*
        * Low accuracy on purpose. The weather does not change across a street,
@@ -160,13 +198,24 @@ export async function resolveWeatherLocation(): Promise<
       const pos = await Location.getLastKnownPositionAsync({});
       const fix = pos ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }));
       if (fix) return { kind: "device", lat: fix.coords.latitude, lon: fix.coords.longitude };
+      /* Granted but nothing to give: a phone indoors with location just
+         switched on. Worth distinguishing — the fix is to wait, not to change
+         a setting. */
+      return { kind: "fallback", query: FALLBACK_CITY, reason: "no-fix" };
     }
-  } catch {
-    /* a location that will not resolve is not worth failing the strip over */
-  }
 
-  return { kind: "fallback", query: "Bengaluru" };
+    return { kind: "fallback", query: FALLBACK_CITY, reason: "denied" };
+  } catch {
+    /* A location that will not resolve is not worth failing the strip over. */
+    return { kind: "fallback", query: FALLBACK_CITY, reason: "unavailable" };
+  }
 }
+
+/*
+ * Named, so the one place it is decided is obvious and so nothing reads a bare
+ * "Bengaluru" as if it meant anything.
+ */
+export const FALLBACK_CITY = "Bengaluru";
 
 /**
  * The name of the place at some coordinates.
@@ -191,10 +240,21 @@ export async function placeNameAt(lat: number, lon: number): Promise<string | nu
   }
 }
 
-/** The weather for wherever `resolveWeatherLocation` decided. */
-export async function getLocalWeather(): Promise<WeatherBundle> {
-  const where = await resolveWeatherLocation();
-  if (where.kind === "fallback") return getWeatherByQuery(where.query);
+/**
+ * The weather for wherever `resolveWeatherLocation` decided, and how it decided.
+ *
+ * The caller needs the second half. A bundle for Bengaluru looks identical
+ * whether the user is in Bengaluru or was simply never asked, and a UI that
+ * cannot tell them apart has no choice but to present a guess as a fact.
+ */
+export async function getLocalWeather(
+  opts: { ask?: boolean } = {}
+): Promise<WeatherBundle & { fallbackReason?: FallbackReason }> {
+  const where = await resolveWeatherLocation(opts);
+  if (where.kind === "fallback") {
+    const bundle = await getWeatherByQuery(where.query);
+    return { ...bundle, fallbackReason: where.reason };
+  }
   const name = where.name ?? (await placeNameAt(where.lat, where.lon)) ?? undefined;
   return getWeather(where.lat, where.lon, name);
 }

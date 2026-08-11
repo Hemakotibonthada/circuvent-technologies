@@ -25,9 +25,9 @@ import { useVisibleSections, HomeEditor } from "../home-editor";
 import { Sheet } from "../overlays";
 import type { HomeSection } from "../home-layout";
 import { StaleNotice } from "../async";
-import { deviceMeta, greeting, CATEGORY_TINTS, deviceCategory, RADIUS, SPACE, MOTION } from "../theme";
+import { deviceMeta, greeting, CATEGORY_TINTS, deviceCategory, RADIUS, SPACE, MOTION, TAP_SLOP } from "../theme";
 import { Sparkline } from "../charts";
-import { getLocalWeather, wmo, type WeatherBundle } from "../weather";
+import { getLocalWeather, wmo, type WeatherBundle, type FallbackReason } from "../weather";
 
 /** How many live-power readings to keep for the hero trend line. */
 const WATT_HISTORY = 30;
@@ -650,43 +650,111 @@ function GlanceTile({
 
 function WeatherStrip({ onPress }: { onPress: () => void }) {
   const { c } = useTheme();
-  const [b, setB] = useState<WeatherBundle | null>(null);
+  const [b, setB] = useState<(WeatherBundle & { fallbackReason?: FallbackReason }) | null>(null);
+  const [asking, setAsking] = useState(false);
+
+  const load = useCallback(async (ask: boolean) => {
+    try {
+      return await getLocalWeather({ ask });
+    } catch {
+      /* offline or lookup failed — the strip simply stays hidden */
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     let live = true;
     (async () => {
-      try {
-        const bundle = await getLocalWeather();
-        if (live) setB(bundle);
-      } catch {
-        /* offline or lookup failed — the strip simply stays hidden */
-      }
+      const bundle = await load(false);
+      if (live && bundle) setB(bundle);
     })();
     return () => {
       live = false;
     };
-  }, []);
+  }, [load]);
+
   if (!b) return null;
   const w = wmo(b.current.weatherCode);
   const summary = `${Math.round(b.current.temperature)} degrees, ${w.label}, ${b.place.name}`;
+
+  /*
+   * Say when this is not their weather.
+   *
+   * The fallback city used to be presented in exactly the same shape as a real
+   * answer, so somebody in Hyderabad saw "Bengaluru, Karnataka, India" with no
+   * way to tell that their location had been declined rather than mistaken.
+   * This is the one line that turns a confidently wrong answer into an honest
+   * one, plus a way to fix it — previously the only prompt was at first run, so
+   * a single early "deny" was permanent.
+   */
+  const guessing = !!b.fallbackReason;
+  const note =
+    b.fallbackReason === "denied"
+      ? "Location is off — showing Bengaluru"
+      : b.fallbackReason === "no-fix"
+        ? "Waiting for a location fix — showing Bengaluru"
+        : b.fallbackReason
+          ? "Couldn't read your location — showing Bengaluru"
+          : "";
+
+  const grant = async () => {
+    setAsking(true);
+    const next = await load(true);
+    if (next) setB(next);
+    setAsking(false);
+  };
+
   return (
     <Pressable
       onPress={onPress}
       style={{ marginBottom: 20 }}
       accessibilityRole="button"
-      accessibilityLabel={`Weather: ${summary}. Open forecast`}
+      accessibilityLabel={`Weather: ${summary}${guessing ? `. ${note}` : ""}. Open forecast`}
     >
-      <Card padded style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-        <Icon name={weatherIcon(w.group)} size={30} color={c.accentHi} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: c.text, fontWeight: "800", fontSize: 16 }}>
-            {Math.round(b.current.temperature)}° · {w.label}
-          </Text>
-          <Text style={{ color: c.faint, fontSize: 12 }} numberOfLines={1}>
-            {b.place.name} · feels {Math.round(b.current.apparent)}° · H {Math.round(b.daily[0]?.tMax ?? 0)}° L{" "}
-            {Math.round(b.daily[0]?.tMin ?? 0)}°
-          </Text>
+      <Card padded style={{ gap: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+          <Icon name={weatherIcon(w.group)} size={30} color={c.accentHi} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontWeight: "800", fontSize: 16 }}>
+              {Math.round(b.current.temperature)}° · {w.label}
+            </Text>
+            <Text style={{ color: c.faint, fontSize: 12 }} numberOfLines={1}>
+              {b.place.name} · feels {Math.round(b.current.apparent)}° · H {Math.round(b.daily[0]?.tMax ?? 0)}° L{" "}
+              {Math.round(b.daily[0]?.tMin ?? 0)}°
+            </Text>
+          </View>
+          <Icon name="chevron" size={18} color={c.faint} />
         </View>
-        <Icon name="chevron" size={18} color={c.faint} />
+
+        {guessing && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Text style={{ color: c.amber, fontSize: 12, flex: 1 }} numberOfLines={2}>
+              {note}
+            </Text>
+            {b.fallbackReason === "denied" && (
+              /*
+               * Wrapped in a View that claims the touch, which is how the
+               * device tiles keep their toggle from opening the device. The
+               * note sits inside a card that is itself a button to the
+               * forecast, so without this, tapping "Use my location" opens the
+               * forecast instead of asking for permission.
+               */
+              <View onStartShouldSetResponder={() => true}>
+                <Pressable
+                  onPress={grant}
+                  disabled={asking}
+                  hitSlop={TAP_SLOP}
+                  accessibilityRole="button"
+                  accessibilityLabel="Use my location for the weather"
+                >
+                  <Text style={{ color: c.accent, fontSize: 12, fontWeight: "800" }}>
+                    {asking ? "Asking…" : "Use my location"}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
       </Card>
     </Pressable>
   );

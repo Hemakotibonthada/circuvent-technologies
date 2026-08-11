@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminFromRequest, guard } from "@/lib/admin-auth";
-import { fileIncident, getIncident, icmView, updateIncident } from "@/lib/icm-store";
+import { fileIncident, getIncident, icmView, syncFromAlerts, updateIncident } from "@/lib/icm-store";
+import type { Alert } from "@/lib/anomaly-monitor";
 import {
   acknowledge,
   assign,
@@ -59,11 +60,31 @@ export async function GET(request: Request) {
   return NextResponse.json({ success: true, ...icmView(filters) });
 }
 
-/** POST /api/admin/icm — file a new incident. */
+/** POST /api/admin/icm — file a new incident, or sync from monitor alerts. */
 export async function POST(request: Request) {
   if (!guard(request, "icm")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   try {
     const b = await request.json();
+
+    /*
+     * The monitor path. Files incidents for anything the anomaly sweep is
+     * reporting and closes the ones whose findings have cleared, subject to the
+     * rules in icm-bridge.ts — chiefly that it files each finding once and
+     * never closes an incident a person has picked up.
+     */
+    if (b.kind === "sync-alerts") {
+      const alerts = Array.isArray(b.alerts) ? (b.alerts as Alert[]) : [];
+      const { filed, resolved } = syncFromAlerts(alerts, {
+        owningTeam: typeof b.owningTeam === "string" ? b.owningTeam : undefined,
+        autoResolve: b.autoResolve !== false,
+      });
+      return NextResponse.json({
+        success: true,
+        filed: filed.map((i) => i.id),
+        resolved: resolved.map((i) => i.id),
+      });
+    }
+
     const title = String(b.title || "").trim();
     if (!title) return NextResponse.json({ success: false, message: "A title is required." }, { status: 400 });
 

@@ -101,6 +101,16 @@ export interface Incident {
    * have to stay different in the record.
    */
   slaMitigateMins: number | null;
+
+  /*
+   * The monitor finding this incident was raised from, if any.
+   *
+   * Present so a sweep that keeps reporting the same problem does not file a
+   * new incident every time it runs — which is how an auto-filing integration
+   * turns a queue into a firehose within an hour. Absent for anything a human
+   * declared.
+   */
+  sourceKey?: string;
 }
 
 /**
@@ -256,6 +266,8 @@ export interface NewIncident {
   customersImpacted?: number;
   tags?: string[];
   assignedTo?: string;
+  /** See Incident.sourceKey — the monitor finding this was raised from. */
+  sourceKey?: string;
 }
 
 export function createIncident(id: string, input: NewIncident, now: string): Incident {
@@ -289,6 +301,7 @@ export function createIncident(id: string, input: NewIncident, now: string): Inc
     tags: (input.tags ?? []).filter(Boolean),
     slaAckMins: sla.ack,
     slaMitigateMins: sla.mitigate,
+    ...(input.sourceKey ? { sourceKey: input.sourceKey } : {}),
     timeline: [entry(now, input.createdBy, "created", `filed ${sla.label}: ${String(input.title || "").trim()}`)],
   };
 }
@@ -578,4 +591,5 @@ export function formatMins(mins: number | null): string {
   const h = Math.floor((n % 1440) / 60);
   return h ? `${d}d ${h}h` : `${d}d`;
 }
+
 
