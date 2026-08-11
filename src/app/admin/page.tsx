@@ -55,6 +55,7 @@ import EmailsPanel from "./EmailsPanel";
 import LatencyPanel from "./LatencyPanel";
 import IcmPanel from "./IcmPanel";
 import AppInsightsPanel from "./AppInsightsPanel";
+import AppInstallsPanel from "./AppInstallsPanel";
 import { BookOpen, Target, Percent, Building2, ShieldAlert, FlaskConical, Link2, Receipt, Contact2, CreditCard, Handshake, Wrench, Timer, FileUp } from "lucide-react";
 import ContentStudioPanel from "./ContentStudioPanel";
 import MarketingPanel from "./MarketingPanel";
@@ -773,7 +774,14 @@ export default function AdminDashboard() {
           </>
         )}
         {tab === "devices" && <DevicesPanel />}
-        {tab === "users" && <DevicesPanel initialSub="users" />}
+        {tab === "users" && (
+          <>
+            <DevicesPanel initialSub="users" />
+            {/* The installs sit under the account list because that is the
+                question they answer: what is this person actually on. */}
+            <AppInstallsPanel />
+          </>
+        )}
         {tab === "cms" && <ContentStudioPanel />}
         {tab === "marketing" && <MarketingPanel />}
         {tab === "pricing" && <PricingPanel />}
@@ -1084,3 +1092,4 @@ function formatUptime(raw: string): string {
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
 }
+

@@ -10,6 +10,7 @@ import {
   verifyDeviceKey,
 } from "../auth";
 import { publishCommand, provisionBrokerClient, deprovisionBrokerClient, getMqtt } from "../mqtt";
+import { listAll as listInstalls, stats as installStats } from "../app-installs";
 import { invalidateOwnership, invalidateOwner } from "../ownership";
 import { normalizeSerial, generateSerial } from "../serial";
 import { buildDeviceReport, reportToCsv } from "../device-report";
@@ -87,6 +88,31 @@ adminRouter.get("/users", async (_req, res) => {
      FROM users u ORDER BY u.created_at DESC`
   );
   res.json({ users: rows });
+});
+
+/**
+ * GET /admin/app-installs — which phones and tablets are on the platform.
+ *
+ * Answers the questions support and security actually get asked: what build is
+ * this person on, is anyone still on the version with the bug, has this account
+ * been used from somewhere it should not have been.
+ *
+ * There are no coordinates here, and that is deliberate rather than an
+ * omission. The app holds location permission for the weather; reporting a
+ * user's whereabouts to staff is a different purpose from the one they granted
+ * it for, which is exactly what purpose limitation under the DPDP Act and GDPR
+ * forbids. City and country come from the reverse proxy's own IP geolocation
+ * where it provides one — the same thing every "recent sign-ins" screen shows —
+ * and are blank rather than guessed where it does not.
+ */
+adminRouter.get("/app-installs", async (req, res) => {
+  const platform = String(req.query.platform || "").toLowerCase();
+  const rows = await listInstalls({
+    limit: Number(req.query.limit) || 200,
+    platform: platform === "android" || platform === "ios" ? platform : undefined,
+    q: String(req.query.q || "").trim().toLowerCase() || undefined,
+  });
+  res.json({ installs: rows, stats: await installStats() });
 });
 
 /** PATCH /admin/users/:id — toggle admin role. */

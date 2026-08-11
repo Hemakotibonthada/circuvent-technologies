@@ -617,10 +617,43 @@ export interface AdminUser {
   created_at: string;
   devices: number;
 }
+/**
+ * One app install signed in to an account.
+ *
+ * `lastCity` and `lastCountry` come from the reverse proxy's IP geolocation
+ * where it provides one and are empty where it does not — nothing looks them
+ * up, because an invented city is worse than an absent one. There are
+ * deliberately no coordinates; see platform/api/src/app-installs.ts.
+ */
+export interface AppInstall {
+  id: number;
+  userId: number;
+  installId: string;
+  platform: string;
+  osVersion: string;
+  appVersion: string;
+  model: string;
+  lastIp: string;
+  lastCity: string;
+  lastCountry: string;
+  firstSeen: string;
+  lastSeen: string;
+  revokedAt: string | null;
+  email: string;
+  name: string;
+}
+
+export interface AppInstallStats {
+  total: number;
+  android: number;
+  ios: number;
+  activeDay: number;
+  versions: { appVersion: string; n: number }[];
+}
+
 export interface AdminDevice {
   id: string;
-  name: string;
-  type: string;
+  name: string;  type: string;
   room: string;
   online: boolean;
   last_seen: string | null;
@@ -1078,6 +1111,23 @@ export const controlPlane = {
   adminMe: () => req<{ admin: boolean; uid: number; email: string }>("/admin/me"),
   adminStats: () => req<AdminStats>("/admin/stats"),
   adminUsers: () => req<{ users: AdminUser[] }>("/admin/users"),
+  /**
+   * Which app installs are signed in, and from where.
+   *
+   * No coordinates — see platform/api/src/app-installs.ts. City and country are
+   * whatever the reverse proxy's IP geolocation supplied, and blank when it
+   * supplied nothing, because an invented city is worse than an absent one.
+   */
+  adminAppInstalls: (opts: { platform?: string; q?: string; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.platform) p.set("platform", opts.platform);
+    if (opts.q) p.set("q", opts.q);
+    if (opts.limit) p.set("limit", String(opts.limit));
+    const qs = p.toString();
+    return req<{ installs: AppInstall[]; stats: AppInstallStats }>(
+      "/admin/app-installs" + (qs ? `?${qs}` : "")
+    );
+  },
   adminSetRole: (id: number, is_admin: boolean) =>
     req<{ success: boolean }>("/admin/users/" + id, { method: "PATCH", body: JSON.stringify({ is_admin }) }),
   /** Disable or re-enable an account. Disabling also ends its live sessions. */

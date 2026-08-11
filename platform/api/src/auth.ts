@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { config } from "./config";
 import { checkSession, currentEpoch } from "./sessions";
+import { factsFrom, recordSeen } from "./app-installs";
 import { logger } from "./logger";
 
 export interface UserClaims {
@@ -135,6 +136,15 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
       const verdict = await checkSession(claims.uid, claims.te ?? 0);
       if (verdict === "ok") {
         req.user = claims;
+        /*
+         * Note the install, after the session is known good and before the
+         * handler runs. Deliberately not awaited: this is bookkeeping, and a
+         * request that opens a gate must not fail — or wait — because a
+         * "last seen" write did. `recordSeen` throttles internally, so this is
+         * a no-op on almost every call.
+         */
+        const facts = factsFrom(req.headers, req.socket?.remoteAddress);
+        if (facts) void recordSeen(claims.uid, facts);
         next();
         return;
       }

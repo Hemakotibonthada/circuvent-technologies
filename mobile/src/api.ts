@@ -130,6 +130,22 @@ async function req<T = any>(path: string, opts: RequestInit = {}, auth = true, a
   if (auth) {
     const t = await getToken();
     if (t) headers["Authorization"] = "Bearer " + t;
+    /*
+     * Only on authenticated calls. These describe the install so the account
+     * holder can see which phones are signed in and support can tell what build
+     * somebody is on; sending them on unauthenticated requests would be
+     * broadcasting a correlation id to no purpose.
+     *
+     * Required here rather than imported at the top of the file: install.ts
+     * pulls in react-native for Platform, and a static import puts that into
+     * the module graph of everything that reaches api.ts — which broke a test
+     * that only wanted a constant out of channel-prefs. `require` is the same
+     * pattern wifi.ts uses for its native module, and the tsconfig here does
+     * not allow dynamic import.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { installHeaders } = require("./install") as typeof import("./install");
+    Object.assign(headers, await installHeaders());
   }
   try {
     const res = await fetch(API_BASE + path, { ...opts, headers });
