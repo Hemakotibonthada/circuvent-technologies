@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Check, Minus, Plus, ShoppingCart, Zap, ShieldCheck, Star, Truck, RotateCcw } from "lucide-react";
 import { type Product, formatINR } from "@/lib/shop-data";
 import { useCart } from "./CartProvider";
+import DeliveryEstimate from "./DeliveryEstimate";
 import ProductMedia from "./ProductMedia";
 import ProductReviews from "./ProductReviews";
 import ProductQA from "./ProductQA";
@@ -173,6 +174,21 @@ export default function ProductDetailClient({
               You can still add this to your cart or wishlist — ordering reopens as soon as it&apos;s back in stock.
             </p>
           )}
+
+          {/*
+            * Delivery estimate, directly under the buy buttons.
+            *
+            * It shipped on the listing first and was missing here, which is
+            * backwards: the listing is where somebody browses, this is where
+            * they decide. "When does it arrive and do you deliver to me" is
+            * the last question before payment, and answering it two pages
+            * earlier and then going quiet is worse than never answering it —
+            * the buyer has to go back to find out.
+            *
+            * The component remembers the PIN in sessionStorage, so somebody
+            * who checked on the listing sees it already filled in here.
+            */}
+          <DeliveryEstimate />
 
           <div className="mt-6 grid grid-cols-3 gap-3">
             {[
