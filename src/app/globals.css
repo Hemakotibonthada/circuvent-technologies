@@ -777,3 +777,25 @@ select:-webkit-autofill {
      only when somebody asks for them. */
   .cv-stage * { animation: none !important; }
 }
+
+/*
+ * Admin panel colour utilities.
+ *
+ * The reliability panels (incidents, telemetry) were first written with
+ * hardcoded Tailwind slate classes, which assume a dark console. This one is
+ * light and themeable, so the result was a queue whose incident titles were
+ * near-white text on a white card — perfectly functional and completely
+ * unreadable. It typechecked, the tests passed, and it was only caught by
+ * rendering the page and looking at it.
+ *
+ * These bind to the same tokens every other admin panel uses, so the panels
+ * follow the theme instead of guessing at it.
+ */
+.cv-text-primary { color: var(--text-primary); }
+.cv-text-secondary { color: var(--text-secondary); }
+.cv-text-muted { color: var(--text-muted); }
+.cv-surface { background: var(--bg-surface); }
+.cv-surface-alt { background: var(--bg-secondary); }
+.cv-border { border-color: var(--border-primary); }
+.cv-hover:hover { background: var(--bg-surface-hover); }
+.cv-hover-h:hover { background: var(--bg-surface-hover); }

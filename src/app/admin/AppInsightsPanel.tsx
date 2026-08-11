@@ -72,12 +72,12 @@ function ago(iso: string, now: string) {
 
 function Metric({ label, value, tone, icon: Icon }: { label: string; value: string | number; tone?: string; icon: typeof Activity }) {
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-slate-400">
+    <div className="rounded-xl border cv-border cv-surface p-3">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide cv-text-muted">
         <Icon className="h-3.5 w-3.5" aria-hidden />
         {label}
       </div>
-      <div className="mt-1 text-2xl font-bold" style={{ color: tone || "#e2e8f0" }}>
+      <div className="mt-1 text-2xl font-bold" style={{ color: tone || "var(--text-primary)" }}>
         {value}
       </div>
     </div>
@@ -88,15 +88,15 @@ function Metric({ label, value, tone, icon: Icon }: { label: string; value: stri
 function Series({ series }: { series: InsightsSummary["series"] }) {
   const max = Math.max(1, ...series.map((b) => b.count));
   return (
-    <div className="flex h-24 items-end gap-[2px] rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+    <div className="flex h-24 items-end gap-[2px] rounded-xl border cv-border cv-surface p-3">
       {series.map((b, i) => {
         const h = (b.count / max) * 100;
         const fh = b.count ? (b.failures / b.count) * h : 0;
         return (
           <div
             key={i}
-            className="flex-1 rounded-sm bg-slate-700"
-            style={{ height: `${Math.max(2, h)}%`, position: "relative" }}
+            className="flex-1 rounded-sm"
+            style={{ height: `${Math.max(2, h)}%`, position: "relative", background: "var(--accent-cyan-muted)" }}
             title={`${fmtTime(b.at)} · ${b.count} events, ${b.failures} failed`}
           >
             {b.failures > 0 && (
@@ -150,22 +150,22 @@ export default function AppInsightsPanel() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-100">
+          <h2 className="flex items-center gap-2 text-xl font-bold cv-text-primary">
             <Activity className="h-5 w-5 text-cyan-400" aria-hidden />
             Application Insights
           </h2>
-          <p className="text-[13px] text-slate-400">
+          <p className="text-[13px] cv-text-muted">
             Which routes are reached, what fails, and what the session was doing when it did.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex overflow-hidden rounded-lg border border-slate-600">
+          <div className="flex overflow-hidden rounded-lg border cv-border">
             {WINDOWS.map((w) => (
               <button
                 key={w.h}
                 onClick={() => setHours(w.h)}
                 className={`h-[44px] px-3 text-sm font-semibold ${
-                  hours === w.h ? "bg-cyan-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  hours === w.h ? "bg-cyan-600 text-white" : "cv-surface-alt cv-text-secondary cv-hover-h"
                 }`}
               >
                 {w.label}
@@ -174,14 +174,14 @@ export default function AppInsightsPanel() {
           </div>
           <button
             onClick={() => void load()}
-            className="inline-flex h-[44px] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-300 hover:bg-slate-800"
+            className="inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-3 text-sm cv-text-secondary hover:cv-surface-alt"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
             Refresh
           </button>
           <button
             onClick={() => void clear()}
-            className="inline-flex h-[44px] items-center gap-2 rounded-lg border border-slate-700 px-3 text-sm text-slate-400 hover:bg-slate-800"
+            className="inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-3 text-sm cv-text-muted hover:cv-surface-alt"
             title="Discard the buffer"
           >
             <Trash2 className="h-4 w-4" aria-hidden />
@@ -204,7 +204,7 @@ export default function AppInsightsPanel() {
               tone={s.failureRate > 5 ? "#ef4444" : s.failureRate > 1 ? "#f59e0b" : "#22c55e"}
               icon={AlertTriangle}
             />
-            <Metric label="P95" value={`${s.p95}ms`} tone={s.p95 > 2000 ? "#f59e0b" : "#e2e8f0"} icon={Gauge} />
+            <Metric label="P95" value={`${s.p95}ms`} tone={s.p95 > 2000 ? "#f59e0b" : "var(--text-primary)"} icon={Gauge} />
           </div>
 
           <Series series={s.series} />
@@ -224,7 +224,7 @@ export default function AppInsightsPanel() {
         </>
       )}
 
-      <div className="flex gap-1 border-b border-slate-700">
+      <div className="flex gap-1 border-b cv-border">
         {([
           ["paths", "Accessed paths", view?.paths.length],
           ["failures", "Failures", view?.failures.length],
@@ -234,22 +234,22 @@ export default function AppInsightsPanel() {
             key={k}
             onClick={() => setTab(k)}
             className={`h-[44px] border-b-2 px-4 text-sm font-semibold ${
-              tab === k ? "border-cyan-500 text-cyan-300" : "border-transparent text-slate-400 hover:text-slate-200"
+              tab === k ? "border-cyan-500 text-cyan-300" : "border-transparent cv-text-muted hover:cv-text-primary"
             }`}
           >
             {label}
-            {typeof n === "number" && <span className="ml-1.5 text-[11px] text-slate-500">{n}</span>}
+            {typeof n === "number" && <span className="ml-1.5 text-[11px] cv-text-muted">{n}</span>}
           </button>
         ))}
       </div>
 
-      {!view && loading && <div className="py-10 text-center text-slate-500">Loading telemetry…</div>}
+      {!view && loading && <div className="py-10 text-center cv-text-muted">Loading telemetry…</div>}
 
       {view && view.summary.totalEvents === 0 && (
-        <div className="rounded-xl border border-slate-700/60 py-10 text-center">
-          <Activity className="mx-auto mb-2 h-8 w-8 text-slate-600" aria-hidden />
-          <div className="font-semibold text-slate-300">No telemetry in this window</div>
-          <div className="text-[13px] text-slate-500">
+        <div className="rounded-xl border cv-border py-10 text-center">
+          <Activity className="mx-auto mb-2 h-8 w-8 cv-text-muted" aria-hidden />
+          <div className="font-semibold cv-text-secondary">No telemetry in this window</div>
+          <div className="text-[13px] cv-text-muted">
             The collector reports page views and failures from every browser session. Widen the window, or wait for
             traffic.
           </div>
@@ -257,9 +257,9 @@ export default function AppInsightsPanel() {
       )}
 
       {view && tab === "paths" && view.paths.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-700/60">
+        <div className="overflow-x-auto rounded-xl border cv-border">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-400">
+            <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
               <tr>
                 <th className="px-3 py-2">Path</th>
                 <th className="px-3 py-2 text-right">Views</th>
@@ -272,19 +272,19 @@ export default function AppInsightsPanel() {
             </thead>
             <tbody>
               {view.paths.map((p) => (
-                <tr key={p.path} className="border-t border-slate-800 hover:bg-slate-800/30">
-                  <td className="px-3 py-2 font-mono text-[12px] text-slate-200">{p.path}</td>
-                  <td className="px-3 py-2 text-right text-slate-300">{p.views.toLocaleString()}</td>
-                  <td className="px-3 py-2 text-right text-slate-400">{p.sessions.toLocaleString()}</td>
+                <tr key={p.path} className="border-t cv-border hover:cv-hover">
+                  <td className="px-3 py-2 font-mono text-[12px] cv-text-primary">{p.path}</td>
+                  <td className="px-3 py-2 text-right cv-text-secondary">{p.views.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right cv-text-muted">{p.sessions.toLocaleString()}</td>
                   <td
                     className="px-3 py-2 text-right font-semibold"
-                    style={{ color: p.failureRate > 5 ? "#ef4444" : p.failures ? "#f59e0b" : "#64748b" }}
+                    style={{ color: p.failureRate > 5 ? "#ef4444" : p.failures ? "#f59e0b" : "var(--text-muted)" }}
                   >
                     {p.failures ? `${p.failures} (${p.failureRate}%)` : "—"}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-400">{p.p50 ? `${p.p50}ms` : "—"}</td>
-                  <td className="px-3 py-2 text-right text-slate-400">{p.p95 ? `${p.p95}ms` : "—"}</td>
-                  <td className="px-3 py-2 text-right text-[12px] text-slate-500">{ago(p.lastSeen, view.now)}</td>
+                  <td className="px-3 py-2 text-right cv-text-muted">{p.p50 ? `${p.p50}ms` : "—"}</td>
+                  <td className="px-3 py-2 text-right cv-text-muted">{p.p95 ? `${p.p95}ms` : "—"}</td>
+                  <td className="px-3 py-2 text-right text-[12px] cv-text-muted">{ago(p.lastSeen, view.now)}</td>
                 </tr>
               ))}
             </tbody>
@@ -300,16 +300,16 @@ export default function AppInsightsPanel() {
             </div>
           )}
           {view.failures.map((f) => (
-            <div key={f.key} className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+            <div key={f.key} className="rounded-xl border cv-border cv-surface p-3">
               <button
                 onClick={() => setOpenFailure(openFailure === f.key ? null : f.key)}
                 className="flex w-full items-start gap-3 text-left"
               >
                 <Bug className="mt-0.5 h-4 w-4 shrink-0 text-red-400" aria-hidden />
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-slate-100">{f.errorType}</div>
-                  <div className="truncate text-[13px] text-slate-400">{f.errorMessage || "(no message)"}</div>
-                  <div className="mt-1 text-[12px] text-slate-500">
+                  <div className="font-semibold cv-text-primary">{f.errorType}</div>
+                  <div className="truncate text-[13px] cv-text-muted">{f.errorMessage || "(no message)"}</div>
+                  <div className="mt-1 text-[12px] cv-text-muted">
                     <span className="font-mono">{f.path}</span> · {f.count} occurrences · {f.sessions} sessions ·
                     last {ago(f.lastSeen, view.now)}
                   </div>
@@ -319,7 +319,7 @@ export default function AppInsightsPanel() {
                 </span>
               </button>
               {openFailure === f.key && f.stack && (
-                <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-400">
+                <pre className="mt-3 overflow-x-auto rounded-lg border cv-border cv-surface-alt p-3 text-[11px] leading-relaxed cv-text-muted">
                   {f.stack}
                 </pre>
               )}
@@ -331,18 +331,18 @@ export default function AppInsightsPanel() {
       {view && tab === "journeys" && (
         <div className="space-y-2">
           {view.journeys.length === 0 && (
-            <div className="rounded-xl border border-slate-700/60 py-8 text-center text-slate-500">
+            <div className="rounded-xl border cv-border py-8 text-center cv-text-muted">
               No sessions in this window.
             </div>
           )}
           {view.journeys.map((j) => (
-            <div key={j.session} className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+            <div key={j.session} className="rounded-xl border cv-border cv-surface p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   {j.failed && <AlertTriangle className="h-4 w-4 text-red-400" aria-hidden />}
-                  <span className="font-mono text-[12px] text-slate-400">session {j.session.slice(0, 8)}</span>
+                  <span className="font-mono text-[12px] cv-text-muted">session {j.session.slice(0, 8)}</span>
                 </div>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] cv-text-muted">
                   {j.steps.length} steps · {ago(j.lastAt, view.now)}
                 </span>
               </div>
@@ -352,12 +352,15 @@ export default function AppInsightsPanel() {
               <div className="flex flex-wrap items-center gap-1">
                 {j.steps.map((st, i) => (
                   <span key={i} className="flex items-center gap-1">
-                    {i > 0 && <span className="text-slate-600">›</span>}
+                    {i > 0 && <span className="cv-text-muted">›</span>}
                     <span
                       className="rounded px-1.5 py-0.5 font-mono text-[11px]"
                       style={{
-                        background: st.ok ? "rgba(51,65,85,.6)" : "rgba(127,29,29,.6)",
-                        color: st.ok ? "#cbd5e1" : "#fecaca",
+                        /* Literal, like the severity chips: the fill is dark by
+                           design, so the label has to be chosen against it
+                           rather than against the page. */
+                        background: st.ok ? "rgba(71,85,105,.14)" : "rgba(127,29,29,.75)",
+                        color: st.ok ? "var(--text-secondary)" : "#fee2e2",
                       }}
                       title={fmtTime(st.at)}
                     >
@@ -373,3 +376,6 @@ export default function AppInsightsPanel() {
     </div>
   );
 }
+
+
+

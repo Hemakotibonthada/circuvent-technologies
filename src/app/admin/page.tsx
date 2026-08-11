@@ -154,11 +154,11 @@ function getPageName(path: string): string {
 
 // Which areas each staff role can see (mirrors src/lib/admin-auth.ts).
 const ROLE_AREAS: Record<string, string[]> = {
-  superadmin: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "users", "emails", "cms", "marketing", "pricing", "vendors", "fraud", "flags", "integrations", "tax", "crm", "subscriptions", "affiliates", "warranty", "jobs", "bulk", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
-  manager: ["overview", "analytics", "monitoring", "latency", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices", "users", "cms", "marketing", "pricing", "vendors", "fraud", "crm", "subscriptions", "affiliates", "warranty", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
+  superadmin: ["overview", "analytics", "monitoring", "latency", "icm", "insights", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "staff", "devices", "users", "emails", "cms", "marketing", "pricing", "vendors", "fraud", "flags", "integrations", "tax", "crm", "subscriptions", "affiliates", "warranty", "jobs", "bulk", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
+  manager: ["overview", "analytics", "monitoring", "latency", "icm", "insights", "reports", "orders", "inventory", "customers", "coupons", "returns", "support", "messages", "devices", "users", "cms", "marketing", "pricing", "vendors", "fraud", "crm", "subscriptions", "affiliates", "warranty", "seo", "shipping", "bundles", "macros", "surveys", "currency", "privacy", "forecasting", "reportbuilder"],
   inventory: ["inventory", "vendors", "pricing", "shipping", "bundles", "forecasting"],
   orders: ["orders", "returns", "customers", "fraud", "warranty", "shipping"],
-  support: ["support", "messages", "returns", "customers", "warranty", "macros", "surveys", "privacy"],
+  support: ["support", "messages", "returns", "customers", "warranty", "macros", "surveys", "privacy", "icm"],
 };
 
 const ROLE_LABELS: Record<string, string> = {

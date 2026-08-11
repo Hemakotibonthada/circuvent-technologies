@@ -71,12 +71,25 @@ interface Stats {
  * to sort "wake someone" from "not now" instantly, and a gradient makes Sev1
  * and Sev2 look like neighbours when they are on opposite sides of that line.
  */
+/*
+ * Severity colours follow IcM's: red for 0 and 1 because they page, amber for
+ * 2, blue for 3, grey for 4. Deliberately not a smooth gradient — the eye needs
+ * to sort "wake someone" from "not now" instantly, and a gradient makes Sev1
+ * and Sev2 look like neighbours when they are on opposite sides of that line.
+ *
+ * These are the one set of colours in this file that stay literal. A Sev0 has
+ * to be red in every theme, and the foreground is chosen against the chip's own
+ * dark fill rather than against the page — so binding them to the console's
+ * text tokens (which are dark, for a light page) makes the label invisible.
+ * That is not hypothetical: a bulk conversion did exactly that to Sev4 and the
+ * chip rendered as an unlabelled dark blob.
+ */
 const SEV_STYLE: Record<Severity, { bg: string; fg: string; ring: string }> = {
   0: { bg: "#7f1d1d", fg: "#fecaca", ring: "#ef4444" },
   1: { bg: "#991b1b", fg: "#fee2e2", ring: "#f87171" },
   2: { bg: "#78350f", fg: "#fde68a", ring: "#f59e0b" },
   3: { bg: "#1e3a5f", fg: "#bfdbfe", ring: "#3b82f6" },
-  4: { bg: "#334155", fg: "#cbd5e1", ring: "#94a3b8" },
+  4: { bg: "#475569", fg: "#e2e8f0", ring: "#94a3b8" },
 };
 
 const SLA_STYLE: Record<SlaState, { label: string; color: string }> = {
@@ -84,7 +97,7 @@ const SLA_STYLE: Record<SlaState, { label: string; color: string }> = {
   "at-risk": { label: "At risk", color: "#f59e0b" },
   "on-track": { label: "On track", color: "#22c55e" },
   met: { label: "Met", color: "#22c55e" },
-  "n/a": { label: "—", color: "#94a3b8" },
+  "n/a": { label: "—", color: "var(--text-muted)" },
 };
 
 const STATUS_LABEL: Record<Incident["status"], string> = {
@@ -140,12 +153,12 @@ function SlaPill({ state, mins, label }: { state: SlaState; mins: number | null;
 
 function StatCard({ label, value, tone, hint }: { label: string; value: string | number; tone?: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
-      <div className="text-[11px] uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-1 text-2xl font-bold" style={{ color: tone || "#e2e8f0" }}>
+    <div className="rounded-xl border cv-border cv-surface p-3">
+      <div className="text-[11px] uppercase tracking-wide cv-text-muted">{label}</div>
+      <div className="mt-1 text-2xl font-bold" style={{ color: tone || "var(--text-primary)" }}>
         {value}
       </div>
-      {hint && <div className="text-[11px] text-slate-500">{hint}</div>}
+      {hint && <div className="text-[11px] cv-text-muted">{hint}</div>}
     </div>
   );
 }
@@ -256,11 +269,11 @@ export default function IcmPanel() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-100">
+          <h2 className="flex items-center gap-2 text-xl font-bold cv-text-primary">
             <Siren className="h-5 w-5 text-red-400" aria-hidden />
             Incident Management
           </h2>
-          <p className="text-[13px] text-slate-400">
+          <p className="text-[13px] cv-text-muted">
             Severity-ordered queue with acknowledge and mitigate clocks, the way IcM does it.
           </p>
         </div>
@@ -274,7 +287,7 @@ export default function IcmPanel() {
           </button>
           <button
             onClick={() => void load()}
-            className="inline-flex h-[44px] items-center gap-2 rounded-lg border border-slate-600 px-3 text-sm text-slate-300 hover:bg-slate-800"
+            className="inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-3 text-sm cv-text-secondary hover:cv-surface-alt"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
             Refresh
@@ -284,20 +297,20 @@ export default function IcmPanel() {
 
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatCard label="Open" value={stats.open} tone="#e2e8f0" hint={`${stats.active} unacknowledged`} />
+          <StatCard label="Open" value={stats.open} tone="var(--text-primary)" hint={`${stats.active} unacknowledged`} />
           <StatCard label="Breached" value={stats.breached} tone={stats.breached ? "#ef4444" : "#22c55e"} hint="SLA missed" />
-          <StatCard label="At risk" value={stats.atRisk} tone={stats.atRisk ? "#f59e0b" : "#94a3b8"} hint="80% of budget" />
+          <StatCard label="At risk" value={stats.atRisk} tone={stats.atRisk ? "#f59e0b" : "var(--text-muted)"} hint="80% of budget" />
           <StatCard label="Attainment" value={`${stats.slaAttainment}%`} tone={stats.slaAttainment >= 95 ? "#22c55e" : "#f59e0b"} hint="closed incidents" />
           <StatCard label="Median TTA" value={formatMins(stats.medianTta)} hint="time to acknowledge" />
           <StatCard label="Median TTM" value={formatMins(stats.medianTtm)} hint="time to mitigate" />
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border cv-border cv-surface p-3">
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as typeof status)}
-          className="h-[44px] rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+          className="h-[44px] rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
           aria-label="Filter by status"
         >
           <option value="open">Open</option>
@@ -311,7 +324,7 @@ export default function IcmPanel() {
         <select
           value={sev}
           onChange={(e) => setSev(e.target.value)}
-          className="h-[44px] rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+          className="h-[44px] rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
           aria-label="Filter by severity"
         >
           <option value="">All severities</option>
@@ -325,7 +338,7 @@ export default function IcmPanel() {
         <select
           value={slaFilter}
           onChange={(e) => setSlaFilter(e.target.value)}
-          className="h-[44px] rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+          className="h-[44px] rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
           aria-label="Filter by SLA state"
         >
           <option value="">Any SLA state</option>
@@ -338,7 +351,7 @@ export default function IcmPanel() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search id, title, team…"
-          className="h-[44px] min-w-[200px] flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200 placeholder:text-slate-500"
+          className="h-[44px] min-w-[200px] flex-1 rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary placeholder:cv-text-muted"
           aria-label="Search incidents"
         />
       </div>
@@ -347,9 +360,9 @@ export default function IcmPanel() {
         <div className="rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">{error}</div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-700/60">
+      <div className="overflow-hidden rounded-xl border cv-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-900/60 text-[11px] uppercase tracking-wide text-slate-400">
+          <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
             <tr>
               <th className="px-3 py-2">Sev</th>
               <th className="px-3 py-2">Incident</th>
@@ -363,7 +376,7 @@ export default function IcmPanel() {
           <tbody>
             {loading && incidents.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-3 py-8 text-center cv-text-muted">
                   Loading the queue…
                 </td>
               </tr>
@@ -372,8 +385,8 @@ export default function IcmPanel() {
               <tr>
                 <td colSpan={7} className="px-3 py-10 text-center">
                   <ShieldCheck className="mx-auto mb-2 h-8 w-8 text-emerald-500" aria-hidden />
-                  <div className="font-semibold text-slate-300">Nothing open</div>
-                  <div className="text-[13px] text-slate-500">
+                  <div className="font-semibold cv-text-secondary">Nothing open</div>
+                  <div className="text-[13px] cv-text-muted">
                     {status === "open" ? "No active incidents. Quiet is good." : "No incidents match these filters."}
                   </div>
                 </td>
@@ -426,30 +439,30 @@ function IncidentRow({ inc, now, onOpen }: { inc: Incident; now: string; onOpen:
   return (
     <tr
       onClick={onOpen}
-      className="cursor-pointer border-t border-slate-800 hover:bg-slate-800/40"
+      className="cursor-pointer border-t cv-border hover:cv-hover"
       style={bad ? { boxShadow: "inset 3px 0 0 #ef4444" } : undefined}
     >
       <td className="px-3 py-2.5">
         <SevChip sev={inc.severity} />
       </td>
       <td className="px-3 py-2.5">
-        <div className="font-semibold text-slate-100">{inc.title}</div>
-        <div className="text-[12px] text-slate-500">
+        <div className="font-semibold cv-text-primary">{inc.title}</div>
+        <div className="text-[12px] cv-text-muted">
           {inc.id} · {inc.owningTeam}
           {inc.affectedServices.length > 0 && ` · ${inc.affectedServices.join(", ")}`}
         </div>
       </td>
       <td className="px-3 py-2.5">
-        <span className="text-[12px] text-slate-300">{STATUS_LABEL[inc.status]}</span>
+        <span className="text-[12px] cv-text-secondary">{STATUS_LABEL[inc.status]}</span>
       </td>
-      <td className="px-3 py-2.5 text-[12px] text-slate-400">{inc.assignedTo || "—"}</td>
+      <td className="px-3 py-2.5 text-[12px] cv-text-muted">{inc.assignedTo || "—"}</td>
       <td className="px-3 py-2.5">
         <SlaPill state={c.ack.state} mins={c.ack.minutesRemaining} label="Time to acknowledge" />
       </td>
       <td className="px-3 py-2.5">
         <SlaPill state={c.mitigate.state} mins={c.mitigate.minutesRemaining} label="Time to mitigate" />
       </td>
-      <td className="px-3 py-2.5 text-[12px] text-slate-400">{formatMins(age)}</td>
+      <td className="px-3 py-2.5 text-[12px] cv-text-muted">{formatMins(age)}</td>
     </tr>
   );
 }
@@ -487,54 +500,54 @@ function IncidentDetail({
     <div className="space-y-4">
       <button
         onClick={onBack}
-        className="inline-flex h-[44px] items-center gap-2 text-sm font-semibold text-slate-300 hover:text-white"
+        className="inline-flex h-[44px] items-center gap-2 text-sm font-semibold cv-text-secondary hover:text-white"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
         Back to queue
       </button>
 
-      <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
+      <div className="rounded-xl border cv-border cv-surface p-4">
         <div className="flex flex-wrap items-start gap-3">
           <SevChip sev={inc.severity} size="lg" />
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold text-slate-100">{inc.title}</h2>
-            <div className="text-[13px] text-slate-400">
+            <h2 className="text-lg font-bold cv-text-primary">{inc.title}</h2>
+            <div className="text-[13px] cv-text-muted">
               {inc.id} · {STATUS_LABEL[inc.status]} · {inc.owningTeam}
               {inc.assignedTo && ` · ${inc.assignedTo}`} · filed by {inc.createdBy}
             </div>
           </div>
         </div>
 
-        {inc.description && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{inc.description}</p>}
+        {inc.description && <p className="mt-3 whitespace-pre-wrap text-sm cv-text-secondary">{inc.description}</p>}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-slate-700/60 p-3">
-            <div className="mb-1 flex items-center gap-1.5 text-[11px] uppercase text-slate-400">
+          <div className="rounded-lg border cv-border p-3">
+            <div className="mb-1 flex items-center gap-1.5 text-[11px] uppercase cv-text-muted">
               <Clock className="h-3.5 w-3.5" aria-hidden /> Time to acknowledge
             </div>
             <SlaPill state={c.ack.state} mins={c.ack.minutesRemaining} label="TTA" />
-            <div className="mt-1 text-[11px] text-slate-500">
+            <div className="mt-1 text-[11px] cv-text-muted">
               target {formatMins(inc.slaAckMins)} · {inc.acknowledgedAt ? `at ${fmtTime(inc.acknowledgedAt)}` : "not yet"}
             </div>
           </div>
-          <div className="rounded-lg border border-slate-700/60 p-3">
-            <div className="mb-1 flex items-center gap-1.5 text-[11px] uppercase text-slate-400">
+          <div className="rounded-lg border cv-border p-3">
+            <div className="mb-1 flex items-center gap-1.5 text-[11px] uppercase cv-text-muted">
               <Timer className="h-3.5 w-3.5" aria-hidden /> Time to mitigate
             </div>
             <SlaPill state={c.mitigate.state} mins={c.mitigate.minutesRemaining} label="TTM" />
-            <div className="mt-1 text-[11px] text-slate-500">
+            <div className="mt-1 text-[11px] cv-text-muted">
               target {inc.slaMitigateMins == null ? "none" : formatMins(inc.slaMitigateMins)} ·{" "}
               {inc.mitigatedAt ? `at ${fmtTime(inc.mitigatedAt)}` : "not yet"}
             </div>
           </div>
-          <div className="rounded-lg border border-slate-700/60 p-3">
-            <div className="mb-1 text-[11px] uppercase text-slate-400">Impact started</div>
-            <div className="text-sm font-semibold text-slate-200">{fmtTime(inc.impactStartedAt)}</div>
-            <div className="text-[11px] text-slate-500">{inc.customersImpacted} customers</div>
+          <div className="rounded-lg border cv-border p-3">
+            <div className="mb-1 text-[11px] uppercase cv-text-muted">Impact started</div>
+            <div className="text-sm font-semibold cv-text-primary">{fmtTime(inc.impactStartedAt)}</div>
+            <div className="text-[11px] cv-text-muted">{inc.customersImpacted} customers</div>
           </div>
-          <div className="rounded-lg border border-slate-700/60 p-3">
-            <div className="mb-1 text-[11px] uppercase text-slate-400">Services</div>
-            <div className="text-sm text-slate-200">
+          <div className="rounded-lg border cv-border p-3">
+            <div className="mb-1 text-[11px] uppercase cv-text-muted">Services</div>
+            <div className="text-sm cv-text-primary">
               {inc.affectedServices.length ? inc.affectedServices.join(", ") : "—"}
             </div>
           </div>
@@ -547,7 +560,7 @@ function IncidentDetail({
 
       {/* Actions. Ordered as the lifecycle runs, so the next thing to do is
           always the leftmost enabled button. */}
-      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+      <div className="flex flex-wrap gap-2 rounded-xl border cv-border cv-surface p-3">
         <button
           disabled={busy || !!inc.acknowledgedAt}
           onClick={() => send({ action: "acknowledge" })}
@@ -584,7 +597,7 @@ function IncidentDetail({
             value={inc.severity}
             onChange={(e) => send({ action: "severity", severity: Number(e.target.value), note })}
             disabled={busy}
-            className="h-[44px] rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+            className="h-[44px] rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
             aria-label="Change severity"
           >
             {SEVERITIES.map((s) => (
@@ -598,23 +611,23 @@ function IncidentDetail({
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-400">
+          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
             <MessageSquare className="h-4 w-4" aria-hidden /> Discussion &amp; timeline
           </h3>
 
-          <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+          <div className="rounded-xl border cv-border cv-surface p-3">
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
               placeholder="Add a comment, or a note to attach to the next action…"
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500"
+              className="w-full rounded-lg border cv-border cv-surface-alt px-3 py-2 text-sm cv-text-primary placeholder:cv-text-muted"
               aria-label="Comment"
             />
             <button
               disabled={busy || !note.trim()}
               onClick={() => send({ action: "comment", body: note })}
-              className="mt-2 inline-flex h-[44px] items-center gap-2 rounded-lg border border-slate-600 px-4 text-sm font-semibold text-slate-200 disabled:opacity-40 hover:bg-slate-800"
+              className="mt-2 inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-4 text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
             >
               Comment
             </button>
@@ -628,11 +641,11 @@ function IncidentDetail({
         </div>
 
         <div className="space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-400">
+          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
             <UserPlus className="h-4 w-4" aria-hidden /> Routing
           </h3>
-          <div className="space-y-2 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
-            <label className="block text-[12px] text-slate-400" htmlFor="icm-assignee">
+          <div className="space-y-2 rounded-xl border cv-border cv-surface p-3">
+            <label className="block text-[12px] cv-text-muted" htmlFor="icm-assignee">
               Assign to
             </label>
             <input
@@ -640,16 +653,16 @@ function IncidentDetail({
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
               placeholder={inc.assignedTo || "nobody yet"}
-              className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+              className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
             />
-            <label className="block text-[12px] text-slate-400" htmlFor="icm-team">
+            <label className="block text-[12px] cv-text-muted" htmlFor="icm-team">
               Owning team
             </label>
             <select
               id="icm-team"
               value={team}
               onChange={(e) => setTeam(e.target.value)}
-              className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+              className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
             >
               {[...new Set([inc.owningTeam, ...teams])].filter(Boolean).map((t) => (
                 <option key={t} value={t}>
@@ -663,24 +676,24 @@ function IncidentDetail({
                 send({ action: "assign", assignedTo: assignee, owningTeam: team });
                 setAssignee("");
               }}
-              className="inline-flex h-[44px] w-full items-center justify-center rounded-lg border border-slate-600 text-sm font-semibold text-slate-200 disabled:opacity-40 hover:bg-slate-800"
+              className="inline-flex h-[44px] w-full items-center justify-center rounded-lg border cv-border text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
             >
               Route
             </button>
           </div>
 
           {(inc.mitigation || inc.rootCause) && (
-            <div className="space-y-2 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3 text-sm">
+            <div className="space-y-2 rounded-xl border cv-border cv-surface p-3 text-sm">
               {inc.mitigation && (
                 <div>
-                  <div className="text-[11px] uppercase text-slate-400">Mitigation</div>
-                  <div className="text-slate-300">{inc.mitigation}</div>
+                  <div className="text-[11px] uppercase cv-text-muted">Mitigation</div>
+                  <div className="cv-text-secondary">{inc.mitigation}</div>
                 </div>
               )}
               {inc.rootCause && (
                 <div>
-                  <div className="text-[11px] uppercase text-slate-400">Root cause</div>
-                  <div className="text-slate-300">{inc.rootCause}</div>
+                  <div className="text-[11px] uppercase cv-text-muted">Root cause</div>
+                  <div className="cv-text-secondary">{inc.rootCause}</div>
                 </div>
               )}
             </div>
@@ -707,15 +720,15 @@ const KIND_ICON: Record<TimelineEntry["kind"], typeof Clock> = {
 function TimelineRow({ entry }: { entry: TimelineEntry }) {
   const Icon = KIND_ICON[entry.kind] ?? MessageSquare;
   return (
-    <li className="flex gap-3 rounded-lg border border-slate-800 bg-slate-900/30 p-3">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+    <li className="flex gap-3 rounded-lg border cv-border cv-surface p-3">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 cv-text-muted" aria-hidden />
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] text-slate-300">
-          <span className="font-semibold text-slate-100">{entry.actor}</span> {entry.text}
+        <div className="text-[13px] cv-text-secondary">
+          <span className="font-semibold cv-text-primary">{entry.actor}</span> {entry.text}
         </div>
-        {entry.body && <div className="mt-1 whitespace-pre-wrap text-[13px] text-slate-400">{entry.body}</div>}
+        {entry.body && <div className="mt-1 whitespace-pre-wrap text-[13px] cv-text-muted">{entry.body}</div>}
       </div>
-      <time className="shrink-0 text-[11px] text-slate-500">{fmtTime(entry.at)}</time>
+      <time className="shrink-0 text-[11px] cv-text-muted">{fmtTime(entry.at)}</time>
     </li>
   );
 }
@@ -782,33 +795,33 @@ function DeclareDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Declare an incident">
       <button className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
-      <div className="relative max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5">
+      <div className="relative max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-2xl border cv-border cv-surface p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-100">Declare an incident</h3>
-          <button onClick={onClose} className="grid h-[44px] w-[44px] place-items-center text-slate-400" aria-label="Close">
+          <h3 className="text-lg font-bold cv-text-primary">Declare an incident</h3>
+          <button onClick={onClose} className="grid h-[44px] w-[44px] place-items-center cv-text-muted" aria-label="Close">
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
 
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-[12px] text-slate-400" htmlFor="inc-title">Title</label>
+            <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-title">Title</label>
             <input
               id="inc-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Control plane returning 503 to all device commands"
-              className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+              className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-[12px] text-slate-400" htmlFor="inc-sev">Severity</label>
+            <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-sev">Severity</label>
             <select
               id="inc-sev"
               value={severity}
               onChange={(e) => setSeverity(Number(e.target.value) as Severity)}
-              className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+              className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
             >
               {SEVERITIES.map((s) => (
                 <option key={s} value={s}>
@@ -816,31 +829,31 @@ function DeclareDialog({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] cv-text-muted">
               Acknowledge within {formatMins(SLA[severity].ack)}
               {SLA[severity].mitigate != null && `, mitigate within ${formatMins(SLA[severity].mitigate)}`}.
             </p>
           </div>
 
           <div>
-            <label className="mb-1 block text-[12px] text-slate-400" htmlFor="inc-desc">What is happening</label>
+            <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-desc">What is happening</label>
             <textarea
               id="inc-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200"
+              className="w-full rounded-lg border cv-border cv-surface-alt px-3 py-2 text-sm cv-text-primary"
             />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-[12px] text-slate-400" htmlFor="inc-team">Owning team</label>
+              <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-team">Owning team</label>
               <select
                 id="inc-team"
                 value={owningTeam}
                 onChange={(e) => setOwningTeam(e.target.value)}
-                className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+                className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
               >
                 {teams.map((t) => (
                   <option key={t} value={t}>{t}</option>
@@ -854,7 +867,7 @@ function DeclareDialog({
                 keeps TTM honest rather than flattering it by however long it
                 took to notice.
               */}
-              <label className="mb-1 block text-[12px] text-slate-400" htmlFor="inc-impact">
+              <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-impact">
                 Impact started (minutes ago)
               </label>
               <input
@@ -863,28 +876,28 @@ function DeclareDialog({
                 min={0}
                 value={impactAgo}
                 onChange={(e) => setImpactAgo(e.target.value)}
-                className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+                className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[12px] text-slate-400" htmlFor="inc-svcs">Affected services</label>
+              <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-svcs">Affected services</label>
               <input
                 id="inc-svcs"
                 value={services}
                 onChange={(e) => setServices(e.target.value)}
                 placeholder="control-plane, mqtt"
-                className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+                className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[12px] text-slate-400" htmlFor="inc-cust">Customers impacted</label>
+              <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-cust">Customers impacted</label>
               <input
                 id="inc-cust"
                 type="number"
                 min={0}
                 value={customers}
                 onChange={(e) => setCustomers(e.target.value)}
-                className="h-[44px] w-full rounded-lg border border-slate-600 bg-slate-800 px-3 text-sm text-slate-200"
+                className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
               />
             </div>
           </div>
@@ -904,4 +917,7 @@ function DeclareDialog({
     </div>
   );
 }
+
+
+
 
