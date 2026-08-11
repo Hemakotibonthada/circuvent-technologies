@@ -319,8 +319,24 @@ export function capabilities(type: string): Capability {
     case "aquaguard":
     case "agri-starter":
       return { power: { field: "pump", label: "Pump" } };
+    case "smart-light":
     case "light":
+      /*
+       * Both spellings. Add Device registers lights as "smart-light" — the
+       * name the firmware directory, the shop listing and the command map all
+       * use — while this table listed only the bare alias, so every light
+       * actually in the field fell through to the default and was given a
+       * power button and nothing else. The dimmer and the colour picker were
+       * built, the command map understood them, the hardware implemented them,
+       * and no one could reach them.
+       *
+       * Deliberately no colour-temperature control: the command map will
+       * happily build a `cct` command, but firmware/smart-light implements
+       * only `brightness` and `color` and silently drops anything else, so a
+       * CCT slider would move, report success and change nothing.
+       */
       return { power: { field: "power", label: "Power" }, dimmer: { field: "brightness", label: "Brightness", min: 0, max: 100 }, color: { field: "color" } };
+    case "smart-fan":
     case "fan":
     case "ceiling-fan":
       // `level` is the continuous 0..100 the hardware always had; `speed` is
@@ -347,7 +363,7 @@ export function primaryPowerField(type: string): string {
  * step table both sides use — otherwise the slider would sit at zero on a fan
  * that is running, and the first touch would appear to jump it.
  */
-function fanLevel(d: Device, cap: { field: string; legacyField?: string }): number {
+export function fanLevel(d: Device, cap: { field: string; legacyField?: string }): number {
   const raw = d.state[cap.field];
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
   const legacy = cap.legacyField ? d.state[cap.legacyField] : undefined;
@@ -358,7 +374,7 @@ function fanLevel(d: Device, cap: { field: string; legacyField?: string }): numb
 }
 
 /** "Off", or a percentage with the nearest named step, e.g. "48% · Low". */
-function fanHint(d: Device, cap: { field: string; legacyField?: string }): string {
+export function fanHint(d: Device, cap: { field: string; legacyField?: string }): string {
   const level = fanLevel(d, cap);
   if (level <= 0) return "Off";
   const names = ["Off", "Low", "Medium", "High"];
@@ -367,8 +383,17 @@ function fanHint(d: Device, cap: { field: string; legacyField?: string }): strin
 
 function GenericCapabilities({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const caps = capabilities(d.type);
-  const genericTypes = ["light", "fan", "ceiling-fan", "thermostat", "ac"];
-  if (!genericTypes.includes(d.type) && !caps.dimmer && !caps.fan && !caps.color && !caps.thermostat) return null;
+  /*
+   * Decided by capability, not by a second list of type names.
+   *
+   * There used to be a `genericTypes` whitelist beside this check. It named
+   * "light" and "fan" but not "smart-light"/"smart-fan", the names devices are
+   * actually registered under — the same omission that left the capability
+   * table itself blind to them. Every type it listed already reports a rich
+   * capability, so it decided nothing and only offered a second place to
+   * forget a device.
+   */
+  if (!caps.dimmer && !caps.fan && !caps.color && !caps.thermostat) return null;
   const colors = ["#ffffff", "#f87171", "#fb923c", "#facc15", "#4ade80", "#22d3ee", "#60a5fa", "#a78bfa"];
   return (
     <div className="mb-5">

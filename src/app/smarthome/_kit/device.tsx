@@ -14,8 +14,9 @@ import { Star } from "lucide-react";
 import type { Device } from "@/lib/control-plane";
 import { masterPower } from "@/lib/smarthome-command-map";
 import { haptic, type FieldStatus } from "@/lib/smarthome-realtime";
-import { deviceMeta } from "../DeviceControls";
+import { deviceMeta, capabilities, fanLevel } from "../DeviceControls";
 import { StatusDot, formatRelative } from "./primitives";
+import { Slider } from "./Slider";
 
 /**
  * Primary readout for a device type, derived from published state.
@@ -180,6 +181,56 @@ export function PowerButton({
  * around the content, because the toggle is itself a button and a button nested
  * inside an anchor is invalid markup that screen readers announce incoherently.
  */
+/**
+ * The one continuous control worth putting on a tile, if the device has one.
+ *
+ * Brightness for a light, speed for a fan — the adjustment people actually
+ * reach for. Anything richer (colour, thermostat setpoints) stays on the
+ * device page, because a tile is 128px tall and a wall of controls there stops
+ * being glanceable, which is the only thing a tile is for.
+ *
+ * Returns null when the type has nothing continuous to offer, so a plug or a
+ * sensor tile is unchanged.
+ */
+export function inlineControl(device: Device): {
+  field: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  ticks?: number[];
+  tickLabels?: Record<number, string>;
+} | null {
+  const caps = capabilities(device.type);
+
+  if (caps.fan) {
+    return {
+      field: caps.fan.field,
+      label: caps.fan.label,
+      // Reads `speed` when a fan predates `level`, so the handle starts where
+      // the fan actually is rather than at zero on one that is running.
+      value: fanLevel(device, caps.fan),
+      min: 0,
+      max: 100,
+      ticks: [0, 33, 66, 100],
+      tickLabels: { 0: "Off", 33: "Low", 66: "Med", 100: "High" },
+    };
+  }
+
+  if (caps.dimmer) {
+    const raw = device.state?.[caps.dimmer.field];
+    return {
+      field: caps.dimmer.field,
+      label: caps.dimmer.label,
+      value: typeof raw === "number" && Number.isFinite(raw) ? raw : 0,
+      min: caps.dimmer.min,
+      max: caps.dimmer.max,
+    };
+  }
+
+  return null;
+}
+
 export function DeviceTile({
   device,
   status,
@@ -198,6 +249,7 @@ export function DeviceTile({
   const readout = deviceMetric(device);
   const target = href ?? `/smarthome/device/${encodeURIComponent(device.id)}`;
   const mp = masterPower(device);
+  const inline = inlineControl(device);
   const on = Boolean(mp?.on) && device.online;
   const tint = meta.accent;
 
@@ -292,6 +344,35 @@ export function DeviceTile({
             {device.room ? ` · ${device.room}` : ""}
           </span>
         </div>
+
+        {/*
+          * Dimming and fan speed, on the tile.
+          *
+          * The dashboard offered power and nothing else, so turning a light
+          * down meant opening its page — two navigations to do the thing the
+          * device exists for. The slider only commits when the gesture
+          * settles, so a drag is one command rather than one per frame, and it
+          * carries its own pointer events because the whole tile is covered by
+          * a link to the device page that would otherwise swallow the drag.
+          */}
+        {inline && device.online && (
+          <div className="pointer-events-auto mt-3">
+            <Slider
+              label={`${inline.label} — ${device.name}`}
+              value={inline.value}
+              min={inline.min}
+              max={inline.max}
+              step={1}
+              unit="%"
+              ticks={inline.ticks}
+              tickLabels={inline.tickLabels}
+              onCommit={(v) => {
+                haptic();
+                onSend({ [inline.field]: v });
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
