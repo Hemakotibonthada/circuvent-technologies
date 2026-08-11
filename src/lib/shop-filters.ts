@@ -218,18 +218,26 @@ export function computeFacets(
      * Rating bands that cannot narrow anything are dropped, the same way empty
      * price buckets are below.
      *
-     * A band matching *every* product is as useless as one matching none —
-     * selecting it returns the same list. With a curated catalogue where
-     * everything is rated 4.5+, all three bands showed the full count, so the
-     * section occupied prime sidebar space while being incapable of filtering.
-     * Dropping them hides the whole section, which is the honest outcome.
+     * Two ways a band is useless, and both had to go:
+     *
+     *  - it matches *every* product, so selecting it returns the list already
+     *    on screen;
+     *  - it matches exactly what a stricter band above it already matches, so
+     *    it is a second button doing the first one's job.
+     *
+     * Neither is hypothetical. The live catalogue is almost entirely 4.5+, so
+     * before this all three bands read "20" — three dead buttons in prime
+     * sidebar space. After only dropping the match-everything case, all three
+     * still read "20" against a 21-product catalogue: technically filtering,
+     * practically identical. Keeping the most selective one is the answer.
      */
     ratings: [4.5, 4, 3.5]
       .map((value) => ({
         value,
         count: ratingPool.filter((p) => (p.rating ?? 0) >= value).length,
       }))
-      .filter((r) => r.count > 0 && r.count < ratingPool.length),
+      .filter((r) => r.count > 0 && r.count < ratingPool.length)
+      .filter((r, i, all) => i === 0 || r.count !== all[i - 1]!.count),
     prices: PRICE_BUCKETS.map((b) => ({
       ...b,
       count: pricePool.filter(

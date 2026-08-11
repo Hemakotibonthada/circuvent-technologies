@@ -212,12 +212,18 @@ describe("shop-filters — facets", () => {
      * useless as one matching nothing, and the price buckets above already
      * drop the empty case — this makes the two consistent.
      *
-     * It is not hypothetical: the live catalogue is entirely 4.5+, so all
-     * three bands showed the full count and the section occupied prime
-     * sidebar space while being incapable of filtering.
+     * It is not hypothetical: the live catalogue is almost entirely 4.5+.
      */
     expect(facets.ratings.find((r) => r.value === 3.5)).toBeUndefined();
     expect(facets.ratings.every((r) => r.count > 0 && r.count < CATALOG.length)).toBe(true);
+
+    /*
+     * And no two surviving bands may share a count. Three buttons all reading
+     * "20" against a 21-product catalogue are technically filtering and
+     * practically identical — the most selective one is kept and the rest go.
+     */
+    const counts = facets.ratings.map((r) => r.count);
+    expect(new Set(counts).size).toBe(counts.length);
   });
 });
 
