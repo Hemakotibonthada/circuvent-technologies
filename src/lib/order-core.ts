@@ -4,6 +4,8 @@ import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
 import { validateCoupon } from "./coupons";
 import { listProducts } from "./store";
+import { listBundles } from "./admin-bundles";
+import { applyBundles, type AppliedBundle, type PricedItem } from "./bundle-pricing";
 import { productAvailability, type AvailabilityInput } from "./product-availability";
 import { BRAND } from "./brand";
 import { recordEmail } from "./email-log";
@@ -179,6 +181,9 @@ type PriceResult =
       discount: number;
       couponCode: string;
       couponLabel: string;
+      /** Bundles the cart qualified for, and what they took off. */
+      bundles: AppliedBundle[];
+      bundleDiscount: number;
       total: number;
     }
   | { ok: false; error: string };
@@ -189,6 +194,7 @@ export function priceItems(items: IncomingItem[], couponCode?: string): PriceRes
     return { ok: false, error: "Your cart is empty." };
   }
   const lines: OrderLine[] = [];
+  const priced: PricedItem[] = [];
   const live = listProducts(); // authoritative prices/availability (admin-editable)
   for (const it of items) {
     const cat = products.find((pr) => pr.id === it.id || pr.slug === it.slug);
@@ -219,22 +225,58 @@ export function priceItems(items: IncomingItem[], couponCode?: string): PriceRes
     if (lp && typeof lp.stock === "number" && qty > lp.stock) {
       return { ok: false, error: `Only ${lp.stock} unit(s) of ${name} left in stock.` };
     }
+    // Kept alongside the line so bundles are matched on the id the server
+    // resolved, not on whatever the browser claimed the item was.
+    priced.push({ id: (lp?.id ?? cat?.id) as string, price, qty });
     lines.push({ name, price, qty, lineTotal: price * qty, warrantyMonths: lp?.warrantyMonths ?? cat?.warrantyMonths });
   }
   const { subtotal, shipping } = computeTotals(lines);
-  let discount = 0;
+
+  /*
+   * Bundle discount, derived from the cart rather than sent with it.
+   *
+   * Applied before the coupon and, like the coupon, after shipping has been
+   * computed from the undiscounted subtotal — so qualifying for a bundle can
+   * never drop somebody back below the free-shipping threshold, which would
+   * make a saving look like a penalty.
+   */
+  const bundleRules = listBundles().map((b) => ({
+    id: b.id,
+    name: b.name,
+    productIds: b.productIds,
+    bundlePrice: b.bundlePrice,
+    active: b.active,
+  }));
+  const bundle = applyBundles(priced, bundleRules);
+  const bundleDiscount = Math.min(bundle.discount, subtotal);
+
+  let discount = bundleDiscount;
   let code = "";
   let label = "";
   if (couponCode) {
-    const r = validateCoupon(couponCode, subtotal, shipping);
+    // Coupon is measured against the subtotal the shopper is actually paying,
+    // so a percentage coupon cannot be stacked on top of an already-discounted
+    // basket to take the total below zero.
+    const r = validateCoupon(couponCode, Math.max(0, subtotal - bundleDiscount), shipping);
     if (r.valid) {
-      discount = r.discount;
+      discount += r.discount;
       code = r.code;
       label = r.label;
     }
   }
   const total = Math.max(0, subtotal + shipping - discount);
-  return { ok: true, lines, subtotal, shipping, discount, couponCode: code, couponLabel: label, total };
+  return {
+    ok: true,
+    lines,
+    subtotal,
+    shipping,
+    discount,
+    couponCode: code,
+    couponLabel: label,
+    bundles: bundle.applied,
+    bundleDiscount,
+    total,
+  };
 }
 
 export function validateCustomer(c: CustomerInfo): Record<string, string> {

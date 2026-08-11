@@ -30,12 +30,17 @@ const inputStyle = { background: "var(--bg-glass)", borderColor: "var(--border-p
 export default function BundlesPanel() {
   const [bundles, setBundles] = useState<BundleWithSavings[]>([]);
   const [loading, setLoading] = useState(true);
+  const [durable, setDurable] = useState(true);
   const [form, setForm] = useState<{ name: string; productIds: string; bundlePrice: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/admin/bundles", { headers: { "x-admin-token": tok() } });
-    if (res.ok) setBundles((await res.json()).bundles || []);
+    if (res.ok) {
+      const d = await res.json();
+      setBundles(d.bundles || []);
+      setDurable(d.durable !== false);
+    }
     setLoading(false);
   }, []);
 
@@ -64,10 +69,20 @@ export default function BundlesPanel() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}><Package className="w-5 h-5" /> Product Bundles</h2>
-          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Combo SKUs priced against live catalog totals — savings calculated automatically.</p>
+          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Combo SKUs priced against live catalog totals — the saving is applied automatically at checkout when a customer has the full set.</p>
         </div>
         <button onClick={() => setForm({ name: "", productIds: "", bundlePrice: 0 })} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)" }}><Plus className="w-4 h-4" /> New bundle</button>
       </div>
+
+      {!durable && (
+        <p
+          className="rounded-xl border px-4 py-3 text-sm"
+          style={{ borderColor: "rgba(245,158,11,0.4)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" }}
+        >
+          This deployment cannot write bundles to disk, so anything saved here is kept in memory and will be lost when
+          the server restarts. Set <code>DATA_DIR</code> to a writable, persistent path to keep bundles.
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>

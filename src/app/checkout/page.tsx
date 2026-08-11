@@ -92,6 +92,8 @@ export default function CheckoutPage() {
     subtotal: number;
     shipping: number;
     discount: number;
+    bundleDiscount: number;
+    bundles: { id: string; name: string; times: number; savings: number }[];
     total: number;
     lines: { name: string; price: number; qty: number; lineTotal: number }[];
   } | null>(null);
@@ -169,7 +171,15 @@ export default function CheckoutPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!cancelled && d?.success) {
-          setQuote({ subtotal: d.subtotal, shipping: d.shipping, discount: d.discount, total: d.total, lines: d.lines });
+          setQuote({
+            subtotal: d.subtotal,
+            shipping: d.shipping,
+            discount: d.discount,
+            bundleDiscount: d.bundleDiscount ?? 0,
+            bundles: d.bundles ?? [],
+            total: d.total,
+            lines: d.lines,
+          });
         }
       })
       .catch(() => {});
@@ -200,6 +210,11 @@ export default function CheckoutPage() {
   const dispSubtotal = quote?.subtotal ?? subtotal;
   const dispShipping = quote?.shipping ?? shipping;
   const discount = quote?.discount ?? (coupon?.discount || 0);
+  // Split out so the summary can name the bundle rather than showing one
+  // unexplained "Discount" that mixes a coupon with an automatic saving.
+  const bundleDiscount = quote?.bundleDiscount ?? 0;
+  const appliedBundles = quote?.bundles ?? [];
+  const couponDiscount = Math.max(0, discount - bundleDiscount);
   const payTotal = quote?.total ?? Math.max(0, subtotal + shipping - discount);
   // Partial wallet redemption: how much wallet is applied, and what remains due.
   const walletUse = account && applyWallet && wallet > 0 ? Math.min(wallet, payTotal) : 0;
@@ -705,10 +720,23 @@ export default function CheckoutPage() {
               <dt style={{ color: "var(--text-tertiary)" }}>Subtotal</dt>
               <dd style={{ color: "var(--text-secondary)" }}>{formatINR(dispSubtotal)}</dd>
             </div>
-            {discount > 0 && (
+            {bundleDiscount > 0 && (
+              <div className="flex justify-between">
+                <dt className="min-w-0" style={{ color: "var(--text-tertiary)" }}>
+                  Bundle saving
+                  {appliedBundles.length > 0 && (
+                    <span className="block truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                      {appliedBundles.map((b) => (b.times > 1 ? `${b.name} ×${b.times}` : b.name)).join(", ")}
+                    </span>
+                  )}
+                </dt>
+                <dd className="shrink-0 font-medium text-emerald-500">- {formatINR(bundleDiscount)}</dd>
+              </div>
+            )}
+            {couponDiscount > 0 && (
               <div className="flex justify-between">
                 <dt style={{ color: "var(--text-tertiary)" }}>Discount</dt>
-                <dd className="font-medium text-emerald-500">- {formatINR(discount)}</dd>
+                <dd className="font-medium text-emerald-500">- {formatINR(couponDiscount)}</dd>
               </div>
             )}
             <div className="flex justify-between">

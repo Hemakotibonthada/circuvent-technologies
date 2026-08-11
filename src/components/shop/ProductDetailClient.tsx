@@ -9,6 +9,7 @@ import { type Product, formatINR } from "@/lib/shop-data";
 import { useCart } from "./CartProvider";
 import DeliveryEstimate from "./DeliveryEstimate";
 import ProductAssurance from "./ProductAssurance";
+import ProductBundles from "./ProductBundles";
 import ProductMedia from "./ProductMedia";
 import ProductReviews from "./ProductReviews";
 import ProductQA from "./ProductQA";
@@ -210,6 +211,7 @@ export default function ProductDetailClient({
 
       <ProductReviews productId={product.id} />
       <ProductQA productId={product.id} />
+      <ProductBundles product={product} />
 
       {related.length > 0 && (
         <div className="mt-16">

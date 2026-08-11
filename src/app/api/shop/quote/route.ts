@@ -21,6 +21,10 @@ export async function POST(request: Request) {
     discount: p.discount,
     couponCode: p.couponCode,
     couponLabel: p.couponLabel,
+    // Bundles are applied server-side from the cart's contents, so the summary
+    // has to name them or the shopper sees a discount with no explanation.
+    bundles: p.bundles,
+    bundleDiscount: p.bundleDiscount,
     total: p.total,
   });
 }

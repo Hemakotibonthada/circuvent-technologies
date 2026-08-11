@@ -43,6 +43,20 @@ export function deleteBundle(id: string): boolean {
   });
 }
 
+/**
+ * False when bundles are being held in memory only.
+ *
+ * On a read-only filesystem — which is what a serverless production deployment
+ * has — createFileStore degrades to in-memory rather than throwing. That is the
+ * right behaviour for the request, but it means a bundle configured in the
+ * admin panel is lost on the next cold start. Now that bundles change what
+ * customers are charged, that has to be visible to whoever configures them
+ * instead of looking like the setting silently failed to save.
+ */
+export function isDurable(): boolean {
+  return store.isDurable();
+}
+
 export interface BundleWithSavings extends Bundle {
   catalogTotal: number;
   savings: number;

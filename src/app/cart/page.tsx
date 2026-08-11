@@ -3,11 +3,24 @@
 import Link from "next/link";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Truck, ShieldCheck, Wallet } from "lucide-react";
 import { useCart } from "@/components/shop/CartProvider";
+import { useCartQuote } from "@/hooks/useCartQuote";
 import ProductMedia from "@/components/shop/ProductMedia";
 import { formatINR } from "@/lib/shop-data";
 
 export default function CartPage() {
   const { items, setQty, remove, subtotal, shipping, total, freeShipOver } = useCart();
+
+  /*
+   * Server totals win when they arrive. Bundle discounts are worked out from
+   * the cart's contents on the server, so adding the lines up here would show a
+   * total the checkout then undercuts with no explanation. Falls back to the
+   * local figures while the quote is in flight or if it fails.
+   */
+  const quote = useCartQuote(items);
+  const shownShipping = quote?.shipping ?? shipping;
+  const shownTotal = quote?.total ?? total;
+  const bundleDiscount = quote?.bundleDiscount ?? 0;
+  const bundles = quote?.bundles ?? [];
 
   return (
     <section className="relative z-10 mx-auto max-w-5xl px-6 pb-24 pt-32 lg:px-8">
@@ -108,8 +121,26 @@ export default function CartPage() {
               </div>
               <div className="flex justify-between">
                 <dt style={{ color: "var(--text-tertiary)" }}>Shipping</dt>
-                <dd style={{ color: "var(--text-secondary)" }}>{shipping === 0 ? "Free" : formatINR(shipping)}</dd>
+                <dd style={{ color: "var(--text-secondary)" }}>
+                  {shownShipping === 0 ? "Free" : formatINR(shownShipping)}
+                </dd>
               </div>
+              {bundleDiscount > 0 && (
+                <div className="flex justify-between">
+                  <dt className="min-w-0" style={{ color: "var(--text-tertiary)" }}>
+                    Bundle saving
+                    {/* Name the bundle: an unexplained deduction reads like an
+                        error, and the shopper cannot tell what they would lose
+                        by removing an item. */}
+                    {bundles.length > 0 && (
+                      <span className="block truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                        {bundles.map((b) => (b.times > 1 ? `${b.name} ×${b.times}` : b.name)).join(", ")}
+                      </span>
+                    )}
+                  </dt>
+                  <dd className="shrink-0 font-semibold text-emerald-500">− {formatINR(bundleDiscount)}</dd>
+                </div>
+              )}
               <div
                 className="mt-2 flex justify-between pt-3 text-base"
                 style={{ borderTop: "1px solid var(--border-primary)" }}
@@ -118,7 +149,7 @@ export default function CartPage() {
                   Total
                 </dt>
                 <dd className="font-extrabold" style={{ color: "var(--text-primary)" }}>
-                  {formatINR(total)}
+                  {formatINR(shownTotal)}
                 </dd>
               </div>
             </dl>
