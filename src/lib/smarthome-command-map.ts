@@ -575,6 +575,19 @@ export function buildFieldCommand(
 ): BuiltCommand | null {
   if (!field) return null;
 
+  /*
+   * Device-agnostic first, before any per-type case can claim them.
+   *
+   * CircuventDevice.h handles `setup`/`provision` as an action on every
+   * product, so these must not fall through to the generic tail, which would
+   * build { action: "set", setup: true } — a shape no sketch reads, sent to a
+   * device that would drop it in silence while the caller saw success.
+   */
+  if (field === "setup" || field === "provision") {
+    const minutes = typeof value === "number" && Number.isFinite(value) ? clamp(Math.round(value), 1, 60) : 10;
+    return { action: "setup", minutes };
+  }
+
   switch (type) {
     case "home-hub": {
       // Channels are addressed positionally. The state key is an output of the

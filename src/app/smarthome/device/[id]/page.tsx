@@ -213,10 +213,88 @@ export default function DevicePage() {
       {/* RFID gate passes */}
       {device.type === "rfid-gate" && <GatePasses deviceId={device.id} />}
 
+      <SetupModeCard device={device} />
+
       {/* Full record — identity, activity, control history, exportable */}
       <div className="mt-6">
         <DeviceReportCard deviceId={device.id} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Puts a device back into setup mode without anyone walking to it.
+ *
+ * The firmware used to raise its own setup hotspot whenever Wi-Fi was
+ * unreachable, which is why devices vanished into AP mode after a power cut —
+ * it now waits for the network however long that takes. That fix removes the
+ * only way a device ever offered its setup link on its own, so this replaces
+ * it deliberately: while the device is still reachable, ask it to open the
+ * hotspot for a few minutes.
+ *
+ * Offline devices cannot be asked, which is the honest limitation of doing
+ * this over the network: for those the reset button is still the way in, and
+ * the card says so rather than showing a button that cannot work.
+ */
+function SetupModeCard({ device }: { device: { id: string; online: boolean } }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const request = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await controlPlane.setupMode(device.id, 10);
+      /*
+       * The envelope's `ok` is the HTTP result; the device's own refusal comes
+       * back inside `data`. Reading only one of them reports success for a
+       * request the control plane accepted and the device rejected.
+       */
+      const ok = r.ok && r.data?.success !== false;
+      setMsg(
+        ok
+          ? {
+              ok: true,
+              text: "Setup mode requested. Join the Circuvent-Setup network from your phone — the device closes it again after 10 minutes.",
+            }
+          : { ok: false, text: r.data?.error || "The device did not accept the request." }
+      );
+    } catch {
+      setMsg({ ok: false, text: "Could not reach the device." });
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl border p-5" style={{ background: "var(--cv-card)", borderColor: "var(--cv-border)" }}>
+      <h2 className="text-[15px] font-semibold" style={{ color: "var(--cv-text)" }}>
+        Change Wi-Fi
+      </h2>
+      <p className="mt-1 text-[13px]" style={{ color: "var(--cv-muted)" }}>
+        {device.online
+          ? "Opens the device's setup hotspot for 10 minutes so you can move it to another network. It keeps its name, room and history."
+          : "The device has to be online to be asked. If it cannot reach Wi-Fi it is still trying — hold its button for 3 seconds to open setup instead."}
+      </p>
+      <button
+        type="button"
+        onClick={request}
+        disabled={busy || !device.online}
+        className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+        style={{ background: "var(--cv-card-hi)", color: "var(--cv-text)" }}
+      >
+        <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
+        {busy ? "Asking the device…" : "Open setup mode"}
+      </button>
+      {msg && (
+        <p
+          className="mt-3 text-[13px]"
+          role="status"
+          style={{ color: msg.ok ? "var(--cv-text)" : "var(--cv-danger, #ef4444)" }}
+        >
+          {msg.text}
+        </p>
+      )}
     </div>
   );
 }

@@ -958,6 +958,23 @@ export const controlPlane = {
       "/devices/" + encodeURIComponent(id) + "/command",
       { method: "POST", body: JSON.stringify(cmd) }
     ),
+  /**
+   * Asks a device to raise its setup hotspot for a while.
+   *
+   * The firmware no longer opens that AP on its own when Wi-Fi is unreachable
+   * — it waits for the network instead — so this is how a device offers its
+   * setup link without somebody walking over and holding the button. Sent over
+   * the authenticated command topic, so it reaches the device only if the
+   * caller owns it.
+   *
+   * The device closes the window on its own when the time is up, and comes
+   * back on the network it already had.
+   */
+  setupMode: (id: string, minutes = 10) =>
+    req<{ success?: boolean; error?: string }>(
+      "/devices/" + encodeURIComponent(id) + "/command",
+      { method: "POST", body: JSON.stringify({ action: "setup", minutes }) }
+    ),
   telemetry: (id: string, limit = 100) =>
     req<{ telemetry: { ts: string; payload: Record<string, unknown> }[] }>(
       "/devices/" + encodeURIComponent(id) + "/telemetry?limit=" + limit

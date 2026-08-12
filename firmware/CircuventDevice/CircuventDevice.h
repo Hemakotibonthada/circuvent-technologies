@@ -337,6 +337,13 @@ class CircuventDevice {
 
     WiFi.mode(WIFI_STA);
     WiFi.persistent(false);
+    /*
+     * Let the SDK re-associate on its own as well as our retry in loop().
+     * Belt and braces: the supplicant recovers from a brief AP outage faster
+     * than our backoff notices, and our backoff covers the cases it gives up
+     * on.
+     */
+    WiFi.setAutoReconnect(true);
     if (haveWifi) _connect();
 
     // B: if online but not yet provisioned, redeem the provisioning token over
@@ -346,9 +353,31 @@ class CircuventDevice {
       if (_selfProvision()) haveIdentity = true;
     }
 
-    // No Wi-Fi, or still not provisioned -> open the setup portal so the app
-    // can push (encrypted) Wi-Fi + a provisioning token.
-    if ((WiFi.status() != WL_CONNECTED || !haveIdentity) && _provisioningEnabled) { startPortal(); return; }
+    /*
+     * The setup AP opens because there is nothing to connect to — never
+     * because connecting failed.
+     *
+     * This used to read "not connected OR not provisioned -> startPortal()",
+     * with _connect() giving up after twenty seconds. A device restores power
+     * and is on Wi-Fi in about a second; a domestic router takes thirty to
+     * ninety to finish booting. So after any power cut the whole fleet would
+     * time out, open a setup hotspot and `return` — and loop() begins with
+     * `if (_portalActive) return`, so nothing ever attempted Wi-Fi again. The
+     * devices stayed in AP mode until somebody power-cycled them a second
+     * time, by which point the router was up. From the outside: everything
+     * offline in the app after a power cut, and a row of unfamiliar
+     * "Circuvent-Setup-XXXX" networks in the phone's Wi-Fi list.
+     *
+     * Stored credentials now mean the device keeps trying for as long as it
+     * takes. The AP is for a device that has been reset or has never been set
+     * up — the two cases where waiting could not possibly help.
+     *
+     * The second arm stays: connected, but with no identity and no token to
+     * redeem for one. That is not a Wi-Fi problem and waiting will not fix it
+     * either; the app has to push a token over the setup link.
+     */
+    bool needsPortal = !haveWifi || (WiFi.status() == WL_CONNECTED && !haveIdentity && !_token.length());
+    if (needsPortal && _provisioningEnabled) { startPortal(); return; }
 
     _ntpSync();      // TLS cert validity needs a real clock
     _tlsSetup();
@@ -366,10 +395,44 @@ class CircuventDevice {
     if (WiFi.status() != WL_CONNECTED) {
       _mqttUp = false;
       uint32_t backoff = _reconnectBackoff();
-      if (millis() - _lastReconnect > backoff) { _lastReconnect = millis(); WiFi.reconnect(); _reconnectTries++; }
+      if (millis() - _lastReconnect > backoff) {
+        _lastReconnect = millis();
+        /*
+         * begin() again, not reconnect().
+         *
+         * WiFi.reconnect() re-uses the association the supplicant last had.
+         * After a boot where the AP was never reachable there is no such
+         * association, so it returns false and does nothing at all — which is
+         * the state a device is in after a power cut, and exactly when
+         * retrying matters. begin() re-runs the association from the stored
+         * credentials and works from either state.
+         */
+        if (_ssid.length()) WiFi.begin(_ssid.c_str(), _pass.c_str());
+        _reconnectTries++;
+        if (_reconnectTries % 20 == 0) {
+          Serial.printf("[CV] WiFi still down after %u tries — will keep trying\n", _reconnectTries);
+        }
+      }
       return;
     }
     _reconnectTries = 0;
+
+    /*
+     * Redeem the provisioning token now that there is a network.
+     *
+     * A device set up while the internet was down reaches here with
+     * credentials and a token but no identity. Before, that combination
+     * dropped it into the setup AP at boot; now it waits, and this is what
+     * finishes the job the moment the network returns, without anybody having
+     * to go and press anything.
+     */
+    if (_token.length() && (_isPlaceholder(_id.c_str()) || _isPlaceholder(_key.c_str()))) {
+      if (millis() - _lastProvisionTry > 30000UL) {
+        _lastProvisionTry = millis();
+        if (_selfProvision()) { _ntpSync(); _tlsSetup(); }
+      }
+      return;  // nothing can be published until the device has an identity
+    }
 
     if (!_mqtt.connected()) { _mqttUp = false; _mqttReconnect(); }
     else { _mqtt.loop(); _mqttUp = true; }
@@ -442,6 +505,25 @@ class CircuventDevice {
       String ssid = doc["ssid"] | "";
       String pass = doc["pass"] | "";
       if (ssid.length()) _applyWifi(ssid, pass);
+      return;
+    }
+
+    /*
+     * Open setup mode on request from the app.
+     *
+     * The AP no longer opens by itself when Wi-Fi is unreachable, which is
+     * what it should never have done — but that removed the only way a device
+     * could offer its setup link without someone walking to it and holding the
+     * button. This is the replacement: the owner taps "set up again" in the
+     * app or the console while the device is still online, and it raises the
+     * hotspot deliberately.
+     *
+     * It is only reachable over an authenticated MQTT command on the device's
+     * own topic, so it cannot be triggered by anything on the local network.
+     */
+    if (action == "setup" || action == "provision") {
+      uint32_t mins = doc["minutes"] | 10;
+      _openSetupWindow(mins);
       return;
     }
 
@@ -615,6 +697,28 @@ class CircuventDevice {
    */
   bool isProvisioning() const { return _portalActive; }
 
+  /**
+   * Raises the setup AP for a bounded time at the owner's request.
+   *
+   * Bounded because this one can be opened remotely. A device left in AP mode
+   * is a device that is not doing its job and is broadcasting an open network
+   * to the street, and the person who tapped the button may be nowhere near it
+   * — they may have tapped it by accident, or given up and driven home. When
+   * the window closes the device reboots and goes straight back to the network
+   * it already had credentials for.
+   *
+   * A device with no credentials is not on a timer: there is nothing for it to
+   * go back to, so its portal stays up until somebody provisions it.
+   */
+  void _openSetupWindow(uint32_t minutes) {
+    if (_portalActive) return;
+    if (minutes < 1) minutes = 1;
+    if (minutes > 60) minutes = 60;
+    _portalDeadline = _ssid.length() ? millis() + minutes * 60000UL : 0;
+    Serial.printf("[CV] Setup mode requested (%u min)\n", (unsigned)minutes);
+    startPortal();
+  }
+
   void startPortal() {
     _portalActive = true;
     if (!_boxReady) { crypto_box_keypair(_boxPk, _boxSk); _boxReady = true; }
@@ -687,6 +791,9 @@ class CircuventDevice {
   uint32_t _otaInterval = 6UL * 60UL * 60UL * 1000UL, _lastOta = 0;
   uint32_t _lastMqttTry = 0;
   uint16_t _reconnectTries = 0, _mqttFails = 0;
+  uint32_t _lastProvisionTry = 0;
+  /** Deadline for a remotely-requested setup window; 0 means no timer. */
+  uint32_t _portalDeadline = 0;
   bool _mqttUp = false, _provisioningEnabled = true, _portalActive = false;
   JsonDocument _state;
   uint8_t _boxPk[32], _boxSk[32];
@@ -821,12 +928,26 @@ class CircuventDevice {
     return b > 60000UL ? 60000UL : b;
   }
 
+  /**
+   * One association attempt at boot.
+   *
+   * The wait is a convenience, not a decision: connecting here lets begin()
+   * finish NTP, TLS and MQTT setup in one pass on the normal path. Failing it
+   * no longer means anything — loop() retries for as long as the device is
+   * powered — so the window is short. It used to be twenty seconds, which was
+   * both too long to sit blocking in setup() and far too short to outlast a
+   * router still booting after a power cut.
+   */
   void _connect() {
     WiFi.begin(_ssid.c_str(), _pass.c_str());
     Serial.print(F("[CV] WiFi"));
     uint32_t start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) { delay(400); Serial.print('.'); }
-    Serial.printf("\n[CV] %s\n", WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "offline");
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) { delay(250); Serial.print('.'); }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.printf("\n[CV] %s\n", WiFi.localIP().toString().c_str());
+    } else {
+      Serial.println(F("\n[CV] offline — will keep retrying in the background"));
+    }
   }
 
   static bool _isPlaceholder(const char *s) {
@@ -880,7 +1001,20 @@ class CircuventDevice {
   }
 
   // ---- captive portal ---------------------------------------------------
-  void _portalLoop() { _dns.processNextRequest(); _server.handleClient(); }
+  void _portalLoop() {
+    _dns.processNextRequest();
+    _server.handleClient();
+    /*
+     * Close a requested setup window that nobody used, and go back to work.
+     * Only ever set when credentials exist, so this cannot strand a device
+     * that has nothing to return to.
+     */
+    if (_portalDeadline && (int32_t)(millis() - _portalDeadline) >= 0) {
+      Serial.println(F("[CV] Setup window expired — returning to Wi-Fi"));
+      delay(200);
+      ESP.restart();
+    }
+  }
 
   // ---- reset button + credential clearing -------------------------------
   // Erase only the Wi-Fi (keep id/key/token) → device re-opens the portal so the
