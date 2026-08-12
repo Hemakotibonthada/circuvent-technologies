@@ -13,7 +13,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import type { FailureGroup, InsightsSummary, Journey, PathStat } from "@/lib/app-insights";
+import type { FailureGroup, InsightsSummary, Journey, PathStat, RequestStat } from "@/lib/app-insights";
 
 /**
  * Application telemetry, in the shape App Insights presents it.
@@ -39,6 +39,8 @@ interface View {
   paths: PathStat[];
   failures: FailureGroup[];
   journeys: Journey[];
+  requests: RequestStat[];
+  statuses: { status: number; count: number }[];
   received: number;
   retained: number;
   capacity: number;
@@ -117,7 +119,7 @@ export default function AppInsightsPanel() {
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"paths" | "failures" | "journeys">("paths");
+  const [tab, setTab] = useState<"requests" | "paths" | "failures" | "journeys">("requests");
   const [openFailure, setOpenFailure] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -226,6 +228,7 @@ export default function AppInsightsPanel() {
 
       <div className="flex gap-1 border-b cv-border">
         {([
+          ["requests", "Requests", view?.requests.length],
           ["paths", "Accessed paths", view?.paths.length],
           ["failures", "Failures", view?.failures.length],
           ["journeys", "User journeys", view?.journeys.length],
@@ -253,6 +256,99 @@ export default function AppInsightsPanel() {
             The collector reports page views and failures from every browser session. Widen the window, or wait for
             traffic.
           </div>
+        </div>
+      )}
+
+      {view && tab === "requests" && (
+        <div className="space-y-3">
+          {view.statuses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {view.statuses.map((s) => (
+                <span
+                  key={s.status}
+                  className="rounded-md px-2 py-1 text-[11px] font-bold"
+                  style={{
+                    /*
+                     * Literal colours, not theme tokens. A status chip is
+                     * meaningless if 500 and 200 render the same, and a theme
+                     * text token on a coloured fill is how that happens.
+                     */
+                    background:
+                      s.status === 0 || s.status >= 500
+                        ? "rgba(220,38,38,0.18)"
+                        : s.status >= 400
+                          ? "rgba(245,158,11,0.18)"
+                          : "rgba(16,185,129,0.18)",
+                    color:
+                      s.status === 0 || s.status >= 500
+                        ? "#fca5a5"
+                        : s.status >= 400
+                          ? "#fcd34d"
+                          : "#6ee7b7",
+                  }}
+                >
+                  {s.status === 0 ? "No response" : s.status} · {s.count}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {view.requests.length === 0 ? (
+            <div className="rounded-xl border cv-border py-8 text-center">
+              <div className="font-semibold cv-text-secondary">No API calls recorded yet</div>
+              <div className="mx-auto mt-1 max-w-lg text-[13px] cv-text-muted">
+                Calls are timed in the browser as they happen, so this fills in once someone uses
+                the site in this window. They are client-observed durations: they include the
+                network, and calls made by the mobile app or a script are not here.
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border cv-border">
+              <table className="w-full text-left text-sm">
+                <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Operation</th>
+                    <th className="px-3 py-2 text-right">Calls</th>
+                    <th className="px-3 py-2 text-right">Failed</th>
+                    <th className="px-3 py-2 text-right">Avg</th>
+                    <th className="px-3 py-2 text-right">P95</th>
+                    <th className="px-3 py-2 text-right">Max</th>
+                    <th className="px-3 py-2 text-right">Last</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.requests.map((r) => (
+                    <tr key={r.name} className="border-t cv-border">
+                      <td className="px-3 py-2">
+                        <span
+                          className="mr-2 rounded px-1.5 py-0.5 text-[10px] font-bold"
+                          style={{ background: "rgba(148,163,184,0.18)", color: "#cbd5e1" }}
+                        >
+                          {r.method}
+                        </span>
+                        <span className="cv-text-secondary">{r.path}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{r.count}</td>
+                      <td
+                        className="px-3 py-2 text-right font-semibold"
+                        style={{ color: r.failed > 0 ? "#fca5a5" : undefined }}
+                      >
+                        {r.failed > 0
+                          ? `${r.failed} (${Math.round(r.failureRate * 100)}%)`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{r.avgMs} ms</td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{r.p95Ms} ms</td>
+                      <td className="px-3 py-2 text-right cv-text-muted">{r.maxMs} ms</td>
+                      <td className="px-3 py-2 text-right cv-text-muted">
+                        {view.now ? ago(r.lastAt, view.now) : fmtTime(r.lastAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

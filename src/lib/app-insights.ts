@@ -26,6 +26,8 @@ export interface TelemetryEvent {
   durationMs: number;
   /** HTTP status for requests; 0 where it does not apply. */
   status: number;
+  /** HTTP verb for requests. A GET and a DELETE to one route are not one row. */
+  method?: string;
   ok: boolean;
   /** Exception detail. Present only on failures. */
   errorType?: string;
@@ -82,7 +84,7 @@ export interface InsightsSummary {
   series: { at: string; count: number; failures: number }[];
 }
 
-const percentile = (sorted: number[], p: number): number => {
+export const percentile = (sorted: number[], p: number): number => {
   if (!sorted.length) return 0;
   /*
    * Nearest-rank. With a handful of samples an interpolating percentile invents
@@ -102,8 +104,92 @@ const percentile = (sorted: number[], p: number): number => {
  * route plus the top stack frame is stable across occurrences and still
  * separates genuinely different faults that share a type.
  */
-export function failureKey(e: Pick<TelemetryEvent, "errorType" | "path" | "stack">): string {
-  const top = (e.stack || "").split("\n").map((s) => s.trim()).find((s) => s.startsWith("at ")) || "";
+// ─────────────────────────────────────────────────── requests ──
+
+/** One row of the requests table: an operation, as Azure names it. */
+export interface RequestStat {
+  /** "GET /api/devices" — the operation, not the instance. */
+  name: string;
+  method: string;
+  path: string;
+  count: number;
+  failed: number;
+  failureRate: number;
+  avgMs: number;
+  /**
+   * 95th percentile. The average is what a page feels like on a good day; the
+   * p95 is what it feels like to the person who complains, and the two often
+   * disagree by an order of magnitude on a route with a slow tail.
+   */
+  p95Ms: number;
+  maxMs: number;
+  lastAt: string;
+}
+
+/**
+ * Groups request telemetry into operations.
+ *
+ * Grouped by verb as well as route: a GET and a DELETE on one path have
+ * different costs and different failure modes, and averaging them together
+ * hides both.
+ */
+export function requestStats(events: TelemetryEvent[]): RequestStat[] {
+  const acc = new Map<string, { m: string; p: string; d: number[]; failed: number; last: string }>();
+
+  for (const e of events) {
+    if (e.kind !== "request") continue;
+    const method = e.method ?? "GET";
+    const key = `${method} ${e.path}`;
+    let row = acc.get(key);
+    if (!row) {
+      row = { m: method, p: e.path, d: [], failed: 0, last: e.at };
+      acc.set(key, row);
+    }
+    row.d.push(e.durationMs);
+    if (!e.ok) row.failed += 1;
+    if (e.at > row.last) row.last = e.at;
+  }
+
+  const out: RequestStat[] = [];
+  for (const [name, row] of acc) {
+    const sorted = [...row.d].sort((a, b) => a - b);
+    const total = sorted.reduce((n, v) => n + v, 0);
+    out.push({
+      name,
+      method: row.m,
+      path: row.p,
+      count: sorted.length,
+      failed: row.failed,
+      failureRate: sorted.length ? row.failed / sorted.length : 0,
+      avgMs: sorted.length ? Math.round(total / sorted.length) : 0,
+      p95Ms: percentile(sorted, 95),
+      maxMs: sorted.length ? sorted[sorted.length - 1] : 0,
+      lastAt: row.last,
+    });
+  }
+
+  /*
+   * Failing operations first, then slowest, then busiest. Somebody opening this
+   * table is looking for what is broken before what is popular.
+   */
+  return out.sort(
+    (a, b) => b.failed - a.failed || b.p95Ms - a.p95Ms || b.count - a.count
+  );
+}
+
+/** Status-code histogram across requests, for the failures view. */
+export function statusBreakdown(events: TelemetryEvent[]): { status: number; count: number }[] {
+  const acc = new Map<number, number>();
+  for (const e of events) {
+    if (e.kind !== "request") continue;
+    acc.set(e.status, (acc.get(e.status) ?? 0) + 1);
+  }
+  return [...acc.entries()]
+    .map(([status, count]) => ({ status, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function failureKey(e: Pick<TelemetryEvent, "errorType" | "path" | "stack">): string {  const top = (e.stack || "").split("\n").map((s) => s.trim()).find((s) => s.startsWith("at ")) || "";
   return `${e.errorType || "Error"}|${e.path || "-"}|${top}`;
 }
 
@@ -336,6 +422,15 @@ export function normaliseEvent(raw: unknown, ctx: { now: string; session: string
     durationMs,
     status,
     ok,
+    /*
+     * Constrained to real verbs rather than passed through. This string becomes
+     * a row label in the console, and an unbounded field from a client is how a
+     * table ends up rendering whatever somebody felt like posting.
+     */
+    ...(typeof r.method === "string" &&
+    ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(r.method.toUpperCase())
+      ? { method: r.method.toUpperCase() }
+      : {}),
     ...(kind === "exception" || !ok
       ? {
           errorType: String(r.errorType ?? (status >= 400 ? `HTTP ${status}` : "Error")).slice(0, 100),

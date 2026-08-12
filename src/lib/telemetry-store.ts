@@ -23,6 +23,8 @@ import {
   summarise,
   withinHours,
   type TelemetryEvent,
+  requestStats,
+  statusBreakdown,
 } from "./app-insights";
 
 interface TelemetryDB {
@@ -95,6 +97,8 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     paths: pathStats(windowed).slice(0, 100),
     failures: failureGroups(windowed).slice(0, 100),
     journeys: journeys(windowed, 40),
+    requests: requestStats(windowed).slice(0, 100),
+    statuses: statusBreakdown(windowed),
     received: receivedCount(),
     retained: allEvents().length,
     capacity: MAX_EVENTS,

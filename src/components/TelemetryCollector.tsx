@@ -26,6 +26,8 @@ import { usePathname } from "next/navigation";
 interface Pending {
   kind: "pageview" | "request" | "exception";
   path: string;
+  /** HTTP verb, for requests. A GET and a DELETE to one route are not one row. */
+  method?: string;
   durationMs?: number;
   status?: number;
   ok?: boolean;
@@ -158,10 +160,102 @@ export function TelemetryCollector() {
       if (document.visibilityState === "hidden") flush(true);
     };
 
+    /*
+     * Every API call the page makes, timed.
+     *
+     * This is the only honest place to measure them. The server routes here are
+     * hand-written with raw NextResponse — the withApi wrapper that would have
+     * been the natural seam is used by none of the 138 of them — and the edge
+     * proxy sees a request begin but never its status or duration, because it
+     * hands off with NextResponse.next(). The browser is the one place that
+     * observes the whole round trip, which is also why Azure's own JS SDK
+     * instruments fetch rather than relying on the server.
+     *
+     * What that means for the numbers is worth stating plainly: these are
+     * client-observed durations. They include the network, so they are larger
+     * than server time, and calls made by other clients — the mobile app, a
+     * script, a webhook — are not here at all.
+     */
+    const nativeFetch = window.fetch;
+    const instrumentedFetch: typeof window.fetch = async (input, init) => {
+      const started = performance.now();
+
+      let url: URL | null = null;
+      try {
+        const raw =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        url = new URL(raw, window.location.origin);
+      } catch {
+        url = null;
+      }
+
+      // Same-origin only. A third-party endpoint's path is not ours to record,
+      // and its query string is even less so.
+      const sameOrigin = url != null && url.origin === window.location.origin;
+
+      /*
+       * Never record the beacon. Recording the call that ships telemetry would
+       * make every flush produce a new event to flush, and the page would spend
+       * the rest of its life talking about itself.
+       */
+      const isBeacon = sameOrigin && url!.pathname === "/api/telemetry";
+
+      const method = (
+        init?.method ??
+        (typeof input === "object" && "method" in input ? input.method : "GET") ??
+        "GET"
+      ).toUpperCase();
+
+      try {
+        const res = await nativeFetch(input as RequestInfo, init);
+        if (sameOrigin && !isBeacon) {
+          enqueue({
+            kind: "request",
+            // Path only. Query strings carry tokens and order numbers, which is
+            // the same reason pageviews never send the raw URL.
+            path: routeOf(url!.pathname),
+            method,
+            status: res.status,
+            ok: res.ok,
+            durationMs: Math.round(performance.now() - started),
+          });
+        }
+        return res;
+      } catch (err) {
+        if (sameOrigin && !isBeacon) {
+          /*
+           * status 0 for a request that never got one. A failed call recorded
+           * as a success with no status would be invisible in the failure rate,
+           * and a dropped connection is exactly what somebody opens this page
+           * to find.
+           */
+          enqueue({
+            kind: "request",
+            path: routeOf(url!.pathname),
+            method,
+            status: 0,
+            ok: false,
+            durationMs: Math.round(performance.now() - started),
+            errorType: err instanceof Error ? err.name : "NetworkError",
+          });
+        }
+        throw err;
+      }
+    };
+
+    window.fetch = instrumentedFetch;
+
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     document.addEventListener("visibilitychange", onHide);
     return () => {
+      // Only restore if nothing else wrapped fetch after us; stomping a later
+      // wrapper would silently disable whatever it was doing.
+      if (window.fetch === instrumentedFetch) window.fetch = nativeFetch;
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
       document.removeEventListener("visibilitychange", onHide);
