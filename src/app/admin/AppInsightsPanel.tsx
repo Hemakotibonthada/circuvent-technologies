@@ -17,6 +17,8 @@ import type {
   FailureGroup,
   InsightsSummary,
   Journey,
+  DependencyStat,
+  MapNode,
   OperationPerf,
   PathStat,
   RequestStat,
@@ -52,6 +54,8 @@ interface View {
   performance: OperationPerf[];
   histogram: { label: string; upTo: number; count: number }[];
   recent: TelemetryEvent[];
+  dependencies: DependencyStat[];
+  map: MapNode[];
   received: number;
   retained: number;
   capacity: number;
@@ -130,7 +134,7 @@ export default function AppInsightsPanel() {
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"requests" | "performance" | "logs" | "paths" | "failures" | "journeys">("requests");
+  const [tab, setTab] = useState<"requests" | "dependencies" | "performance" | "logs" | "paths" | "failures" | "journeys">("requests");
   const [openFailure, setOpenFailure] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState("");
   const [logOutcome, setLogOutcome] = useState<"all" | "failed" | "ok">("all");
@@ -255,6 +259,7 @@ export default function AppInsightsPanel() {
       <div className="flex gap-1 border-b cv-border">
         {([
           ["requests", "Requests", view?.requests.length],
+          ["dependencies", "Dependencies", view?.dependencies.length],
           ["performance", "Performance", view?.performance.length],
           ["logs", "Logs", view?.recent.length],
           ["paths", "Accessed paths", view?.paths.length],
@@ -371,6 +376,107 @@ export default function AppInsightsPanel() {
                       <td className="px-3 py-2 text-right cv-text-muted">
                         {view.now ? ago(r.lastAt, view.now) : fmtTime(r.lastAt)}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {view && tab === "dependencies" && (
+        <div className="space-y-3">
+          {view.map.length > 0 && (
+            <div className="rounded-xl border cv-border p-3">
+              <div className="mb-2 text-[11px] uppercase tracking-wide cv-text-muted">
+                Application map
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {view.map.map((n, i) => (
+                  <span key={n.id} className="flex items-center gap-2">
+                    <span
+                      className="rounded-lg border px-3 py-2 text-sm"
+                      style={{
+                        borderColor:
+                          n.failureRate > 0.05 ? "rgba(220,38,38,0.5)" : "var(--cv-border)",
+                        background:
+                          n.failureRate > 0.05 ? "rgba(220,38,38,0.08)" : "transparent",
+                      }}
+                    >
+                      <span className="block font-semibold cv-text-secondary">{n.id}</span>
+                      <span className="block text-[11px] cv-text-muted">
+                        {n.calls} calls · p95 {n.p95Ms} ms
+                        {n.failed > 0 && (
+                          <span style={{ color: "#fca5a5" }}>
+                            {" "}
+                            · {Math.round(n.failureRate * 100)}% failing
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    {i < view.map.length - 1 && (
+                      <span className="cv-text-muted" aria-hidden>
+                        →
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] cv-text-muted">
+                Three tiers, because three are all that are observable from here. The control
+                plane&apos;s own database and broker would have to be drawn from instrumentation
+                that does not exist, and a map with invented edges is worse than a small true one.
+              </p>
+            </div>
+          )}
+
+          {view.dependencies.length === 0 ? (
+            <div className="rounded-xl border cv-border py-8 text-center">
+              <div className="font-semibold cv-text-secondary">No outbound calls recorded</div>
+              <div className="mx-auto mt-1 max-w-lg text-[13px] cv-text-muted">
+                Calls from the console to the control plane are timed at the client that makes
+                them. This fills in once somebody uses a page that talks to a device.
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border cv-border">
+              <table className="w-full text-left text-sm">
+                <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Service</th>
+                    <th className="px-3 py-2">Operation</th>
+                    <th className="px-3 py-2 text-right">Calls</th>
+                    <th className="px-3 py-2 text-right">Failed</th>
+                    <th className="px-3 py-2 text-right">Avg</th>
+                    <th className="px-3 py-2 text-right">P95</th>
+                    <th className="px-3 py-2 text-right">Max</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.dependencies.map((d) => (
+                    <tr key={d.name} className="border-t cv-border">
+                      <td className="px-3 py-2">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[10px] font-bold"
+                          style={{ background: "rgba(168,85,247,0.18)", color: "#d8b4fe" }}
+                        >
+                          {d.target}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-[13px] cv-text-secondary">
+                        {d.method} {d.path}
+                      </td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{d.count}</td>
+                      <td
+                        className="px-3 py-2 text-right font-semibold"
+                        style={{ color: d.failed > 0 ? "#fca5a5" : undefined }}
+                      >
+                        {d.failed > 0 ? `${d.failed} (${Math.round(d.failureRate * 100)}%)` : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{d.avgMs} ms</td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{d.p95Ms} ms</td>
+                      <td className="px-3 py-2 text-right cv-text-muted">{d.maxMs} ms</td>
                     </tr>
                   ))}
                 </tbody>

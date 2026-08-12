@@ -13,7 +13,7 @@
  * because a second definition of "is this a bot" is a second thing to be wrong.
  */
 
-export type EventKind = "pageview" | "request" | "exception" | "event";
+export type EventKind = "pageview" | "request" | "dependency" | "exception" | "event";
 
 export interface TelemetryEvent {
   id: string;
@@ -28,6 +28,14 @@ export interface TelemetryEvent {
   status: number;
   /** HTTP verb for requests. A GET and a DELETE to one route are not one row. */
   method?: string;
+  /**
+   * For dependencies: the service that was called.
+   *
+   * Requests are inbound to us and dependencies are outbound from us. A table
+   * that mixes them cannot tell "our API is slow" from "the service our API
+   * waits on is slow", which are different problems with different owners.
+   */
+  target?: string;
   ok: boolean;
   /** Exception detail. Present only on failures. */
   errorType?: string;
@@ -329,6 +337,127 @@ export function durationHistogram(
   });
 }
 
+// ─────────────────────────────────────────────────── dependencies ──
+
+/** One outbound operation against a service we depend on. */
+export interface DependencyStat {
+  /** "control-plane GET /devices" */
+  name: string;
+  target: string;
+  method: string;
+  path: string;
+  count: number;
+  failed: number;
+  failureRate: number;
+  avgMs: number;
+  p95Ms: number;
+  maxMs: number;
+  lastAt: string;
+}
+
+/**
+ * Groups dependency calls by service and operation.
+ *
+ * Kept apart from requestStats on purpose. A request is inbound and a
+ * dependency is outbound, and merging them produces a table that cannot
+ * distinguish "our API is slow" from "the service our API waits on is slow" —
+ * which are different problems belonging to different people.
+ */
+export function dependencyStats(events: TelemetryEvent[]): DependencyStat[] {
+  const acc = new Map<
+    string,
+    { target: string; m: string; p: string; d: number[]; failed: number; last: string }
+  >();
+
+  for (const e of events) {
+    if (e.kind !== "dependency") continue;
+    const target = e.target ?? "unknown";
+    const method = e.method ?? "GET";
+    const name = `${target} ${method} ${e.path}`;
+    let row = acc.get(name);
+    if (!row) {
+      row = { target, m: method, p: e.path, d: [], failed: 0, last: e.at };
+      acc.set(name, row);
+    }
+    row.d.push(e.durationMs);
+    if (!e.ok) row.failed += 1;
+    if (e.at > row.last) row.last = e.at;
+  }
+
+  const out: DependencyStat[] = [];
+  for (const [name, row] of acc) {
+    const s = [...row.d].sort((a, b) => a - b);
+    const total = s.reduce((n, v) => n + v, 0);
+    out.push({
+      name,
+      target: row.target,
+      method: row.m,
+      path: row.p,
+      count: s.length,
+      failed: row.failed,
+      failureRate: s.length ? row.failed / s.length : 0,
+      avgMs: s.length ? Math.round(total / s.length) : 0,
+      p95Ms: percentile(s, 95),
+      maxMs: s.length ? s[s.length - 1] : 0,
+      lastAt: row.last,
+    });
+  }
+
+  return out.sort((a, b) => b.failed - a.failed || b.p95Ms - a.p95Ms || b.count - a.count);
+}
+
+/** A node in the application map: one service, rolled up. */
+export interface MapNode {
+  id: string;
+  kind: "browser" | "app" | "dependency";
+  calls: number;
+  failed: number;
+  failureRate: number;
+  p95Ms: number;
+}
+
+/**
+ * The application map, as far as the data honestly supports one.
+ *
+ * Three nodes, because three are all that are observable from here: the
+ * browser, this app, and each service it calls. Anything further — the control
+ * plane's own database, the MQTT broker — would have to be drawn from
+ * instrumentation that does not exist, and a map with invented edges is worse
+ * than a small true one.
+ */
+export function applicationMap(events: TelemetryEvent[]): MapNode[] {
+  const build = (id: string, kind: MapNode["kind"], subset: TelemetryEvent[]): MapNode => {
+    const d = subset.map((e) => e.durationMs).sort((a, b) => a - b);
+    const failed = subset.filter((e) => !e.ok).length;
+    return {
+      id,
+      kind,
+      calls: subset.length,
+      failed,
+      failureRate: subset.length ? failed / subset.length : 0,
+      p95Ms: percentile(d, 95),
+    };
+  };
+
+  const nodes: MapNode[] = [];
+  const pageviews = events.filter((e) => e.kind === "pageview");
+  const requests = events.filter((e) => e.kind === "request");
+
+  if (pageviews.length) nodes.push(build("Browser", "browser", pageviews));
+  if (requests.length) nodes.push(build("circuvent.com", "app", requests));
+
+  const byTarget = new Map<string, TelemetryEvent[]>();
+  for (const e of events) {
+    if (e.kind !== "dependency") continue;
+    const t = e.target ?? "unknown";
+    if (!byTarget.has(t)) byTarget.set(t, []);
+    byTarget.get(t)!.push(e);
+  }
+  for (const [target, subset] of byTarget) nodes.push(build(target, "dependency", subset));
+
+  return nodes;
+}
+
 export function failureKey(e: Pick<TelemetryEvent, "errorType" | "path" | "stack">): string {  const top = (e.stack || "").split("\n").map((s) => s.trim()).find((s) => s.startsWith("at ")) || "";
   return `${e.errorType || "Error"}|${e.path || "-"}|${top}`;
 }
@@ -542,7 +671,7 @@ export function normaliseEvent(raw: unknown, ctx: { now: string; session: string
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
 
-  const kind = (["pageview", "request", "exception", "event"] as const).includes(r.kind as EventKind)
+  const kind = (["pageview", "request", "dependency", "exception", "event"] as const).includes(r.kind as EventKind)
     ? (r.kind as EventKind)
     : null;
   if (!kind) return null;
@@ -570,6 +699,13 @@ export function normaliseEvent(raw: unknown, ctx: { now: string; session: string
     ...(typeof r.method === "string" &&
     ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(r.method.toUpperCase())
       ? { method: r.method.toUpperCase() }
+      : {}),
+    /*
+     * Same treatment as the verb, and for the same reason: this becomes a row
+     * label. Constrained to a short slug rather than free text.
+     */
+    ...(kind === "dependency" && typeof r.target === "string"
+      ? { target: r.target.slice(0, 40).replace(/[^a-zA-Z0-9._-]/g, "") || "unknown" }
       : {}),
     ...(kind === "exception" || !ok
       ? {

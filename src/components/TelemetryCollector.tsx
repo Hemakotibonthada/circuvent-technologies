@@ -1,5 +1,7 @@
 "use client";
 
+import { setTelemetrySink } from "@/lib/telemetry-emit";
+
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
@@ -24,7 +26,9 @@ import { usePathname } from "next/navigation";
  */
 
 interface Pending {
-  kind: "pageview" | "request" | "exception";
+  kind: "pageview" | "request" | "dependency" | "exception";
+  /** For dependencies: the service called. */
+  target?: string;
   path: string;
   /** HTTP verb, for requests. A GET and a DELETE to one route are not one row. */
   method?: string;
@@ -249,6 +253,14 @@ export function TelemetryCollector() {
 
     window.fetch = instrumentedFetch;
 
+    /*
+     * Let library code report too. control-plane.ts times its own calls, which
+     * the fetch wrapper above deliberately skips: they go to another origin,
+     * and a blanket cross-origin rule would also record every third party the
+     * page happens to touch.
+     */
+    const detachSink = setTelemetrySink((e) => enqueue(e as Pending));
+
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     document.addEventListener("visibilitychange", onHide);
@@ -256,6 +268,7 @@ export function TelemetryCollector() {
       // Only restore if nothing else wrapped fetch after us; stomping a later
       // wrapper would silently disable whatever it was doing.
       if (window.fetch === instrumentedFetch) window.fetch = nativeFetch;
+      detachSink();
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
       document.removeEventListener("visibilitychange", onHide);

@@ -28,6 +28,8 @@ import {
   operationPerf,
   durationHistogram,
   queryEvents,
+  dependencyStats,
+  applicationMap,
 } from "./app-insights";
 
 interface TelemetryDB {
@@ -105,6 +107,8 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     performance: operationPerf(windowed).slice(0, 100),
     histogram: durationHistogram(windowed, "request"),
     recent: queryEvents(windowed, { limit: 200 }, now),
+    dependencies: dependencyStats(windowed).slice(0, 100),
+    map: applicationMap(windowed),
     received: receivedCount(),
     retained: allEvents().length,
     capacity: MAX_EVENTS,

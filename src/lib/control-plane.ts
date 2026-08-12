@@ -8,6 +8,8 @@
 
 import { normalizeDevice, normalizeDevices } from "./device-normalize";
 
+import { emit } from "./telemetry-emit";
+
 export const CONTROL_PLANE_URL = (
   process.env.NEXT_PUBLIC_CONTROL_PLANE_URL || "https://api.circuvent.com"
 ).replace(/\/$/, "");
@@ -832,8 +834,31 @@ function withRefreshLock(): Promise<boolean> {
   return refreshInFlight;
 }
 
-async function req<T = unknown>(
-  path: string,
+/**
+ * Collapses a control-plane path into an operation name.
+ *
+ * "/devices/cv-abc123/command" is one operation, not one per device. Without
+ * this the busiest dependency is whichever device is used most, and the call
+ * that is actually slow is spread across a thousand rows of one call each.
+ * Query strings are dropped entirely, because they carry tokens.
+ */
+function dependencyName(path: string): string {
+  return (
+    path
+      .split("?")[0]
+      .split("/")
+      .map((seg) => {
+        if (!seg) return seg;
+        if (/^[0-9]+$/.test(seg)) return "[id]";
+        if (/^[0-9a-fA-F-]{16,}$/.test(seg)) return "[id]";
+        if (seg.length > 10 && /[0-9]/.test(seg) && /[a-zA-Z]/.test(seg)) return "[id]";
+        return seg;
+      })
+      .join("/") || "/"
+  );
+}
+
+async function req<T = unknown>(  path: string,
   opts: RequestInit = {},
   auth = true,
   allowRetry = true
@@ -847,7 +872,24 @@ async function req<T = unknown>(
     if (t) headers["Authorization"] = "Bearer " + t;
   }
   try {
+    const startedAt = Date.now();
     const res = await fetch(CONTROL_PLANE_URL + path, { ...opts, headers });
+
+    /*
+     * Recorded per network call, not per logical request. The 401 retry below
+     * recurses, so a token rotation shows as two dependency calls — which is
+     * what actually happened, and the reason a route occasionally reports
+     * double the latency somebody expects.
+     */
+    emit({
+      kind: "dependency",
+      target: "control-plane",
+      path: dependencyName(path),
+      method: (opts.method ?? "GET").toUpperCase(),
+      status: res.status,
+      ok: res.ok,
+      durationMs: Date.now() - startedAt,
+    });
 
     // A 401 on an authenticated call may just mean the access token aged out.
     // Rotate once and replay the request; `allowRetry` stops this recursing.
@@ -860,6 +902,18 @@ async function req<T = unknown>(
     const data = (await res.json().catch(() => ({}))) as T;
     return { ok: res.ok, status: res.status, data };
   } catch {
+    emit({
+      kind: "dependency",
+      target: "control-plane",
+      path: dependencyName(path),
+      method: (opts.method ?? "GET").toUpperCase(),
+      // No status, because there was no response. Recorded as a failure rather
+      // than omitted: an unreachable control plane is the single most useful
+      // thing this table can show.
+      status: 0,
+      ok: false,
+      errorType: "NetworkError",
+    });
     return { ok: false, status: 0, data: { error: "Network error" } as unknown as T };
   }
 }
