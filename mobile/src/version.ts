@@ -6,4 +6,4 @@
 // in app.json; `npm run version:check` fails the build if they diverge.
 
 export const APP_VERSION = "1.12.0";
-export const APP_BUILD = 18;
+export const APP_BUILD = 19;

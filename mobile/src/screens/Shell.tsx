@@ -20,14 +20,16 @@ import More from "./More";
 import CommandPalette from "./CommandPalette";
 import Weather from "./Weather";
 import Kiosk from "./Kiosk";
+import Cameras from "./more/Cameras";
 
-type Tab = "home" | "devices" | "automate" | "energy" | "settings" | "more";
+type Tab = "home" | "devices" | "cameras" | "automate" | "energy" | "settings" | "more";
 type Seg = "scenes" | "rooms" | "automations";
 type Overlay = { kind: "control"; device: Device } | { kind: "changewifi"; device: Device } | { kind: "add" } | { kind: "notifications" } | { kind: "search" } | { kind: "weather" } | { kind: "kiosk" } | null;
 
 const TABS: { key: Tab; label: string; icon: IconName }[] = [
   { key: "home", label: "Home", icon: "home" },
   { key: "devices", label: "Devices", icon: "devices" },
+  { key: "cameras", label: "Cameras", icon: "camera" },
   { key: "automate", label: "Automate", icon: "automate" },
   { key: "energy", label: "Energy", icon: "energy" },
   { key: "settings", label: "Settings", icon: "settings" },
@@ -127,6 +129,13 @@ export default function Shell() {
           />
         )}
         {tab === "devices" && <Devices onOpen={openControl} onAdd={() => setOverlay({ kind: "add" })} />}
+        {/*
+          Cameras is a tab rather than a page inside More because watching is a
+          thing people come to the app to do, not a setting they go looking for.
+          It keeps its own back affordance so the screen still works when More
+          opens it, which it still can.
+        */}
+        {tab === "cameras" && <Cameras onBack={() => setTab("home")} />}
         {tab === "automate" && <Automate key={`${seg}:${room ?? ""}`} initial={seg} initialRoom={room} />}
         {tab === "energy" && <Energy />}
         {tab === "settings" && <Settings onKiosk={() => setOverlay({ kind: "kiosk" })} onChangeWifi={(d) => setOverlay({ kind: "changewifi", device: d })} />}

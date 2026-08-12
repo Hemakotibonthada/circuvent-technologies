@@ -25,6 +25,17 @@ const RESOLUTIONS = ["QVGA", "CIF", "VGA", "SVGA", "XGA"] as const;
 const FLASH_STEPS = { Off: 0, Low: 25, Med: 60, Max: 100 } as const;
 type FlashLabel = keyof typeof FLASH_STEPS;
 
+/**
+ * Motion sensitivity, as named steps rather than a 1–100 slider.
+ *
+ * The firmware takes any integer in that range, but nobody can tell 62 from 67
+ * by looking at a garden. Four steps are a choice somebody can actually make,
+ * and each still sends a real value the detector uses.
+ */
+const SENSITIVITY_VALUES = { Low: 20, Medium: 50, High: 75, Max: 95 } as const;
+type SensitivityLabel = keyof typeof SENSITIVITY_VALUES;
+const SENSITIVITY_STEPS = Object.keys(SENSITIVITY_VALUES) as SensitivityLabel[];
+
 /** The device must hear from us at least this often or it stops streaming. */
 const REARM_MS = 8000;
 
@@ -314,6 +325,20 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
   const flashLabel = (Object.keys(FLASH_STEPS) as FlashLabel[])
     .find((k) => FLASH_STEPS[k] === Number(st.flash ?? 0)) ?? "Off";
 
+  /*
+   * Nearest step rather than an exact match. The camera may hold a value set
+   * from the web console, which uses the full 1–100 range; an exact lookup
+   * would fall through to the default and show "Low" for a camera actually
+   * running at 75.
+   */
+  const sensitivityLabel = SENSITIVITY_STEPS.reduce<SensitivityLabel>((best, k) => {
+    const current = Number(st.sensitivity ?? 50);
+    return Math.abs(SENSITIVITY_VALUES[k] - current) <
+      Math.abs(SENSITIVITY_VALUES[best] - current)
+      ? k
+      : best;
+  }, "Medium");
+
   return (
     <Screen>
       <View style={{ flex: 1, paddingTop: 44 }}>
@@ -441,6 +466,25 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
               <SettingRow c={c} icon="motion" title="Motion detection" subtitle={`${Number(st.motionCount ?? 0)} events since boot`}>
                 <PillToggle value={st.motion !== false} onChange={(v) => send({ action: "set", motion: v })} />
               </SettingRow>
+
+              {/*
+                Only offered while the detector is on. A sensitivity control
+                beside a disabled detector invites someone to tune a setting
+                that changes nothing and conclude the camera is broken.
+              */}
+              {st.motion !== false && (
+                <View>
+                  <SectionLabel>Motion sensitivity</SectionLabel>
+                  <PillSelector
+                    options={SENSITIVITY_STEPS}
+                    value={sensitivityLabel}
+                    onChange={(v) => send({ action: "set", sensitivity: SENSITIVITY_VALUES[v] })}
+                  />
+                  <Text style={{ color: c.faint, fontSize: 11, marginTop: 6 }}>
+                    Higher reacts to smaller changes — and to headlights, rain and cats.
+                  </Text>
+                </View>
+              )}
 
               <SettingRow c={c} icon="refresh" title="Rotate 180°" subtitle="For ceiling-mounted boards">
                 <PillToggle value={Number(st.rotation ?? 0) === 180} onChange={(v) => send({ action: "set", rotation: v ? 180 : 0 })} />
