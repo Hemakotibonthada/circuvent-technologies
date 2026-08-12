@@ -3,6 +3,7 @@ import { api, Device } from "./api";
 import { projectCommand } from "./command-map";
 import { useLive, refreshLiveSubscription } from "./live";
 import { loadChannelPrefs, onChannelPrefsChange, channelLabel } from "./channel-prefs";
+import { DEVICE_META } from "./theme";
 import { withState } from "./device-shape";
 
 interface DevicesCtx {
@@ -278,7 +279,32 @@ export function capabilities(type: string): Capability {
     case "thermostat":
     case "ac":
       return { power: { field: "power", label: "Power" }, thermostat: { field: "target", label: "Target", min: 16, max: 30 } };
-    default:
+    default: {
+      /*
+       * Ask the type's own metadata rather than assuming `power`.
+       *
+       * Four shipped types reached this line — watertank, touchboard,
+       * facedoor and rfid-gate — and were each handed a switch on a field
+       * their firmware does not read. A touchboard parses g1/g2/g3 and `all`,
+       * a watertank parses `pump`, a facedoor unlocks; `{power:true}` is
+       * dropped in silence by all three, so the switch moved back under the
+       * finger and the device never changed. DEVICE_META.toggle already
+       * carried the right field for each of them — Siri and the voice layer
+       * were reading it and getting this right while the room, scene, home and
+       * device-list switches were not.
+       *
+       * A known type with no `toggle` genuinely has no switch: a gate is
+       * opened, not switched on. Returning nothing removes it from the
+       * scene picker and the room toggles, where it could only ever have
+       * appeared to work.
+       *
+       * An unrecognised type still guesses `power`, which is what almost
+       * every device uses and is the best available answer for hardware this
+       * build has never heard of.
+       */
+      const meta = DEVICE_META[type];
+      if (meta) return meta.toggle ? { power: { ...meta.toggle } } : {};
       return { power: { field: "power", label: "Power" } };
+    }
   }
 }
