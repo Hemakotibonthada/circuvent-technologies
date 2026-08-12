@@ -48,6 +48,8 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - REDIS_URL=redis://redis:6379
       - GATEWAY_PORT=3000
@@ -70,6 +72,8 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - PROJECT_TRACKER_PORT=3001
     depends_on:
@@ -89,6 +93,8 @@ services:
       - "3002:3002"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - IOT_REGISTRY_PORT=3002
     depends_on:
@@ -108,6 +114,8 @@ services:
       - "3003:3003"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - HR_PAYROLL_PORT=3003
     depends_on:
@@ -127,6 +135,8 @@ services:
       - "3004:3004"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - CLIENT_PORTAL_PORT=3004
     depends_on:
@@ -146,6 +156,8 @@ services:
       - "3006:3006"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - AI_ORCHESTRATOR_PORT=3006
     depends_on:
@@ -165,6 +177,8 @@ services:
       - "3007:3007"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - FINANCIAL_LEDGER_PORT=3007
     depends_on:
@@ -184,6 +198,8 @@ services:
       - "3008:3008"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env (32+ chars)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env (32+ chars)}
       - DATABASE_URL=postgresql://circuvent_user:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/circuvent_db
       - ATS_ENGINE_PORT=3008
     depends_on:
