@@ -31,6 +31,7 @@ import {
   Radio,
   Settings,
   ShieldAlert,
+  Video,
   ShieldCheck,
   Sofa,
   Sun,
@@ -107,6 +108,16 @@ export const NAV: NavItem[] = [
       { id: "history", label: "History" },
       { id: "devices", label: "By device" },
       { id: "cost", label: "Cost" },
+    ],
+  },
+  {
+    href: "/smarthome/camera",
+    label: "Cameras",
+    icon: Video,
+    primary: true,
+    tabs: [
+      { id: "wall", label: "Wall" },
+      { id: "clips", label: "Clips" },
     ],
   },
   {
