@@ -16,7 +16,7 @@ describe("request telemetry, client to table", () => {
       [
         { kind: "request", path: "/api/devices", method: "POST", status: 201, ok: true, durationMs: 120 },
       ],
-      { ip: "203.0.113.9", userAgent: "jest", source: "web" }
+      { session: "s-test", source: "web" }
     );
 
     const stored = allEvents();
@@ -34,7 +34,7 @@ describe("request telemetry, client to table", () => {
         { kind: "request", path: "/api/orders", method: "GET", status: 500, ok: false, durationMs: 40 },
         { kind: "request", path: "/api/orders", method: "GET", status: 200, ok: true, durationMs: 30 },
       ],
-      { ip: "203.0.113.9", userAgent: "jest", source: "web" }
+      { session: "s-test", source: "web" }
     );
 
     const view = insightsView(24);
@@ -47,7 +47,7 @@ describe("request telemetry, client to table", () => {
   it("keeps a dropped connection visible rather than scoring it as a fast success", () => {
     ingest(
       [{ kind: "request", path: "/api/x", method: "GET", status: 0, ok: false, durationMs: 8000 }],
-      { ip: "203.0.113.9", userAgent: "jest", source: "web" }
+      { session: "s-test", source: "web" }
     );
 
     const view = insightsView(24);
@@ -58,7 +58,7 @@ describe("request telemetry, client to table", () => {
   it("does not let a request be filed under a made-up verb", () => {
     ingest(
       [{ kind: "request", path: "/api/x", method: "TRACE'; DROP", status: 200, ok: true, durationMs: 10 }],
-      { ip: "203.0.113.9", userAgent: "jest", source: "web" }
+      { session: "s-test", source: "web" }
     );
 
     // Rejected verb falls back to GET rather than becoming a row label.
@@ -71,7 +71,7 @@ describe("request telemetry, client to table", () => {
         { kind: "pageview", path: "/shop", ok: true, durationMs: 300 },
         { kind: "request", path: "/api/cart", method: "POST", status: 200, ok: true, durationMs: 50 },
       ],
-      { ip: "203.0.113.9", userAgent: "jest", source: "web" }
+      { session: "s-test", source: "web" }
     );
 
     const view = insightsView(24);

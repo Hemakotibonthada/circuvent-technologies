@@ -25,6 +25,9 @@ import {
   type TelemetryEvent,
   requestStats,
   statusBreakdown,
+  operationPerf,
+  durationHistogram,
+  queryEvents,
 } from "./app-insights";
 
 interface TelemetryDB {
@@ -99,6 +102,9 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     journeys: journeys(windowed, 40),
     requests: requestStats(windowed).slice(0, 100),
     statuses: statusBreakdown(windowed),
+    performance: operationPerf(windowed).slice(0, 100),
+    histogram: durationHistogram(windowed, "request"),
+    recent: queryEvents(windowed, { limit: 200 }, now),
     received: receivedCount(),
     retained: allEvents().length,
     capacity: MAX_EVENTS,

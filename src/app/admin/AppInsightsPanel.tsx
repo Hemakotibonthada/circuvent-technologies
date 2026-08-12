@@ -13,7 +13,15 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import type { FailureGroup, InsightsSummary, Journey, PathStat, RequestStat } from "@/lib/app-insights";
+import type {
+  FailureGroup,
+  InsightsSummary,
+  Journey,
+  OperationPerf,
+  PathStat,
+  RequestStat,
+  TelemetryEvent,
+} from "@/lib/app-insights";
 
 /**
  * Application telemetry, in the shape App Insights presents it.
@@ -41,6 +49,9 @@ interface View {
   journeys: Journey[];
   requests: RequestStat[];
   statuses: { status: number; count: number }[];
+  performance: OperationPerf[];
+  histogram: { label: string; upTo: number; count: number }[];
+  recent: TelemetryEvent[];
   received: number;
   retained: number;
   capacity: number;
@@ -119,8 +130,23 @@ export default function AppInsightsPanel() {
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"requests" | "paths" | "failures" | "journeys">("requests");
+  const [tab, setTab] = useState<"requests" | "performance" | "logs" | "paths" | "failures" | "journeys">("requests");
   const [openFailure, setOpenFailure] = useState<string | null>(null);
+  const [logFilter, setLogFilter] = useState("");
+  const [logOutcome, setLogOutcome] = useState<"all" | "failed" | "ok">("all");
+
+  /*
+   * Filtered client-side, over the 200 events the server already sent. Round
+   * tripping for each keystroke would put the console's own traffic into the
+   * table it is filtering, which is both noisy and slower than the filter.
+   */
+  const visibleLogs = (view?.recent ?? []).filter((e) => {
+    if (logOutcome === "failed" && e.ok) return false;
+    if (logOutcome === "ok" && !e.ok) return false;
+    const q = logFilter.trim().toLowerCase();
+    if (q && !e.path.toLowerCase().includes(q)) return false;
+    return true;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -229,6 +255,8 @@ export default function AppInsightsPanel() {
       <div className="flex gap-1 border-b cv-border">
         {([
           ["requests", "Requests", view?.requests.length],
+          ["performance", "Performance", view?.performance.length],
+          ["logs", "Logs", view?.recent.length],
           ["paths", "Accessed paths", view?.paths.length],
           ["failures", "Failures", view?.failures.length],
           ["journeys", "User journeys", view?.journeys.length],
@@ -349,6 +377,175 @@ export default function AppInsightsPanel() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {view && tab === "performance" && (
+        <div className="space-y-3">
+          {view.histogram.some((b) => b.count > 0) && (
+            <div className="rounded-xl border cv-border p-3">
+              <div className="mb-2 text-[11px] uppercase tracking-wide cv-text-muted">
+                API call duration
+              </div>
+              <div className="space-y-1">
+                {view.histogram.map((b) => {
+                  const max = Math.max(...view.histogram.map((x) => x.count), 1);
+                  return (
+                    <div key={b.label} className="flex items-center gap-2">
+                      <span className="w-24 shrink-0 text-right text-[11px] cv-text-muted">
+                        {b.label}
+                      </span>
+                      <div className="h-3 flex-1 overflow-hidden rounded" style={{ background: "rgba(148,163,184,0.12)" }}>
+                        <div
+                          className="h-full rounded"
+                          style={{
+                            width: `${(b.count / max) * 100}%`,
+                            // Slow buckets in amber: the shape of the tail is
+                            // the reason to look at a histogram at all.
+                            background: b.upTo > 1000 ? "rgba(245,158,11,0.75)" : "rgba(6,182,212,0.75)",
+                          }}
+                        />
+                      </div>
+                      <span className="w-10 text-right text-[11px] cv-text-muted">{b.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {view.performance.length === 0 ? (
+            <div className="rounded-xl border cv-border py-8 text-center cv-text-muted">
+              Nothing timed in this window yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border cv-border">
+              <table className="w-full text-left text-sm">
+                <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Operation</th>
+                    <th className="px-3 py-2 text-right">N</th>
+                    <th className="px-3 py-2 text-right">Min</th>
+                    <th className="px-3 py-2 text-right">P50</th>
+                    <th className="px-3 py-2 text-right">P90</th>
+                    <th className="px-3 py-2 text-right">P95</th>
+                    <th className="px-3 py-2 text-right">P99</th>
+                    <th className="px-3 py-2 text-right">Max</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.performance.map((r) => (
+                    <tr key={r.name} className="border-t cv-border">
+                      <td className="px-3 py-2">
+                        <span
+                          className="mr-2 rounded px-1.5 py-0.5 text-[10px] font-bold"
+                          style={{
+                            background: r.kind === "request" ? "rgba(6,182,212,0.18)" : "rgba(148,163,184,0.18)",
+                            color: r.kind === "request" ? "#67e8f9" : "#cbd5e1",
+                          }}
+                        >
+                          {r.kind === "request" ? "API" : "PAGE"}
+                        </span>
+                        <span className="cv-text-secondary">{r.name}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right cv-text-muted">{r.count}</td>
+                      <td className="px-3 py-2 text-right cv-text-muted">{r.minMs}</td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{r.p50Ms}</td>
+                      <td className="px-3 py-2 text-right cv-text-secondary">{r.p90Ms}</td>
+                      <td className="px-3 py-2 text-right font-semibold cv-text-secondary">{r.p95Ms}</td>
+                      <td
+                        className="px-3 py-2 text-right"
+                        style={{ color: r.p99Ms > 3000 ? "#fcd34d" : undefined }}
+                      >
+                        {r.p99Ms}
+                      </td>
+                      <td className="px-3 py-2 text-right cv-text-muted">{r.maxMs}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="px-3 py-2 text-[11px] cv-text-muted">
+                All values in milliseconds, measured in the browser. P50 beside P99 on purpose:
+                a route that is fast on a cache hit and slow on a miss has an average that
+                describes neither.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {view && tab === "logs" && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={logFilter}
+              onChange={(e) => setLogFilter(e.target.value)}
+              placeholder="Filter by path…"
+              aria-label="Filter events by path"
+              className="h-[38px] min-w-[200px] flex-1 rounded-lg border cv-border bg-transparent px-3 text-sm cv-text-primary"
+            />
+            {(["all", "failed", "ok"] as const).map((o) => (
+              <button
+                key={o}
+                onClick={() => setLogOutcome(o)}
+                className={`h-[38px] rounded-lg border px-3 text-xs font-semibold ${
+                  logOutcome === o ? "border-cyan-500 text-cyan-300" : "cv-border cv-text-muted"
+                }`}
+              >
+                {o === "all" ? "All" : o === "failed" ? "Failures" : "Successes"}
+              </button>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border cv-border">
+            <table className="w-full text-left text-sm">
+              <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
+                <tr>
+                  <th className="px-3 py-2">Time</th>
+                  <th className="px-3 py-2">Kind</th>
+                  <th className="px-3 py-2">Operation</th>
+                  <th className="px-3 py-2 text-right">Status</th>
+                  <th className="px-3 py-2 text-right">Duration</th>
+                  <th className="px-3 py-2">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleLogs.map((e) => (
+                  <tr key={e.id} className="border-t cv-border">
+                    <td className="whitespace-nowrap px-3 py-2 text-[12px] cv-text-muted">
+                      {fmtTime(e.at)}
+                    </td>
+                    <td className="px-3 py-2 text-[12px] cv-text-muted">{e.kind}</td>
+                    <td className="px-3 py-2 text-[12px] cv-text-secondary">
+                      {e.method ? `${e.method} ` : ""}
+                      {e.path}
+                    </td>
+                    <td
+                      className="px-3 py-2 text-right text-[12px] font-semibold"
+                      style={{ color: e.ok ? undefined : "#fca5a5" }}
+                    >
+                      {e.kind === "pageview" ? "—" : e.status === 0 ? "no response" : e.status}
+                    </td>
+                    <td className="px-3 py-2 text-right text-[12px] cv-text-muted">
+                      {e.durationMs} ms
+                    </td>
+                    <td className="max-w-[280px] truncate px-3 py-2 text-[12px] cv-text-muted">
+                      {e.errorType ? `${e.errorType}: ${e.errorMessage ?? ""}` : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {visibleLogs.length === 0 && (
+              <div className="py-8 text-center text-sm cv-text-muted">
+                Nothing matches that filter in this window.
+              </div>
+            )}
+            <div className="px-3 py-2 text-[11px] cv-text-muted">
+              Showing {visibleLogs.length} of {view.recent.length} most recent events. The store
+              keeps the last {view.capacity.toLocaleString()} and nothing older.
+            </div>
+          </div>
         </div>
       )}
 

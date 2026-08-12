@@ -189,6 +189,146 @@ export function statusBreakdown(events: TelemetryEvent[]): { status: number; cou
     .sort((a, b) => b.count - a.count);
 }
 
+// ────────────────────────────────────────────── logs & performance ──
+
+/**
+ * A filter over the raw event table — the closest honest equivalent to the
+ * Logs blade.
+ *
+ * Deliberately not a query language. A half-built KQL parser accepts a query,
+ * silently misreads a clause and returns a confident wrong answer, which is
+ * worse than a filter that can only express what it says on the form.
+ */
+export interface EventQuery {
+  kind?: EventKind | "all";
+  /** "ok" and "failed" mean the ok flag; a number means that exact status. */
+  outcome?: "all" | "ok" | "failed";
+  status?: number;
+  method?: string;
+  /** Case-insensitive substring on the normalised route. */
+  pathContains?: string;
+  /** Case-insensitive substring on error type or message. */
+  errorContains?: string;
+  session?: string;
+  sinceHours?: number;
+  limit?: number;
+}
+
+export function queryEvents(
+  events: TelemetryEvent[],
+  q: EventQuery,
+  now = new Date().toISOString()
+): TelemetryEvent[] {
+  const scoped = q.sinceHours ? withinHours(events, q.sinceHours, now) : events;
+  const path = q.pathContains?.trim().toLowerCase();
+  const err = q.errorContains?.trim().toLowerCase();
+
+  const out = scoped.filter((e) => {
+    if (q.kind && q.kind !== "all" && e.kind !== q.kind) return false;
+    if (q.outcome === "ok" && !e.ok) return false;
+    if (q.outcome === "failed" && e.ok) return false;
+    if (typeof q.status === "number" && e.status !== q.status) return false;
+    if (q.method && (e.method ?? "GET") !== q.method) return false;
+    if (path && !e.path.toLowerCase().includes(path)) return false;
+    if (q.session && e.session !== q.session) return false;
+    if (err) {
+      const hay = `${e.errorType ?? ""} ${e.errorMessage ?? ""}`.toLowerCase();
+      if (!hay.includes(err)) return false;
+    }
+    return true;
+  });
+
+  // Newest first: an operator looking at a log wants what just happened.
+  out.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  return out.slice(0, Math.max(1, Math.min(1000, q.limit ?? 200)));
+}
+
+/** Full latency distribution for one operation. */
+export interface OperationPerf {
+  name: string;
+  kind: EventKind;
+  count: number;
+  minMs: number;
+  p50Ms: number;
+  p90Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+  maxMs: number;
+}
+
+/**
+ * Latency percentiles per operation, across requests and page loads alike.
+ *
+ * p50 beside p99 rather than an average on its own: the mean of a bimodal
+ * route — a cache hit and a cache miss — is a number that describes neither
+ * of the two things that actually happen.
+ */
+export function operationPerf(events: TelemetryEvent[]): OperationPerf[] {
+  const acc = new Map<string, { kind: EventKind; d: number[] }>();
+
+  for (const e of events) {
+    if (e.kind !== "request" && e.kind !== "pageview") continue;
+    const name = e.kind === "request" ? `${e.method ?? "GET"} ${e.path}` : e.path;
+    let row = acc.get(name);
+    if (!row) {
+      row = { kind: e.kind, d: [] };
+      acc.set(name, row);
+    }
+    row.d.push(e.durationMs);
+  }
+
+  const out: OperationPerf[] = [];
+  for (const [name, row] of acc) {
+    const s = [...row.d].sort((a, b) => a - b);
+    out.push({
+      name,
+      kind: row.kind,
+      count: s.length,
+      minMs: s[0] ?? 0,
+      p50Ms: percentile(s, 50),
+      p90Ms: percentile(s, 90),
+      p95Ms: percentile(s, 95),
+      p99Ms: percentile(s, 99),
+      maxMs: s[s.length - 1] ?? 0,
+    });
+  }
+
+  // Slowest at p95 first: that is the one people are waiting on.
+  return out.sort((a, b) => b.p95Ms - a.p95Ms || b.count - a.count);
+}
+
+/**
+ * Log-ish duration histogram, for the distribution chart.
+ *
+ * Linear buckets would put almost everything in the first one and tell you
+ * nothing; latency is spread across orders of magnitude, so the buckets are too.
+ */
+export const DURATION_BUCKETS = [50, 100, 250, 500, 1000, 2500, 5000, 10000] as const;
+
+export function durationHistogram(
+  events: TelemetryEvent[],
+  kind: EventKind = "request"
+): { label: string; upTo: number; count: number }[] {
+  const counts = new Array(DURATION_BUCKETS.length + 1).fill(0) as number[];
+
+  for (const e of events) {
+    if (e.kind !== kind) continue;
+    let i = DURATION_BUCKETS.findIndex((b) => e.durationMs <= b);
+    if (i === -1) i = DURATION_BUCKETS.length;
+    counts[i] += 1;
+  }
+
+  return counts.map((count, i) => {
+    const upTo = DURATION_BUCKETS[i] ?? Infinity;
+    const prev = i === 0 ? 0 : DURATION_BUCKETS[i - 1];
+    return {
+      label: i === DURATION_BUCKETS.length ? `> ${prev} ms` : `${prev}–${upTo} ms`,
+      upTo,
+      count,
+    };
+  });
+}
+
 export function failureKey(e: Pick<TelemetryEvent, "errorType" | "path" | "stack">): string {  const top = (e.stack || "").split("\n").map((s) => s.trim()).find((s) => s.startsWith("at ")) || "";
   return `${e.errorType || "Error"}|${e.path || "-"}|${top}`;
 }
