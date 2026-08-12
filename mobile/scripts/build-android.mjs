@@ -33,13 +33,15 @@ const args = process.argv.slice(2);
  * check anyway. An unrecognised argument silently doing nothing is worse than
  * refusing it, because the only symptom is the thing you were trying to avoid.
  */
-const KNOWN = new Set(["--apk", "--aab", "--not-for-play"]);
+const KNOWN = new Set(["--apk", "--aab", "--aab-internal", "--not-for-play"]);
 const unknown = args.filter((a) => !KNOWN.has(a));
 if (unknown.length) {
   console.log(`\n✗ Unknown option${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")}`);
-  console.log("    usage: build-android.mjs [--apk] [--aab] [--not-for-play]");
+  console.log("    usage: build-android.mjs [--apk] [--aab] [--aab-internal] [--not-for-play]");
   console.log("    --apk           sideload build; skips the Play upload-key check");
   console.log("    --aab           Play bundle; enforces the upload key");
+  console.log("    --aab-internal  bundle for Play Internal App Sharing, which accepts any");
+  console.log("                    signature; NOT uploadable to a release track");
   console.log("    --not-for-play  same as --apk, kept because the checker spells it this way");
   process.exit(1);
 }
@@ -50,8 +52,24 @@ if (unknown.length) {
  * the spelling is how the silent no-op happened in the first place.
  */
 const apkOnly = args.includes("--apk") || args.includes("--not-for-play");
-const wantApk = apkOnly || !args.includes("--aab");
-const wantAab = args.includes("--aab") || !apkOnly;
+
+/*
+ * `--aab-internal` builds a bundle without enforcing the upload key.
+ *
+ * This is not a way around the check. Play Internal App Sharing genuinely
+ * accepts a bundle signed with any key — it is the one upload path that does —
+ * so while the upload-key reset is pending this is the only bundle that can be
+ * shared at all, and refusing to produce it would be the check protecting
+ * nobody from anything.
+ *
+ * It is spelled differently from `--aab` on purpose. Somebody reaching for a
+ * release build must not be able to get this one by accident, and the artifact
+ * says so in its own filename.
+ */
+const aabInternal = args.includes("--aab-internal");
+
+const wantApk = (apkOnly || !args.includes("--aab")) && !aabInternal;
+const wantAab = args.includes("--aab") || aabInternal || !apkOnly;
 
 const say = (s) => console.log(`\n=== ${s}`);
 const die = (s, extra = []) => {
@@ -68,7 +86,7 @@ const die = (s, extra = []) => {
  * it enforces the upload certificate, for an APK alone it reports a mismatch
  * and carries on. It refuses the debug key either way.
  */
-const forPlay = wantAab;
+const forPlay = wantAab && !aabInternal;
 
 say(`Checking the signing key before building anything${forPlay ? "" : " (apk only — not checked against Play)"}`);
 const pre = spawnSync(
@@ -339,7 +357,15 @@ const outputs = [
 ];
 for (const [kind, file] of outputs) {
   if (!existsSync(file)) continue;
-  const named = join(dist, `circuvent-${version.version}-${version.android.versionCode}.${kind}`);
+  /*
+   * An internal-sharing bundle is named for what it is. The signature is the
+   * only thing separating it from a release upload, and a signature is not
+   * visible in a file listing — so somebody handed circuvent-1.12.0-20.aab
+   * three weeks from now has no way to know it will be rejected. The name is
+   * the one part of an artifact that travels with it.
+   */
+  const suffix = kind === "aab" && aabInternal ? "-internal" : "";
+  const named = join(dist, `circuvent-${version.version}-${version.android.versionCode}${suffix}.${kind}`);
   copyFileSync(file, named);
   console.log(`  ${named.replace(ROOT, ".")}`);
 }
