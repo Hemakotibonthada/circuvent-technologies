@@ -13,7 +13,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.circuvent.app",
-      "buildNumber": "18",
+      "buildNumber": "20",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Circuvent connects to your device's setup hotspot to send Wi-Fi credentials during onboarding.",
         "NSCameraUsageDescription": "Circuvent uses the camera to scan the QR label on your device during setup.",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.circuvent.app",
-      "versionCode": 19,
+      "versionCode": 20,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-bg.png"
