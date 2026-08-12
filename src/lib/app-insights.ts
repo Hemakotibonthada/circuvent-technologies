@@ -458,6 +458,62 @@ export function applicationMap(events: TelemetryEvent[]): MapNode[] {
   return nodes;
 }
 
+// ──────────────────────────────────────────────────── availability ──
+
+export interface Availability {
+  target: string;
+  checks: number;
+  failed: number;
+  /** Fraction of checks that succeeded, 0..1. */
+  uptime: number;
+  p95Ms: number;
+  /** When it was last seen failing, if ever. */
+  lastFailureAt?: string;
+  lastCheckAt?: string;
+}
+
+/**
+ * Availability, derived from health checks the app already makes.
+ *
+ * This is deliberately not called synthetic monitoring, and the console says
+ * so. These checks run when a page asks about a capability, from wherever that
+ * browser is — so the figure answers "was it reachable when somebody looked",
+ * not "is it up". The two diverge exactly when nobody is looking, which is
+ * when an outage begins. A real availability number needs a scheduled prober,
+ * which is a deployment decision rather than a line of code.
+ */
+export function availability(events: TelemetryEvent[], path = "/health"): Availability[] {
+  const acc = new Map<string, TelemetryEvent[]>();
+  for (const e of events) {
+    if (e.kind !== "dependency" || e.path !== path) continue;
+    const t = e.target ?? "unknown";
+    if (!acc.has(t)) acc.set(t, []);
+    acc.get(t)!.push(e);
+  }
+
+  const out: Availability[] = [];
+  for (const [target, subset] of acc) {
+    const failedEvents = subset.filter((e) => !e.ok);
+    const durations = subset.map((e) => e.durationMs).sort((a, b) => a - b);
+    out.push({
+      target,
+      checks: subset.length,
+      failed: failedEvents.length,
+      uptime: subset.length ? (subset.length - failedEvents.length) / subset.length : 0,
+      p95Ms: percentile(durations, 95),
+      lastFailureAt: failedEvents.reduce<string | undefined>(
+        (latest, e) => (!latest || e.at > latest ? e.at : latest),
+        undefined
+      ),
+      lastCheckAt: subset.reduce<string | undefined>(
+        (latest, e) => (!latest || e.at > latest ? e.at : latest),
+        undefined
+      ),
+    });
+  }
+  return out.sort((a, b) => a.uptime - b.uptime);
+}
+
 export function failureKey(e: Pick<TelemetryEvent, "errorType" | "path" | "stack">): string {  const top = (e.stack || "").split("\n").map((s) => s.trim()).find((s) => s.startsWith("at ")) || "";
   return `${e.errorType || "Error"}|${e.path || "-"}|${top}`;
 }

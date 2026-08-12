@@ -17,6 +17,7 @@ import type {
   FailureGroup,
   InsightsSummary,
   Journey,
+  Availability,
   DependencyStat,
   MapNode,
   OperationPerf,
@@ -56,6 +57,7 @@ interface View {
   recent: TelemetryEvent[];
   dependencies: DependencyStat[];
   map: MapNode[];
+  availability: Availability[];
   received: number;
   retained: number;
   capacity: number;
@@ -387,6 +389,40 @@ export default function AppInsightsPanel() {
 
       {view && tab === "dependencies" && (
         <div className="space-y-3">
+          {view.availability.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {view.availability.map((a) => (
+                <div
+                  key={a.target}
+                  className="rounded-lg border px-3 py-2"
+                  style={{
+                    borderColor: a.uptime < 1 ? "rgba(220,38,38,0.5)" : "var(--cv-border)",
+                  }}
+                >
+                  <div className="text-[11px] uppercase tracking-wide cv-text-muted">
+                    {a.target} availability
+                  </div>
+                  <div
+                    className="text-lg font-bold"
+                    style={{ color: a.uptime < 0.99 ? "#fca5a5" : "#6ee7b7" }}
+                  >
+                    {(a.uptime * 100).toFixed(a.uptime === 1 ? 0 : 2)}%
+                  </div>
+                  <div className="text-[11px] cv-text-muted">
+                    {a.checks} check{a.checks === 1 ? "" : "s"} · p95 {a.p95Ms} ms
+                    {a.lastFailureAt && view.now
+                      ? ` · last failed ${ago(a.lastFailureAt, view.now)}`
+                      : ""}
+                  </div>
+                </div>
+              ))}
+              <p className="w-full text-[11px] cv-text-muted">
+                Measured from health checks the app makes when a page asks about a capability —
+                not from a scheduled prober. It answers whether the service was reachable when
+                somebody looked, which differs from whether it is up precisely when nobody is.
+              </p>
+            </div>
+          )}
           {view.map.length > 0 && (
             <div className="rounded-xl border cv-border p-3">
               <div className="mb-2 text-[11px] uppercase tracking-wide cv-text-muted">

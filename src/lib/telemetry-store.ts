@@ -30,6 +30,7 @@ import {
   queryEvents,
   dependencyStats,
   applicationMap,
+  availability,
 } from "./app-insights";
 
 interface TelemetryDB {
@@ -109,6 +110,7 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     recent: queryEvents(windowed, { limit: 200 }, now),
     dependencies: dependencyStats(windowed).slice(0, 100),
     map: applicationMap(windowed),
+    availability: availability(windowed),
     received: receivedCount(),
     retained: allEvents().length,
     capacity: MAX_EVENTS,

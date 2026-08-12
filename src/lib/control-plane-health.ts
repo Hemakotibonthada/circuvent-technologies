@@ -20,6 +20,7 @@
  * at all, and treating a missing list as "supports nothing" would put a
  * warning on every working deployment. Unknown is reported as unknown.
  */
+import { emit } from "./telemetry-emit";
 import { useEffect, useState } from "react";
 
 const CONTROL_PLANE = process.env.NEXT_PUBLIC_CONTROL_PLANE_URL || "https://api.circuvent.com";
@@ -38,14 +39,47 @@ const CACHE_MS = 60_000;
 
 export async function fetchControlPlaneBuild(): Promise<ControlPlaneBuild | null> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.build;
+  const startedAt = Date.now();
   try {
     const r = await fetch(`${CONTROL_PLANE}/health`, { cache: "no-store" });
+
+    /*
+     * Recorded as a dependency call, because that is exactly what it is: an
+     * outbound request to the control plane, timed, with an outcome. It gives
+     * the console an availability signal without inventing a scheduler.
+     *
+     * What it is not is synthetic monitoring. This only runs when a page asks
+     * about a capability, from wherever that browser happens to be, so it
+     * answers "was the control plane reachable when somebody looked" rather
+     * than "is it up right now". Those differ most precisely when nobody is
+     * looking, which is when an outage starts.
+     */
+    emit({
+      kind: "dependency",
+      target: "control-plane",
+      path: "/health",
+      method: "GET",
+      status: r.status,
+      ok: r.ok,
+      durationMs: Date.now() - startedAt,
+    });
+
     // A 503 still carries the build stamp — "which version is down" is the
     // first question — so the body is read either way.
     const build = (await r.json()) as ControlPlaneBuild;
     cached = { at: Date.now(), build };
     return build;
   } catch {
+    emit({
+      kind: "dependency",
+      target: "control-plane",
+      path: "/health",
+      method: "GET",
+      status: 0,
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      errorType: "NetworkError",
+    });
     // Not cached: a network blip must not be remembered as "no capabilities"
     // for the next minute and put a false warning on a healthy deployment.
     return null;
