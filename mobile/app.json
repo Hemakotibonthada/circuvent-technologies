@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.circuvent.app",
-      "versionCode": 17,
+      "versionCode": 18,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-bg.png"

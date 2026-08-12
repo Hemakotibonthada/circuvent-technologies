@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Animated,
   Easing,
@@ -180,53 +181,50 @@ export function useBackHandler(handler: () => boolean) {
  * under a tall Android status bar, too much on a compact phone, and it lets the
  * floating nav collide with the iOS home indicator.
  *
- * `react-native-safe-area-context` would report exact insets, but adding a
- * native module to this bare workflow (there is a checked-in android/ project)
- * forces a full rebuild of the app binary. These values come from the platform
- * where it can tell us — Android reports the real status-bar height — and fall
- * back to Apple's published notch/home-indicator metrics keyed off screen
- * height, which is the standard heuristic and is correct on every shipping
- * iPhone.
+ * These now come from `react-native-safe-area-context`, which reads the real
+ * window insets from the platform. The previous version guessed instead, to
+ * avoid adding a native module to this bare workflow, and the guess for Android
+ * was `bottom: 0` — flatly wrong on any device that lays out edge-to-edge,
+ * where the system navigation bar is drawn *over* the app. That is what put the
+ * three-button navigation bar on top of the onboarding "Next" button: with a
+ * slim gesture pill the 20pt of footer padding was enough to hide the error,
+ * and with a 48dp button bar it was not.
+ *
+ * A guess cannot distinguish the two layout regimes. `Dimensions.screen` minus
+ * `Dimensions.window` looks like it would, but it reports the navigation bar
+ * height precisely when the window already excludes it (so the padding is not
+ * needed) and reports zero when the window includes it (so the padding is), 
+ * which is exactly backwards. Only the platform knows.
  */
 export function useSafeArea(): { top: number; bottom: number } {
-  return useSafeAreaImpl();
-}
+  const insets = useSafeAreaInsets();
 
-/**
- * Android: the answer does not depend on the window at all.
- *
- * This matters more than it looks. `useSafeArea` is called by Shell, which
- * wraps the whole app — and on Android the soft keyboard resizes the window.
- * Subscribing to window dimensions here therefore re-rendered every screen on
- * every keyboard open, close, and height change (the suggestion strip alone
- * changes it twice per word), which made typing visibly unsmooth in every text
- * field in the app.
- *
- * Splitting the implementation at module load rather than branching inside one
- * hook keeps the hook order consistent while letting Android subscribe to
- * nothing.
- */
-function useSafeAreaAndroid(): { top: number; bottom: number } {
-  return useMemo(() => ({ top: StatusBar.currentHeight ?? 24, bottom: 0 }), []);
-}
-
-/**
- * iOS: depends only on whether the device has a notch, which the keyboard
- * cannot change — iOS overlays the keyboard instead of resizing the window.
- * Memoised on that boolean rather than on the raw dimensions so the returned
- * object keeps its identity across rotation-free re-renders.
- */
-function useSafeAreaIOS(): { top: number; bottom: number } {
-  const { height, width } = useWindowDimensions();
-  // iPhone X and later are >= 812pt tall in portrait (or wide in landscape).
-  const notched = Math.max(height, width) >= 812;
+  /*
+   * Memoised on the numbers, not on the object.
+   *
+   * `useSafeArea` is called by Shell, which wraps the whole app, so a new
+   * object identity here re-renders every screen. The insets themselves are
+   * stable — the library reports the system bars, and on Android the soft
+   * keyboard is a separate IME inset that does not move them — but pinning the
+   * identity to the values means that even if a provider above us re-renders,
+   * nothing below us does unless a bar has actually changed size.
+   *
+   * This is the same property the previous implementation was protecting when
+   * it refused to subscribe to window dimensions: subscribing there re-rendered
+   * every screen on every keyboard open, close and height change, which made
+   * typing visibly unsmooth in every text field in the app.
+   */
+  const { top, bottom } = insets;
   return useMemo(
-    () => (notched ? { top: 44, bottom: 34 } : { top: 20, bottom: 0 }),
-    [notched]
+    () => ({
+      // A status bar of zero means the platform has not measured yet; the old
+      // 24pt default is a better first frame than flush against the clock.
+      top: top || StatusBar.currentHeight || 20,
+      bottom,
+    }),
+    [top, bottom]
   );
 }
-
-const useSafeAreaImpl = Platform.OS === "android" ? useSafeAreaAndroid : useSafeAreaIOS;
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();

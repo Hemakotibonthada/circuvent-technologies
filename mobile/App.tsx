@@ -1,5 +1,6 @@
 import React from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth";
 import { ThemeProvider, useTheme } from "./src/ui";
@@ -98,16 +99,25 @@ export default function App() {
    * system sheets fighting over the same screen.
    */
   if (firstRun === null) return null;
-  if (firstRun) return <ThemeProvider><FirstRunPermissions onDone={() => setFirstRun(false)} /></ThemeProvider>;
+  if (firstRun)
+    return (
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <FirstRunPermissions onDone={() => setFirstRun(false)} />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    );
 
   return (
-    <ThemeProvider>
-      <BiometricGate>
-        <AuthProvider>
-          <Root />
-        </AuthProvider>
-      </BiometricGate>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <BiometricGate>
+          <AuthProvider>
+            <Root />
+          </AuthProvider>
+        </BiometricGate>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
