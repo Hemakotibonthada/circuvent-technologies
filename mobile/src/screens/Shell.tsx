@@ -217,18 +217,33 @@ export default function Shell() {
 }
 
 const s = StyleSheet.create({
+  /*
+   * The gutters, the gap and the home button are all space the pills do not
+   * get. With six pills sharing what is left, a 320dp screen — the narrowest
+   * Android supports, and what the large-display accessibility setting produces
+   * on a bigger phone — left each tab under the 48dp minimum. Reclaiming 18dp
+   * here puts every tab back above it on every width.
+   *
+   * Widening hitSlop instead would have been wrong: the pills are adjacent, so
+   * slop past half the spacing overlaps a neighbour, and the sibling drawn
+   * later wins that overlap. A tab that steals the tap meant for the one beside
+   * it is worse than a tab that is slightly small.
+   *
+   * scripts/check-nav-targets.js does this arithmetic on every common width and
+   * fails below 48dp, so the next tab someone adds cannot shrink these quietly.
+   */
   navWrap: {
     position: "absolute",
-    left: 16,
-    right: 16,
+    left: 12,
+    right: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
   homeBtn: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     shadowOpacity: 0.4,
