@@ -123,3 +123,54 @@ describe("insights telemetry route", () => {
     expect(body.truncated).toBe(7);
   });
 });
+
+describe("sweep recency", () => {
+  /* The cleanup above belongs to the other describe, so this needs its own —
+     otherwise the probe events seeded here leak into the test that asserts
+     none exist, and it fails for a reason that has nothing to do with it. */
+  beforeEach(() => {
+    allowed = true;
+    clearTelemetry();
+  });
+
+  it("reports null when the scheduled sweep has never run", async () => {
+    seed(5);
+    const body = await (await GET(req("?hours=24"))).json();
+
+    /*
+     * The distinction the whole banner rests on: ordinary page telemetry is
+     * present, and that must not be mistaken for the sweep having run.
+     */
+    expect(body.summary.totalEvents).toBeGreaterThan(0);
+    expect(body.lastSweepAt).toBeNull();
+  });
+
+  it("reports the most recent probe event once the sweep has run", async () => {
+    const older = new Date(Date.now() - 3 * 3600_000).toISOString();
+    const newer = new Date(Date.now() - 60_000).toISOString();
+
+    ingest([{ kind: "dependency", target: "control-plane", path: "/health", method: "GET", status: 200, ok: true, durationMs: 5 }], {
+      session: "probe:availability",
+      source: "probe",
+      now: older,
+    });
+    ingest([{ kind: "dependency", target: "office-api", path: "/office-api/api/health", method: "GET", status: 200, ok: true, durationMs: 9 }], {
+      session: "probe:synthetic",
+      source: "probe",
+      now: newer,
+    });
+
+    const body = await (await GET(req("?hours=24"))).json();
+    expect(body.lastSweepAt).toBe(newer);
+  });
+
+  it("does not count ordinary browser telemetry as a sweep", async () => {
+    seed(20);
+    ingest([{ kind: "pageview", path: "/smarthome", status: 0, ok: true, durationMs: 0 }], {
+      session: "someone",
+      source: "web",
+    });
+
+    expect((await (await GET(req("?hours=24"))).json()).lastSweepAt).toBeNull();
+  });
+});

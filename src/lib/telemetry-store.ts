@@ -124,6 +124,20 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     // Detection runs over the whole retained buffer, not the selected window:
     // it needs a baseline older than the window it is judging.
     anomalies: detectAnomalies(allEvents(), now),
+    /*
+     * When the scheduled sweep last ran, over the whole buffer rather than the
+     * selected window.
+     *
+     * Without this, a monitoring system that has never run looks exactly like
+     * one where nothing is wrong: no failures recorded, every uptime figure
+     * either 100% or absent. The sweep needs CRON_SECRET set in the deployment
+     * and a scheduler configured to call it, and neither leaves any other
+     * trace in the product when it is missing.
+     */
+    lastSweepAt:
+      allEvents()
+        .filter((e) => e.source === "probe")
+        .reduce<string | null>((latest, e) => (!latest || e.at > latest ? e.at : latest), null),
     received: receivedCount(),
     retained: allEvents().length,
     capacity: MAX_EVENTS,

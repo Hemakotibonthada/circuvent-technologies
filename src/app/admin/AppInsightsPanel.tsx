@@ -256,6 +256,7 @@ interface View {
   dependencies: DependencyStat[];
   map: MapNode[];
   availability: Availability[];
+  lastSweepAt: string | null;
   anomalies: { fingerprint: string; severity: string; title: string; detail: string; suggestion?: string }[];
   received: number;
   retained: number;
@@ -831,6 +832,39 @@ export default function AppInsightsPanel() {
 
       {view && tab === "dependencies" && (
         <div className="space-y-3">
+          {(() => {
+            /*
+             * A monitor that has never run looks identical to one where
+             * nothing is wrong — no failures, every uptime 100% or absent.
+             * The only honest thing is to say when it last ran.
+             */
+            if (!view.lastSweepAt) {
+              return (
+                <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 px-4 py-3 text-[13px] text-amber-200">
+                  <strong>The scheduled sweep has never run.</strong> Availability below is
+                  measured only from checks a page happened to make. Set <code>CRON_SECRET</code>{" "}
+                  in the deployment and point a scheduler at{" "}
+                  <code>/api/admin/availability/probe</code>; until then nothing is watching the
+                  other apps, and no incident will be filed automatically.
+                </div>
+              );
+            }
+            const ageHours = (Date.parse(view.now) - Date.parse(view.lastSweepAt)) / 3_600_000;
+            if (ageHours > 48) {
+              return (
+                <div className="rounded-lg border border-amber-800/50 bg-amber-950/20 px-4 py-3 text-[13px] text-amber-200">
+                  <strong>The sweep last ran {ago(view.lastSweepAt, view.now)}.</strong> It is
+                  meant to run daily. A gap in probes is not evidence of uptime.
+                </div>
+              );
+            }
+            return (
+              <div className="text-[11px] cv-text-muted">
+                Scheduled sweep last ran {ago(view.lastSweepAt, view.now)}.
+              </div>
+            );
+          })()}
+
           {view.availability.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {view.availability.map((a) => (
