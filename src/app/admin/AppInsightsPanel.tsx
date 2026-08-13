@@ -405,6 +405,7 @@ export default function AppInsightsPanel() {
   const [editing, setEditing] = useState<RuleRow | null>(null);
   /** Per-failure status line: "filing", or whatever came back. */
   const [filedFailures, setFiledFailures] = useState<Record<string, string>>({});
+  const [live, setLive] = useState(false);
 
   const fileFromFailure = useCallback(async (f: FailureGroup) => {
     setFiledFailures((s) => ({ ...s, [f.key]: "filing" }));
@@ -484,6 +485,20 @@ export default function AppInsightsPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /*
+   * Live mode.
+   *
+   * Off by default and capped at the shortest window, because a console that
+   * refetches every ten seconds over a week of telemetry is the heaviest
+   * client of the API it is monitoring — and its own requests land in the
+   * table it is showing, which makes a quiet system look busy.
+   */
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => void load(), 15_000);
+    return () => clearInterval(t);
+  }, [live, load]);
 
   /*
    * Only fetched while the blade is open. The explorer runs a full pass over the
@@ -574,6 +589,20 @@ export default function AppInsightsPanel() {
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setLive((v) => !v)}
+            aria-pressed={live}
+            title="Refetch every 15 seconds"
+            className={`inline-flex h-[44px] items-center gap-2 rounded-lg border px-3 text-sm font-semibold ${
+              live ? "border-emerald-500 text-emerald-300" : "cv-border cv-text-muted"
+            }`}
+          >
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: live ? "#34d399" : "var(--text-muted)" }}
+            />
+            Live
+          </button>
           <button
             onClick={() => void load()}
             className="inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-3 text-sm cv-text-secondary hover:cv-surface-alt"

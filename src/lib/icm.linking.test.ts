@@ -10,6 +10,13 @@ import {
   queue,
   createIncident,
   acknowledge,
+  mitigate,
+  resolve,
+  savePostmortem,
+  addActionItem,
+  toggleActionItem,
+  openActionItems,
+  actionsByOwner,
   type Incident,
   type Rotation,
   type SavedView,
@@ -258,5 +265,89 @@ describe("queue with hideDuplicates", () => {
 
     const shown = queue([from, original], { status: "active", hideDuplicates: true }, NOW);
     expect(shown).toHaveLength(0);
+  });
+});
+
+describe("outstanding action items", () => {
+  /** An incident all the way through to a postmortem with actions on it. */
+  const withActions = (
+    id: string,
+    severity: 0 | 1 | 2 | 3 | 4,
+    items: { what: string; owner: string; due?: string }[]
+  ) => {
+    let i = inc(id, { severity });
+    i = acknowledge(i, "ops", at(1)).incident;
+    i = mitigate(i, "ops", "restarted", at(2)).incident;
+    i = resolve(i, "ops", "a bad deploy", at(3)).incident;
+    i = savePostmortem(i, "ops", { summary: "s", cause: "c", detection: "d" }, at(4)).incident;
+    for (const item of items) {
+      i = addActionItem(i, "ops", { what: item.what, owner: item.owner, due: item.due ?? "" }, at(5)).incident;
+    }
+    return i;
+  };
+
+  it("collects unfinished actions from across every incident", () => {
+    const a = withActions("INC-1", 2, [{ what: "Add a retry", owner: "asha" }]);
+    const b = withActions("INC-2", 3, [{ what: "Alert on queue depth", owner: "ben" }]);
+
+    expect(openActionItems([a, b]).map((x) => x.what)).toEqual(["Add a retry", "Alert on queue depth"]);
+  });
+
+  it("leaves out the ones that are done", () => {
+    let a = withActions("INC-1", 2, [
+      { what: "Add a retry", owner: "asha" },
+      { what: "Write the runbook", owner: "asha" },
+    ]);
+    const first = a.postmortem!.actionItems[0].id;
+    a = toggleActionItem(a, "asha", first, at(10)).incident;
+
+    expect(openActionItems([a]).map((x) => x.what)).toEqual(["Write the runbook"]);
+  });
+
+  it("carries the incident it came from, so it can be opened", () => {
+    const a = withActions("INC-1", 1, [{ what: "Add a retry", owner: "asha", due: "next sprint" }]);
+    const [item] = openActionItems([a]);
+
+    expect(item.incidentId).toBe("INC-1");
+    expect(item.incidentTitle).toBe("Incident INC-1");
+    expect(item.severity).toBe(1);
+    expect(item.due).toBe("next sprint");
+    expect(item.since).toBe(at(3));
+  });
+
+  it("orders by the severity of the incident that produced it", () => {
+    // An action from a Sev1 is not the same commitment as one from a Sev4.
+    const low = withActions("INC-9", 4, [{ what: "Tidy the logs", owner: "ben" }]);
+    const high = withActions("INC-1", 1, [{ what: "Fix the root cause", owner: "asha" }]);
+
+    expect(openActionItems([low, high]).map((x) => x.what)).toEqual([
+      "Fix the root cause",
+      "Tidy the logs",
+    ]);
+  });
+
+  it("returns nothing for incidents with no postmortem", () => {
+    expect(openActionItems([inc("INC-1")])).toEqual([]);
+  });
+
+  it("groups by owner, most-owed first", () => {
+    const a = withActions("INC-1", 2, [
+      { what: "one", owner: "asha" },
+      { what: "two", owner: "asha" },
+      { what: "three", owner: "ben" },
+    ]);
+
+    expect(actionsByOwner([a]).map((g) => `${g.owner}:${g.items.length}`)).toEqual(["asha:2", "ben:1"]);
+  });
+
+  it("cannot produce an ownerless action, because the model refuses to store one", () => {
+    // Worth pinning: the grouping had an "unassigned" bucket that could never
+    // be reached, which is the same dead-control defect this codebase keeps
+    // growing. addActionItem is where the rule lives.
+    const base = withActions("INC-1", 2, [{ what: "real one", owner: "asha" }]);
+    const rejected = addActionItem(base, "ops", { what: "somebody should", owner: "  ", due: "" }, at(6));
+
+    expect(rejected.error).toContain("owner");
+    expect(actionsByOwner([base]).map((g) => g.owner)).toEqual(["asha"]);
   });
 });

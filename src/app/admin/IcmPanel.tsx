@@ -30,6 +30,7 @@ import {
   type SlaState,
   type TimelineEntry,
   type SavedView,
+  type OpenAction,
   type LinkKind,
   LINK_LABEL,
   LINK_KINDS,
@@ -195,6 +196,8 @@ export default function IcmPanel() {
   const [views, setViews] = useState<SavedView[]>([]);
   const [onCall, setOnCall] = useState<Record<string, string>>({});
   const [activeView, setActiveView] = useState("");
+  const [postmortemsDue, setPostmortemsDue] = useState<{ id: string; title: string }[]>([]);
+  const [actions, setActions] = useState<OpenAction[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -214,6 +217,8 @@ export default function IcmPanel() {
         setTeams(b.teams || []);
         setViews(b.views || []);
         setOnCall(b.onCall || {});
+        setPostmortemsDue(b.postmortemsDue || []);
+        setActions(b.actionsOutstanding || []);
         setNow(b.now || new Date().toISOString());
       }
     } catch {
@@ -392,6 +397,67 @@ export default function IcmPanel() {
           <StatCard label="Attainment" value={`${stats.slaAttainment}%`} tone={stats.slaAttainment >= 95 ? "#22c55e" : "#f59e0b"} hint="closed incidents" />
           <StatCard label="Median TTA" value={formatMins(stats.medianTta)} hint="time to acknowledge" />
           <StatCard label="Median TTM" value={formatMins(stats.medianTtm)} hint="time to mitigate" />
+        </div>
+      )}
+
+      {(postmortemsDue.length > 0 || actions.length > 0) && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {postmortemsDue.length > 0 && (
+            <div className="rounded-xl border border-amber-800/50 bg-amber-950/20 p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-bold text-amber-200">
+                <FileText className="h-4 w-4" aria-hidden />
+                {postmortemsDue.length} postmortem{postmortemsDue.length === 1 ? "" : "s"} owed
+              </div>
+              <ul className="space-y-1">
+                {postmortemsDue.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      onClick={() => setOpenId(p.id)}
+                      className="text-left text-[13px] text-amber-100/90 hover:underline"
+                    >
+                      {p.id} — {p.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-amber-200/60">
+                Required for Sev0–2. The incident is closed, so nothing else would show these.
+              </p>
+            </div>
+          )}
+
+          {actions.length > 0 && (
+            <div className="rounded-xl border cv-border cv-surface p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-bold cv-text-primary">
+                <CheckCircle2 className="h-4 w-4 text-cyan-400" aria-hidden />
+                {actions.length} outstanding action{actions.length === 1 ? "" : "s"}
+              </div>
+              <ul className="space-y-1">
+                {actions.slice(0, 8).map((a) => (
+                  <li key={`${a.incidentId}-${a.id}`} className="flex items-baseline gap-2 text-[13px]">
+                    <button
+                      onClick={() => setOpenId(a.incidentId)}
+                      className="shrink-0 font-mono text-[11px] cv-text-muted hover:underline"
+                    >
+                      {a.incidentId}
+                    </button>
+                    <span className="min-w-0 flex-1 truncate cv-text-secondary">{a.what}</span>
+                    <span className="shrink-0 text-[11px] cv-text-muted">
+                      {a.owner}
+                      {a.due ? ` · ${a.due}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {actions.length > 8 && (
+                <div className="mt-1 text-[11px] cv-text-muted">and {actions.length - 8} more.</div>
+              )}
+              <p className="mt-2 text-[11px] cv-text-muted">
+                The only part of an incident that changes anything, and the easiest to lose —
+                they live inside a postmortem inside a closed incident.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

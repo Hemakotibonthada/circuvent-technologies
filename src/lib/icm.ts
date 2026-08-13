@@ -967,6 +967,69 @@ export function postmortemsOutstanding(all: Incident[]): Incident[] {
   );
 }
 
+export interface OpenAction extends ActionItem {
+  incidentId: string;
+  incidentTitle: string;
+  severity: Severity;
+  /** When the incident it came from was resolved. */
+  since: string | null;
+}
+
+/**
+ * Every unfinished action item, across every incident.
+ *
+ * These are the only part of an incident that changes anything, and they are
+ * also the easiest thing in the system to lose: they live inside a postmortem,
+ * inside an incident that is closed, so nothing shows them. The queue is a
+ * list of things on fire; this is the list of reasons the next fire will be
+ * the same one.
+ *
+ * Ordered by the severity of the incident that produced them. An action from
+ * a Sev1 is not the same commitment as one from a Sev4, and a flat list sorted
+ * by date buries the important ones under whatever was filed most recently.
+ */
+export function openActionItems(all: Incident[]): OpenAction[] {
+  const out: OpenAction[] = [];
+  for (const inc of all) {
+    for (const item of inc.postmortem?.actionItems ?? []) {
+      if (item.done) continue;
+      out.push({
+        ...item,
+        incidentId: inc.id,
+        incidentTitle: inc.title,
+        severity: inc.severity,
+        since: inc.resolvedAt,
+      });
+    }
+  }
+  return out.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity - b.severity;
+    return (a.since ?? "").localeCompare(b.since ?? "");
+  });
+}
+
+/**
+ * The same list, grouped by owner — which is how it gets chased.
+ *
+ * There is no "unassigned" bucket because there cannot be an unassigned
+ * action: addActionItem refuses one without an owner, on the grounds that "we
+ * should improve monitoring" with nobody's name on it is the most common
+ * action item in the world and the least likely to happen.
+ */
+export function actionsByOwner(all: Incident[]): { owner: string; items: OpenAction[] }[] {
+  const by = new Map<string, OpenAction[]>();
+  for (const a of openActionItems(all)) {
+    const bag = by.get(a.owner);
+    if (bag) bag.push(a);
+    else by.set(a.owner, [a]);
+  }
+  return [...by.entries()]
+    .map(([owner, items]) => ({ owner, items }))
+    /* Most-owed first: the person with six outstanding actions is the
+       conversation to have, not the one with one. */
+    .sort((a, b) => b.items.length - a.items.length || a.owner.localeCompare(b.owner));
+}
+
 export interface Filters {
   status?: "open" | "all" | IncidentStatus;
   severity?: Severity | null;

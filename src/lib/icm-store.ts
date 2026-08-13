@@ -23,6 +23,8 @@ import {
   shouldEscalate,
   escalate,
   postmortemsOutstanding,
+  openActionItems,
+  actionsByOwner,
   stats,
   link,
   unlink,
@@ -317,6 +319,13 @@ export function icmView(filters: Filters, now = new Date().toISOString(), who = 
       severity: i.severity,
       resolvedAt: i.resolvedAt,
     })),
+    /*
+     * The actions that would stop a recurrence. Surfaced beside the queue for
+     * the same reason postmortemsDue is: they live inside a closed incident,
+     * so nothing else in the product would ever show them again.
+     */
+    actionsOutstanding: openActionItems(all),
+    actionsByOwner: actionsByOwner(all),
     now,
   };
 }
