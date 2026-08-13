@@ -10,13 +10,14 @@
  */
 
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { Star, type LucideIcon } from "lucide-react";
 import type { Device } from "@/lib/control-plane";
 import { masterPower } from "@/lib/smarthome-command-map";
 import { haptic, type FieldStatus } from "@/lib/smarthome-realtime";
 import { deviceMeta, capabilities, fanLevel } from "../DeviceControls";
 import { StatusDot, formatRelative } from "./primitives";
 import { Slider } from "./Slider";
+import { tileVisual, ringDash, type TileVisual } from "./tile-visual";
 
 /**
  * Primary readout for a device type, derived from published state.
@@ -231,6 +232,72 @@ export function inlineControl(device: Device): {
   return null;
 }
 
+/**
+ * The icon, with a level ring around it and the motion the hardware makes.
+ *
+ * A tile was an icon, a name and a switch — identical for a lamp at 5% and the
+ * same lamp at full, and for a fan idling and a fan at maximum. Everything
+ * needed to tell those apart was already published; none of it was visible
+ * without opening the device.
+ *
+ * The ring is state, the spin and glow are motion. That distinction matters
+ * under prefers-reduced-motion: globals.css neutralises animations globally, so
+ * the fan stops turning and the lamp stops breathing, while the ring and the
+ * colour stay exactly as they were. Reduced motion should remove motion, not
+ * information.
+ */
+function TileIcon({
+  Icon,
+  visual,
+  on,
+  accent,
+}: {
+  Icon: LucideIcon;
+  visual: TileVisual;
+  on: boolean;
+  accent: string;
+}) {
+  const colour = visual.tint || accent;
+  const R = 20; // sits just outside a 44px control
+  const ring = visual.level !== null ? ringDash(visual.level, R) : null;
+
+  return (
+    <>
+      {ring && (
+        <svg
+          className="pointer-events-none absolute inset-0"
+          viewBox="0 0 44 44"
+          aria-hidden="true"
+          /* Rotated so the arc starts at twelve o'clock; SVG circles begin at
+             three, which reads as a level that is already a quarter along. */
+          style={{ transform: "rotate(-90deg)" }}
+        >
+          <circle cx="22" cy="22" r={R} fill="none" stroke="var(--cv-border)" strokeWidth="2.5" />
+          <circle
+            cx="22"
+            cy="22"
+            r={R}
+            fill="none"
+            stroke={colour}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeDasharray={`${ring.dash} ${ring.gap}`}
+            style={{ transition: "stroke-dasharray 300ms ease-out" }}
+          />
+        </svg>
+      )}
+      <Icon
+        className={`h-[22px] w-[22px] ${visual.spinSeconds ? "cv-spin" : ""} ${
+          visual.motion === "glow" && on && visual.glow > 0 ? "cv-breathe" : ""
+        }`}
+        /* The shared keyframe turns at a fixed rate; the duration carries the
+           level, so a fan at 30% and one at 100% do not look the same. */
+        style={visual.spinSeconds ? { animationDuration: `${visual.spinSeconds}s` } : undefined}
+      />
+    </>
+  );
+}
+
 export function DeviceTile({
   device,
   status,
@@ -251,6 +318,7 @@ export function DeviceTile({
   const mp = masterPower(device);
   const inline = inlineControl(device);
   const on = Boolean(mp?.on) && device.online;
+  const visual = tileVisual(device, { on, online: device.online });
   const tint = meta.accent;
 
   // Secondary line. Offline devices report when they were last heard from
@@ -289,21 +357,34 @@ export function DeviceTile({
             disabled={!device.online}
             aria-label={`${mp.on ? "Turn off" : "Turn on"} ${device.name}`}
             title={device.online ? mp.label : "Device offline"}
-            className={`pointer-events-auto flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full transition active:scale-90 disabled:active:scale-100 ${RING[status]}`}
+            className={`pointer-events-auto relative flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full transition active:scale-90 disabled:active:scale-100 ${RING[status]}`}
             style={
               on
-                ? { background: tint, color: "#fff", boxShadow: "var(--cv-shadow-1)" }
+                ? {
+                    background: visual.tint || tint,
+                    color: "#fff",
+                    /* The lamp's own glow, at its own brightness. A fixed
+                       shadow says "on"; this says how on. */
+                    boxShadow:
+                      visual.glow > 0
+                        ? `0 0 ${8 + 14 * visual.glow}px ${(visual.tint || tint)}${Math.round(
+                            visual.glow * 160
+                          )
+                            .toString(16)
+                            .padStart(2, "0")}`
+                        : "var(--cv-shadow-1)",
+                  }
                 : { background: "var(--cv-card-hi)", color: tint }
             }
           >
-            <Icon className="h-[22px] w-[22px]" />
+            <TileIcon Icon={Icon} visual={visual} on={on} accent={tint} />
           </button>
         ) : (
           <span
-            className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full"
+            className="relative flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full"
             style={{ background: "var(--cv-card-hi)", color: tint }}
           >
-            <Icon className="h-[22px] w-[22px]" />
+            <TileIcon Icon={Icon} visual={visual} on={on} accent={tint} />
           </span>
         )}
 
