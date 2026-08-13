@@ -2,8 +2,9 @@
   "_why": "Google Play identifies this app by the certificate that signs the upload. Play prints the fingerprint it expects when it rejects a bundle; that value is recorded here so a build can be checked BEFORE it is uploaded rather than after. A certificate fingerprint is public - it is in every copy of the app - so this file holds no secret.",
   "package": "com.circuvent.app",
 
-  "resetStatus": "requested",
+  "resetStatus": "approved",
   "_resetStatus": "One of: not-yet-requested | requested | approved. While it is anything other than 'approved', Play still only accepts the ORIGINAL upload key, so a build signed with the replacement will be rejected. check-signing-key.js reads this field to decide which fingerprint a build must carry.",
+  "_resetApproval": "Set to 'approved' on 2026-08-12. Evidence: an AAB signed with the replacement key (E2:FD:C4:F4:...) was built and accepted by the Play Console. Play refuses an upload signed with anything other than the registered upload key, so acceptance is itself the confirmation that the reset completed. Until this was updated the guard kept expecting the original key and refused to build at all, which is the failure mode step 4 of howToCompleteTheReset exists to prevent.",
 
   "activeKeystore": "circuvent-upload-2026.jks",
   "_activeKeystore": "credentials/ deliberately holds more than one keystore during the reset. This names the one the build must use, so the guard can stop refusing outright and start checking the right thing.",

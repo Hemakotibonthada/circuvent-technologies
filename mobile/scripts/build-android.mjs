@@ -352,10 +352,21 @@ const dist = join(ROOT, "dist");
 mkdirSync(dist, { recursive: true });
 
 const outputs = [
-  ["apk", join(ROOT, "android/app/build/outputs/apk/release/app-release.apk")],
-  ["aab", join(ROOT, "android/app/build/outputs/bundle/release/app-release.aab")],
+  ["apk", join(ROOT, "android/app/build/outputs/apk/release/app-release.apk"), wantApk],
+  ["aab", join(ROOT, "android/app/build/outputs/bundle/release/app-release.aab"), wantAab],
 ];
-for (const [kind, file] of outputs) {
+for (const [kind, file, asked] of outputs) {
+  /*
+   * Only publish what this run actually built.
+   *
+   * Gradle leaves its outputs in place between runs, so an --aab build found
+   * the previous run's app-release.apk still sitting there and copied it out
+   * under today's version number. The result was dist/circuvent-1.12.0-21.apk
+   * whose manifest said versionCode 20 — a file that lies about itself in the
+   * one place anybody would check, and which would be sideloaded as "the new
+   * build" without a word of warning.
+   */
+  if (!asked) continue;
   if (!existsSync(file)) continue;
   /*
    * An internal-sharing bundle is named for what it is. The signature is the
