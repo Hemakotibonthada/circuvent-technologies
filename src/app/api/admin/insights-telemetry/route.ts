@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { guard } from "@/lib/admin-auth";
-import { clearTelemetry, insightsView } from "@/lib/telemetry-store";
+import { clearTelemetry, insightsView, metricsView } from "@/lib/telemetry-store";
+import { METRICS, SPLITS, type MetricId, type SplitBy } from "@/lib/app-insights";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,37 @@ export async function GET(request: Request) {
    * do arbitrary work.
    */
   const hours = Math.min(168, Math.max(1, Math.round(Number(url.searchParams.get("hours")) || 24)));
+
+  /*
+   * ?metric= switches this route into explorer mode. One route rather than two
+   * so both answers come from one guard and one clamp of `hours`.
+   */
+  const metric = url.searchParams.get("metric");
+  if (metric) {
+    if (!METRICS.some((m) => m.id === metric)) {
+      return NextResponse.json({ error: "Unknown metric" }, { status: 400 });
+    }
+    const splitParam = url.searchParams.get("splitBy") ?? "none";
+    if (!SPLITS.some((s) => s.id === splitParam)) {
+      return NextResponse.json({ error: "Unknown split" }, { status: 400 });
+    }
+    const bucketRaw = Number(url.searchParams.get("bucketMinutes"));
+    return NextResponse.json({
+      success: true,
+      metric,
+      splitBy: splitParam,
+      hours,
+      ...metricsView({
+        metric: metric as MetricId,
+        splitBy: splitParam as SplitBy,
+        hours,
+        // A one-minute bucket over a week is 10,080 points nobody can read and
+        // a response nobody wants; let the window pick unless asked sanely.
+        bucketMinutes: Number.isFinite(bucketRaw) && bucketRaw >= 1 && bucketRaw <= 1440 ? Math.round(bucketRaw) : undefined,
+        topN: Math.min(12, Math.max(1, Math.round(Number(url.searchParams.get("topN")) || 6))),
+      }),
+    });
+  }
 
   return NextResponse.json({ success: true, ...insightsView(hours) });
 }

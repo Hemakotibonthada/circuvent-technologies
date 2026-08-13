@@ -774,3 +774,180 @@ export function normaliseEvent(raw: unknown, ctx: { now: string; session: string
     ...(typeof r.userAgentClass === "string" ? { userAgentClass: r.userAgentClass.slice(0, 40) } : {}),
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * Metrics explorer
+ *
+ * The blades above answer fixed questions. This answers arbitrary ones:
+ * pick a metric, split it by a dimension, bucket it over time.
+ * ------------------------------------------------------------------ */
+
+export type MetricId =
+  | "count"
+  | "failures"
+  | "failureRate"
+  | "p50"
+  | "p95"
+  | "p99"
+  | "avgDuration"
+  | "sessions";
+
+export type SplitBy = "none" | "path" | "source" | "kind" | "method" | "statusClass" | "target";
+
+export const METRICS: { id: MetricId; label: string; unit: "count" | "ms" | "%" }[] = [
+  { id: "count", label: "Event count", unit: "count" },
+  { id: "failures", label: "Failed count", unit: "count" },
+  { id: "failureRate", label: "Failure rate", unit: "%" },
+  { id: "p50", label: "Duration P50", unit: "ms" },
+  { id: "p95", label: "Duration P95", unit: "ms" },
+  { id: "p99", label: "Duration P99", unit: "ms" },
+  { id: "avgDuration", label: "Duration average", unit: "ms" },
+  { id: "sessions", label: "Distinct sessions", unit: "count" },
+];
+
+export const SPLITS: { id: SplitBy; label: string }[] = [
+  { id: "none", label: "No split" },
+  { id: "path", label: "Operation" },
+  { id: "source", label: "Surface" },
+  { id: "kind", label: "Telemetry kind" },
+  { id: "method", label: "HTTP verb" },
+  { id: "statusClass", label: "Status class" },
+  { id: "target", label: "Dependency target" },
+];
+
+export interface MetricPoint {
+  /** ISO timestamp of the start of the bucket. */
+  at: string;
+  value: number;
+  /** How many events fed this point — a p99 over 2 samples is not a p99. */
+  samples: number;
+}
+
+export interface MetricSeries {
+  /** The dimension value, or "All" when unsplit. */
+  key: string;
+  points: MetricPoint[];
+  /** The metric applied to the whole series, not the mean of the points. */
+  total: number;
+}
+
+const splitValue = (e: TelemetryEvent, by: SplitBy): string | null => {
+  switch (by) {
+    case "none":
+      return "All";
+    case "path":
+      return e.path;
+    case "source":
+      return e.source;
+    case "kind":
+      return e.kind;
+    case "method":
+      return e.method ?? null;
+    case "target":
+      return e.target ?? null;
+    case "statusClass":
+      // A pageview has no status; bucketing it as "0xx" would invent a class.
+      return e.status > 0 ? `${Math.floor(e.status / 100)}xx` : null;
+    default:
+      return null;
+  }
+};
+
+/** Applies a metric to a bag of events. Exported for the tests and the table. */
+export function applyMetric(events: TelemetryEvent[], metric: MetricId): number {
+  if (events.length === 0) return 0;
+  switch (metric) {
+    case "count":
+      return events.length;
+    case "failures":
+      return events.filter((e) => !e.ok).length;
+    case "failureRate":
+      return Math.round((events.filter((e) => !e.ok).length / events.length) * 1000) / 10;
+    case "sessions":
+      return new Set(events.map((e) => e.session)).size;
+    case "avgDuration":
+      return Math.round(events.reduce((s, e) => s + e.durationMs, 0) / events.length);
+    case "p50":
+    case "p95":
+    case "p99": {
+      const p = metric === "p50" ? 50 : metric === "p95" ? 95 : 99;
+      return percentile(
+        events.map((e) => e.durationMs).sort((a, b) => a - b),
+        p
+      );
+    }
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Buckets events into a time series, one series per split value.
+ *
+ * Empty buckets are emitted as zero rather than skipped. A chart that omits
+ * them draws a straight line across an outage, which is the one shape that
+ * must never look calm.
+ */
+export function metricSeries(
+  events: TelemetryEvent[],
+  opts: {
+    metric: MetricId;
+    splitBy?: SplitBy;
+    hours?: number;
+    bucketMinutes?: number;
+    now: string;
+    /** Cap on returned series; the rest are dropped, largest kept. */
+    topN?: number;
+  }
+): { series: MetricSeries[]; bucketMinutes: number; truncated: number } {
+  const hours = opts.hours ?? 24;
+  const splitBy = opts.splitBy ?? "none";
+  const topN = opts.topN ?? 6;
+  const nowMs = new Date(opts.now).getTime();
+  const bucketMinutes =
+    opts.bucketMinutes ?? (hours <= 1 ? 1 : hours <= 6 ? 5 : hours <= 24 ? 15 : 60);
+  const bucketMs = bucketMinutes * 60_000;
+  const startMs = Math.floor((nowMs - hours * 3600_000) / bucketMs) * bucketMs;
+  const bucketCount = Math.max(1, Math.ceil((nowMs - startMs) / bucketMs));
+
+  const inWindow = events.filter((e) => {
+    const t = new Date(e.at).getTime();
+    return Number.isFinite(t) && t >= startMs && t <= nowMs;
+  });
+
+  const groups = new Map<string, TelemetryEvent[]>();
+  for (const e of inWindow) {
+    const k = splitValue(e, splitBy);
+    if (k == null) continue;
+    const bag = groups.get(k);
+    if (bag) bag.push(e);
+    else groups.set(k, [e]);
+  }
+
+  // Rank by volume, not by the metric: a p99 leaderboard is topped by whichever
+  // route was called twice, and that is never the one worth charting.
+  const ranked = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+  const kept = ranked.slice(0, topN);
+
+  const series = kept.map(([key, bag]) => {
+    const buckets: TelemetryEvent[][] = Array.from({ length: bucketCount }, () => []);
+    for (const e of bag) {
+      const idx = Math.min(
+        bucketCount - 1,
+        Math.floor((new Date(e.at).getTime() - startMs) / bucketMs)
+      );
+      if (idx >= 0) buckets[idx].push(e);
+    }
+    return {
+      key,
+      total: applyMetric(bag, opts.metric),
+      points: buckets.map((b, i) => ({
+        at: new Date(startMs + i * bucketMs).toISOString(),
+        value: applyMetric(b, opts.metric),
+        samples: b.length,
+      })),
+    };
+  });
+
+  return { series, bucketMinutes, truncated: Math.max(0, ranked.length - kept.length) };
+}

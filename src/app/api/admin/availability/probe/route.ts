@@ -28,7 +28,9 @@
 
 import { NextResponse } from "next/server";
 import { CONTROL_PLANE_URL } from "@/lib/control-plane";
-import { ingest, isDurable } from "@/lib/telemetry-store";
+import { ingest, isDurable, allEvents } from "@/lib/telemetry-store";
+import { detectAnomalies } from "@/lib/insights-anomalies";
+import { syncFromAlerts } from "@/lib/icm-store";
 import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -104,6 +106,41 @@ async function handle(request: Request) {
   }
 
   /*
+   * The same scheduled moment runs smart detection and files what it finds.
+   *
+   * Detection has to happen somewhere reliable. Running it when the Insights
+   * panel is read would only file incidents while somebody was already
+   * looking — which is the one time an incident is least needed. Running it on
+   * every telemetry beacon would re-scan the whole buffer several times a
+   * second. A scheduled, authenticated, server-side tick is the honest place,
+   * and this route is already all three.
+   *
+   * It goes through syncFromAlerts, so it inherits the bridge's rules rather
+   * than getting a second path around them: one incident per fingerprint,
+   * never a Sev0 from a machine, and no closing an incident a human picked up.
+   */
+  let anomalies: ReturnType<typeof detectAnomalies> = [];
+  let filed: string[] = [];
+  try {
+    anomalies = detectAnomalies(allEvents(), new Date().toISOString());
+    if (anomalies.length) {
+      const sync = syncFromAlerts(anomalies, { owningTeam: "Platform" });
+      filed = sync.filed.map((i) => i.id);
+      if (filed.length) {
+        logger.warn("insights.incidents_filed", { count: filed.length, ids: filed.join(",") });
+      }
+    }
+  } catch (e) {
+    /*
+     * Detection must not take the probe down with it. The health result is
+     * already recorded above and is the more important of the two jobs; losing
+     * it because an aggregation threw would trade a working check for a
+     * broken one.
+     */
+    logger.error("insights.detection_failed", {}, e);
+  }
+
+  /*
    * 200 even when the control plane is down. The probe itself succeeded: it
    * asked, and "unreachable" is the answer. Returning 500 would make the
    * scheduler's own retry logic — and any uptime monitor watching *this*
@@ -118,6 +155,7 @@ async function handle(request: Request) {
      * in memory, so this result is likely lost before anyone reads it and the
      * panel would show one lonely check rather than a history.
      */
+    detection: { findings: anomalies.length, incidentsFiled: filed },
     retained: isDurable(),
     at: new Date().toISOString(),
   });

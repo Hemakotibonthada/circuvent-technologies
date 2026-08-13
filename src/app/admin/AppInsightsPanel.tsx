@@ -1,6 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toCsv, downloadCsv } from "../smarthome/_kit/primitives";
+import { METRICS, SPLITS, type MetricId, type SplitBy, type MetricSeries } from "@/lib/app-insights";
+
+interface ExplorerView {
+  series: MetricSeries[];
+  bucketMinutes: number;
+  truncated: number;
+}
+
+/** Distinguishable at a glance, and legible on both themes. */
+const SERIES_COLOURS = ["#22d3ee", "#a78bfa", "#f59e0b", "#34d399", "#f472b6", "#60a5fa"];
 import {
   Activity,
   AlertTriangle,
@@ -132,15 +143,77 @@ function Series({ series }: { series: InsightsSummary["series"] }) {
   );
 }
 
+/** A multi-series line chart, drawn as inline SVG. */
+function MetricChart({ series, unit }: { series: MetricSeries[]; unit: "count" | "ms" | "%" }) {
+  const W = 900;
+  const H = 220;
+  const PAD = { l: 48, r: 12, t: 12, b: 24 };
+  const len = Math.max(1, series[0]?.points.length ?? 1);
+  /*
+   * The y-axis starts at zero even when every value is high. An axis that
+   * starts at the minimum turns a 2% wobble into a cliff, which is how a
+   * healthy service ends up looking like an outage.
+   */
+  const max = Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.value)));
+  const x = (i: number) => PAD.l + (i / Math.max(1, len - 1)) * (W - PAD.l - PAD.r);
+  const y = (v: number) => PAD.t + (1 - v / max) * (H - PAD.t - PAD.b);
+  const fmt = (v: number) => (unit === "%" ? `${v}%` : unit === "ms" ? `${Math.round(v)} ms` : v.toLocaleString());
+
+  return (
+    <div className="rounded-xl border cv-border cv-surface p-3">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Metric over time">
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <g key={f}>
+            <line x1={PAD.l} x2={W - PAD.r} y1={y(max * f)} y2={y(max * f)} stroke="var(--border)" strokeWidth={1} />
+            <text x={PAD.l - 6} y={y(max * f) + 4} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+              {unit === "%" ? `${Math.round(max * f)}%` : Math.round(max * f).toLocaleString()}
+            </text>
+          </g>
+        ))}
+        {series.map((s, si) => (
+          <g key={s.key}>
+            <polyline
+              fill="none"
+              stroke={SERIES_COLOURS[si % SERIES_COLOURS.length]}
+              strokeWidth={2}
+              points={s.points.map((p, i) => `${x(i)},${y(p.value)}`).join(" ")}
+            />
+            {s.points.map((p, i) => (
+              <circle key={i} cx={x(i)} cy={y(p.value)} r={2.5} fill={SERIES_COLOURS[si % SERIES_COLOURS.length]}>
+                <title>{`${fmtTime(p.at)} · ${s.key} · ${fmt(p.value)} (${p.samples} samples)`}</title>
+              </circle>
+            ))}
+          </g>
+        ))}
+      </svg>
+      <div className="flex flex-wrap gap-3 px-2 pt-1">
+        {series.map((s, si) => (
+          <span key={s.key} className="inline-flex items-center gap-1.5 text-[11px] cv-text-muted">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: SERIES_COLOURS[si % SERIES_COLOURS.length] }}
+            />
+            {s.key} · {fmt(s.total)}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function AppInsightsPanel() {
   const [view, setView] = useState<View | null>(null);
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"requests" | "dependencies" | "performance" | "logs" | "paths" | "failures" | "journeys">("requests");
+  const [tab, setTab] = useState<"requests" | "dependencies" | "performance" | "metrics" | "logs" | "paths" | "failures" | "journeys">("requests");
   const [openFailure, setOpenFailure] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState("");
   const [logOutcome, setLogOutcome] = useState<"all" | "failed" | "ok">("all");
+  const [metric, setMetric] = useState<MetricId>("count");
+  const [splitBy, setSplitBy] = useState<SplitBy>("none");
+  const [explorer, setExplorer] = useState<ExplorerView | null>(null);
+  const [explorerBusy, setExplorerBusy] = useState(false);
 
   /*
    * Filtered client-side, over the 200 events the server already sent. Round
@@ -169,9 +242,31 @@ export default function AppInsightsPanel() {
     setLoading(false);
   }, [hours]);
 
+  const loadExplorer = useCallback(async () => {
+    setExplorerBusy(true);
+    try {
+      const q = new URLSearchParams({ metric, splitBy, hours: String(hours) });
+      const r = await fetch(`/api/admin/insights-telemetry?${q}`, { headers: { "x-admin-token": tok() } });
+      const b = await r.json();
+      if (r.ok && b.success) setExplorer(b as ExplorerView);
+    } catch {
+      /* The chart keeps its last good render; the panel-level error owns the banner. */
+    }
+    setExplorerBusy(false);
+  }, [metric, splitBy, hours]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  /*
+   * Only fetched while the blade is open. The explorer runs a full pass over the
+   * buffer, and paying for it behind a tab nobody is looking at is how an
+   * observability console becomes the thing that needs observing.
+   */
+  useEffect(() => {
+    if (tab === "metrics") void loadExplorer();
+  }, [tab, loadExplorer]);
 
   const clear = async () => {
     if (!confirm("Discard all buffered telemetry? Aggregates will rebuild as new events arrive.")) return;
@@ -307,6 +402,7 @@ export default function AppInsightsPanel() {
           ["requests", "Requests", view?.requests.length],
           ["dependencies", "Dependencies", view?.dependencies.length],
           ["performance", "Performance", view?.performance.length],
+          ["metrics", "Metrics", undefined],
           ["logs", "Logs", view?.recent.length],
           ["paths", "Accessed paths", view?.paths.length],
           ["failures", "Failures", view?.failures.length],
@@ -660,6 +756,83 @@ export default function AppInsightsPanel() {
         </div>
       )}
 
+      {view && tab === "metrics" && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="metric-pick">Metric</label>
+            <select
+              id="metric-pick"
+              value={metric}
+              onChange={(e) => setMetric(e.target.value as MetricId)}
+              className="h-[38px] rounded-lg border cv-border cv-surface px-3 text-sm cv-text-primary"
+            >
+              {METRICS.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+            <span className="text-xs cv-text-muted">split by</span>
+            <label className="sr-only" htmlFor="split-pick">Split by</label>
+            <select
+              id="split-pick"
+              value={splitBy}
+              onChange={(e) => setSplitBy(e.target.value as SplitBy)}
+              className="h-[38px] rounded-lg border cv-border cv-surface px-3 text-sm cv-text-primary"
+            >
+              {SPLITS.map((sp) => (
+                <option key={sp.id} value={sp.id}>{sp.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => void loadExplorer()}
+              className="inline-flex h-[38px] items-center gap-2 rounded-lg border cv-border px-3 text-sm cv-text-secondary hover:cv-surface-alt"
+            >
+              {explorerBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
+              Run
+            </button>
+            <button
+              type="button"
+              disabled={!explorer || explorer.series.length === 0}
+              onClick={() => {
+                if (!explorer) return;
+                const label = METRICS.find((m) => m.id === metric)?.label ?? metric;
+                downloadCsv(
+                  `insights-metric-${metric}-${splitBy}.csv`,
+                  toCsv(
+                    ["at", "series", "metric", "value", "samples"],
+                    explorer.series.flatMap((sr) =>
+                      sr.points.map((p) => [p.at, sr.key, label, p.value, p.samples])
+                    )
+                  )
+                );
+              }}
+              className="h-[38px] rounded-lg border cv-border px-3 text-xs font-semibold cv-text-secondary disabled:opacity-40"
+            >
+              Export
+            </button>
+          </div>
+
+          {explorer && explorer.series.length > 0 ? (
+            <>
+              <MetricChart
+                series={explorer.series}
+                unit={METRICS.find((m) => m.id === metric)?.unit ?? "count"}
+              />
+              <div className="text-[11px] cv-text-muted">
+                {explorer.bucketMinutes}-minute buckets over {hours}h.
+                {explorer.truncated > 0 &&
+                  ` ${explorer.truncated} lower-volume series not shown.`}{" "}
+                Series totals are the metric over the whole window, not the average of
+                the points — an average of percentiles is not a percentile.
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border cv-border py-10 text-center text-sm cv-text-muted">
+              {explorerBusy ? "Running…" : "No telemetry matches that metric in this window."}
+            </div>
+          )}
+        </div>
+      )}
+
       {view && tab === "logs" && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -681,6 +854,35 @@ export default function AppInsightsPanel() {
                 {o === "all" ? "All" : o === "failed" ? "Failures" : "Successes"}
               </button>
             ))}
+            <button
+              type="button"
+              disabled={visibleLogs.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  `insights-logs-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`,
+                  toCsv(
+                    ["at", "kind", "method", "path", "status", "outcome", "durationMs", "errorType", "errorMessage"],
+                    visibleLogs.map((e) => [
+                      e.at,
+                      e.kind,
+                      e.method ?? "",
+                      e.path,
+                      e.status,
+                      // Words rather than 1/0: a spreadsheet column of zeroes
+                      // beside a status of 200 reads as "no data".
+                      e.ok ? "ok" : "failed",
+                      e.durationMs,
+                      e.errorType ?? "",
+                      e.errorMessage ?? "",
+                    ])
+                  )
+                )
+              }
+              className="h-[38px] rounded-lg border cv-border px-3 text-xs font-semibold cv-text-secondary disabled:opacity-40"
+              title="Download the filtered rows as CSV"
+            >
+              Export{visibleLogs.length > 0 ? ` (${visibleLogs.length})` : ""}
+            </button>
           </div>
 
           <div className="overflow-x-auto rounded-xl border cv-border">

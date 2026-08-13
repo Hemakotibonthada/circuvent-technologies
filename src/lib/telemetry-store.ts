@@ -16,6 +16,9 @@
 import { createHash } from "node:crypto";
 import { createFileStore } from "./data-file";
 import {
+  metricSeries,
+  type MetricId,
+  type SplitBy,
   failureGroups,
   journeys,
   normaliseEvent,
@@ -121,6 +124,20 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     hours,
     now,
   };
+}
+
+/**
+ * The metrics explorer's data source.
+ *
+ * Separate from insightsView because it is parameterised by the question being
+ * asked, and because the panel only ever holds the most recent 200 events —
+ * far too few to chart a day.
+ */
+export function metricsView(
+  opts: { metric: MetricId; splitBy?: SplitBy; hours?: number; bucketMinutes?: number; topN?: number },
+  now = new Date().toISOString()
+) {
+  return { ...metricSeries(allEvents(), { ...opts, now }), now };
 }
 
 export function clearTelemetry(): void {

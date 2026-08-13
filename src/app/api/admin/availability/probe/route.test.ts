@@ -16,7 +16,7 @@
  */
 
 import { GET } from "@/app/api/admin/availability/probe/route";
-import { allEvents, clearTelemetry } from "@/lib/telemetry-store";
+import { allEvents, clearTelemetry, ingest } from "@/lib/telemetry-store";
 
 const realFetch = global.fetch;
 
@@ -102,5 +102,107 @@ describe("availability probe", () => {
     await GET(req({ authorization: "Bearer test-secret" }));
     expect(allEvents()[0].session).toBe("probe:availability");
     expect(allEvents()[0].source).toBe("probe");
+  });
+});
+
+describe("the sweep also files incidents from telemetry", () => {
+  beforeEach(() => {
+    clearTelemetry();
+    process.env.CRON_SECRET = "test-secret";
+    global.fetch = jest.fn().mockResolvedValue(new Response("{}", { status: 200 })) as unknown as typeof fetch;
+  });
+
+  it("files nothing when telemetry is healthy", async () => {
+    const now = Date.now();
+    ingest(
+      Array.from({ length: 100 }, () => ({
+        kind: "request",
+        path: "/api/devices",
+        method: "GET",
+        status: 200,
+        ok: true,
+        durationMs: 40,
+      })),
+      { session: "s", source: "web", now: new Date(now - 3 * 3600_000).toISOString() }
+    );
+
+    const res = await GET(req({ authorization: "Bearer test-secret" }));
+    const body = await res.json();
+    expect(body.detection.findings).toBe(0);
+    expect(body.detection.incidentsFiled).toEqual([]);
+  });
+
+  it("files an incident when a route starts failing", async () => {
+    const now = Date.now();
+    // A healthy baseline, well before the window.
+    ingest(
+      Array.from({ length: 200 }, () => ({
+        kind: "request",
+        path: "/api/orders",
+        method: "GET",
+        status: 200,
+        ok: true,
+        durationMs: 40,
+      })),
+      { session: "s", source: "web", now: new Date(now - 5 * 3600_000).toISOString() }
+    );
+    // Then a spike, inside it. Ingest caps a single call at 50 events, so this
+    // is sent in batches — which is also how a real browser reports.
+    for (let i = 0; i < 2; i++) {
+      ingest(
+        Array.from({ length: 40 }, () => ({
+          kind: "request",
+          path: "/api/orders",
+          method: "GET",
+          status: 500,
+          ok: false,
+          durationMs: 40,
+        })),
+        { session: "s", source: "web", now: new Date(now - 5 * 60_000).toISOString() }
+      );
+    }
+
+    const res = await GET(req({ authorization: "Bearer test-secret" }));
+    const body = await res.json();
+
+    expect(body.detection.findings).toBeGreaterThan(0);
+    expect(body.detection.incidentsFiled.length).toBeGreaterThan(0);
+  });
+
+  it("does not file the same incident twice on consecutive sweeps", async () => {
+    const now = Date.now();
+    ingest(
+      Array.from({ length: 200 }, () => ({
+        kind: "request",
+        path: "/api/carts",
+        method: "GET",
+        status: 200,
+        ok: true,
+        durationMs: 40,
+      })),
+      { session: "s", source: "web", now: new Date(now - 5 * 3600_000).toISOString() }
+    );
+    for (let i = 0; i < 2; i++) {
+      ingest(
+        Array.from({ length: 40 }, () => ({
+          kind: "request",
+          path: "/api/carts",
+          method: "GET",
+          status: 500,
+          ok: false,
+          durationMs: 40,
+        })),
+        { session: "s", source: "web", now: new Date(now - 5 * 60_000).toISOString() }
+      );
+    }
+
+    const first = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+    const second = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+
+    expect(first.detection.incidentsFiled.length).toBeGreaterThan(0);
+    // The detector still finds it — the problem has not gone away — but the
+    // bridge must not open a second incident for it.
+    expect(second.detection.findings).toBeGreaterThan(0);
+    expect(second.detection.incidentsFiled).toEqual([]);
   });
 });
