@@ -63,6 +63,10 @@ const FIRMWARE_TOGGLE: Record<string, string | null> = {
   "drone-link": null,
   "drone-x1": null,
   curtain: null, // a position, not a switch
+  // Every value a meter publishes is the output of a measurement. A toggle
+  // would be the app claiming it can set one, the firmware would ignore it,
+  // and the result is a control that looks like it works and does nothing.
+  meter: null,
 };
 
 describe("device toggle fields match the firmware", () => {

@@ -65,7 +65,7 @@ import {
 } from "@/lib/smarthome-prefs";
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 import { Slider } from "./_kit/Slider";
-import { FAN_STEP_LEVEL, levelToSpeed } from "@/lib/smarthome-command-map";
+import { FAN_STEP_LEVEL, levelToSpeed, buildFieldCommand } from "@/lib/smarthome-command-map";
 import { effectiveDeviceType } from "./_data/device-type";
 import { useRemoteCamera } from "./useRemoteCamera";
 import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } from "./recording";
@@ -101,6 +101,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   "smart-lock": { label: "Smart Lock", icon: Lock, accent: "#10b981", blurb: "Keyless entry" },
   "smart-switch": { label: "Smart Switch", icon: ToggleRight, accent: "#8b5cf6", blurb: "2-gang wall switch" },
   "energy-monitor": { label: "Energy Monitor", icon: Gauge, accent: "#f59e0b", blurb: "Whole-home metering" },
+  meter: { label: "Energy Meter", icon: Gauge, accent: "#f59e0b", blurb: "True-power metering, 1 or 3 phase" },
   guardian: { label: "Guardian", icon: ShieldAlert, accent: "#ef4444", blurb: "Personal safety" },
   "motion-sensor": { label: "Motion Sensor", icon: ScanLine, accent: "#22c55e", blurb: "PIR intrusion" },
   "agri-starter": { label: "Agri Starter", icon: Sprout, accent: "#22c55e", blurb: "Farm pump control" },
@@ -271,6 +272,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <SmartSwitch d={device} send={send} st={st} />;
     case "energy-monitor":
       return <EnergyMonitor d={device} />;
+    case "meter":
+      return <EnergyMeter d={device} send={send} st={st} />;
     case "guardian":
       return <Guardian d={device} send={send} st={st} />;
     case "motion-sensor":
@@ -977,6 +980,226 @@ function EnergyMonitor({ d }: { d: Device }) {
         <StatTile label="Energy" value={`${n(d.state.kwh).toFixed(2)} kWh`} />
       </div>
       <p className="text-slate-500 text-sm mt-4 italic">Read-only meter — no controls.</p>
+    </div>
+  );
+}
+
+/**
+ * Circuvent Energy Meter (cv-em1 / cv-em3).
+ *
+ * Distinct from EnergyMonitor above, which reads a CT clamp and assumes 230 V
+ * at a power factor of 0.95. This board measures voltage, current and true
+ * active power, so the power factor is a reading rather than an assumption —
+ * and on the loads people actually want measured, a fan on a triac or an LED
+ * driver, that assumption is what makes the older device wrong.
+ *
+ * Which means the power factor is worth showing prominently: it is the number
+ * that says whether the reading can be trusted, and it is the one an assuming
+ * meter cannot produce at all.
+ */
+function EnergyMeter({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const channels = Math.max(1, Math.min(3, n(d.state.channels, 1)));
+  const volts = n(d.state.volts);
+  const total = n(d.state.wattsTotal, n(d.state.watts0));
+
+  /* Per-channel keys are watts0/amps0/kwh0/pf0 on a three-phase board and
+     watts/amps/kwh/pf on a single. Read both so one component serves both. */
+  const ch = (base: string, i: number) =>
+    n(d.state[`${base}${i}`] ?? (channels === 1 ? d.state[base] : undefined));
+
+  const [calOpen, setCalOpen] = useState(false);
+  const [trueWatts, setTrueWatts] = useState("");
+  const [trueVolts, setTrueVolts] = useState("");
+  const [trueAmps, setTrueAmps] = useState("");
+
+  const calibrate = () => {
+    /*
+     * Built through buildFieldCommand rather than assembled here, so this
+     * inherits the contract's refusals — a trim against zero or a non-number
+     * would divide the multiplier into nothing, and the meter would come back
+     * confidently wrong. One command per quantity, which is also how the
+     * contract is specified and tested.
+     */
+    const trims: [string, string][] = [
+      ["calibrateWatts", trueWatts],
+      ["calibrateVolts", trueVolts],
+      ["calibrateAmps", trueAmps],
+    ];
+
+    let sent = 0;
+    for (const [field, raw] of trims) {
+      const value = parseFloat(raw);
+      if (!isFinite(value)) continue;
+      const cmd = buildFieldCommand("meter", field, value);
+      if (cmd) {
+        send(cmd as Record<string, unknown>);
+        sent += 1;
+      }
+    }
+
+    /* Nothing usable typed means nothing sent, and the panel stays open rather
+       than closing on a calibration that never happened. */
+    if (sent === 0) return;
+
+    setCalOpen(false);
+    setTrueWatts("");
+    setTrueVolts("");
+    setTrueAmps("");
+  };
+
+  return (
+    <div>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
+        <div className="text-6xl font-extrabold" style={{ color: "#f59e0b" }}>
+          {total.toFixed(0)}
+          <span className="text-2xl text-slate-400"> W</span>
+        </div>
+        <div className="text-slate-500 text-sm mt-2">
+          {channels > 1 ? `Total across ${channels} channels` : "Active power"}
+          {volts > 0 ? ` · ${volts.toFixed(1)} V` : ""}
+        </div>
+      </div>
+
+      <SectionLabel>{channels > 1 ? "Channels" : "Reading"}</SectionLabel>
+      <div className="space-y-2">
+        {Array.from({ length: channels }, (_, i) => {
+          const w = ch("watts", i);
+          const a = ch("amps", i);
+          const kwh = ch("kwh", i);
+          const pf = ch("pf", i);
+          return (
+            <div key={i} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-slate-300">
+                  {channels > 1 ? `Channel ${i + 1}` : "Load"}
+                </span>
+                <span className="text-lg font-bold text-amber-300">{w.toFixed(0)} W</span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-400">
+                <span>{a.toFixed(3)} A</span>
+                <span>{kwh.toFixed(3)} kWh</span>
+                <span
+                  title="Power factor. Below about 0.5 the load is heavily reactive — a motor starting, or a cheap driver."
+                  style={{ color: pf > 0 && pf < 0.5 ? "#fbbf24" : undefined }}
+                >
+                  PF {pf > 0 ? pf.toFixed(2) : "—"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <SectionLabel>Calibration</SectionLabel>
+      {!calOpen ? (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <p className="text-[12px] text-slate-400">
+            A shunt is several percent out of tolerance on its own. Trimming against a load whose
+            true consumption you know is the difference between a meter that is roughly right and
+            one you could bill against.
+          </p>
+          <button
+            onClick={() => setCalOpen(true)}
+            className="mt-2 min-h-[40px] rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10"
+          >
+            Calibrate
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-3">
+          <p className="text-[12px] text-amber-200">
+            Run a load you know the true value of — a resistive heater is ideal, an incandescent
+            lamp is close enough — then enter what it actually draws. Leave a box empty to leave
+            that trim alone.
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <label className="text-[11px] text-slate-400">
+              True watts
+              <input
+                inputMode="decimal"
+                value={trueWatts}
+                onChange={(e) => setTrueWatts(e.target.value)}
+                placeholder={total > 0 ? total.toFixed(0) : "1000"}
+                className="mt-1 h-[38px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+            </label>
+            <label className="text-[11px] text-slate-400">
+              True volts
+              <input
+                inputMode="decimal"
+                value={trueVolts}
+                onChange={(e) => setTrueVolts(e.target.value)}
+                placeholder={volts > 0 ? volts.toFixed(0) : "230"}
+                className="mt-1 h-[38px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+            </label>
+            <label className="text-[11px] text-slate-400">
+              True amps
+              <input
+                inputMode="decimal"
+                value={trueAmps}
+                onChange={(e) => setTrueAmps(e.target.value)}
+                placeholder={ch("amps", 0).toFixed(2)}
+                className="mt-1 h-[38px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+            </label>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={calibrate}
+              className={`min-h-[40px] flex-1 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white ${pendCls(st("wattsTotal"))}`}
+            >
+              Apply trim
+            </button>
+            <button
+              onClick={() => setCalOpen(false)}
+              className="min-h-[40px] rounded-xl border border-white/15 px-4 text-sm text-slate-300 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-amber-200/70">
+            Watts is trimmed against the pulse rate directly; volts and amps scale the existing
+            trim. Calibrating at no load does nothing, because there is no rate to compare.
+          </p>
+        </div>
+      )}
+
+      <SectionLabel>Energy counter</SectionLabel>
+      <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+        <p className="text-[12px] text-slate-400">
+          Clearing a running total is deliberate — a billing period ended, or the board moved to a
+          different load. It cannot be undone.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              if (confirm("Clear the energy total on every channel? This cannot be undone.")) {
+                const cmd = buildFieldCommand("meter", "reset", -1);
+                if (cmd) send(cmd as Record<string, unknown>);
+              }
+            }}
+            className="min-h-[40px] rounded-xl border border-red-900/60 px-4 text-sm font-semibold text-red-300 hover:bg-red-950/40"
+          >
+            Reset all channels
+          </button>
+          {channels > 1 &&
+            Array.from({ length: channels }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  if (confirm(`Clear the energy total on channel ${i + 1}?`)) {
+                    const cmd = buildFieldCommand("meter", "reset", i);
+                    if (cmd) send(cmd as Record<string, unknown>);
+                  }
+                }}
+                className="min-h-[40px] rounded-xl border border-white/15 px-3 text-sm text-slate-300 hover:bg-white/10"
+              >
+                Reset {i + 1}
+              </button>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }

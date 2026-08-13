@@ -88,6 +88,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
         {d.type === "smart-plug" && <SmartPlug d={d} send={send} c={c} />}
         {d.type === "smart-switch" && <SmartSwitch d={d} send={send} c={c} />}
         {d.type === "energy-monitor" && <EnergyMonitor d={d} c={c} />}
+        {d.type === "meter" && <EnergyMeter d={d} c={c} />}
         {d.type === "guardian" && <Guardian d={d} send={send} c={c} />}
         {d.type === "motion-sensor" && <MotionSensor d={d} send={send} c={c} />}
         {d.type === "agri-starter" && <AgriStarter d={d} send={send} c={c} />}
@@ -134,7 +135,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
  * precisely how the camera shipped showing JSON on the phone, and it is why
  * adding to this array is on the checklist in Docs/07-adding-a-new-device.md.
  */
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "meter", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -666,6 +667,59 @@ function EnergyMonitor({ d, c }: { d: Device; c: Palette }) {
         <MiniStat label="Current" value={`${Number(d.state.amps ?? 0).toFixed(2)} A`} c={c} />
         <MiniStat label="Energy" value={`${Number(d.state.kwh ?? 0).toFixed(2)} kWh`} c={c} />
       </View>
+    </View>
+  );
+}
+
+/**
+ * The cv-em1 / cv-em3 meter.
+ *
+ * Separate from EnergyMonitor above, which reads a CT clamp and assumes 230 V
+ * at a power factor of 0.95. This board measures true active power, so the
+ * power factor is a reading — and on a fan or an LED driver, the loads people
+ * actually ask about, that assumption is exactly what makes the older device
+ * wrong.
+ *
+ * Read-only on the phone by design. Calibration needs a reference load and a
+ * steady hand at a consumer unit, which is a console job rather than something
+ * to offer next to a light switch.
+ */
+function EnergyMeter({ d, c }: { d: Device; c: Palette }) {
+  const channels = Math.max(1, Math.min(3, Number(d.state.channels ?? 1)));
+  const volts = Number(d.state.volts ?? 0);
+  const total = Number(d.state.wattsTotal ?? d.state.watts0 ?? d.state.watts ?? 0);
+  const ch = (base: string, i: number) =>
+    Number(d.state[`${base}${i}`] ?? (channels === 1 ? d.state[base] : 0) ?? 0);
+
+  return (
+    <View>
+      <Big
+        value={total.toFixed(0)}
+        unit=" W"
+        caption={
+          channels > 1
+            ? `Total across ${channels} channels${volts > 0 ? ` · ${volts.toFixed(0)} V` : ""}`
+            : `Active power${volts > 0 ? ` · ${volts.toFixed(0)} V` : ""}`
+        }
+        c={c}
+      />
+      {Array.from({ length: channels }, (_, i) => {
+        const pf = ch("pf", i);
+        return (
+          <View key={i} style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
+            <MiniStat
+              label={channels > 1 ? `Ch ${i + 1}` : "Load"}
+              value={`${ch("watts", i).toFixed(0)} W`}
+              c={c}
+            />
+            <MiniStat label="Current" value={`${ch("amps", i).toFixed(2)} A`} c={c} />
+            <MiniStat label="Energy" value={`${ch("kwh", i).toFixed(2)} kWh`} c={c} />
+            {/* Power factor is the number that says whether the reading can be
+                trusted, and it is the one an assuming meter cannot produce. */}
+            <MiniStat label="PF" value={pf > 0 ? pf.toFixed(2) : "—"} c={c} />
+          </View>
+        );
+      })}
     </View>
   );
 }

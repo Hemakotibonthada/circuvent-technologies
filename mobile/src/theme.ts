@@ -202,6 +202,10 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   "smart-plug": { glyph: "🔌", icon: "smart-plug", accent: C.cyan, grad: GRAD.cyan, label: "Smart Plug", toggle: { field: "power", label: "Power" } },
   "smart-switch": { glyph: "🎚️", icon: "smart-switch", accent: C.violet, grad: GRAD.violet, label: "Smart Switch", toggle: { field: "power", label: "Gang 1" } },
   "energy-monitor": { glyph: "⚡", icon: "energy-monitor", accent: C.amber, grad: GRAD.amber, label: "Energy Monitor" },
+  // Measures true active power rather than assuming a power factor, so it has
+  // no toggle: every value it publishes is a measurement, and offering a
+  // control for one would be the app lying about physics.
+  meter: { glyph: "⚡", icon: "energy-monitor", accent: C.amber, grad: GRAD.amber, label: "Energy Meter" },
   guardian: { glyph: "🛡️", icon: "guardian", accent: C.red, grad: GRAD.red, label: "Guardian" },
   "motion-sensor": { glyph: "🚶", icon: "motion-sensor", accent: C.green, grad: GRAD.green, label: "Motion Sensor" },
   "agri-starter": { glyph: "🌱", icon: "agri-starter", accent: C.green, grad: GRAD.green, label: "Agri Starter", toggle: { field: "pump", label: "Pump" } },
