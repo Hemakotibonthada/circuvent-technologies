@@ -19,7 +19,7 @@ import { pool, recordEvent } from "../db";
 import { requireAuth, type AuthedRequest } from "../auth";
 import { logger } from "../logger";
 import { homesFor } from "./membership";
-import { canGrant, normaliseRole, refusalFor, ROLES, type HomeRole } from "./roles";
+import { canGrant, normaliseRole, refusalFor, capabilitiesOf, ROLES, type HomeRole } from "./roles";
 
 export const homeRouter = Router();
 
@@ -107,7 +107,20 @@ homeRouter.get("/members", requireAuth, async (req: AuthedRequest, res) => {
       role: m.role,
       since: m.created_at,
     })),
-    you: { id: actorOf(req), role: req.home?.role ?? "owner" },
+    you: {
+      id: actorOf(req),
+      role: req.home?.role ?? "owner",
+      /*
+       * Sent rather than derived on the client.
+       *
+       * A screen has to know what to offer, and the alternative is a copy of
+       * the role table in the browser that drifts from this one — at which
+       * point the console shows a button the server refuses, or worse, hides a
+       * control somebody is entitled to and they conclude the feature is
+       * broken.
+       */
+      capabilities: capabilitiesOf(req.home?.role ?? "owner"),
+    },
     limits: { maxMembers: MAX_MEMBERS },
   });
 });

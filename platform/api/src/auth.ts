@@ -170,8 +170,17 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
         if (!membership) {
           /* Asked for a home they are not in. Refused rather than quietly
              falling back to their own, which would show them their house while
-             they believed they were looking at somebody else's. */
-          res.status(403).json({ error: "You do not have access to that home." });
+             they believed they were looking at somebody else's.
+
+             The code matters: a client holding a home it has since been
+             removed from would otherwise be refused on every single request,
+             including the one that lists the homes it could switch back to —
+             a lockout with no way out of it. Clients drop the selection and
+             retry when they see this, and only this. */
+          res.status(403).json({
+            error: "You do not have access to that home.",
+            code: "home_unavailable",
+          });
           return;
         }
         req.home = membership;

@@ -59,8 +59,63 @@ export interface GatePass {
   qr: string;
 }
 
-/** One ANPR capture, after the plate was read (or found unreadable). */
-export interface PlateRead {
+/* -------------------------------------------------------- household sharing */
+
+/**
+ * What somebody can do in a home they were invited to.
+ *
+ * Mirrors the server's list exactly. Kept as a union rather than a string so
+ * that a screen offering a role the server does not know fails to compile
+ * instead of failing at the point somebody tries to use it.
+ */
+export type HomeRole = "owner" | "adult" | "limited" | "guest";
+
+/**
+ * What a role is allowed to do. Sent by the server rather than derived here —
+ * see `useHomeAccess` for why a browser-side copy of the rules is a trap.
+ */
+export type HomeCapability =
+  | "view"
+  | "control"
+  | "security"
+  | "manage-devices"
+  | "manage-automations"
+  | "manage-members"
+  | "account";
+
+export interface HomeSummary {
+  homeId: number;
+  role: HomeRole;
+  ownerName: string;
+  ownerEmail: string;
+}
+
+export interface HomeMember {
+  id: number;
+  name: string;
+  email: string;
+  role: HomeRole;
+  since?: string;
+}
+
+export interface HomeInvite {
+  code: string;
+  role: HomeRole;
+  email: string | null;
+  expiresAt: string;
+  createdAt: string;
+  /** One field rather than three booleans a screen has to combine — and get
+      the same way in every screen. */
+  status: "open" | "accepted" | "expired" | "revoked";
+}
+
+export interface HomeRoleInfo {
+  role: Exclude<HomeRole, "owner">;
+  label: string;
+  description: string;
+}
+
+/** One ANPR capture, after the plate was read (or found unreadable). */export interface PlateRead {
   id: number;
   deviceId: string;
   deviceName: string;
@@ -761,7 +816,35 @@ export function endSession(): void {
   setToken(null);
   setRefreshToken(null);
   setStoredUser(null);
+  setActiveHome(null);
   if (typeof window !== "undefined") window.localStorage.removeItem(SIGNED_IN_AT_KEY);
+}
+
+// ------------------------------------------------------------- shared homes --
+
+const ACTIVE_HOME_KEY = "cv_active_home";
+
+/**
+ * The home the console is currently looking at.
+ *
+ * Null means the signed-in account's own, which is what every session was
+ * before households existed — so nothing has to be set for the common case.
+ *
+ * Held in localStorage rather than in React state because it must survive a
+ * reload: somebody checking on their mother's house, who refreshes the page
+ * and silently lands back in their own, would read their own meter and
+ * conclude hers was fine.
+ */
+export function getActiveHome(): number | null {
+  if (typeof window === "undefined") return null;
+  const v = Number(window.localStorage.getItem(ACTIVE_HOME_KEY));
+  return Number.isInteger(v) && v > 0 ? v : null;
+}
+
+export function setActiveHome(homeId: number | null): void {
+  if (typeof window === "undefined") return;
+  if (homeId === null) window.localStorage.removeItem(ACTIVE_HOME_KEY);
+  else window.localStorage.setItem(ACTIVE_HOME_KEY, String(homeId));
 }
 
 // -------------------------------------------------------------- core fetch --
@@ -870,6 +953,16 @@ async function req<T = unknown>(  path: string,
   if (auth) {
     const t = getToken();
     if (t) headers["Authorization"] = "Bearer " + t;
+    /*
+     * Which home this call is about.
+     *
+     * Set here rather than at each call site so that every existing request is
+     * scoped by the switcher without being touched. Omitted when it is the
+     * caller's own home, so a session that never switches sends exactly what
+     * it always did.
+     */
+    const home = getActiveHome();
+    if (home) headers["x-circuvent-home"] = String(home);
   }
   try {
     const startedAt = Date.now();
@@ -900,6 +993,29 @@ async function req<T = unknown>(  path: string,
     }
 
     const data = (await res.json().catch(() => ({}))) as T;
+
+    /*
+     * The home we were acting in is gone — access revoked, or the account
+     * deleted. Drop the selection and replay against our own home.
+     *
+     * Without this the console is bricked rather than merely wrong: the stale
+     * header is sent on every request, so even the call that lists the homes
+     * you could switch back to is refused, and there is no path out of it from
+     * the screen. Narrowed to the one code the server sends for this, so an
+     * ordinary "guests cannot unlock doors" refusal does not silently move
+     * somebody out of the house they are looking at.
+     */
+    if (
+      res.status === 403 &&
+      auth &&
+      allowRetry &&
+      getActiveHome() &&
+      (data as { code?: string } | null)?.code === "home_unavailable"
+    ) {
+      setActiveHome(null);
+      return req<T>(path, opts, auth, false);
+    }
+
     return { ok: res.ok, status: res.status, data };
   } catch {
     emit({
@@ -1228,12 +1344,49 @@ export const controlPlane = {
     ),
 
   gatePasses: (deviceId?: string) =>
-    req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),
-  createGatePass: (body: { deviceId: string; label?: string; validToMinutes?: number; maxUses?: number }) =>
+    req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),  createGatePass: (body: { deviceId: string; label?: string; validToMinutes?: number; maxUses?: number }) =>
     req<{ pass: GatePass }>("/gate/passes", { method: "POST", body: JSON.stringify(body) }),
   revokeGatePass: (id: number) => req<{ success: boolean }>("/gate/passes/" + id + "/revoke", { method: "POST" }),
   redeemGatePass: (code: string) =>
     req<{ ok: boolean; opened?: boolean; label?: string; usesLeft?: number; error?: string }>("/gate/redeem", { method: "POST", body: JSON.stringify({ code }) }),
+
+  // ---- household sharing --------------------------------------------------
+  /**
+   * Every home this account can act in, their own first.
+   *
+   * The active-home header rides along like it does on everything else, and is
+   * ignored here on purpose: the server answers this for the person, so the
+   * switcher can still list the homes you could move to while you are inside
+   * one of them.
+   */
+  homes: () => req<{ homes: HomeSummary[] }>("/home/mine"),
+  homeMembers: () =>
+    req<{
+      owner: HomeMember | null;
+      members: HomeMember[];
+      you: { id: number; role: HomeRole; capabilities: HomeCapability[] };
+      limits: { maxMembers: number };
+    }>("/home/members"),
+  homeRoles: () => req<{ roles: HomeRoleInfo[] }>("/home/roles"),
+  inviteToHome: (body: { role: Exclude<HomeRole, "owner">; email?: string }) =>
+    req<{ code: string; role: HomeRole; expiresAt: string; link: string }>("/home/invites", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  homeInvites: () => req<{ invites: HomeInvite[] }>("/home/invites"),
+  revokeHomeInvite: (code: string) =>
+    req<{ ok: boolean }>("/home/invites/" + encodeURIComponent(code) + "/revoke", { method: "POST" }),
+  joinHome: (code: string) =>
+    req<{ ok: boolean; homeId: number; role: HomeRole }>("/home/join", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  setMemberRole: (id: number, role: Exclude<HomeRole, "owner">) =>
+    req<{ ok: boolean; role: HomeRole }>("/home/members/" + id, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (id: number) => req<{ ok: boolean }>("/home/members/" + id, { method: "DELETE" }),
 
   // ---- scenes -------------------------------------------------------------
   scenes: () => req<{ scenes: Scene[] }>("/scenes"),

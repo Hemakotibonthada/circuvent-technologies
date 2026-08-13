@@ -46,6 +46,17 @@ export type Capability =
   /** Billing, account deletion, transferring the home. */
   | "account";
 
+/** Every capability, in a stable order. */
+export const ALL_CAPABILITIES: Capability[] = [
+  "view",
+  "control",
+  "security",
+  "manage-devices",
+  "manage-automations",
+  "manage-members",
+  "account",
+];
+
 const CAPABILITIES: Record<HomeRole, Capability[]> = {
   owner: [
     "view",
@@ -75,6 +86,17 @@ const CAPABILITIES: Record<HomeRole, Capability[]> = {
    */
   guest: ["view"],
 };
+
+/**
+ * Every capability a role has, as a list a client can test against.
+ *
+ * The map itself stays private to `roles.ts` — this is the only way out of it,
+ * so there is one definition of what a role means and screens read it rather
+ * than restating it.
+ */
+export function capabilitiesOf(role: HomeRole): Capability[] {
+  return ALL_CAPABILITIES.filter((c) => can(role, c));
+}
 
 export function can(role: HomeRole, capability: Capability): boolean {
   return CAPABILITIES[role]?.includes(capability) ?? false;

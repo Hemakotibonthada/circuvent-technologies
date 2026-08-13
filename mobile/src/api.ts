@@ -38,7 +38,39 @@ export async function getSignInAt(): Promise<number | null> {
 export async function endSession(): Promise<void> {
   await setToken(null);
   await setRefreshToken(null);
+  await setActiveHome(null);
   await AsyncStorage.removeItem(SIGNED_IN_AT_KEY);
+}
+
+const ACTIVE_HOME_KEY = "cv-active-home";
+
+/**
+ * Which home the app is showing.
+ *
+ * Null means the signed-in account's own, which is what every session was
+ * before households existed, so an app that never switches behaves exactly as
+ * it did. Cached in memory as well as on disk because `req` needs it on every
+ * call and AsyncStorage is a bridge hop — a lock screen that waits on storage
+ * to draw a toggle feels broken.
+ */
+let activeHome: number | null = null;
+let activeHomeLoaded = false;
+
+export async function getActiveHome(): Promise<number | null> {
+  if (!activeHomeLoaded) {
+    const raw = await AsyncStorage.getItem(ACTIVE_HOME_KEY);
+    const n = raw ? Number(raw) : Number.NaN;
+    activeHome = Number.isInteger(n) && n > 0 ? n : null;
+    activeHomeLoaded = true;
+  }
+  return activeHome;
+}
+
+export async function setActiveHome(homeId: number | null): Promise<void> {
+  activeHome = homeId;
+  activeHomeLoaded = true;
+  if (homeId === null) await AsyncStorage.removeItem(ACTIVE_HOME_KEY);
+  else await AsyncStorage.setItem(ACTIVE_HOME_KEY, String(homeId));
 }
 
 /**
@@ -130,6 +162,11 @@ async function req<T = any>(path: string, opts: RequestInit = {}, auth = true, a
   if (auth) {
     const t = await getToken();
     if (t) headers["Authorization"] = "Bearer " + t;
+    /* Which home this call is about. Set here so every existing request is
+       scoped by the switcher without being touched, and omitted entirely when
+       it is the caller's own. */
+    const home = await getActiveHome();
+    if (home) headers["x-circuvent-home"] = String(home);
     /*
      * Only on authenticated calls. These describe the install so the account
      * holder can see which phones are signed in and support can tell what build
@@ -159,6 +196,23 @@ async function req<T = any>(path: string, opts: RequestInit = {}, auth = true, a
     }
 
     const data = await res.json().catch(() => ({}));
+
+    /*
+     * The home we were acting in is gone — access revoked, or the account
+     * deleted. Drop the selection and replay against our own.
+     *
+     * Without this the app is bricked rather than merely wrong: the stale
+     * header goes on every request, so even the call that lists the homes to
+     * switch back to is refused, and there is no way out of it from the
+     * screen. Narrowed to the one code the server sends for this, so an
+     * ordinary "guests cannot unlock doors" refusal does not silently move
+     * somebody out of the house they are looking at.
+     */
+    if (res.status === 403 && auth && allowRetry && data?.code === "home_unavailable") {
+      await setActiveHome(null);
+      return req<T>(path, opts, auth, false);
+    }
+
     return { ok: res.ok, status: res.status, data };
   } catch {
     return { ok: false, status: 0, data: { error: "Network error" } as any };
@@ -508,6 +562,55 @@ interface AuthResp {
 
 // Self-hosted control-plane client (platform/api). JWT auth; commands publish
 // over MQTT server-side and reach the device in <1s.
+/* -------------------------------------------------------- household sharing */
+
+/** What somebody can do in a home they were invited to. */
+export type HomeRole = "owner" | "adult" | "limited" | "guest";
+
+/**
+ * Sent by the server rather than worked out here — a copy of the role table in
+ * the app would drift from the one the API enforces, and then the app either
+ * offers a control that refuses or hides one somebody is entitled to.
+ */
+export type HomeCapability =
+  | "view"
+  | "control"
+  | "security"
+  | "manage-devices"
+  | "manage-automations"
+  | "manage-members"
+  | "account";
+
+export interface HomeSummary {
+  homeId: number;
+  role: HomeRole;
+  ownerName: string;
+  ownerEmail: string;
+}
+
+export interface HomeMember {
+  id: number;
+  name: string;
+  email: string;
+  role: HomeRole;
+  since?: string;
+}
+
+export interface HomeInvite {
+  code: string;
+  role: HomeRole;
+  email: string | null;
+  expiresAt: string;
+  createdAt: string;
+  status: "open" | "accepted" | "expired" | "revoked";
+}
+
+export interface HomeRoleInfo {
+  role: Exclude<HomeRole, "owner">;
+  label: string;
+  description: string;
+}
+
 export interface FaceProfile {
   id: number;
   name: string;
@@ -532,6 +635,39 @@ export interface FaceAttempt {
 }
 
 export const api = {
+  /* ------------------------------------------------------ household sharing --
+   * A home has one account that owns it and any number of people who live in
+   * it. Before this, sharing a home meant sharing the password.
+   */
+  homes: () => req<{ homes: HomeSummary[] }>("/home/mine"),
+  homeMembers: () =>
+    req<{
+      owner: HomeMember | null;
+      members: HomeMember[];
+      you: { id: number; role: HomeRole; capabilities: HomeCapability[] };
+      limits: { maxMembers: number };
+    }>("/home/members"),
+  homeRoles: () => req<{ roles: HomeRoleInfo[] }>("/home/roles"),
+  inviteToHome: (body: { role: Exclude<HomeRole, "owner">; email?: string }) =>
+    req<{ code: string; role: HomeRole; expiresAt: string; link: string }>("/home/invites", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  homeInvites: () => req<{ invites: HomeInvite[] }>("/home/invites"),
+  revokeHomeInvite: (code: string) =>
+    req<{ ok: boolean }>("/home/invites/" + encodeURIComponent(code) + "/revoke", { method: "POST" }),
+  joinHome: (code: string) =>
+    req<{ ok: boolean; homeId: number; role: HomeRole }>("/home/join", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  setMemberRole: (id: number, role: Exclude<HomeRole, "owner">) =>
+    req<{ ok: boolean; role: HomeRole }>("/home/members/" + id, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (id: number) => req<{ ok: boolean }>("/home/members/" + id, { method: "DELETE" }),
+
   /* ---------------------------------------------------------------- face --
    * FaceDoor enrolment.
    *

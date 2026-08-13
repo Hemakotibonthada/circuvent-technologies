@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { capabilityFor, mayCommand, mayWatch } from "./guard";
-import { canGrant, can, isAccountHolder, normaliseRole, ROLES, type HomeRole } from "./roles";
+import { canGrant, can, isAccountHolder, normaliseRole, capabilitiesOf, ALL_CAPABILITIES, ROLES, type HomeRole } from "./roles";
 
 const EVERY_ROLE: HomeRole[] = ROLES;
 
@@ -223,4 +223,31 @@ test("unknown roles are rejected rather than guessed", () => {
 
 test("every role can view", () => {
   for (const role of EVERY_ROLE) assert.equal(can(role, "view"), true);
+});
+
+test("the capability list a client is sent matches what the server enforces", () => {
+  // The console decides what to *show* from this list and the server decides
+  // what to *allow* from the map. If they part company, the console offers a
+  // button that refuses — or hides one somebody is entitled to, and they
+  // conclude the product is broken.
+  for (const role of EVERY_ROLE) {
+    const sent = capabilitiesOf(role);
+    for (const c of ALL_CAPABILITIES) {
+      assert.equal(
+        sent.includes(c),
+        can(role, c),
+        `${role}: capabilitiesOf and can disagree about ${c}`
+      );
+    }
+  }
+});
+
+test("no capability is missing from the exported list", () => {
+  // An added capability that nobody adds here would be invisible to every
+  // client, so a control guarded by it would simply never appear.
+  const fromMap = new Set(EVERY_ROLE.flatMap((r) => capabilitiesOf(r)));
+  for (const c of fromMap) {
+    assert.ok(ALL_CAPABILITIES.includes(c), `${c} is enforced but never sent to a client`);
+  }
+  assert.equal(new Set(ALL_CAPABILITIES).size, ALL_CAPABILITIES.length, "duplicated entry");
 });
