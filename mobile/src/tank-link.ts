@@ -33,6 +33,7 @@ export type TankLinkStatus =
   | "waiting"     // paired, nothing heard yet
   | "live"        // recent enough to act on
   | "stale"       // late, but the last reading is probably still roughly true
+  | "fault"       // arriving fine, but the readings are not usable
   | "lost";       // so old it tells you nothing about the tank now
 
 export interface TankLinkState {
@@ -181,11 +182,17 @@ export function readTankLink(state: TankDeviceState | null | undefined): TankLin
   }
 
   if (s.ohFault) {
+    /*
+     * Arriving on time and unusable is a different problem from not arriving,
+     * and it has a different fix. Reporting it as "stale" sends someone to
+     * check the antenna and the battery when the radio is working perfectly
+     * and the transducer is pointed at the inlet stream.
+     */
     return {
       ...base,
       levelPct: null,
       ageS,
-      status: "stale",
+      status: "fault",
       levelIsCurrent: false,
       label: "Sensor fault",
       detail:

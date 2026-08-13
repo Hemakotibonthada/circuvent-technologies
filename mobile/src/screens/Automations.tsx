@@ -375,7 +375,17 @@ function DevicePicker({ devices, selected, onSelect }: { devices: Device[]; sele
 
 // Hide noisy/read-only telemetry keys when the user is picking a CONTROL to set.
 const SETTABLE = new Set(["power", "power2", "power3", "power4", "pump", "auto", "locked", "armed", "g1", "g2", "g3", "backlight", "scene", "brightness", "target", "speed", "position", "color"]);
-const HIDDEN_FIELDS = new Set(["fw", "rssi", "uptime", "sensorFault", "ohFault", "sumpFault"]);
+/*
+ * Fields that are noise in a trigger picker. `rfRejected` is a diagnostic
+ * counter, and `pairing` is a transient setup state — a rule keyed on either
+ * would fire on things the user did not mean. `rfLinkUp` and `tankBattPct` are
+ * deliberately NOT hidden: "tell me when the tank sensor stops reporting" is
+ * one of the most useful rules this product can offer.
+ */
+const HIDDEN_FIELDS = new Set([
+  "fw", "rssi", "uptime", "sensorFault", "ohFault", "sumpFault",
+  "rfRejected", "pairing", "radioReady", "ohLive",
+]);
 
 function humanField(f: string): string {
   const map: Record<string, string> = {
@@ -383,6 +393,9 @@ function humanField(f: string): string {
     level: "Level", ohPct: "Overhead %", sumpPct: "Sump %", watts: "Power (W)", volts: "Voltage", amps: "Current",
     temperature: "Temperature", humidity: "Humidity", motion: "Motion", dryRun: "Dry-run", overflow: "Overflow",
     g1: "Gang 1", g2: "Gang 2", g3: "Gang 3", backlight: "Backlight", battery: "Battery", barrier: "Barrier",
+    rfLinkUp: "Tank sensor reporting", rfAgeS: "Tank sensor last heard (s)",
+    tankBattPct: "Tank sensor battery %", tankBattLow: "Tank sensor battery low",
+    sensorPaired: "Tank sensor paired",
   };
   return map[f] || f.replace(/([A-Z])/g, " $1").replace(/^./, (m) => m.toUpperCase());
 }

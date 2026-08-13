@@ -16,6 +16,9 @@
 // passed in. That keeps it testable and keeps the results reproducible.
 
 import type { Device, AppEvent } from "../control-plane";
+// Value import is safe despite tank-health importing Finding from here: that
+// direction is `import type`, which is erased, so there is no runtime cycle.
+import { findTankSensorProblems } from "../tank-health";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -411,6 +414,13 @@ export function analyseHome(input: {
     ...findStandbyDrain(devices),
     ...findRecurringEvents(input.events ?? [], now),
     ...findScheduleConflicts(input.automations ?? []),
+    /*
+     * Tank sensors need their own detector because the controller stays online
+     * while its sensor dies. Everything above is looking at the controller and
+     * sees a healthy device, so without this a tank quietly stops being filled
+     * and the first anyone knows is that there is no water.
+     */
+    ...findTankSensorProblems(devices),
   ];
 
   for (const [deviceId, points] of Object.entries(input.telemetry ?? {})) {
