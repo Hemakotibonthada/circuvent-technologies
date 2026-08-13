@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { toCsv, downloadCsv } from "../smarthome/_kit/primitives";
 import { METRICS, SPLITS, type MetricId, type SplitBy, type MetricSeries } from "@/lib/app-insights";
+import {
+  describeRule,
+  formatMetricValue,
+  validateRule,
+  type AlertRule,
+} from "@/lib/insights-alert-rules";
 
 interface ExplorerView {
   series: MetricSeries[];
@@ -12,6 +18,187 @@ interface ExplorerView {
 
 /** Distinguishable at a glance, and legible on both themes. */
 const SERIES_COLOURS = ["#22d3ee", "#a78bfa", "#f59e0b", "#34d399", "#f472b6", "#60a5fa"];
+
+/** A rule as the API returns it — the stored rule plus what it evaluates to now. */
+type RuleRow = AlertRule & {
+  current?: number;
+  evaluations?: { key: string; value: number; samples: number; breached: boolean; reason: string }[];
+};
+
+/*
+ * A new rule starts conservative: 60 minutes and 50 samples.
+ *
+ * The defaults decide whether the first rule anybody writes is useful or is the
+ * one that pages at 3am over four requests, and nobody edits a default they do
+ * not yet know they should distrust.
+ */
+function blankRule(): RuleRow {
+  return {
+    id: "",
+    name: "",
+    enabled: true,
+    metric: "failureRate",
+    splitBy: "none",
+    comparison: "above",
+    threshold: 5,
+    windowMins: 60,
+    minSamples: 50,
+    severity: "warning",
+    owningTeam: "Platform",
+    createdBy: "",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function RuleEditor({
+  rule,
+  onSave,
+  onCancel,
+}: {
+  rule: RuleRow;
+  onSave: (r: RuleRow) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<RuleRow>(rule);
+  const set = <K extends keyof RuleRow>(k: K, v: RuleRow[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  /*
+   * Validated as you type, using the same function the server uses, so the
+   * save button cannot offer to do something the server will refuse.
+   */
+  const problem = validateRule(draft);
+
+  return (
+    <div className="rounded-xl border cv-border cv-surface p-4">
+      <div className="mb-3 text-sm font-bold cv-text-primary">
+        {rule.id ? "Edit rule" : "New rule"}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-[12px] cv-text-muted">
+          Name
+          <input
+            value={draft.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="Checkout is slow"
+            className="mt-1 h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
+          />
+        </label>
+
+        <label className="text-[12px] cv-text-muted">
+          Metric
+          <select
+            value={draft.metric}
+            onChange={(e) => set("metric", e.target.value as MetricId)}
+            className="mt-1 h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
+          >
+            {METRICS.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-[12px] cv-text-muted">
+          Split by
+          <select
+            value={draft.splitBy}
+            onChange={(e) => set("splitBy", e.target.value as SplitBy)}
+            className="mt-1 h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
+          >
+            {SPLITS.map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-[12px] cv-text-muted">
+          Only for (optional)
+          <input
+            value={draft.scope ?? ""}
+            onChange={(e) => set("scope", e.target.value || undefined)}
+            placeholder="/api/checkout"
+            disabled={draft.splitBy === "none"}
+            className="mt-1 h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary disabled:opacity-40"
+          />
+        </label>
+
+        <label className="text-[12px] cv-text-muted">
+          Fires when the value is
+          <div className="mt-1 flex gap-2">
+            <select
+              value={draft.comparison}
+              onChange={(e) => set("comparison", e.target.value as "above" | "below")}
+              className="h-[38px] rounded-lg border cv-border cv-surface-alt px-2 text-sm cv-text-primary"
+            >
+              <option value="above">above</option>
+              <option value="below">below</option>
+            </select>
+            <input
+              type="number"
+              value={draft.threshold}
+              onChange={(e) => set("threshold", Number(e.target.value))}
+              className="h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
+            />
+          </div>
+        </label>
+
+        <label className="text-[12px] cv-text-muted">
+          Severity
+          <select
+            value={draft.severity}
+            onChange={(e) => set("severity", e.target.value as RuleRow["severity"])}
+            className="mt-1 h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
+          >
+            <option value="info">info</option>
+            <option value="warning">warning</option>
+            <option value="critical">critical</option>
+          </select>
+        </label>
+
+        <label className="text-[12px] cv-text-muted">
+          Over the last (minutes)
+          <input
+            type="number"
+            value={draft.windowMins}
+            onChange={(e) => set("windowMins", Number(e.target.value))}
+            className="mt-1 h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
+          />
+        </label>
+
+        <label className="text-[12px] cv-text-muted">
+          Needing at least (samples)
+          <input
+            type="number"
+            value={draft.minSamples}
+            onChange={(e) => set("minSamples", Number(e.target.value))}
+            className="mt-1 h-[38px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
+          />
+        </label>
+      </div>
+
+      <div className="mt-3 rounded-lg border cv-border cv-surface-alt px-3 py-2 text-[12px] cv-text-secondary">
+        {describeRule(draft)}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          onClick={() => onSave(draft)}
+          disabled={Boolean(problem)}
+          className="h-[38px] rounded-lg bg-cyan-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          Save
+        </button>
+        <button
+          onClick={onCancel}
+          className="h-[38px] rounded-lg border cv-border px-4 text-sm cv-text-secondary"
+        >
+          Cancel
+        </button>
+        {problem && <span className="text-[12px] text-amber-300">{problem}</span>}
+      </div>
+    </div>
+  );
+}
+
 import {
   Activity,
   AlertTriangle,
@@ -206,7 +393,7 @@ export default function AppInsightsPanel() {
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"requests" | "dependencies" | "performance" | "metrics" | "logs" | "paths" | "failures" | "journeys">("requests");
+  const [tab, setTab] = useState<"requests" | "dependencies" | "performance" | "metrics" | "alerts" | "logs" | "paths" | "failures" | "journeys">("requests");
   const [openFailure, setOpenFailure] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState("");
   const [logOutcome, setLogOutcome] = useState<"all" | "failed" | "ok">("all");
@@ -214,6 +401,8 @@ export default function AppInsightsPanel() {
   const [splitBy, setSplitBy] = useState<SplitBy>("none");
   const [explorer, setExplorer] = useState<ExplorerView | null>(null);
   const [explorerBusy, setExplorerBusy] = useState(false);
+  const [rules, setRules] = useState<RuleRow[]>([]);
+  const [editing, setEditing] = useState<RuleRow | null>(null);
 
   /*
    * Filtered client-side, over the 200 events the server already sent. Round
@@ -267,6 +456,52 @@ export default function AppInsightsPanel() {
   useEffect(() => {
     if (tab === "metrics") void loadExplorer();
   }, [tab, loadExplorer]);
+
+  const loadRules = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/insights-rules", { headers: { "x-admin-token": tok() } });
+      const b = await r.json();
+      if (r.ok && b.success) setRules(b.rules as RuleRow[]);
+    } catch {
+      /* The panel-level banner owns errors; a stale rule list is not one. */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "alerts") void loadRules();
+  }, [tab, loadRules]);
+
+  const saveRule = useCallback(
+    async (rule: RuleRow) => {
+      const r = await fetch("/api/admin/insights-rules", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify(rule),
+      });
+      const b = await r.json();
+      /* The validator's message is shown verbatim: it already explains what is
+         wrong with the rule far better than "could not save" would. */
+      if (!r.ok || !b.success) setError(b.message || "Could not save that rule.");
+      else {
+        setError("");
+        setEditing(null);
+        void loadRules();
+      }
+    },
+    [loadRules]
+  );
+
+  const removeRule = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete this rule? It will not come back on its own.")) return;
+      const r = await fetch(`/api/admin/insights-rules?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { "x-admin-token": tok() },
+      });
+      if (r.ok) void loadRules();
+    },
+    [loadRules]
+  );
 
   const clear = async () => {
     if (!confirm("Discard all buffered telemetry? Aggregates will rebuild as new events arrive.")) return;
@@ -403,6 +638,7 @@ export default function AppInsightsPanel() {
           ["dependencies", "Dependencies", view?.dependencies.length],
           ["performance", "Performance", view?.performance.length],
           ["metrics", "Metrics", undefined],
+          ["alerts", "Alert rules", rules.length || undefined],
           ["logs", "Logs", view?.recent.length],
           ["paths", "Accessed paths", view?.paths.length],
           ["failures", "Failures", view?.failures.length],
@@ -829,6 +1065,100 @@ export default function AppInsightsPanel() {
             <div className="rounded-xl border cv-border py-10 text-center text-sm cv-text-muted">
               {explorerBusy ? "Running…" : "No telemetry matches that metric in this window."}
             </div>
+          )}
+        </div>
+      )}
+
+      {view && tab === "alerts" && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="max-w-[640px] text-[12px] cv-text-muted">
+              Smart detection finds problems nobody thought to look for. These are the
+              thresholds you already know you care about. Both file through the same incident
+              bridge, so a breach opens one incident and re-breaching does not open another.
+            </p>
+            <button
+              onClick={() => setEditing(blankRule())}
+              className="h-[38px] rounded-lg bg-cyan-600 px-3 text-sm font-semibold text-white"
+            >
+              New rule
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border cv-border">
+            <table className="w-full text-left text-sm">
+              <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
+                <tr>
+                  <th className="px-3 py-2">Rule</th>
+                  <th className="px-3 py-2">Condition</th>
+                  <th className="px-3 py-2">Now</th>
+                  <th className="px-3 py-2">State</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {rules.map((r) => {
+                  const firing = (r.evaluations ?? []).filter((e) => e.breached);
+                  return (
+                    <tr key={r.id} className="border-t cv-border align-top">
+                      <td className="px-3 py-2">
+                        <div className="font-semibold cv-text-primary">{r.name}</div>
+                        <div className="text-[11px] cv-text-muted">
+                          {r.severity} · {r.owningTeam || "unrouted"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-[12px] cv-text-secondary">{describeRule(r)}</td>
+                      <td className="px-3 py-2 text-[12px] cv-text-secondary">
+                        {formatMetricValue(r.metric, r.current ?? 0)}
+                      </td>
+                      <td className="px-3 py-2 text-[12px]">
+                        {!r.enabled ? (
+                          <span className="cv-text-muted">Disabled</span>
+                        ) : firing.length > 0 ? (
+                          <span className="font-semibold" style={{ color: "#f87171" }}>
+                            Firing ({firing.length})
+                          </span>
+                        ) : (
+                          <span className="cv-text-muted">
+                            {/* The reason a quiet rule is quiet — a rule that
+                                cannot fire looks identical to one that is not
+                                firing, and only this column tells them apart. */}
+                            {(r.evaluations ?? [])[0]?.reason ?? "not evaluated"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        <button
+                          onClick={() => void saveRule({ ...r, enabled: !r.enabled })}
+                          className="mr-2 text-[11px] cv-text-muted hover:cv-text-primary"
+                        >
+                          {r.enabled ? "Disable" : "Enable"}
+                        </button>
+                        <button
+                          onClick={() => setEditing(r)}
+                          className="mr-2 text-[11px] cv-text-muted hover:cv-text-primary"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => void removeRule(r.id)}
+                          className="text-[11px] cv-text-muted hover:text-red-300"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {rules.length === 0 && (
+              <div className="py-8 text-center text-sm cv-text-muted">No rules yet.</div>
+            )}
+          </div>
+
+          {editing && (
+            <RuleEditor rule={editing} onCancel={() => setEditing(null)} onSave={saveRule} />
           )}
         </div>
       )}

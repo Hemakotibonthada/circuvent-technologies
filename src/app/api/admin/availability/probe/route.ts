@@ -28,7 +28,8 @@
 
 import { NextResponse } from "next/server";
 import { CONTROL_PLANE_URL } from "@/lib/control-plane";
-import { ingest, isDurable, allEvents } from "@/lib/telemetry-store";
+import { ingest, isDurable, allEvents, evaluateAlertRules } from "@/lib/telemetry-store";
+import type { Alert } from "@/lib/anomaly-monitor";
 import { detectAnomalies } from "@/lib/insights-anomalies";
 import { syncFromAlerts } from "@/lib/icm-store";
 import { logger } from "@/lib/logger";
@@ -120,11 +121,26 @@ async function handle(request: Request) {
    * never a Sev0 from a machine, and no closing an incident a human picked up.
    */
   let anomalies: ReturnType<typeof detectAnomalies> = [];
+  let ruleAlerts: Alert[] = [];
   let filed: string[] = [];
   try {
-    anomalies = detectAnomalies(allEvents(), new Date().toISOString());
-    if (anomalies.length) {
-      const sync = syncFromAlerts(anomalies, { owningTeam: "Platform" });
+    const stamp = new Date().toISOString();
+    anomalies = detectAnomalies(allEvents(), stamp);
+    /*
+     * Rules run beside detection, and both file through the same bridge.
+     *
+     * Detection finds problems nobody thought to look for; rules cover the
+     * thresholds a team already knows it cares about. Neither subsumes the
+     * other, and a fingerprint from a rule can never collide with one from
+     * detection — they are prefixed "rule:" and "telemetry:" respectively — so
+     * the same problem found both ways is two incidents only if a person wrote
+     * a rule for something detection already catches, which is their call.
+     */
+    ruleAlerts = evaluateAlertRules(stamp).alerts;
+
+    const all = [...anomalies, ...ruleAlerts];
+    if (all.length) {
+      const sync = syncFromAlerts(all, { owningTeam: "Platform" });
       filed = sync.filed.map((i) => i.id);
       if (filed.length) {
         logger.warn("insights.incidents_filed", { count: filed.length, ids: filed.join(",") });
@@ -155,7 +171,7 @@ async function handle(request: Request) {
      * in memory, so this result is likely lost before anyone reads it and the
      * panel would show one lonely check rather than a history.
      */
-    detection: { findings: anomalies.length, incidentsFiled: filed },
+    detection: { findings: anomalies.length, ruleAlerts: ruleAlerts.length, incidentsFiled: filed },
     retained: isDurable(),
     at: new Date().toISOString(),
   });

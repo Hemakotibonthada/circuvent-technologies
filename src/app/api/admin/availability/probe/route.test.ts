@@ -206,3 +206,57 @@ describe("the sweep also files incidents from telemetry", () => {
     expect(second.detection.incidentsFiled).toEqual([]);
   });
 });
+
+describe("user-defined alert rules fire through the same sweep", () => {
+  beforeEach(() => {
+    clearTelemetry();
+    process.env.CRON_SECRET = "test-secret";
+    global.fetch = jest.fn().mockResolvedValue(new Response("{}", { status: 200 })) as unknown as typeof fetch;
+  });
+
+  const seed = (n: number, over: Record<string, unknown>) => {
+    for (let i = 0; i < Math.ceil(n / 40); i++) {
+      ingest(
+        Array.from({ length: Math.min(40, n - i * 40) }, () => ({
+          kind: "request",
+          path: "/api/quotes",
+          method: "GET",
+          status: 200,
+          ok: true,
+          durationMs: 50,
+          ...over,
+        })),
+        { session: "s", source: "web", now: new Date(Date.now() - 5 * 60_000).toISOString() }
+      );
+    }
+  };
+
+  it("reports rule alerts separately from detection findings", async () => {
+    seed(200, { durationMs: 50 });
+    const body = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+
+    // A healthy system trips neither.
+    expect(body.detection.findings).toBe(0);
+    expect(body.detection.ruleAlerts).toBe(0);
+  });
+
+  it("files an incident when a shipped default rule is breached, and only once", async () => {
+    // Slow but successful: invisible to failure-rate detection, and exactly the
+    // gap user-defined latency rules exist to cover.
+    seed(200, { durationMs: 9000 });
+
+    const first = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+    expect(first.detection.ruleAlerts).toBeGreaterThan(0);
+    expect(first.detection.incidentsFiled.length).toBeGreaterThan(0);
+
+    /*
+     * Swept again with the problem still present. The rule must still fire —
+     * nothing has been fixed — but the bridge must not open a second incident.
+     * Asserted in one test rather than two because the incident filed above is
+     * exactly the state the second sweep is being judged against.
+     */
+    const second = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+    expect(second.detection.ruleAlerts).toBeGreaterThan(0);
+    expect(second.detection.incidentsFiled).toEqual([]);
+  });
+});

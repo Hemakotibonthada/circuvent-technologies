@@ -36,6 +36,12 @@ import {
   availability,
 } from "./app-insights";
 import { detectAnomalies } from "./insights-anomalies";
+import {
+  evaluateRules,
+  validateRule,
+  defaultRules,
+  type AlertRule,
+} from "./insights-alert-rules";
 
 interface TelemetryDB {
   events: TelemetryEvent[];
@@ -148,4 +154,69 @@ export function clearTelemetry(): void {
 
 export function isDurable(): boolean {
   return store.isDurable();
+}
+
+/* ------------------------------------------------------------------ *
+ * Alert rules
+ *
+ * Kept in their own document rather than beside the events: the buffer is
+ * volatile and capped, and rules are neither.
+ * ------------------------------------------------------------------ */
+
+interface RulesDB {
+  rules: AlertRule[];
+  /** Whether the defaults have been installed, so deleting one is permanent. */
+  seeded: boolean;
+}
+
+const rulesStore = createFileStore<RulesDB>("admin-alert-rules.json", () => ({
+  rules: [],
+  seeded: false,
+}));
+
+export function listRules(now = new Date().toISOString()): AlertRule[] {
+  const db = rulesStore.read();
+  if (!db.seeded) {
+    /*
+     * Seeded once, then never again. Re-adding the defaults on every read would
+     * resurrect rules somebody deliberately deleted, which is the observability
+     * equivalent of a smoke alarm that reinstalls itself.
+     */
+    return rulesStore.mutate((d) => {
+      d.rules = defaultRules(now);
+      d.seeded = true;
+      return d.rules;
+    });
+  }
+  return db.rules;
+}
+
+export function saveRule(input: AlertRule): { rule: AlertRule | null; error: string } {
+  const error = validateRule(input);
+  if (error) return { rule: null, error };
+
+  return rulesStore.mutate((db) => {
+    if (!db.seeded) {
+      db.rules = defaultRules(input.createdAt);
+      db.seeded = true;
+    }
+    const idx = db.rules.findIndex((r) => r.id === input.id);
+    if (idx >= 0) db.rules[idx] = input;
+    else db.rules.push(input);
+    return { rule: input, error: "" };
+  });
+}
+
+export function deleteRule(id: string): { error: string } {
+  return rulesStore.mutate((db) => {
+    if (!db.rules.some((r) => r.id === id)) return { error: "No such rule." };
+    db.rules = db.rules.filter((r) => r.id !== id);
+    db.seeded = true;
+    return { error: "" };
+  });
+}
+
+/** Evaluates every rule against the retained buffer. */
+export function evaluateAlertRules(now = new Date().toISOString()) {
+  return evaluateRules(listRules(now), allEvents(), now);
 }
