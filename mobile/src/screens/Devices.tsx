@@ -4,11 +4,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { Device } from "../api";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
-import { fanLevel } from "../fan";
-import { spinSecondsFor, ringDash, deviceTint } from "../tile-visual";
-import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse, RoomChips } from "../ui";
+import { useDeviceVisual } from "../DeviceGlyph";
+import { ringDash } from "../tile-visual";
+import { Screen, Card, StatTile, useTheme, ListSkeleton, RoomChips } from "../ui";
 import { elevate } from "../theme";
-import { GRAD, deviceMeta, TAP_SLOP } from "../theme";
+import { GRAD, TAP_SLOP } from "../theme";
 import { Icon } from "../icons";
 import { toggleFeedback } from "../haptics";
 
@@ -154,12 +154,6 @@ function LevelRing({ level, colour }: { level: number; colour: string }) {
 
 function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpen: (d: Device) => void; onToggle: (id: string, f: string, v: boolean) => void; onFav: (v: boolean) => void }) {
   const { c } = useTheme();
-  const meta = deviceMeta(device.type);
-  const cap = capabilitiesFor(device);
-
-  const field = cap.power?.field ?? meta.toggle?.field ?? "";
-  const isOn = field ? !!device.state[field] : false;
-  const canToggle = !!field && device.online;
 
   /*
    * How much, not just whether.
@@ -167,28 +161,13 @@ function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpe
    * The tile already spun a fan and breathed a lamp, but at one fixed rate and
    * in one fixed colour — a fan barely turning looked identical to one at
    * maximum, and a lamp at five percent identical to one at full. The device
-   * publishes both numbers; this is what puts them on screen. The same curves
-   * drive the browser (see tile-visual.ts and the parity test).
+   * publishes both numbers; the shared hook is what puts them on screen, and
+   * it is shared so the room list and the device hub cannot end up disagreeing
+   * with this screen about the same lamp. The same curves drive the browser
+   * (see tile-visual.ts and the parity test).
    */
-  const live = isOn && device.online;
-  const level = cap.fan
-    ? fanLevel(device, cap.fan)
-    : cap.dimmer && typeof device.state[cap.dimmer.field] === "number"
-      ? (device.state[cap.dimmer.field] as number)
-      : null;
-  const tint = deviceTint(cap.color ? device.state[cap.color.field] : undefined, meta.accent, live);
-
-  const motion = deviceMotion(device.type);
-  const spinMs = spinSecondsFor(level, live);
-  /*
-   * Spin only when there is a speed to show. A fan can report power on at
-   * level zero — the relay is closed and the blades are not moving — and
-   * turning the icon there states the opposite of what the hardware is doing.
-   * The browser makes the same check; the parity test pins the curve they
-   * both read it from.
-   */
-  const spin = useSpin(motion === "spin" && spinMs !== null, spinMs ? spinMs * 1000 : undefined);
-  const glow = useGlowPulse(motion === "glow" && isOn);
+  const { cap, meta, field, isOn, level, tint, motion, spinMs, spin, glow } = useDeviceVisual(device);
+  const canToggle = !!field && device.online;
 
   const toggle = () => {
     if (!canToggle) return;

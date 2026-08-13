@@ -6,6 +6,7 @@ import { Card, SectionLabel, PrimaryButton, useTheme } from "../ui";
 import { StaleNotice, unwrap, useAsync } from "../async";
 import { deviceMeta } from "../theme";
 import { Icon } from "../icons";
+import { DeviceGlyph } from "../DeviceGlyph";
 
 const ICONS = ["🏠", "🛋️", "🛏️", "🍳", "🚿", "🖥️", "🌿", "🚗", "🏢", "🛁", "🎮", "📺"];
 
@@ -143,11 +144,13 @@ function RoomDetail({ name, onBack, onChanged }: { name: string; onBack: () => v
           {inRoom.length === 0 && <Text style={{ color: c.faint }}>No devices here yet.</Text>}
           {inRoom.map((d) => {
             const cap = capabilitiesFor(d);
-            const meta = deviceMeta(d.type);
             return (
               <Card key={d.id} padded style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Icon name={meta.icon} size={20} color={meta.accent} />
+                  {/* Shows brightness or fan speed, not just which icon it is.
+                      The switch beside it stays the control; this is the
+                      reading that used to require opening the device. */}
+                  <DeviceGlyph device={d} size={20} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: c.text, fontWeight: "700" }} numberOfLines={1}>{d.name || d.id}</Text>
                     <Text style={{ color: c.faint, fontSize: 12 }}>{d.online ? "online" : "offline"}</Text>

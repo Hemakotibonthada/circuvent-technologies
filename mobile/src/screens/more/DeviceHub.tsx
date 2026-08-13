@@ -5,6 +5,7 @@ import { capabilities, capabilitiesFor, useDevices } from "../../store";
 import { Card, IconButton, PrimaryButton, Screen, SectionLabel, Title, useTheme } from "../../ui";
 import { deviceMeta } from "../../theme";
 import { Icon } from "../../icons";
+import { DeviceGlyph } from "../../DeviceGlyph";
 
 export default function DeviceHub({ onBack, onOpenDevice, onAdd }: { onBack: () => void; onOpenDevice: (d: Device) => void; onAdd: () => void }) {
   const { c } = useTheme(); const { devices, toggle, patch } = useDevices();
@@ -15,5 +16,5 @@ export default function DeviceHub({ onBack, onOpenDevice, onAdd }: { onBack: () 
 }
 function Row({ d, onOpenDevice, onFav, onToggle }: { d: Device; onOpenDevice: (d: Device) => void; onFav: (v: boolean) => void; onToggle: (f: string, v: boolean) => void }) {
   const { c } = useTheme(); const cap = capabilitiesFor(d);
-  return <Card padded={false} onPress={() => onOpenDevice(d)} style={{ paddingVertical: 10, borderWidth: 0, backgroundColor: "transparent" }}><View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Text onPress={() => onFav(!d.favorite)} style={{ fontSize: 18 }}>{d.favorite ? "⭐" : "☆"}</Text><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "700" }}>{d.name}</Text><Text style={{ color: c.faint, fontSize: 12 }}>{d.online ? "online" : "offline"}</Text></View>{cap.power ? <Switch value={!!d.state[cap.power.field]} onValueChange={(v) => onToggle(cap.power!.field, v)} trackColor={{ true: c.accent, false: c.borderHi }} thumbColor="#fff" /> : <Text style={{ color: c.faint }}>Open ›</Text>}</View></Card>;
+  return <Card padded={false} onPress={() => onOpenDevice(d)} style={{ paddingVertical: 10, borderWidth: 0, backgroundColor: "transparent" }}><View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Text onPress={() => onFav(!d.favorite)} style={{ fontSize: 18 }}>{d.favorite ? "⭐" : "☆"}</Text><DeviceGlyph device={d} size={18} /><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: "700" }}>{d.name}</Text><Text style={{ color: c.faint, fontSize: 12 }}>{d.online ? "online" : "offline"}</Text></View>{cap.power ? <Switch value={!!d.state[cap.power.field]} onValueChange={(v) => onToggle(cap.power!.field, v)} trackColor={{ true: c.accent, false: c.borderHi }} thumbColor="#fff" /> : <Text style={{ color: c.faint }}>Open ›</Text>}</View></Card>;
 }
