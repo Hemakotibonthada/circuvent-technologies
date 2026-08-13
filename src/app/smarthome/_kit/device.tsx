@@ -147,6 +147,24 @@ export function PowerButton({
   const mp = masterPower(device);
   if (!mp) return null;
   const dim = size === "sm" ? "h-9 w-9" : "h-[44px] w-[44px]";
+
+  /*
+   * The same reading the dashboard tile gives, on the control that appears
+   * everywhere else.
+   *
+   * This button is what Rooms, Groups, the fleet list, the floorplan and the
+   * device drawer all render, and it said only ON or OFF — so a lamp dimmed to
+   * five percent and the same lamp at full were the same word in the same
+   * colour on five screens. The ring and the colour are added around the text
+   * rather than replacing it: "ON" is the state, and a ring is not a
+   * substitute for a word somebody may be relying on.
+   */
+  const visual = tileVisual(device, { on: mp.on, online: device.online });
+  const px = size === "sm" ? 36 : 44;
+  const r = px / 2 - 2;
+  const ring = visual.level !== null ? ringDash(visual.level, r) : null;
+  const lit = mp.on && device.online;
+
   return (
     <button
       onClick={(e) => {
@@ -158,13 +176,40 @@ export function PowerButton({
       disabled={!device.online}
       aria-label={`${mp.on ? "Turn off" : "Turn on"} ${device.name}`}
       title={device.online ? mp.label : "Device offline"}
-      className={`${dim} ${RING[status]} flex shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase tracking-wide transition active:scale-90 disabled:opacity-40 disabled:active:scale-100`}
+      className={`${dim} ${RING[status]} relative flex shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase tracking-wide transition active:scale-90 disabled:opacity-40 disabled:active:scale-100`}
       style={
         mp.on
-          ? { background: "var(--cv-gradient)", color: "#fff", boxShadow: "var(--cv-shadow-1)" }
+          ? {
+              background: visual.tint || "var(--cv-gradient)",
+              color: "#fff",
+              boxShadow:
+                lit && visual.glow > 0
+                  ? `0 0 ${6 + 12 * visual.glow}px ${visual.tint || "var(--cv-accent)"}`
+                  : "var(--cv-shadow-1)",
+            }
           : { background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)", color: "var(--cv-muted)" }
       }
     >
+      {ring && (
+        <svg
+          className="pointer-events-none absolute inset-0"
+          viewBox={`0 0 ${px} ${px}`}
+          aria-hidden="true"
+          style={{ transform: "rotate(-90deg)" }}
+        >
+          <circle
+            cx={px / 2}
+            cy={px / 2}
+            r={r}
+            fill="none"
+            stroke={visual.tint || "var(--cv-accent)"}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeDasharray={`${ring.dash} ${ring.gap}`}
+            style={{ transition: "stroke-dasharray 300ms ease-out" }}
+          />
+        </svg>
+      )}
       {mp.on ? "ON" : "OFF"}
     </button>
   );

@@ -32,6 +32,33 @@ export interface TileVisual {
 const SPIN_FASTEST = 0.45;
 const SPIN_SLOWEST = 2.6;
 
+/**
+ * Seconds per revolution for a fan at `level`, or null when it should not turn.
+ *
+ * Exported because the phone draws the same fan and must turn it at the same
+ * rate — a device that spins visibly faster in the browser than in the app
+ * makes one of the two look wrong. mobile/src/tile-visual.ts holds the copy
+ * that the app compiles against, and tests/tile-visual-parity.test.ts pins the
+ * two together.
+ */
+export function spinSecondsFor(level: number | null, live: boolean): number | null {
+  if (!live || level === null || level <= 0) return null;
+  return SPIN_SLOWEST - (SPIN_SLOWEST - SPIN_FASTEST) * (clamp(level, 0, 100) / 100);
+}
+
+/**
+ * Glow strength, 0..1.
+ *
+ * Floored well above zero for anything that is on: a lamp dimmed to 5% is
+ * still lit, and rendering it identically to off is wrong about the one thing
+ * the tile is being asked. A device with no level that is on glows fully.
+ */
+export function glowFor(level: number | null, live: boolean): number {
+  if (!live) return 0;
+  if (level === null) return 1;
+  return 0.35 + 0.65 * (clamp(level, 0, 100) / 100);
+}
+
 const isHex = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 
 /**
@@ -81,20 +108,16 @@ export function tileVisual(device: Device, opts: { on: boolean; online: boolean 
 
   /*
    * Speed carries the level. A fixed rotation looks the same at 30% and 100%,
-   * which throws away the one thing the animation could have said. Inverted
-   * because a higher level means less time per revolution.
+   * which throws away the one thing the animation could have said.
    */
-  const spinSeconds =
-    motion === "spin" && live && level !== null && level > 0
-      ? SPIN_SLOWEST - (SPIN_SLOWEST - SPIN_FASTEST) * (clamp(level, 0, 100) / 100)
-      : null;
+  const spinSeconds = motion === "spin" ? spinSecondsFor(level, live) : null;
 
   /*
    * Glow follows brightness, floored well above zero: a lamp dimmed to 5% is
    * still on, and a tile that renders it identically to off is wrong about the
    * one thing it is being asked.
    */
-  const glow = motion === "glow" && live ? (level === null ? 1 : 0.35 + 0.65 * (clamp(level, 0, 100) / 100)) : 0;
+  const glow = motion === "glow" ? glowFor(level, live) : 0;
 
   return { level, motion, tint, spinSeconds, glow };
 }

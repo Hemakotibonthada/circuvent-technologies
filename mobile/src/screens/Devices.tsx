@@ -1,8 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, FlatList, Pressable, TextInput, Switch, RefreshControl, StyleSheet, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Circle } from "react-native-svg";
 import { Device } from "../api";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
+import { fanLevel } from "../fan";
+import { spinSecondsFor, ringDash, deviceTint } from "../tile-visual";
 import { Screen, Card, StatTile, useTheme, ListSkeleton, deviceMotion, useSpin, useGlowPulse, RoomChips } from "../ui";
 import { elevate } from "../theme";
 import { GRAD, deviceMeta, TAP_SLOP } from "../theme";
@@ -120,6 +123,35 @@ export default function Devices({ onOpen, onAdd }: { onOpen: (d: Device) => void
  * one tap on the thing you were already looking at, with the card body still
  * opening the full controls.
  */
+/**
+ * A progress arc hugging the icon, showing brightness or fan speed.
+ *
+ * State, not motion: it stays put under "reduce motion", because somebody who
+ * has asked for less movement has not asked to be told less. Non-interactive so
+ * it cannot intercept the toggle underneath it.
+ */
+function LevelRing({ level, colour }: { level: number; colour: string }) {
+  const R = 20;
+  const { dash, gap } = ringDash(level, R);
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg width={44} height={44} style={{ transform: [{ rotate: "-90deg" }] }}>
+        <Circle cx={22} cy={22} r={R} stroke={colour} strokeOpacity={0.28} strokeWidth={2.5} fill="none" />
+        <Circle
+          cx={22}
+          cy={22}
+          r={R}
+          stroke={colour}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${gap}`}
+          fill="none"
+        />
+      </Svg>
+    </View>
+  );
+}
+
 function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpen: (d: Device) => void; onToggle: (id: string, f: string, v: boolean) => void; onFav: (v: boolean) => void }) {
   const { c } = useTheme();
   const meta = deviceMeta(device.type);
@@ -129,8 +161,33 @@ function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpe
   const isOn = field ? !!device.state[field] : false;
   const canToggle = !!field && device.online;
 
+  /*
+   * How much, not just whether.
+   *
+   * The tile already spun a fan and breathed a lamp, but at one fixed rate and
+   * in one fixed colour — a fan barely turning looked identical to one at
+   * maximum, and a lamp at five percent identical to one at full. The device
+   * publishes both numbers; this is what puts them on screen. The same curves
+   * drive the browser (see tile-visual.ts and the parity test).
+   */
+  const live = isOn && device.online;
+  const level = cap.fan
+    ? fanLevel(device, cap.fan)
+    : cap.dimmer && typeof device.state[cap.dimmer.field] === "number"
+      ? (device.state[cap.dimmer.field] as number)
+      : null;
+  const tint = deviceTint(cap.color ? device.state[cap.color.field] : undefined, meta.accent, live);
+
   const motion = deviceMotion(device.type);
-  const spin = useSpin(motion === "spin" && isOn);
+  const spinMs = spinSecondsFor(level, live);
+  /*
+   * Spin only when there is a speed to show. A fan can report power on at
+   * level zero — the relay is closed and the blades are not moving — and
+   * turning the icon there states the opposite of what the hardware is doing.
+   * The browser makes the same check; the parity test pins the curve they
+   * both read it from.
+   */
+  const spin = useSpin(motion === "spin" && spinMs !== null, spinMs ? spinMs * 1000 : undefined);
   const glow = useGlowPulse(motion === "glow" && isOn);
 
   const toggle = () => {
@@ -179,11 +236,19 @@ function DeviceCard({ device, onOpen, onToggle, onFav }: { device: Device; onOpe
         >
           {isOn ? (
             <Animated.View style={{ opacity: motion === "glow" ? glow : 1 }}>
-              <LinearGradient colors={meta.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pill}>
-                <Animated.View style={motion === "spin" ? { transform: [{ rotate: spin }] } : undefined}>
+              {/* The lamp's own colour when it reports one, so a bulb set to
+                  red is not drawn in the amber we picked for lights. */}
+              <LinearGradient
+                colors={tint === meta.accent ? meta.grad : [tint, tint]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.pill}
+              >
+                <Animated.View style={motion === "spin" && spinMs !== null ? { transform: [{ rotate: spin }] } : undefined}>
                   <Icon name={meta.icon} size={22} color="#fff" />
                 </Animated.View>
               </LinearGradient>
+              {level !== null && <LevelRing level={level} colour="#fff" />}
             </Animated.View>
           ) : (
             <View style={[s.pill, { backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.border }]}>
