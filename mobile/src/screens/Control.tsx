@@ -899,6 +899,49 @@ function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown
       <Text style={{ color: c.faint, fontSize: 11, marginBottom: 12, lineHeight: 16 }}>
         Pairing opens a 60-second window. Press the button on the unit fitted to the tank.
       </Text>
+      {link.status !== "unpaired" && (
+        <>
+          <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
+            <Pressable
+              onPress={() => send({ action: "readNow" })}
+              accessibilityRole="button"
+              accessibilityLabel="Read the tank now"
+              style={{ flex: 1, minHeight: 48, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", justifyContent: "center" }}
+            >
+              <Text style={{ color: c.text, fontWeight: "700" }}>
+                {link.downlinkPending ? "Queued…" : "Read now"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => send({ action: "identifySensor" })}
+              accessibilityRole="button"
+              accessibilityLabel="Blink the light on the tank sensor"
+              style={{ flex: 1, minHeight: 48, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", justifyContent: "center" }}
+            >
+              <Text style={{ color: c.faint, fontWeight: "700" }}>Identify</Text>
+            </Pressable>
+          </View>
+          {/*
+            * Saying it is queued matters. The sensor is asleep and cannot be
+            * reached until it next transmits, so a button that appeared to do
+            * nothing would read as broken.
+            */}
+          <Text style={{ color: c.faint, fontSize: 11, marginBottom: 12, lineHeight: 16 }}>
+            {link.downlinkPending
+              ? "Waiting for the sensor's next report to pass this on."
+              : `The sensor sleeps between reports, so this can take up to ${link.intervalS}s.`}
+          </Text>
+          <Stepper
+            label={`Report every ${link.intervalS}s`}
+            c={c}
+            onDown={() => send({ sensorIntervalS: Math.max(10, link.intervalS - 10) })}
+            onUp={() => send({ sensorIntervalS: Math.min(900, link.intervalS + 10) })}
+          />
+          <Text style={{ color: c.faint, fontSize: 11, marginBottom: 12, lineHeight: 16 }}>
+            Less often lasts longer on a battery; more often reacts sooner.
+          </Text>
+        </>
+      )}
       <Section c={c}>Auto thresholds</Section>
       <Stepper label={`Start overhead at ${start}%`} c={c} onDown={() => send({ startPct: Math.max(5, start - 5) })} onUp={() => send({ startPct: Math.min(90, start + 5) })} />
       <Stepper label={`Stop overhead at ${stop}%`} c={c} onDown={() => send({ stopPct: Math.max(10, stop - 5) })} onUp={() => send({ stopPct: Math.min(100, stop + 5) })} />

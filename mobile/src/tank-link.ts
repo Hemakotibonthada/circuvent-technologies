@@ -19,14 +19,41 @@
  * `tests/tank-link-parity.test.ts` keeps those thresholds aligned too.
  */
 
-/** Seconds between sensor reports. Mirrors CV_TANK_REPORT_INTERVAL_MS. */
+/** Seconds between sensor reports, unless the app has changed it. */
 export const TANK_REPORT_INTERVAL_S = 30;
 
-/** Past this the reading may not drive the pump. Mirrors CV_TANK_STALE_MS. */
-export const TANK_STALE_S = TANK_REPORT_INTERVAL_S * 6;
+/**
+ * Consecutive missed reports that count as a dead link.
+ *
+ * A multiplier, not a fixed duration, because the report interval is settable
+ * from the app. A hard-coded three minutes silently becomes "permanently
+ * stale" the moment somebody picks a five-minute cadence to save battery — the
+ * pump would stop running and the app would report a dead sensor that is
+ * transmitting perfectly. Mirrors CV_TANK_STALE_MISSES.
+ */
+export const TANK_STALE_MISSES = 6;
+
+/** The stale window at the default cadence. Mirrors CV_TANK_STALE_MS. */
+export const TANK_STALE_S = TANK_REPORT_INTERVAL_S * TANK_STALE_MISSES;
 
 /** Past this the reading is not worth showing. Mirrors CV_TANK_ABANDON_MS. */
 export const TANK_ABANDON_S = 30 * 60;
+
+/** The stale window for a given cadence. */
+export function tankStaleSeconds(intervalS?: number | null): number {
+  const i = typeof intervalS === "number" && intervalS > 0 ? intervalS : TANK_REPORT_INTERVAL_S;
+  return i * TANK_STALE_MISSES;
+}
+
+/**
+ * The abandon window for a given cadence, floored.
+ *
+ * At a ten-second interval six misses is one minute, and withdrawing the level
+ * after a minute would blank the display over ordinary interference.
+ */
+export function tankAbandonSeconds(intervalS?: number | null): number {
+  return Math.max(TANK_ABANDON_S, tankStaleSeconds(intervalS) * 10);
+}
 
 export type TankLinkStatus =
   | "unpaired"    // no sensor has ever been paired to this starter
@@ -53,6 +80,10 @@ export interface TankLinkState {
   batteryLow: boolean;
   /** Radio signal strength in dBm, when known. */
   rssi: number | null;
+  /** How often the sensor reports, in seconds. */
+  intervalS: number;
+  /** An instruction is queued for the sensor's next transmission. */
+  downlinkPending: boolean;
   /** True when the pump cannot run automatically right now. */
   blocksAutoFill: boolean;
 }
@@ -69,6 +100,8 @@ export interface TankDeviceState {
   tankBattPct?: number | null;
   tankBattLow?: boolean;
   ohFault?: boolean;
+  sensorIntervalS?: number | null;
+  downlinkPending?: boolean;
 }
 
 function num(v: unknown): number | null {
@@ -103,6 +136,8 @@ export function readTankLink(state: TankDeviceState | null | undefined): TankLin
     batteryPct: battery,
     batteryLow: !!s.tankBattLow,
     rssi: rssi !== null && rssi !== 0 ? rssi : null,
+    intervalS: num(s.sensorIntervalS) ?? TANK_REPORT_INTERVAL_S,
+    downlinkPending: !!s.downlinkPending,
   };
 
   // Wired tank, or firmware that predates the radio. Nothing to report.
@@ -134,6 +169,8 @@ export function readTankLink(state: TankDeviceState | null | undefined): TankLin
   }
 
   const ageS = num(s.rfAgeS);
+  const staleS = tankStaleSeconds(base.intervalS);
+  const abandonS = tankAbandonSeconds(base.intervalS);
 
   if (ageS === null || ageS < 0) {
     return {
@@ -144,13 +181,13 @@ export function readTankLink(state: TankDeviceState | null | undefined): TankLin
       label: "Waiting for sensor",
       detail:
         "Paired, but nothing received yet. The sensor reports every " +
-        `${TANK_REPORT_INTERVAL_S} seconds.`,
+        `${base.intervalS} seconds.`,
       tone: "warn",
       blocksAutoFill: true,
     };
   }
 
-  if (ageS >= TANK_ABANDON_S) {
+  if (ageS >= abandonS) {
     return {
       ...base,
       levelPct: null,
@@ -166,7 +203,7 @@ export function readTankLink(state: TankDeviceState | null | undefined): TankLin
     };
   }
 
-  if (ageS >= TANK_STALE_S) {
+  if (ageS >= staleS) {
     return {
       ...base,
       ageS,

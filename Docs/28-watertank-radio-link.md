@@ -89,19 +89,28 @@ water goes through it.
 
 | Age of last reading | State | Pump | Apps show |
 | --- | --- | --- | --- |
-| under 3 minutes | **live** | Auto-fill runs normally | The level |
-| 3–30 minutes | **stale** | Auto-fill paused; a running pump is stopped | The level, marked "last known" |
-| over 30 minutes | **lost** | Auto-fill paused | No level at all — "—" |
+| under 6 reports | **live** | Auto-fill runs normally | The level |
+| 6 reports to 10× that | **stale** | Auto-fill paused; a running pump is stopped | The level, marked "last known" |
+| beyond that (min 30 min) | **lost** | Auto-fill paused | No level at all — "—" |
 
-**Why 3 minutes:** the sensor reports every 30 seconds, so this is six missed
-reports. One lost packet is ordinary on any radio link — a passing vehicle, a
-neighbour transmitting, a door closing on the line of sight — and treating a
+**Why six reports and not a fixed three minutes.** The report interval is
+settable from the app, so the window is expressed as *a number of missed
+reports*, not a duration. A hard-coded three minutes turns that setting into a
+trap: pick a five-minute cadence to save battery and the link would be
+permanently stale, the pump would never run, and the app would report a dead
+sensor that is transmitting perfectly.
+
+**Why six.** One lost packet is ordinary on any radio link — a passing vehicle,
+a neighbour transmitting, a door closing on the line of sight — and treating a
 single miss as a fault would have the pump refusing to run several times a day.
 
-**Why the level disappears at 30 minutes:** there is a real difference between
-"a few minutes old, probably still roughly true" and "from yesterday, tells you
+**Why the level disappears eventually:** there is a real difference between "a
+few minutes old, probably still roughly true" and "from yesterday, tells you
 nothing". A dashboard reading "12%" gives no hint the figure is stale, and the
-obvious response to 12% is to start the pump.
+obvious response to 12% is to start the pump. The abandon window scales too, but
+never below thirty minutes — at a ten-second cadence six misses is one minute,
+and blanking the display after a minute of ordinary interference is worse than
+useless.
 
 ### Where this is enforced
 
@@ -180,12 +189,66 @@ was actually transmitted.
 
 ---
 
+## 5a. The downlink (starter → sensor)
+
+The link started out one-way, which cost more than it saved. The sensor could
+not be told anything, so changing how often it reports, asking it for a reading
+now, or even confirming that pairing had worked all meant physically retrieving
+a unit from a roof.
+
+Pairing was the worst of it: the sensor transmitted for sixty seconds and then
+declared itself paired **whether or not anything had heard it**. An installer
+got a confident "done" indication, climbed down, found nothing worked, and
+climbed back up.
+
+### How a sleeping unit is reachable at all
+
+The sensor listens for **400 ms immediately after it transmits**, and only then.
+This is the LoRaWAN Class A shape, for the same reason: the one moment a battery
+device can cheaply be reached is right after it has spoken, because the radio is
+already powered and the far end knows to within milliseconds when to reply.
+
+Receiving draws roughly a tenth of what transmitting does, so that window costs
+a fraction of the transmission before it.
+
+The starter therefore **queues** a downlink and fires it the instant it accepts
+a reading. Sending at any other time transmits into a unit that is already
+asleep — which looks identical to a broken radio from the app.
+
+### What it can say
+
+| Instruction | Effect |
+| --- | --- |
+| `PAIR_ACK` | "I have you." The sensor stops its pairing window and shows three slow blinks; without an ack it shows a rapid failure blink instead of claiming success |
+| `MEASURE_NOW` | Take a reading and send it immediately, rather than at the next scheduled report |
+| `IDENTIFY` | Blink, so an installer can tell one unit from another |
+| `reportIntervalS` | Change the cadence, clamped to 10–900 s |
+
+Downlinks are authenticated exactly like uplinks, with **their own sequence
+counter** — a shared counter between two directions would have each side
+rejecting the other's traffic as replays. The sensor refuses a replayed
+downlink, because each replay costs it a transmission, and on a battery that is
+the attack worth defending against rather than the instruction itself.
+
+A queued downlink is **cleared once sent**, whether or not the sensor heard it.
+Retrying forever would fire on every reading, and a repeated "measure now" would
+flatten the battery of a unit nobody can reach. The app can ask again.
+
+Bounds on the interval are not about an attacker — the downlink is
+authenticated. They are about a bug or a fat-fingered value bricking a unit that
+is physically hard to get to. Zero would mean "never report", which is
+indistinguishable from a dead sensor and cannot be undone without a ladder.
+
+---
+
 ## 6. Pairing
 
 1. In the app, open the starter and press **Pair sensor**. This opens a
    60-second window on the starter.
 2. Press the button on the tank unit.
-3. The starter beeps twice and the app shows the sensor.
+3. The starter beeps twice, and the **tank unit gives three slow blinks** to
+   confirm it was acknowledged. Rapid blinking means nothing heard it — check
+   range before climbing down.
 
 **Be honest about the limitation.** The key is transmitted in the clear during
 that window. It is bounded to 60 seconds, must be started by hand on the sensor,
@@ -217,6 +280,8 @@ New keys alongside the existing ones:
 | `radioReady` | Did the LoRa module initialise |
 | `tankBattPct` | Sensor battery %, `-1` if unknown |
 | `tankBattLow` | Sensor says its cell is low |
+| `sensorIntervalS` | How often the sensor reports |
+| `downlinkPending` | An instruction is waiting for the sensor's next transmission |
 
 **`-1` rather than omitting the key** is deliberate: a client holding a previous
 value is actively told to drop it, instead of quietly leaving a stale number on
@@ -228,6 +293,9 @@ screen.
 | --- | --- |
 | `{"action":"pair"}` | Open the 60-second pairing window |
 | `{"action":"unpair"}` | Forget the sensor |
+| `{"action":"readNow"}` | Ask the sensor for a fresh reading. **Queued**, not immediate — it goes out on the back of the sensor's next report |
+| `{"action":"identifySensor"}` | Blink the tank unit's light |
+| `{"sensorIntervalS": 60}` | Change the report cadence, 10–900 s |
 
 Pairing is deliberately **not** offered as a scene or automation action. A
 schedule that opened a pairing window would be a standing invitation.
@@ -258,13 +326,18 @@ not paired, paired but nothing heard, or heard but out of range.
 
 ## 9. Battery
 
-The sensor wakes every 30 seconds, measures, transmits and sleeps. A LoRa
-transmission costs far more than the reading around it, which is why reporting
-is deliberately infrequent — the tank does not change quickly, and a pump
-filling 1000 litres takes many minutes.
+The sensor wakes on its report interval, measures, transmits, listens briefly
+and sleeps. A LoRa transmission costs far more than the reading around it, which
+is why reporting is deliberately infrequent — the tank does not change quickly,
+and a pump filling 1000 litres takes many minutes.
+
+The interval is settable from the app (10–900 s), so the battery-against-
+responsiveness trade can be made per installation without getting the unit off
+the roof. The freshness window scales with it automatically.
 
 `tankBattLow` is raised at 3.45 V so the app can warn before the link dies
-rather than after.
+rather than after. A low battery is the only tank finding that arrives **before**
+the outage — see `src/lib/tank-health.ts`.
 
 ---
 
