@@ -6,6 +6,10 @@ import {
   acknowledge,
   assign,
   comment,
+  savePostmortem,
+  addActionItem,
+  toggleActionItem,
+  publishPostmortem,
   mitigate,
   normaliseSeverity,
   reactivate,
@@ -141,6 +145,31 @@ export async function PATCH(request: Request) {
         case "assign":
           return (i: Parameters<typeof assign>[0]) =>
             assign(i, actor, String(b.assignedTo || ""), String(b.owningTeam || ""), now);
+        case "postmortem":
+          return (i: Parameters<typeof savePostmortem>[0]) =>
+            savePostmortem(
+              i,
+              actor,
+              {
+                summary: String(b.summary || ""),
+                cause: String(b.cause || ""),
+                detection: String(b.detection || ""),
+              },
+              now
+            );
+        case "action-add":
+          return (i: Parameters<typeof addActionItem>[0]) =>
+            addActionItem(
+              i,
+              actor,
+              { what: String(b.what || ""), owner: String(b.owner || ""), due: String(b.due || "") },
+              now
+            );
+        case "action-toggle":
+          return (i: Parameters<typeof toggleActionItem>[0]) =>
+            toggleActionItem(i, actor, String(b.itemId || ""), now);
+        case "postmortem-publish":
+          return (i: Parameters<typeof publishPostmortem>[0]) => publishPostmortem(i, actor, now);
         case "comment":
           return (i: Parameters<typeof comment>[0]) => comment(i, actor, String(b.body || ""), now);
         default:

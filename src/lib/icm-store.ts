@@ -12,6 +12,9 @@ import type { Alert } from "./anomaly-monitor";
 import {
   createIncident,
   queue,
+  shouldEscalate,
+  escalate,
+  postmortemsOutstanding,
   stats,
   type Filters,
   type Incident,
@@ -107,13 +110,48 @@ export function updateIncident(
   });
 }
 
+/**
+ * Applies any escalations that have come due.
+ *
+ * Run on read rather than from a scheduler. An escalation policy that needs a
+ * cron is one that stops working the moment the cron does, silently — and the
+ * symptom is an incident queue that looks calm. Reading the queue is the one
+ * thing guaranteed to happen when somebody cares, and `shouldEscalate` is
+ * idempotent within its grace period, so doing it here cannot double-escalate.
+ *
+ * It writes, which is unusual for a read path, but the alternative is a
+ * severity that is correct only on screens nobody has opened.
+ */
+function applyDueEscalations(now: string): Incident[] {
+  const all = listIncidents();
+  const due = all.filter((inc) => shouldEscalate(inc, now));
+  if (due.length === 0) return all;
+
+  for (const inc of due) {
+    updateIncident(inc.id, (current) => escalate(current, now));
+  }
+  return listIncidents();
+}
+
 /** The queue plus the headline numbers, which is what the panel loads. */
 export function icmView(filters: Filters, now = new Date().toISOString()) {
-  const all = listIncidents();
+  const all = applyDueEscalations(now);
   return {
     incidents: queue(all, filters, now),
     stats: stats(all, now),
     teams: listTeams(),
+    /*
+     * Resolved incidents that owe a write-up. Surfaced beside the queue because
+     * an unwritten postmortem is invisible otherwise — the incident is closed,
+     * so nothing shows it, and the action items that would stop a recurrence
+     * are the part that never gets written.
+     */
+    postmortemsDue: postmortemsOutstanding(all).map((i) => ({
+      id: i.id,
+      title: i.title,
+      severity: i.severity,
+      resolvedAt: i.resolvedAt,
+    })),
     now,
   };
 }

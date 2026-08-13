@@ -699,8 +699,191 @@ function IncidentDetail({
               )}
             </div>
           )}
+
+          <PostmortemEditor incident={inc} busy={busy} onSend={send} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The write-up.
+ *
+ * Only offered once the incident is mitigated, matching the rule in icm.ts —
+ * an editor that appears and then refuses to save is a worse explanation of
+ * the rule than not appearing at all.
+ *
+ * The publish button stays disabled until there is at least one action, with
+ * the reason written next to it rather than surfaced as an error after the
+ * click. A postmortem with no actions is either an incident that cannot recur
+ * or a document written to close a ticket.
+ */
+function PostmortemEditor({
+  incident: inc,
+  busy,
+  onSend,
+}: {
+  incident: Incident;
+  busy: boolean;
+  onSend: (body: Record<string, unknown>) => void;
+}) {
+  const pm = inc.postmortem;
+  const [summary, setSummary] = useState(pm?.summary ?? "");
+  const [cause, setCause] = useState(pm?.cause ?? "");
+  const [detection, setDetection] = useState(pm?.detection ?? "");
+  const [what, setWhat] = useState("");
+  const [owner, setOwner] = useState("");
+  const [due, setDue] = useState("");
+
+  const writable = inc.status === "mitigated" || inc.status === "resolved";
+  const required = inc.severity <= 2;
+  const published = Boolean(pm?.publishedAt);
+
+  if (!writable) {
+    return required ? (
+      <div className="rounded-xl border cv-border p-3 text-[13px] cv-text-muted">
+        A postmortem is required for Sev {inc.severity}. It can be written once the incident is
+        mitigated — before then the time is better spent on the incident.
+      </div>
+    ) : null;
+  }
+
+  const field = "w-full rounded-lg border cv-border bg-transparent px-3 py-2 text-sm cv-text-primary";
+
+  return (
+    <div className="space-y-3 rounded-xl border cv-border cv-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold cv-text-secondary">
+          <FileText className="h-4 w-4" aria-hidden /> Postmortem
+        </div>
+        {published ? (
+          <span
+            className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase"
+            style={{ background: "rgba(16,185,129,0.18)", color: "#6ee7b7" }}
+          >
+            Published
+          </span>
+        ) : (
+          required && (
+            <span
+              className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase"
+              style={{ background: "rgba(245,158,11,0.18)", color: "#fcd34d" }}
+            >
+              Required
+            </span>
+          )
+        )}
+      </div>
+
+      <label className="block">
+        <span className="mb-1 block text-[11px] uppercase cv-text-muted">What happened</span>
+        <textarea className={field} rows={2} value={summary} onChange={(e) => setSummary(e.target.value)} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-[11px] uppercase cv-text-muted">Why it happened</span>
+        <textarea className={field} rows={2} value={cause} onChange={(e) => setCause(e.target.value)} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-[11px] uppercase cv-text-muted">
+          What would have caught it sooner
+        </span>
+        <textarea className={field} rows={2} value={detection} onChange={(e) => setDetection(e.target.value)} />
+      </label>
+
+      <button
+        type="button"
+        disabled={busy || !summary.trim() || !cause.trim()}
+        onClick={() => onSend({ action: "postmortem", summary, cause, detection })}
+        className="rounded-lg border cv-border px-3 py-1.5 text-xs font-semibold cv-text-secondary disabled:opacity-40"
+      >
+        {pm ? "Save" : "Start postmortem"}
+      </button>
+
+      {pm && (
+        <div className="space-y-2 border-t pt-3" style={{ borderColor: "var(--cv-separator)" }}>
+          <div className="text-[11px] uppercase cv-text-muted">Actions</div>
+
+          {pm.actionItems.length === 0 && (
+            <p className="text-[13px] cv-text-muted">
+              None yet. An action with nobody&apos;s name on it is the most common one in the
+              world and the least likely to happen, so an owner is required.
+            </p>
+          )}
+
+          {pm.actionItems.map((a) => (
+            <label key={a.id} className="flex items-start gap-2 text-[13px]">
+              <input
+                type="checkbox"
+                checked={a.done}
+                disabled={busy}
+                onChange={() => onSend({ action: "action-toggle", itemId: a.id })}
+                className="mt-1"
+              />
+              <span className={a.done ? "line-through cv-text-muted" : "cv-text-secondary"}>
+                <span className="cv-text-muted">{a.id}</span> {a.what}
+                <span className="cv-text-muted">
+                  {" "}
+                  — {a.owner}
+                  {a.due ? `, ${a.due}` : ""}
+                </span>
+              </span>
+            </label>
+          ))}
+
+          <div className="flex flex-wrap gap-2">
+            <input
+              className={`${field} min-w-[180px] flex-1`}
+              placeholder="What needs doing"
+              value={what}
+              onChange={(e) => setWhat(e.target.value)}
+            />
+            <input
+              className={`${field} w-32`}
+              placeholder="Owner"
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+            />
+            <input
+              className={`${field} w-32`}
+              placeholder="When"
+              value={due}
+              onChange={(e) => setDue(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={busy || !what.trim() || !owner.trim()}
+              onClick={() => {
+                onSend({ action: "action-add", what, owner, due });
+                setWhat("");
+                setOwner("");
+                setDue("");
+              }}
+              className="rounded-lg border cv-border px-3 text-xs font-semibold cv-text-secondary disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+
+          {!published && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                disabled={busy || pm.actionItems.length === 0}
+                onClick={() => onSend({ action: "postmortem-publish" })}
+                className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 disabled:opacity-40"
+              >
+                Publish
+              </button>
+              {pm.actionItems.length === 0 && (
+                <span className="text-[11px] cv-text-muted">
+                  Add at least one action first.
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
