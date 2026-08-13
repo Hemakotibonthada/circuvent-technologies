@@ -5,9 +5,20 @@ import { requireAuth, type AuthedRequest } from "../auth";
 import { publishCommand } from "../mqtt";
 import { normaliseCommand } from "../device-commands";
 import { logger } from "../logger";
-import { refuseCommand, actorId } from "../home/enforce";
+import { refuseCommand, actorId, requireCapability } from "../home/enforce";
 
 export const scenesRouter = Router();
+
+/*
+ * Editing a scene is changing what the household does; running one is using
+ * it. A teenager should be able to press "Goodnight" without being able to
+ * rewrite what it means.
+ *
+ * `activate` is exempt because it needs `control`, and its individual actions
+ * are judged one by one inside the handler — a scene that includes a lock runs
+ * the rest and reports what it did not do.
+ */
+scenesRouter.use(requireCapability("manage-automations", { except: [/\/activate$/] }));
 
 const actionSchema = z.object({
   deviceId: z.string().min(1),

@@ -78,16 +78,29 @@ export function refuse(req: AuthedRequest, capability: Parameters<typeof can>[1]
 }
 
 /**
- * Express middleware form, for routers where every mutating route needs the
- * same capability.
+ * Express middleware form, for routers where the mutating routes need a
+ * capability.
  *
- * Reads are left alone deliberately: seeing who is enrolled at the front door
- * is something everybody in a household has a stake in, and hiding it makes
- * the home less safe rather than more private.
+ * Reads are left alone deliberately: seeing who is enrolled at the front door,
+ * or what the automations are, is something everybody in a household has a
+ * stake in, and hiding it makes the home less safe rather than more private.
+ *
+ * `except` names the mutating paths that are *not* management — running a
+ * scene, sending a command — which need `control` and have their own check.
+ * Listing them here rather than sprinkling the guard across each handler means
+ * the default for anything added later is closed, and the exceptions are in
+ * one place somebody can read.
  */
-export function requireCapability(capability: Parameters<typeof can>[1]) {
+export function requireCapability(
+  capability: Parameters<typeof can>[1],
+  options: { except?: RegExp[] } = {}
+) {
   return function (req: AuthedRequest, res: Response, next: NextFunction): void {
     if (req.method === "GET" || req.method === "HEAD") {
+      next();
+      return;
+    }
+    if (options.except?.some((re) => re.test(req.path))) {
       next();
       return;
     }

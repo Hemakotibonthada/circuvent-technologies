@@ -2,9 +2,21 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../db";
 import { requireAuth, type AuthedRequest } from "../auth";
+import { requireCapability } from "../home/enforce";
 import { analysePlate, normalisePlate } from "../anpr/plate";
 
 export const automationRouter = Router();
+
+/*
+ * An automation outlives the person who wrote it and runs when nobody is
+ * watching. A rule that unlocks the door at 7am is a key cut in software, so
+ * writing one needs the same trust as changing what the home is — and unlike a
+ * command, nobody sees it happen.
+ *
+ * Reading is left open: everybody in a household has a stake in knowing what
+ * the house does by itself.
+ */
+automationRouter.use(requireCapability("manage-automations"));
 
 const triggerSchema = z.object({
   type: z.enum(["state", "time", "event"]),

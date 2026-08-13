@@ -7,9 +7,19 @@ import { ownsDevice, invalidateOwnership } from "../ownership";
 import { buildDeviceReport, reportToCsv } from "../device-report";
 import { logger } from "../logger";
 import { onlineColumn } from "../device-online";
-import { refuseCommand, actorId } from "../home/enforce";
+import { refuseCommand, actorId, requireCapability } from "../home/enforce";
 
 export const deviceRouter = Router();
+
+/*
+ * Adding, renaming and unclaiming devices changes what the home is; sending a
+ * command is using it.
+ *
+ * `command` is exempt because it needs `control`, and what it may carry is
+ * judged per command inside the handler — a limited member turns on a lamp,
+ * and the same route refuses them an unlock.
+ */
+deviceRouter.use(requireCapability("manage-devices", { except: [/\/command$/] }));
 
 /**
  * POST /devices/provision  (owner-authenticated)

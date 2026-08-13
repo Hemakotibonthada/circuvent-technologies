@@ -2,8 +2,13 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../db";
 import { requireAuth, type AuthedRequest } from "../auth";
+import { requireCapability } from "../home/enforce";
 
 export const roomsRouter = Router();
+
+/* Rooms are the shape of the home. Renaming or deleting one rearranges every
+   screen for everybody in it, so it sits with device management. */
+roomsRouter.use(requireCapability("manage-devices"));
 
 interface RoomRow {
   id: number | null;
