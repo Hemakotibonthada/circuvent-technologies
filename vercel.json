@@ -3,6 +3,7 @@
   "crons": [
     { "path": "/api/admin/alerts/run", "schedule": "0 8 * * *" },
     { "path": "/api/admin/reports/send", "schedule": "0 4 * * *" },
-    { "path": "/api/smarthome/alerts/cron", "schedule": "0 6 * * *" }
+    { "path": "/api/smarthome/alerts/cron", "schedule": "0 6 * * *" },
+    { "path": "/api/admin/availability/probe", "schedule": "0 5 * * *" }
   ]
 }
