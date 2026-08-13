@@ -15,6 +15,7 @@ import {
   Siren,
   Timer,
   UserPlus,
+  FileText,
   X,
 } from "lucide-react";
 import {
@@ -714,6 +715,7 @@ const KIND_ICON: Record<TimelineEntry["kind"], typeof Clock> = {
   assigned: UserPlus,
   comment: MessageSquare,
   escalated: Siren,
+  postmortem: FileText,
   sla: Timer,
 };
 

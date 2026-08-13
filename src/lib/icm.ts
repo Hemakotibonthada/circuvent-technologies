@@ -48,6 +48,7 @@ export interface TimelineEntry {
     | "assigned"
     | "comment"
     | "escalated"
+    | "postmortem"
     | "sla";
   /** Human-readable, already past tense: "raised severity to Sev1". */
   text: string;
@@ -111,6 +112,61 @@ export interface Incident {
    * declared.
    */
   sourceKey?: string;
+
+  /*
+   * How many times the ack SLA breach has escalated this incident.
+   *
+   * Recorded rather than derived, because escalation must happen once per
+   * level. Deriving it from the clock would re-escalate on every sweep for as
+   * long as the incident stayed unacknowledged — a pager loop, and the fastest
+   * way to get an escalation policy switched off entirely.
+   */
+  escalations?: number;
+  /** When it last escalated, so a sweep can leave a grace period. */
+  lastEscalatedAt?: string;
+
+  /**
+   * The write-up, once there is one.
+   *
+   * Separate from `rootCause`, which is a line typed at three in the morning to
+   * close the incident. A postmortem is written afterwards, when somebody
+   * understands it, and it carries the actions that stop a recurrence — the
+   * only part of an incident that changes anything.
+   */
+  postmortem?: Postmortem;
+}
+
+export interface ActionItem {
+  id: string;
+  what: string;
+  owner: string;
+  /** Free text: "next sprint", a date, whatever the team actually uses. */
+  due: string;
+  done: boolean;
+}
+
+export interface Postmortem {
+  summary: string;
+  /** Why it happened, as distinct from what stopped the bleeding. */
+  cause: string;
+  /** What would have caught it sooner. Often the most useful line in the doc. */
+  detection: string;
+  actionItems: ActionItem[];
+  authoredBy: string;
+  updatedAt: string;
+  /** Unpublished until somebody says it is finished. */
+  publishedAt: string | null;
+}
+
+/**
+ * Severities that owe a postmortem.
+ *
+ * Sev2 and worse. Requiring one for every Sev4 produces a stack of documents
+ * nobody reads, and the requirement stops meaning anything for the incidents
+ * where it matters.
+ */
+export function postmortemRequired(inc: Incident): boolean {
+  return inc.severity <= 2;
 }
 
 /**
@@ -460,6 +516,225 @@ export function comment(inc: Incident, actor: string, body: string, now: string)
 }
 
 /* ---------------------------------------------------------------- queries -- */
+
+// ───────────────────────────────────────────────────── escalation ──
+
+/** Minutes to wait after an escalation before escalating again. */
+export const ESCALATION_GRACE_MINS = 15;
+
+/**
+ * Should this incident escalate right now?
+ *
+ * Four conditions, and each exists because of the way an escalation policy
+ * fails in practice:
+ *
+ *   the ack clock must have breached — that is the trigger
+ *   it must be unacknowledged — an acknowledged incident has somebody on it,
+ *     and paging their manager because the clock ran out anyway is how people
+ *     learn to acknowledge things they are not working on
+ *   it must not be mitigated or resolved
+ *   it must not have escalated within the grace period — otherwise every sweep
+ *     re-escalates for as long as it stays open, which is a pager loop
+ *
+ * There is also a ceiling: this never reaches Sev0. Sev0 means the product is
+ * gone for everybody, and that is a judgement a person makes with context a
+ * clock does not have.
+ */
+export function shouldEscalate(inc: Incident, now: string): boolean {
+  if (inc.acknowledgedAt) return false;
+  if (inc.status !== "active") return false;
+  if (inc.severity <= 1) return false;
+  if (ackClock(inc, now).state !== "breached") return false;
+
+  if (inc.lastEscalatedAt) {
+    const since = (Date.parse(now) - Date.parse(inc.lastEscalatedAt)) / 60_000;
+    if (since < ESCALATION_GRACE_MINS) return false;
+  }
+  return true;
+}
+
+/**
+ * Raises severity by one and records why.
+ *
+ * The severity change is the escalation: it shortens the SLA, moves the
+ * incident up the queue, and changes who is looking. Notifying without
+ * changing anything would be a louder version of the same silence.
+ *
+ * `slaAckMins` is deliberately NOT restamped. The commitment was made when the
+ * incident was filed, and rewriting it here would clear the breach that caused
+ * the escalation — the incident would look as though it had been handled on
+ * time, which is the opposite of what happened.
+ */
+export function escalate(inc: Incident, now: string, reason?: string): ActionResult {
+  if (!shouldEscalate(inc, now)) {
+    return { incident: inc, error: "This incident does not meet the escalation conditions." };
+  }
+
+  const next = (inc.severity - 1) as Severity;
+  const why =
+    reason ??
+    `no acknowledgement within the ${inc.slaAckMins}-minute Sev ${inc.severity} target`;
+
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      severity: next,
+      escalations: (inc.escalations ?? 0) + 1,
+      lastEscalatedAt: now,
+      timeline: [
+        ...inc.timeline,
+        entry(now, "icm-escalation", "escalated", `raised to Sev ${next} — ${why}`),
+      ],
+    },
+  };
+}
+
+/** Every incident currently due to escalate. */
+export function planEscalations(all: Incident[], now: string): Incident[] {
+  return all.filter((inc) => shouldEscalate(inc, now)).map((inc) => escalate(inc, now).incident);
+}
+
+// ──────────────────────────────────────────────────── postmortem ──
+
+/**
+ * Starts or updates the write-up.
+ *
+ * Allowed only once the incident is mitigated. Writing a postmortem while the
+ * site is still down is time spent on the document instead of the outage, and
+ * the cause recorded then is usually the first guess.
+ */
+export function savePostmortem(
+  inc: Incident,
+  actor: string,
+  draft: Pick<Postmortem, "summary" | "cause" | "detection">,
+  now: string
+): ActionResult {
+  if (inc.status !== "mitigated" && inc.status !== "resolved") {
+    return { incident: inc, error: "Write the postmortem once the incident is mitigated." };
+  }
+
+  const existing = inc.postmortem;
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      postmortem: {
+        summary: draft.summary,
+        cause: draft.cause,
+        detection: draft.detection,
+        actionItems: existing?.actionItems ?? [],
+        authoredBy: existing?.authoredBy || actor,
+        updatedAt: now,
+        // Editing a published postmortem does not silently unpublish it.
+        publishedAt: existing?.publishedAt ?? null,
+      },
+      timeline: [
+        ...inc.timeline,
+        entry(now, actor, "postmortem", existing ? "updated the postmortem" : "started a postmortem"),
+      ],
+    },
+  };
+}
+
+export function addActionItem(
+  inc: Incident,
+  actor: string,
+  item: Pick<ActionItem, "what" | "owner" | "due">,
+  now: string
+): ActionResult {
+  if (!inc.postmortem) {
+    return { incident: inc, error: "Start the postmortem before adding actions." };
+  }
+  if (!item.what.trim()) return { incident: inc, error: "An action needs a description." };
+  /*
+   * An owner is required. "We should improve monitoring" with nobody's name on
+   * it is the single most common action item in the world and the least likely
+   * to happen.
+   */
+  if (!item.owner.trim()) return { incident: inc, error: "An action needs an owner." };
+
+  const next: ActionItem = {
+    id: `AI-${(inc.postmortem.actionItems.length + 1).toString().padStart(2, "0")}`,
+    what: item.what.trim(),
+    owner: item.owner.trim(),
+    due: item.due.trim(),
+    done: false,
+  };
+
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      postmortem: {
+        ...inc.postmortem,
+        actionItems: [...inc.postmortem.actionItems, next],
+        updatedAt: now,
+      },
+      timeline: [...inc.timeline, entry(now, actor, "postmortem", `added action ${next.id}: ${next.what}`)],
+    },
+  };
+}
+
+export function toggleActionItem(inc: Incident, actor: string, id: string, now: string): ActionResult {
+  if (!inc.postmortem) return { incident: inc, error: "No postmortem." };
+  const item = inc.postmortem.actionItems.find((a) => a.id === id);
+  if (!item) return { incident: inc, error: "No such action." };
+
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      postmortem: {
+        ...inc.postmortem,
+        actionItems: inc.postmortem.actionItems.map((a) =>
+          a.id === id ? { ...a, done: !a.done } : a
+        ),
+        updatedAt: now,
+      },
+      timeline: [
+        ...inc.timeline,
+        entry(now, actor, "postmortem", `${item.done ? "reopened" : "completed"} ${id}`),
+      ],
+    },
+  };
+}
+
+/**
+ * Publishes the write-up.
+ *
+ * Refused without at least one action item. A postmortem that produced no
+ * actions is either an incident that could not recur — vanishingly rare — or a
+ * document written to close a ticket, and publishing those is how the whole
+ * practice comes to be seen as paperwork.
+ */
+export function publishPostmortem(inc: Incident, actor: string, now: string): ActionResult {
+  if (!inc.postmortem) return { incident: inc, error: "No postmortem to publish." };
+  if (inc.postmortem.publishedAt) return { incident: inc, error: "Already published." };
+  if (!inc.postmortem.summary.trim() || !inc.postmortem.cause.trim()) {
+    return { incident: inc, error: "A postmortem needs a summary and a cause." };
+  }
+  if (inc.postmortem.actionItems.length === 0) {
+    return { incident: inc, error: "A postmortem with no actions is not finished." };
+  }
+
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      postmortem: { ...inc.postmortem, publishedAt: now, updatedAt: now },
+      timeline: [...inc.timeline, entry(now, actor, "postmortem", "published the postmortem")],
+    },
+  };
+}
+
+/** Resolved incidents that owe a postmortem and do not have a published one. */
+export function postmortemsOutstanding(all: Incident[]): Incident[] {
+  return all.filter(
+    (inc) =>
+      inc.status === "resolved" && postmortemRequired(inc) && !inc.postmortem?.publishedAt
+  );
+}
 
 export interface Filters {
   status?: "open" | "all" | IncidentStatus;
