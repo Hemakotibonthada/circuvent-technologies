@@ -543,6 +543,7 @@ export const api = {
     req<{
       profiles: FaceProfile[];
       limits: { maxSamples: number; maxProfiles: number };
+      capabilities?: { photoEnrolment: boolean; reason: string };
     }>(`/face/profiles?deviceId=${encodeURIComponent(deviceId)}`),
 
   createFaceProfile: (body: {

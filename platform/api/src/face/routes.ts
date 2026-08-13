@@ -131,6 +131,22 @@ faceRouter.get("/profiles", requireAuth, async (req: AuthedRequest, res) => {
       createdAt: row.created_at,
     })),
     limits: { maxSamples: MAX_SAMPLES_PER_PROFILE, maxProfiles: MAX_PROFILES_PER_DEVICE },
+    /*
+     * Whether enrolling from a photograph is possible at all.
+     *
+     * It needs an embedding model, which is deployment configuration this
+     * account may simply not have set. Reported alongside the roster so the
+     * console can say "enrol at the door instead" before somebody picks a
+     * photo — rather than letting them choose one, wait, and get a failure
+     * that reads like a broken feature.
+     */
+    capabilities: {
+      photoEnrolment: getEmbedder().name !== "none",
+      reason:
+        getEmbedder().name === "none"
+          ? "Photo enrolment needs a face model. Set FACE_EMBEDDER on the control plane, or enrol at the door."
+          : "",
+    },
   });
 });
 

@@ -1183,7 +1183,11 @@ export const controlPlane = {
   // ---- gate guest passes (Zone 1) ----------------------------------------
   // ---- FaceDoor faces -----------------------------------------------------
   faceProfiles: (deviceId: string) =>
-    req<{ profiles: FaceProfile[]; limits: { maxSamples: number; maxProfiles: number } }>(
+    req<{
+      profiles: FaceProfile[];
+      limits: { maxSamples: number; maxProfiles: number };
+      capabilities?: { photoEnrolment: boolean; reason: string };
+    }>(
       "/face/profiles?deviceId=" + encodeURIComponent(deviceId)
     ),
   createFaceProfile: (body: {

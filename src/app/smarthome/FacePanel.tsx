@@ -46,6 +46,7 @@ export default function FacePanel({ deviceId, deviceName }: { deviceId: string; 
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<"resident" | "guest" | "staff">("resident");
   const [uploadFor, setUploadFor] = useState<FaceProfile | null>(null);
+  const [photoEnrolment, setPhotoEnrolment] = useState({ available: true, reason: "" });
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -58,6 +59,10 @@ export default function FacePanel({ deviceId, deviceName }: { deviceId: string; 
     if (p.ok) {
       setProfiles(p.data.profiles ?? []);
       setLimits(p.data.limits ?? limits);
+      /* Older control planes do not report capabilities; assume available
+         rather than hiding a working button on an upgrade lag. */
+      const cap = p.data.capabilities;
+      setPhotoEnrolment({ available: cap ? cap.photoEnrolment : true, reason: cap?.reason ?? "" });
     } else {
       setError("Could not load who is enrolled on this door.");
     }
@@ -253,6 +258,17 @@ export default function FacePanel({ deviceId, deviceName }: { deviceId: string; 
           Photos are never stored. Each becomes a mathematical descriptor and is discarded — a
           descriptor cannot be turned back into a recognisable picture.
         </p>
+        {!photoEnrolment.available && (
+          /*
+           * Said before somebody picks a photo, not after. Choosing a file,
+           * waiting, and then being told it cannot be used reads as a broken
+           * feature rather than as configuration nobody has set.
+           */
+          <div className="mt-2 rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-[12px] text-amber-200">
+            {photoEnrolment.reason || "Photo enrolment is not configured on this home."} Enrolling
+            at the door works regardless.
+          </div>
+        )}
       </div>
 
       {/* Roster */}
@@ -323,7 +339,8 @@ export default function FacePanel({ deviceId, deviceName }: { deviceId: string; 
                     setUploadFor(p);
                     fileInput.current?.click();
                   }}
-                  disabled={busy === `upload-${p.id}` || p.samples >= limits.maxSamples}
+                  disabled={busy === `upload-${p.id}` || p.samples >= limits.maxSamples || !photoEnrolment.available}
+                  title={!photoEnrolment.available ? photoEnrolment.reason : p.samples >= limits.maxSamples ? "This person has the maximum number of faces" : "Add a face from a photo"}
                   className="inline-flex h-[36px] items-center gap-1.5 rounded-lg border border-white/15 px-3 text-[13px] text-slate-200 hover:bg-white/5 disabled:opacity-40"
                 >
                   {busy === `upload-${p.id}` ? (
