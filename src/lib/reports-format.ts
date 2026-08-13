@@ -47,13 +47,37 @@ export interface SummaryStat {
   deltaPct?: number | null;
 }
 
-export type ChartKind = "line" | "bar" | "hbar" | "donut" | "none";
+/**
+ * Chart kinds a report may ask for.
+ *
+ * The first four were the whole vocabulary, which meant every report that
+ * wanted something else got a bar chart and a title describing the chart it
+ * did not have — the P&L was labelled "P&L waterfall" and rendered as plain
+ * bars, so the bridge from revenue to gross profit was invisible.
+ */
+export type ChartKind =
+  | "line"
+  | "bar"
+  | "hbar"
+  | "donut"
+  | "waterfall"
+  | "combo"
+  | "stacked"
+  | "heatmap"
+  | "funnel"
+  | "none";
 
 export interface ChartSpec {
   kind: ChartKind;
-  /** Column key whose values label the x-axis / slices. */
+  /** Column key whose values label the x-axis / slices / heatmap rows. */
   labelKey: string;
-  /** Column keys plotted as series / values. */
+  /**
+   * Column keys plotted as series / values.
+   *
+   * Read differently per kind: one value for bar/hbar/donut/waterfall/funnel,
+   * several stacked for `stacked`, all of them as the matrix for `heatmap`,
+   * and for `combo` the first is drawn as bars and the second as a line.
+   */
   valueKeys: string[];
   currency?: boolean;
   area?: boolean;

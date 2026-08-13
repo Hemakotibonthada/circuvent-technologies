@@ -12,7 +12,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileBarChart, Download, RefreshCw, FileText, CalendarClock, Plus, Trash2, Send } from "lucide-react";
-import { LineChart, BarChart, HBar, DonutChart, PALETTE } from "./charts";
+import {
+  LineChart, BarChart, HBar, DonutChart, PALETTE,
+  WaterfallChart, ComboChart, StackedBar, Heatmap, FunnelChart, Legend,
+} from "./charts";
 import {
   REPORT_CATALOG, REPORT_GROUPS,
   formatCell, columnAlign, isNumericType, indianGroup,
@@ -238,13 +241,117 @@ function ChartBlock({ table, spec }: { table: ReportTable; spec: ChartSpec }) {
   }
   if (spec.kind === "donut") {
     const vi = colIndex(table.columns, spec.valueKeys[0]);
-    const items = rows.map((r) => ({ name: strAt(r, li), value: numAt(r, vi) }))
-      .sort((a, b) => b.value - a.value).slice(0, spec.limit || 8)
-      .map((it, i) => ({ ...it, color: PALETTE[i % PALETTE.length] }));
-    const total = items.reduce((a, c) => a + c.value, 0);
+    const all = rows.map((r) => ({ name: strAt(r, li), value: numAt(r, vi) })).sort((a, b) => b.value - a.value);
+    const limit = spec.limit || 8;
+    const shown = all.slice(0, limit).map((it, i) => ({ ...it, color: PALETTE[i % PALETTE.length] }));
+    /*
+     * The remainder is folded into one slice rather than dropped.
+     *
+     * The centre used to total only the slices it drew, so a report with more
+     * categories than the limit showed a figure that disagreed with its own
+     * summary card — and every percentage in the legend was computed against
+     * the wrong denominator. A chart that quietly contradicts the number above
+     * it is worse than one that shows fewer slices.
+     */
+    const rest = all.slice(limit);
+    const restTotal = rest.reduce((a, c) => a + c.value, 0);
+    const items = restTotal > 0
+      ? [...shown, { name: `Other (${rest.length})`, value: restTotal, color: "#94a3b8" }]
+      : shown;
+
+    const total = all.reduce((a, c) => a + c.value, 0);
     const center = spec.currency ? "₹" + indianGroup(total) : indianGroup(total);
     return <div className="mb-4 flex justify-center"><DonutChart data={items} centerLabel={center} centerSub={spec.title || "total"} /></div>;
   }
+
+  if (spec.kind === "waterfall") {
+    /*
+     * A waterfall, not a bar chart, because the point of a P&L is the running
+     * balance: each line moves the total, and only the cumulative shape shows
+     * how revenue becomes gross profit. Signed values in plain bars show the
+     * magnitudes and hide the bridge.
+     */
+    const vi = colIndex(table.columns, spec.valueKeys[0]);
+    return (
+      <div className="mb-4">
+        <WaterfallChart labels={rows.map((r) => strAt(r, li))} deltas={rows.map((r) => numAt(r, vi))} />
+      </div>
+    );
+  }
+
+  if (spec.kind === "combo") {
+    const bi = colIndex(table.columns, spec.valueKeys[0]);
+    const lineIdx = colIndex(table.columns, spec.valueKeys[1] ?? "");
+    if (lineIdx < 0) return null;
+    return (
+      <div className="mb-4">
+        <ComboChart
+          labels={rows.map((r) => strAt(r, li))}
+          bars={rows.map((r) => numAt(r, bi))}
+          line={rows.map((r) => numAt(r, lineIdx))}
+        />
+        <Legend
+          items={[
+            { name: table.columns[bi]?.label || spec.valueKeys[0], color: PALETTE[0] },
+            { name: table.columns[lineIdx]?.label || spec.valueKeys[1], color: PALETTE[1] },
+          ]}
+        />
+      </div>
+    );
+  }
+
+  if (spec.kind === "stacked") {
+    /* Stacked because the parts sum to something meaningful — CGST plus SGST
+       is the tax on that line, and showing them side by side invites reading
+       them as alternatives. */
+    const series = spec.valueKeys.map((k, idx) => {
+      const vi = colIndex(table.columns, k);
+      return {
+        name: table.columns[vi]?.label || k,
+        data: rows.map((r) => numAt(r, vi)),
+        color: PALETTE[idx % PALETTE.length],
+      };
+    });
+    return (
+      <div className="mb-4">
+        <StackedBar labels={rows.map((r) => strAt(r, li))} series={series} />
+        <Legend items={series.map((s) => ({ name: s.name, color: s.color! }))} />
+      </div>
+    );
+  }
+
+  if (spec.kind === "heatmap") {
+    /* Cohort retention is a matrix, and a matrix read as a bar chart of cohort
+       sizes answers a different question entirely — how many arrived, rather
+       than how many stayed. */
+    const cols = spec.valueKeys.map((k) => colIndex(table.columns, k)).filter((i) => i >= 0);
+    if (!cols.length) return null;
+    return (
+      <div className="mb-4">
+        <Heatmap
+          rows={rows.map((r) => strAt(r, li))}
+          cols={cols.map((i) => table.columns[i]?.label || "")}
+          grid={rows.map((r) => cols.map((i) => numAt(r, i)))}
+        />
+      </div>
+    );
+  }
+
+  if (spec.kind === "funnel") {
+    const vi = colIndex(table.columns, spec.valueKeys[0]);
+    return (
+      <div className="mb-4">
+        <FunnelChart
+          stages={rows.map((r, i) => ({
+            name: strAt(r, li),
+            value: numAt(r, vi),
+            color: PALETTE[i % PALETTE.length],
+          }))}
+        />
+      </div>
+    );
+  }
+
   return null;
 }
 

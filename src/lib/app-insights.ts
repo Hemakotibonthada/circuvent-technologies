@@ -467,25 +467,33 @@ export interface Availability {
   /** Fraction of checks that succeeded, 0..1. */
   uptime: number;
   p95Ms: number;
+  /** Mean round trip. Shown beside p95 because Azure's table leads with it. */
+  avgMs: number;
   /** When it was last seen failing, if ever. */
   lastFailureAt?: string;
   lastCheckAt?: string;
 }
 
 /**
- * Availability, derived from health checks the app already makes.
+ * Availability, measured from the scheduled prober.
  *
- * This is deliberately not called synthetic monitoring, and the console says
- * so. These checks run when a page asks about a capability, from wherever that
- * browser is — so the figure answers "was it reachable when somebody looked",
- * not "is it up". The two diverge exactly when nobody is looking, which is
- * when an outage begins. A real availability number needs a scheduled prober,
- * which is a deployment decision rather than a line of code.
+ * Counts only events the prober produced (`source: "probe"`). Browser-driven
+ * health checks answer "was it reachable when somebody looked", not "is it
+ * up", and the two diverge exactly when nobody is looking — which is when an
+ * outage begins. Mixing them would let a quiet night read as perfect uptime.
+ *
+ * Grouped by target rather than filtered to one path: the prober checks seven
+ * different endpoints across the suite, each with its own path, and an earlier
+ * version of this filtered on `path === "/health"` — so every synthetic check
+ * except the control plane was silently absent from the blade that exists to
+ * show them.
  */
-export function availability(events: TelemetryEvent[], path = "/health"): Availability[] {
+export function availability(events: TelemetryEvent[], path?: string): Availability[] {
   const acc = new Map<string, TelemetryEvent[]>();
   for (const e of events) {
-    if (e.kind !== "dependency" || e.path !== path) continue;
+    if (e.kind !== "dependency") continue;
+    if (e.source !== "probe") continue;
+    if (path && e.path !== path) continue;
     const t = e.target ?? "unknown";
     if (!acc.has(t)) acc.set(t, []);
     acc.get(t)!.push(e);
@@ -501,6 +509,9 @@ export function availability(events: TelemetryEvent[], path = "/health"): Availa
       failed: failedEvents.length,
       uptime: subset.length ? (subset.length - failedEvents.length) / subset.length : 0,
       p95Ms: percentile(durations, 95),
+      avgMs: subset.length
+        ? Math.round(subset.reduce((s, e) => s + e.durationMs, 0) / subset.length)
+        : 0,
       lastFailureAt: failedEvents.reduce<string | undefined>(
         (latest, e) => (!latest || e.at > latest ? e.at : latest),
         undefined
@@ -512,6 +523,90 @@ export function availability(events: TelemetryEvent[], path = "/health"): Availa
     });
   }
   return out.sort((a, b) => a.uptime - b.uptime);
+}
+
+export interface AvailabilityPoint {
+  at: string;
+  /** 0..1, or null where no check ran in the bucket. */
+  uptime: number | null;
+  checks: number;
+  failed: number;
+  avgMs: number;
+}
+
+/**
+ * Uptime over time, bucketed — the line the Availability blade draws.
+ *
+ * A bucket with no checks is `null`, not zero and not 100%. Both of those are
+ * assertions nobody made: zero invents an outage, and 100% invents a
+ * successful check. The chart leaves a gap, which is the honest shape for
+ * "we did not look".
+ */
+export function availabilityTimeline(
+  events: TelemetryEvent[],
+  opts: { target?: string; hours?: number; bucketMinutes?: number; now: string }
+): AvailabilityPoint[] {
+  const hours = opts.hours ?? 24;
+  const bucketMs = (opts.bucketMinutes ?? (hours <= 6 ? 15 : hours <= 24 ? 60 : 240)) * 60_000;
+  const nowMs = new Date(opts.now).getTime();
+  const startMs = Math.floor((nowMs - hours * 3600_000) / bucketMs) * bucketMs;
+  const count = Math.max(1, Math.ceil((nowMs - startMs) / bucketMs));
+
+  const buckets: TelemetryEvent[][] = Array.from({ length: count }, () => []);
+  for (const e of events) {
+    if (e.kind !== "dependency" || e.source !== "probe") continue;
+    if (opts.target && e.target !== opts.target) continue;
+    const t = new Date(e.at).getTime();
+    if (!Number.isFinite(t) || t < startMs || t > nowMs) continue;
+    const idx = Math.min(count - 1, Math.floor((t - startMs) / bucketMs));
+    if (idx >= 0) buckets[idx].push(e);
+  }
+
+  return buckets.map((bag, i) => ({
+    at: new Date(startMs + i * bucketMs).toISOString(),
+    uptime: bag.length ? bag.filter((e) => e.ok).length / bag.length : null,
+    checks: bag.length,
+    failed: bag.filter((e) => !e.ok).length,
+    avgMs: bag.length ? Math.round(bag.reduce((s, e) => s + e.durationMs, 0) / bag.length) : 0,
+  }));
+}
+
+export interface AvailabilityResult {
+  at: string;
+  target: string;
+  ok: boolean;
+  status: number;
+  durationMs: number;
+  detail: string;
+}
+
+/**
+ * Individual check results, newest first.
+ *
+ * An uptime percentage tells you something is wrong; only the individual
+ * results tell you when it started and what it answered. Azure calls this
+ * drilling into the test, and it is the difference between a number and a
+ * diagnosis.
+ */
+export function availabilityResults(
+  events: TelemetryEvent[],
+  opts: { target?: string; outcome?: "all" | "ok" | "failed"; limit?: number } = {}
+): AvailabilityResult[] {
+  const outcome = opts.outcome ?? "all";
+  return events
+    .filter((e) => e.kind === "dependency" && e.source === "probe")
+    .filter((e) => !opts.target || e.target === opts.target)
+    .filter((e) => (outcome === "ok" ? e.ok : outcome === "failed" ? !e.ok : true))
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, opts.limit ?? 50)
+    .map((e) => ({
+      at: e.at,
+      target: e.target ?? "unknown",
+      ok: e.ok,
+      status: e.status,
+      durationMs: e.durationMs,
+      detail: e.errorMessage || e.errorType || (e.ok ? "" : `HTTP ${e.status}`),
+    }));
 }
 
 export function failureKey(e: Pick<TelemetryEvent, "errorType" | "path" | "stack">): string {  const top = (e.stack || "").split("\n").map((s) => s.trim()).find((s) => s.startsWith("at ")) || "";

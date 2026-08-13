@@ -34,6 +34,8 @@ import {
   dependencyStats,
   applicationMap,
   availability,
+  availabilityTimeline,
+  availabilityResults,
 } from "./app-insights";
 import { detectAnomalies } from "./insights-anomalies";
 import {
@@ -120,7 +122,12 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     recent: queryEvents(windowed, { limit: 200 }, now),
     dependencies: dependencyStats(windowed).slice(0, 100),
     map: applicationMap(windowed),
-    availability: availability(windowed),
+    availability: availability(allEvents()),
+    /* The line the blade draws, and the individual results behind it. Both
+       run over the whole buffer: a daily prober puts very few checks in any
+       one window, and an availability chart of two points is not a chart. */
+    availabilitySeries: availabilityTimeline(allEvents(), { hours, now }),
+    availabilityResults: availabilityResults(allEvents(), { limit: 60 }),
     // Detection runs over the whole retained buffer, not the selected window:
     // it needs a baseline older than the window it is judging.
     anomalies: detectAnomalies(allEvents(), now),

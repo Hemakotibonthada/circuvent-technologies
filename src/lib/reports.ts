@@ -212,7 +212,7 @@ function salesReport(days: number): ReportTable {
       stat("Units sold", String(k.units.value), { deltaPct: round1(k.units.delta) }),
     ],
     columns, rows, totals,
-    chart: { kind: "line", labelKey: "date", valueKeys: ["revenue"], currency: true, area: true, title: "Revenue" },
+    chart: { kind: "combo", labelKey: "date", valueKeys: ["revenue", "orders"], currency: true, title: "Revenue and orders" },
     notes: ["Revenue counts paid orders only; GMV counts all placed orders including unpaid/COD.", "Deltas compare against the immediately preceding window of equal length."],
   };
 }
@@ -415,7 +415,7 @@ function taxReport(days: number): ReportTable {
       stat("Invoice value", inr(totalInvoice)),
     ],
     columns, rows, totals,
-    chart: { kind: "bar", labelKey: "hsn", valueKeys: ["tax"], currency: true, title: "GST by HSN" },
+    chart: { kind: "stacked", labelKey: "hsn", valueKeys: ["cgst", "sgst"], currency: true, title: "GST by HSN (CGST / SGST)" },
     notes,
   };
 }
@@ -488,7 +488,7 @@ function pnlReport(days: number): ReportTable {
       stat("Gross margin", pct(marginPct)),
     ],
     columns, rows, totals: [],
-    chart: { kind: "bar", labelKey: "line", valueKeys: ["amount"], currency: true, title: "P&L waterfall" },
+    chart: { kind: "waterfall", labelKey: "line", valueKeys: ["amount"], currency: true, title: "Revenue to gross profit" },
     notes,
   };
 }
@@ -697,7 +697,18 @@ function retentionReport(days: number): ReportTable {
       stat("Avg orders / customer", ret.avgOrdersPerCustomer === null ? "—" : ret.avgOrdersPerCustomer.toFixed(2)),
     ],
     columns, rows, totals, sections,
-    chart: { kind: "bar", labelKey: "cohort", valueKeys: ["size"], title: "Customers acquired by month" },
+    /*
+     * The matrix columns are generated above from `maxOffsets`, which varies
+     * with the window, so the spec is built from them rather than hardcoded.
+     * A spec naming m4 in a three-month window resolves to nothing and the
+     * chart silently disappears — which is how it was written the first time.
+     */
+    chart: {
+      kind: "heatmap",
+      labelKey: "cohort",
+      valueKeys: Array.from({ length: maxOffsets }, (_, i) => `m${i + 1}`),
+      title: "Retention by cohort",
+    },
     notes: ["Each customer belongs to the month of their first-ever order. M+n is the share of that cohort who ordered again n months later.", "Retention is a lifetime measure computed from full order history, so it is independent of the selected range."],
   };
 }
@@ -721,7 +732,7 @@ function fulfilmentReport(days: number): ReportTable {
       stat("Avg placed→delivered", sla.avgFulfilmentHours === null ? "—" : sla.avgFulfilmentHours.toFixed(1) + " h"),
     ],
     columns, rows, totals,
-    chart: { kind: "bar", labelKey: "stage", valueKeys: ["avgHours"], title: "Average hours per stage" },
+    chart: { kind: "funnel", labelKey: "stage", valueKeys: ["count"], title: "Orders reaching each stage" },
     notes: ["Timings use each order's status-history timestamps. An order only counts toward a transition when both endpoints carry a real timestamp — missing stages are excluded, never counted as 0h."],
   };
 }

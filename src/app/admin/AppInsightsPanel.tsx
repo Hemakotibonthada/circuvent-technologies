@@ -266,6 +266,8 @@ interface View {
   dependencies: DependencyStat[];
   map: MapNode[];
   availability: Availability[];
+  availabilitySeries?: { at: string; uptime: number | null; checks: number; failed: number; avgMs: number }[];
+  availabilityResults?: { at: string; target: string; ok: boolean; status: number; durationMs: number; detail: string }[];
   lastSweepAt: string | null;
   anomalies: { fingerprint: string; severity: string; title: string; detail: string; suggestion?: string }[];
   received: number;
@@ -451,6 +453,99 @@ function MetricChart({
   );
 }
 
+/**
+ * Availability over time.
+ *
+ * Two views of the same data, as Azure offers: a line, which reads the trend,
+ * and a scatter, which shows each check as its own dot so a single failure in
+ * a healthy window is still visible rather than averaged into a line that
+ * barely dips.
+ *
+ * Buckets with no checks are gaps, not zeroes — the series is `null` there and
+ * the polyline is broken into segments rather than dragged down through the
+ * silence.
+ */
+function AvailabilityChart({
+  points,
+  mode,
+}: {
+  points: { at: string; uptime: number | null; checks: number; failed: number; avgMs: number }[];
+  mode: "line" | "scatter";
+}) {
+  const W = 900;
+  const H = 200;
+  const PAD = { l: 52, r: 12, t: 12, b: 26 };
+  const len = Math.max(1, points.length);
+  const x = (i: number) => PAD.l + (i / Math.max(1, len - 1)) * (W - PAD.l - PAD.r);
+  const y = (v: number) => PAD.t + (1 - v) * (H - PAD.t - PAD.b);
+
+  /* Contiguous runs of real values, so a gap breaks the line instead of being
+     interpolated across — an interpolated gap asserts uptime nobody measured. */
+  const segments: { i: number; v: number }[][] = [];
+  let run: { i: number; v: number }[] = [];
+  points.forEach((p, i) => {
+    if (p.uptime === null) {
+      if (run.length) segments.push(run);
+      run = [];
+    } else {
+      run.push({ i, v: p.uptime });
+    }
+  });
+  if (run.length) segments.push(run);
+
+  const measured = points.filter((p) => p.uptime !== null);
+
+  return (
+    <div className="rounded-xl border cv-border cv-surface p-3">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Availability over time">
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <g key={f}>
+            <line x1={PAD.l} x2={W - PAD.r} y1={y(f)} y2={y(f)} stroke="var(--border)" strokeWidth={1} />
+            <text x={PAD.l - 6} y={y(f) + 4} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+              {Math.round(f * 100)}%
+            </text>
+          </g>
+        ))}
+
+        {mode === "line" &&
+          segments.map((seg, si) => (
+            <polyline
+              key={si}
+              fill="none"
+              stroke="#34d399"
+              strokeWidth={2}
+              points={seg.map((p) => `${x(p.i)},${y(p.v)}`).join(" ")}
+            />
+          ))}
+
+        {points.map((p, i) =>
+          p.uptime === null ? null : (
+            <circle
+              key={i}
+              cx={x(i)}
+              cy={y(p.uptime)}
+              r={mode === "scatter" ? 4 : 2.5}
+              fill={p.failed > 0 ? "#f87171" : "#34d399"}
+              fillOpacity={mode === "scatter" ? 0.85 : 1}
+            >
+              <title>
+                {`${fmtTime(p.at)} · ${Math.round(p.uptime * 100)}% · ${p.checks} check${
+                  p.checks === 1 ? "" : "s"
+                }${p.failed ? `, ${p.failed} failed` : ""} · avg ${p.avgMs} ms`}
+              </title>
+            </circle>
+          )
+        )}
+      </svg>
+      <div className="px-2 pt-1 text-[11px] cv-text-muted">
+        {measured.length === 0
+          ? "No probe has run in this window. The gaps are not outages — nothing was measured."
+          : `${measured.length} of ${points.length} intervals measured. Gaps are intervals with no check, not downtime.`}
+      </div>
+    </div>
+  );
+}
+
 export default function AppInsightsPanel() {
   const [view, setView] = useState<View | null>(null);
   const [hours, setHours] = useState(24);
@@ -469,6 +564,9 @@ export default function AppInsightsPanel() {
   /** Per-failure status line: "filing", or whatever came back. */
   const [filedFailures, setFiledFailures] = useState<Record<string, string>>({});
   const [live, setLive] = useState(false);
+  const [availMode, setAvailMode] = useState<"line" | "scatter">("line");
+  const [availTarget, setAvailTarget] = useState("");
+  const [availOutcome, setAvailOutcome] = useState<"all" | "ok" | "failed">("all");
 
   const fileFromFailure = useCallback(async (f: FailureGroup) => {
     setFiledFailures((s) => ({ ...s, [f.key]: "filing" }));
@@ -926,6 +1024,149 @@ export default function AppInsightsPanel() {
               </div>
             );
           })()}
+
+          {view.availability.length > 0 && (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-bold cv-text-primary">Availability</div>
+                <div className="flex overflow-hidden rounded-lg border cv-border">
+                  {(["line", "scatter"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setAvailMode(m)}
+                      className={`h-[32px] px-3 text-xs font-semibold capitalize ${
+                        availMode === m ? "bg-cyan-600 text-white" : "cv-surface-alt cv-text-secondary"
+                      }`}
+                    >
+                      {m === "scatter" ? "Scatter plot" : "Line"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <AvailabilityChart points={view.availabilitySeries ?? []} mode={availMode} />
+
+              <div className="overflow-x-auto rounded-xl border cv-border">
+                <table className="w-full text-left text-sm">
+                  <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
+                    <tr>
+                      <th className="px-3 py-2">Availability test</th>
+                      <th className="px-3 py-2 text-right">Availability</th>
+                      <th className="px-3 py-2 text-right">Checks</th>
+                      <th className="px-3 py-2 text-right">Duration (avg)</th>
+                      <th className="px-3 py-2 text-right">P95</th>
+                      <th className="px-3 py-2">Last failure</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {view.availability.map((a) => (
+                      <tr
+                        key={a.target}
+                        onClick={() => setAvailTarget(availTarget === a.target ? "" : a.target)}
+                        className={`cursor-pointer border-t cv-border ${
+                          availTarget === a.target ? "cv-surface-alt" : ""
+                        }`}
+                      >
+                        <td className="px-3 py-2">
+                          <span
+                            className="mr-2 inline-block h-2 w-2 rounded-full"
+                            style={{ background: a.uptime === 1 ? "#34d399" : a.uptime >= 0.99 ? "#f59e0b" : "#f87171" }}
+                          />
+                          {a.target}
+                        </td>
+                        <td
+                          className="px-3 py-2 text-right font-semibold"
+                          style={{ color: a.uptime < 0.99 ? "#fca5a5" : "#6ee7b7" }}
+                        >
+                          {(a.uptime * 100).toFixed(a.uptime === 1 ? 0 : 2)}%
+                        </td>
+                        <td className="px-3 py-2 text-right text-[12px] cv-text-muted">{a.checks}</td>
+                        <td className="px-3 py-2 text-right text-[12px] cv-text-secondary">{a.avgMs} ms</td>
+                        <td className="px-3 py-2 text-right text-[12px] cv-text-muted">{a.p95Ms} ms</td>
+                        <td className="px-3 py-2 text-[12px] cv-text-muted">
+                          {a.lastFailureAt && view.now ? ago(a.lastFailureAt, view.now) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {(() => {
+                /* Drill in. An uptime percentage says something is wrong; only
+                   the individual results say when it started and what it
+                   answered. */
+                const results = (view.availabilityResults ?? []).filter(
+                  (r) => !availTarget || r.target === availTarget
+                );
+                const failed = results.filter((r) => !r.ok);
+                const shown = availOutcome === "failed" ? failed : availOutcome === "ok" ? results.filter((r) => r.ok) : results;
+
+                return (
+                  <div className="rounded-xl border cv-border cv-surface p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold cv-text-primary">
+                        Drill into{availTarget ? ` ${availTarget}` : " all tests"}
+                      </span>
+                      {availTarget && (
+                        <button
+                          onClick={() => setAvailTarget("")}
+                          className="text-[11px] cv-text-muted hover:cv-text-primary"
+                        >
+                          clear
+                        </button>
+                      )}
+                      <div className="ml-auto flex gap-2">
+                        <button
+                          onClick={() => setAvailOutcome(availOutcome === "ok" ? "all" : "ok")}
+                          className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                            availOutcome === "ok" ? "bg-emerald-600 text-white" : "cv-surface-alt cv-text-secondary"
+                          }`}
+                        >
+                          {results.length - failed.length} successful
+                        </button>
+                        <button
+                          onClick={() => setAvailOutcome(availOutcome === "failed" ? "all" : "failed")}
+                          className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                            availOutcome === "failed" ? "bg-red-600 text-white" : "cv-surface-alt cv-text-secondary"
+                          }`}
+                        >
+                          {failed.length} failed
+                        </button>
+                      </div>
+                    </div>
+
+                    {shown.length === 0 ? (
+                      <div className="py-6 text-center text-[13px] cv-text-muted">
+                        No results yet. The scheduled probe records one per check.
+                      </div>
+                    ) : (
+                      <ul className="max-h-[280px] space-y-1 overflow-y-auto">
+                        {shown.slice(0, 40).map((r, i) => (
+                          <li
+                            key={`${r.at}-${r.target}-${i}`}
+                            className="flex items-baseline gap-2 rounded-md px-2 py-1 text-[12px]"
+                            style={{ background: r.ok ? "transparent" : "rgba(127,29,29,0.25)" }}
+                          >
+                            <span className="shrink-0 cv-text-muted">{fmtTime(r.at)}</span>
+                            <span className="shrink-0 font-semibold cv-text-secondary">{r.target}</span>
+                            <span
+                              className="shrink-0 font-semibold"
+                              style={{ color: r.ok ? "#6ee7b7" : "#fca5a5" }}
+                            >
+                              {r.ok ? "Successful" : "Failed"}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate cv-text-muted">{r.detail}</span>
+                            <span className="shrink-0 cv-text-muted">{r.durationMs} ms</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
+            </>
+          )}
 
           {view.availability.length > 0 && (
             <div className="flex flex-wrap gap-2">
