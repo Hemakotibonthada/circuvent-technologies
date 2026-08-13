@@ -58,6 +58,7 @@ interface View {
   dependencies: DependencyStat[];
   map: MapNode[];
   availability: Availability[];
+  anomalies: { fingerprint: string; severity: string; title: string; detail: string; suggestion?: string }[];
   received: number;
   retained: number;
   capacity: number;
@@ -258,6 +259,49 @@ export default function AppInsightsPanel() {
         </>
       )}
 
+      {view && view.anomalies.length > 0 && (
+        <div className="space-y-2">
+          {view.anomalies.slice(0, 5).map((a) => (
+            <div
+              key={a.fingerprint}
+              className="rounded-xl border p-3"
+              style={{
+                /*
+                 * Literal colours. A severity chip that renders the same for
+                 * critical and warning is worse than none, and a theme text
+                 * token on a coloured fill is how that happens.
+                 */
+                borderColor: a.severity === "critical" ? "rgba(220,38,38,0.5)" : "rgba(245,158,11,0.4)",
+                background: a.severity === "critical" ? "rgba(220,38,38,0.08)" : "rgba(245,158,11,0.06)",
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <span
+                  className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
+                  style={{
+                    background: a.severity === "critical" ? "rgba(220,38,38,0.9)" : "rgba(245,158,11,0.9)",
+                    color: a.severity === "critical" ? "#fff" : "#1f2937",
+                  }}
+                >
+                  {a.severity}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-semibold cv-text-secondary">{a.title}</div>
+                  <div className="text-[13px] cv-text-muted">{a.detail}</div>
+                  {a.suggestion && (
+                    <div className="mt-1 text-[12px] cv-text-muted">{a.suggestion}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          <p className="text-[11px] cv-text-muted">
+            Detected by comparing the last hour against the day before it. Findings with these
+            fingerprints file an incident through the monitor bridge, once each — the same path
+            device alerts take.
+          </p>
+        </div>
+      )}
       <div className="flex gap-1 border-b cv-border">
         {([
           ["requests", "Requests", view?.requests.length],

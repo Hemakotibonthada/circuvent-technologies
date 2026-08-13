@@ -32,6 +32,7 @@ import {
   applicationMap,
   availability,
 } from "./app-insights";
+import { detectAnomalies } from "./insights-anomalies";
 
 interface TelemetryDB {
   events: TelemetryEvent[];
@@ -111,6 +112,9 @@ export function insightsView(hours: number, now = new Date().toISOString()) {
     dependencies: dependencyStats(windowed).slice(0, 100),
     map: applicationMap(windowed),
     availability: availability(windowed),
+    // Detection runs over the whole retained buffer, not the selected window:
+    // it needs a baseline older than the window it is judging.
+    anomalies: detectAnomalies(allEvents(), now),
     received: receivedCount(),
     retained: allEvents().length,
     capacity: MAX_EVENTS,
