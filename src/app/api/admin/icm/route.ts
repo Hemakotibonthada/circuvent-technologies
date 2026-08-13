@@ -133,6 +133,56 @@ export async function POST(request: Request) {
       });
     }
 
+    /**
+     * Files an incident from an Insights failure group.
+     *
+     * Routed through the same bridge as everything else rather than calling
+     * fileIncident directly, so it inherits the deduplication: clicking twice,
+     * or clicking something the sweep has already filed, updates nothing and
+     * opens nothing. The alternative is a queue with three incidents for one
+     * exception, filed by three people who each looked at the same panel.
+     */
+    if (b.kind === "from-failure") {
+      const key = String(b.key || "").trim();
+      if (!key) return NextResponse.json({ success: false, message: "A failure is required." }, { status: 400 });
+
+      const alert: Alert = {
+        fingerprint: `failure:${key}`,
+        /* A person clicked this, so it is not "maybe". But it is still not a
+           Sev0 — the bridge would refuse that, and rightly. */
+        severity: "critical",
+        title: String(b.title || `Exception on ${b.path || "an unknown route"}`),
+        detail: String(b.detail || ""),
+        deviceIds: [],
+        evidence: {
+          errorType: String(b.errorType || ""),
+          path: String(b.path || ""),
+          count: Number(b.count) || 0,
+          sessions: Number(b.sessions) || 0,
+        },
+        suggestion: "Open Insights → Failures and filter to this exception.",
+        state: "open",
+        firstSeenAt: String(b.firstSeen || new Date().toISOString()),
+        lastSeenAt: String(b.lastSeen || new Date().toISOString()),
+        occurrences: Number(b.count) || 1,
+      };
+
+      const { filed } = syncFromAlerts([alert], {
+        owningTeam: String(b.owningTeam || "Platform"),
+        /* A human filed it; only a human should close it. */
+        autoResolve: false,
+      });
+
+      if (filed.length === 0) {
+        return NextResponse.json({
+          success: true,
+          incident: null,
+          message: "An incident is already open for this failure.",
+        });
+      }
+      return NextResponse.json({ success: true, incident: await notified(filed[0]) });
+    }
+
     /** The on-call rota for one team, replaced wholesale. */
     if (b.kind === "rotation") {
       const team = String(b.team || "").trim();

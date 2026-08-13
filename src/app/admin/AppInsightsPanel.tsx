@@ -403,6 +403,43 @@ export default function AppInsightsPanel() {
   const [explorerBusy, setExplorerBusy] = useState(false);
   const [rules, setRules] = useState<RuleRow[]>([]);
   const [editing, setEditing] = useState<RuleRow | null>(null);
+  /** Per-failure status line: "filing", or whatever came back. */
+  const [filedFailures, setFiledFailures] = useState<Record<string, string>>({});
+
+  const fileFromFailure = useCallback(async (f: FailureGroup) => {
+    setFiledFailures((s) => ({ ...s, [f.key]: "filing" }));
+    try {
+      const r = await fetch("/api/admin/icm", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify({
+          kind: "from-failure",
+          key: f.key,
+          title: `${f.errorType} on ${f.path}`,
+          detail: `${f.errorMessage || "(no message)"} — ${f.count} occurrences across ${f.sessions} sessions.`,
+          errorType: f.errorType,
+          path: f.path,
+          count: f.count,
+          sessions: f.sessions,
+          firstSeen: f.firstSeen,
+          lastSeen: f.lastSeen,
+        }),
+      });
+      const b = await r.json();
+      setFiledFailures((s) => ({
+        ...s,
+        [f.key]: !r.ok || !b.success
+          ? b.message || "Could not file that."
+          : b.incident
+            ? `Filed ${b.incident.id}`
+            /* Not an error: the sweep, or somebody else, already filed it.
+               Saying so is more useful than a second incident would be. */
+            : b.message || "Already open.",
+      }));
+    } catch {
+      setFiledFailures((s) => ({ ...s, [f.key]: "Could not reach the incident service." }));
+    }
+  }, []);
 
   /*
    * Filtered client-side, over the 200 events the server already sent. Round
@@ -1329,10 +1366,26 @@ export default function AppInsightsPanel() {
                   {f.count}
                 </span>
               </button>
-              {openFailure === f.key && f.stack && (
-                <pre className="mt-3 overflow-x-auto rounded-lg border cv-border cv-surface-alt p-3 text-[11px] leading-relaxed cv-text-muted">
-                  {f.stack}
-                </pre>
+              {openFailure === f.key && (
+                <>
+                  {f.stack && (
+                    <pre className="mt-3 overflow-x-auto rounded-lg border cv-border cv-surface-alt p-3 text-[11px] leading-relaxed cv-text-muted">
+                      {f.stack}
+                    </pre>
+                  )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      onClick={() => void fileFromFailure(f)}
+                      disabled={filedFailures[f.key] === "filing"}
+                      className="h-[34px] rounded-lg border cv-border px-3 text-[12px] font-semibold cv-text-secondary hover:cv-surface-alt disabled:opacity-40"
+                    >
+                      {filedFailures[f.key] === "filing" ? "Filing…" : "File an incident"}
+                    </button>
+                    {filedFailures[f.key] && filedFailures[f.key] !== "filing" && (
+                      <span className="text-[12px] cv-text-muted">{filedFailures[f.key]}</span>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           ))}

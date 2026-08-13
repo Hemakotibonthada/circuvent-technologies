@@ -268,3 +268,60 @@ describe("notification on the human write paths", () => {
     expect(after).toBe(filedCount);
   });
 });
+
+describe("filing from an Insights failure group", () => {
+  beforeEach(() => {
+    sentMail.length = 0;
+    process.env.ICM_NOTIFY_EMAIL = "oncall@circuvent.com";
+  });
+
+  const failure = {
+    kind: "from-failure",
+    key: "TypeError|/smarthome/devices|at renderTile",
+    title: "TypeError on /smarthome/devices",
+    detail: "Cannot read properties of undefined — 42 occurrences across 9 sessions.",
+    errorType: "TypeError",
+    path: "/smarthome/devices",
+    count: 42,
+    sessions: 9,
+  };
+
+  it("files an incident carrying the failure's detail", async () => {
+    const b = await (await post(failure)).json();
+
+    expect(b.success).toBe(true);
+    expect(b.incident.title).toBe("TypeError on /smarthome/devices");
+    expect(b.incident.source).toBe("monitor");
+    expect(b.incident.description).toContain("42 occurrences");
+  });
+
+  it("does not open a second incident when clicked twice", async () => {
+    // Its own key: the test above already filed the shared one, and the whole
+    // point of this path is that a key files exactly once.
+    const own = { ...failure, key: "TypeError|/smarthome/scenes|at renderScene" };
+    const first = await (await post(own)).json();
+    const second = await (await post(own)).json();
+
+    expect(first.incident).not.toBeNull();
+    // Success, but nothing new — a queue with three incidents for one exception
+    // is what this prevents.
+    expect(second.success).toBe(true);
+    expect(second.incident).toBeNull();
+    expect(second.message).toContain("already open");
+  });
+
+  it("notifies on the first filing only", async () => {
+    const distinct = { ...failure, key: "RangeError|/api/x|at parse" };
+    await post(distinct);
+    const after = sentMail.length;
+    expect(after).toBeGreaterThan(0);
+
+    await post(distinct);
+    expect(sentMail.length).toBe(after);
+  });
+
+  it("requires a failure key", async () => {
+    const res = await post({ kind: "from-failure", title: "Something" });
+    expect(res.status).toBe(400);
+  });
+});
