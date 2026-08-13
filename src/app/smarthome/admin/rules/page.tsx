@@ -23,6 +23,7 @@ import {
   TriangleAlert, Inbox,
 } from "lucide-react";
 import { useAutomations, useAdminDevices } from "../_lib/api";
+import { defaultCommandFor, validateActionCommand } from "./command-defaults";
 import {
   controlPlane,
   actionList,
@@ -101,7 +102,12 @@ const ENABLED_FILTERS: { value: EnabledFilter; label: string }[] = [
   { value: "disabled", label: "Disabled" },
 ];
 
-const DEFAULT_COMMAND = '{\n  "action": "set",\n  "power": true\n}';
+/*
+ * The starting command used to be a fixed `{"action":"set","power":true}` for
+ * every device, which `projectCommand` discards on 18 of the 23 device types.
+ * It is now derived per device in `command-defaults.ts`, so picking a curtain
+ * seeds a position and picking a tank seeds a pump.
+ */
 
 function formatVal(v: number | string | boolean | undefined): string {
   return v === undefined || v === null ? "?" : String(v);
@@ -153,7 +159,7 @@ function formFromRule(r: Automation | null): RuleForm {
     triggerAt: t?.at ?? "",
     actionType: a?.type === "notify" ? "notify" : "command",
     actionDeviceId: a?.deviceId ?? "",
-    actionCommand: a?.command ? JSON.stringify(a.command, null, 2) : DEFAULT_COMMAND,
+    actionCommand: a?.command ? JSON.stringify(a.command, null, 2) : defaultCommandFor(""),
     actionTitle: a?.title ?? "",
     actionBody: a?.body ?? "",
     keepSequence: steps.length > 1 ? steps : undefined,
@@ -161,7 +167,10 @@ function formFromRule(r: Automation | null): RuleForm {
 }
 
 /** Turn the form into the exact AutomationBody the control plane expects. */
-function buildBody(f: RuleForm): { body?: AutomationBody; error?: string } {
+function buildBody(
+  f: RuleForm,
+  deviceType: (id?: string) => string,
+): { body?: AutomationBody; error?: string } {
   if (!f.name.trim()) return { error: "Give the rule a name." };
 
   let trigger: AutomationTrigger;
@@ -196,6 +205,14 @@ function buildBody(f: RuleForm): { body?: AutomationBody; error?: string } {
     } catch {
       return { error: "Action command must be a valid JSON object." };
     }
+    /*
+     * Valid JSON is not the same as a command this device will act on. Without
+     * this, a rule commanding a curtain, tank, gate or meter with the old
+     * `power: true` default saved cleanly, looked correct in the list, fired on
+     * time and did nothing — indistinguishable from failing hardware.
+     */
+    const dead = validateActionCommand(deviceType(f.actionDeviceId), command);
+    if (dead) return { error: dead };
     action = { type: "command", deviceId: f.actionDeviceId, command };
   }
 
@@ -518,11 +535,47 @@ function RuleEditor({
     [devices]
   );
 
+  const typeOf = useCallback(
+    (id?: string) => (id ? devices.find((d) => d.id === id)?.type ?? "" : ""),
+    [devices],
+  );
+
+  const actionType = typeOf(f.actionDeviceId);
+
+  /*
+   * Re-seed the command when the operator picks a different device, but only
+   * while it is still an untouched default — a command someone has typed is
+   * theirs, and silently rewriting it would be its own kind of surprise.
+   */
+  function pickActionDevice(id: string) {
+    setF((p) => {
+      const untouched = p.actionCommand.trim() === defaultCommandFor(typeOf(p.actionDeviceId)).trim();
+      return {
+        ...p,
+        actionDeviceId: id,
+        actionCommand: untouched ? defaultCommandFor(typeOf(id)) : p.actionCommand,
+      };
+    });
+  }
+
   const triggerDevice = devices.find((d) => d.id === f.triggerDeviceId) ?? null;
   const stateKeys = triggerDevice ? Object.keys(triggerDevice.state ?? {}) : [];
 
+  /* Shown while editing rather than only on save, so the operator is not told
+     their work is wrong after they have finished it. */
+  const commandWarning = useMemo(() => {
+    if (f.actionType !== "command" || !f.actionDeviceId) return null;
+    try {
+      const parsed: unknown = JSON.parse(f.actionCommand);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+      return validateActionCommand(actionType, parsed as Record<string, unknown>);
+    } catch {
+      return null; // Mid-typing JSON is not an error worth shouting about.
+    }
+  }, [f.actionType, f.actionDeviceId, f.actionCommand, actionType]);
+
   const save = useCallback(async () => {
-    const { body, error } = buildBody(f);
+    const { body, error } = buildBody(f, typeOf);
     if (error || !body) {
       setErr(error ?? "Invalid rule.");
       return;
@@ -537,7 +590,7 @@ function RuleEditor({
     } else {
       setErr(apiError(res));
     }
-  }, [f, rule, onSaved, onClose]);
+  }, [f, rule, onSaved, onClose, typeOf]);
 
   return (
     <Modal open={open} onClose={() => { if (!busy) onClose(); }} title={rule ? "Edit rule" : "New rule"} wide>
@@ -581,10 +634,23 @@ function RuleEditor({
           <Segmented value={f.actionType} onChange={(v) => set("actionType", v)} options={ACTION_TYPES} />
           {f.actionType === "command" ? (
             <div className="mt-3 space-y-3">
-              <Field label="Device"><Select value={f.actionDeviceId} onChange={(v) => set("actionDeviceId", v)} options={deviceOptions} /></Field>
-              <Field label="Command (JSON)" hint="Published to the device over MQTT when the rule fires.">
+              <Field label="Device"><Select value={f.actionDeviceId} onChange={pickActionDevice} options={deviceOptions} /></Field>
+              <Field
+                label="Command (JSON)"
+                hint={
+                  actionType
+                    ? `Published to the device over MQTT when the rule fires. Fields a ${actionType} reads are pre-filled.`
+                    : "Published to the device over MQTT when the rule fires."
+                }
+              >
                 <textarea value={f.actionCommand} onChange={(e) => set("actionCommand", e.target.value)} rows={4} spellCheck={false} className="ad-input resize-none font-mono text-xs" />
               </Field>
+              {commandWarning && (
+                <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-200">
+                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {commandWarning}
+                </p>
+              )}
             </div>
           ) : (
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
