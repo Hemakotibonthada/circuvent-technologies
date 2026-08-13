@@ -214,6 +214,72 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_scheduler_ticks_ran_at ON scheduler_ticks(ran_at);
 
+    -- Enrolled faces for the FaceDoor lock.
+    --
+    -- A profile is a person; the samples are that person's face under
+    -- different conditions — glasses on and off, a beard grown since, the
+    -- hall light on and off. One sample is a door that stops recognising you
+    -- when you shave, which is why enrolment takes several.
+    --
+    -- Scoped to a device, not to an account: a household with a front door
+    -- and a garage door should be able to admit the cleaner to one and not
+    -- the other, and a roster shared across every door cannot express that.
+    CREATE TABLE IF NOT EXISTS face_profiles (
+      id           BIGSERIAL PRIMARY KEY,
+      owner_id     BIGINT REFERENCES users(id) ON DELETE CASCADE,
+      device_id    TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      name         TEXT NOT NULL,
+      -- "resident" | "guest" | "staff". Advisory: it labels the event log
+      -- and the UI, and grants nothing on its own.
+      role         TEXT NOT NULL DEFAULT 'resident',
+      enabled      BOOLEAN NOT NULL DEFAULT true,
+      -- Local time-of-day window. Both null means always.
+      allow_from   TEXT,
+      allow_to     TEXT,
+      expires_at   TIMESTAMPTZ,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (device_id, name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_face_profiles_device ON face_profiles(device_id);
+
+    -- The embeddings themselves.
+    --
+    -- A descriptor, never a photograph. A household face database is a
+    -- serious liability if it leaks and an embedding cannot be turned back
+    -- into a recognisable picture, so an enrolment photo is discarded the
+    -- moment its descriptor is computed and never reaches this table.
+    CREATE TABLE IF NOT EXISTS face_samples (
+      id           BIGSERIAL PRIMARY KEY,
+      profile_id   BIGINT NOT NULL REFERENCES face_profiles(id) ON DELETE CASCADE,
+      descriptor   JSONB NOT NULL,
+      -- "mobile" | "device" | "web": where the face was captured, which is
+      -- the first question asked when an enrolment is disputed.
+      source       TEXT NOT NULL DEFAULT 'mobile',
+      quality      REAL,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_face_samples_profile ON face_samples(profile_id);
+
+    -- Every decision the door made, including the refusals.
+    --
+    -- Kept separately from telemetry because the refusals are the valuable
+    -- part: a stranger tried the door at 03:00 is the event somebody wants
+    -- to find, and it is exactly the one a "recent activity" feed built from
+    -- successful unlocks would omit.
+    CREATE TABLE IF NOT EXISTS face_attempts (
+      id           BIGSERIAL PRIMARY KEY,
+      device_id    TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      profile_id   BIGINT REFERENCES face_profiles(id) ON DELETE SET NULL,
+      name         TEXT NOT NULL DEFAULT '',
+      outcome      TEXT NOT NULL,
+      distance     REAL,
+      granted      BOOLEAN NOT NULL DEFAULT false,
+      reason       TEXT NOT NULL DEFAULT '',
+      at           TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_face_attempts_device_at ON face_attempts(device_id, at DESC);
+
     -- Refresh tokens, for detecting replay.
     --
     -- token_epoch can revoke a session but cannot tell a thief's use of a token

@@ -51,6 +51,19 @@ const schema = z.object({
    * The alternative, refusing to accept captures without a recogniser, would
    * mean a customer who has not bought OCR gets a camera that appears broken.
    */
+  /*
+   * Face embedding for the FaceDoor lock.
+   *
+   * Optional, like ANPR above. With "none" everything works except enrolling
+   * from a photograph: a hub with its own model still posts descriptors, and
+   * enrolment at the door is unaffected. The embedder must be the same model
+   * the recogniser uses, or the numbers are not comparable.
+   */
+  FACE_EMBEDDER: z.enum(["none", "http"]).default("none"),
+  FACE_BASE_URL: z.string().default(""),
+  FACE_API_KEY: z.string().default(""),
+  FACE_TIMEOUT_MS: z.coerce.number().default(10000),
+
   ANPR_PROVIDER: z.enum(["none", "platerecognizer", "openai", "http"]).default("none"),
   ANPR_BASE_URL: z.string().default(""),
   ANPR_API_KEY: z.string().default(""),

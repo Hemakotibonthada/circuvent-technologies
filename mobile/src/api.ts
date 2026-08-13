@@ -508,7 +508,91 @@ interface AuthResp {
 
 // Self-hosted control-plane client (platform/api). JWT auth; commands publish
 // over MQTT server-side and reach the device in <1s.
+export interface FaceProfile {
+  id: number;
+  name: string;
+  role: string;
+  enabled: boolean;
+  allowFrom: string | null;
+  allowTo: string | null;
+  expiresAt: string | null;
+  samples: number;
+  lastEnrolled?: string | null;
+  createdAt?: string;
+}
+
+export interface FaceAttempt {
+  id: number;
+  name: string;
+  outcome: string;
+  distance: number | null;
+  granted: boolean;
+  reason: string;
+  at: string;
+}
+
 export const api = {
+  /* ---------------------------------------------------------------- face --
+   * FaceDoor enrolment.
+   *
+   * A person is a profile and their faces are samples; several samples per
+   * person is the point, since one face stops being recognised the day
+   * somebody shaves or puts glasses on.
+   */
+  faceProfiles: (deviceId: string) =>
+    req<{
+      profiles: FaceProfile[];
+      limits: { maxSamples: number; maxProfiles: number };
+    }>(`/face/profiles?deviceId=${encodeURIComponent(deviceId)}`),
+
+  createFaceProfile: (body: {
+    deviceId: string;
+    name: string;
+    role?: "resident" | "guest" | "staff";
+    allowFrom?: string | null;
+    allowTo?: string | null;
+    expiresAt?: string | null;
+  }) => req<{ profile: FaceProfile }>("/face/profiles", { method: "POST", body: JSON.stringify(body) }),
+
+  updateFaceProfile: (id: number, body: Record<string, unknown>) =>
+    req<{ profile: FaceProfile }>(`/face/profiles/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  deleteFaceProfile: (id: number) =>
+    req<{ ok: boolean }>(`/face/profiles/${id}`, { method: "DELETE" }),
+
+  deleteFaceSample: (id: number) =>
+    req<{ ok: boolean }>(`/face/samples/${id}`, { method: "DELETE" }),
+
+  /**
+   * Enrol from a photo taken on this phone.
+   *
+   * The image is sent as the raw body and is never stored — the server turns it
+   * into a descriptor and drops it. The embedding has to be computed with the
+   * same model the door matches against, which is why the phone sends a picture
+   * rather than doing the maths itself.
+   */
+  enrolFaceImage: (profileId: number, image: Blob, mime = "image/jpeg") =>
+    req<{ total: number; remaining: number; embedMs: number }>(
+      `/face/profiles/${profileId}/samples/image`,
+      { method: "POST", body: image, headers: { "content-type": mime } }
+    ),
+
+  /** Put the door itself into enrolment mode for somebody standing at it. */
+  startFaceEnrolment: (body: { deviceId: string; profileId?: number; name?: string }) =>
+    req<{ ok: boolean; profileId: number; name: string; seconds: number; expiresAt: string }>(
+      "/face/enrol/start",
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+
+  stopFaceEnrolment: (deviceId: string) =>
+    req<{ ok: boolean }>("/face/enrol/stop", { method: "POST", body: JSON.stringify({ deviceId }) }),
+
+  /** The door's memory, refusals included — the half that matters at 3am. */
+  faceAttempts: (deviceId: string, limit = 50) =>
+    req<{ attempts: FaceAttempt[] }>(
+      `/face/attempts?deviceId=${encodeURIComponent(deviceId)}&limit=${limit}`
+    ),
+
   login: (email: string, password: string) =>
     req<AuthResp>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false),
   register: (name: string, email: string, password: string) =>

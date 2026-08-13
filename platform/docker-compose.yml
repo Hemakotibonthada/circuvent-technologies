@@ -101,6 +101,13 @@ services:
       # ANPR. These MUST be listed here, not only in .env.example: compose
       # passes through exactly what is named below, which is how
       # FEDERATION_SECRET stayed silently unset and SSO kept returning 501.
+      # FaceDoor face embedding. Optional in the same way ANPR is: with
+      # "none" the lock still enrols at the door and still matches descriptors
+      # a hub posts, and only enrolment from a photograph is unavailable.
+      FACE_EMBEDDER: ${FACE_EMBEDDER:-none}
+      FACE_BASE_URL: ${FACE_BASE_URL:-}
+      FACE_API_KEY: ${FACE_API_KEY:-}
+      FACE_TIMEOUT_MS: ${FACE_TIMEOUT_MS:-10000}
       ANPR_PROVIDER: ${ANPR_PROVIDER:-none}
       ANPR_BASE_URL: ${ANPR_BASE_URL:-}
       ANPR_API_KEY: ${ANPR_API_KEY:-}

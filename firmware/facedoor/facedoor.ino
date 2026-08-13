@@ -14,8 +14,9 @@
  *
  * Standard Circuvent protocol (cv/<id>/state|telemetry). Board: ESP32.
  */
-/** Version history: 1.0.0 initial; 1.1.0 adds OTA (from CircuventDevice). */
-#define CV_FW_VERSION "1.1.0"
+/** Version history: 1.0.0 initial; 1.1.0 adds OTA (from CircuventDevice);
+ *  1.2.0 adds a time-boxed face-enrolment mode driven from the app or the door. */
+#define CV_FW_VERSION "1.2.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 
@@ -44,6 +45,67 @@ String pin = "";                 // configured via the app
 String entry = "";               // current keypad entry
 unsigned long unlockedAt = 0, lastBell = 0, lastKey = 0;
 long accessCount = 0, bellCount = 0;
+
+/*
+ * Face enrolment at the door.
+ *
+ * The ESP32 has no camera and recognises nobody — the hub's AI node does that.
+ * What the door owns is the *mode*: it shows that enrolment is happening, tells
+ * the hub who the samples belong to, and closes the window on a timer so a door
+ * cannot be left enrolling indefinitely. A door stuck in enrolment mode is a
+ * door that can be taught to open for a stranger, and unlike a stolen key
+ * nobody would notice.
+ */
+bool enrolling = false;
+long enrolProfileId = 0;
+String enrolName = "";
+unsigned long enrolUntil = 0;
+
+void publishEnrolState() {
+  cv.set("enrolling", enrolling);
+  cv.set("enrolName", enrolName);
+  cv.set("enrolProfileId", (int)enrolProfileId);
+  cv.set("enrolSecondsLeft", enrolling ? (int)((enrolUntil - millis()) / 1000UL) : 0);
+  cv.publishStateNow();
+}
+
+void stopEnrol(const char *why) {
+  if (!enrolling) return;
+  enrolling = false;
+  enrolUntil = 0;
+  JsonDocument d;
+  d["type"] = "enrol";
+  d["state"] = "stopped";
+  d["reason"] = why;
+  d["profileId"] = (int)enrolProfileId;
+  d["name"] = enrolName;
+  d["ts"] = (long)(millis() / 1000);
+  cv.publishTelemetry(d.as<JsonObjectConst>());
+  enrolName = "";
+  enrolProfileId = 0;
+  publishEnrolState();
+}
+
+void startEnrol(long profileId, const char *name, int seconds) {
+  // Clamped: a window measured in hours is the failure this exists to prevent.
+  if (seconds <= 0) seconds = 120;
+  if (seconds > 300) seconds = 300;
+
+  enrolling = true;
+  enrolProfileId = profileId;
+  enrolName = name ? name : "";
+  enrolUntil = millis() + (unsigned long)seconds * 1000UL;
+
+  JsonDocument d;
+  d["type"] = "enrol";
+  d["state"] = "started";
+  d["profileId"] = (int)profileId;
+  d["name"] = enrolName;
+  d["seconds"] = seconds;
+  d["ts"] = (long)(millis() / 1000);
+  cv.publishTelemetry(d.as<JsonObjectConst>());
+  publishEnrolState();
+}
 
 void applyLock(bool lock) {
   locked = lock;
@@ -77,11 +139,31 @@ void denyAccess(const char *method) {
 
 void onCommand(const String &action, JsonObjectConst p) {
   if (action == "unlock") {
+    /*
+     * Refused while enrolling. During enrolment the camera is being shown
+     * faces that are not yet trusted, and a recogniser that fires mid-capture
+     * would open the door on a half-taught profile. Enrolment and unlocking
+     * are different jobs and the door does one at a time.
+     */
+    if (enrolling) {
+      denyAccess("face");
+      return;
+    }
     const char *m = p["method"].is<const char *>() ? p["method"].as<const char *>() : "app";
     const char *n = p["name"].is<const char *>() ? p["name"].as<const char *>() : "";
     grantAccess(m, n);
   } else if (action == "lock") {
     applyLock(true);
+  } else if (action == "enrol") {
+    const char *mode = p["mode"].is<const char *>() ? p["mode"].as<const char *>() : "off";
+    if (strcmp(mode, "face") == 0) {
+      long id = p["profileId"].is<long>() ? p["profileId"].as<long>() : 0;
+      const char *n = p["name"].is<const char *>() ? p["name"].as<const char *>() : "";
+      int secs = p["seconds"].is<int>() ? p["seconds"].as<int>() : 120;
+      startEnrol(id, n, secs);
+    } else {
+      stopEnrol("commanded");
+    }
   } else if (action == "set") {
     if (p["locked"].is<bool>()) applyLock(p["locked"].as<bool>());
     if (p["autoLockSec"].is<int>()) { autoLockSec = p["autoLockSec"].as<int>(); store.putInt("alock", autoLockSec); cv.set("autoLockSec", autoLockSec); }
@@ -149,9 +231,24 @@ void setup() {
   cv.setResetButton(0);
   cv.begin();
   cv.set("autoLockSec", autoLockSec);
+  cv.set("enrolling", false);
 }
 
 void loop() {
+  /*
+   * Close the enrolment window on time.
+   *
+   * Checked before anything else in the loop, so the door cannot spend even
+   * one more pass in a mode whose window has passed. This is the timer the
+   * whole safety argument for device-side enrolment rests on: the server asks
+   * for a window, but only the door can guarantee it ends.
+   */
+  if (enrolling && (long)(millis() - enrolUntil) >= 0) stopEnrol("expired");
+
+  // Blink while enrolling, so somebody standing at the door can see the mode
+  // rather than having to trust a phone screen they may not be holding.
+  if (enrolling) digitalWrite(LED_PIN, (millis() / 250) % 2 ? HIGH : LOW);
+
   // keypad
   char k = scanKeypad();
   if (k && millis() - lastKey > 220) { lastKey = millis(); handleKey(k); }

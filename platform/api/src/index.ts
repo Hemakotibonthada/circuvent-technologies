@@ -24,6 +24,7 @@ import { eventsRouter } from "./routes/events";
 import { energyRouter } from "./routes/energy";
 import { adminRouter } from "./routes/admin";
 import { gateRouter } from "./routes/gate";
+import { faceRouter } from "./face/routes";
 import { anprRouter } from "./routes/anpr";
 import { droneRouter } from "./routes/drone";
 import { v1Router } from "./routes/v1";
@@ -103,6 +104,7 @@ async function main(): Promise<void> {
   app.use("/oauth", oauthRouter);
   app.use("/smarthome", smarthomeRouter);
   app.use("/rooms", roomsRouter);
+    app.use("/face", faceRouter);
   app.use("/scenes", scenesRouter);
   app.use("/events", eventsRouter);
   app.use("/energy", energyRouter);
