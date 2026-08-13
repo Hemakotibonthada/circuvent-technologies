@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import { adminFromRequest, guard } from "@/lib/admin-auth";
-import { fileIncident, getIncident, icmView, syncFromAlerts, updateIncident } from "@/lib/icm-store";
+import {
+  fileIncident,
+  getIncident,
+  icmView,
+  syncFromAlerts,
+  updateIncident,
+  linkIncidents,
+  unlinkIncidents,
+  saveRotation,
+  saveView,
+  deleteView,
+} from "@/lib/icm-store";
 import type { Alert } from "@/lib/anomaly-monitor";
 import {
   acknowledge,
@@ -16,9 +27,17 @@ import {
   resolve,
   setSeverity,
   slaSnapshot,
+  LINK_KINDS,
   type Filters,
   type SlaState,
+  type LinkKind,
+  type OncallShift,
 } from "@/lib/icm";
+
+/** Falls back to the weakest relationship rather than guessing a causal one. */
+function normaliseLinkKind(v: unknown): LinkKind {
+  return LINK_KINDS.includes(v as LinkKind) ? (v as LinkKind) : "related-to";
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,9 +78,10 @@ export async function GET(request: Request) {
     assignedTo: url.searchParams.get("assignedTo") || "",
     search: url.searchParams.get("q") || "",
     slaState: (url.searchParams.get("sla") as SlaState) || null,
+    hideDuplicates: url.searchParams.get("hideDuplicates") === "1",
   };
 
-  return NextResponse.json({ success: true, ...icmView(filters) });
+  return NextResponse.json({ success: true, ...icmView(filters, new Date().toISOString(), actorOf(request)) });
 }
 
 /** POST /api/admin/icm — file a new incident, or sync from monitor alerts. */
@@ -89,9 +109,42 @@ export async function POST(request: Request) {
       });
     }
 
+    /** The on-call rota for one team, replaced wholesale. */
+    if (b.kind === "rotation") {
+      const team = String(b.team || "").trim();
+      if (!team) return NextResponse.json({ success: false, message: "A team is required." }, { status: 400 });
+
+      const shifts: OncallShift[] = (Array.isArray(b.shifts) ? b.shifts : [])
+        .map((s: Record<string, unknown>) => ({
+          team,
+          who: String(s.who || "").trim(),
+          startsAt: String(s.startsAt || ""),
+          endsAt: String(s.endsAt || ""),
+        }))
+        /*
+         * A shift with no name, or one that ends before it starts, would become
+         * a hole that onCallFor reports as "nobody" — indistinguishable from a
+         * rota nobody filled in. Rejected here so the rota says what it means.
+         */
+        .filter((s: OncallShift) => s.who && Date.parse(s.startsAt) < Date.parse(s.endsAt));
+
+      return NextResponse.json({ success: true, rotation: saveRotation(team, shifts) });
+    }
+
+    /** A saved queue filter. */
+    if (b.kind === "view") {
+      const name = String(b.name || "").trim();
+      if (!name) return NextResponse.json({ success: false, message: "A name is required." }, { status: 400 });
+
+      const view = saveView(
+        { name, filters: (b.filters ?? {}) as Filters, shared: b.shared === true },
+        actorOf(request)
+      );
+      return NextResponse.json({ success: true, view });
+    }
+
     const title = String(b.title || "").trim();
     if (!title) return NextResponse.json({ success: false, message: "A title is required." }, { status: 400 });
-
     const incident = fileIncident({
       title,
       description: String(b.description || ""),
@@ -128,6 +181,27 @@ export async function PATCH(request: Request) {
     const actor = actorOf(request);
     const now = new Date().toISOString();
     const note = String(b.note || "");
+
+    /*
+     * Linking writes two incidents, so it cannot go through `apply` — that
+     * shape is one record in, one record out. It is handled here, before the
+     * switch, rather than by widening the shape for a single case.
+     */
+    if (b.action === "link" || b.action === "unlink") {
+      const otherId = String(b.otherId || "");
+      const { error } =
+        b.action === "link"
+          ? linkIncidents(id, otherId, normaliseLinkKind(b.kind), actor, now)
+          : unlinkIncidents(id, otherId, actor, now);
+
+      if (error) {
+        return NextResponse.json(
+          { success: false, message: error },
+          { status: error === "No such incident." ? 404 : 409 }
+        );
+      }
+      return NextResponse.json({ success: true, incident: getIncident(id) });
+    }
 
     const apply = (() => {
       switch (b.action) {
@@ -192,4 +266,21 @@ export async function PATCH(request: Request) {
   } catch {
     return NextResponse.json({ success: false, message: "Request failed." }, { status: 500 });
   }
+}
+
+/** DELETE /api/admin/icm?viewId=… — remove a saved queue filter. */
+export async function DELETE(request: Request) {
+  if (!guard(request, "icm")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const viewId = new URL(request.url).searchParams.get("viewId") || "";
+  if (!viewId) return NextResponse.json({ success: false, message: "A view is required." }, { status: 400 });
+
+  const { error } = deleteView(viewId, actorOf(request));
+  if (error) {
+    /* "Belongs to somebody else" is a 403: the view exists, and saying so is
+       not a leak — view names are shared vocabulary on a team. */
+    const status = error === "No such view." ? 404 : 403;
+    return NextResponse.json({ success: false, message: error }, { status });
+  }
+  return NextResponse.json({ success: true });
 }

@@ -49,6 +49,7 @@ export interface TimelineEntry {
     | "comment"
     | "escalated"
     | "postmortem"
+    | "linked"
     | "sla";
   /** Human-readable, already past tense: "raised severity to Sev1". */
   text: string;
@@ -134,7 +135,43 @@ export interface Incident {
    * only part of an incident that changes anything.
    */
   postmortem?: Postmortem;
+
+  /**
+   * Other incidents this one is related to.
+   *
+   * Stored on both ends by `link`, because a relationship visible from only
+   * one side is one the person holding the other incident cannot see — and
+   * they are the one who needs to know their outage is somebody else's
+   * symptom.
+   */
+  links?: IncidentLink[];
 }
+
+export type LinkKind = "duplicate-of" | "related-to" | "caused-by" | "causes";
+
+export interface IncidentLink {
+  id: string;
+  kind: LinkKind;
+  at: string;
+  by: string;
+}
+
+/** Each link's mirror, so both records agree about the direction. */
+const INVERSE: Record<LinkKind, LinkKind> = {
+  "duplicate-of": "duplicate-of",
+  "related-to": "related-to",
+  "caused-by": "causes",
+  causes: "caused-by",
+};
+
+export const LINK_LABEL: Record<LinkKind, string> = {
+  "duplicate-of": "Duplicate of",
+  "related-to": "Related to",
+  "caused-by": "Caused by",
+  causes: "Causes",
+};
+
+export const LINK_KINDS = Object.keys(LINK_LABEL) as LinkKind[];
 
 export interface ActionItem {
   id: string;
@@ -595,6 +632,200 @@ export function planEscalations(all: Incident[], now: string): Incident[] {
   return all.filter((inc) => shouldEscalate(inc, now)).map((inc) => escalate(inc, now).incident);
 }
 
+// ────────────────────────────────────────────────────── linking ──
+
+/**
+ * Relates two incidents, writing the relationship into both.
+ *
+ * Returns both records because the caller has to persist both. A link stored
+ * on one side only is invisible from the other, and the person holding the
+ * other incident is exactly who needs to know that their outage is a symptom
+ * of somebody else's.
+ */
+export function link(
+  from: Incident,
+  to: Incident,
+  kind: LinkKind,
+  actor: string,
+  now: string
+): { from: Incident; to: Incident; error: string } {
+  if (from.id === to.id) {
+    return { from, to, error: "An incident cannot be linked to itself." };
+  }
+  if ((from.links ?? []).some((l) => l.id === to.id)) {
+    return { from, to, error: `Already linked to ${to.id}.` };
+  }
+
+  const label = LINK_LABEL[kind].toLowerCase();
+  return {
+    error: "",
+    from: {
+      ...from,
+      links: [...(from.links ?? []), { id: to.id, kind, at: now, by: actor }],
+      timeline: [...from.timeline, entry(now, actor, "linked", `marked ${label} ${to.id} — ${to.title}`)],
+    },
+    to: {
+      ...to,
+      links: [...(to.links ?? []), { id: from.id, kind: INVERSE[kind], at: now, by: actor }],
+      timeline: [
+        ...to.timeline,
+        entry(now, actor, "linked", `marked ${LINK_LABEL[INVERSE[kind]].toLowerCase()} ${from.id} — ${from.title}`),
+      ],
+    },
+  };
+}
+
+/** Removes a link from both ends. */
+export function unlink(
+  from: Incident,
+  to: Incident,
+  actor: string,
+  now: string
+): { from: Incident; to: Incident; error: string } {
+  if (!(from.links ?? []).some((l) => l.id === to.id)) {
+    return { from, to, error: `${from.id} is not linked to ${to.id}.` };
+  }
+  return {
+    error: "",
+    from: {
+      ...from,
+      links: (from.links ?? []).filter((l) => l.id !== to.id),
+      timeline: [...from.timeline, entry(now, actor, "linked", `removed the link to ${to.id}`)],
+    },
+    to: {
+      ...to,
+      links: (to.links ?? []).filter((l) => l.id !== from.id),
+      timeline: [...to.timeline, entry(now, actor, "linked", `removed the link to ${from.id}`)],
+    },
+  };
+}
+
+/**
+ * The incidents this one duplicates, or that duplicate it.
+ *
+ * Used to keep a duplicate out of the stats: counting five reports of one
+ * outage as five incidents overstates both the volume and, because each
+ * carries its own clock, the number of SLA breaches.
+ */
+export function duplicateIds(inc: Incident): string[] {
+  return (inc.links ?? []).filter((l) => l.kind === "duplicate-of").map((l) => l.id);
+}
+
+/**
+ * Drops incidents that duplicate an older one still in the set.
+ *
+ * The oldest is kept: it is the one with the real impact start, and the one
+ * whose timeline holds the response. Ties are broken on id so the result does
+ * not depend on array order.
+ */
+export function dedupe(all: Incident[]): Incident[] {
+  const byId = new Map(all.map((i) => [i.id, i]));
+  return all.filter((inc) => {
+    const dupes = duplicateIds(inc)
+      .map((id) => byId.get(id))
+      .filter((x): x is Incident => Boolean(x));
+    return !dupes.some((other) => {
+      const ta = Date.parse(inc.createdAt);
+      const tb = Date.parse(other.createdAt);
+      return tb < ta || (tb === ta && other.id < inc.id);
+    });
+  });
+}
+
+// ────────────────────────────────────────────────────── on call ──
+
+export interface OncallShift {
+  team: string;
+  /** The person, as they appear in `assignedTo`. */
+  who: string;
+  /** ISO. Half-open: [startsAt, endsAt), so back-to-back shifts do not overlap. */
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface Rotation {
+  team: string;
+  shifts: OncallShift[];
+}
+
+/**
+ * Who is on call for a team right now.
+ *
+ * Returns null rather than a fallback when the rota has a hole. A rota that
+ * quietly names somebody who is not on call is worse than one that admits the
+ * gap: the page goes to a person who is not expecting it, and everyone else
+ * assumes it was handled.
+ */
+export function onCallFor(rotations: Rotation[], team: string, now: string): OncallShift | null {
+  const t = Date.parse(now);
+  const rota = rotations.find((r) => r.team === team);
+  if (!rota) return null;
+
+  const live = rota.shifts.filter((s) => {
+    const from = Date.parse(s.startsAt);
+    const to = Date.parse(s.endsAt);
+    return Number.isFinite(from) && Number.isFinite(to) && t >= from && t < to;
+  });
+  if (live.length === 0) return null;
+
+  // Overlaps are a rota bug, not a reason to fail: the later shift wins,
+  // because it is the one somebody most recently intended to be in force.
+  return live.sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))[0];
+}
+
+/** Gaps in a team's cover over a window, so a rota can be checked before it matters. */
+export function rotationGaps(
+  rota: Rotation,
+  fromISO: string,
+  toISO: string
+): { from: string; to: string }[] {
+  const from = Date.parse(fromISO);
+  const to = Date.parse(toISO);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return [];
+
+  const spans = rota.shifts
+    .map((s) => ({ from: Date.parse(s.startsAt), to: Date.parse(s.endsAt) }))
+    .filter((s) => Number.isFinite(s.from) && Number.isFinite(s.to) && s.to > from && s.from < to)
+    .sort((a, b) => a.from - b.from);
+
+  const gaps: { from: string; to: string }[] = [];
+  let cursor = from;
+  for (const s of spans) {
+    if (s.from > cursor) gaps.push({ from: new Date(cursor).toISOString(), to: new Date(s.from).toISOString() });
+    cursor = Math.max(cursor, s.to);
+    if (cursor >= to) break;
+  }
+  if (cursor < to) gaps.push({ from: new Date(cursor).toISOString(), to: new Date(to).toISOString() });
+  return gaps;
+}
+
+/**
+ * Assigns an unassigned incident to whoever is on call for its team.
+ *
+ * Only touches incidents nobody owns. Reassigning an incident somebody is
+ * already working on because a shift boundary passed is how work gets dropped
+ * at exactly the moment it is being handed over.
+ */
+export function autoAssign(inc: Incident, rotations: Rotation[], now: string): ActionResult {
+  if (inc.assignedTo) return { incident: inc, error: "Already assigned." };
+  if (!isOpen(inc)) return { incident: inc, error: "Not open." };
+
+  const shift = onCallFor(rotations, inc.owningTeam, now);
+  if (!shift) return { incident: inc, error: `Nobody is on call for ${inc.owningTeam}.` };
+
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      assignedTo: shift.who,
+      timeline: [
+        ...inc.timeline,
+        entry(now, "icm-oncall", "assigned", `assigned to ${shift.who}, on call for ${inc.owningTeam}`),
+      ],
+    },
+  };
+}
+
 // ──────────────────────────────────────────────────── postmortem ──
 
 /**
@@ -743,7 +974,42 @@ export interface Filters {
   assignedTo?: string;
   search?: string;
   slaState?: SlaState | null;
+  /** Fold duplicates into the incident they duplicate. */
+  hideDuplicates?: boolean;
 }
+
+export interface SavedView {
+  id: string;
+  name: string;
+  filters: Filters;
+  createdBy: string;
+  createdAt: string;
+  /** Shared views are everybody's; private ones belong to `createdBy`. */
+  shared: boolean;
+}
+
+/**
+ * The views a given person should see.
+ *
+ * Shared first, then their own, each alphabetical — so the list does not
+ * reorder itself as views are added, which is how muscle memory for a queue
+ * gets broken.
+ */
+export function visibleViews(all: SavedView[], who: string): SavedView[] {
+  return all
+    .filter((v) => v.shared || v.createdBy === who)
+    .sort((a, b) => {
+      if (a.shared !== b.shared) return a.shared ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+/** The built-in views. Present so a fresh install has a usable queue. */
+export const DEFAULT_VIEWS: SavedView[] = [
+  { id: "all-open", name: "All open", filters: { status: "open", hideDuplicates: true }, createdBy: "system", createdAt: "", shared: true },
+  { id: "breaching", name: "Breaching SLA", filters: { status: "open", slaState: "breached" }, createdBy: "system", createdAt: "", shared: true },
+  { id: "unacked", name: "Awaiting acknowledgement", filters: { status: "active" }, createdBy: "system", createdAt: "", shared: true },
+];
 
 /**
  * The queue.
@@ -754,8 +1020,14 @@ export interface Filters {
  */
 export function queue(all: Incident[], f: Filters, now: string): Incident[] {
   const q = (f.search ?? "").trim().toLowerCase();
+  /*
+   * Deduped before filtering, not after: whether an incident is a duplicate is
+   * decided against the whole set. Deduping a filtered list would keep a
+   * duplicate whenever the original had been filtered out of view.
+   */
+  const source = f.hideDuplicates ? dedupe(all) : all;
 
-  const filtered = all.filter((inc) => {
+  const filtered = source.filter((inc) => {
     if (f.status === "open" && !isOpen(inc)) return false;
     if (f.status && f.status !== "open" && f.status !== "all" && inc.status !== f.status) return false;
     if (f.severity != null && inc.severity !== f.severity) return false;

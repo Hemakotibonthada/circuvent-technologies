@@ -1,5 +1,38 @@
 import "@testing-library/jest-dom";
 
+/*
+ * Every file-backed store writes under DATA_DIR, which defaults to ./.data —
+ * the developer's real one. Left alone, a test that files an incident leaves it
+ * in the console, and a test that asserts on "the incidents in the store" is
+ * really asserting on whatever previous runs happened to leave behind.
+ *
+ * Pointed at a temp directory named for the test file, so files are isolated
+ * from the working tree, from each other, and from parallel workers. Set here
+ * rather than in a test because setupFilesAfterEnv runs before the test module
+ * is evaluated, and data-file.ts reads DATA_DIR once at import.
+ */
+{
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const os = require("os");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const path = require("path");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const fs = require("fs");
+  const key = (expect.getState().testPath || "shared").replace(/[^a-z0-9]/gi, "-").slice(-60);
+  const dir = path.join(os.tmpdir(), "cv-jest-data", key);
+  /*
+   * Emptied, not just pointed at. A directory keyed on the test file survives
+   * between runs, so the second run of a suite would start with whatever the
+   * first one wrote — which is the same leak this exists to prevent, only
+   * slower to notice. It cost an afternoon: a test that filed an incident
+   * passed once and then failed forever after, because the incident was
+   * already there and the deduplicating bridge correctly refused to file it
+   * twice.
+   */
+  fs.rmSync(dir, { recursive: true, force: true });
+  process.env.DATA_DIR = dir;
+}
+
 // Mock next/navigation
 jest.mock("next/navigation", () => ({
   useRouter: () => ({

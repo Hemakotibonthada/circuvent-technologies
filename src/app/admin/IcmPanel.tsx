@@ -16,6 +16,7 @@ import {
   Timer,
   UserPlus,
   FileText,
+  Link2,
   X,
 } from "lucide-react";
 import {
@@ -28,7 +29,15 @@ import {
   type Severity,
   type SlaState,
   type TimelineEntry,
+  type SavedView,
+  type LinkKind,
+  LINK_LABEL,
+  LINK_KINDS,
+  DEFAULT_VIEWS,
 } from "@/lib/icm";
+
+/** Built-ins cannot be deleted; the button is hidden rather than left to fail. */
+const DEFAULT_VIEW_IDS = new Set(DEFAULT_VIEWS.map((v) => v.id));
 
 /**
  * The incident portal.
@@ -182,6 +191,10 @@ export default function IcmPanel() {
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [hideDuplicates, setHideDuplicates] = useState(true);
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [onCall, setOnCall] = useState<Record<string, string>>({});
+  const [activeView, setActiveView] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -190,6 +203,7 @@ export default function IcmPanel() {
       const params = new URLSearchParams({ status, q });
       if (sev) params.set("severity", sev);
       if (slaFilter) params.set("sla", slaFilter);
+      if (hideDuplicates) params.set("hideDuplicates", "1");
       const r = await fetch(`/api/admin/icm?${params}`, { headers: { "x-admin-token": tok() } });
       const b = await r.json();
       if (!r.ok || !b.success) {
@@ -198,13 +212,15 @@ export default function IcmPanel() {
         setIncidents(b.incidents || []);
         setStats(b.stats || null);
         setTeams(b.teams || []);
+        setViews(b.views || []);
+        setOnCall(b.onCall || {});
         setNow(b.now || new Date().toISOString());
       }
     } catch {
       setError("Could not reach the incident service.");
     }
     setLoading(false);
-  }, [status, sev, slaFilter, q]);
+  }, [status, sev, slaFilter, q, hideDuplicates]);
 
   useEffect(() => {
     void load();
@@ -251,6 +267,78 @@ export default function IcmPanel() {
   );
 
   const open = useMemo(() => incidents.find((i) => i.id === openId) ?? null, [incidents, openId]);
+
+  /*
+   * Applying a view writes its filters into the controls rather than bypassing
+   * them, so what is on screen always explains what is in the list. A view that
+   * filters invisibly is a queue that looks wrong for no stated reason.
+   */
+  const applyView = useCallback((v: SavedView) => {
+    setActiveView(v.id);
+    setStatus((v.filters.status as typeof status) ?? "open");
+    setSev(v.filters.severity == null ? "" : String(v.filters.severity));
+    setSlaFilter(v.filters.slaState ?? "");
+    setQ(v.filters.search ?? "");
+    setHideDuplicates(v.filters.hideDuplicates ?? false);
+  }, []);
+
+  const saveCurrentView = useCallback(async () => {
+    const name = prompt("Name this view");
+    if (!name?.trim()) return;
+    const shared = confirm("Share it with the team?\n\nOK to share, Cancel to keep it to yourself.");
+
+    setBusy(true);
+    try {
+      const r = await fetch("/api/admin/icm", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify({
+          kind: "view",
+          name: name.trim(),
+          shared,
+          filters: {
+            status,
+            severity: sev === "" ? null : Number(sev),
+            slaState: slaFilter || null,
+            search: q,
+            hideDuplicates,
+          },
+        }),
+      });
+      const b = await r.json();
+      if (!r.ok || !b.success) setError(b.message || "Could not save that view.");
+      else {
+        setActiveView(b.view.id);
+        void load();
+      }
+    } catch {
+      setError("Could not reach the incident service.");
+    }
+    setBusy(false);
+  }, [status, sev, slaFilter, q, hideDuplicates, load]);
+
+  const removeView = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete this view?")) return;
+      setBusy(true);
+      try {
+        const r = await fetch(`/api/admin/icm?viewId=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: { "x-admin-token": tok() },
+        });
+        const b = await r.json();
+        if (!r.ok || !b.success) setError(b.message || "Could not delete that view.");
+        else {
+          setActiveView("");
+          void load();
+        }
+      } catch {
+        setError("Could not reach the incident service.");
+      }
+      setBusy(false);
+    },
+    [load]
+  );
 
   if (open) {
     return (
@@ -355,6 +443,57 @@ export default function IcmPanel() {
           className="h-[44px] min-w-[200px] flex-1 rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary placeholder:cv-text-muted"
           aria-label="Search incidents"
         />
+
+        <label className="inline-flex items-center gap-2 text-[12px] cv-text-muted" title="Fold incidents marked as duplicates into the one they duplicate">
+          <input
+            type="checkbox"
+            checked={hideDuplicates}
+            onChange={(e) => setHideDuplicates(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Fold duplicates
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wide cv-text-muted">Views</span>
+        {views.map((v) => (
+          <button
+            key={v.id}
+            onClick={() => applyView(v)}
+            className={`h-[32px] rounded-full border px-3 text-xs font-semibold ${
+              activeView === v.id ? "border-cyan-500 text-cyan-300" : "cv-border cv-text-muted hover:cv-text-primary"
+            }`}
+            title={v.shared ? "Shared with the team" : "Only you can see this"}
+          >
+            {v.name}
+            {!v.shared && " ·"}
+          </button>
+        ))}
+        <button
+          onClick={() => void saveCurrentView()}
+          className="h-[32px] rounded-full border cv-border px-3 text-xs cv-text-muted hover:cv-text-primary"
+          title="Save the current filters as a view"
+        >
+          + Save view
+        </button>
+        {activeView && !DEFAULT_VIEW_IDS.has(activeView) && (
+          <button
+            onClick={() => void removeView(activeView)}
+            className="h-[32px] rounded-full border cv-border px-3 text-xs text-red-300 hover:cv-surface-alt"
+          >
+            Delete view
+          </button>
+        )}
+        {Object.entries(onCall).filter(([, w]) => w).length > 0 && (
+          <span className="ml-auto text-[11px] cv-text-muted">
+            On call:{" "}
+            {Object.entries(onCall)
+              .filter(([, w]) => w)
+              .map(([team, w]) => `${team} — ${w}`)
+              .join(" · ")}
+          </span>
+        )}
       </div>
 
       {error && (
@@ -700,9 +839,98 @@ function IncidentDetail({
             </div>
           )}
 
+          <LinkEditor incident={inc} busy={busy} onSend={send} />
+
           <PostmortemEditor incident={inc} busy={busy} onSend={send} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Related incidents.
+ *
+ * Both directions are shown, because the relationship is stored on both ends —
+ * "caused by INC-1041" on this incident is "causes INC-1042" on that one, and
+ * a person reading either needs the same picture.
+ */
+function LinkEditor({
+  incident: inc,
+  busy,
+  onSend,
+}: {
+  incident: Incident;
+  busy: boolean;
+  onSend: (body: Record<string, unknown>) => void;
+}) {
+  const [otherId, setOtherId] = useState("");
+  const [kind, setKind] = useState<LinkKind>("related-to");
+  const links = inc.links ?? [];
+
+  return (
+    <div className="rounded-xl border cv-border cv-surface p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-bold cv-text-primary">
+        <Link2 className="h-4 w-4 text-cyan-400" aria-hidden />
+        Related incidents
+      </div>
+
+      {links.length === 0 ? (
+        <div className="text-[12px] cv-text-muted">Nothing linked yet.</div>
+      ) : (
+        <ul className="mb-3 space-y-1">
+          {links.map((l) => (
+            <li key={l.id} className="flex items-center gap-2 text-[13px]">
+              <span className="cv-text-muted">{LINK_LABEL[l.kind]}</span>
+              <span className="font-semibold cv-text-primary">{l.id}</span>
+              <button
+                onClick={() => onSend({ action: "unlink", otherId: l.id })}
+                disabled={busy}
+                className="ml-auto text-[11px] cv-text-muted hover:text-red-300 disabled:opacity-40"
+                aria-label={`Unlink ${l.id}`}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as LinkKind)}
+          className="h-[38px] rounded-lg border cv-border cv-surface-alt px-2 text-[13px] cv-text-primary"
+          aria-label="Relationship"
+        >
+          {LINK_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {LINK_LABEL[k]}
+            </option>
+          ))}
+        </select>
+        <input
+          value={otherId}
+          onChange={(e) => setOtherId(e.target.value.toUpperCase())}
+          placeholder="INC-0042"
+          aria-label="Incident to link"
+          className="h-[38px] w-[140px] rounded-lg border cv-border cv-surface-alt px-3 text-[13px] cv-text-primary placeholder:cv-text-muted"
+        />
+        <button
+          onClick={() => {
+            onSend({ action: "link", otherId: otherId.trim(), kind });
+            setOtherId("");
+          }}
+          disabled={busy || !otherId.trim()}
+          className="h-[38px] rounded-lg bg-cyan-600 px-3 text-[13px] font-semibold text-white disabled:opacity-40"
+        >
+          Link
+        </button>
+      </div>
+      <p className="mt-2 text-[11px] cv-text-muted">
+        Marking one incident a duplicate of another folds it out of the queue and out of the
+        counts, so five reports of one outage are not five incidents with five SLA clocks.
+      </p>
     </div>
   );
 }
@@ -899,6 +1127,7 @@ const KIND_ICON: Record<TimelineEntry["kind"], typeof Clock> = {
   comment: MessageSquare,
   escalated: Siren,
   postmortem: FileText,
+  linked: Link2,
   sla: Timer,
 };
 

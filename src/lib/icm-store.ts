@@ -16,9 +16,20 @@ import {
   escalate,
   postmortemsOutstanding,
   stats,
+  link,
+  unlink,
+  autoAssign,
+  onCallFor,
+  visibleViews,
+  isOpen,
+  DEFAULT_VIEWS,
   type Filters,
   type Incident,
   type NewIncident,
+  type LinkKind,
+  type Rotation,
+  type SavedView,
+  type OncallShift,
 } from "./icm";
 
 interface IcmDB {
@@ -26,6 +37,8 @@ interface IcmDB {
   /** Monotonic counter behind the human-facing ID. */
   seq: number;
   teams: string[];
+  rotations?: Rotation[];
+  views?: SavedView[];
 }
 
 /*
@@ -133,13 +146,147 @@ function applyDueEscalations(now: string): Incident[] {
   return listIncidents();
 }
 
+/**
+ * Relates two incidents, writing both ends in one transaction.
+ *
+ * One mutate rather than two updateIncident calls: a link half-written is
+ * worse than no link, because the side that has it will claim a relationship
+ * the other side denies.
+ */
+export function linkIncidents(
+  fromId: string,
+  toId: string,
+  kind: LinkKind,
+  actor: string,
+  now = new Date().toISOString()
+): { error: string } {
+  return store.mutate((db) => {
+    const a = db.incidents.findIndex((i) => i.id === fromId);
+    const b = db.incidents.findIndex((i) => i.id === toId);
+    if (a < 0 || b < 0) return { error: "No such incident." };
+
+    const r = link(db.incidents[a], db.incidents[b], kind, actor, now);
+    if (r.error) return { error: r.error };
+
+    db.incidents[a] = r.from;
+    db.incidents[b] = r.to;
+    return { error: "" };
+  });
+}
+
+export function unlinkIncidents(
+  fromId: string,
+  toId: string,
+  actor: string,
+  now = new Date().toISOString()
+): { error: string } {
+  return store.mutate((db) => {
+    const a = db.incidents.findIndex((i) => i.id === fromId);
+    const b = db.incidents.findIndex((i) => i.id === toId);
+    if (a < 0 || b < 0) return { error: "No such incident." };
+
+    const r = unlink(db.incidents[a], db.incidents[b], actor, now);
+    if (r.error) return { error: r.error };
+
+    db.incidents[a] = r.from;
+    db.incidents[b] = r.to;
+    return { error: "" };
+  });
+}
+
+// ────────────────────────────────────────────────────── on call ──
+
+export function listRotations(): Rotation[] {
+  return store.read().rotations ?? [];
+}
+
+/** Replaces one team's shifts. Whole-rota writes, because a rota is edited as a whole. */
+export function saveRotation(team: string, shifts: OncallShift[]): Rotation {
+  return store.mutate((db) => {
+    const next: Rotation = { team, shifts: shifts.map((s) => ({ ...s, team })) };
+    db.rotations = [...(db.rotations ?? []).filter((r) => r.team !== team), next];
+    if (!db.teams.includes(team)) db.teams.push(team);
+    return next;
+  });
+}
+
+/**
+ * Routes unowned incidents to whoever is on call.
+ *
+ * Runs on read for the same reason escalation does: a router that needs a cron
+ * stops routing the moment the cron stops, and the symptom is a queue of
+ * unassigned incidents that looks like nobody has picked them up yet.
+ */
+function applyAutoAssign(now: string): void {
+  const rotations = listRotations();
+  if (rotations.length === 0) return;
+
+  for (const inc of listIncidents()) {
+    if (inc.assignedTo || !isOpen(inc)) continue;
+    updateIncident(inc.id, (current) => autoAssign(current, rotations, now));
+  }
+}
+
+// ─────────────────────────────────────────────────── saved views ──
+
+export function listViews(who: string): SavedView[] {
+  const saved = store.read().views ?? [];
+  return [...DEFAULT_VIEWS, ...visibleViews(saved, who)];
+}
+
+export function saveView(
+  input: { name: string; filters: Filters; shared: boolean },
+  who: string,
+  now = new Date().toISOString()
+): SavedView {
+  return store.mutate((db) => {
+    const views = db.views ?? [];
+    /*
+     * Keyed on name-and-owner: saving over your own view of the same name is an
+     * edit, but it must not overwrite somebody else's view that happens to
+     * share a name.
+     */
+    const existing = views.find((v) => v.name === input.name && v.createdBy === who);
+    const next: SavedView = {
+      id: existing?.id ?? `view-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      name: input.name,
+      filters: input.filters,
+      createdBy: who,
+      createdAt: existing?.createdAt ?? now,
+      shared: input.shared,
+    };
+    db.views = [...views.filter((v) => v.id !== next.id), next];
+    return next;
+  });
+}
+
+/** Deletes a saved view. Only its owner may; the defaults cannot be deleted. */
+export function deleteView(id: string, who: string): { error: string } {
+  return store.mutate((db) => {
+    if (DEFAULT_VIEWS.some((v) => v.id === id)) return { error: "Built-in views cannot be deleted." };
+    const v = (db.views ?? []).find((x) => x.id === id);
+    if (!v) return { error: "No such view." };
+    if (v.createdBy !== who) return { error: "That view belongs to somebody else." };
+    db.views = (db.views ?? []).filter((x) => x.id !== id);
+    return { error: "" };
+  });
+}
+
 /** The queue plus the headline numbers, which is what the panel loads. */
-export function icmView(filters: Filters, now = new Date().toISOString()) {
+export function icmView(filters: Filters, now = new Date().toISOString(), who = "") {
+  applyAutoAssign(now);
   const all = applyDueEscalations(now);
+  const rotations = listRotations();
   return {
     incidents: queue(all, filters, now),
     stats: stats(all, now),
     teams: listTeams(),
+    views: listViews(who),
+    rotations,
+    /* Who to reach for each team, resolved once here rather than per row. */
+    onCall: Object.fromEntries(
+      listTeams().map((t) => [t, onCallFor(rotations, t, now)?.who ?? ""])
+    ),
     /*
      * Resolved incidents that owe a write-up. Surfaced beside the queue because
      * an unwritten postmortem is invisible otherwise — the incident is closed,
