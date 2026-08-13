@@ -687,9 +687,11 @@ function EnergyMonitor({ d, c }: { d: Device; c: Palette }) {
 function EnergyMeter({ d, c }: { d: Device; c: Palette }) {
   const channels = Math.max(1, Math.min(3, Number(d.state.channels ?? 1)));
   const volts = Number(d.state.volts ?? 0);
-  const total = Number(d.state.wattsTotal ?? d.state.watts0 ?? d.state.watts ?? 0);
+  const total = Number(d.state.wattsTotal ?? d.state.watts ?? 0);
+  /* `watts`, `watts2`, `watts3` — chKey() writes the bare name for channel 0
+     and appends i+1 after that. watts0 exists on no board. */
   const ch = (base: string, i: number) =>
-    Number(d.state[`${base}${i}`] ?? (channels === 1 ? d.state[base] : 0) ?? 0);
+    Number(d.state[i === 0 ? base : `${base}${i + 1}`] ?? 0);
 
   return (
     <View>

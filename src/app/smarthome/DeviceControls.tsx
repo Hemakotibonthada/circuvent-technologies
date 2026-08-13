@@ -1000,12 +1000,17 @@ function EnergyMonitor({ d }: { d: Device }) {
 function EnergyMeter({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const channels = Math.max(1, Math.min(3, n(d.state.channels, 1)));
   const volts = n(d.state.volts);
-  const total = n(d.state.wattsTotal, n(d.state.watts0));
+  const total = n(d.state.wattsTotal, n(d.state.watts));
 
-  /* Per-channel keys are watts0/amps0/kwh0/pf0 on a three-phase board and
-     watts/amps/kwh/pf on a single. Read both so one component serves both. */
-  const ch = (base: string, i: number) =>
-    n(d.state[`${base}${i}`] ?? (channels === 1 ? d.state[base] : undefined));
+  /*
+   * Channel keys are `watts`, `watts2`, `watts3` — not watts0/1/2.
+   *
+   * chKey() in the sketch writes the bare name for channel 0 and appends i+1
+   * after that, so a one-channel board publishes exactly the same keys as an
+   * older single-phase device. Reading `watts0` finds nothing on every board,
+   * which is the shape of a panel that shows a working meter as reading zero.
+   */
+  const ch = (base: string, i: number) => n(d.state[i === 0 ? base : `${base}${i + 1}`]);
 
   const [calOpen, setCalOpen] = useState(false);
   const [trueWatts, setTrueWatts] = useState("");
