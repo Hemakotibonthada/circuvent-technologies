@@ -252,7 +252,7 @@ def build_investor_deck(data: dict, out_path):
 
     _title_slide(
         prs, data, "Connected hardware,\nbuilt end to end.",
-        f"{cat['total']} shipping products across {len(cat['categories'])} categories — "
+        f"{cat['total']} products on sale across {len(cat['categories'])} categories — "
         "designed, manufactured, and run on our own platform.",
         "Company overview",
     )
@@ -311,7 +311,9 @@ def build_investor_deck(data: dict, out_path):
           "Every figure on this slide is counted from the source repository at generation time, "
           "not maintained by hand. The catalogue spans "
           f"{rupees(cat['priceMin'])} to {rupees(cat['priceMax'])} across "
-          f"{', '.join(cat['categories'])}.",
+          f"{', '.join(ordered_categories(cat))}."
+          + (f" A further {cat['comingSoon']} are announced and not yet orderable."
+             if cat.get("comingSoon") else ""),
           size=14.5, color="94A3B8", spacing=1.3)
     _footer(s, data, dark=True, page=page)
 

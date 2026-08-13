@@ -79,7 +79,8 @@ def pdf_text(path: Path) -> tuple[str, int]:
 
 
 def main() -> int:
-    products = DATA["catalogue"]["products"]
+    cat_data = DATA["catalogue"]
+    products = cat_data["products"]
     flagship = max(products, key=lambda p: p["price"])
     cheapest = min(products, key=lambda p: p["price"])
 
@@ -166,6 +167,18 @@ def main() -> int:
     for name in ["Circuvent-Investor-Deck.pptx", "Circuvent-Sales-Deck.pptx"]:
         deck_text, _ = pptx_text(OUT / name)
         check(not bad_plural.search(deck_text), f"{name}: renders '1 products'")
+
+    # --------------------------------------------------- unreleased products
+    # A product with a future releaseAt is listed and deliberately not
+    # orderable. Pricing it in a customer document is a promise of a launch
+    # that has not happened, and it would look identical to any other row.
+    for name in cat_data.get("comingSoonNames", []):
+        for doc_name, text in [
+            ("Circuvent-Product-Catalogue.pdf", cat_text),
+            ("Circuvent-Price-List.pdf", price_text),
+        ]:
+            check(name not in text,
+                  f"{doc_name} prices {name!r}, which is not yet orderable")
 
     print()
     if failures:

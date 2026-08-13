@@ -46,7 +46,23 @@ function countHardwareProjects(): string[] {
     .sort();
 }
 
-const orderable = products.filter((p) => !p.discontinued);
+/*
+ * What counts as "on sale" today.
+ *
+ * `discontinued` is permanent withdrawal. `releaseAt` is a future launch date:
+ * the product is listed in the catalogue and deliberately not orderable yet.
+ * Both must be excluded from anything a business document calls a shipping
+ * product, or a deck starts claiming a launch that has not happened — and it
+ * would do so silently, because a coming-soon product looks exactly like any
+ * other row in the catalogue.
+ */
+const today = new Date().toISOString().slice(0, 10);
+const isComingSoon = (p: (typeof products)[number]) =>
+  !!p.releaseAt && p.releaseAt.slice(0, 10) > today;
+
+const listed = products.filter((p) => !p.discontinued);
+const orderable = listed.filter((p) => !isComingSoon(p));
+const comingSoon = listed.filter(isComingSoon);
 const rated = orderable.filter((p) => (p.reviewCount ?? 0) > 0 || p.rating > 0);
 
 const byCategory: Record<string, typeof products> = {};
@@ -82,6 +98,9 @@ const data = {
 
   catalogue: {
     total: orderable.length,
+    /** Listed but not yet orderable. Never counted as shipping. */
+    comingSoon: comingSoon.length,
+    comingSoonNames: comingSoon.map((p) => p.name),
     categories: Object.keys(byCategory).sort(),
     categoryCounts: Object.fromEntries(
       Object.entries(byCategory).map(([k, v]) => [k, v.length]),
