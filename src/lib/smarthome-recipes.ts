@@ -48,6 +48,16 @@ export interface RecipeTemplate {
    * and the old list showed every template for every device.
    */
   requiresState?: string[];
+  /**
+   * State keys whose presence means a *better* template exists.
+   *
+   * A three-phase meter reports both `watts` (phase one) and `wattsTotal`
+   * (all of them). Offering the single-phase template there is worse than
+   * offering nothing: it builds a rule that watches a third of the house and
+   * looks exactly like one that watches all of it, so the alert that never
+   * arrives is indistinguishable from a quiet week.
+   */
+  excludesState?: string[];
 }
 
 export const RECIPES: RecipeTemplate[] = [
@@ -102,6 +112,22 @@ export const RECIPES: RecipeTemplate[] = [
     trigger: { type: "state", field: "watts", op: ">", value: 2000 },
     action: { kind: "notify", title: "High power draw", body: "A device is drawing more than 2000 W." },
     requiresState: ["watts"],
+    /* Hidden on anything reporting a total; the template below covers those
+       and watches every phase rather than the first one. */
+    excludesState: ["wattsTotal"],
+  },
+  {
+    id: "high-total-power-alert",
+    title: "Flag high total consumption",
+    description: "Watches every channel, not just the first phase.",
+    icon: "⚡",
+    trigger: { type: "state", field: "wattsTotal", op: ">", value: 5000 },
+    action: {
+      kind: "notify",
+      title: "High total consumption",
+      body: "The whole installation is drawing more than 5000 W.",
+    },
+    requiresState: ["wattsTotal"],
   },
   {
     id: "night-camera-arm",
@@ -135,6 +161,7 @@ export function recipesFor(device: RecipeDevice | null | undefined): RecipeTempl
 
   return RECIPES.filter((r) => {
     if (r.requiresState && !r.requiresState.every((k) => k in state)) return false;
+    if (r.excludesState && r.excludesState.some((k) => k in state)) return false;
     if (r.trigger.type === "state" && !(r.trigger.field in state)) return false;
 
     if (r.action.kind === "command") {
