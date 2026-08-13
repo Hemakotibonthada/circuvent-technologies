@@ -19,7 +19,10 @@
     "audit:live": "node scripts/audit-live.mjs",
     "audit:images": "node scripts/audit-images.mjs",
     "verify:secrets": "node scripts/check-no-secrets.js",
-    "prepare": "node scripts/install-hooks.mjs"
+    "prepare": "node scripts/install-hooks.mjs",
+    "docs:business": "python scripts/build_business_docs.py",
+    "docs:business:verify": "python scripts/verify_business_docs.py",
+    "docs:business:data": "tsx scripts/export-business-data.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

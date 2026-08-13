@@ -186,7 +186,8 @@ when they actually mean it.
 
 So when adding a type, ask what happens if a voice assistant switches it as
 part of "turn everything off" at 11pm. If the answer is worse than a dark room,
-it needs its own category and a line in `src/smarthome-typing.test.ts`.
+it needs its own category and a line in
+`platform/api/src/smarthome-typing.test.ts`.
 
 ---
 

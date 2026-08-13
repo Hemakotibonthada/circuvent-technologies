@@ -1,0 +1,7 @@
+# Regenerated on every `npm run docs:business` run. Committing it would put a
+# new timestamp in the diff each time somebody rebuilds the documents, for a
+# file that is an intermediate rather than a deliverable.
+#
+# The documents themselves ARE committed: people who need a deck or a price
+# list should not have to install Python to get one.
+business-data.json

@@ -1,0 +1,62 @@
+# Line-ending and binary handling.
+#
+# This repository runs with core.autocrlf=true on Windows. Git guesses whether
+# a file is text, and it guessed wrong for the generated PDFs — ReportLab
+# output is largely ASCII, so git offered to rewrite LF to CRLF inside it. That
+# conversion corrupts a PDF, and it corrupts it on *checkout*, so the file
+# commits cleanly, looks fine to whoever generated it, and is broken for
+# everybody who clones afterwards.
+#
+# Anything below is declared binary explicitly rather than left to the guess.
+
+* text=auto
+
+# Generated business documents
+*.pdf   binary
+*.pptx  binary
+*.docx  binary
+*.xlsx  binary
+
+# Images and media
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
+*.mp4   binary
+
+# Fonts
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+
+# Archives and build artifacts
+*.zip   binary
+*.gz    binary
+*.jar   binary
+*.keystore binary
+*.jks   binary
+*.apk   binary
+*.aab   binary
+
+# Hardware and fabrication outputs — Gerbers, drill files, pick-and-place and
+# ODB++ archives are toolchain-generated and must survive a round trip byte for
+# byte. A board that fails at the fab because git rewrote a drill file is an
+# expensive way to find this out.
+*.gbr   binary
+*.gbrjob binary
+*.drl   binary
+*.pos   binary
+*.d356  binary
+*.odb   binary
+
+# Firmware images
+*.bin   binary
+*.elf   binary
+*.hex   binary
+
+# Shell scripts must keep LF or they will not run on the VM.
+*.sh    text eol=lf

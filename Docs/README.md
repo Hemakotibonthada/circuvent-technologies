@@ -8,8 +8,13 @@ something is unverified or inconsistent, it says so rather than guessing.
 
 ## Start here
 
+**New to the team? Read [00 — Start here](./00-start-here.md) first.** It gets all
+four deployables running on your machine and proves each one works. Everything
+below is reference material that assumes you can already run things.
+
 | If you want to… | Read |
 | --- | --- |
+| **Set up your machine on day one** | [00 — Start here](./00-start-here.md) |
 | Understand how the pieces fit together | [01 — Architecture](./01-architecture.md) |
 | Work on the website / console | [02 — Web application](./02-web-application.md) |
 | Work on the control-plane API | [03 — Control plane API](./03-control-plane-api.md) |
@@ -31,6 +36,24 @@ something is unverified or inconsistent, it says so rather than guessing.
 | **Read vehicle number plates (ANPR)** | [20 — ANPR](./20-anpr.md) |
 | **Fly and log a drone** | [21 — Drone Link](./21-drone.md) |
 | **Fly our own aircraft** | [22 — Drone X1](./22-drone-x1.md) |
+
+### Working here
+
+| If you want to… | Read |
+| --- | --- |
+| Know how we write code, and why | [23 — Conventions](./23-conventions.md) |
+| Run or write tests | [24 — Testing](./24-testing.md) |
+| Branch, review and release | [25 — Git and releases](./25-git-and-releases.md) |
+| Look up a word | [26 — Glossary](./26-glossary.md) |
+| **Pick up your first task** | [27 — First tasks](./27-first-tasks.md) |
+
+### Business documents
+
+`Docs/business/` holds the customer- and investor-facing documents (PPTX, DOCX,
+PDF). They are **generated** from the live catalogue by
+`npm run docs:business`, so a price change in `src/lib/shop-data.ts` reaches
+every document instead of leaving a stale figure in a deck nobody remembers to
+edit. See [business/README.md](./business/README.md).
 
 ## The system in one paragraph
 
