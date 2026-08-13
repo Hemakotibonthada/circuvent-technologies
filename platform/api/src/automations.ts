@@ -1,7 +1,7 @@
 import { pool } from "./db";
 import { publishCommand } from "./mqtt";
 import { normaliseCommand, needsRepair } from "./device-commands";
-import { sendPushToUser } from "./push";
+import { sendPushToHome } from "./push";
 import { logger } from "./logger";
 
 export interface Trigger {
@@ -133,10 +133,22 @@ async function runOne(ownerId: number, name: string, a: Action, ctx: EventCtx): 
     await pool.query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [a.deviceId, ownerId, command]);
     logger.info({ device: a.deviceId, type: a.type }, "automation action ran");
   } else if (a.type === "notify") {
-    await sendPushToUser(ownerId, {
-      title: a.title ? fillTemplate(a.title, ctx) : "Circuvent",
-      body: a.body ? fillTemplate(a.body, ctx) : name,
-    });
+    /*
+     * The household, not just the owner. A rule that says "tell me when the
+     * garage door has been open for ten minutes" is worth as much to whoever
+     * is actually at home as to the person who wrote it.
+     *
+     * "residents" rather than "everyone": these are the household's own
+     * messages about its own affairs, and a houseguest has no use for them.
+     */
+    await sendPushToHome(
+      ownerId,
+      {
+        title: a.title ? fillTemplate(a.title, ctx) : "Circuvent",
+        body: a.body ? fillTemplate(a.body, ctx) : name,
+      },
+      "residents"
+    );
   }
 }
 

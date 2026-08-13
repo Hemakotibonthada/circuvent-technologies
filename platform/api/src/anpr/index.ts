@@ -4,7 +4,7 @@ import { logger } from "../logger";
 import { bus, getMqtt, type DeviceUpdate } from "../mqtt";
 import { onEvent } from "../automations";
 import { onOwnershipChange } from "../ownership";
-import { sendPushToUser } from "../push";
+import { sendPushToHome } from "../push";
 import { parseCapture, type AnprCapture, type TriggerReasonName } from "./protocol";
 import { getRecogniser, type RawCandidate } from "./recognizer";
 import { normalisePlate, prettyPlate, voteOnBurst, type PlateVerdict } from "./plate";
@@ -518,10 +518,10 @@ async function announce(b: PendingBurst, a: Announcement): Promise<void> {
       ? `${name} left the property${stay}.`
       : `${name} was denied entry.`;
     await recordEvent(b.ownerId, "security", title, body, b.deviceId);
-    await sendPushToUser(b.ownerId, { title, body });
+    await sendPushToHome(b.ownerId, { title, body }, "adults");
   } else if (a.decision === "watch") {
     await recordEvent(b.ownerId, "security", "Watchlist vehicle", `${name}${a.label ? ` (${a.label})` : ""} ${movement}${stay}.`, b.deviceId);
-    await sendPushToUser(b.ownerId, { title: "Watchlist vehicle", body: `${name} ${movement}${stay}.` });
+    await sendPushToHome(b.ownerId, { title: "Watchlist vehicle", body: `${name} ${movement}${stay}.` }, "adults");
   } else if (a.decision === "allow") {
     await recordEvent(b.ownerId, "activity", a.direction === "out" ? "Vehicle left" : "Vehicle admitted", `${name}${a.label ? ` — ${a.label}` : ""}${stay}`, b.deviceId);
   } else if (a.recognised) {

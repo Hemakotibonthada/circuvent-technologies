@@ -21,7 +21,7 @@ import { pool, recordEvent } from "../db";
 import { logger } from "../logger";
 import { bus, type DeviceUpdate } from "../mqtt";
 import { onOwnershipChange } from "../ownership";
-import { sendPushToUser } from "../push";
+import { sendPushToHome } from "../push";
 import { parseTrack, type TrackBatch } from "./track";
 import {
   applyBatch,
@@ -210,7 +210,7 @@ async function onState(deviceId: string, st: Record<string, unknown>): Promise<v
     if (settings.alertFailsafe) {
       const body = `${deviceId} reported an autopilot failsafe${st.mode ? ` (${String(st.mode)})` : ""}.`;
       await recordEvent(ownerId, "security", "Drone failsafe", body, deviceId);
-      await sendPushToUser(ownerId, { title: "Drone failsafe", body });
+      await sendPushToHome(ownerId, { title: "Drone failsafe", body }, "adults");
     }
   }
 
@@ -226,7 +226,7 @@ async function onState(deviceId: string, st: Record<string, unknown>): Promise<v
     if (settings.alertFence) {
       const body = `${deviceId} left the configured flight area.`;
       await recordEvent(ownerId, "security", "Geofence breach", body, deviceId);
-      await sendPushToUser(ownerId, { title: "Geofence breach", body });
+      await sendPushToHome(ownerId, { title: "Geofence breach", body }, "adults");
     }
   }
 
@@ -246,7 +246,7 @@ async function onState(deviceId: string, st: Record<string, unknown>): Promise<v
     if (settings.alertLowBatt) {
       const body = `${deviceId} is at ${battPct}% with the aircraft still airborne.`;
       await recordEvent(ownerId, "security", "Drone battery low", body, deviceId);
-      await sendPushToUser(ownerId, { title: "Drone battery low", body });
+      await sendPushToHome(ownerId, { title: "Drone battery low", body }, "adults");
     }
   }
 

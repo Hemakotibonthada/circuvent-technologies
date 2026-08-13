@@ -1,5 +1,5 @@
 import { pool, recordEvent } from "./db";
-import { sendPushToUser } from "./push";
+import { sendPushToHome } from "./push";
 import { logger } from "./logger";
 import { DEVICE_STALE_SECONDS } from "./device-online";
 
@@ -40,10 +40,14 @@ export async function sweepStaleDevices(): Promise<number> {
     if (d.owner_id == null) continue;
     const label = d.name || d.id;
     try {
-      await sendPushToUser(d.owner_id, {
-        title: "Device offline",
-        body: `${label} stopped responding.`,
-      });
+      await sendPushToHome(
+        d.owner_id,
+        {
+          title: "Device offline",
+          body: `${label} stopped responding.`,
+        },
+        "residents"
+      );
       await recordEvent(
         d.owner_id,
         "info",

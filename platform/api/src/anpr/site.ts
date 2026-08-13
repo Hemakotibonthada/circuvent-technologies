@@ -1,6 +1,6 @@
 import { pool, recordEvent } from "../db";
 import { logger } from "../logger";
-import { sendPushToUser } from "../push";
+import { sendPushToHome } from "../push";
 import { prettyPlate } from "./plate";
 
 /**
@@ -175,10 +175,14 @@ export async function onVehicleEntered(
         `${name} has not been here before.`,
         deviceId
       );
-      await sendPushToUser(ownerId, {
-        title: "Unrecognised vehicle",
-        body: `${name} has not been here before.`,
-      });
+      await sendPushToHome(
+        ownerId,
+        {
+          title: "Unrecognised vehicle",
+          body: `${name} has not been here before.`,
+        },
+        "adults"
+      );
     }
 
     if (settings.capacity == null || !settings.alertFull) return;
@@ -194,10 +198,14 @@ export async function onVehicleEntered(
         `${inside} of ${settings.capacity} spaces are taken.`,
         deviceId
       );
-      await sendPushToUser(ownerId, {
-        title: "Site is full",
-        body: `${inside} of ${settings.capacity} spaces are taken.`,
-      });
+      await sendPushToHome(
+        ownerId,
+        {
+          title: "Site is full",
+          body: `${inside} of ${settings.capacity} spaces are taken.`,
+        },
+        "residents"
+      );
     }
   } catch (err) {
     logger.error({ err, plate }, "anpr occupancy notification failed");
@@ -274,7 +282,7 @@ export async function sweepOverstays(): Promise<number> {
       const hours = Math.floor(Number(r.hours));
       const body = `${name} has been on site for ${hours} hour${hours === 1 ? "" : "s"}.`;
       await recordEvent(Number(r.owner_id), "alert", "Vehicle overstay", body, r.entry_device);
-      await sendPushToUser(Number(r.owner_id), { title: "Vehicle overstay", body });
+      await sendPushToHome(Number(r.owner_id), { title: "Vehicle overstay", body }, "adults");
     }
     return rows.length;
   } catch (err) {

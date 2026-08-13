@@ -5,7 +5,7 @@ import { withDeviceLock } from "./device-lock";
 import { pool, recordEvent } from "./db";
 import { logger } from "./logger";
 import { onStateChange, onEvent } from "./automations";
-import { sendPushToUser } from "./push";
+import { sendPushToHome } from "./push";
 
 /** In-process bus: MQTT messages -> WebSocket fan-out to app clients. */
 export const bus = new EventEmitter();
@@ -339,7 +339,7 @@ async function persistMessage(
       const row = prev.rows[0];
       await pool.query(`UPDATE devices SET online = $2, last_seen = now() WHERE id = $1`, [deviceId, online]);
       if (row?.owner_id != null && row.online === true && online === false) {
-        await sendPushToUser(row.owner_id, { title: "Device offline", body: `${row.name || deviceId} went offline.` });
+        await sendPushToHome(row.owner_id, { title: "Device offline", body: `${row.name || deviceId} went offline.` }, "residents");
         await recordEvent(row.owner_id, "info", "Device offline", `${row.name || deviceId} went offline.`, deviceId);
       }
       if (row?.owner_id != null && row.online === false && online === true) {
@@ -357,15 +357,19 @@ async function notifyStateEvents(
 ): Promise<void> {
   const rose = (f: string) => !!next?.[f] && !prev?.[f];
   if (rose("dryRun")) {
-    await sendPushToUser(ownerId, { title: "AquaGuard alert", body: `${name}: dry-run detected — pump stopped.` });
+    // Water damage is everybody's problem, including a houseguest who is the
+    // only person in the building.
+    await sendPushToHome(ownerId, { title: "AquaGuard alert", body: `${name}: dry-run detected — pump stopped.` }, "everyone");
     await recordEvent(ownerId, "alert", "AquaGuard dry-run", `${name}: dry-run detected — pump stopped.`);
   }
   if (rose("overflow")) {
-    await sendPushToUser(ownerId, { title: "AquaGuard alert", body: `${name}: tank overflow — pump stopped.` });
+    await sendPushToHome(ownerId, { title: "AquaGuard alert", body: `${name}: tank overflow — pump stopped.` }, "everyone");
     await recordEvent(ownerId, "alert", "Tank overflow", `${name}: tank overflow — pump stopped.`);
   }
   if (rose("sos")) {
-    await sendPushToUser(ownerId, { title: "SOS alert", body: `${name}: SOS triggered!` });
+    // Somebody in this house has pressed a panic button. There is no role
+    // that should be left out of that.
+    await sendPushToHome(ownerId, { title: "SOS alert", body: `${name}: SOS triggered!` }, "everyone");
     await recordEvent(ownerId, "security", "SOS triggered", `${name}: SOS triggered!`);
   }
   if (rose("motion")) {
