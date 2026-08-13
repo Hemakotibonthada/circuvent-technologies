@@ -14,6 +14,58 @@ export default function AnalyticsPanel() {
   const [range, setRange] = useState(30);
   const [d, setD] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState("");
+  const [exportError, setExportError] = useState("");
+
+  /**
+   * Downloads a report.
+   *
+   * Fetched rather than linked. These were plain `<a href>` tags, and the admin
+   * API reads its credential from an `x-admin-token` header — which a browser
+   * navigation cannot send, because a link carries cookies and nothing else.
+   * Every one of the six buttons went straight to a 403, and because the
+   * response was a navigation rather than a fetch, it failed silently: the
+   * download simply never appeared.
+   *
+   * The filename comes from the server's Content-Disposition when it sends one,
+   * so the name stays owned by the route that knows what the file is.
+   */
+  const exportReport = useCallback(
+    async (type: string) => {
+      setBusy(type);
+      setExportError("");
+      try {
+        const r = await fetch(`/api/admin/insights/export?type=${type}&range=${range}`, {
+          headers: { "x-admin-token": tok() },
+        });
+        if (!r.ok) {
+          setExportError(
+            r.status === 403
+              ? "Your session is not allowed to export analytics. Try signing in again."
+              : `Could not build the ${type} report (${r.status}).`
+          );
+          return;
+        }
+
+        const disposition = r.headers.get("content-disposition") || "";
+        const match = /filename="?([^"';]+)"?/i.exec(disposition);
+        const filename = match?.[1] || `circuvent-${type}-report.csv`;
+
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        setExportError("Could not reach the analytics service.");
+      } finally {
+        setBusy("");
+      }
+    },
+    [range]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -202,12 +254,23 @@ export default function AnalyticsPanel() {
       {/* exports */}
       <div className="flex flex-wrap gap-2">
         {["sales", "products", "customers", "categories", "coupons", "tax"].map((t) => (
-          <a key={t} href={`/api/admin/insights/export?type=${t}&range=${range}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm capitalize" style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}>
-            <Download className="h-4 w-4" /> {t} report
-          </a>
+          <button
+            key={t}
+            type="button"
+            onClick={() => void exportReport(t)}
+            disabled={busy === t}
+            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm capitalize disabled:opacity-50"
+            style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
+          >
+            <Download className="h-4 w-4" /> {busy === t ? "Preparing…" : `${t} report`}
+          </button>
         ))}
       </div>
+      {exportError && (
+        <div className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "#7f1d1d", color: "#fca5a5" }}>
+          {exportError}
+        </div>
+      )}
     </div>
   );
 }
