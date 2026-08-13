@@ -8,6 +8,14 @@
  */
 import { createFileStore } from "./data-file";
 import { planFromAlerts } from "./icm-bridge";
+import { logger } from "./logger";
+import {
+  planNotifications,
+  renderNotification,
+  markSent,
+  pruneSent,
+  type NotifyState,
+} from "./icm-notify";
 import type { Alert } from "./anomaly-monitor";
 import {
   createIncident,
@@ -61,6 +69,16 @@ const store = createFileStore<IcmDB>("admin-icm.json", () => ({
   seq: 0,
   teams: [...DEFAULT_TEAMS],
 }));
+
+/*
+ * The delivery ledger, kept apart from the incidents.
+ *
+ * Separate because it is written on a different rhythm and for a different
+ * reason: an incident is a record of what happened, and this is a record of
+ * what we said about it. Mixing them means every send rewrites the incident
+ * document, and a mail failure could corrupt the incident it was about.
+ */
+const notifyStore = createFileStore<NotifyState>("admin-icm-notify.json", () => ({ sent: {} }));
 
 /**
  * Incident IDs are sequential and human-quotable: INC-1043.
@@ -335,6 +353,100 @@ export function syncFromAlerts(
   }
 
   return { filed, resolved };
+}
+
+/**
+ * Sends what is due, and records that it went.
+ *
+ * Async and isolated: this is the only part of ICM that talks to the outside
+ * world, and a mail server being down must not stop an incident being filed.
+ * Delivery is recorded only for messages that were actually accepted, so a
+ * failed send is retried on the next sweep rather than silently swallowed —
+ * the alternative is an outage nobody hears about because SMTP blipped once.
+ */
+export async function deliverNotifications(
+  now = new Date().toISOString()
+): Promise<{ sent: number; failed: number; skipped: number }> {
+  const incidents = listIncidents();
+  const state = notifyStore.read();
+  const fallback = (process.env.ICM_NOTIFY_EMAIL || process.env.ALERTS_NOTIFY_EMAIL || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const plan = planNotifications(incidents, state, {
+    rotations: listRotations(),
+    now,
+    fallback,
+  });
+
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+  const delivered: typeof plan = [];
+
+  for (const n of plan) {
+    if (n.to.length === 0) {
+      /*
+       * Nobody to tell. Logged rather than dropped: an incident with no
+       * recipient means the rota has a hole, and that is a finding in itself.
+       */
+      logger.warn("icm.notify_no_recipient", { incident: n.incidentId, reason: n.reason });
+      skipped += 1;
+      continue;
+    }
+
+    const body = renderNotification(n);
+    try {
+      /*
+       * Imported here, not at the top of the file.
+       *
+       * sendMail lives in order-core, which pulls in the whole shop module
+       * graph — coupons, inventory, a store with top-level await. Importing it
+       * statically makes every consumer of icm-store carry all of that, and it
+       * broke two test suites that only wanted to file an incident. Mail is
+       * only sent when there is something to send, so paying for the module
+       * then is both cheaper and honest about the dependency.
+       */
+      const { sendMail } = await import("./order-core");
+      /*
+       * The fourth argument is replyTo, not a plain-text body — sendMail has no
+       * text parameter. Passing body.text here would have set Reply-To to the
+       * entire message, and both are strings, so nothing would have complained.
+       */
+      const ok = await sendMail(n.to.join(","), body.subject, body.html, undefined, {
+        type: "alert",
+        related: n.incidentId,
+      });
+      if (ok) {
+        delivered.push(n);
+        sent += 1;
+      } else {
+        failed += 1;
+      }
+    } catch (e) {
+      logger.error("icm.notify_failed", { incident: n.incidentId }, e);
+      failed += 1;
+    }
+  }
+
+  if (delivered.length) {
+    notifyStore.mutate((db) => {
+      const next = markSent(db, delivered, now);
+      db.sent = next.sent;
+    });
+  }
+
+  /* Pruned here rather than on a schedule of its own: this is the only code
+     that writes the ledger, so it is the only place it can grow. */
+  notifyStore.mutate((db) => {
+    db.sent = pruneSent(db, incidents).sent;
+  });
+
+  if (sent || failed || skipped) {
+    logger.info("icm.notified", { sent, failed, skipped });
+  }
+  return { sent, failed, skipped };
 }
 
 export function isDurable(): boolean {

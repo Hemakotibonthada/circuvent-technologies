@@ -17,6 +17,14 @@ jest.mock("@/lib/admin-auth", () => ({
   adminFromRequest: () => ({ email: who }),
 }));
 
+const sentMail: { to: string; subject: string }[] = [];
+jest.mock("@/lib/order-core", () => ({
+  sendMail: jest.fn(async (to: string, subject: string) => {
+    sentMail.push({ to, subject });
+    return true;
+  }),
+}));
+
 const url = "https://circuvent.com/api/admin/icm";
 const get = (qs = "") => GET(new Request(`${url}${qs}`));
 const post = (body: unknown) =>
@@ -216,5 +224,47 @@ describe("saved views over the API", () => {
 
   it("requires a name", async () => {
     expect((await post({ kind: "view", filters: {} })).status).toBe(400);
+  });
+});
+
+describe("notification on the human write paths", () => {
+  beforeEach(() => {
+    sentMail.length = 0;
+    process.env.ICM_NOTIFY_EMAIL = "oncall@circuvent.com";
+  });
+
+  it("emails when a person files an incident, without waiting for the daily sweep", async () => {
+    const id = await file("Payments are down", { severity: 1 });
+
+    expect(sentMail.length).toBeGreaterThan(0);
+    const filed = sentMail.find((m) => m.subject.includes(id));
+    expect(filed).toBeDefined();
+    expect(filed!.to).toContain("oncall@circuvent.com");
+    // The severity is in the subject, because it decides whether somebody
+    // reads it now or in the morning.
+    expect(filed!.subject).toContain("Sev 1");
+  });
+
+  it("emails the resolution, so the thread does not end on the outage", async () => {
+    const id = await file("Brief blip", { severity: 3 });
+    sentMail.length = 0;
+
+    await patch({ id, action: "acknowledge" });
+    await patch({ id, action: "mitigate", note: "restarted the worker" });
+    await patch({ id, action: "resolve", note: "a bad config push" });
+
+    const resolved = sentMail.find((m) => m.subject.startsWith("Resolved:") && m.subject.includes(id));
+    expect(resolved).toBeDefined();
+  });
+
+  it("does not re-send the filing notice on every subsequent action", async () => {
+    const id = await file("Noisy incident", { severity: 3 });
+    const filedCount = sentMail.filter((m) => m.subject.includes(id) && !m.subject.includes(":")).length;
+
+    await patch({ id, action: "comment", body: "looking" });
+    await patch({ id, action: "comment", body: "still looking" });
+
+    const after = sentMail.filter((m) => m.subject.includes(id) && !m.subject.includes(":")).length;
+    expect(after).toBe(filedCount);
   });
 });

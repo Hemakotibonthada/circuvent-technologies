@@ -11,6 +11,7 @@ import {
   saveRotation,
   saveView,
   deleteView,
+  deliverNotifications,
 } from "@/lib/icm-store";
 import type { Alert } from "@/lib/anomaly-monitor";
 import {
@@ -54,6 +55,28 @@ export const dynamic = "force-dynamic";
 function actorOf(request: Request): string {
   const admin = adminFromRequest(request);
   return admin?.email || "unknown";
+}
+
+/**
+ * Sends whatever this change made due, then returns the incident unchanged.
+ *
+ * Called from the write paths rather than left to the sweep. The sweep runs
+ * daily — Vercel Hobby permits nothing finer — so an incident a person files
+ * at 09:00 would page nobody until the following morning, which is not an
+ * incident management system.
+ *
+ * Awaited rather than fired and forgotten: a serverless function that returns
+ * before its promises settle is frozen mid-send, and the mail is simply lost.
+ * Failures are swallowed because the write already succeeded and reporting it
+ * as failed would be worse than a missing email.
+ */
+async function notified<T>(incident: T): Promise<T> {
+  try {
+    await deliverNotifications();
+  } catch {
+    /* deliverNotifications already logs; the write is what the caller asked for. */
+  }
+  return incident;
 }
 
 /** GET /api/admin/icm — the queue, the stats and the routing teams. */
@@ -102,6 +125,7 @@ export async function POST(request: Request) {
         owningTeam: typeof b.owningTeam === "string" ? b.owningTeam : undefined,
         autoResolve: b.autoResolve !== false,
       });
+      await notified(null);
       return NextResponse.json({
         success: true,
         filed: filed.map((i) => i.id),
@@ -160,7 +184,7 @@ export async function POST(request: Request) {
       assignedTo: String(b.assignedTo || "").trim(),
     });
 
-    return NextResponse.json({ success: true, incident });
+    return NextResponse.json({ success: true, incident: await notified(incident) });
   } catch {
     return NextResponse.json({ success: false, message: "Request failed." }, { status: 500 });
   }
@@ -262,7 +286,7 @@ export async function PATCH(request: Request) {
      */
     if (error) return NextResponse.json({ success: false, message: error, incident }, { status: 409 });
 
-    return NextResponse.json({ success: true, incident, sla: slaSnapshot(incident, now) });
+    return NextResponse.json({ success: true, incident: await notified(incident), sla: slaSnapshot(incident, now) });
   } catch {
     return NextResponse.json({ success: false, message: "Request failed." }, { status: 500 });
   }

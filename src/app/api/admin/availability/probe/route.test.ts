@@ -20,6 +20,19 @@ import { allEvents, clearTelemetry, ingest } from "@/lib/telemetry-store";
 
 const realFetch = global.fetch;
 
+/*
+ * The mailer is faked so the assertion can be "an email was sent, to these
+ * people, with this subject" rather than "a function was called". Everything
+ * else on this path is real: the store, the bridge, the planner.
+ */
+const sent: { to: string; subject: string; html: string }[] = [];
+jest.mock("@/lib/order-core", () => ({
+  sendMail: jest.fn(async (to: string, subject: string, html: string) => {
+    sent.push({ to, subject, html });
+    return true;
+  }),
+}));
+
 const req = (headers: Record<string, string> = {}) =>
   new Request("https://circuvent.com/api/admin/availability/probe", { headers });
 
@@ -258,5 +271,53 @@ describe("user-defined alert rules fire through the same sweep", () => {
     const second = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
     expect(second.detection.ruleAlerts).toBeGreaterThan(0);
     expect(second.detection.incidentsFiled).toEqual([]);
+  });
+});
+
+describe("the sweep tells somebody", () => {
+  beforeEach(() => {
+    clearTelemetry();
+    sent.length = 0;
+    process.env.CRON_SECRET = "test-secret";
+    process.env.ICM_NOTIFY_EMAIL = "oncall@circuvent.com";
+    global.fetch = jest.fn().mockResolvedValue(new Response("{}", { status: 200 })) as unknown as typeof fetch;
+  });
+
+  it("emails when an incident is filed, and does not email again for the same one", async () => {
+    // A route failing hard: detection files it, and somebody must hear about it.
+    for (let i = 0; i < 3; i++) {
+      ingest(
+        Array.from({ length: 40 }, () => ({
+          kind: "request",
+          path: "/api/invoices",
+          method: "GET",
+          status: 503,
+          ok: false,
+          durationMs: 30,
+        })),
+        { session: "s", source: "web", now: new Date(Date.now() - 5 * 60_000).toISOString() }
+      );
+    }
+
+    const first = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+
+    expect(first.detection.incidentsFiled.length).toBeGreaterThan(0);
+    expect(first.notified.sent).toBeGreaterThan(0);
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent[0].to).toContain("oncall@circuvent.com");
+    expect(sent[0].subject).toContain(first.detection.incidentsFiled[0]);
+
+    // Swept again: the problem persists, but the message has been sent.
+    const before = sent.length;
+    const second = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+
+    expect(second.detection.incidentsFiled).toEqual([]);
+    expect(sent.length).toBe(before);
+  });
+
+  it("does not fail the probe when there is nothing to say", async () => {
+    const body = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
+    expect(body.ok).toBe(true);
+    expect(body.notified.failed).toBe(0);
   });
 });

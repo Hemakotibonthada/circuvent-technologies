@@ -31,7 +31,7 @@ import { CONTROL_PLANE_URL } from "@/lib/control-plane";
 import { ingest, isDurable, allEvents, evaluateAlertRules } from "@/lib/telemetry-store";
 import type { Alert } from "@/lib/anomaly-monitor";
 import { detectAnomalies } from "@/lib/insights-anomalies";
-import { syncFromAlerts } from "@/lib/icm-store";
+import { syncFromAlerts, deliverNotifications } from "@/lib/icm-store";
 import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -123,6 +123,7 @@ async function handle(request: Request) {
   let anomalies: ReturnType<typeof detectAnomalies> = [];
   let ruleAlerts: Alert[] = [];
   let filed: string[] = [];
+  let notified = { sent: 0, failed: 0, skipped: 0 };
   try {
     const stamp = new Date().toISOString();
     anomalies = detectAnomalies(allEvents(), stamp);
@@ -146,6 +147,18 @@ async function handle(request: Request) {
         logger.warn("insights.incidents_filed", { count: filed.length, ids: filed.join(",") });
       }
     }
+
+    /*
+     * Then tell somebody.
+     *
+     * Unconditional, not gated on `filed`: the sweep also has to nag about
+     * incidents nobody acknowledged and announce ones that escalated, neither
+     * of which involves filing anything new. Gating on filing would make the
+     * whole notification path dead code on every sweep that found nothing new
+     * — which is most of them, and exactly when an unacknowledged incident is
+     * most likely to be sitting there.
+     */
+    notified = await deliverNotifications();
   } catch (e) {
     /*
      * Detection must not take the probe down with it. The health result is
@@ -172,6 +185,7 @@ async function handle(request: Request) {
      * panel would show one lonely check rather than a history.
      */
     detection: { findings: anomalies.length, ruleAlerts: ruleAlerts.length, incidentsFiled: filed },
+    notified,
     retained: isDurable(),
     at: new Date().toISOString(),
   });
