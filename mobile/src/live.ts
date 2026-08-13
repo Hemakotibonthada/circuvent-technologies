@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { getToken } from "./api";
+import { getActiveHome, getToken } from "./api";
 import { WS_URL } from "./config";
 
 export interface DeviceUpdate {
@@ -64,7 +64,12 @@ async function connect(): Promise<void> {
   }
   let ws: WebSocket;
   try {
-    ws = new WebSocket(WS_URL + "?token=" + encodeURIComponent(t));
+    /* The home this socket is for, when it is not the caller's own. Rides in
+       the URL like the token, because a WebSocket handshake carries no custom
+       headers. Omitted when there is no active home, so a session that never
+       switches connects exactly as it always did. */
+    const home = await getActiveHome();
+    ws = new WebSocket(WS_URL + "?token=" + encodeURIComponent(t) + (home ? "&home=" + home : ""));
   } catch {
     retryTimer = setTimeout(() => { void connect(); }, 3000);
     return;

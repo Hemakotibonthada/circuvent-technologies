@@ -56,6 +56,17 @@ export default function HouseholdPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState<number | null>(null);
+  /**
+   * Set when the hub answers 404 to /home.
+   *
+   * The control plane ships separately from this console, so a hub that has
+   * not been rebuilt has no household routes at all. Without noticing that,
+   * this screen renders exactly as it would for somebody with no access —
+   * "you are the only person the owner has invited", no invite form — which
+   * tells the owner of the home that they are a guest in it. Naming the real
+   * reason is the difference between a bug report and a five-minute fix.
+   */
+  const [unsupported, setUnsupported] = useState(false);
 
   const [inviteRole, setInviteRole] = useState<GrantableRole>("limited");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -74,6 +85,15 @@ export default function HouseholdPanel() {
       controlPlane.homeMembers(),
       controlPlane.homeRoles(),
     ]);
+
+    /* 404 means the hub predates household sharing, not that you have no
+       household. Told apart because they look identical from here. */
+    if (m.status === 404 || h.status === 404) {
+      setUnsupported(true);
+      setLoading(false);
+      return;
+    }
+
     if (h.ok) setHomes(h.data.homes ?? []);
     if (m.ok) {
       setMembers(m.data.members ?? []);
@@ -194,6 +214,30 @@ export default function HouseholdPanel() {
   };
 
   if (loading) return <LoadingState label="Loading your household" />;
+
+  if (unsupported) {
+    return (
+      <div className="space-y-6 pt-1">
+        <SectionTitle>Household</SectionTitle>
+        <Callout tone="warning" title="Your hub does not have household sharing yet">
+          <p>
+            This console is newer than the control plane it is talking to. Household sharing lives
+            on the hub, so it has to be rebuilt before anybody can be invited.
+          </p>
+          <p className="mt-2">
+            On the machine running the control plane:{" "}
+            <code className="rounded px-1.5 py-0.5" style={{ background: "var(--cv-input-bg)" }}>
+              docker compose up -d --build
+            </code>
+          </p>
+          <p className="mt-2 text-xs" style={{ color: "var(--cv-muted)" }}>
+            Nothing else on this console is affected, and no settings need changing — the tables are
+            created automatically when the hub starts.
+          </p>
+        </Callout>
+      </div>
+    );
+  }
 
   const shared = homes.filter((h) => h.role !== "owner");
   const openInvites = invites.filter((i) => i.status === "open");

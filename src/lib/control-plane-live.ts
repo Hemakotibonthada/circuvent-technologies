@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CONTROL_PLANE_WS, getToken } from "./control-plane";
+import { CONTROL_PLANE_WS, getActiveHome, getToken } from "./control-plane";
 
 export interface DeviceUpdate {
   type: "device:update";
@@ -86,7 +86,14 @@ function connect(): void {
 
   let ws: WebSocket;
   try {
-    ws = new WebSocket(CONTROL_PLANE_WS + "?token=" + encodeURIComponent(t));
+    /* The home this socket is for, when it is not the caller's own. A
+       WebSocket handshake from a browser carries no custom headers, so it
+       rides in the URL like the token does. Omitting it when there is no
+       active home keeps the connection byte-identical to what it was. */
+    const home = getActiveHome();
+    ws = new WebSocket(
+      CONTROL_PLANE_WS + "?token=" + encodeURIComponent(t) + (home ? "&home=" + home : "")
+    );
   } catch {
     scheduleReconnect();
     return;

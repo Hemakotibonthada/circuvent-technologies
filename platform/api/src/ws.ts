@@ -4,13 +4,30 @@ import { verifyUserToken } from "./auth";
 import { bus, watchedDevices, type DeviceUpdate, type DeviceFrame } from "./mqtt";
 import { pool } from "./db";
 import { logger } from "./logger";
+import { resolveMembership } from "./home/membership";
+import { mayWatch } from "./home/guard";
+import type { HomeRole } from "./home/roles";
 
 interface Client {
   ws: WebSocket;
+  /**
+   * The home whose devices this socket receives.
+   *
+   * The home, not the person — every device query here is `owner_id = uid`,
+   * and a member of somebody else's household must see that household's
+   * devices rather than their own. Getting this wrong does not leak anything;
+   * it makes live updates silently stop, which is worse than it sounds. The
+   * console would list a shared home's devices over HTTP and then never update
+   * them, so every toggle would look like it did nothing.
+   */
   uid: number;
+  /** What the connected person may do here. Owners of their own home get "owner". */
+  role: HomeRole;
   deviceIds: Set<string>;
   /** Cameras this socket is actively viewing. Empty for almost every client. */
   watching: Set<string>;
+  /** Types by device id, so a watch request can be judged without a query. */
+  types: Map<string, string>;
 }
 
 /** A socket may watch a small number of cameras at once — a grid view, not the
@@ -88,8 +105,39 @@ export function attachWebSocket(server: Server): void {
       return;
     }
 
-    const client: Client = { ws, uid: claims.uid, deviceIds: new Set(), watching: new Set() };
+    const client: Client = {
+      ws,
+      uid: claims.uid,
+      role: "owner",
+      deviceIds: new Set(),
+      watching: new Set(),
+      types: new Map(),
+    };
     clients.add(client);
+
+    /*
+     * Which home this socket is for.
+     *
+     * Sent as a query parameter because a WebSocket handshake carries no
+     * custom headers from a browser — the same reason the token is here rather
+     * than in an Authorization header.
+     *
+     * Resolved before the first device read, and refused outright if they are
+     * not a member. Falling back to their own home would be worse than closing
+     * the socket: the console would show one household's device list with
+     * another's live telemetry playing over it.
+     */
+    const requestedHome = Number(url.searchParams.get("home") ?? "");
+    if (Number.isInteger(requestedHome) && requestedHome > 0 && requestedHome !== claims.uid) {
+      const membership = await resolveMembership(claims.uid, requestedHome);
+      if (!membership) {
+        ws.close(4403, "No access to that home");
+        clients.delete(client);
+        return;
+      }
+      client.uid = membership.homeId;
+      client.role = membership.role;
+    }
 
     /**
      * The set of device ids a socket may receive is derived from the database
@@ -98,8 +146,12 @@ export function attachWebSocket(server: Server): void {
      */
     const syncDeviceIds = async (): Promise<void> => {
       try {
-        const { rows } = await pool.query<{ id: string }>(`SELECT id FROM devices WHERE owner_id = $1`, [claims.uid]);
+        const { rows } = await pool.query<{ id: string; type: string }>(
+          `SELECT id, type FROM devices WHERE owner_id = $1`,
+          [client.uid]
+        );
         client.deviceIds = new Set(rows.map((r) => r.id));
+        client.types = new Map(rows.map((r) => [r.id, r.type]));
         // Losing a device mid-session must also drop its feed, not just stop it
         // being delivered — otherwise the refcount pins the camera forever.
         for (const id of [...client.watching]) {
@@ -162,6 +214,12 @@ export function attachWebSocket(server: Server): void {
           return;
         }
         if (!client.deviceIds.has(id)) return;
+        /*
+         * A camera in a home is the most invasive thing in it, so watching one
+         * is judged separately from being able to see the device exists. A
+         * guest of a household gets the device list and no video.
+         */
+        if (!mayWatch(client.role, client.types.get(id) ?? "")) return;
         if (client.watching.has(id)) return;
         if (client.watching.size >= MAX_WATCHED) return;
         client.watching.add(id);

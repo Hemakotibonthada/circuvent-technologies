@@ -51,6 +51,15 @@ export default function Household({ onBack }: { onBack: () => void }) {
   const [active, setActive] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  /**
+   * Set when the hub answers 404 to /home.
+   *
+   * The control plane ships separately from the app, so a hub that has not
+   * been rebuilt has no household routes. Without noticing that, this screen
+   * renders exactly as it would for somebody with no access, telling the owner
+   * of the home that they are a guest in it.
+   */
+  const [unsupported, setUnsupported] = useState(false);
 
   const [inviteRole, setInviteRole] = useState<"adult" | "limited" | "guest">("limited");
   const [joinCode, setJoinCode] = useState("");
@@ -60,6 +69,15 @@ export default function Household({ onBack }: { onBack: () => void }) {
 
   const load = useCallback(async () => {
     const [h, m, r] = await Promise.all([api.homes(), api.homeMembers(), api.homeRoles()]);
+
+    /* 404 means the hub predates household sharing, not that you have no
+       household. Told apart because they look identical from here. */
+    if (m.status === 404 || h.status === 404) {
+      setUnsupported(true);
+      setLoading(false);
+      return;
+    }
+
     if (h.ok) setHomes(h.data.homes ?? []);
     if (m.ok) {
       setMembers(m.data.members ?? []);
@@ -194,6 +212,24 @@ export default function Household({ onBack }: { onBack: () => void }) {
 
         {loading ? (
           <Text style={{ color: c.textDim }}>Loading…</Text>
+        ) : unsupported ? (
+          <Card>
+            <Banner
+              kind="warning"
+              text="Your hub does not have household sharing yet. This app is newer than the control plane it is talking to."
+            />
+            <Text style={{ color: c.textDim, marginTop: 12 }}>
+              Household sharing lives on the hub, so it has to be rebuilt before anybody can be
+              invited. On the machine running the control plane, run:
+            </Text>
+            <Text selectable style={{ color: c.text, marginTop: 8, fontWeight: "600" }}>
+              docker compose up -d --build
+            </Text>
+            <Text style={{ color: c.faint, marginTop: 8, fontSize: 12 }}>
+              Nothing else in the app is affected, and no settings need changing — the tables are
+              created automatically when the hub starts.
+            </Text>
+          </Card>
         ) : (
           <>
             {/* Which home ------------------------------------------------ */}
