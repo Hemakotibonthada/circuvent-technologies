@@ -32,6 +32,7 @@ import { ingest, isDurable, allEvents, evaluateAlertRules } from "@/lib/telemetr
 import type { Alert } from "@/lib/anomaly-monitor";
 import { detectAnomalies } from "@/lib/insights-anomalies";
 import { syncFromAlerts, deliverNotifications } from "@/lib/icm-store";
+import { recordCurrentBuild } from "@/lib/deployments";
 import { logger } from "@/lib/logger";
 import {
   runChecks,
@@ -153,6 +154,16 @@ async function handle(request: Request) {
   let filed: string[] = [];
   let notified = { sent: 0, failed: 0, skipped: 0 };
   try {
+    /*
+     * Record which build is serving, before anything else.
+     *
+     * Idempotent on the commit sha, so this is one comparison after the first
+     * call. It lives here rather than in a deploy hook because a record that
+     * depends on CI remembering to call an endpoint is a record that goes
+     * missing the moment somebody edits the pipeline — and the whole value of
+     * a release annotation is that it is there on the day you need it.
+     */
+    recordCurrentBuild();
     const stamp = new Date().toISOString();
     anomalies = detectAnomalies(allEvents(), stamp);
     /*

@@ -9,6 +9,7 @@
 import { createFileStore } from "./data-file";
 import { planFromAlerts } from "./icm-bridge";
 import { logger } from "./logger";
+import { deployBefore, describeCorrelation, deploymentsIn } from "./deployments";
 import {
   planNotifications,
   renderNotification,
@@ -115,6 +116,40 @@ export function fileIncident(input: NewIncident, now = new Date().toISOString())
     if (inc.owningTeam && !db.teams.includes(inc.owningTeam)) db.teams.push(inc.owningTeam);
     return inc;
   });
+}
+
+/**
+ * Notes on the incident whether a deployment shortly preceded it.
+ *
+ * Attached at filing time, against the moment impact started rather than the
+ * moment the incident was created — a monitor can take a while to notice, and
+ * correlating against the noticing rather than the breaking points at the
+ * wrong change.
+ *
+ * Written as a timeline entry rather than a field, because it is an
+ * observation somebody made at a moment, not a property of the incident. If it
+ * turns out to be irrelevant it should read as a note that did not pan out,
+ * not as metadata that was wrong. Its own kind rather than a comment, so the
+ * text is the observation itself: `comment` puts the message in `body` and
+ * leaves `text` as the word "commented", which is invisible in any summary.
+ */
+export function annotateWithDeploy(inc: Incident, now = new Date().toISOString()): Incident {
+  const correlation = deployBefore(inc.impactStartedAt || inc.createdAt);
+  if (!correlation) return inc;
+
+  return {
+    ...inc,
+    timeline: [
+      ...inc.timeline,
+      {
+        id: `rel-${Date.parse(now).toString(36)}-${correlation.deployment.shortSha}`,
+        at: now,
+        actor: "icm-release",
+        kind: "release" as const,
+        text: `Possibly related: ${describeCorrelation(correlation)}.`,
+      },
+    ],
+  };
 }
 
 /**
@@ -326,6 +361,9 @@ export function icmView(filters: Filters, now = new Date().toISOString(), who = 
      */
     actionsOutstanding: openActionItems(all),
     actionsByOwner: actionsByOwner(all),
+    /* Release markers for the queue header — "what shipped today" is the
+       question directly after "what is broken". */
+    deployments: deploymentsIn(new Date(Date.parse(now) - 7 * 86_400_000).toISOString(), now),
     now,
   };
 }
@@ -344,7 +382,17 @@ export function syncFromAlerts(
   const now = opts.now ?? new Date().toISOString();
   const plan = planFromAlerts(alerts, listIncidents(), { ...opts, now });
 
-  const filed = plan.toFile.map((input) => fileIncident(input, now));
+  const filed = plan.toFile.map((input) => {
+    const inc = fileIncident(input, now);
+    /* Annotated immediately, so the note is on the incident before anybody is
+       paged about it — the correlation is most useful in the first minute. */
+    const annotated = annotateWithDeploy(inc, now);
+    if (annotated !== inc) {
+      updateIncident(inc.id, () => ({ incident: annotated, error: "" }));
+      return annotated;
+    }
+    return inc;
+  });
 
   const resolved: Incident[] = [];
   for (const next of plan.toUpdate) {

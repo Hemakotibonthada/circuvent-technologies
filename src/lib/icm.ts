@@ -50,6 +50,7 @@ export interface TimelineEntry {
     | "escalated"
     | "postmortem"
     | "linked"
+    | "release"
     | "sla";
   /** Human-readable, already past tense: "raised severity to Sev1". */
   text: string;

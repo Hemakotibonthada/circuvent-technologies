@@ -10,6 +10,7 @@
  */
 import { GET, POST, PATCH, DELETE } from "./route";
 import { listRotations } from "@/lib/icm-store";
+import { recordCurrentBuild } from "@/lib/deployments";
 
 let who = "ops@circuvent.com";
 jest.mock("@/lib/admin-auth", () => ({
@@ -323,5 +324,76 @@ describe("filing from an Insights failure group", () => {
   it("requires a failure key", async () => {
     const res = await post({ kind: "from-failure", title: "Something" });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("release correlation on a filed incident", () => {
+  const ENV = ["VERCEL_GIT_COMMIT_SHA", "VERCEL_GIT_COMMIT_REF", "VERCEL_GIT_COMMIT_MESSAGE", "VERCEL_GIT_COMMIT_AUTHOR_LOGIN"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of ENV) saved[k] = process.env[k];
+    process.env.VERCEL_GIT_COMMIT_SHA = "feedface00112233";
+    process.env.VERCEL_GIT_COMMIT_REF = "develop";
+    process.env.VERCEL_GIT_COMMIT_MESSAGE = "Rewrite the retry policy\n\nlong body";
+    process.env.VERCEL_GIT_COMMIT_AUTHOR_LOGIN = "hema";
+  });
+
+  afterEach(() => {
+    for (const k of ENV) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("notes a recent deployment on an incident the monitor files", async () => {
+    // The build is recorded the way the sweep records it: on first sight.
+    recordCurrentBuild(new Date(Date.now() - 8 * 60_000).toISOString());
+
+    const res = await post({
+      kind: "sync-alerts",
+      alerts: [
+        {
+          fingerprint: "release-correlation-test",
+          severity: "critical",
+          title: "Checkout is failing",
+          detail: "100% of calls failed",
+          deviceIds: [],
+          evidence: {},
+          state: "open",
+          firstSeenAt: new Date().toISOString(),
+          lastSeenAt: new Date().toISOString(),
+          occurrences: 1,
+        },
+      ],
+    });
+    const body = await res.json();
+    expect(body.filed.length).toBe(1);
+
+    const incident = (await (await get(`?id=${body.filed[0]}`)).json()).incident;
+    const note = incident.timeline.find((t: { text: string }) => t.text.includes("Possibly related"));
+
+    expect(note).toBeDefined();
+    expect(note.text).toContain("feedfac");
+    expect(note.text).toContain("8 minutes earlier");
+    expect(note.text).toContain("Rewrite the retry policy");
+    // The body of a multi-paragraph commit has no place on a timeline.
+    expect(note.text).not.toContain("long body");
+  });
+
+  it("says nothing when no deployment is near, rather than reaching further back", async () => {
+    recordCurrentBuild(new Date(Date.now() - 10 * 3600_000).toISOString());
+
+    const id = await file("Unrelated incident");
+    const incident = (await (await get(`?id=${id}`)).json()).incident;
+
+    expect(incident.timeline.some((t: { text: string }) => t.text.includes("Possibly related"))).toBe(false);
+  });
+
+  it("offers recent deployments beside the queue", async () => {
+    recordCurrentBuild(new Date(Date.now() - 30 * 60_000).toISOString());
+    const body = await (await get("?status=open")).json();
+
+    expect(body.deployments.some((d: { sha: string }) => d.sha === "feedface00112233")).toBe(true);
   });
 });

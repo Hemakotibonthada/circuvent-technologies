@@ -10,10 +10,20 @@ import {
   type AlertRule,
 } from "@/lib/insights-alert-rules";
 
+interface DeployMarker {
+  sha: string;
+  shortSha: string;
+  branch: string;
+  message: string;
+  author: string;
+  firstSeenAt: string;
+}
+
 interface ExplorerView {
   series: MetricSeries[];
   bucketMinutes: number;
   truncated: number;
+  deployments?: DeployMarker[];
 }
 
 /** Distinguishable at a glance, and legible on both themes. */
@@ -332,7 +342,15 @@ function Series({ series }: { series: InsightsSummary["series"] }) {
 }
 
 /** A multi-series line chart, drawn as inline SVG. */
-function MetricChart({ series, unit }: { series: MetricSeries[]; unit: "count" | "ms" | "%" }) {
+function MetricChart({
+  series,
+  unit,
+  deployments = [],
+}: {
+  series: MetricSeries[];
+  unit: "count" | "ms" | "%";
+  deployments?: DeployMarker[];
+}) {
   const W = 900;
   const H = 220;
   const PAD = { l: 48, r: 12, t: 12, b: 24 };
@@ -373,6 +391,50 @@ function MetricChart({ series, unit }: { series: MetricSeries[]; unit: "count" |
             ))}
           </g>
         ))}
+
+        {/*
+          * Release markers, drawn last so they sit above the series.
+          *
+          * A dashed vertical line rather than a shaded band: a deployment is a
+          * moment, and shading implies a duration during which something was
+          * true. Positioned by interpolating into the bucket index, so a
+          * marker lands where the eye expects rather than snapping to a bucket
+          * boundary and appearing to precede a spike it actually followed.
+          */}
+        {(() => {
+          const first = series[0]?.points[0]?.at;
+          const last = series[0]?.points.at(-1)?.at;
+          if (!first || !last || len < 2) return null;
+          const t0 = Date.parse(first);
+          const t1 = Date.parse(last);
+          if (!(t1 > t0)) return null;
+
+          return deployments.map((d) => {
+            const t = Date.parse(d.firstSeenAt);
+            if (!Number.isFinite(t) || t < t0 || t > t1) return null;
+            const px = x(((t - t0) / (t1 - t0)) * (len - 1));
+            return (
+              <g key={d.sha}>
+                <line
+                  x1={px}
+                  x2={px}
+                  y1={PAD.t}
+                  y2={H - PAD.b}
+                  stroke="#e879f9"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+                <circle cx={px} cy={PAD.t} r={3} fill="#e879f9">
+                  <title>
+                    {`${d.shortSha} · ${d.branch}${d.author ? ` · ${d.author}` : ""}\n${fmtTime(
+                      d.firstSeenAt
+                    )}\n${d.message}`}
+                  </title>
+                </circle>
+              </g>
+            );
+          });
+        })()}
       </svg>
       <div className="flex flex-wrap gap-3 px-2 pt-1">
         {series.map((s, si) => (
@@ -1152,11 +1214,14 @@ export default function AppInsightsPanel() {
               <MetricChart
                 series={explorer.series}
                 unit={METRICS.find((m) => m.id === metric)?.unit ?? "count"}
+                deployments={explorer.deployments}
               />
               <div className="text-[11px] cv-text-muted">
                 {explorer.bucketMinutes}-minute buckets over {hours}h.
                 {explorer.truncated > 0 &&
                   ` ${explorer.truncated} lower-volume series not shown.`}{" "}
+                {(explorer.deployments?.length ?? 0) > 0 &&
+                  `${explorer.deployments!.length} release${explorer.deployments!.length === 1 ? "" : "s"} marked. `}
                 Series totals are the metric over the whole window, not the average of
                 the points — an average of percentiles is not a percentile.
               </div>

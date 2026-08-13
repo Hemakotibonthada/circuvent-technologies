@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { guard } from "@/lib/admin-auth";
 import { clearTelemetry, insightsView, metricsView } from "@/lib/telemetry-store";
 import { METRICS, SPLITS, type MetricId, type SplitBy } from "@/lib/app-insights";
+import { deploymentsIn, recordCurrentBuild } from "@/lib/deployments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,10 @@ export async function GET(request: Request) {
    * ?metric= switches this route into explorer mode. One route rather than two
    * so both answers come from one guard and one clamp of `hours`.
    */
+  /* Records the running build on any admin read, not only on the sweep: the
+     annotation should exist even where no scheduler is configured. */
+  recordCurrentBuild();
+
   const metric = url.searchParams.get("metric");
   if (metric) {
     if (!METRICS.some((m) => m.id === metric)) {
@@ -37,6 +42,12 @@ export async function GET(request: Request) {
       metric,
       splitBy: splitParam,
       hours,
+      /* Release markers for the chart. "Did this start when we deployed?" is
+         the first question anybody asks of a graph that turned a corner. */
+      deployments: deploymentsIn(
+        new Date(Date.now() - hours * 3_600_000).toISOString(),
+        new Date().toISOString()
+      ),
       ...metricsView({
         metric: metric as MetricId,
         splitBy: splitParam as SplitBy,

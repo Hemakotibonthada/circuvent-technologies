@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import nextPkg from "next/package.json";
 import { isDbConfigured, validateEnv } from "@/lib/config";
+import { currentBuild } from "@/lib/deployments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,25 @@ export async function GET() {
     {
       status,
       version: "1.0.0",
+      /*
+       * Which build is actually serving.
+       *
+       * `version` above is a constant nobody bumps, so it cannot answer "is my
+       * change live yet" or "are these two hosts running the same code". That
+       * gap is not academic: diagnosing an Office outage meant downloading the
+       * minified bundle from each host and comparing filename hashes, because
+       * nothing else distinguished them.
+       *
+       * Null when there is no git metadata — running locally, or built
+       * somewhere that does not provide it. Saying null is better than
+       * inventing a value that looks authoritative.
+       */
+      build: (() => {
+        const b = currentBuild();
+        return b
+          ? { sha: b.shortSha, branch: b.branch, environment: b.environment }
+          : null;
+      })(),
       timestamp: new Date().toISOString(),
       uptime: {
         seconds: Math.round(uptime),
