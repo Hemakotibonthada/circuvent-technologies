@@ -33,6 +33,13 @@ import type { Alert } from "@/lib/anomaly-monitor";
 import { detectAnomalies } from "@/lib/insights-anomalies";
 import { syncFromAlerts, deliverNotifications } from "@/lib/icm-store";
 import { logger } from "@/lib/logger";
+import {
+  runChecks,
+  defaultChecks,
+  checksToAlerts,
+  checksToTelemetry,
+  type CheckResult,
+} from "@/lib/synthetic-checks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,6 +86,27 @@ async function handle(request: Request) {
   }
 
   const durationMs = Date.now() - startedAt;
+
+  /*
+   * Then check the rest of the suite.
+   *
+   * The control-plane probe above watches the thing this platform talks to.
+   * These watch the things it does not — the other apps, on other hosts, whose
+   * failures are invisible from here precisely because nothing on this side
+   * changes when they break. That is not hypothetical: Office ran for days
+   * serving a page that loaded perfectly against an API returning 503, and
+   * every check the platform ran was against itself.
+   */
+  let syntheticResults: CheckResult[] = [];
+  try {
+    syntheticResults = await runChecks(defaultChecks());
+    const events = checksToTelemetry(syntheticResults);
+    if (events.length) {
+      ingest(events, { session: "probe:synthetic", source: "probe" });
+    }
+  } catch (e) {
+    logger.error("availability.synthetic_failed", {}, e);
+  }
 
   ingest(
     [
@@ -139,7 +167,7 @@ async function handle(request: Request) {
      */
     ruleAlerts = evaluateAlertRules(stamp).alerts;
 
-    const all = [...anomalies, ...ruleAlerts];
+    const all = [...anomalies, ...ruleAlerts, ...checksToAlerts(syntheticResults, stamp)];
     if (all.length) {
       const sync = syncFromAlerts(all, { owningTeam: "Platform" });
       filed = sync.filed.map((i) => i.id);
@@ -178,6 +206,14 @@ async function handle(request: Request) {
   return NextResponse.json({
     ok: true,
     probe: { target: "control-plane", reachable: ok, status, durationMs, errorType },
+    synthetic: syntheticResults.map((r) => ({
+      id: r.check.id,
+      name: r.check.name,
+      ok: r.ok,
+      status: r.status,
+      durationMs: r.durationMs,
+      reason: r.reason,
+    })),
     /*
      * Surfaced because it decides whether this was worth doing at all. On a
      * read-only serverless filesystem the telemetry store is per-instance and
