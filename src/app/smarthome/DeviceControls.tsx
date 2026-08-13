@@ -72,6 +72,7 @@ import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } fr
 import { useCameraListen, useCameraTalk } from "./useCameraAudio";
 import { useControlPlaneCapability, stalePlaneAdvice } from "@/lib/control-plane-health";
 import { readTankLink, tankLevelText, formatAge, type TankDeviceState } from "@/lib/tank-link";
+import FacePanel from "./FacePanel";
 
 export interface DeviceTypeMeta {
   label: string;
@@ -1210,6 +1211,47 @@ function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
           )}
         </div>
       </ControlRow>
+      {link.status !== "unpaired" && (
+        <>
+          <ControlRow
+            label="Read the tank now"
+            hint={
+              link.downlinkPending
+                ? "Queued — the sensor will be asked at its next report"
+                : `The sensor sleeps between reports, so this is queued and takes up to ${link.intervalS}s`
+            }
+          >
+            <div className="flex gap-2">
+              <button
+                onClick={() => send({ action: "readNow" })}
+                className={`rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white hover:bg-white/10 active:scale-95 transition ${pendCls(st("downlinkPending"))}`}
+              >
+                {link.downlinkPending ? "Queued…" : "Read now"}
+              </button>
+              <button
+                onClick={() => send({ action: "identifySensor" })}
+                title="Blink the light on the tank unit, to tell it from another"
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/10 active:scale-95 transition"
+              >
+                Identify
+              </button>
+            </div>
+          </ControlRow>
+          <ControlRow
+            label="Report every"
+            hint="Less often lasts longer on a battery; more often reacts sooner"
+          >
+            <Stepper
+              value={link.intervalS}
+              onChange={(v) => send({ sensorIntervalS: v })}
+              min={10}
+              max={900}
+              step={10}
+              suffix="s"
+            />
+          </ControlRow>
+        </>
+      )}
 
       <SectionLabel>Auto thresholds</SectionLabel>
       <ControlRow label="Start overhead at" hint="Fill when overhead drops to this">
@@ -1269,6 +1311,7 @@ function RfidGate({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
 function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const locked = b(d.state.locked);
   const LockIcon = locked ? Lock : LockOpen;
+  const enrolling = b(d.state.enrolling);
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
@@ -1279,9 +1322,23 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
         </div>
       </div>
 
+      {enrolling && (
+        /*
+         * Surfaced prominently because the door refuses to unlock while it is
+         * enrolling. Somebody pressing Unlock and getting nothing would
+         * reasonably conclude the lock is broken, so the reason is on screen
+         * rather than only in the firmware's head.
+         */
+        <div className="mt-3 rounded-xl border border-violet-700/50 bg-violet-950/30 px-4 py-3 text-sm text-violet-200">
+          <strong>Enrolling {String(d.state.enrolName || "a new face")}.</strong> The door will
+          not unlock until this finishes
+          {n(d.state.enrolSecondsLeft) > 0 ? ` — about ${n(d.state.enrolSecondsLeft)}s left` : ""}.
+        </div>
+      )}
+
       <SectionLabel>Controls</SectionLabel>
       <div className="flex gap-2.5">
-        <button onClick={() => send({ action: "unlock", method: "app" })} className={`min-h-[44px] flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition flex items-center justify-center gap-2 ${pendCls(st("locked"))}`}><LockOpen className="h-4 w-4" /> Unlock</button>
+        <button onClick={() => send({ action: "unlock", method: "app" })} disabled={enrolling} className={`min-h-[44px] flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-40 ${pendCls(st("locked"))}`}><LockOpen className="h-4 w-4" /> Unlock</button>
         <button onClick={() => send({ action: "lock" })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition flex items-center justify-center gap-2 ${pendCls(st("locked"))}`}><Lock className="h-4 w-4" /> Lock</button>
       </div>
 
@@ -1292,6 +1349,9 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
       <ControlRow label="Auto-relock" hint="Seconds before the door re-locks">
         <Stepper value={n(d.state.autoLockSec, 8)} onChange={(v) => send({ autoLockSec: v })} min={0} max={120} suffix="s" />
       </ControlRow>
+
+      <SectionLabel>Who this door opens for</SectionLabel>
+      <FacePanel deviceId={d.id} deviceName={d.name} />
     </div>
   );
 }

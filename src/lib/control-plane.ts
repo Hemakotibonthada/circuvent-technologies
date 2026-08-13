@@ -943,6 +943,36 @@ export async function authedBlob(url: string): Promise<Blob> {
   return res.blob();
 }
 
+/* ------------------------------------------------------------------ face --
+ * FaceDoor roster.
+ *
+ * A profile is a person; samples are that person's face under different
+ * conditions. Several per person is the point — one face is a lock that stops
+ * recognising somebody the day they shave.
+ */
+export interface FaceProfile {
+  id: number;
+  name: string;
+  role: string;
+  enabled: boolean;
+  allowFrom: string | null;
+  allowTo: string | null;
+  expiresAt: string | null;
+  samples: number;
+  lastEnrolled?: string | null;
+  createdAt?: string;
+}
+
+export interface FaceAttempt {
+  id: number;
+  name: string;
+  outcome: string;
+  distance: number | null;
+  granted: boolean;
+  reason: string;
+  at: string;
+}
+
 export const controlPlane = {
   authedBlob,
   login: (email: string, password: string) =>
@@ -1149,7 +1179,50 @@ export const controlPlane = {
     req<{ ok: boolean; sentTo?: string; error?: string }>("/drone/report/test", { method: "POST" }),
   droneEvents: (limit = 100) => req<{ events: FlightEvent[] }>("/drone/events?limit=" + limit),
 
+
   // ---- gate guest passes (Zone 1) ----------------------------------------
+  // ---- FaceDoor faces -----------------------------------------------------
+  faceProfiles: (deviceId: string) =>
+    req<{ profiles: FaceProfile[]; limits: { maxSamples: number; maxProfiles: number } }>(
+      "/face/profiles?deviceId=" + encodeURIComponent(deviceId)
+    ),
+  createFaceProfile: (body: {
+    deviceId: string;
+    name: string;
+    role?: "resident" | "guest" | "staff";
+    allowFrom?: string | null;
+    allowTo?: string | null;
+    expiresAt?: string | null;
+  }) => req<{ profile: FaceProfile }>("/face/profiles", { method: "POST", body: JSON.stringify(body) }),
+  updateFaceProfile: (id: number, body: Record<string, unknown>) =>
+    req<{ profile: FaceProfile }>("/face/profiles/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteFaceProfile: (id: number) =>
+    req<{ ok: boolean }>("/face/profiles/" + id, { method: "DELETE" }),
+  deleteFaceSample: (id: number) => req<{ ok: boolean }>("/face/samples/" + id, { method: "DELETE" }),
+  /**
+   * Enrol from an image chosen or captured in the browser.
+   *
+   * The picture is sent as the raw body and never stored — the server embeds it
+   * and drops it. The embedding must come from the model the door matches
+   * against, which is why the browser does not compute one itself.
+   */
+  enrolFaceImage: (profileId: number, image: Blob) =>
+    req<{ total: number; remaining: number; embedMs: number }>(
+      "/face/profiles/" + profileId + "/samples/image",
+      { method: "POST", body: image, headers: { "content-type": image.type || "image/jpeg" } }
+    ),
+  startFaceEnrolment: (body: { deviceId: string; profileId?: number; name?: string }) =>
+    req<{ ok: boolean; profileId: number; name: string; seconds: number; expiresAt: string }>(
+      "/face/enrol/start",
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  stopFaceEnrolment: (deviceId: string) =>
+    req<{ ok: boolean }>("/face/enrol/stop", { method: "POST", body: JSON.stringify({ deviceId }) }),
+  faceAttempts: (deviceId: string, limit = 50) =>
+    req<{ attempts: FaceAttempt[] }>(
+      "/face/attempts?deviceId=" + encodeURIComponent(deviceId) + "&limit=" + limit
+    ),
+
   gatePasses: (deviceId?: string) =>
     req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),
   createGatePass: (body: { deviceId: string; label?: string; validToMinutes?: number; maxUses?: number }) =>
