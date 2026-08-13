@@ -14,6 +14,7 @@ import { Star, type LucideIcon } from "lucide-react";
 import type { Device } from "@/lib/control-plane";
 import { masterPower } from "@/lib/smarthome-command-map";
 import { haptic, type FieldStatus } from "@/lib/smarthome-realtime";
+import { readTankLink, type TankDeviceState } from "@/lib/tank-link";
 import { deviceMeta, capabilities, fanLevel } from "../DeviceControls";
 import { StatusDot, formatRelative } from "./primitives";
 import { Slider } from "./Slider";
@@ -39,8 +40,12 @@ export function deviceMetric(d: Device): string | null {
       return v == null ? null : `${v}%`;
     }
     case "watertank": {
-      const v = num(s.ohPct);
-      return v == null ? null : `${v}%`;
+      // -1 is the firmware's "no current reading", not an empty tank. Rendering
+      // it as "-1%" would be obviously broken; rendering it as "0%" would be
+      // worse, because an empty overhead tank is what makes someone pump.
+      const tank = readTankLink(s as TankDeviceState);
+      if (tank.levelPct === null) return tank.status === "unpaired" ? "no sensor" : "no reading";
+      return tank.levelIsCurrent ? `${tank.levelPct}%` : `${tank.levelPct}% old`;
     }
     case "smart-plug":
     case "energy-monitor": {

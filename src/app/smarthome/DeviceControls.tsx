@@ -71,6 +71,7 @@ import { useRemoteCamera } from "./useRemoteCamera";
 import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } from "./recording";
 import { useCameraListen, useCameraTalk } from "./useCameraAudio";
 import { useControlPlaneCapability, stalePlaneAdvice } from "@/lib/control-plane-health";
+import { readTankLink, tankLevelText, formatAge, type TankDeviceState } from "@/lib/tank-link";
 
 export interface DeviceTypeMeta {
   label: string;
@@ -1050,43 +1051,85 @@ function AgriStarter({ d, send, st }: { d: Device; send: SendFn; st: StatusFn })
   );
 }
 
-function TankGauge({ label, pct, litres, accent, fault }: { label: string; pct: number; litres: number; accent: string; fault?: boolean }) {
-  const clamped = Math.min(100, Math.max(0, pct));
+function TankGauge({ label, pct, litres, accent, fault, stale }: { label: string; pct: number; litres: number; accent: string; fault?: boolean; stale?: boolean }) {
+  /*
+   * A negative percentage means "no reading", not an empty tank. Drawing it as
+   * empty would be the worst possible default here: an empty overhead tank is
+   * exactly the condition that makes someone start the pump.
+   */
+  const unknown = pct < 0;
+  const clamped = unknown ? 0 : Math.min(100, Math.max(0, pct));
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="relative h-48 w-24 overflow-hidden rounded-2xl border border-white/15 bg-black/30">
+      <div className={`relative h-48 w-24 overflow-hidden rounded-2xl border bg-black/30 ${stale && !unknown ? "border-amber-400/40" : "border-white/15"}`}>
         {/* fluid */}
-        <div
-          className="absolute inset-x-0 bottom-0 transition-all duration-700"
-          style={{ height: `${clamped}%`, background: `linear-gradient(180deg, ${accent}cc, ${accent}66)` }}
-        >
-          {/* animated wave crest */}
-          <div className="animate-pulse absolute inset-x-0 top-0 h-3 opacity-70" style={{ background: accent }} />
-        </div>
+        {!unknown && (
+          <div
+            className="absolute inset-x-0 bottom-0 transition-all duration-700"
+            style={{
+              height: `${clamped}%`,
+              background: `linear-gradient(180deg, ${accent}cc, ${accent}66)`,
+              // Stale water is drained of colour as well as labelled. Colour is
+              // read before text, so a number that must not be acted on should
+              // not look as confident as one that may be.
+              opacity: stale ? 0.35 : 1,
+            }}
+          >
+            {/* Motion means "being updated". A stale gauge must not keep moving,
+                or it goes on signalling liveness that is no longer there. */}
+            {!stale && <div className="animate-pulse absolute inset-x-0 top-0 h-3 opacity-70" style={{ background: accent }} />}
+          </div>
+        )}
         {/* level ticks */}
         {[25, 50, 75].map((t) => (
           <div key={t} className="absolute inset-x-0 border-t border-white/10" style={{ bottom: `${t}%` }} />
         ))}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-2xl font-extrabold text-white drop-shadow">{clamped}%</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className={`text-2xl font-extrabold drop-shadow ${unknown ? "text-slate-500" : stale ? "text-amber-200" : "text-white"}`}>
+            {unknown ? "—" : `${clamped}%`}
+          </span>
+          {stale && !unknown && <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300/90">last known</span>}
         </div>
       </div>
       <div className="text-center">
         <div className="text-sm font-semibold text-white">{label}</div>
-        <div className="text-xs text-slate-400">{litres.toLocaleString("en-IN")} L{fault ? " · sensor?" : ""}</div>
+        <div className="text-xs text-slate-400">
+          {unknown ? "no reading" : `${litres.toLocaleString("en-IN")} L`}{fault ? " · sensor?" : ""}
+        </div>
       </div>
     </div>
   );
 }
 
 function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const oh = n(d.state.ohPct);
+  /*
+   * The overhead level arrives by radio from a battery unit on the tank, so it
+   * can stop arriving. `readTankLink` is the single place that decides whether
+   * the last reading may still be presented as the current one — the firmware
+   * applies the same rule to the pump, and `tests/tank-link-parity.test.ts`
+   * keeps the two thresholds from drifting apart.
+   */
+  const link = readTankLink(d.state as TankDeviceState);
+  const oh = link.levelPct ?? -1;
   const sump = n(d.state.sumpPct);
+  const toneCls =
+    link.tone === "ok" ? "text-emerald-400"
+      : link.tone === "warn" ? "text-amber-400"
+        : link.tone === "bad" ? "text-red-400"
+          : "text-slate-400";
+
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
         <div className="flex items-end justify-center gap-10">
-          <TankGauge label="Overhead" pct={oh} litres={n(d.state.ohLitres)} accent="#06b6d4" fault={b(d.state.ohFault)} />
+          <TankGauge
+            label="Overhead"
+            pct={oh}
+            litres={n(d.state.ohLitres)}
+            accent="#06b6d4"
+            fault={b(d.state.ohFault)}
+            stale={!link.levelIsCurrent}
+          />
           <div className="flex flex-col items-center pb-10">
             <div className={`text-xs font-bold ${b(d.state.pump) ? "text-cyan-400" : "text-slate-500"}`}>
               {b(d.state.pump) ? "▲ PUMPING" : "IDLE"}
@@ -1098,11 +1141,42 @@ function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
         </div>
       </div>
 
+      {/*
+        * The radio link gets a permanent row rather than only appearing when
+        * broken. A level with no indication of where it came from is exactly
+        * what makes a stale reading dangerous, and a status that only shows up
+        * on failure teaches nobody what healthy looks like.
+        */}
+      <div className="mt-3 flex items-start gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+        <Radio className={`mt-0.5 h-4 w-4 shrink-0 ${toneCls}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className={`text-sm font-semibold ${toneCls}`}>{link.label}</span>
+            {link.ageS !== null && link.status !== "live" && (
+              <span className="text-xs text-slate-400">· {formatAge(link.ageS)} ago</span>
+            )}
+            {link.batteryPct !== null && (
+              <span className={`text-xs ${link.batteryLow ? "text-amber-400" : "text-slate-400"}`}>
+                · sensor battery {link.batteryPct}%
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-xs text-slate-400">{link.detail}</div>
+        </div>
+      </div>
+
       {b(d.state.dryRun) && <div className="mt-3"><AlertBanner text="Dry-run detected — pump cut. Reset after checking the sump/motor." /></div>}
       {b(d.state.overflow) && <div className="mt-3"><AlertBanner text="Overflow float tripped — pump stopped." /></div>}
 
       <SectionLabel>Controls</SectionLabel>
-      <ControlRow label="Auto-fill" hint="Fill the overhead tank automatically from the sump">
+      <ControlRow
+        label="Auto-fill"
+        hint={
+          link.blocksAutoFill
+            ? "Paused — the controller will not pump without a current tank level"
+            : "Fill the overhead tank automatically from the sump"
+        }
+      >
         <Toggle checked={b(d.state.auto)} onChange={(v) => send({ auto: v })} status={st("auto")} label="Auto-fill" />
       </ControlRow>
       <ControlRow label="Pump" hint={b(d.state.auto) ? "Overridden by auto-fill" : "Manual pump control"}>
@@ -1113,6 +1187,29 @@ function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
           <button onClick={() => send({ action: "resetDryRun" })} className={`rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white hover:bg-white/10 active:scale-95 transition ${pendCls(st("dryRun"))}`}>Reset trip</button>
         </ControlRow>
       )}
+
+      <SectionLabel>Tank sensor</SectionLabel>
+      <ControlRow
+        label={link.status === "unpaired" ? "Pair sensor" : "Re-pair sensor"}
+        hint="Opens a 60-second window, then press the button on the tank unit"
+      >
+        <div className="flex gap-2">
+          <button
+            onClick={() => send({ action: "pair" })}
+            className={`rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white hover:bg-white/10 active:scale-95 transition ${pendCls(st("pairing"))}`}
+          >
+            {b(d.state.pairing) ? "Listening…" : "Pair"}
+          </button>
+          {link.status !== "unpaired" && (
+            <button
+              onClick={() => send({ action: "unpair" })}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/10 active:scale-95 transition"
+            >
+              Forget
+            </button>
+          )}
+        </div>
+      </ControlRow>
 
       <SectionLabel>Auto thresholds</SectionLabel>
       <ControlRow label="Start overhead at" hint="Fill when overhead drops to this">
@@ -1126,7 +1223,7 @@ function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
       </ControlRow>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <StatTile label="Pump current" value={`${n(d.state.amps).toFixed(1)} A`} />
-        <StatTile label="Mode" value={b(d.state.auto) ? "Auto" : "Manual"} />
+        <StatTile label="Overhead" value={tankLevelText(link)} />
       </div>
     </div>
   );

@@ -1,37 +1,75 @@
 /*
  * Circuvent WaterTank Duo — Sump + Overhead Tank Controller (ESP32)
  * =================================================================
- * Zone 5 of the Circuvent smart-home. Manages a two-tank system:
- *   - Overhead (OH) tank + underground Sump, each with a waterproof
- *     ultrasonic sensor (JSN-SR04T), median-filtered.
+ * Zone 5 of the Circuvent smart-home. The starter half of a two-unit product:
+ *   - Overhead (OH) tank level arrives BY RADIO from a battery-powered sensor
+ *     sitting on the tank (firmware/watertank-sensor). See CvTankLink.h.
+ *   - Underground Sump has its own wired ultrasonic (JSN-SR04T), median
+ *     filtered — the sump is beside the pump, so a short cable is fine.
  *   - Single pump relay (drives a contactor) lifting water Sump -> OH.
  *   - Auto-fill: pump ON when OH < startPct AND Sump > sumpMinPct;
  *     pump OFF at OH >= stopPct (or Sump exhausted).
- *   - Dry-run trip: if the pump draws current (ACS712 on ADC) yet the
- *     OH level does not rise within dryRunWindow, cut the motor.
+ *   - Dry-run trip: if the pump draws current yet the OH level does not rise
+ *     within dryRunWindow, cut the motor.
  *   - Overflow float backup, max-runtime + restart cool-down, manual button.
- *   - Live fill % + litres for both tanks (feeds the 3D visualizers).
+ *
+ * WHY THE OVERHEAD SENSOR MOVED TO RADIO
+ * --------------------------------------
+ * It used to be wired to this board, which meant a four-core cable running the
+ * full height of the building. That cable was the least reliable part of the
+ * product: ultrasonic echo timing is a microsecond signal carried tens of
+ * metres alongside mains, and the run is a direct lightning path into this
+ * controller. The sensor is now its own unit and reports over LoRa.
+ *
+ * WHAT THAT CHANGES, AND IT IS THE IMPORTANT PART
+ * ----------------------------------------------
+ * A wired sensor either reads or visibly faults. A radio tankLink can simply stop,
+ * leaving this controller holding a number that was true an hour ago and looks
+ * exactly like a number that is true now. Acting on it is damaging in both
+ * directions: a stale "low" overflows the tank, a stale "full" leaves it empty.
+ *
+ * So every use of the overhead level is gated on `cvTankReadingFresh()`, auto
+ * mode refuses to run without a fresh reading, and the state published to the
+ * apps carries the tankLink's health rather than a bare number. The overflow float
+ * remains the hardware backstop underneath all of it.
  *
  * Speaks the standard Circuvent protocol (cv/<id>/state|telemetry) so the
  * broker bridge, web console and mobile app pick it up with no changes.
- * Deps: CircuventDevice, ArduinoJson.  Board: ESP32.
+ * Deps: CircuventDevice, ArduinoJson, LoRa.  Board: ESP32.
  */
-/** Version history: 1.0.0 initial; 1.1.0 adds OTA (from CircuventDevice). */
-#define CV_FW_VERSION "1.1.0"
+/** Version history: 1.0.0 initial; 1.1.0 adds OTA; 2.0.0 overhead level over LoRa. */
+#define CV_FW_VERSION "2.0.0"
 #include <CircuventDevice.h>
+#include <LoRa.h>
 #include <Preferences.h>
+#include <SPI.h>
+
+#include "CvTankLink.h"
 
 // ---- pins ----
-#define OH_TRIG     25
-#define OH_ECHO     26
+// 25/26 used to carry the overhead ultrasonic. They are free now that the
+// overhead sensor is a separate unit, and the radio uses the SPI bus instead.
 #define SUMP_TRIG   32
 #define SUMP_ECHO   33
 #define PUMP_RELAY  27       // -> contactor coil
 #define CURRENT_ADC 34       // ACS712 / current transformer (input-only pin)
 #define OH_FLOAT_HI 35       // overflow float (active-low, input-only)
-#define BTN_PIN      0        // manual override / BOOT
+#define BTN_PIN      0       // manual override / BOOT
 #define BUZZER_PIN   4
 #define LED_PIN      2
+#define LORA_SS      5
+#define LORA_RST    14
+#define LORA_DIO0   13
+
+/* A pin used twice fails silently at runtime; catch it at compile time. */
+#if (SUMP_TRIG == SUMP_ECHO) || (LORA_SS == LORA_RST) || (LORA_SS == LORA_DIO0) || \
+    (PUMP_RELAY == LORA_SS) || (SUMP_TRIG == LORA_SS) || (BUZZER_PIN == LORA_DIO0)
+#error "CV_PIN_CLASH: two peripherals are assigned the same pin"
+#endif
+
+/* Must match the sensor exactly. A mismatch is silent on both sides. */
+#define LORA_FREQ 433E6
+#define LORA_SF 9
 
 // ---- tank geometry (persisted) — sensor-to-water distance (cm) ----
 float OH_EMPTY_CM = 120.0f, OH_FULL_CM = 15.0f;   float OH_CAP_L   = 1000.0f;
@@ -55,6 +93,15 @@ int  ohPct = 0, sumpPct = 0, ohAtStart = 0;
 float ohCm = 0, spCm = 0, amps = 0;
 uint32_t pumpStart = 0, lastStop = 0, lastBtn = 0, lastBeep = 0;
 
+// ---- radio tankLink to the tank-top sensor ----
+CvTankLinkState tankLink;
+uint8_t linkKey[CV_TANK_KEY_BYTES];
+uint8_t pairId = 0;
+bool sensorPaired = false;
+bool radioReady = false;
+uint32_t pairWindowUntil = 0;   // non-zero only while pairing is open
+bool ohLive = false;            // is the overhead level fresh enough to act on?
+
 void beep(int ms) { digitalWrite(BUZZER_PIN, HIGH); delay(ms); digitalWrite(BUZZER_PIN, LOW); }
 
 void loadCfg() {
@@ -67,6 +114,18 @@ void loadCfg() {
   OH_EMPTY_CM = store.getFloat("ohE", OH_EMPTY_CM); OH_FULL_CM = store.getFloat("ohF", OH_FULL_CM);
   SP_EMPTY_CM = store.getFloat("spE", SP_EMPTY_CM); SP_FULL_CM = store.getFloat("spF", SP_FULL_CM);
   OH_CAP_L = store.getFloat("ohCap", OH_CAP_L); SUMP_CAP_L = store.getFloat("spCap", SUMP_CAP_L);
+
+  sensorPaired = store.getBool("paired", false);
+  pairId = store.getUChar("pairId", 0);
+  if (store.getBytes("linkKey", linkKey, sizeof(linkKey)) != sizeof(linkKey)) {
+    sensorPaired = false;
+  }
+  /*
+   * The last accepted sequence survives a reboot on purpose. Without it, a
+   * power cut would reset replay protection and a packet captured beforehand
+   * would be accepted again.
+   */
+  tankLink.lastSeq = store.getUInt("rxSeq", 0);
 }
 void saveCfg() {
   store.putInt("start", startPct); store.putInt("stop", stopPct); store.putInt("sumpmin", sumpMin);
@@ -109,8 +168,126 @@ float readAmps() {
   return a < 0 ? -a : a;   // rectified magnitude
 }
 
+// ----------------------------------------------------------- radio tankLink ---
+
+bool radioUp() {
+  LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
+  if (!LoRa.begin(LORA_FREQ)) return false;
+  LoRa.setSpreadingFactor(LORA_SF);
+  LoRa.enableCrc();
+  LoRa.receive();
+  return true;
+}
+
+void savePairing() {
+  store.putBool("paired", sensorPaired);
+  store.putUChar("pairId", pairId);
+  store.putBytes("linkKey", linkKey, sizeof(linkKey));
+}
+
+/**
+ * Accept a pairing offer.
+ *
+ * Only ever called while the owner has an open pairing window, which is opened
+ * from the app on an authenticated connection. Without that gate, anything
+ * within radio range could re-pair this starter to a sensor of its choosing and
+ * then tell it whatever it liked about the water level.
+ */
+void handlePairOffer(const CvTankPacket &p, const uint8_t *offeredKey) {
+  memcpy(linkKey, offeredKey, CV_TANK_KEY_BYTES);
+
+  /*
+   * Verify the offer against the key it presented. This proves the sender holds
+   * that key rather than having copied a packet, and it rejects a corrupted
+   * frame that happened to survive CRC.
+   */
+  if (!cvTankVerify(p, linkKey)) { tankLink.rejected++; return; }
+
+  pairId = p.pairId;
+  sensorPaired = true;
+  // A fresh pairing starts replay protection from this packet, not from
+  // whatever the previous sensor had reached.
+  tankLink.everHeard = false;
+  tankLink.lastSeq = p.seq;
+  savePairing();
+  store.putUInt("rxSeq", tankLink.lastSeq);
+
+  pairWindowUntil = 0;
+  beep(60); delay(80); beep(60);
+}
+
+void pollRadio() {
+  if (!radioReady) return;
+
+  int sz = LoRa.parsePacket();
+  if (sz <= 0) return;
+
+  // A pairing offer carries the key after the packet; a reading does not.
+  const bool withKey = (sz == (int)(sizeof(CvTankPacket) + CV_TANK_KEY_BYTES));
+  if (sz != (int)sizeof(CvTankPacket) && !withKey) {
+    // Not ours — another 433 MHz device sharing the band. Drain and ignore.
+    while (LoRa.available()) LoRa.read();
+    return;
+  }
+
+  CvTankPacket p;
+  uint8_t *raw = (uint8_t *)&p;
+  for (size_t i = 0; i < sizeof(p) && LoRa.available(); i++) raw[i] = (uint8_t)LoRa.read();
+
+  uint8_t offeredKey[CV_TANK_KEY_BYTES];
+  if (withKey) {
+    for (size_t i = 0; i < sizeof(offeredKey) && LoRa.available(); i++) {
+      offeredKey[i] = (uint8_t)LoRa.read();
+    }
+  }
+  while (LoRa.available()) LoRa.read();
+
+  int16_t rssi = (int16_t)LoRa.packetRssi();
+
+  if (p.msgType == CV_TANK_MSG_PAIR) {
+    if (pairWindowUntil != 0 && millis() < pairWindowUntil && withKey) {
+      handlePairOffer(p, offeredKey);
+    }
+    return;   // Never treated as a level reading.
+  }
+
+  if (!sensorPaired) return;
+  if (p.pairId != pairId) return;          // a neighbour's sensor
+  if (!cvTankVerify(p, linkKey)) { tankLink.rejected++; return; }
+
+  if (cvTankAcceptReading(tankLink, p, rssi, millis())) {
+    // Persisted so a reboot cannot reopen the replay window.
+    store.putUInt("rxSeq", tankLink.lastSeq);
+  }
+}
+
+/** Open a pairing window. Called only from an authenticated app command. */
+void openPairWindow() {
+  pairWindowUntil = millis() + CV_TANK_PAIR_WINDOW_MS;
+  beep(40);
+}
+
+void forgetSensor() {
+  sensorPaired = false;
+  memset(linkKey, 0, sizeof(linkKey));
+  tankLink = CvTankLinkState();
+  savePairing();
+  store.putUInt("rxSeq", 0);
+}
+
 void setPump(bool on) {
+  /*
+   * Everything that can start the pump funnels through here, so the interlocks
+   * live here rather than at each call site — a new caller that forgot one
+   * would be a silent regression.
+   *
+   * `ohLive` is the radio-tankLink interlock. Starting a pump on a level that
+   * stopped updating an hour ago is how a tank overflows all night: the
+   * controller believes it is filling an empty tank and nothing contradicts it.
+   * Stopping is always allowed, whatever the tankLink is doing.
+   */
   if (on && (dryRun || overflow || sumpPct <= sumpMin)) on = false;
+  if (on && !ohLive) on = false;
   if (on && !pump) {
     if (lastStop != 0 && millis() - lastStop < restartDelayMs) return;  // cool-down
     pumpStart = millis(); ohAtStart = ohPct; dryRun = false;
@@ -141,6 +318,10 @@ void onCommand(const String &action, JsonObjectConst p) {
     if (cfg) saveCfg();
   } else if (action == "resetDryRun") {
     dryRun = false;
+  } else if (action == "pair") {
+    openPairWindow();
+  } else if (action == "unpair") {
+    forgetSensor();
   } else if (action == "pump") {
     autoMode = false; saveRun(); setPump(true);
   } else if (action == "stop") {
@@ -151,12 +332,22 @@ void onCommand(const String &action, JsonObjectConst p) {
 void setup() {
   Serial.begin(115200);
   cvRelayInit(PUMP_RELAY); pinMode(LED_PIN, OUTPUT); pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(OH_TRIG, OUTPUT); pinMode(OH_ECHO, INPUT);
   pinMode(SUMP_TRIG, OUTPUT); pinMode(SUMP_ECHO, INPUT);
   pinMode(OH_FLOAT_HI, INPUT);      // input-only pin; external pull-up
   pinMode(BTN_PIN, INPUT_PULLUP);
   analogReadResolution(12);
   loadCfg();
+
+  radioReady = radioUp();
+  if (!radioReady) {
+    /*
+     * No radio means no overhead level, which means auto mode cannot run. Say
+     * so audibly at boot: an installer standing at the panel should not have to
+     * open the app to discover the radio module is not seated.
+     */
+    beep(400);
+  }
+
   cv.onCommand(onCommand);
   cv.setInterval(6000);
   cv.setResetButton(0);
@@ -165,13 +356,40 @@ void setup() {
 
 uint32_t lastSense = 0;
 void loop() {
+  pollRadio();   // called every pass: a missed packet is a missed 30 s window
+
+  if (pairWindowUntil != 0 && millis() > pairWindowUntil) pairWindowUntil = 0;
+
+  /*
+   * Derive the overhead level from the radio tankLink.
+   *
+   * `ohLive` is the single gate. Below it, nothing may act on `ohPct`, and the
+   * apps are told the reading is not current rather than being handed a number
+   * that looks as good as any other.
+   */
+  ohLive = cvTankReadingFresh(tankLink, millis());
+  const bool ohAbandoned = cvTankReadingAbandoned(tankLink, millis());
+
+  if (tankLink.everHeard) {
+    ohPct = cvTankPctFromMm(tankLink.levelMm, OH_EMPTY_CM, OH_FULL_CM, ohFault);
+    ohCm = tankLink.levelMm / 10.0f;
+    if (ohFault) {
+      // A sensor reporting nonsense is not a level we may pump on, however
+      // recently it arrived.
+      ohLive = false;
+      if (ohPct < 0) ohPct = 50;
+    }
+    if (tankLink.flags & CV_TANK_FLAG_SENSOR_FAULT) { ohFault = true; ohLive = false; }
+  } else {
+    ohFault = true;
+    ohLive = false;
+    ohPct = 0;
+  }
+
   if (millis() - lastSense > 1500) {
     lastSense = millis();
-    ohCm = medianCm(OH_TRIG, OH_ECHO);
     spCm = medianCm(SUMP_TRIG, SUMP_ECHO);
-    ohPct   = pctFromCm(ohCm, OH_EMPTY_CM, OH_FULL_CM, ohFault);
     sumpPct = pctFromCm(spCm, SP_EMPTY_CM, SP_FULL_CM, sumpFault);
-    if (ohFault) ohPct = ohPct < 0 ? 50 : ohPct;
     if (sumpFault) sumpPct = sumpPct < 0 ? 50 : sumpPct;
     overflow = (digitalRead(OH_FLOAT_HI) == LOW);
     amps = readAmps();
@@ -185,8 +403,16 @@ void loop() {
   // ---- safety interlocks ----
   if (pump && overflow) setPump(false);
   if (pump && millis() - pumpStart > maxRuntimeMs) setPump(false);
-  // Dry-run: motor drawing current but OH not rising within the window.
-  if (pump && millis() - pumpStart > dryRunWindowMs) {
+  /*
+   * Losing the level mid-fill is the dangerous moment: the pump is already
+   * running and the only thing that would have stopped it was the level
+   * reaching stopPct. Stop now and let the operator decide, rather than run on
+   * a number that is no longer being updated.
+   */
+  if (pump && !ohLive) { setPump(false); beep(150); }
+  // Dry-run: motor drawing current but OH not rising within the window. Only
+  // meaningful while the level is actually being updated.
+  if (pump && ohLive && millis() - pumpStart > dryRunWindowMs) {
     bool rising = (ohPct - ohAtStart) >= 2;
     bool drawing = amps >= currentOnAmps;
     if (drawing && !rising) { setPump(false); dryRun = true; beep(200); }
@@ -194,16 +420,42 @@ void loop() {
   }
 
   // ---- auto-fill logic ----
-  if (autoMode && !dryRun && !overflow) {
+  if (autoMode && ohLive && !dryRun && !overflow) {
     if (!pump && ohPct <= startPct && sumpPct > sumpMin) setPump(true);
     if (pump && (ohPct >= stopPct || sumpPct <= sumpMin)) setPump(false);
   }
 
   if ((dryRun || overflow) && millis() - lastBeep > 5000) { lastBeep = millis(); beep(120); }
 
-  cv.set("ohPct", ohPct);
+  uint32_t ageMs = cvTankAgeMs(tankLink, millis());
+
+  /*
+   * Publish the level only while it is worth showing. Past the abandon
+   * threshold the last reading says nothing useful about the tank now, and
+   * leaving a stale number on screen invites somebody to act on it — an app
+   * showing "12%" gives no hint that the figure is from yesterday.
+   */
+  if (tankLink.everHeard && !ohAbandoned) {
+    cv.set("ohPct", ohPct);
+    cv.set("ohLitres", (int)(OH_CAP_L * ohPct / 100.0f));
+  } else {
+    cv.set("ohPct", -1);
+    cv.set("ohLitres", -1);
+  }
+
+  // tankLink health, so the apps can explain themselves rather than just going quiet.
+  cv.set("ohLive", ohLive);
+  cv.set("rfLinkUp", ohLive);
+  cv.set("rfAgeS", tankLink.everHeard ? (int)(ageMs / 1000UL) : -1);
+  cv.set("rfRssi", tankLink.everHeard ? (int)tankLink.rssi : 0);
+  cv.set("rfRejected", (int)tankLink.rejected);
+  cv.set("sensorPaired", sensorPaired);
+  cv.set("pairing", pairWindowUntil != 0);
+  cv.set("radioReady", radioReady);
+  cv.set("tankBattPct", tankLink.everHeard ? cvTankBatteryPct(tankLink.batteryMv) : -1);
+  cv.set("tankBattLow", (tankLink.flags & CV_TANK_FLAG_LOW_BATTERY) != 0);
+
   cv.set("sumpPct", sumpPct);
-  cv.set("ohLitres", (int)(OH_CAP_L * ohPct / 100.0f));
   cv.set("sumpLitres", (int)(SUMP_CAP_L * sumpPct / 100.0f));
   cv.set("pump", pump);
   cv.set("auto", autoMode);

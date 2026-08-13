@@ -336,6 +336,16 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
         patch.auto = false;
       } else if (action === "resetDryRun") {
         patch.dryRun = false;
+      } else if (action === "pair") {
+        /*
+         * Opens a listening window on the controller for the tank-top sensor.
+         * The controller closes it again on success or after a minute, so the
+         * projected state is the window opening, not a completed pairing.
+         */
+        patch.pairing = true;
+      } else if (action === "unpair") {
+        patch.sensorPaired = false;
+        patch.pairing = false;
       }
       if (isBool(cmd.auto)) patch.auto = cmd.auto;
       if (isBool(cmd.pump)) {

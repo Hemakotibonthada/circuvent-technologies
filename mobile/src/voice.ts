@@ -6,6 +6,7 @@
 import type { Device } from "./api";
 import { deviceMeta } from "./theme";
 import { capabilities } from "./store";
+import { readTankLink, formatAge, type TankDeviceState } from "./tank-link";
 
 export interface VoiceResult {
   reply: string;
@@ -96,7 +97,30 @@ function commandFor(d: Device, action: Action): Record<string, unknown> | null {
 
 function statusOf(d: Device): string {
   const s = d.state || {};
-  if (d.type === "watertank") return `${d.name} overhead is ${Number(s.ohPct ?? 0)} percent, sump ${Number(s.sumpPct ?? 0)} percent`;
+  if (d.type === "watertank") {
+    /*
+     * Never speak a level the controller is not currently receiving.
+     *
+     * This said `Number(s.ohPct ?? 0)`, and the firmware publishes -1 when the
+     * radio link to the tank sensor has gone quiet — so asking about the tank
+     * with a flat sensor battery got the answer "overhead is minus one
+     * percent", and before the sentinel existed it would have been "zero
+     * percent". Being told a tank is empty is a direct prompt to start the
+     * pump, which is the one thing that must not happen on a level nobody is
+     * measuring any more.
+     */
+    const link = readTankLink(s as TankDeviceState);
+    const sump = `sump ${Number(s.sumpPct ?? 0)} percent`;
+    if (link.levelPct === null) {
+      return link.status === "unpaired"
+        ? `${d.name} has no tank sensor paired, so I cannot read the overhead level. ${sump}`
+        : `${d.name} is not receiving the tank sensor, so I cannot tell you the overhead level. ${sump}`;
+    }
+    if (!link.levelIsCurrent) {
+      return `${d.name} overhead was ${link.levelPct} percent when the sensor last reported, ${formatAge(link.ageS ?? 0)} ago. ${sump}`;
+    }
+    return `${d.name} overhead is ${link.levelPct} percent, ${sump}`;
+  }
   if (d.type === "aquaguard") return `${d.name} is at ${Number(s.level ?? 0)} percent`;
   if (d.type === "facedoor" || d.type === "smart-lock") return `${d.name} is ${s.locked ? "locked" : "unlocked"}`;
   if (d.type === "rfid-gate") return `${d.name} barrier is ${s.barrier || "closed"}`;

@@ -10,6 +10,7 @@ import {
 import { Plus, Minus, RotateCcw, MousePointer, Square, Pin, X, ZoomIn, ZoomOut, Move } from "lucide-react";
 import type { Device } from "@/lib/control-plane";
 import { masterPower } from "@/lib/smarthome-command-map";
+import { readTankLink, type TankDeviceState } from "@/lib/tank-link";
 import { useFleet } from "../_data/hooks";
 import {
   Button,
@@ -85,10 +86,35 @@ function pinColor(d: Device): { fill: string; active: boolean; label: string } {
       return s.locked
         ? { fill: "#38bdf8", active: false, label: "locked" }
         : { fill: "#22c55e", active: true, label: "unlocked" };
-    case "watertank":
-      return s.pump ? { fill: "#06b6d4", active: true, label: "pump on" } : { fill: "#38bdf8", active: false, label: "idle" };
-    case "aquaguard":
-      return { fill: "#38bdf8", active: !!s.pump, label: `${Number(s.ohPct ?? 0)}%` };
+    case "watertank": {
+      /*
+       * The overhead level arrives by radio and may be stale or absent, so it
+       * goes through the same gate the console and the firmware use. Showing a
+       * pump state without saying whether the level behind it is current would
+       * be the misleading half of the picture.
+       */
+      const tank = readTankLink(s as TankDeviceState);
+      const level = tank.levelPct === null
+        ? tank.status === "unpaired" ? "no sensor" : "no reading"
+        : tank.levelIsCurrent ? `${tank.levelPct}%` : `${tank.levelPct}% old`;
+      return s.pump
+        ? { fill: "#06b6d4", active: true, label: `pump on · ${level}` }
+        : { fill: "#38bdf8", active: false, label: level };
+    }
+    case "aquaguard": {
+      /*
+       * This read `s.ohPct`, which AquaGuard never publishes — its level field
+       * is `level` (firmware/aquaguard/aquaguard.ino). With `?? 0` every
+       * AquaGuard on a floorplan has been showing "0%" since this was written,
+       * and 0% is a plausible enough number that nobody questioned it.
+       */
+      const lvl = typeof s.level === "number" ? s.level : null;
+      return {
+        fill: "#38bdf8",
+        active: !!s.pump,
+        label: lvl === null ? "no reading" : `${lvl}%`,
+      };
+    }
     case "touchboard": {
       const on = [s.g1, s.g2, s.g3].filter(Boolean).length;
       return on ? { fill: "#22c55e", active: true, label: `${on}/3 on` } : { fill: "#475569", active: false, label: "off" };

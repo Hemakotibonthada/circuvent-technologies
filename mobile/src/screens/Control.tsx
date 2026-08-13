@@ -7,6 +7,7 @@ import { api, Device } from "../api";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow, NeoRaised, ColorGrid } from "../ui";
 import { useThrottled } from "../throttle";
+import { readTankLink, tankLevelText, formatAge, type TankDeviceState } from "../tank-link";
 import { tapLight, toggleFeedback } from "../haptics";
 import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
 import { deviceMeta, type Palette, TAP_SLOP } from "../theme";
@@ -736,8 +737,14 @@ function wavePath(width: number, amp: number): string {
 
 // A floating, animated liquid tank: the level eases to its target and the
 // surface flows with two offset waves for a lively "floating" feel.
-function WaveTank({ label, pct, litres, c, accent, fault }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean }) {
-  const clamped = Math.min(100, Math.max(0, pct));
+function WaveTank({ label, pct, litres, c, accent, fault, stale }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean; stale?: boolean }) {
+  /*
+   * A negative percentage means "no reading", not an empty tank. Drawing it as
+   * empty would be the worst default here: an empty overhead tank is exactly
+   * the condition that prompts somebody to start the pump.
+   */
+  const unknown = pct < 0;
+  const clamped = unknown ? 0 : Math.min(100, Math.max(0, pct));
   const level = useRef(new Animated.Value(clamped)).current;
   const flow1 = useRef(new Animated.Value(0)).current;
   const flow2 = useRef(new Animated.Value(0)).current;
@@ -747,11 +754,18 @@ function WaveTank({ label, pct, litres, c, accent, fault }: { label: string; pct
   }, [clamped, level]);
 
   useEffect(() => {
+    /*
+     * Motion is how this gauge says "being updated". A stale or missing
+     * reading must not keep waving, or it goes on signalling liveness that is
+     * no longer there — the animation would be the most confident thing on the
+     * screen while the number behind it is hours old.
+     */
+    if (stale || unknown) return;
     const mk = (v: Animated.Value, dur: number) => Animated.loop(Animated.timing(v, { toValue: 1, duration: dur, easing: Easing.linear, useNativeDriver: true }));
     const a = mk(flow1, 2600); const b = mk(flow2, 4200);
     a.start(); b.start();
     return () => { a.stop(); b.stop(); };
-  }, [flow1, flow2]);
+  }, [flow1, flow2, stale, unknown]);
 
   const waterHeight = level.interpolate({ inputRange: [0, 100], outputRange: [0, TANK_H] });
   const tx1 = flow1.interpolate({ inputRange: [0, 1], outputRange: [0, -TANK_W] });
@@ -767,7 +781,7 @@ function WaveTank({ label, pct, litres, c, accent, fault }: { label: string; pct
           <View key={t} style={{ position: "absolute", left: 0, right: 0, bottom: `${t}%`, height: 1, backgroundColor: c.border, opacity: 0.5 }} />
         ))}
         {/* water body */}
-        <Animated.View style={{ height: waterHeight, width: "100%" }}>
+        <Animated.View style={{ height: waterHeight, width: "100%", opacity: unknown ? 0 : stale ? 0.35 : 1 }}>
           {/* back wave */}
           <Animated.View style={{ position: "absolute", top: -amp, left: 0, width: TANK_W * 2, transform: [{ translateX: tx2 }] }}>
             <Svg width={TANK_W * 2} height={TANK_H + amp * 2}><Path d={path} fill={accent} opacity={0.45} /></Svg>
@@ -778,31 +792,50 @@ function WaveTank({ label, pct, litres, c, accent, fault }: { label: string; pct
           </Animated.View>
         </Animated.View>
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: c.text, fontSize: 22, fontWeight: "800" }}>{clamped}%</Text>
+          <Text style={{ color: unknown ? c.faint : stale ? c.amber : c.text, fontSize: 22, fontWeight: "800" }}>
+            {unknown ? "—" : `${clamped}%`}
+          </Text>
+          {stale && !unknown && (
+            <Text style={{ color: c.amber, fontSize: 9, fontWeight: "700", letterSpacing: 0.5, marginTop: 2 }}>LAST KNOWN</Text>
+          )}
         </View>
       </View>
       <Text style={{ color: c.text, fontWeight: "700", marginTop: 8 }}>{label}</Text>
-      <Text style={{ color: c.faint, fontSize: 12 }}>{litres.toLocaleString("en-IN")} L{fault ? " · sensor?" : ""}</Text>
+      <Text style={{ color: c.faint, fontSize: 12 }}>
+        {unknown ? "no reading" : `${litres.toLocaleString("en-IN")} L`}{fault ? " · sensor?" : ""}
+      </Text>
     </View>
   );
 }
 
-function TankBar({ label, pct, litres, c, accent, fault }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean }) {
-  return <WaveTank label={label} pct={pct} litres={litres} c={c} accent={accent} fault={fault} />;
+function TankBar({ label, pct, litres, c, accent, fault, stale }: { label: string; pct: number; litres: number; c: Palette; accent: string; fault?: boolean; stale?: boolean }) {
+  return <WaveTank label={label} pct={pct} litres={litres} c={c} accent={accent} fault={fault} stale={stale} />;
 }
 
 function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const oh = Number(d.state.ohPct ?? 0);
+  /*
+   * The overhead level comes over radio from a battery unit on the tank, so it
+   * can stop arriving. `readTankLink` is the one place that decides whether the
+   * last reading may still be shown as current — the console uses the same
+   * rules and the firmware applies them to the pump.
+   */
+  const link = readTankLink(d.state as TankDeviceState);
+  const oh = link.levelPct ?? -1;
   const sump = Number(d.state.sumpPct ?? 0);
   const auto = !!d.state.auto;
   const start = Number(d.state.startPct ?? 20);
   const stop = Number(d.state.stopPct ?? 95);
   const sumpMin = Number(d.state.sumpMinPct ?? 15);
+  const linkColor =
+    link.tone === "ok" ? c.green
+      : link.tone === "warn" ? c.amber
+        : link.tone === "bad" ? c.red
+          : c.faint;
   return (
     <View>
       <Card padded style={{ marginBottom: 14 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
-          <TankBar label="Overhead" pct={oh} litres={Number(d.state.ohLitres ?? 0)} c={c} accent={c.cyan} fault={!!d.state.ohFault} />
+          <TankBar label="Overhead" pct={oh} litres={Number(d.state.ohLitres ?? 0)} c={c} accent={c.cyan} fault={!!d.state.ohFault} stale={!link.levelIsCurrent} />
           <View style={{ alignItems: "center", paddingBottom: 34 }}>
             <Text style={{ color: !!d.state.pump ? c.cyan : c.faint, fontWeight: "800", fontSize: 11 }}>{!!d.state.pump ? "▲ PUMP" : "IDLE"}</Text>
             <View style={{ width: 2, height: 40, backgroundColor: c.border, marginVertical: 4 }} />
@@ -810,6 +843,26 @@ function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown
           </View>
           <TankBar label="Sump" pct={sump} litres={Number(d.state.sumpLitres ?? 0)} c={c} accent={c.accentHi} fault={!!d.state.sumpFault} />
         </View>
+      </Card>
+      {/*
+        * The radio link is always shown, not only when it breaks. A level with
+        * no indication of where it came from is what makes a stale reading
+        * dangerous, and a status that only appears on failure never teaches
+        * anyone what healthy looks like.
+        */}
+      <Card padded style={{ marginBottom: 14, borderColor: link.tone === "ok" ? c.border : linkColor }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Text style={{ color: linkColor, fontWeight: "800", fontSize: 13 }}>📡 {link.label}</Text>
+          {link.ageS !== null && link.status !== "live" && (
+            <Text style={{ color: c.faint, fontSize: 12 }}>· {formatAge(link.ageS)} ago</Text>
+          )}
+          {link.batteryPct !== null && (
+            <Text style={{ color: link.batteryLow ? c.amber : c.faint, fontSize: 12 }}>
+              · battery {link.batteryPct}%
+            </Text>
+          )}
+        </View>
+        <Text style={{ color: c.faint, fontSize: 12, marginTop: 4, lineHeight: 17 }}>{link.detail}</Text>
       </Card>
       {!!d.state.dryRun && <Alertline c={c} text="⚠ Dry-run cut — reset after checking sump/motor" />}
       {!!d.state.overflow && <Alertline c={c} text="⚠ Overflow float tripped — pump stopped" />}
@@ -820,13 +873,39 @@ function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown
           <Text style={{ color: c.text, fontWeight: "700" }}>Reset dry-run trip</Text>
         </Pressable>
       )}
+      <Section c={c}>Tank sensor</Section>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+        <Pressable
+          onPress={() => send({ action: "pair" })}
+          accessibilityRole="button"
+          accessibilityLabel={link.status === "unpaired" ? "Pair tank sensor" : "Re-pair tank sensor"}
+          style={{ flex: 1, minHeight: 48, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", justifyContent: "center" }}
+        >
+          <Text style={{ color: c.text, fontWeight: "700" }}>
+            {d.state.pairing ? "Listening…" : link.status === "unpaired" ? "Pair sensor" : "Re-pair"}
+          </Text>
+        </Pressable>
+        {link.status !== "unpaired" && (
+          <Pressable
+            onPress={() => send({ action: "unpair" })}
+            accessibilityRole="button"
+            accessibilityLabel="Forget tank sensor"
+            style={{ flex: 1, minHeight: 48, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", justifyContent: "center" }}
+          >
+            <Text style={{ color: c.faint, fontWeight: "700" }}>Forget</Text>
+          </Pressable>
+        )}
+      </View>
+      <Text style={{ color: c.faint, fontSize: 11, marginBottom: 12, lineHeight: 16 }}>
+        Pairing opens a 60-second window. Press the button on the unit fitted to the tank.
+      </Text>
       <Section c={c}>Auto thresholds</Section>
       <Stepper label={`Start overhead at ${start}%`} c={c} onDown={() => send({ startPct: Math.max(5, start - 5) })} onUp={() => send({ startPct: Math.min(90, start + 5) })} />
       <Stepper label={`Stop overhead at ${stop}%`} c={c} onDown={() => send({ stopPct: Math.max(10, stop - 5) })} onUp={() => send({ stopPct: Math.min(100, stop + 5) })} />
       <Stepper label={`Protect sump below ${sumpMin}%`} c={c} onDown={() => send({ sumpMinPct: Math.max(5, sumpMin - 5) })} onUp={() => send({ sumpMinPct: Math.min(60, sumpMin + 5) })} />
       <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
         <MiniStat label="Pump current" value={`${Number(d.state.amps ?? 0).toFixed(1)} A`} c={c} />
-        <MiniStat label="Mode" value={auto ? "Auto" : "Manual"} c={c} />
+        <MiniStat label="Overhead" value={tankLevelText(link)} c={c} />
       </View>
     </View>
   );

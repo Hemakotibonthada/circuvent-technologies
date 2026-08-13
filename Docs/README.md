@@ -36,6 +36,7 @@ below is reference material that assumes you can already run things.
 | **Read vehicle number plates (ANPR)** | [20 — ANPR](./20-anpr.md) |
 | **Fly and log a drone** | [21 — Drone Link](./21-drone.md) |
 | **Fly our own aircraft** | [22 — Drone X1](./22-drone-x1.md) |
+| **Understand the two-part water tank and its radio link** | [28 — WaterTank radio link](./28-watertank-radio-link.md) |
 
 ### Working here
 
