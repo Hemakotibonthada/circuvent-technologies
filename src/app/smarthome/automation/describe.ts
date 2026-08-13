@@ -444,6 +444,32 @@ export function getCommandFields(type: string): CommandField[] {
         { key: "trackHz", label: "Position samples", kind: "number", unit: " /s", min: 1, max: 10, step: 1 },
       ];
 
+    case "curtain":
+      /*
+       * A curtain has a position, not a switch.
+       *
+       * It reached the default below and was offered a Power toggle, which
+       * buildFieldCommand refuses to build for a curtain — so the row saved,
+       * the scene listed it, and running the scene sent nothing. A scene that
+       * silently skips one of its actions is worse than one that fails: the
+       * curtain simply stays where it is and the fault looks like the motor.
+       */
+      return [
+        { key: "position", label: "Position", kind: "number", unit: "%", min: 0, max: 100, step: 5 },
+      ];
+
+    /*
+     * Read-only. A meter measures; nothing about it can be set, and the
+     * default's Power toggle invited a scene action that could never do
+     * anything. The command map already refuses these — this stops the editor
+     * advertising them.
+     */
+    case "energy-monitor":
+    case "meter":
+    case "meter-1ch":
+    case "meter-3ch":
+      return [];
+
     default:
       return [{ key: "power", label: "Power", kind: "bool" }];
   }
