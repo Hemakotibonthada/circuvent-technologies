@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useAutomations, useAdminDevices } from "../_lib/api";
 import { defaultCommandFor, validateActionCommand } from "./command-defaults";
+import { checkTrigger, type TriggerOp } from "./trigger-checks";
 import {
   controlPlane,
   actionList,
@@ -234,6 +235,28 @@ function ErrorBanner({ message }: { message: string }) {
     <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/[0.08] px-3 py-2 text-sm text-red-200">
       <TriangleAlert className="h-4 w-4 shrink-0" /> {message}
     </div>
+  );
+}
+
+/**
+ * Inline advice about a rule that would save but not work.
+ *
+ * `warn` is advisory — the rule may be correct and the device simply has not
+ * reported that field yet. `error` is a comparison that cannot work however
+ * the state evolves. Different colours because they call for different
+ * reactions, and one shade for both would make the advisory ones look like
+ * failures and get dismissed.
+ */
+function Notice({ level, children }: { level: "warn" | "error"; children: React.ReactNode }) {
+  const tone =
+    level === "error"
+      ? "border-red-500/25 bg-red-500/[0.08] text-red-200"
+      : "border-amber-500/25 bg-amber-500/[0.08] text-amber-200";
+  return (
+    <p role="status" className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${tone}`}>
+      <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <span>{children}</span>
+    </p>
   );
 }
 
@@ -561,6 +584,24 @@ function RuleEditor({
   const triggerDevice = devices.find((d) => d.id === f.triggerDeviceId) ?? null;
   const stateKeys = triggerDevice ? Object.keys(triggerDevice.state ?? {}) : [];
 
+  /*
+   * The mirror of the action check: a field the device never publishes gives a
+   * rule that saves cleanly and never fires. Advisory rather than blocking —
+   * a leak sensor does not report `leak` until there is a leak, so refusing an
+   * unreported field would block the rules most worth writing.
+   */
+  const triggerCheck = useMemo(
+    () =>
+      f.triggerType === "state" && f.triggerDeviceId
+        ? checkTrigger({
+            field: f.triggerField,
+            op: f.triggerOp as TriggerOp,
+            state: (triggerDevice?.state as Record<string, unknown> | undefined) ?? null,
+          })
+        : { message: null, level: "warn" as const },
+    [f.triggerType, f.triggerDeviceId, f.triggerField, f.triggerOp, triggerDevice],
+  );
+
   /* Shown while editing rather than only on save, so the operator is not told
      their work is wrong after they have finished it. */
   const commandWarning = useMemo(() => {
@@ -621,6 +662,11 @@ function RuleEditor({
               {f.triggerOp !== "truthy" && f.triggerOp !== "falsy" && (
                 <Field label="Value" hint="Numbers and true/false are typed automatically."><Input value={f.triggerValue} onChange={(e) => set("triggerValue", e.target.value)} placeholder="e.g. 20" /></Field>
               )}
+              {triggerCheck.message && (
+                <div className="sm:col-span-2">
+                  <Notice level={triggerCheck.level}>{triggerCheck.message}</Notice>
+                </div>
+              )}
             </div>
           ) : (
             <div className="mt-3">
@@ -645,12 +691,7 @@ function RuleEditor({
               >
                 <textarea value={f.actionCommand} onChange={(e) => set("actionCommand", e.target.value)} rows={4} spellCheck={false} className="ad-input resize-none font-mono text-xs" />
               </Field>
-              {commandWarning && (
-                <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-200">
-                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  {commandWarning}
-                </p>
-              )}
+              {commandWarning && <Notice level="error">{commandWarning}</Notice>}
             </div>
           ) : (
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
