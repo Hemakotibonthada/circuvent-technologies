@@ -32,6 +32,7 @@ import {
   type FaceSample,
 } from "./match";
 import { getEmbedder, embedFailureMessage } from "./embedder";
+import { requireCapability } from "../home/enforce";
 
 export const faceRouter = Router();
 
@@ -95,6 +96,15 @@ async function profileForOwner(
 /* ------------------------------------------------------------------ *
  * Roster
  * ------------------------------------------------------------------ */
+
+/*
+ * Enrolling a face is cutting a new key to the house, and it does not expire.
+ * That is device management, not everyday control, so every mutating route
+ * below is closed to anybody but an adult of the household. Reading the roster
+ * is left open: knowing whose face opens your front door is something everyone
+ * living behind it has a stake in.
+ */
+faceRouter.use(requireCapability("manage-devices"));
 
 /** GET /face/profiles?deviceId= — who is enrolled on this door. */
 faceRouter.get("/profiles", requireAuth, async (req: AuthedRequest, res) => {

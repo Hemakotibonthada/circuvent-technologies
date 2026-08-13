@@ -280,6 +280,50 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_face_attempts_device_at ON face_attempts(device_id, at DESC);
 
+    -- Household sharing.
+    --
+    -- A home is an account; its members are other accounts granted access to
+    -- it. Before this, sharing a home meant sharing the password, which
+    -- grants everything including the ability to lock the owner out and
+    -- leaves no record of who actually opened the door.
+    --
+    -- The owner is deliberately NOT a row here. A home has exactly one, it is
+    -- the account itself, and storing it as a membership creates a state
+    -- where a home has two owners or none — both of which are worse than the
+    -- redundancy this avoids.
+    CREATE TABLE IF NOT EXISTS home_members (
+      home_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      member_id   BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role        TEXT NOT NULL DEFAULT 'limited',
+      invited_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (home_id, member_id),
+      -- Somebody cannot be a member of their own home; they are its owner,
+      -- and a row saying otherwise would give them two different roles.
+      CHECK (home_id <> member_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_home_members_member ON home_members(member_id);
+
+    -- Invitations.
+    --
+    -- Single-use and time-boxed. A standing invite code is a password to
+    -- somebody's house that they cannot see and did not choose, and the one
+    -- thing worse than sharing a password is sharing one that never expires.
+    CREATE TABLE IF NOT EXISTS home_invites (
+      code        TEXT PRIMARY KEY,
+      home_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role        TEXT NOT NULL DEFAULT 'limited',
+      -- Optional: when set, only this address may redeem it.
+      email       TEXT NOT NULL DEFAULT '',
+      created_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      expires_at  TIMESTAMPTZ NOT NULL,
+      used_by     BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      used_at     TIMESTAMPTZ,
+      revoked     BOOLEAN NOT NULL DEFAULT false,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_home_invites_home ON home_invites(home_id);
+
     -- Refresh tokens, for detecting replay.
     --
     -- token_epoch can revoke a session but cannot tell a thief's use of a token

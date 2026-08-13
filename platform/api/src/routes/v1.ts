@@ -4,6 +4,8 @@ import { pool, recordEvent } from "../db";
 import { publishCommand } from "../mqtt";
 import { ownsDevice } from "../ownership";
 import { requireApiAccess, developerCors, type ApiRequest } from "../api-auth";
+import type { AuthedRequest } from "../auth";
+import { refuseCommand, actorId } from "../home/enforce";
 import { API_SCOPES, SCOPE_DESCRIPTIONS } from "../api-keys";
 import { WEBHOOK_EVENTS } from "../webhooks";
 import {
@@ -241,11 +243,19 @@ route.post("/devices/:id/commands", requireApiAccess("devices:control"), async (
     res.status(404).json({ error: "No such device.", code: "not_found" });
     return;
   }
+  /* An API key issued by a household member carries that member's access, not
+     the home owner's — otherwise sharing a home would be a way to mint a key
+     that outranks you. */
+  const refusal = await refuseCommand(req as AuthedRequest, req.params.id, body);
+  if (refusal) {
+    res.status(403).json({ error: refusal, code: "forbidden" });
+    return;
+  }
   publishCommand(req.params.id, body as Record<string, unknown>);
   void pool
     .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [
       req.params.id,
-      req.user!.uid,
+      actorId(req as AuthedRequest),
       body,
     ])
     .catch((err) => logger.error({ err, deviceId: req.params.id }, "v1 command audit insert failed"));
@@ -400,10 +410,18 @@ route.post("/scenes/:id/activate", requireApiAccess("scenes:run"), async (req: A
   const ownedIds = new Set(owned.rows.map((r) => r.id));
   let sent = 0;
   const skipped: string[] = [];
+  const refused: string[] = [];
   for (const a of scene.actions ?? []) {
     if (a && typeof a.deviceId === "string" && a.command && typeof a.command === "object") {
       if (!ownedIds.has(a.deviceId)) {
         skipped.push(a.deviceId);
+        continue;
+      }
+      /* A scene is a bundle, and a key issued by a household member carries
+         that member's access. The parts they may run are run; the rest are
+         named, so a scene that did less than asked says so. */
+      if (await refuseCommand(req as AuthedRequest, a.deviceId, a.command)) {
+        refused.push(a.deviceId);
         continue;
       }
       publishCommand(a.deviceId, a.command);
@@ -411,14 +429,14 @@ route.post("/scenes/:id/activate", requireApiAccess("scenes:run"), async (req: A
       void pool
         .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [
           a.deviceId,
-          req.user!.uid,
+          actorId(req as AuthedRequest),
           a.command,
         ])
         .catch((err) => logger.error({ err }, "v1 scene command audit failed"));
     }
   }
   void recordEvent(req.user!.uid, "activity", "Scene activated", `${scene.name} — ${sent} device${sent === 1 ? "" : "s"}.`);
-  res.status(202).json({ accepted: true, scene: scene.name, sent, skipped });
+  res.status(202).json({ accepted: true, scene: scene.name, sent, skipped, ...(refused.length ? { refused } : {}) });
 });
 
 route.get("/automations", requireApiAccess("automations:read"), async (req: ApiRequest, res) => {

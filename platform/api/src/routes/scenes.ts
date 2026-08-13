@@ -5,6 +5,7 @@ import { requireAuth, type AuthedRequest } from "../auth";
 import { publishCommand } from "../mqtt";
 import { normaliseCommand } from "../device-commands";
 import { logger } from "../logger";
+import { refuseCommand, actorId } from "../home/enforce";
 
 export const scenesRouter = Router();
 
@@ -108,6 +109,7 @@ scenesRouter.post("/:id/activate", requireAuth, async (req: AuthedRequest, res) 
   const typeById = new Map(owned.rows.map((r) => [r.id, r.type]));
   let sent = 0;
   let skipped = 0;
+  let refused = 0;
   try {
     for (const a of scene.actions ?? []) {
       if (!a || typeof a.deviceId !== "string" || !typeById.has(a.deviceId)) continue;
@@ -122,10 +124,22 @@ scenesRouter.post("/:id/activate", requireAuth, async (req: AuthedRequest, res) 
         skipped++;
         continue;
       }
+      /*
+       * A scene is a bundle, and a household member may be entitled to some of
+       * it and not the rest — "Goodnight" dims the lamps and unlocks nothing,
+       * but "Welcome home" may open the gate. The parts they may run are run,
+       * and the rest are counted as refused rather than silently dropped, so
+       * the answer distinguishes "the scene did less than you think" from
+       * "the scene worked".
+       */
+      if (await refuseCommand(req, a.deviceId, command)) {
+        refused++;
+        continue;
+      }
       publishCommand(a.deviceId, command);
       sent++;
       void pool
-        .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [a.deviceId, req.user!.uid, command])
+        .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [a.deviceId, actorId(req), command])
         .catch((err) => logger.error({ err }, "scene command audit failed"));
     }
   } catch {
@@ -138,5 +152,14 @@ scenesRouter.post("/:id/activate", requireAuth, async (req: AuthedRequest, res) 
     logger.warn({ sceneId: req.params.id, skipped }, "scene had actions no device could execute");
   }
   await recordEvent(req.user!.uid, "activity", "Scene activated", `${scene.name} — ${sent} device${sent === 1 ? "" : "s"}.`);
-  res.json({ success: true, sent, ...(skipped > 0 ? { skipped } : {}) });
+  res.json({
+    success: true,
+    sent,
+    ...(skipped > 0 ? { skipped } : {}),
+    /* Named plainly so the app can say which parts did not run. A scene that
+       quietly does two thirds of itself is worse than one that refuses. */
+    ...(refused > 0
+      ? { refused, refusedReason: "Some of this scene needs access you do not have in this home." }
+      : {}),
+  });
 });

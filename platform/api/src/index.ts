@@ -25,6 +25,7 @@ import { energyRouter } from "./routes/energy";
 import { adminRouter } from "./routes/admin";
 import { gateRouter } from "./routes/gate";
 import { faceRouter } from "./face/routes";
+import { homeRouter } from "./home/routes";
 import { anprRouter } from "./routes/anpr";
 import { droneRouter } from "./routes/drone";
 import { v1Router } from "./routes/v1";
@@ -35,6 +36,7 @@ import { startWebhooks } from "./webhooks";
 import { startAnpr } from "./anpr";
 import { startDrone } from "./drone";
 import { startLivenessSweeper } from "./liveness";
+import { asActor } from "./home/enforce";
 
 async function main(): Promise<void> {
   await initDb();
@@ -94,21 +96,33 @@ async function main(): Promise<void> {
   app.use(apiLimiter);
 
   app.use("/health", healthRouter);
-  app.use("/auth", authLimiter, authRouter);
+  /*
+   * Account-level routers run as the person, never as the home they are
+   * currently acting in.
+   *
+   * `requireAuth` rewrites the uid to the home so device queries scope
+   * correctly; on these routers that rewrite would let a household member
+   * change the owner's password, read the owner's signed-in devices and their
+   * IP addresses, or sign the owner out of everything. `asActor` puts the real
+   * identity back before any handler sees it, and `account-scope.test.ts`
+   * fails if one of these is ever mounted without it.
+   */
+  app.use("/auth", authLimiter, asActor, authRouter);
   app.use("/v1", v1Limiter, v1Router);
-  app.use("/developer", developerRouter);
+  app.use("/developer", asActor, developerRouter);
   app.use("/devices", deviceRouter);
-  app.use("/account", accountRouter);
+  app.use("/account", asActor, accountRouter);
   app.use("/automations", automationRouter);
   app.use("/provisioning", provisioningRouter);
   app.use("/oauth", oauthRouter);
   app.use("/smarthome", smarthomeRouter);
   app.use("/rooms", roomsRouter);
-    app.use("/face", faceRouter);
+  app.use("/face", faceRouter);
+  app.use("/home", homeRouter);
   app.use("/scenes", scenesRouter);
   app.use("/events", eventsRouter);
   app.use("/energy", energyRouter);
-  app.use("/admin", adminRouter);
+  app.use("/admin", asActor, adminRouter);
   app.use("/gate", gateRouter);
   app.use("/anpr", anprRouter);
   app.use("/drone", droneRouter);

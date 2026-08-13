@@ -5,6 +5,7 @@ import { pool, recordEvent } from "../db";
 import { publishCommand } from "../mqtt";
 import { requireAuth, type AuthedRequest } from "../auth";
 import { logger } from "../logger";
+import { refuseCommand } from "../home/enforce";
 
 export const gateRouter = Router();
 
@@ -54,6 +55,17 @@ gateRouter.post("/passes", requireAuth, async (req: AuthedRequest, res) => {
   const own = await pool.query(`SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2`, [deviceId, req.user!.uid]);
   if (!own.rowCount) {
     res.status(404).json({ error: "Device not found" });
+    return;
+  }
+  /*
+   * Minting a pass is handing out a key to the gate, so it needs the same
+   * access as opening it yourself. Without this, a household member who may
+   * not open the gate could issue themselves a code that does — which is a
+   * longer way round to the same barrier.
+   */
+  const refusal = await refuseCommand(req, deviceId, { action: "grantOpen" });
+  if (refusal) {
+    res.status(403).json({ error: refusal });
     return;
   }
   const from = validFrom ? new Date(validFrom) : new Date();

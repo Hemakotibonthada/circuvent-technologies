@@ -7,6 +7,7 @@ import { ownsDevice, invalidateOwnership } from "../ownership";
 import { buildDeviceReport, reportToCsv } from "../device-report";
 import { logger } from "../logger";
 import { onlineColumn } from "../device-online";
+import { refuseCommand, actorId } from "../home/enforce";
 
 export const deviceRouter = Router();
 
@@ -153,6 +154,17 @@ deviceRouter.post("/:id/command", requireAuth, async (req: AuthedRequest, res) =
     res.status(400).json({ error: "Command body must be a JSON object." });
     return;
   }
+  /*
+   * Ownership is not enough once a home can be shared. A member's uid is
+   * rewritten to the home's owner so existing queries keep working, which
+   * means the check above passes for everybody in the household — including a
+   * guest aiming an unlock at the front door.
+   */
+  const refusal = await refuseCommand(req, req.params.id, payload);
+  if (refusal) {
+    res.status(403).json({ error: refusal });
+    return;
+  }
   // publishCommand throws while the broker is restarting. Express 4 does not
   // catch rejections from async handlers, so letting it propagate means the
   // app's toggle never gets a response at all — it spins until its own
@@ -168,7 +180,9 @@ deviceRouter.post("/:id/command", requireAuth, async (req: AuthedRequest, res) =
   void pool
     .query(`INSERT INTO commands (device_id, user_id, payload) VALUES ($1, $2, $3)`, [
       req.params.id,
-      req.user!.uid,
+      // The person, not the home. Recording the owner here would state that
+      // they opened a door a member opened.
+      actorId(req),
       payload,
     ])
     .catch((err) => logger.error({ err, deviceId: req.params.id }, "command audit insert failed"));

@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { requireAuth, type AuthedRequest } from "../auth";
 import { publishCommand } from "../mqtt";
 import { logger } from "../logger";
+import { refuseCommand } from "../home/enforce";
 import { liveAircraft } from "../drone";
 import {
   flightTrack,
@@ -112,6 +113,12 @@ droneRouter.post("/:id/command", requireAuth, async (req: AuthedRequest, res) =>
   try {
     const aircraft = await ownedAircraft(uid, deviceId);
     if (!aircraft) return res.status(404).json({ error: "No such aircraft" });
+
+    /* Only adults of a household fly. Ownership passes for every member once a
+       home is shared, so this is the check that stops a houseguest arming an
+       aircraft. */
+    const refusal = await refuseCommand(req, deviceId, req.body);
+    if (refusal) return res.status(403).json({ error: refusal });
 
     const { action, ...params } = parsed.data;
     const limits = await limitsFor(uid);

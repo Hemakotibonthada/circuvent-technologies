@@ -6,6 +6,8 @@ import { config } from "./config";
 import { checkSession, currentEpoch } from "./sessions";
 import { factsFrom, recordSeen } from "./app-installs";
 import { logger } from "./logger";
+import { resolveMembership, requestedHomeFrom, HOME_HEADER } from "./home/membership";
+import type { Membership } from "./home/roles";
 
 export interface UserClaims {
   uid: number;
@@ -102,6 +104,17 @@ export function verifyDeviceKey(key: string, hash: string): Promise<boolean> {
 
 export interface AuthedRequest extends Request {
   user?: UserClaims;
+  /**
+   * The home this request is acting in, and with what authority.
+   *
+   * `user.uid` is rewritten to the home's owner id when a member is acting in
+   * somebody else's home, which is what lets every existing `WHERE owner_id =
+   * $1` keep working and keep meaning the right thing. That rewrite is safe
+   * only because the two identities stay separated here: `actorId` is who is
+   * really making the request, and it is what the audit trail and every
+   * account-level check must use.
+   */
+  home?: Membership;
 }
 
 function tokenFrom(req: Request): string | null {
@@ -136,6 +149,36 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
       const verdict = await checkSession(claims.uid, claims.te ?? 0);
       if (verdict === "ok") {
         req.user = claims;
+
+        /*
+         * Resolve which home this request is acting in.
+         *
+         * Default is the caller's own, which is what every request was before
+         * households existed — so a client that knows nothing about this is
+         * completely unaffected.
+         *
+         * When a member is acting in somebody else's home, `user.uid` is
+         * rewritten to that home's owner id. That is what lets 113 existing
+         * ownership queries scope to the right household without being
+         * touched. `req.home.actorId` keeps the real identity, and it is what
+         * account-level checks and audit records must use — treating the
+         * rewritten uid as the person is the mistake this comment exists to
+         * prevent.
+         */
+        const requested = requestedHomeFrom(req.headers[HOME_HEADER] as string | undefined);
+        const membership = await resolveMembership(claims.uid, requested);
+        if (!membership) {
+          /* Asked for a home they are not in. Refused rather than quietly
+             falling back to their own, which would show them their house while
+             they believed they were looking at somebody else's. */
+          res.status(403).json({ error: "You do not have access to that home." });
+          return;
+        }
+        req.home = membership;
+        if (membership.homeId !== claims.uid) {
+          req.user = { ...claims, uid: membership.homeId };
+        }
+
         /*
          * Note the install, after the session is known good and before the
          * handler runs. Deliberately not awaited: this is bookkeeping, and a
@@ -144,7 +187,7 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
          * a no-op on almost every call.
          */
         const facts = factsFrom(req.headers, req.socket?.remoteAddress);
-        if (facts) void recordSeen(claims.uid, facts);
+        if (facts) void recordSeen(membership.actorId, facts);
         next();
         return;
       }
