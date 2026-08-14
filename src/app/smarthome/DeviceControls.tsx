@@ -21,6 +21,7 @@ import {
   Check,
   Lightbulb,
   Fan,
+  Sun,
   Flame,
   Tv,
   Wind,
@@ -72,6 +73,7 @@ import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } fr
 import { useCameraListen, useCameraTalk } from "./useCameraAudio";
 import { useControlPlaneCapability, stalePlaneAdvice } from "@/lib/control-plane-health";
 import { readTankLink, tankLevelText, formatAge, type TankDeviceState } from "@/lib/tank-link";
+import { LevelSlider, PowerDial, SlideToConfirm } from "./_kit/controls";
 import FacePanel from "./FacePanel";
 
 export interface DeviceTypeMeta {
@@ -433,104 +435,160 @@ function GenericCapabilities({ d, send, st }: { d: Device; send: SendFn; st: Sta
    */
   if (!caps.dimmer && !caps.fan && !caps.color && !caps.thermostat && !caps.lock && !caps.position) return null;
   const colors = ["#ffffff", "#f87171", "#fb923c", "#facc15", "#4ade80", "#22d3ee", "#60a5fa", "#a78bfa"];
+  const accent = DEVICE_META[d.type]?.accent || "var(--cv-accent)";
+  const powerOn = caps.power ? b(d.state[caps.power.field]) : true;
+
+  /*
+   * Continuous things get a column you drag, not a rail with a thumb.
+   *
+   * These are grouped into one row so a lamp with brightness and a fan with
+   * speed read as the same kind of object, and so the primary control is the
+   * biggest thing on the panel rather than a 16px handle somewhere in it.
+   */
+  const columns: React.ReactNode[] = [];
+  if (caps.dimmer) {
+    columns.push(
+      <LevelSlider
+        key="dim"
+        label={caps.dimmer.label}
+        icon={Sun}
+        accent={accent}
+        value={n(d.state[caps.dimmer.field])}
+        min={caps.dimmer.min}
+        max={caps.dimmer.max}
+        status={st(caps.dimmer.field)}
+        off={caps.power ? !powerOn : false}
+        // Streams while dragging so the lamp follows the finger, and commits
+        // once on release. The command map coalesces the stream; what must not
+        // happen is a hundred separate publishes from one gesture.
+        onChange={(v) => send({ [caps.dimmer!.field]: v })}
+        onCommit={(v) => send({ [caps.dimmer!.field]: v })}
+      />,
+    );
+  }
+  if (caps.fan) {
+    columns.push(
+      <LevelSlider
+        key="fan"
+        label={caps.fan.label}
+        icon={Fan}
+        accent={accent}
+        value={fanLevel(d, caps.fan)}
+        min={0}
+        max={100}
+        status={st(caps.fan.field)}
+        off={caps.power ? !powerOn : false}
+        // Named, because "Medium" is the setting somebody asked for where 66%
+        // is a number they have to translate.
+        valueText={(v) => (v <= 0 ? "Off" : v <= 33 ? "Low" : v <= 66 ? "Medium" : "High")}
+        onChange={(v) => send({ [caps.fan!.field]: v })}
+        onCommit={(v) => send({ [caps.fan!.field]: v })}
+      />,
+    );
+  }
+  if (caps.position) {
+    columns.push(
+      <LevelSlider
+        key="pos"
+        label={caps.position.label}
+        icon={Blinds}
+        accent={accent}
+        value={n(d.state[caps.position.field])}
+        min={caps.position.min}
+        max={caps.position.max}
+        status={st(caps.position.field)}
+        valueText={(v) => (v <= 0 ? "Closed" : v >= 100 ? "Open" : `${Math.round(v)}% open`)}
+        /*
+         * Position commits only on release. A curtain takes seconds to travel,
+         * so streaming would have the motor chasing a position the user left
+         * long ago — the one case where following the finger is wrong.
+         */
+        onChange={() => {}}
+        onCommit={(v) => send({ [caps.position!.field]: v })}
+      />,
+    );
+  }
+
   return (
     <div className="mb-5">
       <SectionLabel>Smart controls</SectionLabel>
-      {caps.power && (
-        <ControlRow label={caps.power.label}>
-          <Toggle checked={b(d.state[caps.power.field])} onChange={(v) => send({ [caps.power!.field]: v })} status={st(caps.power!.field)} label={caps.power.label} />
-        </ControlRow>
+
+      {(caps.power || columns.length > 0) && (
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+          {caps.power && (
+            <PowerDial
+              on={powerOn}
+              onToggle={() => send({ [caps.power!.field]: !powerOn })}
+              level={caps.dimmer ? n(d.state[caps.dimmer.field]) : caps.fan ? fanLevel(d, caps.fan) : null}
+              label={d.name}
+              accent={accent}
+              status={st(caps.power.field)}
+              disabled={!d.online}
+            />
+          )}
+          {columns}
+        </div>
       )}
+
       {caps.lock && (
-        <ControlRow label={caps.lock.label} hint={b(d.state[caps.lock.field]) ? "Locked" : "Unlocked"}>
+        <div className="mb-4">
           {/*
-            A toggle, on the device page only.
+            A gesture, not a switch.
             
-            masterPower deliberately gives locks no one-tap control, so this
-            does not appear on a tile or in a bulk room action — an accidental
-            tap in a list should not open a front door. Here, where the device
-            has been opened on purpose, a labelled switch is the clearest
-            control there is.
+            masterPower deliberately gives locks no one-tap control so an
+            accidental tap in a list cannot open a front door — but the device
+            page had a plain toggle, which is still one tap. Unlocking is not
+            the same class of action as turning on a lamp, and it should not
+            have the same control. Locking stays a single tap: making the safe
+            direction harder helps nobody.
           */}
-          <Toggle checked={b(d.state[caps.lock.field])} onChange={(v) => send({ [caps.lock!.field]: v })} status={st(caps.lock!.field)} label={caps.lock.label} />
-        </ControlRow>
-      )}
-      {caps.position && (
-        <ControlRow
-          label={caps.position.label}
-          hint={d.state.moving ? "Moving…" : `${n(d.state[caps.position.field])}% open`}
-        >
-          {/*
-            A curtain takes seconds to travel, so the slider commits on release
-            like the others — sending on every frame would queue a command per
-            pixel and the motor would chase a position the user left long ago.
-          */}
-          <div className="w-48">
-            <Slider
-              label={caps.position.label}
-              value={n(d.state[caps.position.field])}
-              min={caps.position.min}
-              max={caps.position.max}
-              unit="%"
-              ticks={[0, 50, 100]}
-              tickLabels={{ 0: "Closed", 50: "Half", 100: "Open" }}
-              onCommit={(v) => send({ [caps.position!.field]: v })}
+          {b(d.state[caps.lock.field]) ? (
+            <SlideToConfirm
+              label={`Slide to unlock ${d.name}`}
+              hint="Deliberately harder than a tap"
+              icon={LockOpen}
+              accent="#f59e0b"
+              disabled={!d.online}
+              status={st(caps.lock.field)}
+              onConfirm={() => send({ [caps.lock!.field]: false })}
             />
-          </div>
-        </ControlRow>
+          ) : (
+            <button
+              type="button"
+              disabled={!d.online}
+              onClick={() => send({ [caps.lock!.field]: true })}
+              className={`flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 text-sm font-semibold text-white transition hover:bg-white/10 active:scale-[0.98] disabled:opacity-45 ${pendCls(st(caps.lock.field))}`}
+            >
+              <Lock className="h-4 w-4" /> Lock {d.name}
+            </button>
+          )}
+        </div>
       )}
-      {caps.dimmer && (
-        <ControlRow label={caps.dimmer.label} hint={`${n(d.state[caps.dimmer.field])}%`}>
-          {/*
-            Was a bare <input type="range"> calling send() on every onChange,
-            so one drag from off to full published about a hundred commands to
-            the device. The slider below only sends when the gesture settles.
-          */}
-          <div className="w-48">
-            <Slider
-              label={caps.dimmer.label}
-              value={n(d.state[caps.dimmer.field])}
-              min={caps.dimmer.min}
-              max={caps.dimmer.max}
-              unit="%"
-              onCommit={(v) => send({ [caps.dimmer!.field]: v })}
-            />
-          </div>
-        </ControlRow>
-      )}
-      {caps.fan && (
-        <ControlRow label={caps.fan.label} hint={fanHint(d, caps.fan)}>
-          {/*
-            Continuous, not four buttons.
-            
-            The hardware drives an 8-bit PWM and the firmware used four of its
-            256 values, so the old control was a row of numbered buttons — six
-            36px targets, no way to sweep. This is the real range. A fan still
-            running the previous firmware ignores `level` and obeys the `speed`
-            the command map derives alongside it, so the same slider works on
-            both; it just lands on the nearest of four speeds there.
-          */}
-          <div className="w-48">
-            <Slider
-              label={caps.fan.label}
-              value={fanLevel(d, caps.fan)}
-              min={0}
-              max={100}
-              step={1}
-              unit="%"
-              ticks={[0, 33, 66, 100]}
-              tickLabels={{ 0: "Off", 33: "Low", 66: "Med", 100: "High" }}
-              onCommit={(v) => send({ [caps.fan!.field]: v })}
-            />
-          </div>
-        </ControlRow>
-      )}
+
       {caps.color && (
         <ControlRow label="Colour">
-          <div className="flex gap-2">
-            {colors.map((c) => (
-              <button key={c} onClick={() => send({ [caps.color!.field]: c })} className="h-7 w-7 rounded-full border border-white/30" style={{ background: c }} aria-label={`Color ${c}`} />
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {colors.map((c) => {
+              const active = String(d.state[caps.color!.field] ?? "").toLowerCase() === c.toLowerCase();
+              return (
+                <button
+                  key={c}
+                  onClick={() => send({ [caps.color!.field]: c })}
+                  aria-label={`Colour ${c}`}
+                  aria-pressed={active}
+                  // Explicit pixels, not a rem-based utility: globals.css
+                  // rescales the root font below 640px, so a rem 44px target
+                  // renders at about 42 on exactly the widths where it matters.
+                  className="flex h-[44px] w-[44px] items-center justify-center rounded-full transition active:scale-90"
+                  style={{ background: active ? "rgba(255,255,255,0.14)" : "transparent" }}
+                >
+                  <span
+                    className={`block rounded-full border transition-all ${active ? "h-7 w-7 border-white" : "h-6 w-6 border-white/30"}`}
+                    style={{ background: c }}
+                  />
+                </button>
+              );
+            })}
           </div>
         </ControlRow>
       )}

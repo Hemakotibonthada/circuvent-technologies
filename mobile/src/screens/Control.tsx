@@ -8,6 +8,7 @@ import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow, NeoRaised, ColorGrid } from "../ui";
 import { useThrottled } from "../throttle";
 import { readTankLink, tankLevelText, formatAge, type TankDeviceState } from "../tank-link";
+import { PowerDial, SlideToConfirm } from "../controls";
 import { tapLight, toggleFeedback } from "../haptics";
 import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
 import { deviceMeta, type Palette, TAP_SLOP } from "../theme";
@@ -199,11 +200,22 @@ function GenericControls({ d, send, c }: { d: Device; send: (p: Record<string, u
   return (
     <View>
       {showPower && cap.power && (
-        <Card padded style={{ marginBottom: 10 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ color: c.text, fontSize: 16 }}>{cap.power.label}</Text>
-            <Sw v={!!d.state[cap.power.field]} on={(v) => send({ [cap.power!.field]: v })} c={c} />
-          </View>
+        <Card padded style={{ marginBottom: 10, alignItems: "center" }}>
+          {/*
+            A dial rather than a switch.
+
+            The switch said only on or off, so a lamp at 5% and the same lamp
+            at full looked identical here. The ring carries the level, the fill
+            carries on/off, and the word stays because a ring is not a
+            substitute for a word somebody may be relying on.
+          */}
+          <PowerDial
+            on={!!d.state[cap.power.field]}
+            onToggle={() => { tapLight(); send({ [cap.power!.field]: !d.state[cap.power!.field] }); }}
+            level={cap.dimmer ? Number(d.state[cap.dimmer.field] ?? 0) : cap.fan ? fanLevel(d, cap.fan) : null}
+            label={cap.power.label}
+            c={c}
+          />
         </Card>
       )}
       {cap.dimmer && (
@@ -1310,9 +1322,36 @@ function FaceDoor({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
         <Text style={{ fontSize: 22, fontWeight: "800", color: locked ? c.textDim : c.green, marginTop: 6 }}>{locked ? "LOCKED" : "UNLOCKED"}</Text>
         <Text style={{ color: c.faint, marginTop: 4, fontSize: 13 }}>{String(d.state.lastMethod ?? "—")}{d.state.lastName ? ` · ${String(d.state.lastName)}` : ""}</Text>
       </Card>
-      <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
-        <Pressable onPress={() => send({ action: "unlock", method: "app" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>Unlock</Text></Pressable>
-        <Pressable onPress={() => send({ action: "lock" })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "800" }}>Lock</Text></Pressable>
+      <View style={{ marginBottom: 12 }}>
+        {/*
+          Unlocking is a gesture; locking is a tap.
+
+          This was two identical buttons side by side, so opening a front door
+          cost exactly one tap from a phone that spends its life in a pocket
+          next to the door it opens. Unlocking now needs a sustained drag,
+          which is very hard to do without meaning to.
+
+          Locking deliberately stays a single tap. Making the safe direction
+          harder protects nobody and just means people leave it unlocked.
+        */}
+        {locked ? (
+          <SlideToConfirm
+            label="Slide to unlock"
+            hint="Deliberately harder than a tap"
+            accent={c.green}
+            c={c}
+            onConfirm={() => send({ action: "unlock", method: "app" })}
+          />
+        ) : (
+          <Pressable
+            onPress={() => send({ action: "lock" })}
+            accessibilityRole="button"
+            accessibilityLabel="Lock the door"
+            style={{ minHeight: 56, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 28, alignItems: "center", justifyContent: "center" }}
+          >
+            <Text style={{ color: c.text, fontWeight: "800" }}>🔒  Lock</Text>
+          </Pressable>
+        )}
       </View>
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 4 }}>
         <MiniStat label="Accesses" value={String(Number(d.state.accessCount ?? 0))} c={c} />
