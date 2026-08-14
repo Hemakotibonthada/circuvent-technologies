@@ -32,7 +32,7 @@ import {
  *
  * Kept in step with the sketch by tests/camera-fps-parity.test.ts.
  */
-const FPS_OPTIONS = [1, 5, 10, 15, 20, 25, 30] as const;
+const FPS_OPTIONS = [1, 5, 10, 15, 24, 30, 45, 60] as const;
 const RESOLUTIONS = ["QVGA", "CIF", "VGA", "SVGA", "XGA"] as const;
 const FLASH_STEPS = { Off: 0, Low: 25, Med: 60, Max: 100 } as const;
 type FlashLabel = keyof typeof FLASH_STEPS;

@@ -28,11 +28,43 @@ interface Client {
   watching: Set<string>;
   /** Types by device id, so a watch request can be judged without a query. */
   types: Map<string, string>;
+  /**
+   * Whether this client asked for binary frames.
+   *
+   * Defaults to false, and that default is the point: every app and browser
+   * already in the field speaks the base64 JSON shape, and a server that
+   * assumed otherwise would turn all of their video off at once.
+   */
+  binaryFrames: boolean;
 }
 
 /** A socket may watch a small number of cameras at once — a grid view, not the
  *  whole estate. Caps the bandwidth any single client can ask the server for. */
 const MAX_WATCHED = 8;
+
+/**
+ * Binary frame framing: [version][idLen][deviceId][JPEG].
+ *
+ * A JSON message has to carry the JPEG as base64, which costs an encode here, a
+ * parse in the browser, and a third more bytes on a link that is already the
+ * scarce resource. At 30 frames a second that is the difference between video
+ * and a slideshow, so a client that says it can read bytes gets bytes.
+ *
+ * The version byte is first so this can change without guessing: a client that
+ * does not recognise it can drop the frame rather than render garbage. The id
+ * is length-prefixed rather than delimited because a JPEG may contain any byte
+ * sequence at all, including whatever delimiter looked safe.
+ */
+const FRAME_WIRE_VERSION = 1;
+
+export function encodeFrame(f: DeviceFrame): Buffer {
+  const id = Buffer.from(f.deviceId, "ascii");
+  const head = Buffer.allocUnsafe(2 + id.length);
+  head[0] = FRAME_WIRE_VERSION;
+  head[1] = id.length;
+  id.copy(head, 2);
+  return Buffer.concat([head, f.data], head.length + f.data.length);
+}
 
 /**
  * How many sockets are watching each camera. Refcounted rather than a plain
@@ -77,12 +109,15 @@ export function attachWebSocket(server: Server): void {
   bus.on("device:update", onUpdate);
 
   /**
-   * Frames go only to sockets actively watching that camera. Serialising is
-   * deferred until we know at least one client wants it, so a camera streaming
-   * with nobody watching costs a Set lookup per frame instead of base64 JSON.
+   * Frames go only to sockets actively watching that camera.
+   *
+   * Both encodings are built at most once per frame no matter how many sockets
+   * are watching, and neither is built at all until a socket that wants it is
+   * found — a camera streaming to nobody costs a Set lookup.
    */
   const onFrame = (f: DeviceFrame) => {
-    let msg: string | null = null;
+    let json: string | null = null;
+    let bin: Buffer | null = null;
     for (const c of clients) {
       if (!c.watching.has(f.deviceId)) continue;
       if (!c.deviceIds.has(f.deviceId)) continue;
@@ -90,8 +125,21 @@ export function attachWebSocket(server: Server): void {
       // Never queue video behind a slow consumer — a backed-up socket would
       // grow without bound and play frames late forever. Drop instead.
       if (c.ws.bufferedAmount > 1_000_000) continue;
-      if (msg === null) msg = JSON.stringify({ type: "device:frame", ...f });
-      c.ws.send(msg);
+      if (c.binaryFrames) {
+        if (bin === null) bin = encodeFrame(f);
+        c.ws.send(bin, { binary: true });
+      } else {
+        if (json === null) {
+          json = JSON.stringify({
+            type: "device:frame",
+            deviceId: f.deviceId,
+            jpeg: f.data.toString("base64"),
+            bytes: f.bytes,
+            at: f.at,
+          });
+        }
+        c.ws.send(json);
+      }
     }
   };
   bus.on("device:frame", onFrame);
@@ -112,6 +160,7 @@ export function attachWebSocket(server: Server): void {
       deviceIds: new Set(),
       watching: new Set(),
       types: new Map(),
+      binaryFrames: false,
     };
     clients.add(client);
 
@@ -206,6 +255,16 @@ export function attachWebSocket(server: Server): void {
       // Camera viewing. Ownership is re-checked against the server-derived set
       // on every frame too, so a stale watch can never leak video after a
       // device is unclaimed.
+      if (m?.type === "hello") {
+        /*
+         * Transport negotiation, not authorisation — it says what this client
+         * can decode, never what it may see. Sent before any `watch`, so the
+         * first frame already goes out in the right shape.
+         */
+        client.binaryFrames = (m as { binaryFrames?: unknown }).binaryFrames === true;
+        return;
+      }
+
       if (m?.type === "watch" || m?.type === "unwatch") {
         const id = typeof m.deviceId === "string" ? m.deviceId : "";
         if (!id) return;

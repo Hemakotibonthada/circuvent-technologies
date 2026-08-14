@@ -1585,9 +1585,9 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
   );
 }
 
-/* firmware/camera/camera.ino defines FPS_MAX 30. The app stopped at 15, so
-   half the range the hardware supports was simply not offered. */
-const CAM_FPS = [1, 5, 8, 10, 15, 20, 25, 30] as const;
+/* firmware/camera/camera.ino defines FPS_MAX 60. The app stopped at 15, so
+   most of the range the hardware supports was simply not offered. */
+const CAM_FPS = [1, 5, 10, 15, 24, 30, 45, 60] as const;
 /** Anything above VGA needs PSRAM for the frame buffer. */
 const CAM_RES_BASE = ["QQVGA", "QVGA", "CIF", "VGA"] as const;
 const CAM_RES_PSRAM = ["SVGA", "XGA", "SXGA", "UXGA"] as const;

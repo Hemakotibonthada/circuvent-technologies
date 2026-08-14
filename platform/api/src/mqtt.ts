@@ -23,11 +23,17 @@ export interface DeviceUpdate {
  * A live camera frame. Kept off `DeviceUpdate` because it takes a different
  * path through the system: never persisted, and only delivered to sockets that
  * have explicitly asked to watch this camera.
+ *
+ * The JPEG stays a Buffer all the way to the socket. It used to be base64'd
+ * here, which meant every frame paid an encode and grew by a third before it
+ * had left the process — on the one path in the system where bytes and latency
+ * are the whole product. ws.ts now encodes only for clients old enough to need
+ * it, and most no longer do.
  */
 export interface DeviceFrame {
   deviceId: string;
-  /** JPEG bytes, base64-encoded for JSON transport to the app. */
-  jpeg: string;
+  /** Raw JPEG bytes, exactly as the device published them. */
+  data: Buffer;
   bytes: number;
   at: string;
 }
@@ -234,17 +240,27 @@ async function handleMessage(topic: string, buf: Buffer): Promise<void> {
   }
 }
 
-/** Hard ceiling per camera. Protects the broker and every watching socket from
- *  a misconfigured or compromised device streaming as fast as it can. */
-const MAX_FPS = 30;
+/**
+ * Hard ceiling per camera. Protects the broker and every watching socket from
+ * a misconfigured or compromised device streaming as fast as it can.
+ *
+ * This was 30, which quietly made it the real frame-rate limit of the whole
+ * product: a camera asked for 60 would capture 60, encrypt 60 and publish 60,
+ * and this line dropped every other one before it reached a socket. The device
+ * had no way to know, so it kept paying for frames nobody would ever see.
+ *
+ * 60 is a genuine abuse ceiling rather than a policy: it is above anything the
+ * firmware will ask for (FPS_MAX is 60) and still bounds a rogue device.
+ */
+const MAX_FPS = 60;
 const MAX_FRAME_BYTES = 512 * 1024;
 const lastFrameAt = new Map<string, number>();
 
 /**
  * Device ids at least one WebSocket client is currently viewing, maintained by
  * ws.ts. A camera that keeps streaming with nobody watching — a stale lease, a
- * rogue command — would otherwise cost a base64 encode of every frame for an
- * audience of zero.
+ * rogue command — would otherwise cost work on every frame for an audience of
+ * zero.
  */
 export const watchedDevices = new Set<string>();
 
@@ -259,7 +275,7 @@ function handleFrame(deviceId: string, buf: Buffer): void {
 
   bus.emit("device:frame", {
     deviceId,
-    jpeg: buf.toString("base64"),
+    data: buf,
     bytes: buf.length,
     at: new Date(now).toISOString(),
   } satisfies DeviceFrame);

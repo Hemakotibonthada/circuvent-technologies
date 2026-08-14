@@ -19,6 +19,7 @@ import {
 import { useFleet } from "../_data/hooks";
 import { deviceMeta } from "../DeviceControls";
 import { useCameraFrames, useNow } from "@/lib/control-plane-live";
+import { useFrameUrl } from "../useFrameUrl";
 import { isCameraDevice } from "../_data/device-type";
 
 // Security devices that operators typically want visual status for
@@ -194,10 +195,11 @@ function SecurityDeviceCard({ device }: SecurityDeviceCardProps) {
 function CameraThumb({ device }: { device: SecurityDeviceCardProps["device"] }) {
   const [frame, setFrame] = useState<{ src: string; at: number } | null>(null);
   const seen = useRef(0);
+  const frameUrl = useFrameUrl();
 
   useCameraFrames(device.online ? device.id : null, (f) => {
     seen.current += 1;
-    setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: Date.now() });
+    setFrame({ src: frameUrl(f.data), at: Date.now() });
   });
 
   const streaming = device.state.streaming === true;

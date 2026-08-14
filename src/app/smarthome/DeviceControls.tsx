@@ -69,6 +69,7 @@ import { Slider } from "./_kit/Slider";
 import { FAN_STEP_LEVEL, levelToSpeed, buildFieldCommand } from "@/lib/smarthome-command-map";
 import { effectiveDeviceType } from "./_data/device-type";
 import { useRemoteCamera } from "./useRemoteCamera";
+import { useFrameUrl } from "./useFrameUrl";
 import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } from "./recording";
 import { useCameraListen, useCameraTalk } from "./useCameraAudio";
 import { useControlPlaneCapability, stalePlaneAdvice } from "@/lib/control-plane-health";
@@ -1946,9 +1947,18 @@ function signalLabel(rssi: number): { text: string; accent: string } {
 }
 
 interface LiveFrame {
+  /** Object URL for rendering. Revoked as soon as the next frame replaces it. */
   src: string;
   at: number;
   bytes: number;
+  /**
+   * The JPEG itself.
+   *
+   * Carried alongside the URL because recording needs the bytes, and reading
+   * them back out of a blob URL would mean an async fetch per recorded frame —
+   * for data this component already had in its hand.
+   */
+  data: Uint8Array;
 }
 
 /**
@@ -2034,16 +2044,28 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   const [received, setReceived] = useState(0);
   const [fps, setFps] = useState(0);
   const stamps = useRef<number[]>([]);
+  const frameUrl = useFrameUrl();
+  const lastFpsAt = useRef(0);
 
   // Watch continuously rather than only while streaming: a snapshot is
   // published on the same frame topic, so a viewer that only subscribes during
   // a live stream would silently never receive one.
   useCameraFrames(d.online ? d.id : null, (f) => {
     const now = Date.now();
-    stamps.current = [...stamps.current, now].filter((t) => now - t <= 2000);
-    setFps(stamps.current.length > 1 ? Math.round((stamps.current.length - 1) / 2) : 0);
+
+    // Mutate the window in place: rebuilding this array per frame allocates a
+    // new one sixty times a second for a number shown twice.
+    const s = stamps.current;
+    s.push(now);
+    while (s.length && now - s[0] > 2000) s.shift();
+    // The counter is read, not acted on, so recomputing it per frame only buys
+    // extra renders during the part that has to stay smooth.
+    if (now - lastFpsAt.current >= 500) {
+      lastFpsAt.current = now;
+      setFps(s.length > 1 ? Math.round(((s.length - 1) / (now - s[0])) * 1000) : 0);
+    }
     setReceived((c) => c + 1);
-    setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: now, bytes: f.bytes });
+    setFrame({ src: frameUrl(f.data), at: now, bytes: f.bytes, data: f.data });
   });
 
   /**
@@ -2093,7 +2115,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
     recBusy.current = true;
     lastRecorded.current = shownFrame.at;
     void rec
-      .add(shownFrame.src, shownFrame.at)
+      .add(shownFrame.data, shownFrame.at)
       .then(() => setRecCount((c) => c + 1))
       .catch((e: unknown) => setRecNote(e instanceof Error ? e.message : "could not write frame"))
       .finally(() => {
@@ -2421,10 +2443,10 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
       </ControlRow>
       <ControlRow label="Frame rate">
         <Stepper
-          value={n(d.state.fps, 8)}
+          value={n(d.state.fps, 24)}
           onChange={(v) => send({ fps: v })}
           min={1}
-          max={30}
+          max={60}
           step={1}
           suffix=" fps"
         />
@@ -2927,8 +2949,10 @@ function AnprCamera({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) 
     send({ roi: next });
   };
 
+  const anprFrameUrl = useFrameUrl();
+
   useCameraFrames(d.online ? d.id : null, (f) => {
-    setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: Date.now(), bytes: f.bytes });
+    setFrame({ src: anprFrameUrl(f.data), at: Date.now(), bytes: f.bytes, data: f.data });
   });
 
   // Same keep-alive contract as the camera panel: the firmware arms the stream

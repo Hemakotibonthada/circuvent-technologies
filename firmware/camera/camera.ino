@@ -91,8 +91,28 @@
  * per cause — a streaming resolution ceiling, 20 MHz, and a second frame
  * buffer with CAMERA_GRAB_LATEST — and none of them is a network change,
  * because the network was never the problem.
+ *
+ *   1.14.0 Take the ceilings off, and spend the budget deliberately.
+ *
+ * 1.13.0 fixed the sensor and immediately exposed what was behind it. Three
+ * more ceilings, none of them the camera's fault:
+ *
+ *   - FPS_MAX was 30, so 60 could not be asked for.
+ *   - The control plane dropped every frame above 30 before it reached a
+ *     socket, so a camera sending more was paying to be ignored.
+ *   - Every 1 KB of a frame became its own TLS record. A 22 KB frame paid that
+ *     toll twenty-two times, per frame, for nothing.
+ *
+ * And one honest limit that no ceiling was hiding: frame rate and picture size
+ * are the same budget. 24 fps of 22 KB frames is 4.2 Mbit/s out of a chip that
+ * is also encrypting all of it, and no amount of raising limits changes that.
+ * So the camera now spends the budget itself — adaptTick measures what it
+ * actually achieved and trims quality, then size, to hold the rate that was
+ * asked for, handing both back when the link recovers. It also publishes what
+ * it settled on, because a picture that has quietly traded sharpness for
+ * smoothness must not look identical to one that is broken.
  */
-#define CV_FW_VERSION "1.13.0"
+#define CV_FW_VERSION "1.14.0"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -409,7 +429,19 @@
  * the MQTT sender simply falls behind its target rather than misbehaving, so
  * asking for 30 gives 30 locally and the best available remotely.
  */
-#define FPS_MAX                30
+/*
+ * 60 is reachable at small frame sizes, where a frame is a few kilobytes and
+ * the sensor is nowhere near its own limit. It is not reachable at SVGA over
+ * MQTT+TLS, and it never will be — that path is throughput-bound, and the
+ * arithmetic is unforgiving: 24 fps of 22 KB frames is already 4.2 Mbit/s out
+ * of an ESP32 that is also encrypting all of it.
+ *
+ * The ceiling is therefore the *small-frame* ceiling, and the sender simply
+ * falls behind its target rather than misbehaving. What closes the gap is
+ * CV_ADAPTIVE below, which trades picture size for frame rate on purpose
+ * instead of leaving the user to discover the trade by moving two sliders.
+ */
+#define FPS_MAX                60
 #define FPS_DEFAULT            24
 
 /*
@@ -432,6 +464,31 @@
  * Raising this is not free: it costs frame rate first and stability second.
  */
 #define STREAM_RES_MAX      "SVGA"
+
+/*
+ * Adaptive streaming.
+ *
+ * Frame rate and picture size are the same budget spent two ways, and until now
+ * the user was left to discover that by moving two sliders and guessing. Ask for
+ * 30 fps at SVGA and the camera simply fell short, reported the shortfall, and
+ * offered no hint that quality was the thing standing in the way.
+ *
+ * So the firmware now spends the budget itself: it measures what it actually
+ * achieved and, if it is short of what was asked, trims JPEG quality — and only
+ * when quality is exhausted, steps the picture down a size. When it is
+ * comfortably ahead it walks both back up toward what the user chose.
+ *
+ * The thresholds are deliberately asymmetric. Stepping down happens quickly
+ * (below 80% of target) because a stuttering picture is the complaint; stepping
+ * back up needs sustained headroom (above 95%) so a momentary lull does not
+ * start an oscillation the viewer sees as pulsing sharpness.
+ */
+#define ADAPT_WINDOW_MS     2000UL   // how long a measurement window is
+#define ADAPT_DOWN_RATIO      0.80f  // below this share of target, give something up
+#define ADAPT_UP_RATIO        0.95f  // above this, try to give something back
+#define ADAPT_Q_STEP             4   // JPEG quality moves in steps this size
+#define ADAPT_Q_LIMIT           28   // worst quality adaptation may choose
+#define ADAPT_RES_FLOOR    "QVGA"    // smallest picture adaptation may choose
 
 /*
  * Sensor master clock.
@@ -500,6 +557,22 @@ bool  camReady     = false;
 bool  hasPsram     = false;
 bool  streaming    = false;
 int   fps          = FPS_DEFAULT;
+
+/*
+ * What adaptation has currently settled on. Both start at "follow the user",
+ * and only move while a stream is running.
+ *
+ * These are deliberately NOT persisted. They describe the network the camera
+ * happened to have while somebody was watching, which is the least durable fact
+ * about it — restoring last week's congestion onto a good link would be a
+ * camera that never recovers its picture quality.
+ */
+bool  adaptive     = true;
+int   adaptQ       = 0;          // 0 = follow `quality`
+String adaptRes    = "";         // "" = follow the streaming ceiling
+float lastAchieved = 0;          // measured fps, published for the UI
+unsigned long adaptWindowAt = 0;
+uint32_t adaptFrames = 0;
 int   quality      = 12;         // 4 (best) .. 63 (worst)
 int   rotation     = 0;          // 0 | 180
 int   flashLevel   = 0;          // 0..100
@@ -1924,6 +1997,35 @@ String clampStreamRes(const String &n) {
   return resFromName(base) > resFromName(STREAM_RES_MAX) ? String(STREAM_RES_MAX) : base;
 }
 
+/**
+ * Picture sizes in ascending order, so adaptation can step without a second
+ * table of names to keep in step with resFromName().
+ */
+static const char *RES_LADDER[] = {
+  "QQVGA", "QVGA", "CIF", "VGA", "SVGA", "XGA", "SXGA", "UXGA"
+};
+static const int RES_LADDER_N = (int)(sizeof(RES_LADDER) / sizeof(RES_LADDER[0]));
+
+static int resRung(const String &n) {
+  for (int i = 0; i < RES_LADDER_N; i++) if (n == RES_LADDER[i]) return i;
+  return 3;  // VGA — the same fallback resFromName uses
+}
+
+/** The size frames actually leave at right now: the ceiling, then adaptation. */
+String activeStreamRes() {
+  const String ceiling = clampStreamRes(resName);
+  if (!adaptive || adaptRes.length() == 0) return ceiling;
+  // Adaptation may only ever make the picture smaller than the ceiling, never
+  // larger — otherwise a slow link could talk the camera into UXGA.
+  return resRung(adaptRes) < resRung(ceiling) ? adaptRes : ceiling;
+}
+
+/** The JPEG quality in force right now. Larger is worse, per the sensor API. */
+int activeQuality() {
+  if (!adaptive || adaptQ == 0) return quality;
+  return adaptQ > quality ? adaptQ : quality;
+}
+
 void applyFlash(int level) {
   flashLevel = constrain(level, 0, 100);
 #if FLASH_GPIO_NUM >= 0
@@ -1940,7 +2042,8 @@ void applySensorSettings() {
   if (!s) return;
   /*
    * While somebody is watching live, the sensor runs at the streaming ceiling
-   * rather than the chosen resolution.
+   * rather than the chosen resolution — and below it if adaptation has had to
+   * buy frame rate with picture size.
    *
    * A snapshot taken *during* a live stream therefore arrives at the streaming
    * size, not the chosen one. That is deliberate and worth knowing: raising the
@@ -1953,8 +2056,8 @@ void applySensorSettings() {
    * Stop the stream and the full chosen resolution is restored on the next
    * transition, so a UXGA snapshot is still a UXGA snapshot.
    */
-  s->set_framesize(s, resFromName(streaming ? clampStreamRes(resName) : clampRes(resName)));
-  s->set_quality(s, quality);
+  s->set_framesize(s, resFromName(streaming ? activeStreamRes() : clampRes(resName)));
+  s->set_quality(s, streaming ? activeQuality() : quality);
   s->set_vflip(s, rotation == 180 ? 1 : 0);
   s->set_hmirror(s, rotation == 180 ? 1 : 0);
   // Changing framesize invalidates the motion baseline (different geometry).
@@ -1971,8 +2074,20 @@ void publishSettings() {
    * its own caption. A device that reports what it wishes were true is worse
    * than one that reports nothing.
    */
-  cv.set("streamResolution", clampStreamRes(resName).c_str());
+  cv.set("streamResolution", activeStreamRes().c_str());
   cv.set("quality", quality);
+  /*
+   * What the stream is actually encoding at, and what it actually achieved.
+   *
+   * Without these the console can show a frame rate but never why it is what it
+   * is, so a picture that has quietly traded sharpness for smoothness looks
+   * identical to one that is simply broken. `achievedFps` is measured, not
+   * requested — the requested figure is already in `fps`, and reporting it twice
+   * would be reporting a wish as a result.
+   */
+  cv.set("streamQuality", activeQuality());
+  cv.set("adaptive", adaptive);
+  cv.set("achievedFps", (int)(lastAchieved + 0.5f));
   cv.set("rotation", rotation);
   cv.set("fps", fps);
   cv.set("motion", motionOn);
@@ -2285,6 +2400,7 @@ bool sendFrame(bool isSnapshot) {
   if (!ok) { dropCount++; return false; }
 
   frameCount++;
+  adaptFrames++;
   if (isSnapshot) {
     snapCount++;
     // The image itself went out on the frame topic; this row is just the
@@ -2306,19 +2422,88 @@ void setStreaming(bool on) {
   if (streaming == on) return;
   streaming = on;
   /*
+   * Every stream starts from the user's own settings rather than inheriting
+   * whatever the last session's network talked the camera into. A viewer who
+   * fixes their Wi-Fi and reopens the page should see the picture they paid
+   * for, not yesterday's compromise.
+   */
+  adaptQ = 0;
+  adaptRes = "";
+  lastAchieved = 0;
+  adaptWindowAt = 0;
+  adaptFrames = 0;
+  /*
    * Re-apply the sensor settings on every transition, because the framesize
    * depends on `streaming` now. Without this the cap is computed once at boot
    * and the whole stream/snapshot split silently does nothing — a control that
    * looks present and has no effect, which is the failure this codebase finds
    * most often.
-   *
-   * Only the framesize actually changes here, and only when the chosen
-   * resolution is above the streaming ceiling.
    */
   applySensorSettings();
   cv.set("streaming", streaming);
+  publishSettings();
   cv.publishStateNow();
   Serial.printf("[CAM] stream %s\n", on ? "on" : "off");
+}
+
+/**
+ * Spends the frame-rate budget.
+ *
+ * Called once per loop; does nothing until a measurement window closes. When it
+ * does, the camera compares what it achieved against what was asked and gives
+ * up — or takes back — exactly one step. One step per window is what keeps this
+ * a controller rather than a see-saw: two steps on one bad window is how you
+ * end up at QVGA because a neighbour's microwave ran for two seconds.
+ */
+void adaptTick(unsigned long now) {
+  if (!adaptive || !streaming || !camReady) return;
+
+  if (adaptWindowAt == 0) { adaptWindowAt = now; adaptFrames = 0; return; }
+  if (now - adaptWindowAt < ADAPT_WINDOW_MS) return;
+
+  const float secs = (now - adaptWindowAt) / 1000.0f;
+  lastAchieved = secs > 0 ? adaptFrames / secs : 0;
+  adaptWindowAt = now;
+  adaptFrames = 0;
+
+  const float target = (float)max(fps, FPS_MIN);
+  const String ceiling = clampStreamRes(resName);
+  bool changed = false;
+
+  if (lastAchieved < target * ADAPT_DOWN_RATIO) {
+    // Quality first: it is invisible for far longer than a size change is.
+    if (activeQuality() < ADAPT_Q_LIMIT) {
+      adaptQ = activeQuality() + ADAPT_Q_STEP;
+      if (adaptQ > ADAPT_Q_LIMIT) adaptQ = ADAPT_Q_LIMIT;
+      changed = true;
+    } else if (resRung(activeStreamRes()) > resRung(ADAPT_RES_FLOOR)) {
+      adaptRes = RES_LADDER[resRung(activeStreamRes()) - 1];
+      // A smaller picture is cheaper per frame, so the quality that was
+      // bought to survive the larger one is handed back with it.
+      adaptQ = 0;
+      changed = true;
+    }
+  } else if (lastAchieved > target * ADAPT_UP_RATIO) {
+    // Give back in the reverse order it was taken, so the picture recovers its
+    // size before it recovers its sharpness — size is the one people notice.
+    if (adaptRes.length() && resRung(adaptRes) < resRung(ceiling)) {
+      adaptRes = RES_LADDER[resRung(adaptRes) + 1];
+      if (resRung(adaptRes) >= resRung(ceiling)) adaptRes = "";
+      changed = true;
+    } else if (adaptQ > quality) {
+      adaptQ = activeQuality() - ADAPT_Q_STEP;
+      if (adaptQ <= quality) adaptQ = 0;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    applySensorSettings();
+    publishSettings();
+    cv.publishStateNow();
+    Serial.printf("[CAM] adapt: %.1f/%d fps -> %s q%d\n",
+                  lastAchieved, fps, activeStreamRes().c_str(), activeQuality());
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2478,6 +2663,14 @@ void onCommand(const String &action, JsonObjectConst p) {
       sensitivity = constrain(p["sensitivity"].as<int>(), 1, 100);
       store.putInt("sens", sensitivity);
     }
+    if (p["adaptive"].is<bool>()) {
+      adaptive = p["adaptive"].as<bool>();
+      store.putBool("adapt", adaptive);
+      // Turning it off must hand the picture straight back, not leave the
+      // viewer on whatever compromise was in force when they switched it off.
+      if (!adaptive) { adaptQ = 0; adaptRes = ""; }
+      touchSensor = true;
+    }
     if (p["streaming"].is<bool>()) setStreaming(p["streaming"].as<bool>());
 
     if (touchSensor) applySensorSettings();
@@ -2535,6 +2728,7 @@ void setup() {
   // recorded: the gap looks like nothing happened.
   recEnabled  = store.getBool("recon", false);
   speakerVolume = store.getInt("vol", speakerVolume);
+  adaptive      = store.getBool("adapt", adaptive);
 
   /*
    * Raise the frame rate on cameras that never chose one.
@@ -2780,6 +2974,9 @@ void loop() {
       lastFrameAt = now;
       sendFrame(false);
     }
+    // After the frame, so a window always closes on a full measurement rather
+    // than on one taken halfway through the capture it is measuring.
+    adaptTick(millis());
   } else if (motionOn && camReady && sensorLive &&
              now - lastMotionScan >= MOTION_PERIOD_MS) {
     // Idle: capture only as often as the motion check needs, and never publish.

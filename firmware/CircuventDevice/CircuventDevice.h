@@ -67,6 +67,22 @@ extern "C" void randombytes(unsigned char *p, unsigned long long n) {
 #endif
 
 /*
+ * How much of a streamed binary payload is handed to TLS at a time.
+ *
+ * This governs the per-frame cost of live video, so it is a frame-rate knob
+ * rather than a memory one. Each chunk becomes a TLS record with its own
+ * header, MAC and padding, and its own trip through mbedtls; at 1 KB a 22 KB
+ * frame paid that toll twenty-two times.
+ *
+ * 4 KB stays under the 16 KB TLS record limit and inside the ESP32 output
+ * buffer, so a single write still cannot block for long. A board that is short
+ * of RAM can lower it; nothing else needs to change.
+ */
+#ifndef CV_PUBLISH_CHUNK
+#define CV_PUBLISH_CHUNK 4096
+#endif
+
+/*
  * Relay polarity.
  *
  * The relay boards in use are opto-isolated and negative-trigger: pulling the
@@ -313,9 +329,25 @@ class CircuventDevice {
     if (headLen && _mqtt.write(head, headLen) != headLen) { _mqtt.endPublish(); return false; }
     size_t sent = 0;
     while (sent < len) {
-      // Chunked so a large frame cannot stall the TCP write in one call.
+      /*
+       * Chunked so a large frame cannot stall the TCP write in one call.
+       *
+       * This was 1024 bytes, which is the PubSubClient *buffer* size — but a
+       * streamed publish does not go through that buffer, it writes straight to
+       * the TLS client. So the only thing 1 KB chunks bought was arithmetic:
+       * every chunk becomes its own TLS record, each paying a header, a MAC and
+       * padding, plus a full pass through mbedtls. A 22 KB frame was 22 records
+       * where it could be 6, and that overhead is per frame — it is exactly the
+       * cost that stops a camera going faster once the sensor no longer is.
+       *
+       * 4 KB is chosen to sit under the 16 KB TLS record ceiling with room for
+       * the record overhead, and to stay well inside the ESP32's TLS output
+       * buffer so a write still never blocks for long. Larger is not better
+       * here: a chunk that exceeds the output buffer is split internally again
+       * and the gain disappears.
+       */
       size_t chunk = len - sent;
-      if (chunk > 1024) chunk = 1024;
+      if (chunk > CV_PUBLISH_CHUNK) chunk = CV_PUBLISH_CHUNK;
       size_t n = _mqtt.write(data + sent, chunk);
       if (n == 0) { _mqtt.endPublish(); return false; }
       sent += n;

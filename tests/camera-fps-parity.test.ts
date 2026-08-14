@@ -59,6 +59,89 @@ function define(name: string): string {
 }
 
 describe("camera frame rate", () => {
+  describe("nothing between the sensor and the screen caps the rate", () => {
+    it("does not let the relay drop frames the firmware is allowed to send", () => {
+      /*
+       * mqtt.ts carried MAX_FPS = 30, which quietly made it the real frame-rate
+       * limit of the whole product: a camera asked for 60 would capture, encrypt
+       * and publish 60, and the relay threw every other one away before it
+       * reached a socket. The device had no way to learn that, so it kept paying
+       * for frames nobody would ever see.
+       */
+      const relay = fs.readFileSync(
+        path.join(root, "platform", "api", "src", "mqtt.ts"),
+        "utf8"
+      );
+      const m = relay.match(/const MAX_FPS\s*=\s*(\d+)/);
+      expect(m).not.toBeNull();
+      expect(Number(m![1])).toBeGreaterThanOrEqual(Number(define("FPS_MAX")));
+    });
+
+    it("relays frames as bytes rather than base64 JSON", () => {
+      /*
+       * base64 costs an encode per frame and a third more bytes on the one link
+       * where bytes are the product. The JSON shape stays for clients already in
+       * the field, so both paths have to remain.
+       */
+      const ws = fs.readFileSync(path.join(root, "platform", "api", "src", "ws.ts"), "utf8");
+      expect(ws).toMatch(/export function encodeFrame/);
+      expect(ws).toMatch(/binaryFrames/);
+      // The fallback must survive: removing it turns off video for every app
+      // and browser currently installed.
+      expect(ws).toMatch(/toString\("base64"\)/);
+    });
+
+    it("has the browser ask for binary and read it back", () => {
+      const live = fs.readFileSync(path.join(root, "src", "lib", "control-plane-live.ts"), "utf8");
+      expect(live).toMatch(/binaryType\s*=\s*"arraybuffer"/);
+      expect(live).toMatch(/binaryFrames:\s*true/);
+    });
+
+    it("renders frames from object URLs and releases them", () => {
+      /*
+       * A blob URL lives as long as the document. At thirty frames a second an
+       * un-revoked one leaks thirty JPEGs a second, and the tab dies during the
+       * incident somebody opened the camera to watch. The rule lives in one hook
+       * so three surfaces cannot each get it half right.
+       */
+      const hook = fs.readFileSync(
+        path.join(root, "src", "app", "smarthome", "useFrameUrl.ts"),
+        "utf8"
+      );
+      expect(hook).toMatch(/revokeObjectURL/);
+      for (const f of ["DeviceControls.tsx", "camera/CameraConsole.tsx", "security/CamerasPanel.tsx"]) {
+        const src = fs.readFileSync(path.join(root, "src", "app", "smarthome", f), "utf8");
+        expect(src).toMatch(/useFrameUrl/);
+        // No surface may go back to building a data URL per frame.
+        expect(src).not.toMatch(/data:image\/jpeg;base64,\$\{/);
+      }
+    });
+
+    it("cuts the per-frame TLS cost in the firmware", () => {
+      /*
+       * Every chunk is its own TLS record with a header, a MAC and a pass
+       * through mbedtls. At 1 KB a 22 KB frame paid that twenty-two times, and
+       * it is a per-frame cost — exactly what stops a camera going faster once
+       * the sensor no longer is.
+       */
+      const lib = fs.readFileSync(
+        path.join(root, "firmware", "CircuventDevice", "CircuventDevice.h"),
+        "utf8"
+      );
+      const m = lib.match(/#define CV_PUBLISH_CHUNK\s+(\d+)/);
+      expect(m).not.toBeNull();
+      expect(Number(m![1])).toBeGreaterThanOrEqual(4096);
+    });
+
+    it("adapts quality to hold the requested rate instead of quietly missing it", () => {
+      expect(firmware).toMatch(/void adaptTick/);
+      expect(firmware).toMatch(/cv\.set\("achievedFps"/);
+      // Measured, not requested: reporting the target back would be reporting a
+      // wish as a result.
+      expect(firmware).toMatch(/lastAchieved/);
+    });
+  });
+
   describe("the firmware can actually produce 24 fps", () => {
     it("pipelines capture against transmit with two frame buffers", () => {
       /*
@@ -115,8 +198,7 @@ describe("camera frame rate", () => {
       );
     });
 
-    it("raises the frame rate on cameras that never chose one", () => {
-      /*
+    it("raises the frame rate on cameras that never chose one", () => {      /*
        * A default only applies to a device with nothing stored, and every
        * camera already in a house has `fps` in NVS. Without a migration this
        * change would have shipped as an OTA that improved nothing at all on

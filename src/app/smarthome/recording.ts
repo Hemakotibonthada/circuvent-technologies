@@ -34,7 +34,6 @@
 import {
   AviClip,
   applyPatches,
-  base64ToBytes,
   clipFileName,
   jpegSize,
   AVI_HEADER_BYTES,
@@ -106,7 +105,7 @@ export interface RecordingResult {
 }
 
 export interface Recorder {
-  add: (src: string, at: number) => Promise<void>;
+  add: (jpeg: Uint8Array, at: number) => Promise<void>;
   stop: () => Promise<RecordingResult>;
   target: RecordingTarget;
 }
@@ -201,8 +200,15 @@ export function startRecording(deviceName: string, target: RecordingTarget): Rec
     clips++;
   };
 
-  const add = async (src: string, at: number) => {
-    const jpeg = base64ToBytes(src);
+  /*
+   * Takes the JPEG bytes, not a data URL.
+   *
+   * It used to take the `src` string and base64-decode it here, which meant a
+   * decode per recorded frame of data the caller had already received as bytes.
+   * Live video is the one path where that matters — recording is happening at
+   * the same moment the picture has to stay smooth.
+   */
+  const add = async (jpeg: Uint8Array, at: number) => {
     if (jpeg.length < 4) return;
 
     if (!clip) {

@@ -14,8 +14,8 @@ export interface DeviceUpdate {
 export interface DeviceFrame {
   type: "device:frame";
   deviceId: string;
-  /** Base64 JPEG — wrap in a data URL to render. */
-  jpeg: string;
+  /** Raw JPEG bytes. Wrap in a Blob to render; never re-encode to base64. */
+  data: Uint8Array;
   bytes: number;
   at: string;
 }
@@ -99,14 +99,59 @@ function connect(): void {
     return;
   }
   sock = ws;
+  /*
+   * Frames arrive as bytes, so the socket must hand them over as bytes. Without
+   * this a binary message is delivered as a Blob and every frame costs an async
+   * read before it can even be looked at.
+   */
+  ws.binaryType = "arraybuffer";
 
   ws.onopen = () => {
     attempts = 0;
     setStatus("live");
+    /*
+     * Announce that this client can read binary frames BEFORE re-arming any
+     * watch, so the very first frame already comes back in the fast shape
+     * rather than one base64 frame slipping through per reconnect.
+     */
+    send({ type: "hello", binaryFrames: true });
     rearmWatches();
   };
 
+  /**
+   * Binary frame: [version][idLen][deviceId][JPEG].
+   *
+   * Matches `encodeFrame` in platform/api/src/ws.ts. The version byte leads so
+   * an unrecognised shape can be dropped instead of rendered as garbage.
+   */
+  const readBinaryFrame = (buf: ArrayBuffer): void => {
+    const view = new Uint8Array(buf);
+    if (view.length < 3 || view[0] !== 1) return;
+    const idLen = view[1];
+    if (view.length < 2 + idLen) return;
+    let deviceId = "";
+    for (let i = 0; i < idLen; i++) deviceId += String.fromCharCode(view[2 + i]);
+    const set = frameHandlers.get(deviceId);
+    if (!set || set.size === 0) return;
+    // slice(), not subarray(): a view would pin the socket's whole receive
+    // buffer alive for as long as any consumer held the frame, and the copy of
+    // a dozen kilobytes costs far less than the base64 round trip it replaced.
+    const data = view.slice(2 + idLen);
+    const f: DeviceFrame = {
+      type: "device:frame",
+      deviceId,
+      data,
+      bytes: data.length,
+      at: new Date().toISOString(),
+    };
+    for (const h of set) h(f);
+  };
+
   ws.onmessage = (e: MessageEvent) => {
+    if (e.data instanceof ArrayBuffer) {
+      readBinaryFrame(e.data);
+      return;
+    }
     let m: { type?: string; deviceId?: string } | null = null;
     try {
       m = JSON.parse(String(e.data));
@@ -117,8 +162,31 @@ function connect(): void {
     if (m.type === "device:update") {
       for (const h of updateHandlers) h(m as unknown as DeviceUpdate);
     } else if (m.type === "device:frame" && m.deviceId) {
+      /*
+       * The base64 shape, from a control plane older than the binary framing.
+       * Decoded here so every consumer downstream sees bytes and none of them
+       * has to know which server it happened to connect to.
+       */
       const set = frameHandlers.get(m.deviceId);
-      if (set) for (const h of set) h(m as unknown as DeviceFrame);
+      if (!set || set.size === 0) return;
+      const b64 = (m as unknown as { jpeg?: unknown }).jpeg;
+      if (typeof b64 !== "string") return;
+      let data: Uint8Array;
+      try {
+        const bin = atob(b64);
+        data = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+      } catch {
+        return;
+      }
+      const f: DeviceFrame = {
+        type: "device:frame",
+        deviceId: m.deviceId,
+        data,
+        bytes: data.length,
+        at: (m as unknown as { at?: string }).at || new Date().toISOString(),
+      };
+      for (const h of set) h(f);
     }
   };
 

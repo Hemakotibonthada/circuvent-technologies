@@ -25,6 +25,8 @@ export interface RemoteFrame {
   src: string;
   at: number;
   bytes: number;
+  /** JPEG bytes, so a recording started on this path writes without re-decoding. */
+  data: Uint8Array;
 }
 
 /** Re-arm well inside the server's window so viewing never lapses mid-watch. */
@@ -94,7 +96,21 @@ export function useRemoteCamera(deviceId: string | null, enabled: boolean) {
       lastAt.current = at;
       if (stopped) return;
       setStatus("live");
-      setFrame({ src: `data:image/jpeg;base64,${f.jpegB64}`, at, bytes: f.bytes });
+      /*
+       * This path really does arrive as base64 — it is a JSON API, not the
+       * frame socket — so it is decoded once here. Everything downstream then
+       * sees bytes regardless of which transport delivered the picture, and
+       * recording does not need to know the difference.
+       */
+      let data: Uint8Array;
+      try {
+        const bin = atob(f.jpegB64);
+        data = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+      } catch {
+        return;
+      }
+      setFrame({ src: `data:image/jpeg;base64,${f.jpegB64}`, at, bytes: f.bytes, data });
     };
 
     setStatus("starting");

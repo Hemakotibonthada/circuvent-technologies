@@ -115,7 +115,12 @@ describe("watch handshake", () => {
       });
     });
 
-    bus.emit("device:frame", { deviceId: DEVICE_ID, jpeg: "AAAA", bytes: 3, at: new Date().toISOString() });
+    bus.emit("device:frame", {
+      deviceId: DEVICE_ID,
+      data: Buffer.from([0xff, 0xd8, 0xff]),
+      bytes: 3,
+      at: new Date().toISOString(),
+    });
 
     const frame = await Promise.race([
       got,
@@ -123,6 +128,73 @@ describe("watch handshake", () => {
     ]);
     assert.ok(frame, "the frame was never delivered to the watching client");
     assert.equal(frame.deviceId, DEVICE_ID);
+    ws.close();
+  });
+
+  test("a client that did not ask for binary still gets base64 JSON", async () => {
+    /*
+     * Every app and browser in the field speaks the JSON shape. Defaulting the
+     * other way would have turned all of their video off in one deploy, so the
+     * default is pinned here rather than left to be inferred from the code.
+     */
+    const ws = await connectAndWatch(DEVICE_ID);
+    assert.equal(await watchRegistered(DEVICE_ID), true);
+
+    const got = new Promise<Record<string, unknown>>((resolve) => {
+      ws.on("message", (raw, isBinary) => {
+        if (isBinary) return;
+        const m = JSON.parse(raw.toString()) as Record<string, unknown>;
+        if (m.type === "device:frame") resolve(m);
+      });
+    });
+
+    bus.emit("device:frame", {
+      deviceId: DEVICE_ID,
+      data: Buffer.from([0xff, 0xd8, 0xff]),
+      bytes: 3,
+      at: new Date().toISOString(),
+    });
+
+    const frame = await Promise.race([
+      got,
+      new Promise<null>((r) => setTimeout(() => r(null), 1500)),
+    ]);
+    assert.ok(frame, "a legacy client stopped receiving frames");
+    assert.equal(frame.jpeg, Buffer.from([0xff, 0xd8, 0xff]).toString("base64"));
+    ws.close();
+  });
+
+  test("a client that says hello binaryFrames gets raw bytes", async () => {
+    const ws = await connectAndWatch(DEVICE_ID);
+    ws.send(JSON.stringify({ type: "hello", binaryFrames: true }));
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(await watchRegistered(DEVICE_ID), true);
+
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00]);
+    const got = new Promise<Buffer>((resolve) => {
+      ws.on("message", (raw, isBinary) => {
+        if (isBinary) resolve(raw as Buffer);
+      });
+    });
+
+    bus.emit("device:frame", {
+      deviceId: DEVICE_ID,
+      data: jpeg,
+      bytes: jpeg.length,
+      at: new Date().toISOString(),
+    });
+
+    const buf = await Promise.race([
+      got,
+      new Promise<null>((r) => setTimeout(() => r(null), 1500)),
+    ]);
+    assert.ok(buf, "no binary frame arrived");
+    assert.equal(buf[0], 1, "wire version must lead so an old client can refuse it");
+    const idLen = buf[1];
+    assert.equal(buf.subarray(2, 2 + idLen).toString("ascii"), DEVICE_ID);
+    // The JPEG must survive byte for byte — this is the whole point of not
+    // sending it through base64 and JSON.
+    assert.deepEqual(buf.subarray(2 + idLen), jpeg);
     ws.close();
   });
 

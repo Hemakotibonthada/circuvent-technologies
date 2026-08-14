@@ -50,6 +50,7 @@ import {
 } from "../_kit/primitives";
 import { useFleet } from "../_data/hooks";
 import { useCameraFrames, useNow } from "@/lib/control-plane-live";
+import { useFrameUrl } from "../useFrameUrl";
 import { isCameraDevice } from "../_data/device-type";
 import { controlPlane } from "@/lib/control-plane";
 
@@ -158,10 +159,11 @@ function CameraTile({
   const [frame, setFrame] = useState<{ src: string; at: number } | null>(null);
   const frames = useRef(0);
   const [fps, setFps] = useState(0);
+  const frameUrl = useFrameUrl();
 
   useCameraFrames(live && device.online ? device.id : null, (f) => {
     frames.current += 1;
-    setFrame({ src: `data:image/jpeg;base64,${f.jpeg}`, at: Date.now() });
+    setFrame({ src: frameUrl(f.data), at: Date.now() });
   });
 
   // Measured, not reported. The rate the firmware was asked for is a target,
@@ -388,7 +390,7 @@ function CameraDetail({
         </div>
 
         {/*
-          * max must match FPS_MAX in firmware/camera/camera.ino, which is 30.
+          * max must match FPS_MAX in firmware/camera/camera.ino, which is 60.
           * This said 15, so the one screen dedicated to cameras was the one
           * screen that could not ask for the frame rate the firmware supports —
           * and because the device silently constrains whatever it is sent, the
@@ -399,7 +401,7 @@ function CameraDetail({
           label="Live frame rate"
           value={num(s.fps, 24)}
           min={1}
-          max={30}
+          max={60}
           suffix=" fps"
           disabled={offline}
           onCommit={(v) => onCommand({ action: "stream", fps: v, on: streaming })}
