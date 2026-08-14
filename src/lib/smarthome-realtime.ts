@@ -252,6 +252,15 @@ export interface LiveDeviceApi {
   busy: boolean;
   /** Round-trip time of the most recent confirmed command, in ms. */
   lastRttMs: number | null;
+  /**
+   * Why the most recent command did not happen.
+   *
+   * Also broadcast globally via `onCommandError`, which is what the console
+   * actually shows. Kept here as well so a surface that wants to say something
+   * in place — beside the control rather than at the edge of the screen — can,
+   * without subscribing.
+   */
+  lastError: CommandError | null;
   /** Sends a command with optimistic projection. Resolves when accepted. */
   send: (params: CommandPayload) => Promise<void>;
   /** Updates device metadata (name / room / favourite). */
@@ -276,6 +285,15 @@ export function useLiveDevice(
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [lastRttMs, setLastRttMs] = useState<number | null>(null);
+  /**
+   * The most recent reason a command did not happen.
+   *
+   * `refused` separates "you are not allowed to" from "it went wrong". They
+   * need different words: a fault invites a retry and a refusal does not, and
+   * telling somebody with view-only access that the lock "failed" sends them
+   * to press it again.
+   */
+  const [lastError, setLastError] = useState<CommandError | null>(null);
   // Bumped whenever pins/flashes mutate so the component re-renders. The value
   // is read by the overlay memo below so a pin change actually recomputes it.
   const [forceTick, forceRender] = useState(0);
@@ -476,12 +494,32 @@ export function useLiveDevice(
           }
         }
         inflight.current.delete(commandId);
+        const message = (res.data as { error?: string })?.error || `HTTP ${res.status}`;
         recordLatencySample({
           ...sample,
           rttMs: null,
           outcome: "error",
-          error: (res.data as { error?: string })?.error || `HTTP ${res.status}`,
+          error: message,
         });
+        /*
+         * Surfaced, not just recorded.
+         *
+         * Until households existed every failure here was the broker being
+         * down, and a red flash said enough. A refusal is different: the
+         * control moved, snapped back, and the person is owed the reason.
+         * Somebody with view-only access tapping a lock would otherwise watch
+         * it appear to open and then close, which is the worst reading
+         * available of what actually happened.
+         *
+         * 403 is called out separately because it is not a fault — retrying
+         * will not help, and "that didn't work" invites exactly that.
+         */
+        setLastError({
+          message,
+          refused: res.status === 403,
+          at: Date.now(),
+        });
+        notifyCommandError({ message, refused: res.status === 403, at: Date.now(), deviceId: id });
         await load();
         rerender();
         return;
@@ -534,11 +572,56 @@ export function useLiveDevice(
     fieldStatus,
     busy: pins.current.size > 0,
     lastRttMs,
+    lastError,
     send,
     patch,
     setLocal,
     reload: load,
   };
+}
+
+/** Why a command did not happen, in words meant for the person who sent it. */
+export interface CommandError {
+  message: string;
+  /**
+   * True when the server refused rather than failed.
+   *
+   * The distinction is the whole point of carrying this: a refusal will not
+   * succeed on a second press, so offering "try again" is worse than useless.
+   */
+  refused: boolean;
+  at: number;
+  deviceId?: string;
+}
+
+/**
+ * Command failures, broadcast once and shown once.
+ *
+ * There are a dozen surfaces that send commands — the device page, the grid,
+ * rooms, groups, the floorplan — and threading a message out of each into its
+ * own banner is a dozen chances to forget one. The forgotten one is then a
+ * control that silently snaps back, which is the exact defect this was built
+ * to remove.
+ *
+ * So it is a broadcast with a single listener in the console chrome. Adding a
+ * new surface gets this for free.
+ */
+type CommandErrorListener = (e: CommandError) => void;
+const commandErrorListeners = new Set<CommandErrorListener>();
+
+export function onCommandError(fn: CommandErrorListener): () => void {
+  commandErrorListeners.add(fn);
+  return () => commandErrorListeners.delete(fn);
+}
+
+export function notifyCommandError(e: CommandError): void {
+  for (const fn of commandErrorListeners) {
+    try {
+      fn(e);
+    } catch {
+      /* one broken listener must not swallow the message for the rest */
+    }
+  }
 }
 
 /** Short haptic tick on supported devices; silently ignored elsewhere. */
@@ -567,6 +650,14 @@ export interface OptimisticCommands {
   statusOf: (deviceId: string) => FieldStatus;
   /** Fire a command with instant optimistic paint and latency capture. */
   send: (device: Device, params: CommandPayload) => Promise<void>;
+  /**
+   * Why the last command did not happen, and which device it was for.
+   *
+   * Carried out of the hook rather than logged, because the optimistic paint
+   * makes silence actively misleading: the control moves, snaps back, and
+   * without this the person is left to guess whether it worked.
+   */
+  lastError: (CommandError & { deviceId: string }) | null;
 }
 
 /**
@@ -578,6 +669,8 @@ export interface OptimisticCommands {
 export function useOptimisticCommands(devices: Device[]): OptimisticCommands {
   const [pins, setPins] = useState<Record<string, OverlayPin>>({});
   const [flashes, setFlashes] = useState<Record<string, { status: FieldStatus; at: number }>>({});
+  /** The most recent reason a command did not happen. See CommandError. */
+  const [lastError, setLastError] = useState<(CommandError & { deviceId: string }) | null>(null);
 
   // Reconcile: drop a pin as soon as the device reports the projected values,
   // or once it has outlived the command timeout.
@@ -672,6 +765,7 @@ export function useOptimisticCommands(devices: Device[]): OptimisticCommands {
         return next;
       });
       setFlashes((prev) => ({ ...prev, [device.id]: { status: "failed", at: Date.now() } }));
+      const message = (res.data as { error?: string })?.error || `HTTP ${res.status}`;
       recordLatencySample({
         id: `${device.id}-${sentAt}`,
         deviceId: device.id,
@@ -681,8 +775,13 @@ export function useOptimisticCommands(devices: Device[]): OptimisticCommands {
         apiMs,
         rttMs: null,
         outcome: "error",
-        error: `HTTP ${res.status}`,
+        // The server's sentence, not just the number. "HTTP 403" told nobody
+        // that a guest cannot open a door, and threw away a message written
+        // for exactly that moment.
+        error: message,
       });
+      setLastError({ message, refused: res.status === 403, at: Date.now(), deviceId: device.id });
+      notifyCommandError({ message, refused: res.status === 403, at: Date.now(), deviceId: device.id });
       return;
     }
 
@@ -704,5 +803,5 @@ export function useOptimisticCommands(devices: Device[]): OptimisticCommands {
     }
   }, []);
 
-  return { apply, statusOf, send };
+  return { apply, statusOf, send, lastError };
 }

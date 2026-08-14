@@ -45,6 +45,7 @@ import { useConsoleTheme } from "./theme";
 import ProfileAvatar from "./ProfileAvatar";
 import Login from "./Login";
 import VisitingBanner from "./VisitingBanner";
+import CommandRefusalHost from "./CommandRefusalHost";
 import { CommandPalette, ToastHost, useCommandPaletteHotkey, useEscape, useFocusTrap, useScrollLock, type Command as PaletteCommand } from "./_kit/overlays";
 import { StatusDot } from "./_kit/primitives";
 import { useFleet, useScenes } from "./_data/hooks";
@@ -519,6 +520,8 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
 
         <VisitingBanner />
         <main className="mx-auto max-w-7xl px-4 pb-28 pt-7 md:px-8 md:pb-12">{children}</main>
+        {/* One listener for every surface that sends a command. */}
+        <CommandRefusalHost />
       </div>
 
       {/* --------------------------------------------- mobile bottom bar -- */}
