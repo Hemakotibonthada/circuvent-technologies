@@ -60,6 +60,8 @@ export default function Household({ onBack }: { onBack: () => void }) {
    * of the home that they are a guest in it.
    */
   const [unsupported, setUnsupported] = useState(false);
+  /** Non-empty when the household could not be read at all. See load(). */
+  const [loadError, setLoadError] = useState("");
 
   const [inviteRole, setInviteRole] = useState<"adult" | "limited" | "guest">("limited");
   const [joinCode, setJoinCode] = useState("");
@@ -78,13 +80,32 @@ export default function Household({ onBack }: { onBack: () => void }) {
       return;
     }
 
-    if (h.ok) setHomes(h.data.homes ?? []);
-    if (m.ok) {
-      setMembers(m.data.members ?? []);
-      setOwner(m.data.owner ?? null);
-      setYou(m.data.you ?? null);
+    /*
+     * A failed request must not render as an empty household.
+     *
+     * Without this the screen said "Nobody else yet" whenever the hub was
+     * unreachable — telling somebody their family had been removed from their
+     * home, which is a genuinely alarming thing to read and completely untrue.
+     */
+    if (!h.ok || !m.ok) {
+      setLoadError(
+        (m.data as { error?: string })?.error ||
+          (h.status === 0 || m.status === 0
+            ? "Could not reach your home."
+            : "Could not load your household.")
+      );
+      setLoading(false);
+      return;
     }
-    if (r.ok) setRoleInfo(r.data.roles ?? []);
+
+    setLoadError("");
+    setHomes(h.data.homes ?? []);
+    setMembers(m.data.members ?? []);
+    setOwner(m.data.owner ?? null);
+    setYou(m.data.you ?? null);
+    /* Roles are labels for the invite form. Losing them degrades the wording,
+       not the screen, so a failure here is not worth blocking on. */
+    setRoleInfo(r.ok ? (r.data.roles ?? []) : []);
 
     /* Owner-only, and answers 403 otherwise. Asked for regardless and ignored
        on refusal rather than branching before we know who we are. */
@@ -229,6 +250,19 @@ export default function Household({ onBack }: { onBack: () => void }) {
               Nothing else in the app is affected, and no settings need changing — the tables are
               created automatically when the hub starts.
             </Text>
+          </Card>
+        ) : loadError ? (
+          <Card>
+            {/* Said plainly rather than shown as an empty household, which
+                would read as "your family has been removed from your home". */}
+            <Banner kind="error" text={loadError} />
+            <PrimaryButton
+              label="Try again"
+              onPress={() => {
+                setLoading(true);
+                void load();
+              }}
+            />
           </Card>
         ) : (
           <>
@@ -390,7 +424,14 @@ export default function Household({ onBack }: { onBack: () => void }) {
                               label="Withdraw"
                               onPress={async () => {
                                 const r = await api.revokeHomeInvite(i.code);
-                                if (r.ok) void load();
+                                if (!r.ok) {
+                                  Alert.alert(
+                                    "Could not withdraw it",
+                                    (r.data as any)?.error ?? "Try again in a moment."
+                                  );
+                                  return;
+                                }
+                                void load();
                               }}
                             />
                           }

@@ -64,9 +64,28 @@ export default function Vehicles({ onBack }: { onBack: () => void }) {
 
   const load = useCallback(async () => {
     const [o, v] = await Promise.all([api.occupancy(), api.vehicles(30)]);
-    if (o.ok) setOcc(o.data);
-    if (v.ok) setVehicles(v.data.vehicles ?? []);
-    if (!o.ok && !v.ok) show("Could not reach the control plane", "error");
+    /*
+     * Reported per request, not only when both fail.
+     *
+     * The list failing on its own is the case that matters: occupancy still
+     * renders, so the screen looks healthy and simply shows no vehicles —
+     * which reads as an empty car park rather than as a list that did not
+     * load. "Neither worked" was the only case anybody said anything about.
+     */
+    if (!o.ok) setOcc(null);
+    else setOcc(o.data);
+    if (!v.ok) setVehicles(null);
+    else setVehicles(v.data.vehicles ?? []);
+    if (!o.ok || !v.ok) {
+      show(
+        !o.ok && !v.ok
+          ? "Could not reach the control plane"
+          : !v.ok
+            ? "Could not load the vehicle list"
+            : "Could not load occupancy",
+        "error"
+      );
+    }
   }, [show]);
 
   /*
@@ -79,9 +98,20 @@ export default function Vehicles({ onBack }: { onBack: () => void }) {
     void (async () => {
       const [o, v] = await Promise.all([api.occupancy(), api.vehicles(30)]);
       if (!alive) return;
-      if (o.ok) setOcc(o.data);
-      if (v.ok) setVehicles(v.data.vehicles ?? []);
-      if (!o.ok && !v.ok) show("Could not reach the control plane", "error");
+      if (!o.ok) setOcc(null);
+      else setOcc(o.data);
+      if (!v.ok) setVehicles(null);
+      else setVehicles(v.data.vehicles ?? []);
+      if (!o.ok || !v.ok) {
+        show(
+          !o.ok && !v.ok
+            ? "Could not reach the control plane"
+            : !v.ok
+              ? "Could not load the vehicle list"
+              : "Could not load occupancy",
+          "error"
+        );
+      }
     })();
     return () => { alive = false; };
   }, [show]);

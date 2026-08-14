@@ -5,6 +5,7 @@ import { useLive, refreshLiveSubscription } from "./live";
 import { loadChannelPrefs, onChannelPrefsChange, channelLabel } from "./channel-prefs";
 import { DEVICE_META } from "./theme";
 import { withState } from "./device-shape";
+import { notifyCommandFailed } from "./command-failure";
 
 interface DevicesCtx {
   devices: Device[];
@@ -93,11 +94,41 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
   });
 
   const toggle = useCallback((id: string, field: string, value: boolean) => {
-    setDevices((prev) => prev.map((d) => (d.id === id ? { ...d, state: { ...d.state, [field]: value } } : d)));
-    api.command(id, { action: "set", [field]: value });
+    /*
+     * Remembered before the optimistic paint so a refusal can be undone.
+     *
+     * Without this the app fired and forgot: the switch moved, the server
+     * refused or the broker was down, and the switch stayed where the finger
+     * left it until something else happened to correct it. On a lock that is
+     * not a cosmetic bug — the app showed a door as unlocked while it was
+     * bolted, or the reverse, which is exactly the thing a person checks the
+     * app to find out.
+     */
+    const previous: { value: unknown } = { value: undefined };
+    setDevices((prev) =>
+      prev.map((d) => {
+        if (d.id !== id) return d;
+        previous.value = d.state?.[field];
+        return { ...d, state: { ...d.state, [field]: value } };
+      })
+    );
+    void (async () => {
+      const res = await api.command(id, { action: "set", [field]: value });
+      if (!res.ok) {
+        setDevices((prev) =>
+          prev.map((d) => (d.id === id ? { ...d, state: { ...d.state, [field]: previous.value } } : d))
+        );
+        notifyCommandFailed(res, id);
+      }
+    })();
   }, []);
 
   const command = useCallback((id: string, cmd: Record<string, unknown>) => {
+    /* Declared as a one-element box rather than a plain `let`, because it is
+       written in one closure and read in another — control-flow narrowing does
+       not survive that, and the alternative is a cast that hides a real
+       mistake later. */
+    const rollback: { fields: Record<string, unknown> | null } = { fields: null };
     setDevices((prev) =>
       prev.map((d) => {
         if (d.id !== id) return d;
@@ -107,10 +138,25 @@ export function DevicesProvider({ children }: { children: React.ReactNode }) {
         // stayed wrong until the device echoed. See command-map.ts.
         const patch = projectCommand(d.type, cmd, d.state);
         if (!Object.keys(patch).length) return d;
+        /* Only the fields this command actually painted are restored — a
+           blanket snapshot would also undo a live update that landed while
+           the request was in flight. */
+        rollback.fields = Object.fromEntries(Object.keys(patch).map((k) => [k, d.state?.[k]]));
         return { ...d, state: { ...d.state, ...patch } };
       })
     );
-    api.command(id, cmd);
+    void (async () => {
+      const res = await api.command(id, cmd);
+      if (!res.ok) {
+        const undo = rollback.fields;
+        if (undo) {
+          setDevices((prev) =>
+            prev.map((d) => (d.id === id ? { ...d, state: { ...d.state, ...undo } } : d))
+          );
+        }
+        notifyCommandFailed(res, id);
+      }
+    })();
   }, []);
 
   const patch = useCallback((id: string, body: { name?: string; room?: string; favorite?: boolean }) => {

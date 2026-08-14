@@ -7,6 +7,7 @@ import { ThemeProvider, useTheme } from "./src/ui";
 import { FirstRunPermissions, firstRunNeeded } from "./src/FirstRunPermissions";
 import { BiometricGate } from "./src/BiometricGate";
 import { DevicesProvider } from "./src/store";
+import CommandFailureBanner from "./src/CommandFailureBanner";
 import { SiriSync } from "./src/siri-sync";
 import { initHaptics } from "./src/haptics";
 import Login from "./src/screens/Login";
@@ -65,6 +66,13 @@ function Root() {
           <ErrorBoundary label="shell" key={account.email}>
             <Shell />
           </ErrorBoundary>
+          {/*
+            Outside the boundary on purpose. A command that fails while the
+            shell is in a caught-error state is exactly when somebody most
+            needs to be told why, and putting this inside would take the
+            message down with the screen.
+          */}
+          <CommandFailureBanner />
         </DevicesProvider>
       ) : (
         <Login />

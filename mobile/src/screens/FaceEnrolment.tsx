@@ -25,7 +25,9 @@ import {
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { api, type FaceProfile, type FaceAttempt } from "../api";
-import { C } from "../theme";
+import { C, type Palette } from "../theme";
+import { usePrompt } from "../overlays";
+import { useTheme } from "../ui";
 
 interface Props {
   deviceId: string;
@@ -44,6 +46,7 @@ export default function FaceEnrolment({ deviceId, deviceName, onClose }: Props) 
   const [capturingFor, setCapturingFor] = useState<FaceProfile | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView | null>(null);
+  const { prompt, promptNode } = usePrompt();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,26 +76,33 @@ export default function FaceEnrolment({ deviceId, deviceName, onClose }: Props) 
     // Kept deliberately small: a name is the only thing needed to start, and
     // asking for a role and a schedule before a single face exists is how an
     // enrolment gets abandoned half-finished.
-    Alert.prompt?.(
-      "Who is this?",
-      "Their name appears in the door's history.",
-      async (name?: string) => {
-        if (!name?.trim()) return;
-        setBusy(true);
-        try {
-          const r = await api.createFaceProfile({ deviceId, name: name.trim() });
-          if (!r.ok) {
-            throw new Error((r.data as { error?: string })?.error || "Could not add that person.");
-          }
-          await load();
-          setCapturingFor({ ...r.data.profile, samples: 0 } as FaceProfile);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "Could not add that person.");
-        }
-        setBusy(false);
+    //
+    // usePrompt rather than Alert.prompt: the latter exists only on iOS, and
+    // is `undefined` on Android — so the optional call did nothing at all and
+    // the button to add a person was dead on every Android phone.
+    const name = await prompt({
+      title: "Who is this?",
+      message: "Their name appears in the door's history.",
+      placeholder: "Name",
+      confirmLabel: "Add",
+      maxLength: 60,
+      validate: (v) => (v.trim() ? null : "Enter a name."),
+    });
+    if (!name?.trim()) return;
+
+    setBusy(true);
+    try {
+      const r = await api.createFaceProfile({ deviceId, name: name.trim() });
+      if (!r.ok) {
+        throw new Error((r.data as { error?: string })?.error || "Could not add that person.");
       }
-    );
-  }, [deviceId, load]);
+      await load();
+      setCapturingFor({ ...r.data.profile, samples: 0 } as FaceProfile);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not add that person.");
+    }
+    setBusy(false);
+  }, [deviceId, load, prompt]);
 
   const capture = useCallback(async () => {
     if (!camera.current || !capturingFor) return;
@@ -171,7 +181,8 @@ export default function FaceEnrolment({ deviceId, deviceName, onClose }: Props) 
     [load]
   );
 
-  const s = styles();
+  const { c } = useTheme();
+  const s = React.useMemo(() => styles(c), [c]);
 
   if (capturingFor) {
     if (!permission?.granted) {
@@ -223,7 +234,7 @@ export default function FaceEnrolment({ deviceId, deviceName, onClose }: Props) 
       </Text>
 
       {!!error && <Text style={s.error}>{error}</Text>}
-      {loading && <ActivityIndicator style={{ marginVertical: 24 }} color={C.cyan} />}
+      {loading && <ActivityIndicator style={{ marginVertical: 24 }} color={c.accent} />}
 
       {!loading && profiles.length === 0 && (
         <Text style={s.empty}>Nobody is enrolled yet. This door will not open on a face.</Text>
@@ -233,7 +244,7 @@ export default function FaceEnrolment({ deviceId, deviceName, onClose }: Props) 
         <View key={p.id} style={s.card}>
           <View style={s.cardHead}>
             <Text style={s.name}>{p.name}</Text>
-            <Text style={[s.badge, { color: p.enabled ? "#34d399" : C.textDim }]}>
+            <Text style={[s.badge, { color: p.enabled ? c.green : c.textDim }]}>
               {p.enabled ? p.role : "suspended"}
             </Text>
           </View>
@@ -279,7 +290,7 @@ export default function FaceEnrolment({ deviceId, deviceName, onClose }: Props) 
               successful unlocks would be missing exactly that. */}
           {attempts.slice(0, 12).map((a) => (
             <View key={a.id} style={s.attempt}>
-              <Text style={[s.attemptDot, { color: a.granted ? "#34d399" : "#f87171" }]}>●</Text>
+              <Text style={[s.attemptDot, { color: a.granted ? c.green : c.red }]}>●</Text>
               <Text style={s.attemptText}>
                 {a.granted ? `${a.name} let in` : a.reason}
               </Text>
@@ -294,41 +305,53 @@ export default function FaceEnrolment({ deviceId, deviceName, onClose }: Props) 
           <Text style={s.link}>Close</Text>
         </Pressable>
       )}
+
+      {/* The sheet itself. A usePrompt whose node is never rendered is the same
+          dead button as the iOS-only Alert.prompt this replaced. */}
+      {promptNode}
     </ScrollView>
   );
 }
 
-const styles = () =>
+const styles = (c: Palette) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: C.bg },
+    screen: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, gap: 10, paddingBottom: 48 },
-    center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24, backgroundColor: C.bg },
-    title: { color: C.text, fontSize: 20, fontWeight: "800" },
-    sub: { color: C.textDim, fontSize: 13, lineHeight: 19 },
-    section: { color: C.text, fontSize: 15, fontWeight: "700", marginTop: 18 },
-    empty: { color: C.textDim, fontSize: 13, paddingVertical: 18, textAlign: "center" },
-    error: { color: "#f87171", fontSize: 13 },
-    card: { backgroundColor: C.surface, borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: C.border },
+    center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24, backgroundColor: c.bg },
+    title: { color: c.text, fontSize: 20, fontWeight: "800" },
+    sub: { color: c.textDim, fontSize: 13, lineHeight: 19 },
+    section: { color: c.text, fontSize: 15, fontWeight: "700", marginTop: 18 },
+    empty: { color: c.textDim, fontSize: 13, paddingVertical: 18, textAlign: "center" },
+    error: { color: c.red, fontSize: 13 },
+    card: { backgroundColor: c.surface, borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: c.border },
     cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    name: { color: C.text, fontSize: 16, fontWeight: "700" },
+    name: { color: c.text, fontSize: 16, fontWeight: "700" },
     badge: { fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
-    meta: { color: C.textDim, fontSize: 12 },
+    meta: { color: c.textDim, fontSize: 12 },
     row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-    primary: { minHeight: 48, borderRadius: 12, backgroundColor: C.cyan, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
-    primaryText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-    secondary: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
-    secondaryText: { color: C.text, fontWeight: "600", fontSize: 13 },
-    danger: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: "#7f1d1d", alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
-    dangerText: { color: "#fca5a5", fontWeight: "600", fontSize: 13 },
-    link: { color: C.cyan, fontSize: 14, textAlign: "center", paddingVertical: 14 },
+    primary: { minHeight: 48, borderRadius: 12, backgroundColor: c.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
+    primaryText: { color: c.onAccent, fontWeight: "700", fontSize: 15 },
+    secondary: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
+    secondaryText: { color: c.text, fontWeight: "600", fontSize: 13 },
+    danger: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: c.red, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
+    dangerText: { color: c.red, fontWeight: "600", fontSize: 13 },
+    link: { color: c.accent, fontSize: 14, textAlign: "center", paddingVertical: 14 },
+    /*
+     * theme-literal-ok: everything from here to `privacy` sits on top of a live
+     * camera preview, not on a themed surface. A light theme would paint pale
+     * text onto a video frame and make the capture instructions unreadable in
+     * exactly the moment somebody is trying to follow them.
+     */
     cameraWrap: { flex: 1, backgroundColor: "#000" },
     camera: { flex: 1 },
     cameraOverlay: { padding: 16, gap: 10, backgroundColor: "rgba(0,0,0,0.85)" },
     cameraTitle: { color: "#fff", fontSize: 17, fontWeight: "800" },
+    // theme-literal-ok: reads against the camera feed, never a themed surface.
     cameraHint: { color: "#cbd5e1", fontSize: 13, lineHeight: 19 },
+    // theme-literal-ok: as above — this sits over video.
     privacy: { color: "#94a3b8", fontSize: 11, lineHeight: 16 },
     attempt: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
     attemptDot: { fontSize: 10 },
-    attemptText: { color: C.text, fontSize: 13, flex: 1 },
-    attemptAt: { color: C.textDim, fontSize: 11 },
+    attemptText: { color: c.text, fontSize: 13, flex: 1 },
+    attemptAt: { color: c.textDim, fontSize: 11 },
   });
