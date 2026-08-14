@@ -5,6 +5,7 @@ import { verifyPassword } from "../auth";
 import { config } from "../config";
 import { checkSession, currentEpoch } from "../sessions";
 import { recordLink } from "../smarthome/links";
+import { sendStatusPage, postOnlyPage } from "../status-page";
 
 export const oauthRouter = Router();
 
@@ -173,19 +174,32 @@ oauthRouter.get("/authorize", (req, res) => {
    * not given the parameters an assistant always sends.
    */
   if (!q.client_id && !q.redirect_uri) {
-    res
-      .status(400)
-      .set("Content-Type", "text/html")
-      .send(
-        `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">` +
-          `<style>body{font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e5e7eb;max-width:560px;margin:0 auto;padding:40px 20px;line-height:1.6}` +
-          `code{background:#111827;padding:2px 6px;border-radius:6px}</style>` +
-          `<h2>Circuvent account linking</h2>` +
-          `<p>This endpoint is working. It is where Google Home and Alexa send you to sign in when you link your Circuvent account.</p>` +
-          `<p>It needs the parameters an assistant supplies — <code>client_id</code>, <code>redirect_uri</code>, ` +
-          `<code>response_type</code> and <code>state</code> — so opening it directly shows this page instead of a sign-in form.</p>` +
-          `<p>To link your devices, search for <strong>Circuvent</strong> in the Google Home or Alexa app.</p>`
-      );
+    sendStatusPage(req, res, {
+      status: 400,
+      title: "Account linking",
+      summary: "This is where Google Home and Alexa send you to sign in when you link your Circuvent account.",
+      body: [
+        `An assistant supplies details this page needs, so opening it directly shows this rather than a sign-in form. Nothing is wrong.`,
+        `To control your devices by voice, search for <strong>Circuvent</strong> in the Google Home or Alexa app and choose <strong>Link account</strong>.`,
+      ],
+      facts: [
+        ["Grant type", "authorization_code"],
+        /* Listed as rows rather than inline: set in a sentence, each chip's
+           padding pushed the comma after it away and the line read as broken
+           punctuation. A table is also what somebody comparing this against a
+           console form actually wants. */
+        ["Expects", "client_id, redirect_uri"],
+        ["", "response_type, state"],
+      ],
+      action: { label: "Open Circuvent", href: "https://circuvent.com/smarthome" },
+      json: {
+        error: "invalid_request",
+        message:
+          "This is the account-linking authorization endpoint. Open it from the Google Home or " +
+          "Alexa app — seeing this directly means it is deployed and working.",
+        health: "https://api.circuvent.com/health",
+      },
+    });
     return;
   }
   if (q.client_id !== config.SMARTHOME_CLIENT_ID) {
@@ -232,23 +246,21 @@ oauthRouter.post("/authorize", async (req, res) => {
   res.redirect(302, url);
 });
 
-// GET /oauth/token — the token endpoint is POST-only; say so rather than 404.
-oauthRouter.get("/token", (_req, res) => {
+// GET /oauth/token — the token endpoint is POST-only; say so with a page.
+oauthRouter.get("/token", (req, res) => {
   /* Same reasoning as the fulfilment endpoints: a browser landing here got
      "Not found", which reads as a broken deployment when the endpoint is
      healthy and simply expects a POST from the assistant's servers. */
-  res
-    .status(405)
-    .set("Allow", "POST")
-    .json({
-      error: "method_not_allowed",
-      endpoint: "OAuth token endpoint",
-      expects: "POST",
-      message:
-        "This is the account-linking token endpoint. It answers POST from Google's or Amazon's servers " +
-        "and nothing else — seeing this in a browser means it is deployed and working.",
-      health: "https://api.circuvent.com/health",
-    });
+  res.set("Allow", "POST");
+  sendStatusPage(
+    req,
+    res,
+    postOnlyPage({
+      title: "Account linking — token endpoint",
+      caller: "Google's or Amazon's servers",
+      purpose: "This is where an assistant exchanges a sign-in for permission to control your devices.",
+    })
+  );
 });
 
 // POST /oauth/token — exchange code (or refresh) for access + refresh tokens.

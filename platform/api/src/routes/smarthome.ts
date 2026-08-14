@@ -33,6 +33,7 @@ import {
 import { recordLink, unlink } from "../smarthome/links";
 import { acceptGrant, alexaEventsConfigured } from "../smarthome/alexa-events";
 import { googlePushConfigured } from "../smarthome/homegraph";
+import { sendStatusPage, postOnlyPage } from "../status-page";
 
 export const smarthomeRouter = Router();
 
@@ -47,26 +48,34 @@ export const smarthomeRouter = Router();
  * It is not hypothetical. Anybody diagnosing a linking problem pastes the
  * fulfilment URL into a browser first, and so does a certification reviewer —
  * so the natural first check said the integration was missing while it was
- * working perfectly. 405 with `Allow` is the honest answer, and the message
- * says plainly that seeing it means things are fine.
+ * working perfectly.
+ *
+ * A browser now gets a designed page and a machine still gets JSON, because
+ * the same URL has two audiences and only one of them can read a stylesheet.
  */
-function postOnly(what: string, expects: string) {
-  return (_req: Request, res: Response) => {
-    res
-      .status(405)
-      .set("Allow", "POST")
-      .json({
-        error: "method_not_allowed",
-        endpoint: what,
-        expects,
-        message: `This is the ${what}. It answers POST from ${expects} and nothing else — seeing this in a browser means it is deployed and working.`,
-        health: "https://api.circuvent.com/health",
-      });
+function postOnly(title: string, caller: string, purpose: string) {
+  return (req: Request, res: Response) => {
+    res.set("Allow", "POST");
+    sendStatusPage(req, res, postOnlyPage({ title, caller, purpose }));
   };
 }
 
-smarthomeRouter.get("/google", postOnly("Google Home fulfilment endpoint", "Google's servers"));
-smarthomeRouter.get("/alexa", postOnly("Alexa Smart Home fulfilment endpoint", "the Alexa skill's Lambda"));
+smarthomeRouter.get(
+  "/google",
+  postOnly(
+    "Google Home fulfilment",
+    "Google's servers",
+    "This is where Google Home sends the commands you speak.",
+  )
+);
+smarthomeRouter.get(
+  "/alexa",
+  postOnly(
+    "Alexa Smart Home fulfilment",
+    "the Alexa skill's Lambda",
+    "This is where Alexa sends the commands you speak.",
+  )
+);
 
 /* Re-exported for the existing typing test, which asserts a pump is never a
    plain switch. The definitions moved to traits.ts so the fulfilment and the

@@ -46,6 +46,9 @@ after(async () => {
 
 const POST_ONLY = ["/smarthome/google", "/smarthome/alexa", "/oauth/token"];
 
+/** What a browser sends. Express reads this to choose HTML over JSON. */
+const BROWSER = { accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" };
+
 describe("a browser landing on a POST-only endpoint", () => {
   for (const path of POST_ONLY) {
     test(`${path} answers 405, not 404`, async () => {
@@ -62,15 +65,45 @@ describe("a browser landing on a POST-only endpoint", () => {
       assert.equal(res.headers.get("allow"), "POST");
     });
 
-    test(`${path} tells a person it is working`, async () => {
+    test(`${path} serves a real page to a browser`, async () => {
       /*
-       * The message is the point. A machine-readable 405 still leaves somebody
-       * staring at a browser wondering whether their deployment is broken.
+       * A JSON blob in a browser window is not a page. Somebody checking a
+       * deployment, or a reviewer following a URL out of a console, is a
+       * person — and a wall of quoted keys reads as unfinished whatever it
+       * says.
        */
-      const res = await fetch(base + path);
-      const body = (await res.json()) as { message?: string };
-      assert.match(String(body.message), /working/i, "should say plainly that the endpoint is healthy");
-      assert.match(String(body.message), /browser/i, "should explain why they are seeing it");
+      const res = await fetch(base + path, { headers: BROWSER });
+      assert.match(res.headers.get("content-type") ?? "", /text\/html/);
+      const html = await res.text();
+      assert.match(html, /<!doctype html>/i);
+      assert.match(html, /Circuvent/);
+      assert.match(html, /This endpoint is working/i, "must say plainly that nothing is broken");
+      assert.match(html, /Google Home or Alexa app/i, "must say what to do instead");
+    });
+
+    test(`${path} still serves JSON to everything else`, async () => {
+      /*
+       * The other audience. Monitors, curl in a runbook and deployment checks
+       * send `*​/*` or nothing, and serving them markup would break every
+       * script that reads these endpoints. Getting the Accept ordering
+       * backwards is the easy mistake, so it is pinned here.
+       */
+      const machineAccepts: Array<Record<string, string>> = [
+        {},
+        { accept: "*/*" },
+        { accept: "application/json" },
+      ];
+      for (const headers of machineAccepts) {
+        const res = await fetch(base + path, { headers });
+        assert.match(
+          res.headers.get("content-type") ?? "",
+          /application\/json/,
+          `Accept: ${JSON.stringify(headers)} should get JSON`
+        );
+        const body = (await res.json()) as { message?: string; error?: string };
+        assert.equal(body.error, "method_not_allowed");
+        assert.match(String(body.message), /working/i);
+      }
     });
   }
 });
@@ -79,11 +112,35 @@ describe("the account-linking page", () => {
   test("visited bare, it explains rather than saying Invalid client_id", async () => {
     // True and unhelpful: it reads as a misconfiguration when the endpoint is
     // healthy and simply was not given the parameters an assistant sends.
-    const res = await fetch(base + "/oauth/authorize");
+    const res = await fetch(base + "/oauth/authorize", { headers: BROWSER });
     const text = await res.text();
-    assert.match(text, /working/i);
-    assert.match(text, /Google Home|Alexa/);
+    assert.match(res.headers.get("content-type") ?? "", /text\/html/);
+    assert.match(text, /This endpoint is working/i);
+    assert.match(text, /Google Home or Alexa app/i);
     assert.doesNotMatch(text, /^Invalid client_id$/);
+  });
+
+  test("the sign-in form and the status page look like one product", async () => {
+    /*
+     * Somebody linking an account sees the status page and then the sign-in
+     * form. Two visual identities on adjacent screens reads as two services
+     * glued together, which is exactly the impression a reviewer forms.
+     */
+    const status = await fetch(base + "/oauth/authorize", { headers: BROWSER }).then((r) => r.text());
+    const form = await fetch(
+      base +
+        "/oauth/authorize?client_id=circuvent-smarthome&redirect_uri=" +
+        encodeURIComponent("https://oauth-redirect.googleusercontent.com/r/cv") +
+        "&response_type=code&state=s",
+      { headers: BROWSER }
+    ).then((r) => r.text());
+
+    for (const html of [status, form]) {
+      assert.match(html, /Circuvent/);
+      assert.match(html, /#06b6d4|#8b5cf6/, "both should carry the brand gradient");
+      assert.match(html, /viewport/, "both must be usable on a phone");
+    }
+    assert.match(form, /Sign in/i, "the real form is still a form");
   });
 
   test("a wrong client_id is still refused plainly", async () => {
