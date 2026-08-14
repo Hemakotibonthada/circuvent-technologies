@@ -152,7 +152,31 @@ describe("camera frame rate", () => {
        * needed to be max(capture, publish). This single line was worth roughly
        * a factor of two and no network tuning could have found it.
        */
-      expect(firmware).toMatch(/c\.fb_count\s*=\s*2\s*;/);
+      expect(firmware).toMatch(/c\.fb_count\s*=\s*canDoubleBuffer \? 2 : 1;/);
+    });
+
+    it("only takes the second buffer where it can be allocated", () => {
+      /*
+       * Taking it unconditionally was a landmine, not a bug. Two buffers at
+       * UXGA cannot be allocated, and the failure is silent: init succeeds, the
+       * sensor answers, sensorPid reads back, and no frame ever arrives — so
+       * the camera disables itself. Nothing goes wrong when the resolution is
+       * changed, so it detonates on the next reboot, which may be weeks later
+       * and looks exactly like failed hardware.
+       */
+      expect(firmware).toMatch(/canDoubleBuffer\s*=\s*bootSize <= FRAMESIZE_SVGA/);
+    });
+
+    it("lowers the picture before giving up the camera", () => {
+      /*
+       * A capture can fail because the ribbon is unseated — nothing helps — or
+       * because the configured size cannot be allocated, which the device can
+       * fix itself. The two look identical from the firmware, so the cheap
+       * remedy is tried first. A camera must not disable itself over a setting
+       * in a house nobody can visit.
+       */
+      expect(firmware).toMatch(/resolutionFault/);
+      expect(firmware).toMatch(/retrying at/);
     });
 
     it("takes the newest frame rather than the oldest", () => {
@@ -162,7 +186,7 @@ describe("camera frame rate", () => {
        * load. For video a late frame is worthless — the same reasoning that
        * already makes frames QoS 0 and never retained.
        */
-      expect(firmware).toMatch(/c\.grab_mode\s*=\s*CAMERA_GRAB_LATEST\s*;/);
+      expect(firmware).toMatch(/c\.grab_mode\s*=\s*canDoubleBuffer \? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY;/);
     });
 
     it("runs the sensor clock at the driver's standard 20 MHz", () => {

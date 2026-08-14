@@ -111,8 +111,31 @@
  * asked for, handing both back when the link recovers. It also publishes what
  * it settled on, because a picture that has quietly traded sharpness for
  * smoothness must not look identical to one that is broken.
+ *
+ *   1.14.1 Stop the second frame buffer taking the camera with it.
+ *
+ * 1.13.0 set fb_count = 2 unconditionally, and that was a landmine rather than
+ * a bug. Two buffers at VGA or SVGA are comfortable; two at UXGA cannot be
+ * allocated, and the failure is silent in the worst way — esp_camera_init()
+ * succeeds, the sensor answers on SCCB, sensorPid reads back, and then no frame
+ * ever arrives. captureWorksWithin() correctly declares the camera dead.
+ *
+ * Nothing goes wrong when the resolution is *changed*, so it detonates on the
+ * next reboot with a large picture stored, which may be weeks later and looks
+ * exactly like failed hardware. Here it was an OTA that finally rebooted it,
+ * and it took the camera out on a firmware that was otherwise fine — the
+ * rollback to 1.13.0 stayed broken, which is what proved where it came from.
+ *
+ * Two fixes, because one of them is the bug and the other is the class:
+ *   - fb_count is 2 only where the configured picture can afford it. Above
+ *     SVGA the pipelining is given up rather than the camera, and that costs
+ *     almost nothing, since live video is capped at STREAM_RES_MAX anyway and
+ *     the only thing running larger is a still with nothing to overlap.
+ *   - A failed first capture now walks the resolution down before giving up. A
+ *     camera must not disable itself over a *setting*, in a house nobody can
+ *     visit, when it could have lowered the number by itself.
  */
-#define CV_FW_VERSION "1.14.0"
+#define CV_FW_VERSION "1.14.1"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -2166,31 +2189,44 @@ bool initCamera() {
   }
 
   if (hasPsram) {
-    c.frame_size   = FRAMESIZE_VGA;
+    /*
+     * Two buffers, and take the newest — but only where two can be afforded.
+     *
+     * WHY THIS IS CONDITIONAL, AND WHAT IT COST TO LEARN
+     *
+     * 1.13.0 set fb_count = 2 unconditionally. Two frame buffers at VGA or SVGA
+     * are comfortable; two at UXGA are not, and the failure is silent in the
+     * worst way: esp_camera_init() still succeeds, the sensor still answers on
+     * SCCB, `sensorPid` still reads back — and then no frame ever arrives.
+     * captureWorksWithin() correctly declares the camera dead and the device
+     * runs without it.
+     *
+     * It is a landmine rather than a bug, because nothing goes wrong when the
+     * setting is changed. It detonates on the next *reboot* with a large
+     * resolution stored, which may be weeks later and will look like failed
+     * hardware. On this camera it was an OTA that finally rebooted it.
+     *
+     * So the second buffer is taken only when the configured picture fits it.
+     * Above SVGA the pipelining is given up rather than the camera — and that
+     * costs less than it sounds, because live video is capped at STREAM_RES_MAX
+     * anyway, so the only thing running above SVGA is a still, which has
+     * nothing to overlap with.
+     */
+    const framesize_t bootSize = resFromName(clampRes(resName));
+    const bool canDoubleBuffer = bootSize <= FRAMESIZE_SVGA;
+
+    c.frame_size   = bootSize;
     c.jpeg_quality = quality;
     /*
-     * Two buffers, and take the newest.
-     *
-     * This was one buffer, on the reasoning that a second doubles the PSRAM
-     * footprint and the DMA bandwidth "for no useful overlap at these frame
-     * rates". The overlap is the whole game, and the reasoning was circular:
-     * with fb_count = 1 the driver cannot begin exposing frame N+1 until the
-     * application has returned frame N, and sendFrame() does not return it
-     * until cv.publishFrame() has pushed every byte through TLS. Capture and
-     * transmit were therefore strictly serial, so the period was
-     * capture + publish when it only ever needed to be max(capture, publish).
-     * The frame rate that "did not justify" a second buffer was the frame rate
-     * caused by not having one.
-     *
-     * CAMERA_GRAB_LATEST rather than WHEN_EMPTY matters just as much: with a
-     * queue of two, WHEN_EMPTY hands back the older frame, so a viewer sees
-     * video that is a frame behind and drifts further under load. LATEST drops
-     * the stale one. For live video a late frame is worthless — the same
+     * CAMERA_GRAB_LATEST rather than WHEN_EMPTY matters as much as the count:
+     * with a queue of two, WHEN_EMPTY hands back the older frame, so a viewer
+     * sees video that is a frame behind and drifts further under load. LATEST
+     * drops the stale one. For live video a late frame is worthless — the same
      * reasoning that already makes frames QoS 0 and never retained.
      */
-    c.fb_count     = 2;
+    c.fb_count     = canDoubleBuffer ? 2 : 1;
     c.fb_location  = CAMERA_FB_IN_PSRAM;
-    c.grab_mode    = CAMERA_GRAB_LATEST;
+    c.grab_mode    = canDoubleBuffer ? CAMERA_GRAB_LATEST : CAMERA_GRAB_WHEN_EMPTY;
   } else {
     // Without PSRAM the buffer lives in the internal DRAM shared with TLS and
     // the network stack, so keep it small and single-buffered.
@@ -2798,8 +2834,38 @@ void setup() {
     // task we can walk away from, rather than in loop() where it takes the
     // watchdog and the device with it.
     if (!captureWorksWithin(4000)) {
-      camReady = false;
-      Serial.println(F("[CAM] init succeeded but no frame arrived — running without the camera"));
+      /*
+       * Before giving up the camera entirely, try a smaller picture.
+       *
+       * A capture can fail because the ribbon is not seated — in which case
+       * nothing will help — or because the configured resolution simply cannot
+       * be allocated on this board. The two are indistinguishable from here,
+       * and they have very different remedies, so the cheap one is tried first.
+       *
+       * This exists because the alternative was a camera that disabled itself
+       * over a *setting*, in a house nobody can visit, and reported nothing but
+       * "not ready". A device must not need a person with a screwdriver to
+       * recover from a number it could have lowered by itself.
+       */
+      for (int rung = resRung(resName) - 1; rung >= 0 && !camReady; rung--) {
+        Serial.printf("[CAM] no frame at %s — retrying at %s\n",
+                      resName.c_str(), RES_LADDER[rung]);
+        resName = RES_LADDER[rung];
+        applySensorSettings();
+        if (captureWorksWithin(4000)) {
+          // Persisted, so the next boot starts from a size known to work here
+          // rather than walking down this ladder again every time.
+          store.putString("res", resName);
+          cv.set("resolutionFault",
+                 "lowered automatically: the chosen size could not be captured");
+          Serial.printf("[CAM] recovered at %s\n", resName.c_str());
+          break;
+        }
+      }
+      if (!camReady) {
+        camReady = false;
+        Serial.println(F("[CAM] init succeeded but no frame arrived at any size — running without the camera"));
+      }
     }
   }
   sensorLive = camReady;
