@@ -102,3 +102,9 @@ Creds/
 circuvent-vault/
 id_rsa
 id_ed25519
+
+# Workflow SDK local run data. The Local World writes every run, step and
+# queue entry here while developing; it is a database, not source. The
+# generated route handlers under src/app/.well-known/workflow/ ignore
+# themselves, but this one is ours to declare.
+.workflow-data/

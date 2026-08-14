@@ -24,7 +24,20 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   // Run on everything except Next internals and static asset files.
+  //
+  // `.well-known/workflow/` is excluded because the Workflow SDK posts to its
+  // own internal flow route to run and resume steps, and that request must
+  // arrive untouched. A proxy that rewrites its headers detaches the request
+  // body's ArrayBuffer, and the failure surfaces as
+  // "[local world] Queue operation failed ... Cannot perform
+  // ArrayBuffer.prototype.slice on a detached ArrayBuffer" — which names
+  // neither this file nor the matcher, and reads like an SDK bug.
+  //
+  // The SDK's own guide calls this the easiest thing to miss on Next.js 16,
+  // where proxy.ts replaced middleware.ts. Excluding the path costs nothing:
+  // these are server-to-server calls that no browser makes, so they need
+  // neither the request id nor the CSP.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif|woff|woff2|ttf|map)).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|\\.well-known/workflow/|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif|woff|woff2|ttf|map)).*)",
   ],
 };

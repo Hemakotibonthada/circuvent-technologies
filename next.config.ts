@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withWorkflow } from "workflow/next";
 import { CSP } from "./src/lib/csp";
 
 // Static security headers applied to every response. These follow OWASP
@@ -89,4 +90,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/*
+ * withWorkflow enables the "use workflow" and "use step" directives, and
+ * generates the SDK's internal route handlers under src/app/.well-known/workflow/
+ * at build time.
+ *
+ * It wraps the config rather than replacing anything in it: every header, image
+ * pattern and distDir rule above still applies.
+ */
+export default withWorkflow(nextConfig);
