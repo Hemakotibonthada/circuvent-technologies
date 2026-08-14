@@ -31,11 +31,22 @@ export default function AnalyticsPanel() {
    * so the name stays owned by the route that knows what the file is.
    */
   const exportReport = useCallback(
-    async (type: string) => {
-      setBusy(type);
+    async (type: string, format: "pdf" | "csv" = "pdf") => {
+      setBusy(`${type}:${format}`);
       setExportError("");
       try {
-        const r = await fetch(`/api/admin/insights/export?type=${type}&range=${range}`, {
+        /*
+         * PDF by default, CSV on request.
+         *
+         * These six buttons downloaded a bare CSV — no company header, no
+         * totals, no context, just columns. The formatted report already
+         * existed for the Reports panel and takes the same type and range, so
+         * the download people actually forward and print is now the good one.
+         * CSV stays, because a spreadsheet is the right answer when somebody
+         * wants to do their own arithmetic.
+         */
+        const path = format === "pdf" ? "/api/admin/reports/pdf" : "/api/admin/insights/export";
+        const r = await fetch(`${path}?type=${type}&range=${range}`, {
           headers: { "x-admin-token": tok() },
         });
         if (!r.ok) {
@@ -49,7 +60,7 @@ export default function AnalyticsPanel() {
 
         const disposition = r.headers.get("content-disposition") || "";
         const match = /filename="?([^"';]+)"?/i.exec(disposition);
-        const filename = match?.[1] || `circuvent-${type}-report.csv`;
+        const filename = match?.[1] || `circuvent-${type}-report.${format}`;
 
         const blob = await r.blob();
         const url = URL.createObjectURL(blob);
@@ -252,19 +263,52 @@ export default function AnalyticsPanel() {
       </Panel>
 
       {/* exports */}
-      <div className="flex flex-wrap gap-2">
-        {["sales", "products", "customers", "categories", "coupons", "tax"].map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => void exportReport(t)}
-            disabled={busy === t}
-            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm capitalize disabled:opacity-50"
-            style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
-          >
-            <Download className="h-4 w-4" /> {busy === t ? "Preparing…" : `${t} report`}
-          </button>
-        ))}
+      <div className="space-y-2">
+        <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          Download a report
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: "sales", label: "Sales" },
+            { id: "products", label: "Products" },
+            { id: "customers", label: "Customers" },
+            { id: "categories", label: "Categories" },
+            { id: "coupons", label: "Coupons" },
+            { id: "tax", label: "Tax / GST" },
+          ].map((t) => (
+            <span
+              key={t.id}
+              className="inline-flex overflow-hidden rounded-lg border"
+              style={{ borderColor: "var(--border-primary)" }}
+            >
+              {/* The formatted report is the primary action; CSV is the
+                  narrower second button, for people who want to do their own
+                  arithmetic on it. */}
+              <button
+                type="button"
+                onClick={() => void exportReport(t.id, "pdf")}
+                disabled={busy.startsWith(`${t.id}:`)}
+                title={`${t.label} report as a formatted PDF`}
+                className="inline-flex min-h-[40px] items-center gap-1.5 px-3 text-sm disabled:opacity-50"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <Download className="h-4 w-4" />
+                {busy === `${t.id}:pdf` ? "Preparing…" : `${t.label} report`}
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportReport(t.id, "csv")}
+                disabled={busy.startsWith(`${t.id}:`)}
+                title={`${t.label} report as CSV`}
+                aria-label={`Download the ${t.label} report as CSV`}
+                className="min-h-[40px] border-l px-2.5 text-[11px] font-semibold disabled:opacity-50"
+                style={{ borderColor: "var(--border-primary)", color: "var(--text-muted)" }}
+              >
+                {busy === `${t.id}:csv` ? "…" : "CSV"}
+              </button>
+            </span>
+          ))}
+        </div>
       </div>
       {exportError && (
         <div className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "#7f1d1d", color: "#fca5a5" }}>

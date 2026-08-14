@@ -19,6 +19,7 @@
 // never pulls in the store — which keeps it trivially unit-testable.
 
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, type RGB } from "pdf-lib";
+import { drawChart } from "./reports-pdf-charts";
 import {
   type ReportTable, type ReportColumn, type ReportSection, type Cell,
   type SummaryStat, type CompanyInfo,
@@ -208,8 +209,18 @@ function drawHeader(ctx: Ctx, table: ReportTable): void {
 
 function drawSummary(ctx: Ctx, summary: SummaryStat[]): void {
   if (!summary.length) return;
-  const cols = Math.min(4, summary.length);
-  const rows = Math.ceil(summary.length / cols);
+  /*
+   * Balance the rows rather than filling each one to a fixed width.
+   *
+   * A fixed four-across left five stats as four cards and one stranded
+   * underneath at full width, which reads as an afterthought rather than a
+   * figure. Working out the row count first and then dividing the stats
+   * between those rows gives 5 across, or 3 and 3 for six, and never a lonely
+   * card.
+   */
+  const maxCols = 5;
+  const rows = Math.ceil(summary.length / maxCols);
+  const cols = Math.ceil(summary.length / rows);
   const gap = 8;
   const cardW = (ctx.pageW - 2 * MARGIN - gap * (cols - 1)) / cols;
   const cardH = 40;
@@ -257,8 +268,45 @@ function defaultWeight(col: ReportColumn): number {
 function computeLayout(ctx: Ctx, columns: ReportColumn[]): Layout {
   const avail = ctx.pageW - 2 * MARGIN;
   const weights = columns.map(defaultWeight);
-  const sum = weights.reduce((a, b) => a + b, 0) || 1;
-  const w = weights.map((wt) => (wt / sum) * avail);
+
+  /*
+   * Never allocate a column less than its own header needs.
+   *
+   * Widths were shared out purely by column type, so a short type with a long
+   * name lost: "New customers" is an `int`, the narrowest weight there is, and
+   * its header came out as "New custom..". A truncated header is worse than a
+   * truncated value — the value is at least recoverable from context, whereas a
+   * clipped heading leaves the whole column unreadable.
+   *
+   * Columns that need more than their share are pinned to their minimum and the
+   * rest is shared among the columns with slack. Repeated because satisfying one
+   * column can push another below its own minimum.
+   */
+  const minW = columns.map((c) => widthOf(ctx, c.label, FS.th, ctx.bold) + 2 * CELL_PAD + 2);
+  const w = new Array<number>(columns.length).fill(0);
+  const pinned = new Array<boolean>(columns.length).fill(false);
+
+  // If the headers alone cannot fit, pinning would overflow the page. Fall back
+  // to pure proportional and let ellipsize do what it can.
+  const minTotal = minW.reduce((a, b) => a + b, 0);
+  if (minTotal > avail) {
+    const sum = weights.reduce((a, b) => a + b, 0) || 1;
+    for (let i = 0; i < columns.length; i++) w[i] = (weights[i] / sum) * avail;
+  } else {
+    for (let pass = 0; pass < columns.length; pass++) {
+      const freeW = avail - minW.reduce((a, m, i) => a + (pinned[i] ? m : 0), 0);
+      const freeWeight = weights.reduce((a, wt, i) => a + (pinned[i] ? 0 : wt), 0) || 1;
+      let changed = false;
+      for (let i = 0; i < columns.length; i++) {
+        if (pinned[i]) { w[i] = minW[i]; continue; }
+        const share = (weights[i] / freeWeight) * freeW;
+        if (share < minW[i]) { pinned[i] = true; w[i] = minW[i]; changed = true; }
+        else w[i] = share;
+      }
+      if (!changed) break;
+    }
+  }
+
   const x: number[] = [];
   let cur = MARGIN;
   for (const cw of w) { x.push(cur); cur += cw; }
@@ -387,13 +435,27 @@ function drawSection(ctx: Ctx, sec: ReportSection): void {
 
 function drawNotes(ctx: Ctx, notes: string[]): void {
   if (!notes.length) return;
-  ensureSpace(ctx, 24, undefined);
+
+  const maxW = ctx.pageW - 2 * MARGIN - 12;
+  const wrapped = notes.map((n) => wrap(ctx, n, FS.notes, ctx.font, maxW));
+
+  /*
+   * Reserve the whole block, not just the heading.
+   *
+   * This used to reserve 24pt for the title and then break per line, so a
+   * report whose notes ran a line past the bottom pushed that single line onto
+   * a page of its own — a whole sheet carrying one sentence and a footer. The
+   * notes are short by nature, so keeping them together is nearly always
+   * possible and always better.
+   */
+  const blockH =
+    FS.sectionTitle + 7 + wrapped.reduce((h, lines) => h + lines.length * (FS.notes + 3) + 2, 0);
+  ensureSpace(ctx, Math.min(blockH, bottomLimit(ctx) - MARGIN), undefined);
+
   ctx.y += 2;
   text(ctx, "Notes", MARGIN, FS.sectionTitle, ctx.bold, INK);
   ctx.y += FS.sectionTitle + 5;
-  const maxW = ctx.pageW - 2 * MARGIN - 12;
-  for (const note of notes) {
-    const lines = wrap(ctx, note, FS.notes, ctx.font, maxW);
+  wrapped.forEach((lines) => {
     lines.forEach((ln, i) => {
       ensureSpace(ctx, FS.notes + 3, undefined);
       if (i === 0) textAt(ctx, "-", MARGIN, ctx.y, FS.notes, ctx.bold, FAINT);
@@ -401,7 +463,7 @@ function drawNotes(ctx: Ctx, notes: string[]): void {
       ctx.y += FS.notes + 3;
     });
     ctx.y += 2;
-  }
+  });
 }
 
 // ----------------------------------------------------------------- footer ---
@@ -469,6 +531,14 @@ export async function renderReportPdf(table: ReportTable, opts: PdfRenderOptions
 
   drawHeader(ctx, table);
   drawSummary(ctx, table.summary);
+  /*
+   * The chart goes above the table, where it is the first thing seen.
+   *
+   * Every report already described one and the PDF drew none of them, so a
+   * report that opened with a chart on screen arrived as a wall of numbers
+   * when downloaded — which is the version people forward and print.
+   */
+  drawChartBlock(ctx, table);
   drawTable(ctx, table.columns, table.rows, table.totals, {
     zebra: true,
     signedMoney: table.id === "pnl",
@@ -478,6 +548,33 @@ export async function renderReportPdf(table: ReportTable, opts: PdfRenderOptions
   drawFooters(ctx);
 
   return doc.save();
+}
+
+/**
+ * Draws the report's chart, if it has one and there is room to do it justice.
+ *
+ * A chart squeezed into the last 30pt of a page is worse than no chart, so it
+ * takes a new page rather than being crushed — and it is skipped entirely when
+ * the data behind it is empty, because a bare axis reads as "the value is
+ * zero" rather than "there is nothing to show".
+ */
+function drawChartBlock(ctx: Ctx, table: ReportTable): void {
+  if (!table.chart || !table.rows.length) return;
+
+  const height = table.chart.kind === "hbar" || table.chart.kind === "donut" ? 170 : 150;
+  const needed = height + 34;
+  if (ctx.y + needed > bottomLimit(ctx)) newPage(ctx);
+
+  const used = drawChart(
+    { page: ctx.page, pageH: ctx.pageH, font: ctx.font, bold: ctx.bold },
+    table.chart,
+    table.columns,
+    table.rows,
+    { x: MARGIN, yTop: ctx.y, width: ctx.pageW - MARGIN * 2, height },
+  );
+
+  // Zero means the chart declined to draw; do not leave a hole where it was.
+  if (used > 0) ctx.y += used + 26;
 }
 
 /** Convenience wrapper returning a Node Buffer for HTTP responses. */
