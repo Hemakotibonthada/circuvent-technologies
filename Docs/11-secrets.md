@@ -49,6 +49,8 @@ openssl rand -base64 48
 | --- | --- |
 | `DATABASE_URL` | Neon. **Production-only.** Dev has its own |
 | `PROD_DATA_HOSTS` | Not a secret — hosts only production may use. Set on every target |
+| `PROD_IDENTITY_HOSTS` | Not a secret — control-plane hosts only production may authenticate against. Set on every target. **Until this is set, a preview deployment can sign in real customers against the live fleet** — see [05 — Databases](./05-databases.md#the-identity-isolation-guard) |
+| `CONTROL_PLANE_URL` | Which fleet this deployment is paired with. Defaults to production, which is why the guard above matters off production |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Live keys are production-only; dev needs **test-mode** keys |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | As above |
 | `MONGODB_URI` | Production-only |
