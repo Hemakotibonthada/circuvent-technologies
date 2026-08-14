@@ -11,11 +11,19 @@ import { Badge, Button, ErrorState, FilterChips } from "../_kit/primitives";
 import type { Automation } from "@/lib/control-plane";
 import { triggerText, actionText } from "./describe";
 import RuleEditor from "./RuleEditor";
+import { useHomeAccess } from "@/lib/useHomeAccess";
 
 type TriggerFilter = "all" | "state" | "time";
 
 export default function RulesPanel() {
   const { automations, loading, error, refresh, setEnabled, remove } = useAutomations();
+  /*
+   * An automation runs when nobody is watching and outlives whoever wrote it,
+   * so changing one needs more trust than pressing a switch, not less. A
+   * member without that access still sees the list — knowing what the house
+   * does by itself is everybody's business.
+   */
+  const mayEdit = useHomeAccess().can("manage-automations");
   const { byId: deviceById } = useFleet();
   const toast = useToast();
 
@@ -100,41 +108,47 @@ export default function RulesPanel() {
       header: "Enabled",
       width: "90px",
       align: "center",
-      render: (a) => (
-        <button
-          onClick={(e) => handleToggle(a, e)}
-          aria-label={a.enabled ? `Disable ${a.name}` : `Enable ${a.name}`}
-          className="transition"
-        >
+      render: (a) =>
+        mayEdit ? (
+          <button
+            onClick={(e) => handleToggle(a, e)}
+            aria-label={a.enabled ? `Disable ${a.name}` : `Enable ${a.name}`}
+            className="transition"
+          >
+            <Badge tone={a.enabled ? "ok" : "neutral"}>{a.enabled ? "On" : "Off"}</Badge>
+          </button>
+        ) : (
+          /* Still shown, just not pressable: whether a rule is running is
+             exactly the thing a household member needs to be able to see. */
           <Badge tone={a.enabled ? "ok" : "neutral"}>{a.enabled ? "On" : "Off"}</Badge>
-        </button>
-      ),
+        ),
       value: (a) => (a.enabled ? "enabled" : "disabled"),
     },
     {
       key: "actions",
       header: "",
       width: "88px",
-      render: (a) => (
-        <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <button
-            aria-label={`Edit ${a.name}`}
-            onClick={() => setEditorTarget(a)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:brightness-125"
-            style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            aria-label={`Delete ${a.name}`}
-            onClick={() => setDeleteTarget(a)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:brightness-125"
-            style={{ background: "var(--cv-card-hi)", color: "#ef4444" }}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ),
+      render: (a) =>
+        mayEdit ? (
+          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              aria-label={`Edit ${a.name}`}
+              onClick={() => setEditorTarget(a)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:brightness-125"
+              style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)" }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              aria-label={`Delete ${a.name}`}
+              onClick={() => setDeleteTarget(a)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:brightness-125"
+              style={{ background: "var(--cv-card-hi)", color: "#ef4444" }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null,
       hideOnCard: true,
     },
   ];
@@ -189,9 +203,11 @@ export default function RulesPanel() {
             { value: "time", label: "Schedule", count: timeCount },
           ]}
         />
-        <Button variant="primary" icon={Plus} onClick={() => setEditorTarget("new")}>
-          New rule
-        </Button>
+        {mayEdit && (
+          <Button variant="primary" icon={Plus} onClick={() => setEditorTarget("new")}>
+            New rule
+          </Button>
+        )}
       </div>
 
       <DataGrid<Automation>
@@ -204,12 +220,18 @@ export default function RulesPanel() {
         searchOn={(a) =>
           `${a.name} ${triggerText(a.trigger, deviceName)} ${actionText(a.action, deviceName)}`
         }
-        onRowClick={(a) => setEditorTarget(a)}
-        bulkActions={bulkActions}
+        /* Opening a rule read-only would show an editor whose Save refuses.
+           Members can read the list, which is what the columns are for. */
+        onRowClick={mayEdit ? (a) => setEditorTarget(a) : undefined}
+        bulkActions={mayEdit ? bulkActions : undefined}
         pageSize={20}
         exportName="automation-rules"
         emptyTitle="No rules yet"
-        emptyBody="Create a rule — e.g. 'when the tank drops below 20%, notify me' or 'every day at 06:00, start the pump.'"
+        emptyBody={
+          mayEdit
+            ? "Create a rule — e.g. 'when the tank drops below 20%, notify me' or 'every day at 06:00, start the pump.'"
+            : "Nobody has set up any rules in this home yet. Ask an adult of the household to create one."
+        }
         storageKey="automation-rules-grid"
       />
 

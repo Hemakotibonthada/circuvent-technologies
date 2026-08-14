@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Film, Pencil, Play, Plus, Star, Trash2 } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
 import { useScenes } from "../_data/hooks";
+import { useHomeAccess } from "@/lib/useHomeAccess";
 import { useToast, ConfirmDialog } from "../_kit/overlays";
 import { Button, EmptyState, ErrorState, LoadingState, RelativeTime, SectionTitle } from "../_kit/primitives";
 import type { Scene } from "@/lib/control-plane";
@@ -12,6 +13,13 @@ import SceneEditor from "./SceneEditor";
 export default function ScenesPanel() {
   const { scenes, loading, error, refresh, activate } = useScenes();
   const toast = useToast();
+  /*
+   * Running a scene is using the home; editing one changes what the household
+   * does. A member with everyday access can press Goodnight and should not be
+   * offered a delete button that only refuses them.
+   */
+  const access = useHomeAccess();
+  const mayEdit = access.can("manage-automations");
 
   const [editorTarget, setEditorTarget] = useState<Scene | null | "new">(null);
   const [deleteTarget, setDeleteTarget] = useState<Scene | null>(null);
@@ -52,20 +60,28 @@ export default function ScenesPanel() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Button variant="primary" icon={Plus} onClick={() => setEditorTarget("new")}>
-          New scene
-        </Button>
+        {mayEdit && (
+          <Button variant="primary" icon={Plus} onClick={() => setEditorTarget("new")}>
+            New scene
+          </Button>
+        )}
       </div>
 
       {scenes.length === 0 && (
         <EmptyState
           icon={Film}
           title="No scenes yet"
-          body="Scenes let you activate multiple devices in one tap. Capture the current state of your home or build one from scratch."
+          body={
+            mayEdit
+              ? "Scenes let you activate multiple devices in one tap. Capture the current state of your home or build one from scratch."
+              : "Nobody has set up any scenes in this home yet. Ask an adult of the household to create one."
+          }
           action={
-            <Button variant="primary" icon={Plus} onClick={() => setEditorTarget("new")}>
-              Create your first scene
-            </Button>
+            mayEdit ? (
+              <Button variant="primary" icon={Plus} onClick={() => setEditorTarget("new")}>
+                Create your first scene
+              </Button>
+            ) : undefined
           }
         />
       )}
@@ -80,8 +96,8 @@ export default function ScenesPanel() {
                 scene={s}
                 activating={activating === s.id}
                 onActivate={() => handleActivate(s)}
-                onEdit={() => setEditorTarget(s)}
-                onDelete={() => setDeleteTarget(s)}
+                onEdit={mayEdit ? () => setEditorTarget(s) : undefined}
+                onDelete={mayEdit ? () => setDeleteTarget(s) : undefined}
               />
             ))}
           </div>
@@ -98,8 +114,8 @@ export default function ScenesPanel() {
                 scene={s}
                 activating={activating === s.id}
                 onActivate={() => handleActivate(s)}
-                onEdit={() => setEditorTarget(s)}
-                onDelete={() => setDeleteTarget(s)}
+                onEdit={mayEdit ? () => setEditorTarget(s) : undefined}
+                onDelete={mayEdit ? () => setDeleteTarget(s) : undefined}
               />
             ))}
           </div>
@@ -149,8 +165,9 @@ function SceneCard({
   scene: Scene;
   activating: boolean;
   onActivate: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  /** Absent when the viewer may run this scene but not change it. */
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <div
@@ -196,22 +213,26 @@ function SceneCard({
         >
           Activate
         </Button>
-        <button
-          onClick={onEdit}
-          aria-label={`Edit ${scene.name}`}
-          className="flex h-10 w-10 items-center justify-center rounded-xl transition hover:brightness-125"
-          style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)", border: "1px solid var(--cv-border)" }}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          onClick={onDelete}
-          aria-label={`Delete ${scene.name}`}
-          className="flex h-10 w-10 items-center justify-center rounded-xl transition hover:brightness-125"
-          style={{ background: "var(--cv-card-hi)", color: "#ef4444", border: "1px solid var(--cv-border)" }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            aria-label={`Edit ${scene.name}`}
+            className="flex h-10 w-10 items-center justify-center rounded-xl transition hover:brightness-125"
+            style={{ background: "var(--cv-card-hi)", color: "var(--cv-muted)", border: "1px solid var(--cv-border)" }}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            aria-label={`Delete ${scene.name}`}
+            className="flex h-10 w-10 items-center justify-center rounded-xl transition hover:brightness-125"
+            style={{ background: "var(--cv-card-hi)", color: "#ef4444", border: "1px solid var(--cv-border)" }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
