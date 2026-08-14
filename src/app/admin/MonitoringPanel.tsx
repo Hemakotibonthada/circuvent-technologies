@@ -15,6 +15,31 @@ interface Stats {
 }
 interface Health { name: string; url: string; ok: boolean; ms: number }
 
+/** Mirrors CronStatus in src/lib/cron-health.ts, over the wire. */
+interface CronStatus {
+  path: string;
+  label: string;
+  state: "healthy" | "late" | "never" | "degraded";
+  lastRun: { at: string; outcome: string; detail?: string } | null;
+  hoursSince: number | null;
+  advice: string | null;
+  consequence: string;
+}
+
+const CRON_TONE: Record<CronStatus["state"], { color: string; word: string }> = {
+  healthy: { color: "#22c55e", word: "Running" },
+  late: { color: "#f59e0b", word: "Late" },
+  degraded: { color: "#f59e0b", word: "Not working" },
+  never: { color: "#ef4444", word: "Never run" },
+};
+
+function sinceText(s: CronStatus): string {
+  if (!s.lastRun || s.hoursSince == null) return "no run recorded";
+  if (s.hoursSince < 1) return "ran within the hour";
+  if (s.hoursSince < 48) return `ran ${Math.round(s.hoursSince)}h ago`;
+  return `ran ${Math.round(s.hoursSince / 24)}d ago`;
+}
+
 export default function MonitoringPanel() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [audit, setAudit] = useState<{ at: string; action: string; detail: string }[]>([]);
@@ -22,7 +47,21 @@ export default function MonitoringPanel() {
   const [sse, setSse] = useState(false);
   const [health, setHealth] = useState<Health[]>([]);
   const [rpsHist, setRpsHist] = useState<number[]>([]);
+  const [crons, setCrons] = useState<CronStatus[]>([]);
   const lastViews = useRef<number | null>(null);
+
+  /*
+   * Scheduled jobs are the one part of this product with nobody watching them.
+   * Every cron is authorised with CRON_SECRET and refuses without it, silently,
+   * so a deployment that never set the variable has four jobs that have run
+   * zero times and no surface anywhere that says so.
+   */
+  const fetchCrons = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/cron-health", { headers: { "x-admin-token": tok() } });
+      if (r.ok) setCrons(((await r.json()) as { jobs?: CronStatus[] }).jobs ?? []);
+    } catch { /* ignore */ }
+  }, []);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -60,11 +99,14 @@ export default function MonitoringPanel() {
   }, []);
 
   useEffect(() => {
-    fetchStats(); runHealth();
+    fetchStats(); runHealth(); fetchCrons();
     const i = setInterval(fetchStats, 5000);
     const h = setInterval(runHealth, 15000);
-    return () => { clearInterval(i); clearInterval(h); };
-  }, [fetchStats, runHealth]);
+    // Once a minute is plenty: these move on a daily schedule, and polling it
+    // at the same rate as live traffic would be noise with a cost.
+    const c = setInterval(fetchCrons, 60000);
+    return () => { clearInterval(i); clearInterval(h); clearInterval(c); };
+  }, [fetchStats, runHealth, fetchCrons]);
 
   useEffect(() => {
     const stream = openVisitorStream({
@@ -151,6 +193,49 @@ export default function MonitoringPanel() {
             ))}
           </div>
         ) : <p className="py-4 text-center text-xs" style={{ color: "var(--text-muted)" }}>No active visitors.</p>}
+      </div>
+
+      {/* scheduled jobs */}
+      <div className="rounded-2xl p-5" style={card}>
+        <h4 className="mb-1 flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          <Clock className="h-4 w-4" /> Scheduled jobs
+        </h4>
+        <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+          Every scheduled job refuses to run without CRON_SECRET, and the refusal is not recorded anywhere else — so this is the only place a job that has never run will say so.
+        </p>
+        {crons.length ? (
+          <div className="space-y-2">
+            {crons.map((c) => {
+              const tone = CRON_TONE[c.state];
+              return (
+                <div key={c.path} className="rounded-lg px-3 py-2.5" style={{ background: "var(--bg-glass)" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 8, background: tone.color, display: "inline-block", flexShrink: 0 }} />
+                      {c.label}
+                    </span>
+                    <span className="whitespace-nowrap text-xs font-semibold" style={{ color: tone.color }}>
+                      {tone.word}
+                    </span>
+                  </div>
+                  <div className="mt-1 pl-4 text-xs" style={{ color: "var(--text-muted)" }}>
+                    {sinceText(c)}
+                    {/* Advice only when something is wrong. A note on every row
+                        is a note nobody reads. */}
+                    {c.advice && (
+                      <span style={{ color: tone.color }}> — {c.advice}</span>
+                    )}
+                    {c.state !== "healthy" && (
+                      <div className="mt-1" style={{ color: "var(--text-muted)" }}>{c.consequence}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="py-4 text-center text-xs" style={{ color: "var(--text-muted)" }}>Loading scheduled jobs…</p>
+        )}
       </div>
 
       {/* audit log */}

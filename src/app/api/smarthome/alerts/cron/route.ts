@@ -4,6 +4,7 @@ import { sweep, summarise, type Alert } from "@/lib/anomaly-monitor";
 import { accountKey, readAlerts, writeAlerts } from "@/lib/alerts-store";
 import { sendMail } from "@/lib/order-core";
 import { logger } from "@/lib/logger";
+import { recordCronRun } from "@/lib/store";
 import type { Device, AppEvent } from "@/lib/control-plane";
 
 export const runtime = "nodejs";
@@ -67,6 +68,13 @@ async function handle(request: Request) {
     logger.warn("smarthome.alerts_cron_unconfigured", {
       detail: "CIRCUVENT_SWEEP_TOKEN is not set, so unattended anomaly sweeps are not running.",
     });
+    // Recorded as `skipped`, not `ok`. The schedule is working and the job is
+    // not, and a green tick over an unset token is how this stays unset.
+    recordCronRun(
+      "/api/smarthome/alerts/cron",
+      "skipped",
+      "CIRCUVENT_SWEEP_TOKEN is not set, so no sweep was performed."
+    );
     return NextResponse.json({
       ok: true,
       configured: false,
@@ -145,6 +153,7 @@ async function handle(request: Request) {
     emailed,
   });
 
+  recordCronRun("/api/smarthome/alerts/cron", "ok");
   return NextResponse.json({
     ok: true,
     configured: true,

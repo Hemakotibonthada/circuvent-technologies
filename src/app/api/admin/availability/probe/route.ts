@@ -31,8 +31,9 @@ import { CONTROL_PLANE_URL } from "@/lib/control-plane";
 import { ingest, isDurable, allEvents, evaluateAlertRules } from "@/lib/telemetry-store";
 import type { Alert } from "@/lib/anomaly-monitor";
 import { detectAnomalies } from "@/lib/insights-anomalies";
-import { syncFromAlerts, deliverNotifications } from "@/lib/icm-store";
+import { syncFromAlerts, deliverNotifications, revalidateIcm, flushIcm } from "@/lib/icm-store";
 import { recordCurrentBuild } from "@/lib/deployments";
+import { recordCronRun } from "@/lib/store";
 import { logger } from "@/lib/logger";
 import {
   runChecks,
@@ -180,6 +181,10 @@ async function handle(request: Request) {
 
     const all = [...anomalies, ...ruleAlerts, ...checksToAlerts(syntheticResults, stamp)];
     if (all.length) {
+      /* The incident store is durable now, so this sweep has to load the
+         authoritative copy before it decides what is already filed — otherwise
+         it would re-file everything it cannot see. */
+      await revalidateIcm();
       const sync = syncFromAlerts(all, { owningTeam: "Platform" });
       filed = sync.filed.map((i) => i.id);
       if (filed.length) {
@@ -198,6 +203,9 @@ async function handle(request: Request) {
      * most likely to be sitting there.
      */
     notified = await deliverNotifications();
+    /* The sweep runs unattended, so nothing else would notice a write that was
+       still in flight when the function froze. */
+    await flushIcm();
   } catch (e) {
     /*
      * Detection must not take the probe down with it. The health result is
@@ -214,6 +222,7 @@ async function handle(request: Request) {
    * scheduler's own retry logic — and any uptime monitor watching *this*
    * endpoint — fire for a fault that is not here.
    */
+  recordCronRun("/api/admin/availability/probe", "ok", ok ? undefined : "Control plane was unreachable at probe time.");
   return NextResponse.json({
     ok: true,
     probe: { target: "control-plane", reachable: ok, status, durationMs, errorType },

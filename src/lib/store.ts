@@ -22,6 +22,7 @@ import { registerAccountLookup } from "./account";
 import { products as CATALOG } from "./shop-data";
 import * as dbLayer from "./db";
 import { autoRegisterForDeliveredOrder } from "./admin-warranty";
+import type { CronRunLog, CronOutcome } from "./cron-health";
 
 // ---------------------------------------------------------------- types ----
 export interface StoredOrderItem {
@@ -410,6 +411,8 @@ export interface DB {
   questions: ProductQuestion[];
   notifications: Record<string, Notification[]>;
   alertSettings: AlertSettings;
+  /** Last run of each scheduled job, keyed by its vercel.json path. */
+  cronRuns: CronRunLog;
   contactMessages: ContactMessage[];
   /** Razorpay payment ids already redeemed, so a signature cannot be replayed. */
   consumedPayments: Record<string, ConsumedPayment>;
@@ -527,6 +530,7 @@ function emptyDB(): DB {
     questions: [],
     notifications: {},
     alertSettings: defaultAlertSettings(),
+    cronRuns: {},
     contactMessages: [],
     consumedPayments: {},
   };
@@ -584,6 +588,7 @@ function load(): DB {
         questions: parsed.questions ?? [],
         notifications: parsed.notifications ?? {},
         alertSettings: { ...defaultAlertSettings(), ...(parsed.alertSettings ?? {}) },
+        cronRuns: parsed.cronRuns ?? {},
         contactMessages: parsed.contactMessages ?? [],
         consumedPayments: parsed.consumedPayments ?? {},
       };
@@ -1244,6 +1249,31 @@ export function updateAlertSettings(patch: Partial<AlertSettings>): AlertSetting
   db.alertSettings = { ...defaultAlertSettings(), ...db.alertSettings, ...patch };
   save();
   return db.alertSettings;
+}
+
+// ---------------------------------------------------------- cron runs ------
+/**
+ * Records that a scheduled job ran.
+ *
+ * Only the last run per job is kept. A history would be more informative and is
+ * not what the question needs answering: "is this running at all" is answered
+ * by one timestamp, and an unbounded log inside a JSON blob that is rewritten
+ * on every save is a cost with no reader.
+ */
+export function recordCronRun(path: string, outcome: CronOutcome, detail?: string): void {
+  const db = load();
+  if (!db.cronRuns) db.cronRuns = {};
+  db.cronRuns[path] = {
+    at: new Date().toISOString(),
+    outcome,
+    ...(detail ? { detail } : {}),
+  };
+  save();
+}
+
+export function getCronRuns(): CronRunLog {
+  const db = load();
+  return db.cronRuns ?? {};
 }
 
 // --------------------------------------------------------- admin 2FA -------

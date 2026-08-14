@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { adminFromRequest, requireArea, DEFAULT_ADMIN_EMAIL } from "@/lib/admin-auth";
-import { getAlertSettings, updateAlertSettings, revalidate, flushNow } from "@/lib/store";
+import { getAlertSettings, updateAlertSettings, revalidate, flushNow, recordCronRun } from "@/lib/store";
 import { buildReportHtml } from "@/lib/alerts";
 import { sendMail } from "@/lib/order-core";
 import { logger } from "@/lib/logger";
+
+/** Must match the path in vercel.json — see src/lib/cron-health.ts. */
+const CRON_PATH = "/api/admin/reports/send";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +42,9 @@ async function handle(request: Request) {
 
   // Cron only sends when the daily report is enabled; an admin can force it.
   if (!isAdmin && !settings.dailyReport) {
+    // Disabled on purpose is a healthy outcome: the schedule is working and
+    // being told not to send is the configured behaviour, not a fault.
+    recordCronRun(CRON_PATH, "ok", "Daily report is disabled in settings.");
     return NextResponse.json({ ok: true, sent: false, reason: "Daily report disabled." });
   }
 
@@ -49,9 +55,11 @@ async function handle(request: Request) {
   const ok = await sendMail(to, report.subject, report.html, undefined, { type: "report", related: to });
   if (!ok) {
     logger.warn("reports.send_failed", { to });
+    recordCronRun(CRON_PATH, "failed", "Email transport not configured or failed.");
     return NextResponse.json({ ok: false, sent: false, reason: "Email transport not configured or failed." }, { status: 502 });
   }
   updateAlertSettings({ lastReportAt: new Date().toISOString() });
+  recordCronRun(CRON_PATH, "ok");
   await flushNow();
   logger.info("reports.sent", { to, days });
   return NextResponse.json({ ok: true, sent: true, to, days });

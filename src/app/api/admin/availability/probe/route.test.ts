@@ -35,6 +35,23 @@ jest.mock("@/lib/order-core", () => ({
 }));
 
 /*
+ * The shop store is mocked only because Jest cannot parse it.
+ *
+ * `src/lib/store.ts` uses a top-level await, which the CJS transform rejects
+ * outright, so importing it anywhere in a route's module graph fails the whole
+ * file before an assertion runs — the trap documented in Docs/15. The route
+ * needs exactly one function from it: the record that this scheduled job ran.
+ *
+ * Kept this narrow deliberately. Everything else on this path stays real.
+ */
+const cronRuns: { path: string; outcome: string }[] = [];
+jest.mock("@/lib/store", () => ({
+  recordCronRun: jest.fn((path: string, outcome: string) => {
+    cronRuns.push({ path, outcome });
+  }),
+}));
+
+/*
  * The control-plane event specifically. The sweep also records one event per
  * synthetic suite check, so "everything in the buffer" is no longer the same
  * question as "what did the control-plane probe record".
