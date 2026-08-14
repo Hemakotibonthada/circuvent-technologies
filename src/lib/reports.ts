@@ -24,6 +24,7 @@ import {
 import { listProductRows, valuation, reorderSuggestions, deadStock } from "./inventory";
 import { listHsnMappings } from "./admin-tax";
 import { siteConfig } from "./config";
+import { BRAND } from "./brand";
 import type { StoredOrder } from "./store";
 import {
   type ReportTable, type ReportColumn, type ReportSection, type Cell,
@@ -52,7 +53,24 @@ export function companyInfo(): CompanyInfo {
     gstin,
     state: process.env.REPORT_COMPANY_STATE || "Telangana",
     stateCode: gstin && gstin.length >= 2 ? gstin.slice(0, 2) : (process.env.REPORT_COMPANY_STATE_CODE || null),
-    email: siteConfig.contact.email,
+    /*
+     * The support inbox, not the mail transport's reply-to.
+     *
+     * This read `siteConfig.contact.email`, which resolves to EMAIL_REPLY_TO,
+     * then EMAIL_FROM, then a literal fallback — so a deployment that had not
+     * set either printed `hello@circuvent.com` on every report. That address is
+     * a default in config.ts; it is not the monitored inbox, and it is not the
+     * one brand.ts designates for customer documents.
+     *
+     * brand.ts exists because exactly this already happened once: the invoice
+     * carried a different address from the outbound mail, and customers kept
+     * writing to the wrong one for years afterwards. A report is the document
+     * an accountant keeps longest, so it gets the canonical address.
+     *
+     * REPORT_COMPANY_EMAIL still overrides, for the real case where accounts
+     * documents should reach an accounts@ inbox rather than support.
+     */
+    email: (process.env.REPORT_COMPANY_EMAIL || "").trim() || BRAND.supportEmail,
   };
 }
 
