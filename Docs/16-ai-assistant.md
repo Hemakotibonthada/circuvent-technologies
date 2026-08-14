@@ -256,9 +256,15 @@ mobile app  ──POST──▶  https://circuvent.com/api/ai/chat
 build channel. So **the website must be deployed with these routes before an app
 build that uses them reaches users**, or every AI screen in the app will fail.
 
-At the time of writing, `POST https://circuvent.com/api/ai/chat` returns **404** —
-the routes exist only on the `feature/shopping` branch and have not been merged
-to the deployed branch yet. Verify before shipping:
+These routes are **live on production** as of 2026-08-14: a POST to
+`https://circuvent.com/api/ai/chat` with an empty body answers **400**, which is
+the healthy response — the route exists and is refusing a body with no messages.
+
+This paragraph previously said the routes returned 404 and existed only on
+`feature/shopping`. They have since merged and deployed. The probe below is
+still the right thing to run before shipping a mobile build, because the
+release ordering above has not changed and a 404 would still mean "do not
+ship":
 
 ```bash
 curl.exe -s -o NUL -w "%{http_code}" -X POST https://circuvent.com/api/ai/chat `
