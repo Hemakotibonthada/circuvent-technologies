@@ -126,6 +126,15 @@ list is safe on every target, and it is checked on non-production deployments
 only — an over-broad list can never take production down. See
 `assertNotProductionData` in `src/lib/db.ts`.
 
+That guard covers data, not identity, and the two are separate doors. There is
+only one control plane, so a dev sign-in that missed in dev's own database used
+to fall through to the **live** fleet, which vouched for a real customer — and
+dev then copied that customer into its own database with a hash of their real
+password. `PROD_IDENTITY_HOSTS` closes it, with the same safety properties:
+listed hosts are the control planes only production may authenticate against,
+and a non-production deployment pointed at one refuses to federate. See
+`federationAllowedHere` in `src/lib/sso.ts`.
+
 Dev has its own Neon project (`dev.circuvent.com`), so it is a real, writable
 database rather than a throwaway in-memory store.
 

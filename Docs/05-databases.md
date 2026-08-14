@@ -159,6 +159,42 @@ window. It is a **server-to-server credential and must never reach a browser**.
 An unset secret disables the endpoint entirely. See
 [11 — Secrets](./11-secrets.md).
 
+### The identity isolation guard
+
+There is exactly **one** control plane, so the bridge above is the one place
+where a non-production deployment can reach production identity — and for a
+while it did.
+
+`assertNotProductionData` stops dev opening the production *database*, and it
+works. It never fired here, because this path makes an outbound HTTPS call and
+touches no database at all. So on dev a sign-in that missed locally fell through
+to `api.circuvent.com/auth/login`, the live fleet vouched for a real customer,
+and `/api/account/login` then created that customer in the **dev** database with
+a scrypt hash of their real password. Production users could sign in to dev, and
+dev accumulated live credentials while doing it.
+
+Note which half of it was gated: `mintConsoleSession` requires
+`FEDERATION_SECRET`, but `verifyAgainstControlPlane` posts to the *public*
+`/auth/login` and needed no secret at all — so it worked from dev, from any
+preview URL, and from a laptop running `npm run dev`.
+
+`PROD_IDENTITY_HOSTS` lists the control-plane hosts only production may
+authenticate against. `federationAllowedHere()` in `src/lib/sso.ts` refuses both
+directions when a non-production deployment is pointed at one. It copies the
+database guard's safety properties exactly — checked on non-production only, an
+empty list is a no-op, and hosts are not credentials — with one deliberate
+difference: it **returns false rather than throwing**. A refused federation has
+to be indistinguishable from a password that did not match, or a 500 that only
+happens for real addresses becomes an account-enumeration oracle. It is loud in
+the log and silent to the browser.
+
+**Consequence to know about:** with the guard on, an app-only customer cannot
+sign in at the dev storefront, because only the live fleet knows them. That is
+the intended trade. A dev deployment that needs a working federated login needs
+its own control plane, and `CONTROL_PLANE_URL` pointed at it.
+
+Tests: `tests/sso-environment-isolation.test.ts`.
+
 ## Backups
 
 See [13 — Maintenance](./13-maintenance.md#backups). In short: Neon has its own
