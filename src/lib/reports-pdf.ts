@@ -18,8 +18,9 @@
 // company header, so it imports only pdf-lib + the client-safe format model and
 // never pulls in the store — which keeps it trivially unit-testable.
 
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, type RGB } from "pdf-lib";
+import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb, type RGB } from "pdf-lib";
 import { drawChart } from "./reports-pdf-charts";
+import { reportLogoBytes } from "./report-logo";
 import {
   type ReportTable, type ReportColumn, type ReportSection, type Cell,
   type SummaryStat, type CompanyInfo,
@@ -103,6 +104,8 @@ interface Ctx {
   y: number; // distance from the top of the page to the cursor
   title: string;
   company: CompanyInfo;
+  /** Embedded once per document. Undefined only if the PNG could not be read. */
+  logo?: PDFImage;
 }
 
 function newPage(ctx: Ctx): void {
@@ -171,17 +174,36 @@ function drawHeader(ctx: Ctx, table: ReportTable): void {
   const co = ctx.company;
   const rightX = ctx.pageW - MARGIN;
 
+  /*
+   * The mark, then the company block indented past it.
+   *
+   * `ctx.logo` is undefined only if the PNG failed to embed, in which case the
+   * text falls back to the left margin rather than leaving a hole where the
+   * logo should be — a header with a gap looks broken, where a header without
+   * a logo just looks plain.
+   */
+  const LOGO = 34;
+  const textX = ctx.logo ? MARGIN + LOGO + 10 : MARGIN;
+  if (ctx.logo) {
+    ctx.page.drawImage(ctx.logo, {
+      x: MARGIN,
+      y: ctx.pageH - ctx.y - LOGO + 2,
+      width: LOGO,
+      height: LOGO,
+    });
+  }
+
   // Company block (left).
-  text(ctx, co.name, MARGIN, FS.company, ctx.bold, INK);
+  textAt(ctx, co.name, textX, ctx.y, FS.company, ctx.bold, INK);
   let yy = ctx.y + FS.company + 4;
   for (const line of co.addressLines) {
-    textAt(ctx, line, MARGIN, yy, FS.meta, ctx.font, MUTED);
+    textAt(ctx, line, textX, yy, FS.meta, ctx.font, MUTED);
     yy += FS.meta + 2;
   }
   const gstLine = co.gstin ? `GSTIN: ${co.gstin}  ·  State: ${co.state}${co.stateCode ? " (" + co.stateCode + ")" : ""}` : "GSTIN: not configured";
-  textAt(ctx, gstLine, MARGIN, yy, FS.meta, ctx.font, MUTED);
+  textAt(ctx, gstLine, textX, yy, FS.meta, ctx.font, MUTED);
   yy += FS.meta + 2;
-  textAt(ctx, co.email, MARGIN, yy, FS.meta, ctx.font, MUTED);
+  textAt(ctx, co.email, textX, yy, FS.meta, ctx.font, MUTED);
 
   // Document label (right).
   const tag = "REPORT";
@@ -519,13 +541,28 @@ export async function renderReportPdf(table: ReportTable, opts: PdfRenderOptions
 
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+
+  /*
+   * Embedded once, for every page that wants it.
+   *
+   * Guarded because a report without a logo is still a usable report, and a
+   * decoder that rejects the PNG must not take the whole download with it —
+   * losing the figures to save the branding would be the wrong way round.
+   */
+  let logo: PDFImage | undefined;
+  try {
+    logo = await doc.embedPng(reportLogoBytes());
+  } catch {
+    logo = undefined;
+  }
+
   const landscape = wantsLandscape(table, opts.orientation);
   const pageW = landscape ? A4_H : A4_W;
   const pageH = landscape ? A4_W : A4_H;
 
   const ctx: Ctx = {
     doc, font, bold, pageW, pageH, pages: [], page: undefined as unknown as PDFPage,
-    y: MARGIN, title: table.title, company: opts.company,
+    y: MARGIN, title: table.title, company: opts.company, logo,
   };
   newPage(ctx);
 
