@@ -1946,6 +1946,50 @@ function signalLabel(rssi: number): { text: string; accent: string } {
   return { text: "Weak", accent: "#ef4444" };
 }
 
+/**
+ * Why the picture looks the way it does, when it is not what was asked for.
+ *
+ * The firmware trades picture size and sharpness to hold the frame rate, and
+ * without this the result is indistinguishable from a camera that is simply
+ * bad: the video is smooth, the image is soft, and nothing on screen connects
+ * the two. Naming the trade is what turns "this looks worse than yesterday"
+ * into a decision the user can actually make — lower the frame rate, or move
+ * the access point.
+ *
+ * Returns null when nothing has been given up, so a healthy camera says
+ * nothing at all.
+ */
+function streamTradeNote(state: Record<string, unknown>): string | null {
+  const n = (v: unknown) => (typeof v === "number" ? v : Number(v));
+  const chosenRes = typeof state.resolution === "string" ? state.resolution : "";
+  const streamRes = typeof state.streamResolution === "string" ? state.streamResolution : "";
+  const quality = n(state.quality);
+  const streamQuality = n(state.streamQuality);
+  const asked = n(state.fps);
+  const got = n(state.achievedFps);
+  const rssi = n(state.rssi);
+
+  const smaller = streamRes && chosenRes && streamRes !== chosenRes;
+  const softer = Number.isFinite(streamQuality) && Number.isFinite(quality) && streamQuality > quality;
+  if (!smaller && !softer) return null;
+
+  const parts: string[] = [];
+  if (smaller) parts.push(`sending ${streamRes} rather than ${chosenRes}`);
+  if (softer) parts.push("compressing harder");
+
+  const rate =
+    Number.isFinite(asked) && Number.isFinite(got) && got > 0
+      ? ` to hold about ${Math.round(got)} of the ${Math.round(asked)} fps asked for`
+      : " to hold the frame rate";
+
+  const link =
+    Number.isFinite(rssi) && rssi <= -70
+      ? ` The Wi-Fi signal here is ${Math.round(rssi)} dBm, which is what limits it — a nearer access point buys more than any setting will.`
+      : "";
+
+  return `Live view is ${parts.join(" and ")}${rate}. Stills still use ${chosenRes}.${link}`;
+}
+
 interface LiveFrame {
   /** Object URL for rendering. Revoked as soon as the next frame replaces it. */
   src: string;
@@ -2304,6 +2348,11 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
       {!hasCamera && (
         <div className="mt-3">
           <AlertBanner text="This board reports that it has no camera fitted — it is running gas/relay firmware. It was most likely registered as the wrong device type; change the type in Settings and the correct controls will appear. No video will ever arrive from this unit." />
+        </div>
+      )}
+      {hasCamera && showingLive && streamTradeNote(d.state) && (
+        <div className="mt-3">
+          <AlertBanner text={streamTradeNote(d.state) as string} />
         </div>
       )}
       {hasCamera && stalled && ready && !relayLost && (

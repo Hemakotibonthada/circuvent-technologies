@@ -135,7 +135,7 @@
  *     camera must not disable itself over a *setting*, in a house nobody can
  *     visit, when it could have lowered the number by itself.
  */
-#define CV_FW_VERSION "1.14.1"
+#define CV_FW_VERSION "1.14.2"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -2501,6 +2501,16 @@ void adaptTick(unsigned long now) {
   lastAchieved = secs > 0 ? adaptFrames / secs : 0;
   adaptWindowAt = now;
   adaptFrames = 0;
+
+  /*
+   * Published every window, not only when something changes.
+   *
+   * It was inside the `changed` branch, which meant the number froze at
+   * whatever was measured during convergence and then stayed there — so a
+   * stream that settled at 46 fps reported the 27 it passed through on the way.
+   * A measurement that stops updating is worse than none: it looks live.
+   */
+  cv.set("achievedFps", (int)(lastAchieved + 0.5f));
 
   const float target = (float)max(fps, FPS_MIN);
   const String ceiling = clampStreamRes(resName);
