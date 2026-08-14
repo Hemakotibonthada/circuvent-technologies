@@ -36,6 +36,38 @@ import { googlePushConfigured } from "../smarthome/homegraph";
 
 export const smarthomeRouter = Router();
 
+/**
+ * Answering a browser that lands on a fulfilment endpoint.
+ *
+ * These accept POST from Google's and Amazon's servers and nothing else, so a
+ * GET fell through to the catch-all and answered `{"error":"Not found"}`.
+ * That is the wrong status and, worse, the wrong story: the endpoint exists
+ * and is healthy, and "Not found" reads as a broken deployment.
+ *
+ * It is not hypothetical. Anybody diagnosing a linking problem pastes the
+ * fulfilment URL into a browser first, and so does a certification reviewer —
+ * so the natural first check said the integration was missing while it was
+ * working perfectly. 405 with `Allow` is the honest answer, and the message
+ * says plainly that seeing it means things are fine.
+ */
+function postOnly(what: string, expects: string) {
+  return (_req: Request, res: Response) => {
+    res
+      .status(405)
+      .set("Allow", "POST")
+      .json({
+        error: "method_not_allowed",
+        endpoint: what,
+        expects,
+        message: `This is the ${what}. It answers POST from ${expects} and nothing else — seeing this in a browser means it is deployed and working.`,
+        health: "https://api.circuvent.com/health",
+      });
+  };
+}
+
+smarthomeRouter.get("/google", postOnly("Google Home fulfilment endpoint", "Google's servers"));
+smarthomeRouter.get("/alexa", postOnly("Alexa Smart Home fulfilment endpoint", "the Alexa skill's Lambda"));
+
 /* Re-exported for the existing typing test, which asserts a pump is never a
    plain switch. The definitions moved to traits.ts so the fulfilment and the
    proactive reporter cannot disagree about what a device is. */

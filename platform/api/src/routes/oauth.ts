@@ -166,6 +166,28 @@ export function assistantFromRedirect(uri: string): "google" | "alexa" | null {
 // GET /oauth/authorize — Alexa/Google send the user here to link their account.
 oauthRouter.get("/authorize", (req, res) => {
   const q = req.query as Record<string, string>;
+  /*
+   * Visited with nothing at all — almost always a person checking the URL
+   * rather than an assistant. "Invalid client_id" is true and unhelpful: it
+   * reads like a misconfiguration when the endpoint is healthy and simply was
+   * not given the parameters an assistant always sends.
+   */
+  if (!q.client_id && !q.redirect_uri) {
+    res
+      .status(400)
+      .set("Content-Type", "text/html")
+      .send(
+        `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">` +
+          `<style>body{font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e5e7eb;max-width:560px;margin:0 auto;padding:40px 20px;line-height:1.6}` +
+          `code{background:#111827;padding:2px 6px;border-radius:6px}</style>` +
+          `<h2>Circuvent account linking</h2>` +
+          `<p>This endpoint is working. It is where Google Home and Alexa send you to sign in when you link your Circuvent account.</p>` +
+          `<p>It needs the parameters an assistant supplies — <code>client_id</code>, <code>redirect_uri</code>, ` +
+          `<code>response_type</code> and <code>state</code> — so opening it directly shows this page instead of a sign-in form.</p>` +
+          `<p>To link your devices, search for <strong>Circuvent</strong> in the Google Home or Alexa app.</p>`
+      );
+    return;
+  }
   if (q.client_id !== config.SMARTHOME_CLIENT_ID) {
     res.status(400).send("Invalid client_id");
     return;
@@ -208,6 +230,25 @@ oauthRouter.post("/authorize", async (req, res) => {
   const sep = redirect.includes("?") ? "&" : "?";
   const url = `${redirect}${sep}code=${encodeURIComponent(code)}${b.state ? `&state=${encodeURIComponent(b.state)}` : ""}`;
   res.redirect(302, url);
+});
+
+// GET /oauth/token — the token endpoint is POST-only; say so rather than 404.
+oauthRouter.get("/token", (_req, res) => {
+  /* Same reasoning as the fulfilment endpoints: a browser landing here got
+     "Not found", which reads as a broken deployment when the endpoint is
+     healthy and simply expects a POST from the assistant's servers. */
+  res
+    .status(405)
+    .set("Allow", "POST")
+    .json({
+      error: "method_not_allowed",
+      endpoint: "OAuth token endpoint",
+      expects: "POST",
+      message:
+        "This is the account-linking token endpoint. It answers POST from Google's or Amazon's servers " +
+        "and nothing else — seeing this in a browser means it is deployed and working.",
+      health: "https://api.circuvent.com/health",
+    });
 });
 
 // POST /oauth/token — exchange code (or refresh) for access + refresh tokens.
