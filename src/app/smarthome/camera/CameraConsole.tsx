@@ -387,11 +387,19 @@ function CameraDetail({
           </Link>
         </div>
 
+        {/*
+          * max must match FPS_MAX in firmware/camera/camera.ino, which is 30.
+          * This said 15, so the one screen dedicated to cameras was the one
+          * screen that could not ask for the frame rate the firmware supports —
+          * and because the device silently constrains whatever it is sent, the
+          * slider looked like it was doing its job at every position.
+          * tests/camera-fps-parity.test.ts fails if the two drift again.
+          */}
         <Slider
           label="Live frame rate"
-          value={num(s.fps, 5)}
+          value={num(s.fps, 24)}
           min={1}
-          max={15}
+          max={30}
           suffix=" fps"
           disabled={offline}
           onCommit={(v) => onCommand({ action: "stream", fps: v, on: streaming })}

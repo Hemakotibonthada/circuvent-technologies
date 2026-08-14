@@ -95,7 +95,8 @@ platform detects hard disconnects rather than waiting for a timeout.
 
 // camera
 { "hasCamera": true, "ready": true, "psram": true,
-  "streaming": false, "fps": 8, "resolution": "VGA", "quality": 12,
+  "streaming": false, "fps": 24, "resolution": "VGA",
+  "streamResolution": "VGA", "quality": 12,
   "rotation": 0, "flash": 0,
   "motion": true, "sensitivity": 45, "motionActive": false,
   "motionCount": 12, "snapshots": 3, "frames": 4821, "dropped": 2 }
@@ -103,6 +104,16 @@ platform detects hard disconnects rather than waiting for a timeout.
 
 `hasCamera: true` is how both apps discover a video source independently of the
 device's type string.
+
+`resolution` is the size the user chose; `streamResolution` is the size frames
+actually leave at, which is smaller whenever the chosen size is above the
+streaming ceiling (`STREAM_RES_MAX`, currently SVGA). An OV2640 cannot read out,
+encode and publish a 1600x1200 frame twenty-four times a second, so live video
+is capped while stills keep the full resolution — the same main-stream /
+sub-stream split every IP camera ships. **Label live video with
+`streamResolution`**, or a console confidently captions an 800x600 stream
+"UXGA". Firmware before 1.13.0 does not send the key; fall back to `resolution`
+rather than assuming a downscale.
 
 ### `telemetry` — append-only
 

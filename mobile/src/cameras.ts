@@ -90,3 +90,32 @@ export function snapshotUrl(url: string): string {
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}_t=${Date.now()}`;
 }
+
+/**
+ * The size the picture on screen is actually at.
+ *
+ * From firmware 1.13.0 the sensor runs smaller while streaming than the
+ * resolution chosen for stills, because a 1600x1200 frame cannot be read out,
+ * encoded and published twenty-four times a second. `state.resolution` is
+ * therefore the wrong caption for live video — printing it labels an 800x600
+ * stream "UXGA", which is the one claim somebody measuring the picture would
+ * believe over their own eyes.
+ *
+ * Older firmware does not publish `streamResolution`. Absence is not evidence
+ * that a stream is downscaled, so it falls back to the chosen resolution and
+ * every camera already in the field reads exactly as it did before.
+ *
+ * This deliberately duplicates `effectiveResolution` in the console's
+ * DeviceControls.tsx — the app and the site are separate TypeScript projects
+ * and cannot import each other. tests/camera-fps-parity.test.ts fails if only
+ * one of the two copies learns something.
+ */
+export function effectiveResolution(
+  state: Record<string, unknown>,
+  live: boolean
+): string {
+  const chosen = typeof state.resolution === "string" ? state.resolution : "VGA";
+  if (!live) return chosen;
+  const streamed = state.streamResolution;
+  return typeof streamed === "string" && streamed ? streamed : chosen;
+}

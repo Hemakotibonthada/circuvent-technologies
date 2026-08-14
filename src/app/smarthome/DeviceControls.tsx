@@ -1952,6 +1952,33 @@ interface LiveFrame {
 }
 
 /**
+ * The size the picture on screen is actually at.
+ *
+ * From firmware 1.13.0 the sensor runs at a smaller size while streaming than
+ * the resolution chosen for stills, because a 1600x1200 frame cannot be read
+ * out, encoded and published twenty-four times a second. That means
+ * `state.resolution` — the chosen one — is the wrong caption for live video,
+ * and printing it would have the console label an 800x600 stream "UXGA".
+ *
+ * A caption that is confidently wrong is worse than no caption: it is the one
+ * thing a person measuring the picture would trust over their own eyes.
+ *
+ * Older firmware does not publish `streamResolution` at all. Absence is not
+ * evidence that the stream is downscaled, so it falls back to the chosen
+ * resolution and reads exactly as it did before — no camera in the field
+ * changes its caption until it is running firmware that means it.
+ */
+export function effectiveResolution(
+  state: Record<string, unknown>,
+  live: boolean
+): string {
+  const chosen = typeof state.resolution === "string" ? state.resolution : "VGA";
+  if (!live) return chosen;
+  const streamed = state.streamResolution;
+  return typeof streamed === "string" && streamed ? streamed : chosen;
+}
+
+/**
  * Tells "the camera is not producing frames" apart from "the server is not
  * relaying them" — from evidence, not from a guess.
  *
@@ -2242,7 +2269,7 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75), transparent)", color: "#e2e8f0" }}
           >
             <span>
-              {String(d.state.resolution ?? "VGA")} · {(frame.bytes / 1024).toFixed(0)} KB
+              {effectiveResolution(d.state, showingLive)} · {(frame.bytes / 1024).toFixed(0)} KB
               {showingLive && fps > 0 ? ` · ${fps} fps` : ""}
             </span>
             <span>

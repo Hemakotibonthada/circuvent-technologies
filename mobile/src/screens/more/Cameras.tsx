@@ -11,6 +11,7 @@ import { useCameraFrames } from "../../live";
 import { TAP_SLOP } from "../../theme";
 import {
   getUserCameras, addCamera, removeCamera, mergedCameras, snapshotUrl,
+  effectiveResolution,
   type Camera,
 } from "../../cameras";
 import {
@@ -19,8 +20,19 @@ import {
   type SaveTarget, type LiveRecorder, type SdClip, type SdStatus,
 } from "../../recording";
 
-// The firmware clamps to 15fps — offering 30 would just look broken.
-const FPS_OPTIONS = [1, 5, 10, 15] as const;
+/*
+ * firmware/camera/camera.ino defines FPS_MAX 30.
+ *
+ * This read [1, 5, 10, 15] under a comment asserting "the firmware clamps to
+ * 15fps". It does not, and never did. Control.tsx had already been corrected;
+ * this screen kept the original belief, so the camera *wall* — the screen
+ * somebody actually watches a camera on — was the one place that could not ask
+ * for more than half the available frame rate. The device silently constrains
+ * whatever it is sent, so nothing ever contradicted the comment.
+ *
+ * Kept in step with the sketch by tests/camera-fps-parity.test.ts.
+ */
+const FPS_OPTIONS = [1, 5, 10, 15, 20, 25, 30] as const;
 const RESOLUTIONS = ["QVGA", "CIF", "VGA", "SVGA", "XGA"] as const;
 const FLASH_STEPS = { Off: 0, Low: 25, Med: 60, Max: 100 } as const;
 type FlashLabel = keyof typeof FLASH_STEPS;
@@ -347,7 +359,7 @@ function LiveView({ cam, onBack }: { cam: Camera; onBack: () => void }) {
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.text, fontSize: 18, fontWeight: "800" }} numberOfLines={1}>{cam.name}</Text>
             <Text style={{ color: c.faint, fontSize: 11 }} numberOfLines={1}>
-              {isDevice ? `${String(st.resolution ?? "—")} · ${measured.toFixed(1)} fps` : cam.url}
+              {isDevice ? `${effectiveResolution(st, streaming)} · ${measured.toFixed(1)} fps` : cam.url}
             </Text>
           </View>
           {isDevice && <IconButton icon="tune" onPress={() => setShowSettings((s) => !s)} label="Camera settings" />}

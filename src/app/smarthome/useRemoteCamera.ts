@@ -2,15 +2,21 @@
  * Remote camera viewing, for when the frame relay cannot deliver.
  *
  * The live path is device -> broker -> control plane -> browser over a
- * WebSocket. That relay is opened by a `watch` message, and the deployed
- * control plane never reads inbound WebSocket messages, so it never opens.
- * LAN viewing (firmware 1.9.0) covers someone standing in the house; this
- * covers the case that actually matters, which is not being in it.
+ * WebSocket, opened by a `watch` message. That path is the one that carries
+ * real video, and it is the one to fix if video is slow — see
+ * `platform/api/src/ws.ts`, which reads `watch`/`unwatch` and refcounts
+ * viewers, and firmware 1.13.0, which is what lifted the camera off 3 fps.
  *
- * Here the site itself is the relay: it tells the camera to post frames over
- * plain HTTPS and then serves them back. Slower than video by design — each
- * frame is a full TLS request from an ESP32 — but it works from anywhere and
- * depends on nothing that is currently broken.
+ * This is the fallback, and it is deliberately not video. The site itself
+ * relays: it tells the camera to POST frames over plain HTTPS and serves them
+ * back. Every frame is a full TLS request from an ESP32, so the firmware caps
+ * it at four per second (`cloudpush` in `firmware/camera/camera.ino` clamps
+ * fps to 1..4) and no amount of polling here can exceed what the device
+ * uploads. It works from anywhere and depends on nothing that can break in the
+ * middle, which is the entire point of it.
+ *
+ * Do not "optimise" this into the main path. If live video is slow, this file
+ * is not where the problem is.
  */
 import { useEffect, useRef, useState } from "react";
 import { getToken } from "@/lib/control-plane";
@@ -23,6 +29,16 @@ export interface RemoteFrame {
 
 /** Re-arm well inside the server's window so viewing never lapses mid-watch. */
 const REARM_MS = 60_000;
+
+/**
+ * Matched to the firmware's four-frames-a-second ceiling on this path.
+ *
+ * It was 400ms, which is 2.5 polls a second against a device willing to upload
+ * four — so a third of the frames the camera paid TLS to send were overwritten
+ * before anyone saw them. Polling faster than the device uploads is waste;
+ * polling slower is a self-inflicted frame rate.
+ */
+const POLL_MS = 250;
 
 export type RemoteStatus = "idle" | "starting" | "live" | "unavailable";
 
@@ -88,7 +104,7 @@ export function useRemoteCamera(deviceId: string | null, enabled: boolean) {
 
     void (async () => {
       if (!(await arm()) || stopped) return;
-      pollTimer = setInterval(() => void poll().catch(() => {}), 400);
+      pollTimer = setInterval(() => void poll().catch(() => {}), POLL_MS);
       armTimer = setInterval(() => void arm().catch(() => {}), REARM_MS);
     })();
 

@@ -1585,7 +1585,6 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
   );
 }
 
-/** The firmware clamps to 15fps; offering more would just look broken. */
 /* firmware/camera/camera.ino defines FPS_MAX 30. The app stopped at 15, so
    half the range the hardware supports was simply not offered. */
 const CAM_FPS = [1, 5, 8, 10, 15, 20, 25, 30] as const;

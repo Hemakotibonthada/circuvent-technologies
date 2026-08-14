@@ -69,8 +69,30 @@
  * already emits JPEG, so frames are stored exactly as captured with nothing
  * re-encoded and nothing interpolated over a dropped frame. An MP4 would mean
  * either transcoding the ESP32 cannot afford, or lying about the timebase.
+ *
+ *   1.13.0 Make live video run at the frame rate it always claimed to.
+ *
+ * WHY THIS WAS 3 fps
+ *
+ * A console reported "UXGA · 44 KB · 3 fps" over a relay that was working
+ * perfectly. Nothing was broken; three separate decisions simply multiplied.
+ *
+ *   1. One resolution governed both stills and video, so choosing UXGA for a
+ *      snapshot set 1600x1200 as the size of every *streamed* frame too. An
+ *      OV2640 reads a UXGA frame out at around 5 fps on a good day.
+ *   2. XCLK ran at 10 MHz, half the driver's standard, which roughly doubles
+ *      the time that readout takes.
+ *   3. fb_count was 1, so the driver could not expose the next frame until the
+ *      current one had finished being pushed through TLS. Capture and transmit
+ *      were serial when they only ever needed to overlap.
+ *
+ * Each was individually defensible and the combination was not: about 5 fps
+ * halved to 2.5, then serialised with a 44 KB publish. The fix is one change
+ * per cause — a streaming resolution ceiling, 20 MHz, and a second frame
+ * buffer with CAMERA_GRAB_LATEST — and none of them is a network change,
+ * because the network was never the problem.
  */
-#define CV_FW_VERSION "1.12.0"
+#define CV_FW_VERSION "1.13.0"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -388,7 +410,53 @@
  * asking for 30 gives 30 locally and the best available remotely.
  */
 #define FPS_MAX                30
-#define FPS_DEFAULT             8
+#define FPS_DEFAULT            24
+
+/*
+ * The live stream and the still image are two different products of one sensor,
+ * and conflating them is what held this camera at 3 fps.
+ *
+ * `resolution` is the picture the user chose, and at UXGA it is 1600x1200 —
+ * 6.25x the pixels of VGA, roughly 44 KB a frame. An OV2640 cannot read a UXGA
+ * frame out, JPEG it, and have an ESP32 push it through TLS twenty-four times a
+ * second; the sensor alone tops out near 5 fps there. Left as one setting, the
+ * resolution someone picked for a *snapshot* silently became the ceiling on
+ * their *video*, and the console dutifully reported the 3 fps that produced.
+ *
+ * So the stream gets its own ceiling, exactly like the main-stream/sub-stream
+ * split every IP camera ships. Snapshots and recordings still use the full
+ * chosen resolution — nothing is taken away — but while somebody is watching
+ * live, the sensor runs at a size that can actually sustain the frame rate.
+ *
+ * SVGA (800x600) is the highest that holds 24 fps with the pipelining below.
+ * Raising this is not free: it costs frame rate first and stability second.
+ */
+#define STREAM_RES_MAX      "SVGA"
+
+/*
+ * Sensor master clock.
+ *
+ * This ran at 10 MHz, half the 20 MHz the driver examples use, and that was a
+ * deliberate trade: the sensor, the parallel data bus and the DMA writes behind
+ * them all scale with this clock, and on AI-Thinker-class boards — especially
+ * HW-297 / ESP-32S clones with a small on-board regulator — 20 MHz is what
+ * pushes a marginal supply over the edge once Wi-Fi is also transmitting. It
+ * also makes SCCB writes more reliable, since the sensor clocks its register
+ * logic from XCLK.
+ *
+ * What that trade cost was never written down in frames per second, so it is
+ * worth stating plainly: at 10 MHz the sensor needs about twice as long to read
+ * a frame out, which puts a ceiling under the frame rate that no amount of
+ * network tuning can lift. Nobody tuning the relay would ever have found it.
+ *
+ * The default is therefore the standard 20 MHz, and the old value is one build
+ * flag away. If a particular unit browns out, resets under load, or fills the
+ * log with SCCB failures, build that board with -DCV_CAM_XCLK_HZ=10000000
+ * rather than lowering the clock for the whole fleet.
+ */
+#ifndef CV_CAM_XCLK_HZ
+#define CV_CAM_XCLK_HZ   20000000
+#endif
 #define STREAM_TTL_MS      20000UL   // stop if the app stops re-arming
 #define CLOUD_TTL_MS      120000UL   // remote viewing window, re-armed by the app
 #define MOTION_PERIOD_MS     500UL   // how often to run the difference check
@@ -1841,6 +1909,21 @@ String clampRes(const String &n) {
   return n;
 }
 
+/**
+ * The resolution to run the sensor at *while streaming*.
+ *
+ * FRAMESIZE_* is ordered ascending by pixel count, so the cap is a comparison
+ * rather than another list of names that would have to be kept in step with
+ * resFromName() — the parity bug this codebase keeps finding.
+ *
+ * Returns the chosen resolution untouched when it is already small enough, so
+ * a user streaming at VGA is not silently promoted to SVGA.
+ */
+String clampStreamRes(const String &n) {
+  const String base = clampRes(n);
+  return resFromName(base) > resFromName(STREAM_RES_MAX) ? String(STREAM_RES_MAX) : base;
+}
+
 void applyFlash(int level) {
   flashLevel = constrain(level, 0, 100);
 #if FLASH_GPIO_NUM >= 0
@@ -1855,7 +1938,22 @@ void applyFlash(int level) {
 void applySensorSettings() {
   sensor_t *s = esp_camera_sensor_get();
   if (!s) return;
-  s->set_framesize(s, resFromName(resName));
+  /*
+   * While somebody is watching live, the sensor runs at the streaming ceiling
+   * rather than the chosen resolution.
+   *
+   * A snapshot taken *during* a live stream therefore arrives at the streaming
+   * size, not the chosen one. That is deliberate and worth knowing: raising the
+   * framesize for one capture and lowering it again stalls the pipeline and
+   * leaves the sensor's auto-exposure and gain to re-converge, so the snapshot
+   * that cost a visible hiccup in the video is also the one most likely to come
+   * back dark. Every IP camera resolves this the same way — stills come off the
+   * stream while the stream is running.
+   *
+   * Stop the stream and the full chosen resolution is restored on the next
+   * transition, so a UXGA snapshot is still a UXGA snapshot.
+   */
+  s->set_framesize(s, resFromName(streaming ? clampStreamRes(resName) : clampRes(resName)));
   s->set_quality(s, quality);
   s->set_vflip(s, rotation == 180 ? 1 : 0);
   s->set_hmirror(s, rotation == 180 ? 1 : 0);
@@ -1865,6 +1963,15 @@ void applySensorSettings() {
 
 void publishSettings() {
   cv.set("resolution", resName.c_str());
+  /*
+   * The size frames are actually leaving at, which is not always the size the
+   * user chose — see applySensorSettings(). Publishing only `resolution` would
+   * have the console confidently label an 800x600 stream "UXGA", and the first
+   * person to notice would be someone measuring a picture that did not match
+   * its own caption. A device that reports what it wishes were true is worse
+   * than one that reports nothing.
+   */
+  cv.set("streamResolution", clampStreamRes(resName).c_str());
   cv.set("quality", quality);
   cv.set("rotation", rotation);
   cv.set("fps", fps);
@@ -1931,14 +2038,11 @@ bool initCamera() {
   c.pin_sccb_scl = SIOC_GPIO_NUM;
   c.pin_pwdn     = PWDN_GPIO_NUM;
   c.pin_reset    = RESET_GPIO_NUM;
-  // 10 MHz rather than the 20 MHz the examples use. The sensor, the parallel
-  // data bus and the DMA writes behind them all scale with this clock, and on
-  // AI-Thinker-class boards — especially HW-297 / ESP-32S clones with a small
-  // on-board regulator — 20 MHz is what pushes a marginal supply over the edge
-  // once Wi-Fi is also transmitting. Halving it costs frame rate at the top
-  // resolutions and buys a large stability margin. It also makes SCCB writes
-  // far more reliable, since the sensor clocks its register logic from XCLK.
-  c.xclk_freq_hz = 10000000;
+  // ---- XCLK ----
+  //
+  // See CV_CAM_XCLK_HZ in the tunables above for why this is 20 MHz and when to
+  // lower it.
+  c.xclk_freq_hz = CV_CAM_XCLK_HZ;
   c.pixel_format = PIXFORMAT_JPEG;
 
   hasPsram = psramFound() && psramUsable();
@@ -1949,11 +2053,29 @@ bool initCamera() {
   if (hasPsram) {
     c.frame_size   = FRAMESIZE_VGA;
     c.jpeg_quality = quality;
-    // Single buffer. The second buffer doubles both the PSRAM footprint and
-    // the DMA bandwidth for, at these frame rates, no useful overlap.
-    c.fb_count     = 1;
+    /*
+     * Two buffers, and take the newest.
+     *
+     * This was one buffer, on the reasoning that a second doubles the PSRAM
+     * footprint and the DMA bandwidth "for no useful overlap at these frame
+     * rates". The overlap is the whole game, and the reasoning was circular:
+     * with fb_count = 1 the driver cannot begin exposing frame N+1 until the
+     * application has returned frame N, and sendFrame() does not return it
+     * until cv.publishFrame() has pushed every byte through TLS. Capture and
+     * transmit were therefore strictly serial, so the period was
+     * capture + publish when it only ever needed to be max(capture, publish).
+     * The frame rate that "did not justify" a second buffer was the frame rate
+     * caused by not having one.
+     *
+     * CAMERA_GRAB_LATEST rather than WHEN_EMPTY matters just as much: with a
+     * queue of two, WHEN_EMPTY hands back the older frame, so a viewer sees
+     * video that is a frame behind and drifts further under load. LATEST drops
+     * the stale one. For live video a late frame is worthless — the same
+     * reasoning that already makes frames QoS 0 and never retained.
+     */
+    c.fb_count     = 2;
     c.fb_location  = CAMERA_FB_IN_PSRAM;
-    c.grab_mode    = CAMERA_GRAB_WHEN_EMPTY;
+    c.grab_mode    = CAMERA_GRAB_LATEST;
   } else {
     // Without PSRAM the buffer lives in the internal DRAM shared with TLS and
     // the network stack, so keep it small and single-buffered.
@@ -2183,6 +2305,17 @@ void setStreaming(bool on) {
   if (on) streamArmedAt = millis();
   if (streaming == on) return;
   streaming = on;
+  /*
+   * Re-apply the sensor settings on every transition, because the framesize
+   * depends on `streaming` now. Without this the cap is computed once at boot
+   * and the whole stream/snapshot split silently does nothing — a control that
+   * looks present and has no effect, which is the failure this codebase finds
+   * most often.
+   *
+   * Only the framesize actually changes here, and only when the chosen
+   * resolution is above the streaming ceiling.
+   */
+  applySensorSettings();
   cv.set("streaming", streaming);
   cv.publishStateNow();
   Serial.printf("[CAM] stream %s\n", on ? "on" : "off");
@@ -2402,6 +2535,36 @@ void setup() {
   // recorded: the gap looks like nothing happened.
   recEnabled  = store.getBool("recon", false);
   speakerVolume = store.getInt("vol", speakerVolume);
+
+  /*
+   * Raise the frame rate on cameras that never chose one.
+   *
+   * FPS_DEFAULT went from 8 to 24, but a default only applies to a device with
+   * nothing stored, and every camera already in a house has `fps` in NVS from
+   * the first time it published settings. Without this the whole 24 fps change
+   * would have landed as an OTA that measurably improved nothing on the entire
+   * installed fleet, while passing every test — the exact shape of failure this
+   * codebase keeps finding, and the reason the number on the console would
+   * still have read 8 after a "fix" for it.
+   *
+   * Only a stored value equal to the *old default* is raised. That is a value
+   * the user cannot have chosen deliberately, because it is the one they would
+   * have got by never opening the slider. Anyone who picked 5 to save
+   * bandwidth, or 15, keeps exactly what they picked.
+   *
+   * `fpsv` records that this ran, so someone who now deliberately selects 8
+   * keeps it through the next reboot instead of being overridden forever.
+   */
+  const int FPS_PREVIOUS_DEFAULT = 8;
+  if (store.getInt("fpsv", 0) < 1) {
+    if (fps == FPS_PREVIOUS_DEFAULT) {
+      fps = FPS_DEFAULT;
+      store.putInt("fps", fps);
+      Serial.printf("[CAM] frame rate raised %d -> %d (never set by the user)\n",
+                    FPS_PREVIOUS_DEFAULT, fps);
+    }
+    store.putInt("fpsv", 1);
+  }
 
   /*
    * The camera is initialised here, before cv.begin(), and torn down again if
