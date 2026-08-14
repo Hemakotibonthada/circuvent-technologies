@@ -20,6 +20,7 @@ import ProfileAvatar from "../ProfileAvatar";
 import ProfileEditor from "./ProfileEditor";
 import PasswordSection from "./PasswordSection";
 import PasskeySection from "./PasskeySection";
+import AssistantsSection from "./AssistantsSection";
 
 export default function AccountPanel() {
   const { user, ready, liveStatus, notifyPermission, enableNotifications, logout } = useConsole();
@@ -225,6 +226,7 @@ export default function AccountPanel() {
       {/* ── Password & other devices ──────────────────── */}
       <PasswordSection />
       <PasskeySection />
+      <AssistantsSection />
 
       {/* ── Sign out ──────────────────────────────────── */}
       <SectionTitle>Session actions</SectionTitle>

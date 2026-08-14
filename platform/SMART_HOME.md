@@ -40,9 +40,17 @@ their own account. Nothing is hard-coded to one device or one person.
 | Alexa fulfillment | Lambda → `https://api.circuvent.com/smarthome/alexa` |
 | OAuth Client ID | `circuvent-smarthome` |
 | OAuth Client Secret | `SMARTHOME_CLIENT_SECRET` in the VM `~/circuvent-platform/.env` |
+| Scope | `control` |
 | Privacy policy (required to publish) | `https://circuvent.com/privacy` |
 
-Read the secret: `ssh ubuntu@140.245.238.154 "grep SMARTHOME_CLIENT ~/circuvent-platform/.env"`
+Read the secret: `ssh ubuntu@api.circuvent.com "grep SMARTHOME_CLIENT_SECRET ~/circuvent-platform/.env"`
+
+Confirm the server is ready before touching a console — `capabilities` must
+contain `smartHomeVoice`:
+
+```
+curl -s https://api.circuvent.com/health
+```
 
 Prerequisites to publish (both platforms require these):
 - A **public privacy policy URL** and **terms** (host at circuvent.com/privacy).
@@ -115,12 +123,113 @@ devices. Adding a new device later just needs a re-*Discover* (Alexa) / auto-syn
 
 ---
 
-## 4. Scaling / hardening notes
+## 4. Proactive updates — what they are and why they matter
 
-- **Request Sync (Google)** and **ProactiveState / ChangeReport (Alexa)** are
-  optional next steps to push device-state changes to the assistants in real
-  time (we already have the live MQTT→state pipeline to feed them).
+Everything above works without this section: a customer can say "turn on the
+lamp" and ask an assistant for its state. What is missing without it is the
+*proactive* half, and it is what people notice.
+
+| Without | With |
+| --- | --- |
+| A device bought today is invisible to the assistant until the customer says "sync my devices" (Google) or runs Discover by hand (Alexa) — neither of which they have any reason to know they must do. | It appears within seconds of being claimed. |
+| Pressing a wall switch, or a schedule firing, leaves the assistant showing a stale value. Routines keyed on state run against it. | The assistant is told, and stays in step. |
+
+Both are optional settings on the control plane. Unset, the server does not
+claim to support them — `willReportState` and `proactivelyReported` are
+reported as `false`, because claiming them while nothing reports leaves the
+assistant waiting for updates that never arrive and showing the device as
+unresponsive, which is a worse thing for a customer to see than a limitation.
+
+### Google — HomeGraph service account
+
+1. In the Google Cloud project behind your Action, enable the **HomeGraph API**.
+2. Create a **service account**, give it the *HomeGraph API Service Agent* role,
+   and download a **JSON key**.
+3. Put it in the VM `.env` as one line. Base64 is the practical shape, because
+   a PEM private key pasted into an env file loses its newlines:
+
+```bash
+base64 -w0 homegraph-key.json          # copy the output
+# in ~/circuvent-platform/.env
+GOOGLE_HOMEGRAPH_KEY=eyJ0eXBlIjoic2Vydmlj...
+```
+
+The server accepts raw JSON too, if you can keep the newlines intact.
+
+### Alexa — Login with Amazon credentials for events
+
+These are **not** the account-linking client id and secret above. They come
+from the skill's **Permissions** page, where you also switch on *Send Alexa
+Events*. Using one pair for the other is the mistake worth avoiding.
+
+```bash
+# in ~/circuvent-platform/.env
+ALEXA_CLIENT_ID=amzn1.application-oa2-client....
+ALEXA_CLIENT_SECRET=....
+# Regional gateway. Sending to the wrong one fails in a way that looks
+# exactly like a bad token.
+#   NA  https://api.amazonalexa.com/v3/events        (default)
+#   EU/IN https://api.eu.amazonalexa.com/v3/events
+#   FE  https://api.fe.amazonalexa.com/v3/events
+ALEXA_EVENT_GATEWAY=https://api.eu.amazonalexa.com/v3/events
+```
+
+Then `./scripts/deploy.sh`. Check it took:
+
+```bash
+curl -s https://api.circuvent.com/health   # capabilities should list smartHomeVoice
+```
+
+---
+
+## 5. What a customer can control by voice
+
+Deliberately not everything. A type absent from this list does not exist to
+either assistant, and that is the security boundary for voice — locks, gates,
+cameras, ANPR and drones are all left out, because their only boolean is a
+*mode* (locked, armed, cleared to fly) rather than a load. "Unlock the front
+door" must not be reachable by anything that can hear through a window.
+
+| Device | On/off | Other |
+| --- | --- | --- |
+| Smart plug, switch | ✓ | |
+| Smart light | ✓ | Brightness |
+| Smart fan | ✓ | Speed as a percentage, and "low/medium/high" |
+| Home Hub | ✓ (channel 1) | |
+| Sentinel | ✓ (relay 1) | |
+| AquaGuard, agri-starter | ✓ | Categorised as a **valve**, not a switch |
+
+The categories matter as much as the list. Assistants sweep by category, so a
+pump typed as a switch would join "turn everything off" and every goodnight
+routine — going to bed would cut the water supply and stop an irrigation cycle
+halfway.
+
+---
+
+## 6. Unlinking
+
+A customer who removes Circuvent in the Google Home app, or disables the skill,
+has said plainly that they want it to stop. Both now revoke the grant rather
+than only forgetting the link, through the same kill switch as "sign out
+everywhere".
+
+They can also do it from Circuvent: **Settings → Account → Voice assistants**,
+which lists what is linked and when. That page exists because "what can open my
+house?" previously had no answer — account linking is a stateless token
+exchange, so an Echo in a house somebody had moved out of held a working grant
+with nothing recording it.
+
+---
+
+## 7. Scaling / hardening notes
+
 - Rotate `SMARTHOME_CLIENT_SECRET` in the VM `.env` + both consoles together.
-- The fulfillment is stateless and horizontal-scalable; OAuth tokens are JWTs
+- The fulfillment is stateless and horizontally scalable; OAuth tokens are JWTs
   (no server session), so multiple API replicas work without sticky sessions.
+  The only stored state is `assistant_links`, which is a small table keyed by
+  user and assistant.
 - Rate limiting + helmet are already enabled on the control plane.
+- Alexa has no reliable removal event for skills, so a device deleted from a
+  Circuvent account lingers in the Alexa app until the customer runs Discover.
+  Worth knowing when somebody reports it as a bug.
+

@@ -115,6 +115,22 @@ export interface HomeRoleInfo {
   description: string;
 }
 
+/** A voice assistant linked to this account. */
+export interface LinkedAssistant {
+  assistant: "google" | "alexa";
+  linkedAt: string;
+  lastSyncAt: string | null;
+  /**
+   * Whether we can push changes to it.
+   *
+   * False means the assistant only learns a device's state when it asks, so
+   * its app can show a stale value after a wall switch. Worth surfacing rather
+   * than hiding: it is the explanation for the thing a customer would
+   * otherwise report as a bug.
+   */
+  receivesUpdates: boolean;
+}
+
 /** One ANPR capture, after the plate was read (or found unreadable). */export interface PlateRead {
   id: number;
   deviceId: string;
@@ -1349,6 +1365,21 @@ export const controlPlane = {
   revokeGatePass: (id: number) => req<{ success: boolean }>("/gate/passes/" + id + "/revoke", { method: "POST" }),
   redeemGatePass: (code: string) =>
     req<{ ok: boolean; opened?: boolean; label?: string; usesLeft?: number; error?: string }>("/gate/redeem", { method: "POST", body: JSON.stringify({ code }) }),
+
+  // ---- voice assistants ---------------------------------------------------
+  /** Which assistants can control this home, and since when. */
+  assistants: () => req<{ assistants: LinkedAssistant[] }>("/account/assistants"),
+  /**
+   * Cuts an assistant off.
+   *
+   * Revokes rather than forgetting, so this also signs out every other device
+   * on the account — the response says so, and the UI must repeat it.
+   */
+  unlinkAssistant: (assistant: "google" | "alexa") =>
+    req<{ success: boolean; removed: boolean; signedOutEverywhere: boolean; message: string }>(
+      "/account/assistants/" + assistant,
+      { method: "DELETE" }
+    ),
 
   // ---- household sharing --------------------------------------------------
   /**

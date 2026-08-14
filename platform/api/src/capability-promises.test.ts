@@ -36,6 +36,7 @@ const PROMISES: Array<{ capability: string; provenBy: string; feature: string }>
   { capability: "developerApi", provenBy: "routes/v1.ts", feature: "the public developer API" },
   { capability: "deviceCommands", provenBy: "routes/devices.ts", feature: "device commands" },
   { capability: "frameRelay", provenBy: "ws.ts", feature: "camera frame relay" },
+  { capability: "smartHomeVoice", provenBy: "smarthome/traits.ts", feature: "Google Home and Alexa control" },
 ];
 
 for (const { capability, provenBy, feature } of PROMISES) {

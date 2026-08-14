@@ -63,6 +63,17 @@ export const CAPABILITIES = [
    * another's name.
    */
   "householdSharing",
+  /**
+   * Google Home and Alexa: account linking, fulfilment, and the proactive
+   * half — Request Sync, Report State, ChangeReport and AcceptGrant.
+   *
+   * Its absence means voice control is missing entirely, which is at least
+   * honest. What the capability does *not* promise is that the proactive push
+   * is configured: that needs a HomeGraph key and Alexa event credentials,
+   * which are deployment settings rather than build facts, and the SYNC
+   * response reports them per device via `willReportState`.
+   */
+  "smartHomeVoice",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
