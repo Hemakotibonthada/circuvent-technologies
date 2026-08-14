@@ -19,7 +19,9 @@ import {
   Link2,
   Rocket,
   X,
+  BarChart3,
 } from "lucide-react";
+import { IcmAnalytics } from "./IcmAnalytics";
 import {
   SLA,
   SEVERITIES,
@@ -179,6 +181,7 @@ function StatCard({ label, value, tone, hint }: { label: string; value: string |
 
 export default function IcmPanel() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [showTrends, setShowTrends] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [teams, setTeams] = useState<string[]>([]);
   const [now, setNow] = useState<string>(new Date().toISOString());
@@ -400,6 +403,27 @@ export default function IcmPanel() {
           <StatCard label="Median TTM" value={formatMins(stats.medianTtm)} hint="time to mitigate" />
         </div>
       )}
+
+      {/*
+        Trends are opt-in, and the queue stays the landing view.
+
+        Somebody opening this page during an incident wants the queue, not a
+        chart of last month. The analytics answer a different question — asked
+        in a review rather than at 3am — so they are one click away instead of
+        pushing the incident list below the fold.
+      */}
+      <div>
+        <button
+          onClick={() => setShowTrends((v) => !v)}
+          aria-expanded={showTrends}
+          className="inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-3 text-sm cv-text-secondary hover:cv-surface-alt"
+        >
+          <BarChart3 className="h-4 w-4" aria-hidden />
+          {showTrends ? "Hide trends" : "Show trends"}
+        </button>
+      </div>
+
+      {showTrends && <IcmAnalytics incidents={incidents} />}
 
       {(postmortemsDue.length > 0 || actions.length > 0) && (
         <div className="grid gap-3 lg:grid-cols-2">

@@ -24,8 +24,18 @@ export function abbr(n: number): string {
 export interface Series { name: string; data: number[]; color?: string }
 
 // ---------------------------------------------------------------- Line/Area
-export function LineChart({ labels, series, height = 220, area = false, yFmt = abbr, currency = false }: {
+export function LineChart({ labels, series, height = 220, area = false, yFmt = abbr, currency = false, legend }: {
   labels: string[]; series: Series[]; height?: number; area?: boolean; yFmt?: (n: number) => string; currency?: boolean;
+  /**
+   * Force the standing legend on or off.
+   *
+   * Defaults to showing it only for multi-series charts, because on a single
+   * line the card title already names it and a one-item key is noise. The
+   * override exists for charts where the series name IS the information —
+   * "Sev 1" on its own tells you which severity occurred, and without it a
+   * lone line could be any of five.
+   */
+  legend?: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 720, H = height, padL = 44, padR = 12, padT = 12, padB = 26;
@@ -73,7 +83,7 @@ export function LineChart({ labels, series, height = 220, area = false, yFmt = a
           <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke={AXIS} strokeDasharray="3 3" opacity={0.5} />
         )}
       </svg>
-      {hover !== null && (
+      {hover !== null ? (
         <div className="mt-1 flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-secondary)" }}>
           <span style={{ color: "var(--text-muted)" }}>{labels[hover]}:</span>
           {series.map((s, si) => (
@@ -83,6 +93,23 @@ export function LineChart({ labels, series, height = 220, area = false, yFmt = a
             </span>
           ))}
         </div>
+      ) : (
+        /*
+         * A legend that is there before you touch anything.
+         *
+         * This chart previously named its series only while the pointer was
+         * over the plot, unlike every other multi-series chart here — GroupedBar
+         * and the rest render a standing Legend. Hover-only naming fails three
+         * ways: there is no hover on a touchscreen, a screenshot pasted into an
+         * incident review carries no key at all, and a keyboard user never sees
+         * it. The values stay on hover, where they belong; only the names come
+         * out.
+         */
+        (legend ?? series.length > 1) && (
+          <div className="mt-2">
+            <Legend items={series.map((s, si) => ({ name: s.name, color: s.color || PALETTE[si % PALETTE.length] }))} />
+          </div>
+        )
       )}
     </div>
   );

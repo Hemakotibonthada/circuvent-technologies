@@ -4,6 +4,21 @@ import { useCallback, useEffect, useState } from "react";
 import { toCsv, downloadCsv } from "../smarthome/_kit/primitives";
 import { METRICS, SPLITS, type MetricId, type SplitBy, type MetricSeries } from "@/lib/app-insights";
 import {
+  BusiestPaths,
+  ChartCard,
+  DependencyLatency,
+  DurationHistogram,
+  FailingRequests,
+  FailureRateChart,
+  FailuresBySession,
+  PercentileBars,
+  SlowestPaths,
+  SlowestRequests,
+  StatusDonut,
+  TopFailures,
+  TrafficChart,
+} from "./insights-charts";
+import {
   describeRule,
   formatMetricValue,
   validateRule,
@@ -899,6 +914,33 @@ export default function AppInsightsPanel() {
 
       {view && tab === "requests" && (
         <div className="space-y-3">
+          {/*
+            Charts first, table second.
+
+            The table already answered "which route is slowest". It could not
+            answer "is it getting worse", "what proportion of traffic is
+            failing", or "which route is failing badly rather than often" —
+            all of which are in the same payload and were simply never drawn.
+          */}
+          <div className="grid gap-3 lg:grid-cols-2">
+            <ChartCard title="Traffic" hint="Requests per bucket, with failures overlaid when there are any.">
+              <TrafficChart summary={view.summary} />
+            </ChartCard>
+            <ChartCard title="Failure rate" hint="Proportion of requests that failed, not the raw count.">
+              <FailureRateChart summary={view.summary} />
+            </ChartCard>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            <ChartCard title="Responses" hint="Grouped by class — the question is how much succeeded.">
+              <StatusDonut statuses={view.statuses} />
+            </ChartCard>
+            <ChartCard title="Slowest routes" hint="By p95, in ms. The average is a good day; the p95 is the complaint.">
+              <SlowestRequests requests={view.requests} />
+            </ChartCard>
+            <ChartCard title="Worst failure rate" hint="Percent failing, minimum five calls — a route failing 10 of 10 beats one failing 1000 of a million.">
+              <FailingRequests requests={view.requests} />
+            </ChartCard>
+          </div>
           {view.statuses.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {view.statuses.map((s) => (
@@ -992,6 +1034,14 @@ export default function AppInsightsPanel() {
 
       {view && tab === "dependencies" && (
         <div className="space-y-3">
+          {view.dependencies.length > 0 && (
+            <ChartCard
+              title="Slowest outbound calls"
+              hint="By p95, in ms. Red means it is failing as well as slow — a different problem from merely slow."
+            >
+              <DependencyLatency dependencies={view.dependencies} />
+            </ChartCard>
+          )}
           {(() => {
             /*
              * A monitor that has never run looks identical to one where
@@ -1303,6 +1353,17 @@ export default function AppInsightsPanel() {
 
       {view && tab === "performance" && (
         <div className="space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <ChartCard title="Where the time goes" hint="The distribution, not an average — an average hides a slow tail entirely.">
+              <DurationHistogram histogram={view.histogram} />
+            </ChartCard>
+            <ChartCard
+              title="Percentiles by operation"
+              hint="Bars of similar height mean uniformly slow. A low p50 beside a towering p99 means usually fine, occasionally terrible — different causes, and an average hides both."
+            >
+              <PercentileBars performance={view.performance} />
+            </ChartCard>
+          </div>
           {view.histogram.some((b) => b.count > 0) && (
             <div className="rounded-xl border cv-border p-3">
               <div className="mb-2 text-[11px] uppercase tracking-wide cv-text-muted">
@@ -1571,6 +1632,9 @@ export default function AppInsightsPanel() {
 
       {view && tab === "logs" && (
         <div className="space-y-2">
+          <ChartCard title="Event volume" hint="Everything received in this window, with failures overlaid.">
+            <TrafficChart summary={view.summary} />
+          </ChartCard>
           <div className="flex flex-wrap items-center gap-2">
             <input
               value={logFilter}
@@ -1674,7 +1738,16 @@ export default function AppInsightsPanel() {
       )}
 
       {view && tab === "paths" && view.paths.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border cv-border">
+        <div className="space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <ChartCard title="Busiest pages" hint="Page views in this window.">
+              <BusiestPaths paths={view.paths} />
+            </ChartCard>
+            <ChartCard title="Slowest pages" hint="By p95, in ms.">
+              <SlowestPaths paths={view.paths} />
+            </ChartCard>
+          </div>
+          <div className="overflow-x-auto rounded-xl border cv-border">
           <table className="w-full text-left text-sm">
             <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
               <tr>
@@ -1706,11 +1779,25 @@ export default function AppInsightsPanel() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
       {view && tab === "failures" && (
         <div className="space-y-2">
+          {view.failures.length > 0 && (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <ChartCard title="Most frequent" hint="Grouped by what makes them the same bug, not by message.">
+                <TopFailures failures={view.failures} />
+              </ChartCard>
+              <ChartCard
+                title="Most people affected"
+                hint="By sessions. A loop throwing a thousand times is one person having a bad time; ten failures across ten sessions is ten people."
+              >
+                <FailuresBySession failures={view.failures} />
+              </ChartCard>
+            </div>
+          )}
           {view.failures.length === 0 && (
             <div className="rounded-xl border border-emerald-800/50 bg-emerald-950/20 py-8 text-center">
               <div className="font-semibold text-emerald-300">No failures in this window</div>
