@@ -43,6 +43,26 @@ export const CAPABILITIES = [
    * command safety gate.
    */
   "droneTelemetry",
+  /**
+   * FaceDoor: face profiles, samples, enrolment windows and POST /face/match.
+   *
+   * The door has no camera; a hub posts a descriptor here and this decides.
+   * A client that cannot find this should say the hub needs rebuilding rather
+   * than presenting an enrolment screen whose every button 404s.
+   */
+  "faceRecognition",
+  /**
+   * Households: /home/*, the x-circuvent-home header, and the capability
+   * guard on commands.
+   *
+   * Worth being explicit about what its absence means. Without this build a
+   * client that sets the home header is not merely missing a feature — the
+   * header is ignored, so every request silently answers for the caller's own
+   * home while the screen says it is showing somebody else's. A client should
+   * refuse to switch homes at all rather than show one house's data under
+   * another's name.
+   */
+  "householdSharing",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

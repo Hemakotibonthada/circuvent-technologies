@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import pinoHttp from "pino-http";
 import { config } from "./config";
 import { logger } from "./logger";
@@ -89,7 +89,21 @@ async function main(): Promise<void> {
       // Bucket by a hash of the key, never the key itself — rate-limiter state
       // is held in memory and shows up in dumps and metrics.
       if (raw) return "k:" + createHash("sha256").update(raw).digest("hex").slice(0, 32);
-      return "ip:" + (req.ip ?? "unknown");
+      /*
+       * Unauthenticated requests fall back to the address, through the
+       * library's helper rather than `req.ip` directly.
+       *
+       * A raw IPv6 address is not an identity. A single client is routinely
+       * handed a whole /64, so counting per address let one machine take a
+       * fresh 600-per-minute budget for every address it cared to use — an
+       * unlimited allowance dressed as a limit. The helper buckets a v6 caller
+       * by its subnet, and leaves v4 alone.
+       *
+       * express-rate-limit says this at startup (ERR_ERL_KEY_GEN_IPV6). It was
+       * logged as an error on every boot and read as noise, which is the usual
+       * fate of a warning nobody has to act on.
+       */
+      return "ip:" + ipKeyGenerator(req.ip ?? "unknown");
     },
     message: { error: "Rate limit exceeded — 600 requests per minute per key.", code: "rate_limited" },
   });
