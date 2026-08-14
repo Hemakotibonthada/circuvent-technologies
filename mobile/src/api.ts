@@ -611,6 +611,22 @@ export interface HomeRoleInfo {
   description: string;
 }
 
+/** A voice assistant linked to this account. */
+export interface LinkedAssistant {
+  assistant: "google" | "alexa";
+  linkedAt: string;
+  lastSyncAt: string | null;
+  /**
+   * Whether we can push changes to it.
+   *
+   * False means the assistant only learns a device's state when it asks, so
+   * its app can show a stale value after somebody uses a wall switch. Worth
+   * surfacing rather than hiding: it is the explanation for the thing a
+   * customer would otherwise report as a bug.
+   */
+  receivesUpdates: boolean;
+}
+
 export interface FaceProfile {
   id: number;
   name: string;
@@ -667,6 +683,18 @@ export const api = {
       body: JSON.stringify({ role }),
     }),
   removeMember: (id: number) => req<{ ok: boolean }>("/home/members/" + id, { method: "DELETE" }),
+
+  /* ------------------------------------------------------ voice assistants --
+   * What can control this home by speaking to it. The question had no answer
+   * before: account linking is a stateless token exchange, so an Echo in a
+   * house somebody moved out of held a working grant with nothing recording it.
+   */
+  assistants: () => req<{ assistants: LinkedAssistant[] }>("/account/assistants"),
+  unlinkAssistant: (assistant: "google" | "alexa") =>
+    req<{ success: boolean; removed: boolean; signedOutEverywhere: boolean; message: string }>(
+      "/account/assistants/" + assistant,
+      { method: "DELETE" }
+    ),
 
   /* ---------------------------------------------------------------- face --
    * FaceDoor enrolment.

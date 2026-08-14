@@ -2,7 +2,7 @@
 
 import PageHeader from "@/components/PageHeader";
 import ScrollReveal from "@/components/ScrollReveal";
-import { Shield, Lock, Eye, Database, Globe, FileText, Mail } from "lucide-react";
+import { Shield, Lock, Eye, Database, Globe, FileText, Mail, Cpu, Mic, Users } from "lucide-react";
 
 const sections = [
   {
@@ -58,6 +58,47 @@ const sections = [
       "Circuvent Technologies maintains 53+ open source repositories. All code in our public repositories is freely available under the MIT License unless otherwise specified.",
       "For client projects, we maintain strict confidentiality. Client source code is never made public, shared with third parties, or used in our open source projects without explicit written consent.",
       "Our AI systems (NEXUS AI OS, JARVIS, etc.) are designed with a local-first philosophy — all AI inference runs on-device by default, ensuring no user data is sent to external servers.",
+    ],
+  },
+  {
+    icon: Cpu,
+    title: "Devices, Homes and Telemetry",
+    content: [
+      "When you set up a Circuvent device, the control plane stores what it needs to show you your home and act on your instructions: the device's id, the name and room you give it, the state it reports (for example on/off, brightness, tank level, power draw), the commands sent to it and who sent them, and a record of when it was last seen online.",
+      "Command history exists so that a house has an honest record of what happened in it. Where a home is shared with other people, an action is recorded against the person who took it — not against the account holder — precisely so that the record means something.",
+      "Energy and sensor readings are kept as history so the app can show you trends. Device state is also sent, in real time, to the phones and browsers signed in to your account.",
+      "Devices talk to the control plane over an encrypted MQTT connection using credentials issued to that device alone. A device you remove from your account has its broker credentials withdrawn.",
+    ],
+  },
+  {
+    icon: Lock,
+    title: "Cameras, Faces and Number Plates",
+    content: [
+      "Some Circuvent products process images. What is kept, and for how long, differs by product, and the differences are deliberate.",
+      "• FaceDoor stores a mathematical descriptor of an enrolled face — a list of numbers — and not the photograph it was computed from. The photograph is used to compute the descriptor and then discarded. A descriptor cannot be turned back into a picture of a face. Every unlock attempt, granted or refused, is recorded so the household can see who came to the door.",
+      "• Number-plate recognition stores the plate read, the time and the camera. The captured image is kept for a shorter period than the reading itself, because a photograph of a gate also contains whoever was walking past and the inside of the car, and that is only useful for the short window in which somebody might dispute a specific read.",
+      "• Camera video is relayed live to your own signed-in devices on request. It is not recorded to our servers as part of that relay.",
+      "You can delete an enrolled face, a vehicle, or a whole device at any time from the app or the console, and the associated records go with it.",
+    ],
+  },
+  {
+    icon: Users,
+    title: "Sharing a Home With Other People",
+    content: [
+      "You can invite other people into your home and give each of them a level of access. A member can see the devices in that home and, depending on the access you chose, control them. They cannot see or change anything about your account — not your password, not your signed-in devices, not your billing.",
+      "Invitations are single-use and expire. Removing somebody ends their access immediately rather than when their session happens to expire.",
+      "People you invite are told what access they have and can leave a home at any time.",
+    ],
+  },
+  {
+    icon: Mic,
+    title: "Voice Assistants (Google Home and Alexa)",
+    content: [
+      "Linking Circuvent to Google Home or Amazon Alexa is entirely optional and is something you do yourself. Nothing is shared with either company unless you link your account.",
+      "When you link, we share with that assistant only what it needs to show and control your devices: each device's id, the name and room you gave it, its type, and its current state — whether it is on, its brightness, a fan's speed, and whether it is reachable. When you speak a command, the assistant sends it to us and we pass it to your device.",
+      "We do not send them your email address, your address, your other devices, your camera images, enrolled faces, number-plate reads, or your energy history.",
+      "Locks, gates, cameras, number-plate cameras and drones are deliberately not exposed to voice assistants at all. A spoken command should not be able to unlock a door, open a gate, or launch an aircraft.",
+      "Google and Amazon process what we send them under their own privacy policies. You can disconnect at any time from the assistant's own app, or from Settings → Account in Circuvent, and either route immediately revokes the access it was granted.",
     ],
   },
   {
