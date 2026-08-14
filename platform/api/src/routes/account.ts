@@ -4,6 +4,7 @@ import { requireAuth, type AuthedRequest } from "../auth";
 import { registerPushToken, removePushToken } from "../push";
 import { listForUser, markRevoked } from "../app-installs";
 import { revokeAllSessions } from "../sessions";
+import { linksFor, unlink } from "../smarthome/links";
 
 export const accountRouter = Router();
 
@@ -27,6 +28,63 @@ accountRouter.delete("/push-token", requireAuth, async (req: AuthedRequest, res)
   // silence another account's alerts if they ever learn its token.
   if (t) await removePushToken(t, req.user!.uid);
   res.json({ success: true });
+});
+
+/**
+ * GET /account/assistants — which voice assistants can control this home.
+ *
+ * The account holder is entitled to an answer to "what can open my house?",
+ * and before this there was none: account linking is a stateless token
+ * exchange, so nothing recorded that an Echo in a house somebody has since
+ * moved out of still held a working grant.
+ */
+accountRouter.get("/assistants", requireAuth, async (req: AuthedRequest, res) => {
+  const links = await linksFor(req.user!.uid);
+  res.json({
+    assistants: links.map((l) => ({
+      assistant: l.assistant,
+      linkedAt: l.linkedAt,
+      lastSyncAt: l.lastSyncAt,
+      /* Named plainly rather than as a boolean flag: "can send updates" is
+         what the customer sees, and it explains why a device might show a
+         stale state in their assistant's app. */
+      receivesUpdates: l.assistant === "google" ? true : l.hasEventGrant,
+    })),
+  });
+});
+
+/**
+ * DELETE /account/assistants/:assistant — cut a linked assistant off.
+ *
+ * Revokes rather than merely forgetting. The record is bookkeeping; the
+ * refresh token is the access, so this bumps the account's token epoch — the
+ * same kill switch "sign out everywhere" uses.
+ *
+ * That also signs out this account's phones and consoles, and the response
+ * says so. Blunt in this direction is right: somebody removing an assistant is
+ * far more likely to be removing access they no longer want than tidying up,
+ * and the cost of over-revoking is signing in again while the cost of
+ * under-revoking is a stranger keeping a house key.
+ */
+accountRouter.delete("/assistants/:assistant", requireAuth, async (req: AuthedRequest, res) => {
+  const a = String(req.params.assistant || "");
+  if (a !== "google" && a !== "alexa") {
+    res.status(400).json({ error: "Unknown assistant." });
+    return;
+  }
+  try {
+    const removed = await unlink(req.user!.uid, a);
+    res.json({
+      success: true,
+      removed,
+      signedOutEverywhere: true,
+      message:
+        `${a === "google" ? "Google Home" : "Alexa"} can no longer control your devices. ` +
+        `Your other devices have been signed out too — sign in again on each.`,
+    });
+  } catch {
+    res.status(500).json({ error: "Could not unlink. Please try again." });
+  }
 });
 
 /*

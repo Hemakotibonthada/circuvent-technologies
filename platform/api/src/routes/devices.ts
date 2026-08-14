@@ -8,6 +8,8 @@ import { buildDeviceReport, reportToCsv } from "../device-report";
 import { logger } from "../logger";
 import { onlineColumn } from "../device-online";
 import { refuseCommand, actorId, requireCapability } from "../home/enforce";
+import { deviceListChanged } from "../smarthome/sync";
+import { forgetDeviceOwner } from "../smarthome/report";
 
 export const deviceRouter = Router();
 
@@ -92,6 +94,9 @@ deviceRouter.post("/claim", requireAuth, async (req: AuthedRequest, res) => {
     // Ensure the device has broker access (idempotent — no-op if it already exists).
     provisionBrokerClient(id, key);
     invalidateOwnership(id);
+    /* A new device is invisible to Google and Alexa until they are told the
+       list changed. Debounced, so claiming six during setup is one call. */
+    deviceListChanged(req.user!.uid);
     res.json({ success: true, id });
   } catch {
     res.status(500).json({ error: "Could not claim device." });
@@ -147,6 +152,11 @@ deviceRouter.patch("/:id", requireAuth, async (req: AuthedRequest, res) => {
     `UPDATE devices SET name = COALESCE($2, name), room = COALESCE($3, room), favorite = COALESCE($4, favorite) WHERE id = $1`,
     [req.params.id, parsed.data.name ?? null, parsed.data.room ?? null, parsed.data.favorite ?? null]
   );
+  /* A rename is what an assistant knows the device by, so "turn on the porch
+     light" stops working until it is told. Favourite alone is cosmetic, but
+     splitting that out would be three code paths to keep in step for the sake
+     of one debounced call. */
+  if (parsed.data.name != null || parsed.data.room != null) deviceListChanged(req.user!.uid);
   res.json({ success: true });
 });
 
@@ -283,5 +293,7 @@ deviceRouter.delete("/:id", requireAuth, async (req: AuthedRequest, res) => {
   await pool.query(`UPDATE devices SET owner_id = NULL WHERE id = $1`, [req.params.id]);
   deprovisionBrokerClient(req.params.id);
   invalidateOwnership(req.params.id);
+  forgetDeviceOwner(req.params.id);
+  deviceListChanged(req.user!.uid);
   res.json({ success: true });
 });

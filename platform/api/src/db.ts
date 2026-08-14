@@ -324,6 +324,31 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_home_invites_home ON home_invites(home_id);
 
+    -- Which assistants a customer has linked.
+    --
+    -- Account linking is otherwise stateless — a JWT exchange with nothing
+    -- stored — and that is what lets the API scale sideways. This table exists
+    -- for the three things that cannot be done without a record: honouring an
+    -- unlink, knowing who to push state to, and being able to answer "which
+    -- assistants can control my house?".
+    --
+    -- The Alexa columns hold the grant Amazon issues once during AcceptGrant
+    -- and never repeats. Losing it stops proactive updates for that user until
+    -- they disable and re-enable the skill, so it is written before the
+    -- AcceptGrant response is sent.
+    CREATE TABLE IF NOT EXISTS assistant_links (
+      user_id             BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      assistant           TEXT NOT NULL,
+      linked_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_sync_at        TIMESTAMPTZ,
+      alexa_refresh_token TEXT,
+      alexa_access_token  TEXT,
+      alexa_expires_at    TIMESTAMPTZ,
+      PRIMARY KEY (user_id, assistant),
+      CHECK (assistant IN ('google', 'alexa'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_assistant_links_assistant ON assistant_links(assistant);
+
     -- Refresh tokens, for detecting replay.
     --
     -- token_epoch can revoke a session but cannot tell a thief's use of a token

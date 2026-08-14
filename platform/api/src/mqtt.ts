@@ -6,6 +6,7 @@ import { pool, recordEvent } from "./db";
 import { logger } from "./logger";
 import { onStateChange, onEvent } from "./automations";
 import { sendPushToHome } from "./push";
+import { deviceChanged } from "./smarthome/report";
 
 /** In-process bus: MQTT messages -> WebSocket fan-out to app clients. */
 export const bus = new EventEmitter();
@@ -296,6 +297,16 @@ async function persistMessage(
       if (row?.owner_id != null) {
         await notifyStateEvents(row.owner_id, row.name || deviceId, prevState, payload as Record<string, unknown>);
         await onStateChange(deviceId, prevState, payload as Record<string, unknown>);
+        /*
+         * Tell Google and Alexa, if this customer has linked either.
+         *
+         * Deliberately not awaited. The assistants are a third party over the
+         * internet and this is the path a wall switch travels: a slow gateway
+         * must not delay persisting the state or the dashboard seeing it. The
+         * call coalesces internally and does nothing at all for the accounts
+         * that have never linked, which is most of them.
+         */
+        deviceChanged(deviceId);
       }
       // Snapshot numeric watts into telemetry (throttled) so the energy
       // dashboard has real history even for devices that only report in state.

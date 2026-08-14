@@ -108,6 +108,15 @@ services:
       FACE_BASE_URL: ${FACE_BASE_URL:-}
       FACE_API_KEY: ${FACE_API_KEY:-}
       FACE_TIMEOUT_MS: ${FACE_TIMEOUT_MS:-10000}
+      # Pushing device changes to the assistants. Unset, voice control still
+      # works — a customer can say "turn on the lamp" and ask its state — and
+      # only the proactive half is missing: a device added today stays
+      # invisible until they say "sync my devices", and a switch pressed on the
+      # wall leaves the assistant showing a stale value.
+      GOOGLE_HOMEGRAPH_KEY: ${GOOGLE_HOMEGRAPH_KEY:-}
+      ALEXA_CLIENT_ID: ${ALEXA_CLIENT_ID:-}
+      ALEXA_CLIENT_SECRET: ${ALEXA_CLIENT_SECRET:-}
+      ALEXA_EVENT_GATEWAY: ${ALEXA_EVENT_GATEWAY:-https://api.amazonalexa.com/v3/events}
       ANPR_PROVIDER: ${ANPR_PROVIDER:-none}
       ANPR_BASE_URL: ${ANPR_BASE_URL:-}
       ANPR_API_KEY: ${ANPR_API_KEY:-}

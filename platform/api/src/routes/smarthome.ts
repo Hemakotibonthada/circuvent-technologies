@@ -1,3 +1,17 @@
+/**
+ * Google Home and Alexa fulfilment.
+ *
+ * ONE PUBLISHED INTEGRATION, EVERY CUSTOMER
+ *
+ * There is a single Google Action and a single Alexa skill. A customer links
+ * their own Circuvent account, and their OAuth token resolves to their user
+ * id, so the same endpoints serve everybody while each request only ever sees
+ * one account's devices. Nothing here is per-device or per-customer.
+ *
+ * What a device looks like to an assistant lives in `../smarthome/traits`,
+ * which is pure and tested. This file is the protocol around it: authenticate,
+ * fetch that user's devices, translate, publish.
+ */
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
 import { pool } from "../db";
@@ -5,8 +19,27 @@ import { publishCommand } from "../mqtt";
 import { logger } from "../logger";
 import { verifySmartHomeToken } from "./oauth";
 import { onlineColumn } from "../device-online";
+import {
+  alexaCategoryFor,
+  brightness,
+  fanSpeed,
+  googleState,
+  googleSyncEntry,
+  googleTypeFor,
+  isExposed,
+  onOff,
+  type DeviceLike,
+} from "../smarthome/traits";
+import { recordLink, unlink } from "../smarthome/links";
+import { acceptGrant, alexaEventsConfigured } from "../smarthome/alexa-events";
+import { googlePushConfigured } from "../smarthome/homegraph";
 
 export const smarthomeRouter = Router();
+
+/* Re-exported for the existing typing test, which asserts a pump is never a
+   plain switch. The definitions moved to traits.ts so the fulfilment and the
+   proactive reporter cannot disagree about what a device is. */
+export { googleTypeFor, alexaCategoryFor };
 
 /** Publish a device command and best-effort log it to the audit trail. */
 function sendCommand(deviceId: string, uid: number, payload: Record<string, unknown>): void {
@@ -16,14 +49,7 @@ function sendCommand(deviceId: string, uid: number, payload: Record<string, unkn
     .catch((err) => logger.error({ err, deviceId }, "smart-home command audit insert failed"));
 }
 
-interface Dev {
-  id: string;
-  name: string;
-  type: string;
-  room: string;
-  online: boolean;
-  state: Record<string, unknown>;
-}
+type Dev = DeviceLike & { room: string };
 
 async function ownerDevices(uid: number): Promise<Dev[]> {
   const { rows } = await pool.query<Dev>(
@@ -31,45 +57,6 @@ async function ownerDevices(uid: number): Promise<Dev[]> {
     [uid]
   );
   return rows;
-}
-
-/**
- * On/off mapping per device type. Returns null for non-switchable devices.
- *
- * The omissions are deliberate and are the security boundary for voice: a type
- * that is absent here simply does not exist to Google or Alexa. Locks, gates,
- * cameras, `anpr-cam` and `drone-link` are all left out on purpose — their only
- * boolean is a *mode* (locked, armed, allowed to fly) rather than a load, so
- * exposing it would put "turn off the gate camera" or "unlock the front door"
- * behind anything that can reach a smart speaker, including a voice through a
- * window.
- *
- * `drone-link` is the sharpest case and worth stating outright: its boolean is
- * an aircraft's permission to take off. There is no phrasing of "turn on the
- * drone" that a voice assistant should be able to act on, and no phrasing of
- * "turn it off" that should be able to ground an aircraft a pilot is about to
- * fly. It stays out permanently, not until somebody asks for it.
- *
- * Adding a type here is therefore a decision about physical security, not a
- * feature toggle.
- */
-function onOff(type: string): { field: string; cmd: (v: boolean) => Record<string, unknown> } | null {
-  switch (type) {
-    case "smart-plug":
-    case "smart-switch":
-    case "smart-light":
-    case "smart-fan":
-      return { field: "power", cmd: (v) => ({ power: v }) };
-    case "agri-starter":
-    case "aquaguard":
-      return { field: "pump", cmd: (v) => ({ pump: v }) };
-    case "home-hub":
-      return { field: "power", cmd: (v) => ({ ch: 0, on: v }) };
-    case "sentinel":
-      return { field: "r1", cmd: (v) => ({ r1: v }) };
-    default:
-      return null;
-  }
 }
 
 async function bearerUid(req: Request): Promise<number | null> {
@@ -80,55 +67,6 @@ async function bearerUid(req: Request): Promise<number | null> {
 
 // ------------------------------------------------------------- Google Home --
 
-/**
- * The Google device type for a Circuvent type.
- *
- * This is not cosmetic, and it is the reason this function is no longer two
- * lines. Google groups by device type: "turn off the lights" reaches everything
- * typed as a LIGHT, and a goodnight routine reaches everything that will
- * listen. Typing a water pump as a SWITCH — which is what this did, and is the
- * obvious mapping since electrically that is what it is — means going to bed
- * cuts the water supply, and an irrigation cycle stops halfway.
- *
- * VALVE and WATERHEATER are the two types Google keeps out of those sweeps.
- * Both still work when named directly, which is what somebody says when they
- * actually mean it.
- */
-export function googleTypeFor(t: string): string {
-  switch (t) {
-    case "smart-plug":
-      return "action.devices.types.OUTLET";
-    case "smart-light":
-      return "action.devices.types.LIGHT";
-    case "smart-fan":
-      return "action.devices.types.FAN";
-    case "aquaguard":
-    case "agri-starter":
-      return "action.devices.types.VALVE";
-    default:
-      return "action.devices.types.SWITCH";
-  }
-}
-
-/** Alexa's equivalent. Exported alongside so the two cannot drift apart. */
-export function alexaCategoryFor(t: string): string {
-  switch (t) {
-    case "smart-plug":
-      return "SMARTPLUG";
-    case "smart-light":
-      return "LIGHT";
-    case "smart-fan":
-      return "FAN";
-    case "aquaguard":
-    case "agri-starter":
-      return "WATER_HEATER";
-    default:
-      return "SWITCH";
-  }
-}
-
-const googleType = googleTypeFor;
-
 smarthomeRouter.post("/google", async (req: Request, res: Response) => {
   const uid = await bearerUid(req);
   const reqId = req.body?.requestId ?? "";
@@ -138,20 +76,37 @@ smarthomeRouter.post("/google", async (req: Request, res: Response) => {
   }
   const input = req.body?.inputs?.[0];
   const intent = input?.intent;
+
+  /*
+   * DISCONNECT first, and before any device query.
+   *
+   * Google sends this when the customer removes Circuvent from their Home
+   * app. It used to answer an empty 200 and revoke nothing, so somebody who
+   * had plainly said "stop" kept a working 90-day refresh token. Unlinking
+   * bumps the account's token epoch — the same kill switch "sign out
+   * everywhere" uses — so the grant dies immediately.
+   */
+  if (intent === "action.devices.DISCONNECT") {
+    try {
+      await unlink(uid, "google");
+    } catch (err) {
+      /* Google expects an empty body and retries on an error. Retrying will
+         not help if the database is down, and the customer has already been
+         told in Google's UI that it is unlinked — so log loudly and accept. */
+      logger.error({ err, uid }, "google DISCONNECT could not revoke");
+    }
+    res.json({});
+    return;
+  }
+
   const devs = await ownerDevices(uid);
 
   if (intent === "action.devices.SYNC") {
-    const list = devs
-      .filter((d) => onOff(d.type))
-      .map((d) => ({
-        id: d.id,
-        type: googleType(d.type),
-        traits: ["action.devices.traits.OnOff"],
-        name: { name: d.name || d.id },
-        willReportState: false,
-        roomHint: d.room || undefined,
-        deviceInfo: { manufacturer: "Circuvent", model: d.type },
-      }));
+    /* Recorded on SYNC as well as on token exchange: SYNC is the first thing
+       Google does after linking, and it is the only signal that survives a
+       re-link which reused an existing token. */
+    void recordLink(uid, "google");
+    const list = devs.filter((d) => isExposed(d.type)).map((d) => googleSyncEntry(d, googlePushConfigured()));
     res.json({ requestId: reqId, payload: { agentUserId: String(uid), devices: list } });
     return;
   }
@@ -161,8 +116,7 @@ smarthomeRouter.post("/google", async (req: Request, res: Response) => {
     const states: Record<string, unknown> = {};
     for (const id of ids) {
       const d = devs.find((x) => x.id === id);
-      const m = d ? onOff(d.type) : null;
-      states[id] = d && m ? { online: d.online, status: "SUCCESS", on: !!d.state[m.field] } : { online: false, status: "ERROR" };
+      states[id] = d ? googleState(d) : { online: false, status: "ERROR" };
     }
     res.json({ requestId: reqId, payload: { devices: states } });
     return;
@@ -173,17 +127,67 @@ smarthomeRouter.post("/google", async (req: Request, res: Response) => {
     for (const c of input.payload?.commands ?? []) {
       for (const dv of c.devices ?? []) {
         const d = devs.find((x) => x.id === dv.id);
-        const m = d ? onOff(d.type) : null;
-        if (!d || !m) {
+        if (!d || !isExposed(d.type)) {
           results.push({ ids: [dv.id], status: "ERROR", errorCode: "deviceNotFound" });
           continue;
         }
+        /*
+         * Offline is reported as such rather than as success.
+         *
+         * Publishing to a device that is not connected leaves the command in
+         * the broker and tells Google it worked, so the assistant says "OK"
+         * about a lamp that will not move until the board comes back — which
+         * may be never. deviceOffline is a phrase Google speaks aloud.
+         */
+        if (!d.online) {
+          results.push({ ids: [d.id], status: "OFFLINE", errorCode: "deviceOffline" });
+          continue;
+        }
         for (const ex of c.execution ?? []) {
-          if (ex.command === "action.devices.commands.OnOff") {
+          const m = onOff(d.type);
+          if (ex.command === "action.devices.commands.OnOff" && m) {
             const on = !!ex.params?.on;
             sendCommand(d.id, uid, { action: "set", ...m.cmd(on) });
             results.push({ ids: [d.id], status: "SUCCESS", states: { on, online: true } });
+            continue;
           }
+          const b = brightness(d.type);
+          if (ex.command === "action.devices.commands.BrightnessAbsolute" && b) {
+            const level = Number(ex.params?.brightness) || 0;
+            sendCommand(d.id, uid, b.cmd(level));
+            /* Brightness above zero implies on, and the firmware turns the
+               load on when it receives one. Reporting `on` keeps Google's
+               model in step without waiting for the echo. */
+            results.push({
+              ids: [d.id],
+              status: "SUCCESS",
+              states: { on: level > 0, brightness: level, online: true },
+            });
+            continue;
+          }
+          const f = fanSpeed(d.type);
+          if (
+            f &&
+            (ex.command === "action.devices.commands.SetFanSpeed" ||
+              ex.command === "action.devices.commands.SetFanSpeedRelative")
+          ) {
+            const named = { S1: 33, S2: 66, S3: 100 } as Record<string, number>;
+            const pct =
+              ex.params?.fanSpeedPercent != null
+                ? Number(ex.params.fanSpeedPercent)
+                : /* A named speed — "set the fan to low". The names are the
+                     firmware's positions, mapped through the same table the
+                     slider uses so voice and the app mean the same airflow. */
+                  named[String(ex.params?.fanSpeed ?? "")] ?? f.toPercent(d.state);
+            sendCommand(d.id, uid, f.cmd(pct));
+            results.push({
+              ids: [d.id],
+              status: "SUCCESS",
+              states: { on: pct > 0, currentFanSpeedPercent: pct, online: true },
+            });
+            continue;
+          }
+          results.push({ ids: [d.id], status: "ERROR", errorCode: "functionNotSupported" });
         }
       }
     }
@@ -191,10 +195,6 @@ smarthomeRouter.post("/google", async (req: Request, res: Response) => {
     return;
   }
 
-  if (intent === "action.devices.DISCONNECT") {
-    res.json({});
-    return;
-  }
   res.status(400).json({ requestId: reqId, payload: { errorCode: "notSupported" } });
 });
 
@@ -218,97 +218,236 @@ function alexaEndpoint(d: Dev) {
    * sweeps, and it is the honest description of a tank pump's role in a house.
    */
   const cat = alexaCategoryFor(d.type);
+  /* Only claimed when the server can actually push. Advertising
+     proactivelyReported while nothing reports leaves Alexa waiting for updates
+     that never arrive. */
+  const proactive = alexaEventsConfigured();
+  const capabilities: Array<Record<string, unknown>> = [
+    { type: "AlexaInterface", interface: "Alexa", version: "3" },
+    {
+      type: "AlexaInterface",
+      interface: "Alexa.PowerController",
+      version: "3",
+      properties: { supported: [{ name: "powerState" }], retrievable: true, proactivelyReported: proactive },
+    },
+    {
+      type: "AlexaInterface",
+      interface: "Alexa.EndpointHealth",
+      version: "3",
+      properties: { supported: [{ name: "connectivity" }], retrievable: true, proactivelyReported: proactive },
+    },
+  ];
+  if (brightness(d.type)) {
+    capabilities.push({
+      type: "AlexaInterface",
+      interface: "Alexa.BrightnessController",
+      version: "3",
+      properties: { supported: [{ name: "brightness" }], retrievable: true, proactivelyReported: proactive },
+    });
+  }
+  if (fanSpeed(d.type)) {
+    /* PercentageController rather than RangeController: "set the fan to fifty
+       per cent" is the phrasing people use, and it needs no custom resource
+       strings to be certified. */
+    capabilities.push({
+      type: "AlexaInterface",
+      interface: "Alexa.PercentageController",
+      version: "3",
+      properties: { supported: [{ name: "percentage" }], retrievable: true, proactivelyReported: proactive },
+    });
+  }
   return {
     endpointId: d.id,
     friendlyName: d.name || d.id,
     description: `Circuvent ${d.type}`,
     manufacturerName: "Circuvent",
     displayCategories: [cat],
-    capabilities: [
-      { type: "AlexaInterface", interface: "Alexa", version: "3" },
-      {
-        type: "AlexaInterface",
-        interface: "Alexa.PowerController",
-        version: "3",
-        properties: { supported: [{ name: "powerState" }], retrievable: true, proactivelyReported: false },
-      },
-      {
-        type: "AlexaInterface",
-        interface: "Alexa.EndpointHealth",
-        version: "3",
-        properties: { supported: [{ name: "connectivity" }], retrievable: true, proactivelyReported: false },
-      },
-    ],
+    capabilities,
   };
 }
 
-function powerProps(on: boolean, online: boolean) {
+/** Every property Alexa can retrieve for a device, in one place. */
+function alexaProps(d: Dev): Array<Record<string, unknown>> {
   const now = new Date().toISOString();
-  return [
-    { namespace: "Alexa.PowerController", name: "powerState", value: on ? "ON" : "OFF", timeOfSample: now, uncertaintyInMilliseconds: 500 },
-    {
-      namespace: "Alexa.EndpointHealth",
-      name: "connectivity",
-      value: { value: online ? "OK" : "UNREACHABLE" },
+  const props: Array<Record<string, unknown>> = [];
+  const m = onOff(d.type);
+  if (m) {
+    props.push({
+      namespace: "Alexa.PowerController",
+      name: "powerState",
+      value: d.state[m.field] ? "ON" : "OFF",
       timeOfSample: now,
       uncertaintyInMilliseconds: 500,
-    },
-  ];
+    });
+  }
+  const b = brightness(d.type);
+  if (b && d.state[b.field] != null) {
+    props.push({
+      namespace: "Alexa.BrightnessController",
+      name: "brightness",
+      value: Math.max(0, Math.min(100, Number(d.state[b.field]) || 0)),
+      timeOfSample: now,
+      uncertaintyInMilliseconds: 500,
+    });
+  }
+  const f = fanSpeed(d.type);
+  if (f) {
+    props.push({
+      namespace: "Alexa.PercentageController",
+      name: "percentage",
+      value: f.toPercent(d.state),
+      timeOfSample: now,
+      uncertaintyInMilliseconds: 500,
+    });
+  }
+  props.push({
+    namespace: "Alexa.EndpointHealth",
+    name: "connectivity",
+    value: { value: d.online ? "OK" : "UNREACHABLE" },
+    timeOfSample: now,
+    uncertaintyInMilliseconds: 500,
+  });
+  return props;
 }
 
 smarthomeRouter.post("/alexa", async (req: Request, res: Response) => {
   const dir = req.body?.directive;
   const header = dir?.header || {};
   const ns = header.namespace;
-  const token = dir?.payload?.scope?.token || dir?.endpoint?.scope?.token;
+  /* AcceptGrant carries the token under `grantee` rather than `scope`, which
+     is the sort of detail that makes a directive fail authentication for no
+     visible reason. */
+  const token = dir?.payload?.scope?.token || dir?.endpoint?.scope?.token || dir?.payload?.grantee?.token;
   const uid = token ? await verifySmartHomeToken(token) : null;
 
   const errorResp = (type: string, message: string) => ({
-    event: { header: aHeader("Alexa", "ErrorResponse", header.correlationToken), endpoint: dir?.endpoint, payload: { type, message } },
+    event: {
+      header: aHeader("Alexa", "ErrorResponse", header.correlationToken),
+      endpoint: dir?.endpoint,
+      payload: { type, message },
+    },
   });
 
   if (uid == null) {
     res.json(errorResp("INVALID_AUTHORIZATION_CREDENTIAL", "Invalid or expired token"));
     return;
   }
+
+  /*
+   * AcceptGrant — handled before anything that needs a device.
+   *
+   * Alexa sends this once when the skill is enabled, carrying an
+   * authorization code we exchange for a refresh token belonging to that
+   * customer's Amazon account. That token is issued once and never repeated:
+   * lose it and proactive updates stop for them until they disable and
+   * re-enable the skill.
+   */
+  if (ns === "Alexa.Authorization" && header.name === "AcceptGrant") {
+    const code = dir?.payload?.grant?.code;
+    const ok = typeof code === "string" && (await acceptGrant(uid, code));
+    if (!ok) {
+      res.json({
+        event: {
+          header: aHeader("Alexa.Authorization", "ErrorResponse"),
+          payload: {
+            type: "ACCEPT_GRANT_FAILED",
+            message: "Could not store the grant needed to send device updates.",
+          },
+        },
+      });
+      return;
+    }
+    await recordLink(uid, "alexa");
+    res.json({ event: { header: aHeader("Alexa.Authorization", "AcceptGrant.Response"), payload: {} } });
+    return;
+  }
+
   const devs = await ownerDevices(uid);
 
   if (ns === "Alexa.Discovery" && header.name === "Discover") {
-    const endpoints = devs.filter((d) => onOff(d.type)).map(alexaEndpoint);
+    void recordLink(uid, "alexa");
+    const endpoints = devs.filter((d) => isExposed(d.type)).map(alexaEndpoint);
     res.json({ event: { header: aHeader("Alexa.Discovery", "Discover.Response"), payload: { endpoints } } });
     return;
   }
 
   const id = dir?.endpoint?.endpointId;
   const d = devs.find((x) => x.id === id);
-  const m = d ? onOff(d.type) : null;
+  if (!d || !isExposed(d.type)) {
+    res.json(errorResp("NO_SUCH_ENDPOINT", "Unknown device"));
+    return;
+  }
 
-  if (ns === "Alexa.PowerController" && (header.name === "TurnOn" || header.name === "TurnOff")) {
-    const on = header.name === "TurnOn";
-    if (d && m) sendCommand(d.id, uid, { action: "set", ...m.cmd(on) });
+  const respond = () => {
     res.json({
-      context: { properties: powerProps(on, d?.online ?? true) },
+      context: { properties: alexaProps(d) },
       event: {
         header: aHeader("Alexa", "Response", header.correlationToken),
-        endpoint: { endpointId: id },
+        endpoint: { endpointId: d.id },
         payload: {},
       },
     });
+  };
+
+  /*
+   * Offline is an error Alexa speaks aloud, rather than a silent success on a
+   * device that will not move. ReportState is exempt: asking the state of an
+   * unreachable device is a reasonable question with a truthful answer.
+   */
+  const isReportState = ns === "Alexa" && header.name === "ReportState";
+  if (!isReportState && !d.online) {
+    res.json(errorResp("ENDPOINT_UNREACHABLE", `${d.name || d.id} is offline.`));
     return;
   }
 
-  if (ns === "Alexa" && header.name === "ReportState") {
-    const on = d && m ? !!d.state[m.field] : false;
+  const m = onOff(d.type);
+  if (ns === "Alexa.PowerController" && m && (header.name === "TurnOn" || header.name === "TurnOff")) {
+    const on = header.name === "TurnOn";
+    sendCommand(d.id, uid, { action: "set", ...m.cmd(on) });
+    /* The optimistic value, because the echo has not arrived yet and Alexa
+       reads the context to decide what to say. */
+    d.state = { ...d.state, [m.field]: on };
+    respond();
+    return;
+  }
+
+  const b = brightness(d.type);
+  if (ns === "Alexa.BrightnessController" && b) {
+    const current = Number(d.state[b.field]) || 0;
+    const next =
+      header.name === "SetBrightness"
+        ? Number(dir?.payload?.brightness) || 0
+        : Math.max(0, Math.min(100, current + (Number(dir?.payload?.brightnessDelta) || 0)));
+    sendCommand(d.id, uid, b.cmd(next));
+    d.state = { ...d.state, [b.field]: next, power: next > 0 };
+    respond();
+    return;
+  }
+
+  const f = fanSpeed(d.type);
+  if (ns === "Alexa.PercentageController" && f) {
+    const current = f.toPercent(d.state);
+    const next =
+      header.name === "SetPercentage"
+        ? Number(dir?.payload?.percentage) || 0
+        : Math.max(0, Math.min(100, current + (Number(dir?.payload?.percentageDelta) || 0)));
+    sendCommand(d.id, uid, f.cmd(next));
+    d.state = { ...d.state, level: next, power: next > 0 };
+    respond();
+    return;
+  }
+
+  if (isReportState) {
     res.json({
-      context: { properties: powerProps(on, d?.online ?? false) },
+      context: { properties: alexaProps(d) },
       event: {
         header: aHeader("Alexa", "StateReport", header.correlationToken),
-        endpoint: { endpointId: id },
+        endpoint: { endpointId: d.id },
         payload: {},
       },
     });
     return;
   }
 
-  res.json(errorResp("INVALID_DIRECTIVE", "Unsupported directive"));
+  res.json(errorResp("INVALID_DIRECTIVE", `Unsupported directive ${ns}/${header.name}`));
 });

@@ -18,6 +18,31 @@ const schema = z.object({
   // The built-in Alexa/Google endpoints are always allowed; this is for
   // vendor consoles and local testing. Prefixes are matched exactly.
   SMARTHOME_REDIRECT_URIS: z.string().default(""),
+  /*
+   * Pushing device changes to Google and Alexa.
+   *
+   * Both are optional in the same way ANPR is: unset, voice control still
+   * works for every customer — they can say "turn on the lamp" and query
+   * state — and only the *proactive* half is missing. What that costs is
+   * worth being explicit about, because it is what a customer notices:
+   * without it a device added today is invisible to the assistant until they
+   * think to say "sync my devices", and a switch pressed on the wall leaves
+   * the assistant showing a stale value.
+   *
+   * GOOGLE_HOMEGRAPH_KEY is a HomeGraph service-account JSON key, either raw
+   * JSON or base64 of it — a private key pasted into an env file loses its
+   * newlines often enough that base64 is the shape most deployments use.
+   *
+   * ALEXA_CLIENT_ID/SECRET come from the skill's Permissions page (they are
+   * Login with Amazon credentials, and are NOT the account-linking client id
+   * and secret above — using one for the other is the mistake this comment
+   * exists to prevent).
+   */
+  GOOGLE_HOMEGRAPH_KEY: z.string().default(""),
+  ALEXA_CLIENT_ID: z.string().default(""),
+  ALEXA_CLIENT_SECRET: z.string().default(""),
+  /** Regional Alexa event gateway. Sending to the wrong one looks like a bad token. */
+  ALEXA_EVENT_GATEWAY: z.string().default("https://api.amazonalexa.com/v3/events"),
   // Transactional email for OTP / alerts. SMTP is preferred; Resend is the
   // fallback (reuses the marketing site's RESEND_API_KEY). If neither is set,
   // OTP codes are logged (dev) so sign-up still works while email is configured.

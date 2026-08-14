@@ -4,6 +4,7 @@ import { pool } from "../db";
 import { verifyPassword } from "../auth";
 import { config } from "../config";
 import { checkSession, currentEpoch } from "../sessions";
+import { recordLink } from "../smarthome/links";
 
 export const oauthRouter = Router();
 
@@ -140,6 +141,28 @@ ${err ? `<div class="e">${esc(err)}</div>` : ""}
 <button class="b" type="submit">Sign in &amp; link</button></form></body></html>`;
 }
 
+/**
+ * Which assistant a redirect URI belongs to.
+ *
+ * Both vendors POST the token request from their own servers with nothing that
+ * says who they are, so the redirect the code was bound to is the only signal
+ * available. Returns null for anything unrecognised — a local test client or a
+ * vendor console — rather than guessing, because a wrong label here would show
+ * a customer "Alexa" beside a link they made with Google.
+ */
+export function assistantFromRedirect(uri: string): "google" | "alexa" | null {
+  if (!uri) return null;
+  let host: string;
+  try {
+    host = new URL(uri).host.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (host.endsWith("amazon.com") || host.endsWith("amazon.co.jp")) return "alexa";
+  if (host.endsWith("googleusercontent.com")) return "google";
+  return null;
+}
+
 // GET /oauth/authorize — Alexa/Google send the user here to link their account.
 oauthRouter.get("/authorize", (req, res) => {
   const q = req.query as Record<string, string>;
@@ -203,6 +226,7 @@ oauthRouter.post("/token", async (req, res) => {
     return;
   }
   let uid: number | null = null;
+  let codeRedirectUri = "";
   if (b.grant_type === "authorization_code") {
     try {
       const d = jwt.verify(b.code || "", config.JWT_SECRET) as jwt.JwtPayload;
@@ -210,7 +234,10 @@ oauthRouter.post("/token", async (req, res) => {
       // The code is only valid for the redirect it was issued against, so a
       // leaked code cannot be redeemed from a different registered client.
       const ruriOk = !b.redirect_uri || !d.ruri || b.redirect_uri === d.ruri;
-      if (d.purpose === "sh_code" && Number.isFinite(claimed) && ruriOk) uid = claimed;
+      if (d.purpose === "sh_code" && Number.isFinite(claimed) && ruriOk) {
+        uid = claimed;
+        codeRedirectUri = String(d.ruri || b.redirect_uri || "");
+      }
     } catch {
       uid = null;
     }
@@ -223,6 +250,18 @@ oauthRouter.post("/token", async (req, res) => {
     res.status(400).json({ error: "invalid_grant" });
     return;
   }
+  /*
+   * Note that this account has linked an assistant.
+   *
+   * Which one is not knowable here — both vendors POST the same token request
+   * from their own servers, with nothing that identifies them. The redirect
+   * URI the code was bound to does say, so that is what is read; a refresh
+   * with no code falls back to leaving the existing record alone, which is
+   * correct because a refresh means a link that already exists.
+   */
+  const assistant = assistantFromRedirect(codeRedirectUri);
+  if (assistant) void recordLink(uid, assistant);
+
   // 90 days rather than ten years. Both vendors refresh on a schedule far
   // shorter than this, so the only thing a decade bought was the window in
   // which a stolen grant kept working. A lifetime nobody can review is not a
