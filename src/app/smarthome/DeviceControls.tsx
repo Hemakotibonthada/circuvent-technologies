@@ -70,6 +70,8 @@ import { FAN_STEP_LEVEL, levelToSpeed, buildFieldCommand } from "@/lib/smarthome
 import { effectiveDeviceType } from "./_data/device-type";
 import { useRemoteCamera } from "./useRemoteCamera";
 import { useFrameUrl } from "./useFrameUrl";
+import { readOtaStatus, otaNotice, isUpdating } from "./ota-status";
+import { describeCameraFault } from "./camera-fault";
 import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } from "./recording";
 import { useCameraListen, useCameraTalk } from "./useCameraAudio";
 import { useControlPlaneCapability, stalePlaneAdvice } from "@/lib/control-plane-health";
@@ -2084,6 +2086,19 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
    */
   const hasCamera = d.state.hasCamera == null ? true : b(d.state.hasCamera);
 
+  /*
+   * A firmware update outranks every fault on this panel.
+   *
+   * A camera mid-update is busy, then briefly gone, then back on a new build —
+   * and each of those reads as a failure to a panel that only asks "is it
+   * online" and "is the sensor ready". This is what put "Camera sensor failed
+   * to initialise" and an instruction to reseat a ribbon cable on screen during
+   * a perfectly healthy update.
+   */
+  const ota = readOtaStatus(d.state.otaStatus);
+  const updating = isUpdating(ota);
+  const otaMessage = otaNotice(ota, d.online);
+
   const [frame, setFrame] = useState<LiveFrame | null>(null);
   const [received, setReceived] = useState(0);
   const [fps, setFps] = useState(0);
@@ -2245,15 +2260,17 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
             <VideoOff className="h-10 w-10" style={{ color: "#475569" }} />
             <p className="text-sm font-medium" style={{ color: "#94a3b8" }}>
-              {!d.online
-                ? "Camera is offline"
-                : !ready
-                  ? "Camera sensor failed to initialise"
-                  : relayLost
-                    ? "This camera is working — the video is not reaching you"
-                    : streaming
-                      ? "Waiting for the first frame…"
-                      : "Live view is off"}
+              {updating
+                ? `Updating firmware${ota.version ? ` to ${ota.version}` : ""}…`
+                : !d.online
+                  ? "Camera is offline"
+                  : !ready
+                    ? "Camera sensor failed to initialise"
+                    : relayLost
+                      ? "This camera is working — the video is not reaching you"
+                      : streaming
+                        ? "Waiting for the first frame…"
+                        : "Live view is off"}
             </p>
             {relayLost > 0 && (
               /* Say which link in the chain failed, and prove it with the
@@ -2345,7 +2362,13 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
         )}
       </div>
 
-      {!hasCamera && (
+      {otaMessage && (
+        <div className="mt-3">
+          <AlertBanner text={otaMessage} />
+        </div>
+      )}
+
+      {!hasCamera && !updating && (
         <div className="mt-3">
           <AlertBanner text="This board reports that it has no camera fitted — it is running gas/relay firmware. It was most likely registered as the wrong device type; change the type in Settings and the correct controls will appear. No video will ever arrive from this unit." />
         </div>
@@ -2355,12 +2378,12 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           <AlertBanner text={streamTradeNote(d.state) as string} />
         </div>
       )}
-      {hasCamera && stalled && ready && !relayLost && (
+      {hasCamera && stalled && ready && !relayLost && !updating && (
         <div className="mt-3">
           <AlertBanner text="Streaming is on but no frames are arriving. Check the camera's signal, then try Reboot." />
         </div>
       )}
-      {hasCamera && stalled && ready && relayLost > 0 && (
+      {hasCamera && stalled && ready && relayLost > 0 && !updating && (
         /* Do not tell someone to reboot a camera that is provably capturing
            and publishing. The advice above is right for a signal fault and
            actively wrong here — it costs a working device an uptime for a
@@ -2374,26 +2397,15 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
           />
         </div>
       )}
-      {hasCamera && !ready && d.online && (
+      {hasCamera && !ready && d.online && !updating && (
         <div className="mt-3">
-          {/* The firmware distinguishes two very different faults, so say which
-              one it is. SCCB runs on SIOD/SIOC alone while frame data rides
-              eleven other pins, so a sensor that still answers a register read
-              while no frame ever completes localises the fault to the parallel
-              bus — and that is a ribbon, not a module and not software. Telling
-              someone "the sensor is not responding" when it demonstrably is
-              sends them replacing the wrong part. */}
-          <AlertBanner
-            text={
-              d.state.sccbOk === true
-                ? `The sensor is alive — it answers on the control bus${
-                    n(d.state.sensorPid) ? ` and identifies as ${sensorName(n(d.state.sensorPid))}` : ""
-                  } — but no frame ever completes. That isolates the fault to the parallel data lines, so it is the ribbon rather than the module: power the board down, unlatch the connector, reseat the cable fully and latch it, then reboot. Frame size makes no difference to this, so lowering the resolution will not help.`
-                : d.state.sccbOk === false
-                  ? "The sensor does not answer at all, so the module is unpowered, unseated or dead. Reseat the ribbon; if that changes nothing the camera module needs replacing."
-                  : "The camera sensor is not responding. Check the ribbon cable seating, then reboot."
-            }
-          />
+          {/* Every branch of this is tied to something the device published;
+              the last one admits what is not known rather than inventing it.
+              The sentence this replaced told people to reseat a ribbon on a
+              camera whose sensor had already identified itself, when the real
+              cause was a frame buffer that would not allocate. See
+              camera-fault.ts. */}
+          <AlertBanner text={describeCameraFault(d.state)} />
         </div>
       )}
 

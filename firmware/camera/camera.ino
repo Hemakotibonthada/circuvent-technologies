@@ -135,7 +135,7 @@
  *     camera must not disable itself over a *setting*, in a house nobody can
  *     visit, when it could have lowered the number by itself.
  */
-#define CV_FW_VERSION "1.14.2"
+#define CV_FW_VERSION "1.14.3"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -2874,6 +2874,18 @@ void setup() {
       }
       if (!camReady) {
         camReady = false;
+        /*
+         * Publish which of the two failures this is, because they have
+         * completely different remedies and the console otherwise has to guess
+         * — and the guess it used to make was "reseat the ribbon", which sends
+         * somebody up a ladder to hardware that is working.
+         *
+         * SCCB runs on SIOD/SIOC alone. If the sensor still answers a register
+         * read while no frame ever completes, the control bus is fine and the
+         * parallel data lines are not: that is a ribbon. If it does not answer
+         * at all, the module is unpowered or gone.
+         */
+        cv.set("sccbOk", sccbAlive());
         Serial.println(F("[CAM] init succeeded but no frame arrived at any size — running without the camera"));
       }
     }

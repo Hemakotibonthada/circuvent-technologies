@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
+import { readOtaStatus, otaNotice, isUpdating, describeCameraFault } from "../camera-status";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow, NeoRaised, ColorGrid } from "../ui";
 import { useThrottled } from "../throttle";
@@ -1612,6 +1613,14 @@ function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unkn
    * healthy, and the hardware would be the last thing suspected.
    */
   const hasCamera = st.hasCamera == null ? true : bool("hasCamera");
+  /*
+   * A firmware update outranks every camera fault below it. A device mid-OTA is
+   * busy, then briefly gone, then back on a new build — and each of those reads
+   * as a failure to a panel that only asks "online" and "ready".
+   */
+  const camOtaState = readOtaStatus(st.otaStatus);
+  const camUpdating = isUpdating(camOtaState);
+  const camOta = otaNotice(camOtaState, d.online);
   const fps = n("fps", 8);
   const quality = n("quality", 12);
   const rotation = n("rotation", 0);
@@ -1709,16 +1718,19 @@ function CameraDevice({ d, send, c }: { d: Device; send: (p: Record<string, unkn
         )}
       </View>
 
-      {!hasCamera && (
+      {camOta && <Alertline c={c} text={camOta} />}
+      {!hasCamera && !camUpdating && (
         <Alertline
           c={c}
           text="This board reports no camera fitted — it is running gas/relay firmware. It was most likely added as the wrong device type. No video will arrive from this unit."
         />
       )}
-      {hasCamera && !ready && d.online && (
-        <Alertline c={c} text="The camera sensor is not responding. Check the ribbon cable seating, then reboot." />
+      {hasCamera && !ready && d.online && !camUpdating && (
+        <Alertline c={c} text={describeCameraFault(st)} />
       )}
-      {hasCamera && ready && stalled && <StallHint c={c} frames={n("frames", 0)} dropped={n("dropped", 0)} />}
+      {hasCamera && ready && stalled && !camUpdating && (
+        <StallHint c={c} frames={n("frames", 0)} dropped={n("dropped", 0)} />
+      )}
 
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 6 }}>
         <CamAction c={c} icon={live ? "pause" : "play"} label={live ? "Stop" : "Live view"} primary={!live}
