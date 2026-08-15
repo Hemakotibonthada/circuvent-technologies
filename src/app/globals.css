@@ -223,6 +223,9 @@ body {
   --cv-sec-py: 6rem;      /* section.py-24 */
   --cv-sec-py-sm: 5rem;   /* section.py-20 */
   --cv-sec-py-lg: 8rem;   /* section.py-32 */
+  --cv-sec-py-xs: 4rem;   /* section.py-16 */
+  --cv-sec-py-2xs: 3rem;  /* section.py-12 */
+  --cv-sec-py-3xs: 2rem;  /* section.py-8  */
   --cv-shell-py: 6rem;    /* app shells that sit under the fixed nav */
   --cv-stack: 2rem;       /* gap between major blocks */
   --cv-card-pad: 1.5rem;  /* padding inside a panel/card */
@@ -234,6 +237,9 @@ html[data-density="cozy"] {
   --cv-sec-py: 4.25rem;
   --cv-sec-py-sm: 3.5rem;
   --cv-sec-py-lg: 5.5rem;
+  --cv-sec-py-xs: 2.8rem;
+  --cv-sec-py-2xs: 2.1rem;
+  --cv-sec-py-3xs: 1.4rem;
   --cv-shell-py: 4.5rem;
   --cv-stack: 1.5rem;
   --cv-card-pad: 1.15rem;
@@ -245,6 +251,9 @@ html[data-density="compact"] {
   --cv-sec-py: 3rem;
   --cv-sec-py-sm: 2.5rem;
   --cv-sec-py-lg: 4rem;
+  --cv-sec-py-xs: 2rem;
+  --cv-sec-py-2xs: 1.5rem;
+  --cv-sec-py-3xs: 1rem;
   --cv-shell-py: 3.25rem;
   --cv-stack: 1.1rem;
   --cv-card-pad: 0.9rem;
@@ -261,10 +270,27 @@ html[data-width="full"] { --cv-content-max: none; }
  * Section rhythm. The selector carries an element so it outranks the Tailwind
  * utility it replaces without `!important`, which would then have to be won
  * back by every page that legitimately wants something else.
+ *
+ * Every section padding used on a marketing page is listed here, not only the
+ * large ones. When this covered py-20, py-24 and py-32 alone, the other
+ * forty-six sections on the site — py-8, py-12 and py-16 — kept their raw
+ * Tailwind values and silently ignored the density setting altogether. Nothing
+ * errored: the control moved, two thirds of the page did not, and the sections
+ * that stayed put ended up tighter than their neighbours at every density.
+ *
+ * That is why the team page's Founding Team block read as cramped. It is
+ * py-12 between two py-20 siblings, so at cozy density it sat at 48px while
+ * they sat at 56px, and at default density 48px against 80px.
+ *
+ * tests/section-density-parity.test.ts fails if a section starts using a
+ * padding step that is not mapped here.
  */
+section.py-32 { padding-top: var(--cv-sec-py-lg); padding-bottom: var(--cv-sec-py-lg); }
 section.py-24 { padding-top: var(--cv-sec-py); padding-bottom: var(--cv-sec-py); }
 section.py-20 { padding-top: var(--cv-sec-py-sm); padding-bottom: var(--cv-sec-py-sm); }
-section.py-32 { padding-top: var(--cv-sec-py-lg); padding-bottom: var(--cv-sec-py-lg); }
+section.py-16 { padding-top: var(--cv-sec-py-xs); padding-bottom: var(--cv-sec-py-xs); }
+section.py-12 { padding-top: var(--cv-sec-py-2xs); padding-bottom: var(--cv-sec-py-2xs); }
+section.py-8  { padding-top: var(--cv-sec-py-3xs); padding-bottom: var(--cv-sec-py-3xs); }
 
 /* The centred container used by app shells. */
 .cv-app-shell {

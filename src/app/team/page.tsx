@@ -503,7 +503,11 @@ export default function TeamPage() {
       </section>
 
       {/* Founding Team */}
-      <section className="relative z-10 py-12">
+      {/* py-20, matching every other section on this page. It was py-12, which
+          made the heading sit noticeably tighter to the block above it than any
+          of its siblings — and, before the density map covered py-12, meant this
+          one section ignored the density setting entirely. */}
+      <section className="relative z-10 py-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <ScrollReveal>
             <div className="mb-10">
