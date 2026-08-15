@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from kt_docs import facts                                    # noqa: E402
 from kt_docs.deck import build_kt_deck                       # noqa: E402
+from kt_docs.arch_deck import build_arch_deck                # noqa: E402
 from kt_docs.handbook import build_kt_handbook               # noqa: E402
 from kt_docs.quickref import build_kt_quickref               # noqa: E402
 
@@ -60,11 +61,15 @@ def main() -> int:
           f"{c['devices']} devices, {c['docs']} documents, {len(data['traps'])} traps")
 
     deck = OUT / "Circuvent-KT-Deck.pptx"
+    arch = OUT / "Circuvent-KT-Architecture.pptx"
     handbook = OUT / "Circuvent-KT-Handbook.docx"
     quickref = OUT / "Circuvent-KT-Quick-Reference.pdf"
 
     slides = build_kt_deck(data, deck)
     print(f"  {deck.name}  ({slides} slides)")
+
+    arch_slides = build_arch_deck(data, arch)
+    print(f"  {arch.name}  ({arch_slides} slides)")
 
     paras = build_kt_handbook(data, handbook)
     print(f"  {handbook.name}  ({paras} paragraphs)")

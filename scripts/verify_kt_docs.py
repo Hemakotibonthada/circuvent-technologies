@@ -34,6 +34,7 @@ from kt_docs import facts                                    # noqa: E402
 
 OUT = ROOT / "Docs" / "kt"
 DECK = OUT / "Circuvent-KT-Deck.pptx"
+ARCH = OUT / "Circuvent-KT-Architecture.pptx"
 HANDBOOK = OUT / "Circuvent-KT-Handbook.docx"
 QUICKREF = OUT / "Circuvent-KT-Quick-Reference.pdf"
 
@@ -48,9 +49,9 @@ def check(ok: bool, label: str) -> None:
         failures.append(label)
 
 
-def deck_text() -> tuple[str, int, int]:
+def deck_text(path=None) -> tuple[str, int, int]:
     from pptx import Presentation
-    prs = Presentation(str(DECK))
+    prs = Presentation(str(path or DECK))
     out, notes = [], 0
     for slide in prs.slides:
         if slide.has_notes_slide and slide.notes_slide.notes_text_frame.text.strip():
@@ -82,7 +83,7 @@ def pdf_text() -> tuple[str, int]:
 
 
 def main() -> int:
-    for f in (DECK, HANDBOOK, QUICKREF):
+    for f in (DECK, ARCH, HANDBOOK, QUICKREF):
         if not f.is_file():
             print(f"missing: {f.relative_to(ROOT)} — run `npm run docs:kt` first", file=sys.stderr)
             return 1
@@ -91,9 +92,10 @@ def main() -> int:
     company = data["company"]["name"]
 
     deck, slides, notes = deck_text()
+    arch, arch_slides, arch_notes = deck_text(ARCH)
     book = docx_text()
     sheet, pages = pdf_text()
-    everything = "\n".join([deck, book, sheet])
+    everything = "\n".join([deck, arch, book, sheet])
 
     # --- structure -------------------------------------------------------
     check(slides >= 12, f"deck has only {slides} slides")
@@ -101,6 +103,46 @@ def main() -> int:
     check(pages >= 1, "quick reference has no pages")
     check(len(book) > 4000, "handbook is suspiciously short")
     check(len(sheet) > 800, "quick reference has little extractable text")
+
+    # --- the architecture deck ------------------------------------------
+    # Checked separately from the handover deck because it makes a different
+    # promise: it is the one somebody opens with a broker down, so a slide that
+    # has quietly lost its content is worse here than anywhere else in the pack.
+    from kt_docs import arch_facts as af
+
+    check(arch_slides >= 14, f"architecture deck has only {arch_slides} slides")
+    check(company.lower() in arch.lower(), "architecture deck does not name the company")
+
+    # The topic names are parsed out of the firmware. If the parse returns
+    # nothing the table renders empty and the deck still builds, which is
+    # exactly the silent failure the deck itself is about.
+    topics = af.mqtt_topics()
+    check(len(topics) == 4, f"expected 4 MQTT topics, parsed {len(topics)}")
+    for topic, *_ in topics:
+        check(topic in arch, f"MQTT topic {topic} did not reach the deck")
+    check("retained" in arch, "the retained/not-retained distinction is missing")
+
+    # Broker limits are read out of mosquitto.conf; a default of "—" means the
+    # parse missed and the slide is quietly asserting nothing.
+    broker = "\n".join(v for _, v in af.mqtt_broker())
+    check("(unparsed)" not in broker, "a broker setting fell back to a placeholder")
+    check("8883" in arch and "1883" in arch, "the broker listeners are not on the page")
+
+    # Certificates: the one that matters is the one nobody else renews.
+    check("own CA" in arch, "the self-issued broker CA is not distinguished")
+    check("gen-certs.sh" in arch, "the deck does not say where the CA comes from")
+
+    # Required config is parsed from the schema that enforces it.
+    required = af.control_plane_secrets()
+    check(len(required) >= 3, f"only {len(required)} required variables parsed from config.ts")
+    for name, _ in required:
+        check(name in arch, f"required variable {name} is missing from the deck")
+
+    # A secrets slide that printed a value would be a leak, not a document.
+    # No real secret is available here, so this asserts the shape instead: the
+    # slide names homes and variable names, never an assignment.
+    check("=" not in "\n".join(h for _, h, _ in af.secret_homes()),
+          "a secret home reads like an assignment rather than a location")
 
     # --- identity --------------------------------------------------------
     # Case-insensitive: the shared cover renders the company name in capitals.

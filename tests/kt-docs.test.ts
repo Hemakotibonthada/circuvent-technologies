@@ -33,15 +33,18 @@ describe("the KT pack is wired up", () => {
 
   it("has every module the entry point imports", () => {
     const entry = read("scripts/build_kt_docs.py");
-    for (const mod of ["facts", "deck", "handbook", "quickref"]) {
+    for (const mod of ["facts", "deck", "arch_deck", "arch_facts", "handbook", "quickref"]) {
       // Either import form is fine; what matters is that the module is named
-      // and present.
-      expect(entry).toMatch(new RegExp(`kt_docs(\\.${mod}\\b|\\s+import\\s+${mod}\\b)`));
+      // and present. arch_facts is reached through arch_deck rather than the
+      // entry point, so it is checked for existence and not for an import line.
+      if (mod !== "arch_facts") {
+        expect(entry).toMatch(new RegExp(`kt_docs(\\.${mod}\\b|\\s+import\\s+${mod}\\b)`));
+      }
       expect(fs.existsSync(path.join(root, "scripts", "kt_docs", `${mod}.py`))).toBe(true);
     }
   });
 
-  it("ships the three artifacts it documents", () => {
+  it("ships the four artifacts it documents", () => {
     /*
      * These are committed on purpose, exactly like Docs/business. A handover
      * pack that has to be built before it can be read is one that gets skipped
@@ -49,6 +52,7 @@ describe("the KT pack is wired up", () => {
      */
     for (const f of [
       "Circuvent-KT-Deck.pptx",
+      "Circuvent-KT-Architecture.pptx",
       "Circuvent-KT-Handbook.docx",
       "Circuvent-KT-Quick-Reference.pdf",
       "README.md",
@@ -57,6 +61,17 @@ describe("the KT pack is wired up", () => {
       expect(fs.existsSync(p)).toBe(true);
       expect(fs.statSync(p).size).toBeGreaterThan(1000);
     }
+  });
+
+  it("verifies the architecture deck rather than only writing it", () => {
+    /*
+     * The pack has previously reported success while publishing the previous
+     * run's artifact, so "the build printed ok" is not evidence. A second deck
+     * that nothing opens would be exactly that failure again.
+     */
+    const verify = read("scripts/verify_kt_docs.py");
+    expect(verify).toMatch(/Circuvent-KT-Architecture\.pptx/);
+    expect(verify).toMatch(/arch_facts/);
   });
 });
 

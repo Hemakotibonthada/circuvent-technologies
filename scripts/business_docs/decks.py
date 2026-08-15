@@ -67,7 +67,19 @@ def _text(slide, left, top, width, height, text, *, size=18, bold=False,
 
 
 def _bullets(slide, left, top, width, height, items, *, size=17, color=SLATE,
-             gap=10, bullet_color=CYAN):
+             gap=10, bullet_color=CYAN, head_color=None):
+    """
+    A bulleted list, with an optional bold lead-in before " — ".
+
+    `head_color` exists because the lead-in used to be hardcoded to INK. That is
+    correct on the light slides these bullets were written for and invisible on
+    a dark one — near-black text on the ink background, so half of each bullet
+    simply vanished while the rest of the line read normally. It defaults to the
+    old value, so every existing slide is unchanged; dark slides pass PAPER.
+
+    Nothing could have caught that except rendering the deck and looking at it.
+    """
+    head = head_color or INK
     box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
     tf = box.text_frame
     tf.word_wrap = True
@@ -83,13 +95,13 @@ def _bullets(slide, left, top, width, height, items, *, size=17, color=SLATE,
         # A bold lead-in before " — " makes a dense list scannable; without it
         # every bullet reads at the same weight and none of them get read.
         if " \u2014 " in item:
-            head, tail = item.split(" \u2014 ", 1)
+            head_text, tail = item.split(" \u2014 ", 1)
             r1 = p.add_run()
-            r1.text = head + " \u2014 "
+            r1.text = head_text + " \u2014 "
             r1.font.size = Pt(size)
             r1.font.bold = True
             r1.font.name = FONT_SANS
-            r1.font.color.rgb = _rgb(INK)
+            r1.font.color.rgb = _rgb(head)
             r2 = p.add_run()
             r2.text = tail
             r2.font.size = Pt(size)
