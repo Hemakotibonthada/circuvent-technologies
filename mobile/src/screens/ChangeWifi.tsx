@@ -8,6 +8,7 @@ import {
   wifiAutoSupported, ensureWifiPermissions, discoverDeviceAPs, connectToDeviceAP,
   leaveDeviceAP, rssiBars, type DeviceAP,
 } from "../wifi";
+import { readWifiStatus, wifiNotice, reprovisionRoute } from "../wifi-status";
 
 const BASE = "http://192.168.4.1";
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -23,7 +24,7 @@ function bars(rssi: number): string {
   return "▂";
 }
 
-type Step = "intro" | "discover" | "connect" | "wifi" | "sending" | "done" | "fail";
+type Step = "intro" | "push" | "pushing" | "discover" | "connect" | "wifi" | "sending" | "done" | "fail";
 interface Net { ssid: string; rssi: number; lock: boolean }
 
 // Change the Wi-Fi network of an already-provisioned device. The device keeps its
@@ -69,6 +70,90 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
   const startDiscover = () => {
     if (wifiAutoSupported()) { setStep("discover"); setTimeout(() => discover(), 300); }
     else setStep("connect");
+  };
+
+  /*
+   * The device is online, so it can simply be handed new credentials.
+   *
+   * `{action:"wifi", ssid, pass}` has been handled by every build since the
+   * shared library grew _applyWifi(), and nothing had ever sent it — so the
+   * app made people find the board, hold a button for three seconds and hope
+   * the phone's scan noticed an open hotspot, all to reach a device that was
+   * answering the whole time.
+   *
+   * It is safe to do remotely because _applyWifi() puts the old credentials
+   * back if the new network will not take it. The worst case is a device that
+   * is exactly where it started and says so.
+   */
+  const pushWifi = async () => {
+    setError("");
+    if (!ssid.trim()) { setError("Enter the Wi-Fi network to move this device to."); return; }
+    setStep("pushing");
+    setNote(`Sending the new network to ${device.name || device.id}…`);
+    const r = await api.command(device.id, { action: "wifi", ssid: ssid.trim(), pass });
+    if (!r.ok) {
+      setError("Couldn't reach the device just now. Try again, or use the hotspot route below.");
+      setStep("push");
+      return;
+    }
+    await watchWifiStatus();
+  };
+
+  /**
+   * Follows the device's own account of the change.
+   *
+   * A device swapping networks stops answering by design, so "offline" here is
+   * the expected middle of a healthy operation rather than evidence of one
+   * going wrong. wifiStatus is what tells the two apart, and reading it is the
+   * whole reason this screen can say anything at all during the gap.
+   */
+  const watchWifiStatus = async () => {
+    setNote("Moving the device onto the new network…");
+    for (let i = 0; i < 24; i++) {
+      await sleep(2500);
+      const r = await api.devices();
+      if (!r.ok) continue;
+      const d = (r.data.devices || []).find((x) => x.id === device.id);
+      if (!d) continue;
+      const w = readWifiStatus((d.state as Record<string, unknown> | undefined)?.wifiStatus);
+
+      if (w.phase === "failed") {
+        setError(wifiNotice(w, !!d.online) || "The device could not join that network.");
+        setStep("push");
+        return;
+      }
+      if (w.phase === "unchanged") {
+        setNote(wifiNotice(w, !!d.online) || "");
+        setStep("done");
+        return;
+      }
+      if (w.phase === "ok" && d.online) { setNote(""); setStep("done"); return; }
+
+      const notice = wifiNotice(w, !!d.online);
+      if (notice) setNote(notice);
+    }
+    setStep("done");
+    setNote("Sent. The device has not reported back yet — it may still be joining, or the password may be wrong.");
+  };
+
+  /*
+   * Raise the device's setup hotspot without anybody walking to it.
+   *
+   * The console has been able to do this since the firmware grew the `setup`
+   * action; the app never learned. It is the right route when the new network
+   * is one the device cannot be told about over the old one — moving house,
+   * or a router that has already gone.
+   */
+  const openSetupRemotely = async () => {
+    setApError(""); setNote("");
+    const r = await api.command(device.id, { action: "setup", minutes: 10 });
+    if (!r.ok) {
+      setApError("Couldn't ask the device to open setup mode. Use the button route instead.");
+      return;
+    }
+    setNote("Asked the device to open its setup hotspot for 10 minutes. It will rejoin your Wi-Fi on its own afterwards.");
+    await sleep(4000);
+    startDiscover();
   };
 
   const discover = async () => {
@@ -153,6 +238,8 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
 
   const goBack = () => {
     if (step === "intro") return onBack();
+    if (step === "push") return setStep("intro");
+    if (step === "pushing") return; // a change is in flight; leaving mid-way tells the user nothing
     if (step === "discover") { discoverStop.current = true; return setStep("intro"); }
     if (step === "wifi") { if (autoMode) { leaveDeviceAP(); setAutoMode(false); } return setStep(wifiAutoSupported() ? "discover" : "connect"); }
     if (step === "connect") return setStep("intro");
@@ -174,17 +261,90 @@ export default function ChangeWifi({ device, onBack }: { device: Device; onBack:
 
         {step === "intro" && (
           <View>
-            <SectionLabel>Step 1 · Reset the device</SectionLabel>
+            {reprovisionRoute(!!device.online) === "push" ? (
+              /*
+               * The device is answering, so none of the button-and-hotspot
+               * ceremony is necessary. That ceremony was the entire screen
+               * before, which is why re-provisioning a board that was online
+               * and three metres away still meant finding it and holding a
+               * button until a light blinked.
+               */
+              <View>
+                <SectionLabel>Move this device to another network</SectionLabel>
+                <Card padded style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.text, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>{device.name || device.id}</Text>
+                  <Text style={{ color: c.textDim, fontSize: 14, lineHeight: 22 }}>
+                    This device is online, so its new Wi-Fi can be sent straight to it — no buttons, and no need to go and find it.
+                    {"\n\n"}It drops off for up to a minute while it joins. If the new network refuses it, it puts the old one back and tells you why.
+                  </Text>
+                </Card>
+                <Primary c={c} label="Enter the new Wi-Fi" onPress={() => { setError(""); setStep("push"); }} />
+                <Pressable onPress={openSetupRemotely} style={{ marginTop: 14, minHeight: 44, justifyContent: "center" }}>
+                  <Text style={{ color: c.accentHi, textAlign: "center" }}>Open the device's setup hotspot instead ›</Text>
+                </Pressable>
+                <Pressable onPress={startDiscover} style={{ marginTop: 6, minHeight: 44, justifyContent: "center" }}>
+                  <Text style={{ color: c.faint, textAlign: "center", fontSize: 13 }}>Use the reset button route</Text>
+                </Pressable>
+                {!!note && <Text style={{ color: c.textDim, fontSize: 13, marginTop: 12 }}>{note}</Text>}
+                {!!apError && <Text style={{ color: c.red, fontSize: 13, marginTop: 12 }}>{apError}</Text>}
+              </View>
+            ) : (
+              <View>
+                <SectionLabel>Step 1 · Reset the device</SectionLabel>
+                <Card padded style={{ marginBottom: 12 }}>
+                  <Text style={{ color: c.text, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>{device.name || device.id}</Text>
+                  <Text style={{ color: c.textDim, fontSize: 13, marginBottom: 10 }}>
+                    This device is not reachable right now, so its new Wi-Fi has to be handed over in person.
+                  </Text>
+                  <Text style={{ color: c.textDim, fontSize: 14, lineHeight: 22 }}>
+                    1. On the device, press &amp; hold the <Text style={{ color: c.text, fontWeight: "700" }}>reset/BOOT button for ~3 seconds</Text> until the light starts blinking.{"\n"}
+                    2. It re-opens its setup hotspot — its saved login stays intact, only the Wi-Fi changes.{"\n"}
+                    3. Tap Continue and we'll find it for you.
+                  </Text>
+                </Card>
+                <Text style={{ color: c.faint, fontSize: 12, marginBottom: 16 }}>Tip: holding for ~8 seconds does a full factory reset instead.</Text>
+                <Primary c={c} label="Continue" onPress={startDiscover} />
+              </View>
+            )}
+          </View>
+        )}
+
+        {step === "push" && (
+          <View>
+            <SectionLabel>The network to move it to</SectionLabel>
             <Card padded style={{ marginBottom: 12 }}>
-              <Text style={{ color: c.text, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>{device.name || device.id}</Text>
-              <Text style={{ color: c.textDim, fontSize: 14, lineHeight: 22 }}>
-                1. On the device, press &amp; hold the <Text style={{ color: c.text, fontWeight: "700" }}>reset/BOOT button for ~3 seconds</Text> until the light starts blinking.{"\n"}
-                2. It re-opens its setup hotspot — its saved login stays intact, only the Wi-Fi changes.{"\n"}
-                3. Tap Continue and we'll find it for you.
+              <Text style={{ color: c.textDim, fontSize: 13, lineHeight: 20 }}>
+                Sent to the device over your existing connection. It has to be a 2.4 GHz network — these boards have no 5 GHz radio, which is the most common reason a correct password still fails.
               </Text>
             </Card>
-            <Text style={{ color: c.faint, fontSize: 12, marginBottom: 16 }}>Tip: holding for ~8 seconds does a full factory reset instead.</Text>
-            <Primary c={c} label="Continue" onPress={startDiscover} />
+            <TextInput
+              value={ssid}
+              onChangeText={setSsid}
+              placeholder="Wi-Fi name (SSID)"
+              placeholderTextColor={c.faint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, minHeight: 48, color: c.text, marginBottom: 10 }}
+            />
+            <TextInput
+              value={pass}
+              onChangeText={setPass}
+              placeholder="Password"
+              placeholderTextColor={c.faint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, minHeight: 48, color: c.text, marginBottom: 14 }}
+            />
+            {!!error && <Text style={{ color: c.red, fontSize: 13, marginBottom: 12 }}>{error}</Text>}
+            <Primary c={c} label="Send to device" onPress={pushWifi} />
+          </View>
+        )}
+
+        {step === "pushing" && (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <ActivityIndicator color={c.accentHi} size="large" />
+            <Text style={{ color: c.textDim, fontSize: 14, textAlign: "center", lineHeight: 22, marginTop: 18 }}>{note}</Text>
           </View>
         )}
 

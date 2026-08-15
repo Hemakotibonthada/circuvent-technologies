@@ -184,6 +184,36 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
     case "touchboard-8": {
       const gangs =
         type === "touchboard-8" ? TOUCHBOARD8_GANG_FIELDS : TOUCHBOARD_GANG_FIELDS;
+
+      /*
+       * Binding a pad to a load on another board.
+       *
+       * The echo is the binding itself, which the sketch stores and republishes
+       * as bind<N>. The relay is deliberately not projected: binding a pad
+       * changes what it will do next time, not the state of anything now, and
+       * asserting a switch here would pin a control waiting for a change the
+       * firmware was never going to make.
+       */
+      if (action === "bind") {
+        const g = isNum(cmd.gang) ? Math.round(cmd.gang) : 0;
+        if (g >= 1 && g <= gangs.length) {
+          patch[`bind${g}`] = isStr(cmd.target) ? cmd.target : "";
+        }
+        return patch;
+      }
+
+      /*
+       * Joining a home reboots the board to pick the key up, so the only
+       * honest projection is that it is on its way. Everything else — whether
+       * the bus came up, who it can hear — is answered by the device after it
+       * restarts, and guessing it here would show a working home network
+       * before one existed.
+       */
+      if (action === "homekey") {
+        patch.homeLink = "rebooting to join home";
+        return patch;
+      }
+
       for (const g of gangs) {
         if (isBool(cmd[g])) patch[g] = cmd[g];
       }

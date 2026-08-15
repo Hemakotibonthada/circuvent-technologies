@@ -11,6 +11,7 @@ import { DeviceControls, deviceMeta } from "../../DeviceControls";
 import { effectiveDeviceType } from "../../_data/device-type";
 import { GatePasses } from "../../GatePasses";
 import DeviceReportCard from "./DeviceReportCard";
+import { HomeNetworkPanel } from "./HomeNetworkPanel";
 import { LatencyBadge } from "../../ui";
 import {
   Badge,
@@ -209,6 +210,11 @@ export default function DevicePage() {
 
       {/* Type-specific device controls (unchanged functionality) */}
       <DeviceControls device={device} send={send} st={fieldStatus} />
+
+      {/* Boards that carry the local bus can bind their pads to other boards. */}
+      {device.type === "touchboard-8" && (
+        <HomeNetworkPanel device={device} gangs={8} onChanged={reload} />
+      )}
 
       {/* RFID gate passes */}
       {device.type === "rfid-gate" && <GatePasses deviceId={device.id} />}

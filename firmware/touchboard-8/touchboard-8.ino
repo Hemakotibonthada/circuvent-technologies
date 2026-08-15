@@ -38,9 +38,10 @@
  *      That leaves nine for eight pads, and the one deliberately left out is
  *      T5 — see the pin map, it is not an arbitrary choice.
  */
-/** Version history: 1.0.0 initial 8-gang board. */
-#define CV_FW_VERSION "1.0.0"
+/** Version history: 1.0.0 initial 8-gang board; 1.1.0 adds the local home link. */
+#define CV_FW_VERSION "1.1.0"
 #include <CircuventDevice.h>
+#include <CvHomeLink.h>
 #include <Preferences.h>
 
 #define NUM_GANG 8
@@ -156,6 +157,28 @@ double VOL_MULT = 0.9192;   // V per (pulse Hz)
 CircuventDevice cv("touchboard-8");
 Preferences store;
 
+/*
+ * The local bus, so this board can drive loads on other boards in the flat.
+ *
+ * A three-bedroom home has one of these in each room and the useful wiring is
+ * rarely "this pad switches the load behind this pad" — the hall wants a
+ * master-off, a bedside pad wants the fan across the room. Without this, every
+ * one of those crosses the internet and back, and stops working entirely when
+ * the broadband does. See CvHomeLink.h.
+ */
+CvHomeLink home;
+bool homeLinkUp = false;
+
+/*
+ * Per-gang bindings: "<peer-id>:<field>", or empty for a gang that only drives
+ * its own relay.
+ *
+ * Held on the *sending* board because that is where somebody stands when they
+ * decide what a switch should do. Stored in NVS so the flat keeps working the
+ * way its owner arranged it across a power cut, with no cloud involved.
+ */
+char bindTarget[NUM_GANG][CV_HOME_FIELD_LEN * 2] = {{0}};
+
 bool relay[NUM_GANG];
 bool savedRelay[NUM_GANG];
 int  touchBase[NUM_GANG];
@@ -198,6 +221,37 @@ void setRelay(int i, bool on, bool persist = true) {
     store.putBool(k, on);
     savedRelay[i] = on;
   }
+  // Announced to the flat so other boards can react without the cloud. Cheap
+  // and connectionless; it costs nothing when nobody is listening.
+  if (homeLinkUp) home.publishState(k, on ? 1 : 0);
+}
+
+/**
+ * What a pad does when it is touched.
+ *
+ * A bound gang drives a load on another board instead of its own relay. That
+ * is the case worth being careful about: the switch the finger is on and the
+ * light that answers are in different rooms, so if the packet is lost there is
+ * nothing local to show for it. The delivery counter in CvHomeLink is what
+ * makes that visible rather than mysterious.
+ */
+void pressGang(int i) {
+  if (homeLinkUp && bindTarget[i][0]) {
+    char peer[CV_HOME_ID_LEN], field[CV_HOME_FIELD_LEN];
+    if (cvHomeSplitTarget(bindTarget[i], peer, sizeof(peer), field, sizeof(field))) {
+      // The bound gang tracks the state it last asked for, so the pad's own
+      // indicator still means something to the person standing at it.
+      relay[i] = !relay[i];
+      home.sendCommand(peer, field, relay[i] ? 1 : 0);
+      char k[3];
+      gangKey(i, k);
+      cv.set(k, relay[i]);
+      cv.publishStateNow();
+      return;
+    }
+  }
+  setRelay(i, !relay[i]);
+  cv.publishStateNow();
 }
 
 /**
@@ -219,6 +273,59 @@ void onCommand(const String &action, JsonObjectConst p) {
     calibrateTouch();
     return;
   }
+
+  /*
+   * Bind a pad to a load on another board: {action:"bind", gang:3,
+   * target:"a1b2c3:g2"}. An empty target unbinds it.
+   *
+   * Set from the app, applied here, and kept in NVS — so the arrangement the
+   * owner chose survives a power cut and keeps working with the internet down,
+   * which is the entire reason the local bus exists.
+   */
+  if (action == "bind") {
+    int g = p["gang"] | 0;
+    if (g < 1 || g > NUM_GANG) return;
+    const char *t = p["target"] | "";
+    strncpy(bindTarget[g - 1], t, sizeof(bindTarget[0]) - 1);
+    bindTarget[g - 1][sizeof(bindTarget[0]) - 1] = 0;
+    char bk[6];
+    snprintf(bk, sizeof(bk), "bind%d", g);
+    store.putString(bk, bindTarget[g - 1]);
+    publishBindings();
+    cv.publishStateNow();
+    return;
+  }
+
+  /*
+   * Join a home: {action:"homekey", key:"<64 hex chars>"}.
+   *
+   * The local bus is only as trustworthy as the fact that every board on it
+   * was put there by the owner, so the key arrives the one way that is already
+   * authenticated — down the device's own MQTT topic, from the control plane
+   * that knows which home this board belongs to. Nothing is accepted over the
+   * air, which is what stops a neighbour's board from talking its way in.
+   *
+   * Applied on the next boot rather than live: bringing ESP-NOW up and down
+   * underneath a running link is the kind of thing that half-works, and a
+   * switchboard is not the place to find out. The reboot is announced first so
+   * the app does not read it as a crash.
+   */
+  if (action == "homekey") {
+    const char *hex = p["key"] | "";
+    uint8_t key[CV_HOME_KEY_BYTES];
+    if (!cvHomeKeyFromHex(hex, key)) {
+      cv.set("homeLink", "bad key");
+      cv.publishStateNow();
+      return;
+    }
+    store.putBytes("homekey", key, sizeof(key));
+    cv.set("homeLink", "rebooting to join home");
+    cv.publishStateNow();
+    delay(400);
+    ESP.restart();
+    return;
+  }
+
   if (action != "set") return;
 
   // `all` is applied first so a command carrying both still lets the named
@@ -238,7 +345,28 @@ void onCommand(const String &action, JsonObjectConst p) {
     cv.set("backlight", backlight);
   }
 
+  /*
+   * A scene sent to this board is relayed to the flat over the local bus.
+   *
+   * "All off" at the front door is the most-used cross-board action there is,
+   * and it used to reach the other rooms only by way of the cloud fanning it
+   * out — so it was also the first thing to stop working when the broadband
+   * did, at night, with somebody standing at the door.
+   */
+  if (homeLinkUp && p["scene"].is<const char *>()) {
+    home.sendScene(p["scene"].as<const char *>());
+  }
+
   cv.publishStateNow();
+}
+
+/** The current bindings, so the app can show what each pad is wired to. */
+void publishBindings() {
+  for (int i = 0; i < NUM_GANG; i++) {
+    char bk[6];
+    snprintf(bk, sizeof(bk), "bind%d", i + 1);
+    cv.set(bk, bindTarget[i]);
+  }
 }
 
 void calibrateTouch() {
@@ -257,8 +385,7 @@ void pollTouch() {
   for (int i = 0; i < NUM_GANG; i++) {
     int v = touchRead(TOUCH_PIN[i]);
     if (touchBase[i] > 0 && v < touchBase[i] * TOUCH_TRIGGER) {
-      setRelay(i, !relay[i]);
-      cv.publishStateNow();          // a single tap should feel instant
+      pressGang(i);                  // honours a binding; falls back to our relay
       lastTouchAt = now;
       return;                        // one pad per pass; a palm is not 8 taps
     }
@@ -294,6 +421,12 @@ void setup() {
     savedRelay[i] = relay[i];
   }
   kwh = store.getDouble("kwh", 0);
+  for (int i = 0; i < NUM_GANG; i++) {
+    char bk[6];
+    snprintf(bk, sizeof(bk), "bind%d", i + 1);
+    String t = store.getString(bk, "");
+    strncpy(bindTarget[i], t.c_str(), sizeof(bindTarget[0]) - 1);
+  }
   applyBacklight();
   calibrateTouch();
 
@@ -313,6 +446,8 @@ void setup() {
   cv.setResetButton(0);  // BOOT/GPIO0: hold 3s to change Wi-Fi, 8s to factory reset
   cv.begin();
 
+  startHomeLink();
+
   /*
    * Published so the console and the app lay out the number of controls this
    * board actually has, rather than assuming a fixed size. A UI that guesses
@@ -321,11 +456,65 @@ void setup() {
   cv.set("gangs", NUM_GANG);
   cv.set("pads", NUM_GANG);
   cv.set("backlight", backlight);
+  publishBindings();
   for (int i = 0; i < NUM_GANG; i++) {
     char k[3];
     gangKey(i, k);
     cv.set(k, relay[i]);
   }
+}
+
+/**
+ * Bring up the local bus and say what it should do when other boards talk.
+ *
+ * The home key is provisioned alongside the device identity. Without one the
+ * board simply has no local bus — it still works through the cloud, which is
+ * the right way round: a missing key must not mean an unauthenticated bus that
+ * anybody in the stairwell can drive.
+ */
+void startHomeLink() {
+  uint8_t key[CV_HOME_KEY_BYTES];
+  size_t n = store.getBytes("homekey", key, sizeof(key));
+  if (n != sizeof(key)) {
+    Serial.println("[CVHOME] no home key provisioned — local bus disabled");
+    cv.set("homeLink", "unprovisioned");
+    return;
+  }
+
+  home.begin(cv.deviceId().c_str(), key);
+  homeLinkUp = home.up();
+  cv.set("homeLink", homeLinkUp ? "up" : "failed");
+  if (!homeLinkUp) return;
+
+  // Another board asked us to switch something of ours.
+  home.onCommand([](const char *field, int32_t value, const char *) {
+    for (int i = 0; i < NUM_GANG; i++) {
+      char k[3];
+      gangKey(i, k);
+      if (strcmp(k, field) == 0) {
+        setRelay(i, value != 0);
+        cv.publishStateNow();
+        return;
+      }
+    }
+  });
+
+  /*
+   * Scenes are applied locally, which is what makes them survive an outage.
+   *
+   * Only the two that are unambiguous for a switchboard. A scene this board
+   * does not understand is ignored rather than guessed at — a pad inventing an
+   * interpretation of "movie" would switch somebody's room on its own.
+   */
+  home.onScene([](const char *scene) {
+    if (!strcmp(scene, "all-off") || !strcmp(scene, "away") || !strcmp(scene, "night")) {
+      applyAll(false);
+      cv.publishStateNow();
+    } else if (!strcmp(scene, "all-on")) {
+      applyAll(true);
+      cv.publishStateNow();
+    }
+  });
 }
 
 void readMeter() {
@@ -357,6 +546,13 @@ void readMeter() {
 void loop() {
   pollTouch();
   readMeter();
+
+  if (homeLinkUp) {
+    home.loop(cv.online());
+    // Reported so a flat that has quietly stopped talking to itself is visible
+    // in the app, rather than only showing up as switches that do nothing.
+    cv.set("homePeers", home.livePeers());
+  }
 
   cv.set("watts", (float)watts);
   cv.set("volts", (float)volts);
