@@ -130,3 +130,16 @@ __pycache__/
 # so this directory is a build speed-up and nothing more — committing it would
 # be a second copy of public/img that can fall behind the first.
 Docs/kt/_assets/
+
+# The native clients (native/). Build output and per-machine SDK pointers.
+# local.properties names a path that exists on exactly one computer, and
+# committing it breaks the build for everybody else in a way that reads as a
+# missing Android SDK rather than as somebody else's directory layout.
+native/android/local.properties
+native/android/.gradle/
+native/android/build/
+native/android/app/build/
+native/ios/*.xcodeproj/
+native/ios/*.xcworkspace/
+native/ios/build/
+native/ios/DerivedData/

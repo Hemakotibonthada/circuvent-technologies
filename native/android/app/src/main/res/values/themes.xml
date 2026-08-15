@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      A plain Material 3 base. Colour lives in Compose (ui/App.kt) so the
+      accents have one owner and match src/app/globals.css, rather than being
+      declared once here and again there and drifting apart.
+    -->
+    <style name="Theme.Circuvent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#0B1220</item>
+        <item name="android:navigationBarColor">#0B1220</item>
+        <item name="android:windowBackground">#0B1220</item>
+    </style>
+</resources>

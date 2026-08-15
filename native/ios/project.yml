@@ -1,0 +1,62 @@
+### The Xcode project is generated, not committed.
+#
+# A .xcodeproj is a directory of XML that merge-conflicts on every parallel
+# change and cannot be reviewed. XcodeGen builds it from this file, so the
+# source of truth is a readable twenty lines instead of a generated blob.
+#
+#   brew install xcodegen
+#   cd native/ios && xcodegen generate && open Circuvent.xcodeproj
+#
+# Everything under Circuvent/Core is deliberately free of UIKit and SwiftUI so
+# it compiles for macOS too, which is what lets CircuventTests run without a
+# simulator.
+
+name: Circuvent
+options:
+  bundleIdPrefix: com.circuvent
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+targets:
+  Circuvent:
+    type: application
+    platform: iOS
+    sources:
+      - path: Circuvent
+    info:
+      path: Circuvent/Info.plist
+      properties:
+        CFBundleDisplayName: Circuvent
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # No NSAppTransportSecurity exception. The control plane is HTTPS, and
+        # an app that can fall back to cleartext is an app that will, on the
+        # afternoon somebody points it at a local dev server.
+    settings:
+      base:
+        # A different bundle id from the Expo build, for the same reason the
+        # Android package differs: both have to be installable side by side
+        # while one replaces the other.
+        PRODUCT_BUNDLE_IDENTIFIER: com.circuvent.app.nativeclient
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  CircuventTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: CircuventTests
+      # The core is compiled into the test bundle directly rather than being
+      # imported from the app target: it has no UI dependencies, so the tests
+      # do not need an app to be built or a simulator to be booted.
+      - path: Circuvent/Core
+    dependencies:
+      - target: Circuvent
