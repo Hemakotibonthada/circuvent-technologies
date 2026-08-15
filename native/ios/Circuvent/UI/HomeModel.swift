@@ -1,21 +1,49 @@
 import Foundation
 import SwiftUI
 
+enum Tab: String, CaseIterable, Identifiable {
+    case home = "Home"
+    case devices = "Devices"
+    case rooms = "Rooms"
+    case scenes = "Scenes"
+    case more = "More"
+
+    var id: String { rawValue }
+
+    var glyph: String {
+        switch self {
+        case .home: return "house"
+        case .devices: return "square.grid.2x2"
+        case .rooms: return "rectangle.3.group"
+        case .scenes: return "sparkles"
+        case .more: return "ellipsis"
+        }
+    }
+}
+
 /// The screen's state, and the only place it changes.
 ///
 /// Mirrors `HomeViewModel` on the Android side deliberately, including the
-/// pending-command set and the slow poll behind the socket. Two clients that
+/// pending-command set, the slow poll behind the socket and the rule that a
+/// rooms or scenes failure must not blank the device list. Two clients that
 /// solve the same problem differently behave differently under failure, and
 /// failure is the only time anybody notices.
 @MainActor
 final class HomeModel: ObservableObject {
     @Published var signedIn: Bool
     @Published var loading = false
+    @Published var tab: Tab = .home
     @Published var devices: [Device] = []
+    @Published var rooms: [Room] = []
+    @Published var scenes: [Scene] = []
+    @Published var automations: [Automation] = []
     @Published var error: String?
+    @Published var notice: String?
     @Published var liveConnected = false
     /// Fields with a command in flight, as "deviceId::field".
     @Published var pending: Set<String> = []
+    @Published var openDeviceID: String?
+    @Published var roomFilter: String?
 
     private let session = Session()
     private let api: ApiClient
@@ -28,9 +56,23 @@ final class HomeModel: ObservableObject {
         signedIn = session.signedIn
     }
 
+    var openDevice: Device? { devices.first { $0.id == openDeviceID } }
+    var favourites: [Device] { devices.filter { $0.favorite } }
+    var onlineCount: Int { devices.filter { $0.online }.count }
+
+    /// Devices that are on right now, by the field their own firmware reads.
+    var activeCount: Int {
+        devices.filter { d in
+            guard let power = DeviceCapabilities.of(d.type).power else { return false }
+            return d.bool(power.field) == true
+        }.count
+    }
+
+    // MARK: - lifecycle
+
     func startIfSignedIn() async {
         guard signedIn else { return }
-        await load()
+        await loadAll()
         startLive()
         startPolling()
     }
@@ -45,7 +87,7 @@ final class HomeModel: ObservableObject {
             )
             loading = false
             signedIn = true
-            await load()
+            await loadAll()
             startLive()
             startPolling()
         } catch {
@@ -58,37 +100,90 @@ final class HomeModel: ObservableObject {
         pollTask?.cancel()
         live.disconnect()
         session.clear()
-        devices = []
+        devices = []; rooms = []; scenes = []; automations = []
         pending = []
         liveConnected = false
         signedIn = false
     }
 
-    func load() async {
-        loading = devices.isEmpty
-        do {
-            let list = try await api.devices()
-            devices = list.sorted {
-                if $0.favorite != $1.favorite { return $0.favorite }
-                if $0.online != $1.online { return $0.online }
-                return $0.label.lowercased() < $1.label.lowercased()
-            }
-            error = nil
-        } catch {
-            self.error = error.localizedDescription
-        }
-        loading = false
-    }
+    func dismissNotice() { notice = nil; error = nil }
+
+    // MARK: - actions
 
     /// Flip one boolean field on a device.
-    ///
-    /// The field is marked pending until the device's own report replaces it.
-    /// That pin is the whole reason `Commands` refuses to build a command for a
-    /// field a type does not read: a control that pins and never resolves is
-    /// worse than one that does nothing, because it also lies about being busy.
     func toggle(_ device: Device, field: String, value: Bool) async {
-        guard let cmd = Commands.setBool(type: device.type, field: field, value: value) else {
-            error = "This app does not know how to switch \(device.type). Nothing was sent."
+        await send(device, field: field,
+                   cmd: Commands.setBool(type: device.type, field: field, value: value))
+    }
+
+    /// A 0..100 control: brightness, curtain position, fan speed.
+    func setLevel(_ device: Device, field: String, value: Int, legacyField: String? = nil) async {
+        let clamped = min(max(value, 0), 100)
+        var cmd: [String: JSONValue] = ["action": .string("set"), field: .number(Double(clamped))]
+        /*
+         * The legacy field rides along on purpose. A fan that has not taken the
+         * firmware update reads `speed` and ignores `level`; one that has reads
+         * both. Sending only the new field would make the control silently do
+         * nothing on older hardware, which is indistinguishable from a broken
+         * fan.
+         */
+        if let legacyField {
+            cmd[legacyField] = .number(Double(min(max(clamped / 34, 0), 3)))
+        }
+        await send(device, field: field, cmd: cmd)
+    }
+
+    func setTarget(_ device: Device, field: String, value: Int) async {
+        await send(device, field: field,
+                   cmd: ["action": .string("set"), field: .number(Double(value))])
+    }
+
+    /// Every gang of a touch board at once.
+    func allGangs(_ device: Device, value: Bool) async {
+        await send(device, field: "all", cmd: Commands.allGangs(value))
+    }
+
+    func star(_ device: Device) async {
+        guard let index = devices.firstIndex(where: { $0.id == device.id }) else { return }
+        let next = !device.favorite
+        // Applied locally first: starring is the app's own record, not the
+        // device's, so there is no echo coming to confirm it.
+        devices[index].favorite = next
+        do {
+            try await api.patchDevice(deviceID: device.id, favorite: next)
+        } catch {
+            devices[index].favorite = !next
+            self.error = "Could not save that."
+        }
+    }
+
+    func runScene(_ scene: Scene) async {
+        do {
+            try await api.runScene(id: scene.id)
+            notice = "\(scene.name) applied."
+            // A scene moves several devices at once and the echoes arrive
+            // separately, so the list is refreshed rather than guessed at.
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            await loadDevices()
+        } catch {
+            self.error = "Could not run \(scene.name)."
+        }
+    }
+
+    /// Ask a device to raise its setup hotspot, so nobody has to walk to it.
+    func openSetupMode(_ device: Device) async {
+        do {
+            try await api.command(deviceID: device.id, Commands.setupMode(minutes: 10))
+            notice = "\(device.label) will open its setup hotspot for 10 minutes, " +
+                "then rejoin your Wi-Fi on its own."
+        } catch {
+            self.error = "Could not reach \(device.label)."
+        }
+    }
+
+    private func send(_ device: Device, field: String, cmd: [String: JSONValue]?) async {
+        guard let cmd else {
+            error = "This app does not know how to control \(device.type). Nothing was sent."
             return
         }
         let key = "\(device.id)::\(field)"
@@ -97,7 +192,7 @@ final class HomeModel: ObservableObject {
             try await api.command(deviceID: device.id, cmd)
         } catch {
             pending.remove(key)
-            self.error = error.localizedDescription
+            self.error = "That did not reach \(device.label)."
             return
         }
         /*
@@ -110,6 +205,34 @@ final class HomeModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 8_000_000_000)
             await MainActor.run { self.pending.remove(key) }
         }
+    }
+
+    // MARK: - loading
+
+    func loadAll() async {
+        loading = devices.isEmpty
+        await loadDevices()
+        // Rooms and scenes change rarely, so a failure on either is not allowed
+        // to blank the device list the app is actually for.
+        if let r = try? await api.rooms() { rooms = r }
+        if let s = try? await api.scenes() { scenes = s }
+        if let a = try? await api.automations() { automations = a }
+        loading = false
+    }
+
+    func loadDevices() async {
+        do {
+            let list = try await api.devices()
+            devices = list.sorted {
+                if $0.favorite != $1.favorite { return $0.favorite }
+                if $0.online != $1.online { return $0.online }
+                return $0.label.lowercased() < $1.label.lowercased()
+            }
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        loading = false
     }
 
     private func startLive() {
@@ -153,7 +276,7 @@ final class HomeModel: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
                 guard let self else { return }
-                await self.load()
+                await self.loadDevices()
             }
         }
     }

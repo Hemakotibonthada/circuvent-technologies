@@ -130,6 +130,39 @@ actor ApiClient {
         _ = try await send(Api.command(deviceID), method: "POST", body: cmd)
     }
 
+    func rooms() async throws -> [Room] {
+        let data = try await send(Api.rooms, method: "GET")
+        return try decoder.decode(RoomList.self, from: data).rooms
+    }
+
+    func scenes() async throws -> [Scene] {
+        let data = try await send(Api.scenes, method: "GET")
+        return try decoder.decode(SceneList.self, from: data).scenes
+    }
+
+    func runScene(id: Int) async throws {
+        _ = try await send(Api.runScene(id), method: "POST", body: [:])
+    }
+
+    func automations() async throws -> [Automation] {
+        let data = try await send(Api.automations, method: "GET")
+        return try decoder.decode(AutomationList.self, from: data).automations
+    }
+
+    /// Rename a device, move it to a room, or star it.
+    func patchDevice(
+        deviceID: String,
+        name: String? = nil,
+        room: String? = nil,
+        favorite: Bool? = nil
+    ) async throws {
+        var body: [String: JSONValue] = [:]
+        if let name { body["name"] = .string(name) }
+        if let room { body["room"] = .string(room) }
+        if let favorite { body["favorite"] = .bool(favorite) }
+        _ = try await send(Api.patchDevice(deviceID), method: "PATCH", body: body)
+    }
+
     // MARK: - plumbing
 
     private func send(

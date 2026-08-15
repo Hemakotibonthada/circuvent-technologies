@@ -21,6 +21,11 @@ object Api {
     const val LOGIN = "/auth/login"
     const val REFRESH = "/auth/refresh"
     const val DEVICES = "/devices"
+    const val ROOMS = "/rooms"
+    const val SCENES = "/scenes"
+    const val AUTOMATIONS = "/automations"
 
     fun command(deviceId: String): String = "/devices/$deviceId/command"
+    fun runScene(id: Int): String = "/scenes/$id/run"
+    fun patchDevice(deviceId: String): String = "/devices/$deviceId"
 }

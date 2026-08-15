@@ -27,11 +27,15 @@ const read = (...p: string[]) => fs.readFileSync(path.join(root, ...p), "utf8");
 
 const kotlinApi = read("native", "android", "app", "src", "main", "java", "com", "circuvent", "app", "core", "Api.kt");
 const kotlinCommands = read("native", "android", "app", "src", "main", "java", "com", "circuvent", "app", "core", "Commands.kt");
+const kotlinCaps = read("native", "android", "app", "src", "main", "java", "com", "circuvent", "app", "core", "Capabilities.kt");
 const kotlinTest = read("native", "android", "app", "src", "test", "java", "com", "circuvent", "app", "CommandsTest.kt");
+const kotlinCapsTest = read("native", "android", "app", "src", "test", "java", "com", "circuvent", "app", "CapabilitiesTest.kt");
 
 const swiftApi = read("native", "ios", "Circuvent", "Core", "Api.swift");
 const swiftCommands = read("native", "ios", "Circuvent", "Core", "Commands.swift");
+const swiftCaps = read("native", "ios", "Circuvent", "Core", "Capabilities.swift");
 const swiftTest = read("native", "ios", "CircuventTests", "CommandsTests.swift");
+const swiftCapsTest = read("native", "ios", "CircuventTests", "CapabilitiesTests.swift");
 
 const expoConfig = read("mobile", "src", "config.ts");
 
@@ -188,6 +192,86 @@ describe("the command map is the same map in every language", () => {
   });
 });
 
+describe("the capability table is the same table in every language", () => {
+  /*
+   * A capability listed is a promise that the firmware reads that field. The
+   * failure is not a crash — it is a slider or a switch that renders, moves,
+   * and changes nothing.
+   *
+   * The half that matters more is the types that must offer *no* switch. A
+   * camera's boolean stops a recording somebody is watching. A drone's is an
+   * aircraft's permission to fly. A hub's `power` is one relay of four, so a
+   * whole-device switch turns on a quarter of it and reports success. Any of
+   * those appearing on one platform and not the other is a dangerous control
+   * that exists on exactly one phone.
+   */
+  /*
+   * Comments are stripped before slicing. The branch window would otherwise be
+   * filled by the explanation above a capability rather than the capability
+   * itself, and the assertion would be about prose.
+   */
+  const code = (src: string) =>
+    src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  const kotlinCapsCode = code(kotlinCaps);
+  const swiftCapsCode = code(swiftCaps);
+
+  const branch = (src: string, type: string, span = 320) => {
+    const at = src.indexOf(`"${type}"`);
+    return at < 0 ? "" : src.slice(at, at + span);
+  };
+
+  const withPower: Array<[string, string]> = [
+    ["smart-light", "brightness"],
+    ["smart-fan", "level"],
+    ["curtain", "position"],
+    ["smart-lock", "locked"],
+    ["watertank", "pump"],
+    ["touchboard", "g1"],
+    ["sentinel", "r1"],
+  ];
+
+  it.each(withPower)("%s exposes %s on both platforms", (type, field) => {
+    expect(branch(kotlinCapsCode, type)).toContain(`"${field}"`);
+    expect(branch(swiftCapsCode, type)).toContain(`"${field}"`);
+  });
+
+  const noSwitch = ["camera", "anpr-cam", "drone-link", "meter", "home-hub", "rfid-gate"];
+
+  it.each(noSwitch)("%s offers no tile switch on either platform", (type) => {
+    /*
+     * Asserted by the absence of a power capability in that branch rather than
+     * by running the code, because the code cannot be run here for Swift. A
+     * branch that gained a `power:` would be caught; one that changed its
+     * metric would not, which is what the per-platform unit tests are for.
+     */
+    for (const [name, src] of [["Kotlin", kotlinCapsCode], ["Swift", swiftCapsCode]] as const) {
+      const text = branch(src, type, 260);
+      expect(text.length).toBeGreaterThan(20);
+      expect(`${name}:${type}:${text}`).not.toMatch(/PowerCap\(/);
+    }
+  });
+
+  it("keeps the fan's legacy field on both, so older hardware still moves", () => {
+    // A fan that has not taken the firmware update reads `speed` and ignores
+    // `level`. Dropping it on one platform makes the control silently do
+    // nothing there, which is indistinguishable from a broken fan.
+    for (const src of [kotlinCaps, swiftCaps]) {
+      expect(src).toMatch(/legacyField\s*[:=]\s*"speed"|legacyField: "speed"/);
+    }
+  });
+
+  it("counts touch board gangs from what the device reports", () => {
+    // A 3-gang board and an 8-gang board publish different numbers of fields;
+    // counting a fixed eight would report dead gangs on the smaller one.
+    for (const src of [kotlinCaps, swiftCaps]) {
+      expect(src).toMatch(/1\.\.8|1\.\.\.8/);
+    }
+  });
+});
+
 describe("both native clients are checked for the same things", () => {
   /*
    * The Swift tests cannot run here, so the next best guarantee is that they
@@ -206,6 +290,13 @@ describe("both native clients are checked for the same things", () => {
   it("covers the same number of cases", () => {
     const kotlin = caseNames(kotlinTest, /fun `([^`]+)`/g);
     const swift = caseNames(swiftTest, /func (test\w+)/g);
+    expect(kotlin.length).toBeGreaterThanOrEqual(10);
+    expect(swift.length).toBe(kotlin.length);
+  });
+
+  it("covers the same number of capability cases", () => {
+    const kotlin = caseNames(kotlinCapsTest, /fun `([^`]+)`/g);
+    const swift = caseNames(swiftCapsTest, /func (test\w+)/g);
     expect(kotlin.length).toBeGreaterThanOrEqual(10);
     expect(swift.length).toBe(kotlin.length);
   });

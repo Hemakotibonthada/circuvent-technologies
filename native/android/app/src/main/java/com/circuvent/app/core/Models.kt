@@ -75,3 +75,44 @@ data class DeviceUpdate(
     val payload: JsonObject = JsonObject(emptyMap()),
     val at: String = "",
 )
+
+@Serializable
+data class Room(
+    val id: Int,
+    val name: String = "",
+    val icon: String? = null,
+    val sort: Int = 0,
+)
+
+@Serializable
+data class RoomList(val rooms: List<Room> = emptyList())
+
+/**
+ * A scene: a named set of commands, applied together.
+ *
+ * `actions` is kept as raw JSON for the same reason device state is — a scene
+ * can carry any command any device type reads, and modelling them here would
+ * mean a phone that silently drops the ones it has not been taught.
+ */
+@Serializable
+data class Scene(
+    val id: Int,
+    val name: String = "",
+    val icon: String? = null,
+    val actions: JsonElement? = null,
+)
+
+@Serializable
+data class SceneList(val scenes: List<Scene> = emptyList())
+
+@Serializable
+data class Automation(
+    val id: Int,
+    val name: String = "",
+    val enabled: Boolean = true,
+    val trigger: JsonElement? = null,
+    val actions: JsonElement? = null,
+)
+
+@Serializable
+data class AutomationList(val automations: List<Automation> = emptyList())

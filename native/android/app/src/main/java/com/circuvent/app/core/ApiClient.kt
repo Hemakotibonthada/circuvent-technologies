@@ -140,6 +140,51 @@ class ApiClient(private val session: Session) {
             is Result.Ok -> Result.Ok(Unit)
         }
 
+    suspend fun rooms(): Result<List<Room>> =
+        when (val r = get(Api.ROOMS)) {
+            is Result.Err -> r
+            is Result.Ok -> runCatching { json.decodeFromString<RoomList>(r.value).rooms }
+                .fold({ Result.Ok(it) }, { Result.Err("Could not read the rooms.") })
+        }
+
+    suspend fun scenes(): Result<List<Scene>> =
+        when (val r = get(Api.SCENES)) {
+            is Result.Err -> r
+            is Result.Ok -> runCatching { json.decodeFromString<SceneList>(r.value).scenes }
+                .fold({ Result.Ok(it) }, { Result.Err("Could not read the scenes.") })
+        }
+
+    suspend fun runScene(id: Int): Result<Unit> =
+        when (val r = post(Api.runScene(id), "{}")) {
+            is Result.Err -> r
+            is Result.Ok -> Result.Ok(Unit)
+        }
+
+    suspend fun automations(): Result<List<Automation>> =
+        when (val r = get(Api.AUTOMATIONS)) {
+            is Result.Err -> r
+            is Result.Ok -> runCatching { json.decodeFromString<AutomationList>(r.value).automations }
+                .fold({ Result.Ok(it) }, { Result.Err("Could not read the automations.") })
+        }
+
+    /** Rename a device, move it to a room, or star it. */
+    suspend fun patchDevice(
+        deviceId: String,
+        name: String? = null,
+        room: String? = null,
+        favorite: Boolean? = null,
+    ): Result<Unit> {
+        val body = buildJsonObject {
+            name?.let { put("name", it) }
+            room?.let { put("room", it) }
+            favorite?.let { put("favorite", it) }
+        }
+        return when (val r = patch(Api.patchDevice(deviceId), json.encodeToString(JsonObject.serializer(), body))) {
+            is Result.Err -> r
+            is Result.Ok -> Result.Ok(Unit)
+        }
+    }
+
     // ---------------------------------------------------------------- plumbing
 
     private suspend fun get(path: String) = call(Request.Builder().url(Api.BASE + path).get(), true)
@@ -149,6 +194,13 @@ class ApiClient(private val session: Session) {
             .url(Api.BASE + path)
             .post(body.toRequestBody("application/json".toMediaType())),
         authed,
+    )
+
+    private suspend fun patch(path: String, body: String) = call(
+        Request.Builder()
+            .url(Api.BASE + path)
+            .patch(body.toRequestBody("application/json".toMediaType())),
+        true,
     )
 
     private suspend fun call(

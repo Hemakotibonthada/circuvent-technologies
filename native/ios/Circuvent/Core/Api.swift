@@ -21,8 +21,19 @@ enum Api {
     static let login = "/auth/login"
     static let refresh = "/auth/refresh"
     static let devices = "/devices"
+    static let rooms = "/rooms"
+    static let scenes = "/scenes"
+    static let automations = "/automations"
 
     static func command(_ deviceID: String) -> String {
         "/devices/\(deviceID)/command"
+    }
+
+    static func runScene(_ id: Int) -> String {
+        "/scenes/\(id)/run"
+    }
+
+    static func patchDevice(_ deviceID: String) -> String {
+        "/devices/\(deviceID)"
     }
 }

@@ -98,3 +98,42 @@ struct DeviceUpdate: Codable {
     var payload: [String: JSONValue] = [:]
     var at: String = ""
 }
+
+struct Room: Codable, Identifiable, Equatable {
+    let id: Int
+    var name: String = ""
+    var icon: String?
+    var sort: Int = 0
+}
+
+struct RoomList: Codable {
+    var rooms: [Room] = []
+}
+
+/// A scene: a named set of commands, applied together.
+///
+/// `actions` is kept as raw JSON for the same reason device state is — a scene
+/// can carry any command any device type reads, and modelling them here would
+/// mean a phone that silently drops the ones it has not been taught.
+struct Scene: Codable, Identifiable, Equatable {
+    let id: Int
+    var name: String = ""
+    var icon: String?
+    var actions: JSONValue?
+}
+
+struct SceneList: Codable {
+    var scenes: [Scene] = []
+}
+
+struct Automation: Codable, Identifiable, Equatable {
+    let id: Int
+    var name: String = ""
+    var enabled: Bool = true
+    var trigger: JSONValue?
+    var actions: JSONValue?
+}
+
+struct AutomationList: Codable {
+    var automations: [Automation] = []
+}

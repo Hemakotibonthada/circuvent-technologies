@@ -23,22 +23,55 @@ any chance of a debug build replacing somebody's provisioned installation.
 
 ## What is actually implemented
 
-The vertical slice that proves the architecture end to end, on both platforms:
+Both platforms, feature-for-feature with each other:
 
 - sign in, with the token in the platform's secure store (EncryptedSharedPreferences / Keychain)
 - single-flight token refresh
-- the device list, sorted the way the Expo app sorts it
-- a primary switch per device, sent as the command that device's firmware reads
+- a five-tab shell: Home, Devices, Rooms, Scenes, More
+- Home: on-now / online / scene counts, scene shortcuts, favourites
+- Devices: full list, room filter, live status
+- a device sheet driven by a **capability table** — power, brightness, fan
+  speed with its legacy field, thermostat target, per-gang touch board controls
+  with a whole-board `all`, star, remote setup hotspot, and the raw reported state
+- Rooms, with per-room device and on counts
+- Scenes: run one, and a read-only list of automations
 - the live WebSocket feed, with an optimistic pin released by the device's own echo
 - a slow poll behind the socket
 
-The Expo app has around 130 screens. This is not a port of them; it is the
-foundation the rest would be built on, and it is honest about that. What exists
-is finished and verified — nothing here is a screen that renders and does
-nothing, which is the failure this codebase spends most of its guards on.
+### Why there is a capability table rather than a screen per device
 
-Not yet implemented: onboarding, Wi-Fi provisioning, automations, scenes,
-rooms, households, camera streaming, enterprise, Siri/App Intents, push.
+There are twenty-four device types. A screen each would be twenty-four places
+to forget something, and what gets forgotten is never the whole screen — it is
+one field, on one type, which then renders as a control that moves and changes
+nothing. The Expo app reached the same conclusion; this mirrors its
+`capabilities()` so no two clients disagree about what a device offers.
+
+The half that matters more is the types that must offer **no** switch. A
+camera's boolean is `streaming`, which is what the live view is already doing.
+A drone's is an aircraft's permission to fly. A hub's `power` is one relay of
+four, so a whole-device switch turns on a quarter of it and reports success. All
+three are asserted, on both platforms.
+
+## What is not implemented
+
+The Expo app has 119 screens. This is not all of them and does not pretend to
+be. What exists is finished and verified; nothing here is a screen that renders
+and does nothing, which is the failure this codebase spends most of its guards
+on.
+
+Still to do, roughly in the order it is worth doing:
+
+| Area | Screens |
+| --- | --- |
+| Setup | Add device, onboarding, the Wi-Fi hotspot flow (the remote setup command is done; joining the device's AP is not) |
+| Automation | The rule and schedule editors — the lists are read-only today |
+| Energy | Energy dashboard, tariffs, per-device breakdown |
+| Devices | Camera live view, sensors, face enrolment |
+| Account | Household sharing, notifications, activity log, profile editing |
+| Lifestyle | Weather, vehicles, bill payment |
+| AI | Assistant, suggestions, models |
+| Enterprise | The whole `enterprise/` tree — 58 screens: fleet, gate passes, security, diagnostics, zones, org admin |
+
 
 ## The Swift is not compiled by anything
 
@@ -55,7 +88,10 @@ when they disagree about:
 - which devices have a primary switch and which field it is
 - that a hub is addressed positionally rather than by its state key
 - that `setup` is an action rather than a field
-- that both platforms carry the same test cases
+- which device types expose which capability, and — more importantly — which
+  ones must expose no switch at all
+- that the fan's legacy field survives on both, so older hardware still moves
+- that both platforms carry the same test cases, and the same number of them
 
 That is not as good as compiling it. It is much better than nothing, and it
 catches the class of mistake that actually happens here — two files that were
