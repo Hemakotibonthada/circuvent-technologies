@@ -5,6 +5,7 @@ import { accountKey, readAlerts, writeAlerts } from "@/lib/alerts-store";
 import { sendMail } from "@/lib/order-core";
 import { logger } from "@/lib/logger";
 import { recordCronRun } from "@/lib/store";
+import { fromV1DeviceList, fromV1EventList } from "@/lib/v1-shapes";
 import type { Device, AppEvent } from "@/lib/control-plane";
 
 export const runtime = "nodejs";
@@ -80,7 +81,7 @@ async function handle(request: Request) {
       configured: false,
       swept: false,
       reason:
-        "CIRCUVENT_SWEEP_TOKEN is not set. Create a control-plane developer key (Console → Settings → API keys) and set it as CIRCUVENT_SWEEP_TOKEN to enable unattended sweeps.",
+        "CIRCUVENT_SWEEP_TOKEN is not set. Create a control-plane developer key (Console → Settings → API keys) with the scopes devices:read, events:read and automations:read, and set it as CIRCUVENT_SWEEP_TOKEN to enable unattended sweeps.",
     });
   }
 
@@ -96,22 +97,36 @@ async function handle(request: Request) {
     }
   };
 
-  const deviceList = await get<{ devices: Device[] }>("/devices");
-  if (!deviceList || !Array.isArray(deviceList.devices)) {
+  /*
+   * `/v1`, not the console routes.
+   *
+   * CIRCUVENT_SWEEP_TOKEN is a developer API key, and `/devices`, `/events` and
+   * `/automations` are all requireAuth — a user JWT only. A key cannot call any
+   * of them, so this sweep could never have run as documented: configure the
+   * token exactly as instructed and every request comes back 401. The `/v1`
+   * family is the half of the API that accepts keys, and it needs the scopes
+   * devices:read, events:read and automations:read.
+   *
+   * The shapes differ between the two families, which is the quiet half of this
+   * fix — see src/lib/v1-shapes.ts.
+   */
+  const devices = fromV1DeviceList(await get<unknown>("/v1/devices"));
+  if (!devices) {
     // Do not sweep. An empty finding set here would resolve every open alert
     // and report a recovery that did not happen.
     logger.warn("smarthome.alerts_cron_unreachable", {});
     return NextResponse.json({ ok: false, configured: true, swept: false, reason: "Control plane unreachable." }, { status: 502 });
   }
 
-  const [events, automations] = await Promise.all([
-    get<{ events: AppEvent[] }>("/events?limit=100"),
-    get<{ automations: unknown[] }>("/automations"),
+  const [eventsPayload, automations] = await Promise.all([
+    get<unknown>("/v1/events?limit=100"),
+    get<{ automations: unknown[] }>("/v1/automations"),
   ]);
+  const events = fromV1EventList(eventsPayload) ?? [];
 
   const analysis = analyseHome({
-    devices: deviceList.devices,
-    events: events?.events ?? [],
+    devices,
+    events,
     automations: (automations?.automations ?? []) as Parameters<typeof analyseHome>[0]["automations"],
   });
 
