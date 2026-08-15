@@ -45,6 +45,12 @@ export const ICONS = {
   chevron: ion("chevron-forward"),
   close: ion("close"),
   add: ion("add"),
+  /* Paired with `add` for the text-size stepper. Ionicons calls a minus
+     "remove", which reads as deletion at a call site — aliased so the stepper
+     says what it means. */
+  minus: ion("remove"),
+  /* The Display setting's own glyph. */
+  textSize: mci("format-size"),
   refresh: ion("refresh"),
   check: ion("checkmark"),
 

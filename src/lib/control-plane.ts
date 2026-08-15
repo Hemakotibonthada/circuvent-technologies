@@ -745,11 +745,44 @@ export interface AdminEvent {
   ts: string;
   owner_email: string | null;
 }
+/**
+ * The TLS certificate the MQTT broker presents, as reported by the control
+ * plane's `GET /admin/health`.
+ *
+ * Mirrors `BrokerCertInfo` in `platform/api/src/broker-cert.ts`. The two are
+ * separate TypeScript projects and cannot import each other, so
+ * `tests/broker-cert-surface.test.ts` fails the build if they disagree.
+ *
+ * This matters more than a normal health field. The certificate is issued for
+ * 825 days, and devices verify it on every connection — when it lapses the
+ * entire fleet fails the handshake at once. The renewal is cheap (devices
+ * trust the CA, not this certificate, so no OTA is needed), which is exactly
+ * why the expiry has to be visible somewhere an operator already looks rather
+ * than remembered.
+ */
+export interface BrokerCertInfo {
+  subject: string;
+  issuer: string;
+  /** ISO-8601. */
+  validTo: string;
+  daysRemaining: number;
+  /** Set by the server at 60 days. Read it rather than re-deriving the
+   *  threshold here — a second copy would drift from the one that matters. */
+  expiringSoon: boolean;
+}
+
 export interface AdminHealth {
   mqtt: boolean;
   db: boolean;
   uptimeSec: number;
   node: string;
+  /**
+   * Absent when the API could not reach the broker to inspect it, and on any
+   * control plane older than this field. Optional rather than defaulted, so a
+   * console can tell "not checked" apart from "checked and fine" — defaulting
+   * would report a healthy certificate for a broker nobody managed to reach.
+   */
+  brokerCert?: BrokerCertInfo | null;
 }
 
 interface AuthResp {

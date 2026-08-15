@@ -4,6 +4,7 @@ import { countBy, fleetHealth, formatDuration } from "../../../enterprise";
 import { Screen, useTheme } from "../../../ui";
 import { Donut, HBars } from "../../../charts";
 import { HealthStrip, Kpi, KpiGrid, Callout, MetricRow } from "../../../enterprise-ui";
+import { describeBrokerCert } from "../../../broker-cert";
 import { AccessRequired, EmptyFleet, FleetError, FleetLoading, FleetScaffold } from "./parts";
 import { latestFirmware, useFleetBundle } from "./useFleet";
 
@@ -15,6 +16,7 @@ export default function FleetOverview({ onBack }: { onBack: () => void }) {
   const versionRows = useMemo(() => countBy(devices, (d) => d.fw_version || "unknown"), [devices]);
   const versionTarget = useMemo(() => latestFirmware(devices), [devices]);
   const typeRows = fleet.data?.stats?.byType || [];
+  const cert = describeBrokerCert(fleet.data?.health?.brokerCert);
 
   if (fleet.loading) return <Screen><FleetScaffold title="Fleet overview" subtitle="Loading control plane" onBack={onBack}><FleetLoading /></FleetScaffold></Screen>;
   if (fleet.adminBlocked) return <Screen><FleetScaffold title="Fleet overview" subtitle="Admin-only" onBack={onBack} onRefresh={fleet.reload}><AccessRequired onRetry={fleet.reload} /></FleetScaffold></Screen>;
@@ -38,6 +40,9 @@ export default function FleetOverview({ onBack }: { onBack: () => void }) {
             <HealthStrip items={[
               { label: "MQTT", ok: fleet.data.health.mqtt, detail: fleet.data.health.mqtt ? "broker reachable" : "broker down" },
               { label: "Database", ok: fleet.data.health.db, detail: fleet.data.health.db ? "reachable" : "down" },
+              // Not a binary leg: the broker is reachable whatever the expiry
+              // says, so `ok` tracks the broker and the pill carries the date.
+              { label: "Certificate", ok: cert.level !== "expired", detail: cert.level === "unknown" ? "not reported" : "expires in", status: cert.detail.toUpperCase(), tone: cert.level === "expired" ? c.red : cert.level === "expiring" ? c.amber : cert.level === "unknown" ? c.faint : c.green },
               { label: "Uptime", ok: fleet.data.health.uptimeSec > 0, detail: formatDuration(fleet.data.health.uptimeSec) },
               { label: "Node", ok: true, detail: fleet.data.health.node || "—" },
             ]} />

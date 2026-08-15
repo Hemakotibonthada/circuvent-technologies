@@ -8,9 +8,35 @@
 // follow the account across browsers and devices instead of being stranded in
 // one browser's localStorage.
 //
+// ── Why this is database-backed ──
+//
+// It was not. Everything here went through `createFileStore`, which writes a
+// JSON file under DATA_DIR and, when that write fails, catches the error and
+// keeps going in memory for the life of the process. On Vercel that write
+// always fails: the filesystem is read-only, and there is no single process
+// anyway. The result was a preference store that
+//
+//   * lost every rename on the next cold start, and
+//   * was invisible to any other lambda instance in the meantime.
+//
+// The console hid it well, because it paints from a localStorage cache first —
+// so the browser that did the renaming kept showing the names and looked
+// correct. A different browser, a private window, or the phone asked the server
+// and got nothing. That is precisely the reported symptom: channels renamed on
+// Android showing as "Channel 3" in Chrome, and nothing at all in incognito.
+//
+// The database is used when DATABASE_URL is set. The file store remains for
+// local development, where it is durable and correct.
+//
 // SERVER ONLY — imported exclusively by /api/smarthome/prefs.
 
 import { createFileStore } from "./data-file";
+import {
+  dbClearUserPrefScope,
+  dbEnabled,
+  dbReadUserPrefs,
+  dbWriteUserPrefScope,
+} from "./db";
 
 export const SCOPES = ["channel-labels", "dashboard", "device-widgets", "profile", "ui"] as const;
 export type Scope = (typeof SCOPES)[number];
@@ -29,15 +55,38 @@ interface PrefsDb {
 
 const store = createFileStore<PrefsDb>("smarthome-user-prefs.json", () => ({ users: {} }));
 
-export function readScope(userKey: string, scope: Scope): unknown {
+export async function readScope(userKey: string, scope: Scope): Promise<unknown> {
+  if (dbEnabled()) {
+    try {
+      return (await dbReadUserPrefs(userKey))[scope] ?? null;
+    } catch (e) {
+      // Falling through to the file copy rather than failing the request: a
+      // console that cannot reach the database should still render the names
+      // it has, not reset every switch to its default.
+      console.error("[user-prefs] read failed, using local copy:", e);
+    }
+  }
   return store.read().users[userKey]?.[scope] ?? null;
 }
 
-export function readAll(userKey: string): UserPrefs {
+export async function readAll(userKey: string): Promise<UserPrefs> {
+  if (dbEnabled()) {
+    try {
+      return await dbReadUserPrefs(userKey);
+    } catch (e) {
+      console.error("[user-prefs] read failed, using local copy:", e);
+    }
+  }
   return store.read().users[userKey] ?? {};
 }
 
-export function writeScope(userKey: string, scope: Scope, value: unknown): unknown {
+export async function writeScope(userKey: string, scope: Scope, value: unknown): Promise<unknown> {
+  if (dbEnabled()) {
+    // Not caught: a save that silently only reached this instance's memory is
+    // the bug this module was rewritten to remove. The caller reports it.
+    await dbWriteUserPrefScope(userKey, scope, value);
+    return value;
+  }
   return store.mutate((db) => {
     if (!db.users[userKey]) db.users[userKey] = {};
     db.users[userKey][scope] = value;
@@ -45,7 +94,8 @@ export function writeScope(userKey: string, scope: Scope, value: unknown): unkno
   });
 }
 
-export function clearScope(userKey: string, scope: Scope): boolean {
+export async function clearScope(userKey: string, scope: Scope): Promise<boolean> {
+  if (dbEnabled()) return dbClearUserPrefScope(userKey, scope);
   return store.mutate((db) => {
     if (!db.users[userKey] || !(scope in db.users[userKey])) return false;
     delete db.users[userKey][scope];
@@ -53,9 +103,16 @@ export function clearScope(userKey: string, scope: Scope): boolean {
   });
 }
 
-/** True when this instance can persist to disk (false on read-only serverless). */
+/**
+ * True when this instance can persist beyond its own memory.
+ *
+ * With a database configured that is always true. Without one it depends on the
+ * filesystem being writable — and the honest answer matters, because the
+ * console shows it: a user whose renames are not being kept should be told,
+ * rather than discovering it when a different browser shows the defaults.
+ */
 export function isDurable(): boolean {
-  return store.isDurable();
+  return dbEnabled() || store.isDurable();
 }
 
 // ------------------------------------------------------------------- auth ----

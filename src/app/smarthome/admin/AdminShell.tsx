@@ -413,6 +413,18 @@ function ShellStyles() {
         transition: border-color 0.15s;
       }
       .ad-input:focus { border-color: var(--cv-accent); }
+      /* Keyboard focus.
+         The admin console had no focus indicator beyond an input's border
+         colour, so tabbing through a fleet list moved an invisible cursor —
+         and almost every row on these pages is a link. The token flips with
+         the scheme (theme.tsx): a white ring on a white card measured 2.87:1
+         and only looked like a focus indicator. Modern engines clip an outline
+         to the element's own border-radius, so this needs no per-component
+         radius. */
+      .ad-root :is(a, button, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
       .ad-input::placeholder { color: var(--cv-muted); }
       /* A native <option> renders in the OS popup, which does not inherit the
          page's colours — it needs both stated explicitly or it is white text

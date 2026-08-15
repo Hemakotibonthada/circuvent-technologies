@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Server, Plug, Webhook, Flag, Activity, Database, Radio, Cpu, Users, RefreshCw,
-  Plus, Trash2, Code2, TriangleAlert,
+  Plus, Trash2, Code2, TriangleAlert, ShieldCheck,
 } from "lucide-react";
 import { HBar } from "../../charts";
 import {
@@ -25,11 +25,12 @@ import {
   CONTROL_PLANE_URL, CONTROL_PLANE_WS, getToken,
   type AdminHealth, type AdminStats,
 } from "@/lib/control-plane";
-import { num, abbrNum, uptime, relativeTime } from "../_lib/format";
+import { num, abbrNum, uptime, relativeTime, fmtDate } from "../_lib/format";
+import { describeBrokerCert } from "../_lib/broker-cert";
 import {
   PageHeader, Panel, StatCard, Badge, Dot, Btn, Toggle, Tabs, DataTable, SectionTitle,
   StaggerGrid, StaggerItem, EmptyState, ResourceGate, ErrorState, LoadingState,
-  Modal, Field, Input, Select, type Column, type Tone,
+  Modal, Field, Input, Select, TONE, type Column, type Tone,
 } from "../_ui";
 
 type Tab = "health" | "integrations" | "webhooks" | "flags" | "api";
@@ -72,6 +73,7 @@ export default function PlatformPage() {
 
   const health = healthRes.data;
   const stats = statsRes.data;
+  const cert = describeBrokerCert(health?.brokerCert);
 
   const refreshAll = () => {
     healthRes.reload();
@@ -94,7 +96,23 @@ export default function PlatformPage() {
         </div>
       )}
 
-      <StaggerGrid className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* Renewal has a lead time and no OTA cost, so the useful moment to say
+          this is weeks before the date — not once devices are already failing
+          the handshake. Mirrored on the overview so whichever page an operator
+          opens carries the same warning. */}
+      {cert.urgent && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border px-4 py-2.5 text-sm"
+          style={{ borderColor: TONE[cert.tone].bd, background: TONE[cert.tone].bg, color: TONE[cert.tone].fg }}
+        >
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> {cert.advice}
+        </div>
+      )}
+
+      {/* md rather than lg: four cards fit a tablet comfortably, and waiting
+          for 1024px left a 768px screen showing two rows of two. */}
+      <StaggerGrid className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StaggerItem>
           <StatCard label="MQTT broker" value={healthRes.loading ? "—" : health?.mqtt ? "Up" : "Down"} icon={<Radio className="h-4 w-4" />} tone={health?.mqtt ? "green" : "red"} sub="message bus" />
         </StaggerItem>
@@ -135,6 +153,7 @@ export default function PlatformPage() {
 function HealthTab({ healthRes, statsRes }: { healthRes: Resource<AdminHealth>; statsRes: Resource<AdminStats> }) {
   const health = healthRes.data;
   const stats = statsRes.data;
+  const cert = describeBrokerCert(health?.brokerCert);
   const byType = useMemo(() => (stats?.byType ?? []).map((t) => ({ name: t.type, value: t.count })), [stats]);
 
   return (
@@ -146,10 +165,26 @@ function HealthTab({ healthRes, statsRes }: { healthRes: Resource<AdminHealth>; 
             <ErrorState message={healthRes.error} unauthorized={healthRes.unauthorized} onRetry={healthRes.reload} />
           ) : (
             <div className="space-y-1.5">
-              <HealthRow icon={<Radio className="h-4 w-4" />} name="MQTT broker" ok={health?.mqtt === true} detail={healthRes.loading ? "…" : health ? (health.mqtt ? "connected" : "down") : "unknown"} />
-              <HealthRow icon={<Database className="h-4 w-4" />} name="Database" ok={health?.db === true} detail={healthRes.loading ? "…" : health ? (health.db ? "up" : "down") : "unknown"} />
-              <HealthRow icon={<Activity className="h-4 w-4" />} name="API uptime" ok detail={health ? uptime(health.uptimeSec) : "—"} />
-              <HealthRow icon={<Server className="h-4 w-4" />} name="Runtime" ok detail={health?.node ?? "—"} />
+              <HealthRow icon={<Radio className="h-4 w-4" />} name="MQTT broker" tone={health?.mqtt ? "green" : "red"} detail={healthRes.loading ? "…" : health ? (health.mqtt ? "connected" : "down") : "unknown"} />
+              <HealthRow icon={<Database className="h-4 w-4" />} name="Database" tone={health?.db ? "green" : "red"} detail={healthRes.loading ? "…" : health ? (health.db ? "up" : "down") : "unknown"} />
+              <HealthRow
+                icon={<ShieldCheck className="h-4 w-4" />} name="Broker certificate"
+                tone={cert.tone} detail={healthRes.loading ? "…" : cert.detail}
+                title={cert.advice ?? undefined}
+              />
+              <HealthRow icon={<Activity className="h-4 w-4" />} name="API uptime" tone="green" detail={health ? uptime(health.uptimeSec) : "—"} />
+              <HealthRow icon={<Server className="h-4 w-4" />} name="Runtime" tone="green" detail={health?.node ?? "—"} />
+            </div>
+          )}
+          {/* The dates behind the countdown. An operator scheduling a renewal
+              needs the actual expiry, and the issuer confirms it is still our
+              own CA — a certificate signed by anything else would not be
+              trusted by firmware in the field. */}
+          {health?.brokerCert && (
+            <div className="mt-3 rounded-xl border border-white/5 bg-black/20 px-3 py-2.5 text-[11px] ad-muted">
+              <CertLine label="Issued to" value={health.brokerCert.subject} />
+              <CertLine label="Issued by" value={health.brokerCert.issuer} />
+              <CertLine label="Valid until" value={fmtDate(health.brokerCert.validTo)} />
             </div>
           )}
         </Panel>
@@ -181,13 +216,25 @@ function HealthTab({ healthRes, statsRes }: { healthRes: Resource<AdminHealth>; 
   );
 }
 
-function HealthRow({ icon, name, ok, detail }: { icon: ReactNode; name: string; ok: boolean; detail: string }) {
+function HealthRow({ icon, name, tone, detail, title }: { icon: ReactNode; name: string; tone: Tone; detail: string; title?: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-      <span style={{ color: ok ? "#4ade80" : "#f87171" }}>{icon}</span>
+    <div className="flex items-center gap-3 rounded-lg px-2 py-1.5" title={title}>
+      {/* TONE, not a literal: an inline style is invisible to the light-scheme
+          shim in theme.tsx, so a fixed hex stays at the dark-card level on a
+          light surface. Same reason _ui's TONE table reads variables. */}
+      <span style={{ color: TONE[tone].fg }}>{icon}</span>
       <span className="flex-1 truncate text-sm text-slate-200">{name}</span>
       <span className="text-xs ad-muted tabular-nums">{detail}</span>
-      <Dot tone={ok ? "green" : "red"} />
+      <Dot tone={tone} />
+    </div>
+  );
+}
+
+function CertLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
+      <span className="shrink-0">{label}</span>
+      <span className="truncate font-mono text-slate-300" title={value || undefined}>{value || "—"}</span>
     </div>
   );
 }

@@ -346,6 +346,14 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       } else if (action === "unpair") {
         patch.sensorPaired = false;
         patch.pairing = false;
+      } else if (action === "readNow" || action === "identifySensor") {
+        /*
+         * Queued rather than sent. The tank sensor is a battery unit that only
+         * listens for a moment after it transmits, so this goes out on the back
+         * of its next report. `downlinkPending` is what changes now; the
+         * reading itself arrives shortly after.
+         */
+        patch.downlinkPending = true;
       }
       if (isBool(cmd.auto)) patch.auto = cmd.auto;
       if (isBool(cmd.pump)) {
@@ -355,6 +363,13 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       if (isNum(cmd.startPct)) patch.startPct = clamp(cmd.startPct, 5, 90);
       if (isNum(cmd.stopPct)) patch.stopPct = clamp(cmd.stopPct, 10, 100);
       if (isNum(cmd.sumpMinPct)) patch.sumpMinPct = clamp(cmd.sumpMinPct, 5, 60);
+      if (isNum(cmd.sensorIntervalS)) {
+        // Bounds mirror cvTankClampInterval in CvTankLink.h. Zero would mean
+        // "never report", which is indistinguishable from a dead sensor and
+        // cannot be undone without reaching the unit.
+        patch.sensorIntervalS = clamp(cmd.sensorIntervalS, 10, 900);
+        patch.downlinkPending = true;
+      }
       return patch;
     }
 

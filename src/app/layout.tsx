@@ -19,6 +19,7 @@ import Assistant from "@/components/ai/Assistant";
 import { SITE_URL, siteConfig, IS_PUBLIC_SITE } from "@/lib/config";
 import { getOrganizationJsonLd, getWebsiteJsonLd } from "@/lib/seo";
 import { jsonForScript } from "@/lib/json-script";
+import { viewSettingsBootScript } from "@/lib/view-settings";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -120,6 +121,14 @@ export default function RootLayout({
             `,
           }}
         />
+        {/*
+          View settings (density, UI scale, content width) applied before first
+          paint. A colour applied late is a flash; a *size* applied late is a
+          reflow of the entire page after hydration, so this has to run here
+          rather than in a provider. The body is generated from the same
+          constants the settings page writes — see src/lib/view-settings.ts.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: viewSettingsBootScript() }} />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

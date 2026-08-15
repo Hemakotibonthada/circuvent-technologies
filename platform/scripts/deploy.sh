@@ -19,7 +19,13 @@
 # to get wrong.
 #
 # Usage, from the platform directory on the host:
-#   ./scripts/deploy.sh
+#   bash scripts/deploy.sh ~/cv.tar.gz    # back up, unpack, build, verify
+#   bash scripts/deploy.sh                # build whatever is already on disk
+#
+# Invoke it with `bash`. A tar created on Windows drops the execute bit, so the
+# copy that lands here is not executable and `./scripts/deploy.sh` dies with
+# "Permission denied" — after the upload and before the build, which is the
+# least useful moment to fail.
 #
 set -euo pipefail
 
@@ -42,6 +48,33 @@ fi
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "Deploying ${COMMIT} at ${BUILD_TIME}"
+
+# Keep a copy of what is currently running, before replacing it.
+#
+# A rollback path has to exist before the deploy that needs it, and now is the
+# only moment it can be captured: the VM has no git checkout to reset to, so
+# once the tree is overwritten the previous build is gone.
+#
+# THE ORDER HERE IS THE WHOLE POINT. The first version of this backed up after
+# the caller had already extracted the new tarball, so it archived the new code
+# and called it a rollback — a safety net that would have handed back exactly
+# the build somebody was trying to escape. Passing the tarball to this script
+# rather than extracting it first is what makes that impossible.
+#
+# Five is enough to get past a bad deploy that was not noticed immediately, and
+# few enough that a 250 KB archive each time never matters on a small disk.
+if [ -n "${1:-}" ]; then
+  [ -f "$1" ] || { echo "No such tarball: $1" >&2; exit 1; }
+  BACKUP=~/backup-api-$(date -u +%Y%m%d-%H%M%S).tar.gz
+  tar --exclude=node_modules --exclude=dist -czf "$BACKUP" api docker-compose.yml scripts
+  echo "Previous build saved to $BACKUP"
+  # shellcheck disable=SC2012
+  ls -t ~/backup-api-*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm --
+  echo "Unpacking $1"
+  tar -xzf "$1"
+else
+  echo "No tarball given — building whatever is on disk, with no backup taken."
+fi
 
 BUILD_COMMIT="$COMMIT" BUILD_TIME="$BUILD_TIME" docker compose up -d --build
 

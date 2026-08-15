@@ -81,6 +81,16 @@ ui-audit.json
 # server cannot overwrite it.
 .next-audit/
 
+# Same idea for ai-check.js, which builds into its own distDir. This is not
+# only about `git add .`: Tailwind v4's automatic source detection skips
+# whatever .gitignore excludes, so an un-ignored build directory gets scanned
+# for class names. Turbopack's persistent cache there is binary, and Tailwind
+# extracted a candidate out of the middle of it — emitting
+# `env(safe-area-\>\0\2:\0H)` into globals.css and failing every page with
+# "Parsing CSS source code failed". Build output must stay ignored.
+.next-aicheck/
+.swc/
+
 # Secrets. scripts/check-no-secrets.js is the guard that actually enforces
 # this; these entries only stop the accidental git add .. A keystore or an
 # SSH key committed once is in every clone and every fork forever.
@@ -102,7 +112,6 @@ Creds/
 circuvent-vault/
 id_rsa
 id_ed25519
-
 # Workflow SDK local run data. The Local World writes every run, step and
 # queue entry here while developing; it is a database, not source. The
 # generated route handlers under src/app/.well-known/workflow/ ignore

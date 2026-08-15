@@ -2,8 +2,23 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-export type ThemeMode = "aurora" | "glass" | "neo";
+export type ThemeMode = "aurora" | "glass" | "neo" | "oled" | "neon";
 export type Scheme = "dark" | "light";
+
+/**
+ * Themes that only exist in the dark.
+ *
+ * A "light OLED" is a contradiction — the whole point is that black pixels are
+ * off — and neon needs a dark ground for a glow to bloom against. Mirrors
+ * DARK_ONLY in the app's Settings screen, and is exported so the Appearance
+ * panel can hide the light/dark switch rather than leave a control on screen
+ * that silently does nothing.
+ */
+export const DARK_ONLY_MODES: readonly ThemeMode[] = ["oled", "neon"];
+
+export function isDarkOnly(mode: ThemeMode): boolean {
+  return DARK_ONLY_MODES.includes(mode);
+}
 
 export interface Accent {
   key: string;
@@ -93,6 +108,22 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
     "--cv-r-chip": "9px",
     "--cv-r-pill": "999px",
 
+    /*
+     * How far a lit accessory's halo carries.
+     *
+     * The *strength* of a glow is device state — tile-visual.ts derives it
+     * from the level, and that maths is shared with the app and pinned by
+     * tests/tile-visual-parity.test.ts. This is the separate question of how
+     * far that light travels on a given canvas, which is a property of the
+     * room rather than of the lamp: the same 60%-bright bulb needs a wider
+     * falloff on a violet-black neon ground than on a light grey one to read
+     * as lit at all.
+     *
+     * A multiplier rather than a replacement, so the level still carries the
+     * information and the theme only decides the medium.
+     */
+    "--cv-glow-spread": "1",
+
     /* Elevation. Wide, soft and very low-alpha: Apple separates surfaces with
        blur and a hairline, not with a hard drop shadow. */
     "--cv-shadow-1": dark
@@ -118,6 +149,60 @@ function vars(mode: ThemeMode, scheme: Scheme, accent: Accent): React.CSSPropert
       Object.entries(CATEGORY_TINTS).map(([k, v]) => [`--cv-cat-${k}`, v])
     ),
   } as React.CSSProperties;
+  if (mode === "oled") {
+    /*
+     * OLED — matched to the app's palette, value for value.
+     *
+     * True black rather than a dark navy: on an OLED panel those pixels are
+     * off, which is both the look and a real power saving on a wall-mounted
+     * tablet running the console all day. Dark-only by design.
+     *
+     * #f8fafc on #000 is far past WCAG AAA, which matters because this is the
+     * theme people use in a dark room at 3am.
+     */
+    return {
+      ...base,
+      "--cv-bg": "#000000",
+      "--cv-card": "#0c0c0f",
+      "--cv-card-hi": "#16161c",
+      "--cv-input-bg": "#141419",
+      "--cv-border": "rgba(255,255,255,.08)",
+      "--cv-text": "#f8fafc",
+      "--cv-muted": "#a1a1aa",
+      "--cv-neo-light": "#1a1a20",
+      "--cv-neo-dark": "#000000",
+      /* True black gives a halo the full falloff range, so it carries a little
+         further than on a grey canvas without becoming the loudest thing. */
+      "--cv-glow-spread": "1.25",
+    } as React.CSSProperties;
+  }
+  if (mode === "neon") {
+    /*
+     * Neon — matched to the app's palette, value for value.
+     *
+     * A deep violet-black ground so the accent halos on tiles have something
+     * to bloom against; on pure black a glow has no midtone to fall off
+     * through and reads as a hard ring instead. Text stays near-white rather
+     * than tinted, because coloured text on a coloured ground is where neon
+     * designs usually lose their contrast.
+     */
+    return {
+      ...base,
+      "--cv-bg": `radial-gradient(900px 540px at 10% -8%, rgba(168,132,255,.16), transparent 60%), #0b0718`,
+      "--cv-card": "#16102b",
+      "--cv-card-hi": "#1e1640",
+      "--cv-input-bg": "#1e1640",
+      "--cv-border": "rgba(168,132,255,.22)",
+      "--cv-text": "#f4f1ff",
+      "--cv-muted": "#b3a9d9",
+      "--cv-neo-light": "#241a4a",
+      "--cv-neo-dark": "#08040f",
+      /* The point of the theme. A lit accessory is meant to bloom against the
+         violet ground — the deep midtone is there precisely so the falloff has
+         something to travel through instead of ending in a hard ring. */
+      "--cv-glow-spread": "1.9",
+    } as React.CSSProperties;
+  }
   if (mode === "neo") {
     /*
      * Matched to the iOS app's neo palette, value for value.
@@ -240,6 +325,18 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
   const accent = accentByKey(accentKey);
 
   /*
+   * Dark-only modes are forced dark rather than trusting the stored scheme.
+   *
+   * The light-scheme shim in this file remaps ~1,100 dark-authored Tailwind
+   * neutrals whenever `.cv-light` is present. On OLED or Neon that would repaint
+   * the text near-black over a near-black canvas — the same 1.07:1 invisibility
+   * the admin chrome had — for anyone whose stored preference happened to be
+   * light when they picked the theme. Deriving it here means neither the shim,
+   * the `data-cv-scheme` attribute nor any consumer can disagree about it.
+   */
+  const effectiveScheme: Scheme = isDarkOnly(mode) ? "dark" : scheme;
+
+  /*
    * Publish the theme to the document element as well as to the wrapper.
    *
    * The --cv-* variables were only ever inline styles on the div below, so
@@ -259,12 +356,12 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
    */
   useEffect(() => {
     const root = document.documentElement;
-    const applied = vars(mode, scheme, accent) as Record<string, string>;
+    const applied = vars(mode, effectiveScheme, accent) as Record<string, string>;
     for (const [k, v] of Object.entries(applied)) {
       if (k.startsWith("--")) root.style.setProperty(k, v);
     }
     root.setAttribute("data-cv-mode", mode);
-    root.setAttribute("data-cv-scheme", scheme);
+    root.setAttribute("data-cv-scheme", effectiveScheme);
     return () => {
       for (const k of Object.keys(applied)) {
         if (k.startsWith("--")) root.style.removeProperty(k);
@@ -272,12 +369,15 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
       root.removeAttribute("data-cv-mode");
       root.removeAttribute("data-cv-scheme");
     };
-  }, [mode, scheme, accent]);
+  }, [mode, effectiveScheme, accent]);
 
   const value = useMemo<ThemeValue>(
     () => ({
       mode,
-      scheme,
+      /* The scheme actually painted, not the one in storage. A consumer that
+         branched on the stored value would style itself light inside a
+         force-dark theme. */
+      scheme: effectiveScheme,
       accent,
       setMode,
       setScheme,
@@ -287,14 +387,16 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           ? "cv-card cv-glass"
           : mode === "neo"
             ? "cv-card cv-neo"
-            : "cv-card",
+            : mode === "neon"
+              ? "cv-card cv-neon"
+              : "cv-card",
     }),
-    [mode, scheme, accent]
+    [mode, effectiveScheme, accent]
   );
 
   return (
     <Ctx.Provider value={value}>
-      <div className={`cv-theme cv-${mode} cv-${scheme}`} style={vars(mode, scheme, accent)}>
+      <div className={`cv-theme cv-${mode} cv-${effectiveScheme}`} style={vars(mode, effectiveScheme, accent)}>
         {children}
       </div>
       <style jsx global>{`
@@ -347,6 +449,33 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
           backdrop-filter: blur(28px) saturate(180%);
           -webkit-backdrop-filter: blur(28px) saturate(180%);
           box-shadow: var(--cv-shadow-2);
+        }
+        /* ---- Neon -----------------------------------------------------------
+           A violet rim and a soft outer halo, so a card reads as lit rather
+           than merely tinted. The halo is what the deep violet-black ground
+           exists for: on pure black a glow has no midtone to fall off through
+           and stops looking like light.
+
+           Applied to the card rather than to tiles, because the accessory
+           tiles carry their own accent glow already — doubling it there turned
+           an "on" lamp into a solid block of colour with the label lost in it. */
+        .cv-neon {
+          box-shadow:
+            0 0 0 1px rgba(168, 132, 255, 0.28),
+            0 8px 30px -10px rgba(168, 132, 255, 0.45);
+        }
+        /* The lit state is the one place the halo is allowed to be strong. */
+        .cv-neon:hover {
+          box-shadow:
+            0 0 0 1px rgba(168, 132, 255, 0.42),
+            0 10px 38px -10px rgba(168, 132, 255, 0.6);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          /* The halo is a static property, so it stays — only the transition
+             into it is motion, and that is what gets removed. */
+          .cv-neon {
+            transition: none;
+          }
         }
         /* ---- Range inputs -------------------------------------------------
            Dimmers and speed dials are the one control where neumorphism has

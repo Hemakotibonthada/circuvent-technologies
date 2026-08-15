@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import {
   Cpu, Wifi, TriangleAlert, Activity, Users, Radar, ArrowRight,
-  RefreshCw, Zap, Database, Radio, ServerCog, Inbox, PlugZap,
+  RefreshCw, Zap, Database, Radio, ServerCog, Inbox, PlugZap, ShieldCheck,
 } from "lucide-react";
 import { LineChart, Donut, HBar } from "../charts";
 import {
@@ -22,6 +22,7 @@ import {
   combine, type DeviceHealth,
 } from "./_lib/api";
 import { abbrNum, num, relativeTime, uptime } from "./_lib/format";
+import { describeBrokerCert } from "./_lib/broker-cert";
 import {
   Panel, StatCard, Badge, Dot, Btn, SectionTitle, StaggerGrid, StaggerItem,
   Progress, ErrorState, LoadingState, EmptyState, TONE, type Tone,
@@ -61,6 +62,7 @@ export default function AdminOverview() {
   );
 
   const onlineRate = stats && stats.devices ? (stats.online / stats.devices) * 100 : 0;
+  const cert = describeBrokerCert(health?.brokerCert);
   const typeBuckets = stats?.byType?.length
     ? stats.byType.map((t) => ({ name: t.type, value: t.count }))
     : fleet.byType;
@@ -105,7 +107,23 @@ export default function AdminOverview() {
         </div>
       )}
 
-      <StaggerGrid className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+      {/* Worth interrupting for. A lapsed broker certificate takes the whole
+          fleet off the air at once, and the renewal needs scheduling before
+          the date rather than diagnosing after it. Tones come from TONE so the
+          banner stays legible on a light scheme. */}
+      {cert.urgent && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border px-4 py-2.5 text-sm"
+          style={{ borderColor: TONE[cert.tone].bd, background: TONE[cert.tone].bg, color: TONE[cert.tone].fg }}
+        >
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> {cert.advice}
+        </div>
+      )}
+
+      {/* 2 → 3 → 6. Six KPIs went straight from two columns to six, so every
+          tablet stacked them three rows deep and pushed the charts off screen. */}
+      <StaggerGrid className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StaggerItem>
           <StatCard label="Managed devices" value={num(stats?.devices ?? 0)} icon={<Cpu className="h-4 w-4" />} tone="brand" sub="registered" />
         </StaggerItem>
@@ -265,13 +283,23 @@ export default function AdminOverview() {
             <p className="py-6 text-center text-sm text-red-300">{healthRes.error}</p>
           ) : (
             <div className="space-y-1.5">
-              <HealthRow icon={<Radio className="h-4 w-4" />} name="MQTT broker" ok={health?.mqtt === true} detail={health ? (health.mqtt ? "connected" : "down") : "unknown"} />
-              <HealthRow icon={<Database className="h-4 w-4" />} name="Database" ok={health?.db === true} detail={health ? (health.db ? "up" : "down") : "unknown"} />
-              <HealthRow icon={<Activity className="h-4 w-4" />} name="API uptime" ok detail={health ? uptime(health.uptimeSec) : "—"} />
-              <HealthRow icon={<ServerCog className="h-4 w-4" />} name="Runtime" ok detail={health?.node ?? "—"} />
+              <HealthRow icon={<Radio className="h-4 w-4" />} name="MQTT broker" tone={health?.mqtt ? "green" : "red"} detail={health ? (health.mqtt ? "connected" : "down") : "unknown"} />
+              <HealthRow icon={<Database className="h-4 w-4" />} name="Database" tone={health?.db ? "green" : "red"} detail={health ? (health.db ? "up" : "down") : "unknown"} />
+              {/* The fleet-wide outage nobody is watching for. Every device
+                  verifies this certificate on connect, so its expiry date is
+                  the one number here that predicts an outage instead of
+                  reporting one. See _lib/broker-cert.ts. */}
+              <HealthRow
+                icon={<ShieldCheck className="h-4 w-4" />} name="Broker certificate"
+                tone={cert.tone} detail={cert.detail} title={cert.advice ?? undefined}
+              />
+              <HealthRow icon={<Activity className="h-4 w-4" />} name="API uptime" tone="green" detail={health ? uptime(health.uptimeSec) : "—"} />
+              <HealthRow icon={<ServerCog className="h-4 w-4" />} name="Runtime" tone="green" detail={health?.node ?? "—"} />
               <HealthRow
                 icon={<PlugZap className="h-4 w-4" />} name="Pending signups"
-                ok={(stats?.pendingSignups ?? 0) === 0}
+                // Amber, not red: people sit mid-signup all the time. Red here
+                // taught operators that a red dot on this panel means nothing.
+                tone={(stats?.pendingSignups ?? 0) === 0 ? "green" : "amber"}
                 detail={num(stats?.pendingSignups ?? 0)}
               />
             </div>
@@ -305,13 +333,16 @@ export default function AdminOverview() {
   );
 }
 
-function HealthRow({ icon, name, ok, detail }: { icon: ReactNode; name: string; ok: boolean; detail: string }) {
+function HealthRow({ icon, name, tone, detail, title }: { icon: ReactNode; name: string; tone: Tone; detail: string; title?: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-      <span style={{ color: ok ? "#4ade80" : "#f87171" }}>{icon}</span>
+    <div className="flex items-center gap-3 rounded-lg px-2 py-1.5" title={title}>
+      {/* Through TONE rather than a literal: these are inline styles, which the
+          light-scheme shim in theme.tsx cannot reach by class name. A fixed
+          hex here stays at the dark-card 300/400 level on a light surface. */}
+      <span style={{ color: TONE[tone].fg }}>{icon}</span>
       <span className="flex-1 truncate text-sm text-slate-200">{name}</span>
       <span className="text-xs ad-muted tabular-nums">{detail}</span>
-      <Dot tone={ok ? "green" : "red"} />
+      <Dot tone={tone} />
     </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   TANK_REPORT_INTERVAL_S,
   TANK_STALE_S,
   TANK_ABANDON_S,
+  TANK_STALE_MISSES,
 } from "@/lib/tank-link";
 
 const ROOT = resolve(__dirname, "..");
@@ -76,6 +77,19 @@ describe("tank link thresholds", () => {
     // dead sensor goes unnoticed for a long time.
     expect(stale / interval).toBeGreaterThanOrEqual(3);
     expect(stale / interval).toBeLessThanOrEqual(10);
+  });
+
+  it("uses the same miss count on both sides", () => {
+    /*
+     * The report interval is settable from the app, so the window has to be
+     * expressed as a multiple rather than a duration. If the two sides used
+     * different multipliers, choosing a slower cadence would put them into
+     * disagreement — the app calling the link healthy while the firmware had
+     * already stopped filling the tank.
+     */
+    const interval = defineMs("CV_TANK_REPORT_INTERVAL_MS");
+    const stale = defineMs("CV_TANK_STALE_MS");
+    expect(stale / interval).toBe(TANK_STALE_MISSES);
   });
 
   it("abandons well after it goes stale", () => {

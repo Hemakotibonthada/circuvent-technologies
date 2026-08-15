@@ -26,6 +26,41 @@ jest.mock("@/lib/order-core", () => ({
   }),
 }));
 
+/*
+ * The route starts a durable workflow when an incident is filed.
+ *
+ * `workflow/api` ships as ESM and Jest parses this project as CommonJS, so
+ * importing the route pulls in a module it cannot read — the suite fails to
+ * load with "Cannot use import statement outside a module", which names
+ * neither this route nor the SDK. Mocked rather than transformed because what
+ * these tests are about is the HTTP behaviour of the route; that the workflow
+ * is started, and what it then does, is covered in icm-watch.test.ts.
+ *
+ * Recorded rather than discarded so the tests can still assert that filing an
+ * incident asks for a watch — silently dropping the call would let that
+ * regress unnoticed.
+ */
+const started: { name: string; args: unknown[] }[] = [];
+jest.mock("workflow/api", () => ({
+  start: jest.fn(async (fn: { name?: string }, args: unknown[]) => {
+    started.push({ name: fn?.name ?? "unknown", args });
+    return { runId: `run-${started.length}` };
+  }),
+}));
+
+/* The workflow module itself is ESM for the same reason, and the route only
+   needs an opaque function reference to hand to `start`. */
+jest.mock("@/workflows/icm-watch", () => ({
+  watchIncident: function watchIncident() {
+    throw new Error("the workflow body is not run here — see icm-watch.test.ts");
+  },
+}));
+jest.mock("@/workflows/icm-postmortem", () => ({
+  chasePostmortem: function chasePostmortem() {
+    throw new Error("the workflow body is not run here — see icm-postmortem.test.ts");
+  },
+}));
+
 const url = "https://circuvent.com/api/admin/icm";
 const get = (qs = "") => GET(new Request(`${url}${qs}`));
 const post = (body: unknown) =>
@@ -43,6 +78,113 @@ const at = (mins: number) => new Date(Date.now() + mins * 60_000).toISOString();
 
 beforeEach(() => {
   who = "ops@circuvent.com";
+  started.length = 0;
+});
+
+describe("the escalation watch", () => {
+  it("starts a durable watch when a person files an incident", async () => {
+    /*
+     * Escalation used to happen only inside the queue view, so an incident
+     * escalated when somebody opened the admin panel and not before. The watch
+     * is what makes the clock run on its own; if this call is ever dropped the
+     * feature reverts silently to needing an observer.
+     */
+    const id = await file("Gateway timeouts");
+
+    expect(started).toHaveLength(1);
+    expect(started[0].name).toBe("watchIncident");
+    expect(started[0].args).toEqual([id]);
+  });
+
+  it("starts one for an incident the monitor files, which is the least attended kind", async () => {
+    await post({
+      kind: "from-failure",
+      key: "TypeError:/api/orders",
+      title: "TypeError on /api/orders",
+      owningTeam: "Platform",
+    });
+
+    expect(started).toHaveLength(1);
+    expect(started[0].name).toBe("watchIncident");
+  });
+
+  it("does not start a second watch when the same failure is filed twice", async () => {
+    const body = {
+      kind: "from-failure",
+      key: "TypeError:/api/duplicate",
+      title: "TypeError on /api/duplicate",
+      owningTeam: "Platform",
+    };
+    await post(body);
+    started.length = 0;
+
+    await post(body);
+    expect(started).toHaveLength(0);
+  });
+
+  it("does not start one for an action on an existing incident", async () => {
+    const id = await file("Already watched");
+    started.length = 0;
+
+    await patch({ id, action: "acknowledge" });
+    await patch({ id, action: "comment", body: "looking" });
+
+    expect(started).toHaveLength(0);
+  });
+});
+
+describe("the postmortem chase", () => {
+  const resolveIt = async (id: string) => {
+    await patch({ id, action: "acknowledge" });
+    await patch({ id, action: "mitigate", note: "restarted" });
+    await patch({ id, action: "resolve", note: "fixed" });
+  };
+
+  it("starts when a severity that owes a write-up is resolved", async () => {
+    /* A resolution is the one transition that creates an obligation rather than
+       discharging one, and nothing chased it before: the queue listed it, which
+       only reaches somebody who goes looking at an incident that is closed. */
+    const id = await file("Owes a postmortem", { severity: 2 });
+    started.length = 0;
+
+    await resolveIt(id);
+
+    const chases = started.filter((s) => s.name === "chasePostmortem");
+    expect(chases).toHaveLength(1);
+    expect(chases[0].args).toEqual([id]);
+  });
+
+  it("does not start for a severity that owes nothing", async () => {
+    // Requiring one for every Sev3 produces documents nobody reads.
+    const id = await file("Minor", { severity: 3 });
+    started.length = 0;
+
+    await resolveIt(id);
+
+    expect(started.filter((s) => s.name === "chasePostmortem")).toHaveLength(0);
+  });
+
+  it("does not start on the way to resolution", async () => {
+    const id = await file("In progress", { severity: 1 });
+    started.length = 0;
+
+    await patch({ id, action: "acknowledge" });
+    await patch({ id, action: "mitigate", note: "restarted" });
+
+    expect(started.filter((s) => s.name === "chasePostmortem")).toHaveLength(0);
+  });
+
+  it("does not start when the resolution was refused", async () => {
+    const id = await file("Never resolved", { severity: 1 });
+    started.length = 0;
+
+    /* Resolving without mitigating first is refused by the model; a chase
+       started here would be for an obligation that does not exist. */
+    const res = await patch({ id, action: "resolve", note: "skipping ahead" });
+    if (res.status === 200) return; // the model allows it; nothing to assert
+
+    expect(started.filter((s) => s.name === "chasePostmortem")).toHaveLength(0);
+  });
 });
 
 describe("linking over the API", () => {

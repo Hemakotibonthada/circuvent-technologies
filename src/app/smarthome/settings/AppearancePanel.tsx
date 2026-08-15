@@ -5,7 +5,7 @@
 // they are labelled as browser-local with a Callout.
 
 import { Moon, Sun } from "lucide-react";
-import { ACCENTS, useConsoleTheme, type Scheme, type ThemeMode } from "../theme";
+import { ACCENTS, isDarkOnly, useConsoleTheme, type Scheme, type ThemeMode } from "../theme";
 import {
   Callout,
   SectionTitle,
@@ -14,17 +14,22 @@ import {
   usePersistentState,
 } from "../_kit/primitives";
 import ThemePreview from "./ThemePreview";
-import { DENSITY_KEY, REDUCED_MOTION_KEY, type Density } from "./prefs";
+import { REDUCED_MOTION_KEY } from "./prefs";
+import { ViewSettingsPanel } from "@/components/ViewSettings";
 
+/* Kept in step with MODES in the app's Settings screen — the same account on
+   two screens should be offered the same looks. tests/theme-mode-parity pins
+   the list and the dark-only rule. */
 const MODES: { key: ThemeMode; label: string; desc: string }[] = [
   { key: "glass", label: "Glass", desc: "Frosted cards over an accent glow — default" },
   { key: "aurora", label: "Aurora", desc: "Classic dark smart-home panels" },
   { key: "neo", label: "Neo", desc: "Soft extruded surfaces and shadows" },
+  { key: "oled", label: "OLED", desc: "True black — saves power on a wall tablet" },
+  { key: "neon", label: "Neon", desc: "Glowing cards on deep violet" },
 ];
 
 export default function AppearancePanel() {
   const theme = useConsoleTheme();
-  const [density, setDensity] = usePersistentState<Density>(DENSITY_KEY, "comfortable");
   const [reducedMotion, setReducedMotion] = usePersistentState<boolean>(
     REDUCED_MOTION_KEY,
     false,
@@ -68,6 +73,15 @@ export default function AppearancePanel() {
 
       {/* ── Colour scheme ─────────────────────────────── */}
       <SectionTitle>Colour scheme</SectionTitle>
+      {isDarkOnly(theme.mode) ? (
+        /* Hidden rather than disabled, matching the app's Settings screen.
+           OLED and Neon are defined only in the dark, and leaving a light/dark
+           switch on screen that silently does nothing is worse than not
+           offering it. */
+        <Callout tone="info" title={`${MODES.find((m) => m.key === theme.mode)?.label} is a dark-only theme`}>
+          Pick Glass, Aurora or Neo for a light scheme.
+        </Callout>
+      ) : (
       <div className="flex gap-3">
         {(["dark", "light"] as Scheme[]).map((s) => {
           const active = theme.scheme === s;
@@ -92,6 +106,7 @@ export default function AppearancePanel() {
           );
         })}
       </div>
+      )}
 
       {/* ── Accent colour ─────────────────────────────── */}
       <SectionTitle>Accent colour</SectionTitle>
@@ -135,20 +150,27 @@ export default function AppearancePanel() {
       </p>
       <ThemePreview />
 
-      {/* ── Display preferences ───────────────────────── */}
-      <SectionTitle>Display preferences</SectionTitle>
+      {/* ── View ──────────────────────────────────────── */}
+      <SectionTitle>View</SectionTitle>
       <Callout tone="info">
-        Density and motion preferences are stored in this browser only and are not synced to the
-        control plane.
+        Density, scale and width apply to every Circuvent screen in this browser — the
+        console, the shop and the admin dashboard. They are stored locally and are not
+        synced to the control plane.
       </Callout>
+      <Surface>
+        {/*
+          These controls used to be a single "Compact density" switch that wrote
+          `cv-prefs-density` to localStorage — and nothing anywhere read it, so
+          the preference had no effect at all. It is now applied to the document
+          element before first paint; see src/lib/view-settings.ts.
+        */}
+        <ViewSettingsPanel />
+      </Surface>
+
+      {/* ── Motion ────────────────────────────────────── */}
+      <SectionTitle>Motion</SectionTitle>
       <Surface padded={false}>
         <div className="px-5 py-1">
-          <SwitchRow
-            label="Compact density"
-            hint="Reduces padding and font sizes for information-dense screens."
-            checked={density === "compact"}
-            onChange={(v) => setDensity(v ? "compact" : "comfortable")}
-          />
           <SwitchRow
             label="Reduce motion"
             hint="Disables shimmer animations and transitions throughout the console."

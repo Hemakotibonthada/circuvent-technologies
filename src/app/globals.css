@@ -188,6 +188,13 @@
 html {
   scroll-behavior: smooth;
   color-scheme: light dark;
+  /*
+   * UI scale. Everything sized in rem — which is nearly everything Tailwind
+   * emits — follows this, so it behaves like browser zoom without shrinking
+   * the browser's own chrome and without the blurring a CSS transform causes.
+   * Set before first paint by the boot script in the root layout.
+   */
+  font-size: calc(100% * var(--cv-ui-scale, 1));
 }
 
 body {
@@ -200,13 +207,123 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ===== VIEW DENSITY =====
+ *
+ * One variable per rhythm decision, resolved from `data-density` on <html>.
+ * The alternative — a `.compact` class threaded through 800 components — is
+ * how a density setting ends up applying to the four screens somebody
+ * remembered and none of the others.
+ *
+ * `--cv-density` is the multiplier; the named variables exist because a few
+ * values (control height, tap targets) must not scale linearly to zero.
+ */
+:root {
+  --cv-ui-scale: 1;
+  --cv-density: 1;
+  --cv-sec-py: 6rem;      /* section.py-24 */
+  --cv-sec-py-sm: 5rem;   /* section.py-20 */
+  --cv-sec-py-lg: 8rem;   /* section.py-32 */
+  --cv-shell-py: 6rem;    /* app shells that sit under the fixed nav */
+  --cv-stack: 2rem;       /* gap between major blocks */
+  --cv-card-pad: 1.5rem;  /* padding inside a panel/card */
+  --cv-control-h: 2.5rem; /* toolbar buttons, pills, tabs */
+}
+
+html[data-density="cozy"] {
+  --cv-density: 0.72;
+  --cv-sec-py: 4.25rem;
+  --cv-sec-py-sm: 3.5rem;
+  --cv-sec-py-lg: 5.5rem;
+  --cv-shell-py: 4.5rem;
+  --cv-stack: 1.5rem;
+  --cv-card-pad: 1.15rem;
+  --cv-control-h: 2.25rem;
+}
+
+html[data-density="compact"] {
+  --cv-density: 0.5;
+  --cv-sec-py: 3rem;
+  --cv-sec-py-sm: 2.5rem;
+  --cv-sec-py-lg: 4rem;
+  --cv-shell-py: 3.25rem;
+  --cv-stack: 1.1rem;
+  --cv-card-pad: 0.9rem;
+  --cv-control-h: 2rem;
+}
+
+/* Content width for app surfaces (admin, console). The marketing pages keep
+   their designed column: a hero measured for 80rem does not improve at 100rem. */
+:root { --cv-content-max: 80rem; }
+html[data-width="wide"] { --cv-content-max: 100rem; }
+html[data-width="full"] { --cv-content-max: none; }
+
+/*
+ * Section rhythm. The selector carries an element so it outranks the Tailwind
+ * utility it replaces without `!important`, which would then have to be won
+ * back by every page that legitimately wants something else.
+ */
+section.py-24 { padding-top: var(--cv-sec-py); padding-bottom: var(--cv-sec-py); }
+section.py-20 { padding-top: var(--cv-sec-py-sm); padding-bottom: var(--cv-sec-py-sm); }
+section.py-32 { padding-top: var(--cv-sec-py-lg); padding-bottom: var(--cv-sec-py-lg); }
+
+/* The centred container used by app shells. */
+.cv-app-shell {
+  padding-top: var(--cv-shell-py);
+  padding-bottom: calc(var(--cv-shell-py) * 0.6);
+}
+.cv-app-width {
+  width: 100%;
+  max-width: var(--cv-content-max);
+  margin-inline: auto;
+}
+/* Vertical rhythm between panels, so a density change moves them together. */
+.cv-stack > * + * { margin-top: var(--cv-stack); }
+
+/*
+ * Density inside data-dense surfaces (the admin dashboard).
+ *
+ * Scoped to `.cv-dense` rather than applied globally: a marketing hero at
+ * `p-6` is a composition and loses something when it is tightened, while a
+ * metrics card at `p-6` is just a metrics card with 24px of nothing around a
+ * number. Only the second kind opts in.
+ *
+ * These override Tailwind utilities by carrying the scope class, so a panel
+ * that genuinely needs its own spacing can still say so with an inline style
+ * or an arbitrary value and win — no !important is used here.
+ */
+html[data-density="cozy"] .cv-dense :is(.p-6, .p-5) { padding: 1.05rem; }
+html[data-density="cozy"] .cv-dense .p-4 { padding: 0.85rem; }
+html[data-density="cozy"] .cv-dense .mb-8 { margin-bottom: 1.25rem; }
+html[data-density="cozy"] .cv-dense .mb-6 { margin-bottom: 1rem; }
+html[data-density="cozy"] .cv-dense :is(.gap-6, .gap-5) { gap: 1rem; }
+html[data-density="cozy"] .cv-dense .gap-4 { gap: 0.8rem; }
+
+html[data-density="compact"] .cv-dense :is(.p-6, .p-5) { padding: 0.8rem; }
+html[data-density="compact"] .cv-dense .p-4 { padding: 0.65rem; }
+html[data-density="compact"] .cv-dense .mb-8 { margin-bottom: 0.85rem; }
+html[data-density="compact"] .cv-dense .mb-6 { margin-bottom: 0.7rem; }
+html[data-density="compact"] .cv-dense :is(.gap-6, .gap-5) { gap: 0.7rem; }
+html[data-density="compact"] .cv-dense .gap-4 { gap: 0.55rem; }
+/* Display numbers stop being display numbers when the point is to fit twelve
+   of them on one screen. Compact only — cozy keeps the type scale intact. */
+html[data-density="compact"] .cv-dense .text-4xl { font-size: 1.6rem; line-height: 1.15; }
+html[data-density="compact"] .cv-dense .text-3xl { font-size: 1.4rem; line-height: 1.15; }
+html[data-density="compact"] .cv-dense .text-2xl { font-size: 1.2rem; line-height: 1.2; }
+
 /* ===== MOBILE-FIRST RESPONSIVE SCALING ===== */
 
-/* Scale section padding on smaller screens */
+/* Scale section padding on smaller screens.
+ * These were three literal padding overrides that fought the density
+ * variables above (same specificity, earlier in the file, so whichever landed
+ * last won by accident). Expressed as variables there is one source of truth
+ * and mobile simply picks the tightest rhythm. */
 @media (max-width: 639px) {
-  section.py-24 { padding-top: 3rem; padding-bottom: 3rem; }
-  section.py-20 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
-  section.py-32 { padding-top: 4rem; padding-bottom: 4rem; }
+  html[data-density] {
+    --cv-sec-py: 3rem;
+    --cv-sec-py-sm: 2.5rem;
+    --cv-sec-py-lg: 4rem;
+    --cv-shell-py: 3rem;
+  }
   .pt-32 { padding-top: 6rem; }
   .pb-20 { padding-bottom: 3rem; }
 

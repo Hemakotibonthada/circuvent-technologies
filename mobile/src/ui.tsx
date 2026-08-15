@@ -24,6 +24,19 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { NEO, NEO_SMALL, shadowLayers, withAlpha, type NeoSpec } from "./neo";
+import {
+  DEFAULT_VIEW_SETTINGS,
+  clampScale,
+  space,
+  type Density,
+  type ViewSettings,
+} from "./view-settings";
+import {
+  installTextScaling,
+  loadViewSettings,
+  saveViewSettings,
+  setTextScaleMultiplier,
+} from "./view-settings-native";
 import { HUE_STOPS, COLOR_PRESETS, clamp01, hexToHsv, hsvToHex, wrapHue, type Hsv } from "./color";
 import { BlurView } from "expo-blur";
 import Svg, { Path, Circle, Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
@@ -86,6 +99,12 @@ interface ThemeCtx {
   setScheme: (s: Scheme) => void;
   setAccentKey: (k: string) => void;
   toggleScheme: () => void;
+  /** Display settings. `sp()` applies the density to a base spacing value. */
+  textScale: number;
+  density: Density;
+  setTextScale: (percent: number) => void;
+  setDensity: (d: Density) => void;
+  sp: (base: number) => number;
 }
 
 const Ctx = createContext<ThemeCtx | null>(null);
@@ -118,6 +137,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeS] = useState<ThemeMode>(DEFAULT_MODE);
   const [scheme, setSchemeS] = useState<Scheme>(DEFAULT_SCHEME);
   const [accentKey, setAccentKeyS] = useState<string>(DEFAULT_ACCENT);
+  const [view, setViewS] = useState<ViewSettings>(DEFAULT_VIEW_SETTINGS);
+
+  /*
+   * Patch Text once, before the first screen renders. Installing it here
+   * rather than at module scope keeps the side effect inside the provider that
+   * owns the setting, and installTextScaling is idempotent so a Fast Refresh
+   * cannot double-apply the multiplier.
+   */
+  useEffect(() => {
+    installTextScaling();
+    loadViewSettings().then((v) => {
+      setTextScaleMultiplier(v.textScale);
+      setViewS(v);
+    });
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((raw) => {
@@ -142,10 +176,34 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setAccentKey = useCallback((k: string) => { setAccentKeyS(k); persist({ accentKey: k }); }, [persist]);
   const toggleScheme = useCallback(() => setScheme(scheme === "dark" ? "light" : "dark"), [scheme, setScheme]);
 
+  /*
+   * The multiplier is set before state, so the re-render this triggers is
+   * already painting at the new size. Setting it after would render one frame
+   * at the old scale and then correct itself, which reads as a stutter on the
+   * very control the user is dragging.
+   */
+  const setTextScale = useCallback((percent: number) => {
+    const next = { ...view, textScale: clampScale(percent) };
+    setTextScaleMultiplier(next.textScale);
+    setViewS(next);
+    void saveViewSettings(next);
+  }, [view]);
+
+  const setDensity = useCallback((d: Density) => {
+    const next = { ...view, density: d };
+    setViewS(next);
+    void saveViewSettings(next);
+  }, [view]);
+
+  const sp = useCallback((base: number) => space(base, view.density), [view.density]);
+
   const c = useMemo(() => buildPalette(mode, scheme, accentKey), [mode, scheme, accentKey]);
   const value = useMemo<ThemeCtx>(
-    () => ({ c, mode, scheme, accentKey, setMode, setScheme, setAccentKey, toggleScheme }),
-    [c, mode, scheme, accentKey, setMode, setScheme, setAccentKey, toggleScheme]
+    () => ({
+      c, mode, scheme, accentKey, setMode, setScheme, setAccentKey, toggleScheme,
+      textScale: view.textScale, density: view.density, setTextScale, setDensity, sp,
+    }),
+    [c, mode, scheme, accentKey, setMode, setScheme, setAccentKey, toggleScheme, view.textScale, view.density, setTextScale, setDensity, sp]
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -1278,9 +1336,13 @@ interface CardProps {
 
 /** Adaptive surface: frosted glass / neumorphic extrusion / solid aurora card. */
 export function Card({ children, style, onPress, hi, padded = true, accessibilityRole, accessibilityLabel }: CardProps) {
-  const { c, scheme } = useTheme();
+  const { c, scheme, sp } = useTheme();
   const radius = RADIUS.card;
-  const pad = padded ? SPACE.lg : 0;
+  /* Density lands here rather than on each screen. Card is the container
+     almost every surface is built from, so one call makes the setting real
+     app-wide — and stops it being a switch that persists a preference nothing
+     reads, which is the failure this whole feature was written to avoid. */
+  const pad = padded ? sp(SPACE.lg) : 0;
   const press = usePressScale(!!onPress);
 
   /**
@@ -1560,10 +1622,10 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
 }
 
 export function SectionLabel({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  const { c } = useTheme();
+  const { c, sp } = useTheme();
   // Was 12px uppercase with 1.5 letter-spacing. Micro-caps read as an admin
   // panel; sentence case at a legible size reads as a home screen.
-  return <Text style={[{ color: c.text, ...TYPE.section, marginBottom: SPACE.md }, style]}>{children}</Text>;
+  return <Text style={[{ color: c.text, ...TYPE.section, marginBottom: sp(SPACE.md) }, style]}>{children}</Text>;
 }
 
 export function Title({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {

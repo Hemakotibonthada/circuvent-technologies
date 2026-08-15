@@ -102,6 +102,20 @@ bool radioReady = false;
 uint32_t pairWindowUntil = 0;   // non-zero only while pairing is open
 bool ohLive = false;            // is the overhead level fresh enough to act on?
 
+/*
+ * A downlink waiting to go out.
+ *
+ * The sensor only listens for a few hundred milliseconds immediately after it
+ * transmits, so a downlink cannot be sent whenever we feel like it — it is
+ * queued here and fired the instant a packet is accepted, while the sensor's
+ * receive window is still open. Anything sent at any other time goes to a unit
+ * that is already back asleep.
+ */
+uint8_t pendingInstructions = 0;
+uint16_t pendingIntervalS = 0;
+uint32_t downSeq = 0;
+uint16_t sensorIntervalS = 0;   // what we last asked for; 0 means the default
+
 void beep(int ms) { digitalWrite(BUZZER_PIN, HIGH); delay(ms); digitalWrite(BUZZER_PIN, LOW); }
 
 void loadCfg() {
@@ -126,6 +140,9 @@ void loadCfg() {
    * would be accepted again.
    */
   tankLink.lastSeq = store.getUInt("rxSeq", 0);
+  downSeq = store.getUInt("downSeq", 0);
+  sensorIntervalS = store.getUShort("sensInt", 0);
+  tankLink.intervalS = sensorIntervalS;
 }
 void saveCfg() {
   store.putInt("start", startPct); store.putInt("stop", stopPct); store.putInt("sumpmin", sumpMin);
@@ -186,6 +203,47 @@ void savePairing() {
 }
 
 /**
+ * Send whatever is queued, immediately.
+ *
+ * Only ever called straight after accepting a packet from the sensor, because
+ * that is the only moment the sensor is listening. Sending at any other time
+ * transmits into a unit that is already asleep, which looks identical to a
+ * broken radio from the app's point of view.
+ */
+void sendPendingDownlink() {
+  if (!sensorPaired || !radioReady) return;
+  if (pendingInstructions == 0 && pendingIntervalS == 0) return;
+
+  CvTankDownlink d;
+  cvTankInitDownlink(d, pairId);
+  d.instructions = pendingInstructions;
+  d.reportIntervalS = pendingIntervalS;
+  d.seq = ++downSeq;
+  cvTankSignDownlink(d, linkKey);
+
+  LoRa.beginPacket();
+  LoRa.write((const uint8_t *)&d, sizeof(d));
+  LoRa.endPacket();
+  LoRa.receive();   // straight back to listening; the sensor may reply at once
+
+  if (pendingIntervalS != 0) sensorIntervalS = pendingIntervalS;
+  if (sensorIntervalS != 0) store.putUShort("sensInt", sensorIntervalS);
+  // The freshness window scales with the cadence. Without this, choosing a
+  // slower report rate to save battery would leave the link permanently stale
+  // and the pump would never run.
+  tankLink.intervalS = sensorIntervalS;
+  /*
+   * Cleared whether or not the sensor heard it. A downlink that is retried
+   * forever would fire on every single reading, and "measure now" repeated
+   * indefinitely would flatten the battery of a unit nobody can reach. The app
+   * can ask again.
+   */
+  pendingInstructions = 0;
+  pendingIntervalS = 0;
+  store.putUInt("downSeq", downSeq);
+}
+
+/**
  * Accept a pairing offer.
  *
  * Only ever called while the owner has an open pairing window, which is opened
@@ -213,6 +271,14 @@ void handlePairOffer(const CvTankPacket &p, const uint8_t *offeredKey) {
   store.putUInt("rxSeq", tankLink.lastSeq);
 
   pairWindowUntil = 0;
+  /*
+   * Tell the sensor we have it. Without this the sensor transmits for the full
+   * minute and then declares success whether or not anything heard, so an
+   * installer gets a confident indication, climbs down, and finds nothing works.
+   * The sensor is listening right now, so this goes out immediately.
+   */
+  pendingInstructions |= CV_TANK_DOWN_PAIR_ACK;
+  sendPendingDownlink();
   beep(60); delay(80); beep(60);
 }
 
@@ -258,6 +324,8 @@ void pollRadio() {
   if (cvTankAcceptReading(tankLink, p, rssi, millis())) {
     // Persisted so a reboot cannot reopen the replay window.
     store.putUInt("rxSeq", tankLink.lastSeq);
+    // The sensor's receive window is open right now and only right now.
+    sendPendingDownlink();
   }
 }
 
@@ -309,6 +377,14 @@ void onCommand(const String &action, JsonObjectConst p) {
     if (p["startPct"].is<int>()) { startPct = constrain(p["startPct"].as<int>(), 5, 90); cfg = true; }
     if (p["stopPct"].is<int>())  { stopPct  = constrain(p["stopPct"].as<int>(), startPct + 5, 100); cfg = true; }
     if (p["sumpMinPct"].is<int>()) { sumpMin = constrain(p["sumpMinPct"].as<int>(), 5, 60); cfg = true; }
+    if (p["sensorIntervalS"].is<int>()) {
+      /*
+       * How often the tank unit reports. Trading battery life against how
+       * quickly a level change shows up — and settable from the app precisely
+       * so that trade does not require getting the unit off the roof.
+       */
+      pendingIntervalS = cvTankClampInterval((uint16_t)p["sensorIntervalS"].as<int>());
+    }
     if (p["ohCapacityL"].is<float>()) { OH_CAP_L = p["ohCapacityL"].as<float>(); cfg = true; }
     if (p["sumpCapacityL"].is<float>()) { SUMP_CAP_L = p["sumpCapacityL"].as<float>(); cfg = true; }
     if (p["ohEmptyCm"].is<float>()) { OH_EMPTY_CM = p["ohEmptyCm"].as<float>(); cfg = true; }
@@ -322,6 +398,16 @@ void onCommand(const String &action, JsonObjectConst p) {
     openPairWindow();
   } else if (action == "unpair") {
     forgetSensor();
+  } else if (action == "readNow") {
+    /*
+     * Queued, not sent. The sensor is asleep and cannot hear anything until it
+     * next transmits, so this goes out on the back of its next report — within
+     * one report interval rather than immediately, which is still much better
+     * than waiting out a whole cycle for the reading itself.
+     */
+    pendingInstructions |= CV_TANK_DOWN_MEASURE_NOW;
+  } else if (action == "identifySensor") {
+    pendingInstructions |= CV_TANK_DOWN_IDENTIFY;
   } else if (action == "pump") {
     autoMode = false; saveRun(); setPump(true);
   } else if (action == "stop") {
@@ -451,6 +537,10 @@ void loop() {
   cv.set("rfRejected", (int)tankLink.rejected);
   cv.set("sensorPaired", sensorPaired);
   cv.set("pairing", pairWindowUntil != 0);
+  cv.set("sensorIntervalS", sensorIntervalS > 0 ? (int)sensorIntervalS
+                                                : (int)(CV_TANK_REPORT_INTERVAL_MS / 1000UL));
+  // Something is waiting for the sensor's next transmission to go out.
+  cv.set("downlinkPending", pendingInstructions != 0 || pendingIntervalS != 0);
   cv.set("radioReady", radioReady);
   cv.set("tankBattPct", tankLink.everHeard ? cvTankBatteryPct(tankLink.batteryMv) : -1);
   cv.set("tankBattLow", (tankLink.flags & CV_TANK_FLAG_LOW_BATTERY) != 0);

@@ -80,6 +80,7 @@ import SurveysPanel from "./SurveysPanel";
 import { Coins, ShieldQuestion, LineChart, FileSpreadsheet, Settings } from "lucide-react";
 import { KeyRound } from "lucide-react";
 import { usePasskey, usePasskeySupport } from "@/lib/usePasskey";
+import { ViewMenu } from "@/components/ViewSettings";
 import CurrencyPanel from "./CurrencyPanel";
 import PrivacyPanel from "./PrivacyPanel";
 import StaffActivityPanel from "./StaffActivityPanel";
@@ -625,122 +626,197 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen py-24 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <img src="/logo-mark-160.png" alt="Circuvent" width={44} height={44} />
-            <div>
+    /*
+     * The site nav is `fixed` at 72px, so the shell reserves exactly that and
+     * the command bar sticks directly beneath it. This page previously spent
+     * `py-24` plus a 10-unit header margin plus two wrapping pill rows before
+     * the first number — roughly 280px of chrome, which is why it was being
+     * read at 50% browser zoom. The rows below are the same controls at
+     * toolbar height, and they scroll sideways instead of wrapping.
+     */
+    <div className="min-h-screen pt-[72px]">
+      <div
+        className="sticky top-[72px] z-30 backdrop-blur-xl"
+        style={{
+          background: "var(--bg-overlay)",
+          borderBottom: "1px solid var(--border-primary)",
+        }}
+      >
+        <div className="cv-app-width px-3 sm:px-5 lg:px-6">
+          {/* ── Identity + actions ─────────────────────────── */}
+          <div className="flex items-center gap-2.5 py-2">
+            <img
+              src="/logo-mark-160.png"
+              alt="Circuvent"
+              width={30}
+              height={30}
+              className="shrink-0 rounded-lg"
+            />
+            <div className="min-w-0">
               <h1
-                className="text-3xl font-bold"
+                className="truncate text-[15px] font-bold leading-tight sm:text-[17px]"
                 style={{ color: "var(--text-primary)" }}
               >
                 Admin Dashboard
               </h1>
-              <p className="text-sm mt-1" style={{ color: "var(--text-tertiary)" }}>
+              <p
+                className="hidden truncate text-[11px] leading-tight lg:block"
+                style={{ color: "var(--text-tertiary)" }}
+              >
                 Real-time website analytics and server monitoring
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <AdminAlerts onGoto={(t) => setTab(t as typeof tab)} />
-            <Admin2fa />
-            <AdminPasskeys />
-            <AdminPassword email={adminEmail} name={adminName} />
-            {canSee("overview") && (
-              <>
-                {/* SSE Status */}
-                <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                  {sseConnected ? (
-                    <><Wifi className="w-4 h-4 text-emerald-500" /> <span className="text-emerald-500">Live</span></>
-                  ) : (
-                    <><WifiOff className="w-4 h-4 text-red-400" /> <span className="text-red-400">Disconnected</span></>
-                  )}
-                </div>
-                <button
-                  onClick={fetchStats}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:scale-105"
-                  style={{
-                    background: "var(--bg-surface)",
-                    border: "1px solid var(--border-primary)",
-                    color: "var(--text-secondary)",
-                  }}
+
+            <div className="ml-auto flex min-w-0 items-center gap-1.5">
+              <AdminAlerts onGoto={(t) => setTab(t as typeof tab)} />
+              {/* Account security state. One group, so it reads as one
+                  subject rather than three unrelated buttons. */}
+              <div className="hidden items-center gap-1 md:flex">
+                <Admin2fa />
+                <AdminPasskeys />
+                <AdminPassword email={adminEmail} name={adminName} />
+              </div>
+              {canSee("overview") && (
+                <>
+                  <span
+                    className="hidden items-center gap-1.5 rounded-lg px-2 text-[12px] font-semibold sm:inline-flex"
+                    title={sseConnected ? "Live updates connected" : "Live updates disconnected"}
+                    style={{
+                      height: "var(--cv-control-h)",
+                      color: sseConnected ? "#059669" : "#dc2626",
+                      background: sseConnected ? "rgba(16,185,129,0.10)" : "rgba(239,68,68,0.10)",
+                    }}
+                  >
+                    {sseConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+                    <span className="hidden lg:inline">{sseConnected ? "Live" : "Offline"}</span>
+                  </span>
+                  <button
+                    onClick={fetchStats}
+                    title="Refresh statistics"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold transition-all hover:brightness-105"
+                    style={{
+                      height: "var(--cv-control-h)",
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border-primary)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="hidden lg:inline">Refresh</span>
+                  </button>
+                </>
+              )}
+              {/* Density, scale and width, on the screen they affect. */}
+              <ViewMenu />
+              <div className="hidden min-w-0 flex-col items-end leading-none sm:flex">
+                <span
+                  className="max-w-[9rem] truncate text-[12.5px] font-semibold"
+                  style={{ color: "var(--text-primary)" }}
                 >
-                  <RefreshCw className="w-4 h-4" /> Refresh
-                </button>
-              </>
-            )}
-            {/* Identity */}
-            <div className="hidden sm:flex flex-col items-end leading-tight">
-              <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                {adminName || "Staff"}
-              </span>
-              <span
-                className="text-xs px-2 py-0.5 rounded-full mt-0.5"
-                style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}
-              >
-                {ROLE_LABELS[role] ?? role}
-              </span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:scale-105"
-              style={{
-                background: "var(--bg-surface)",
-                border: "1px solid var(--border-primary)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              <LogOut className="w-4 h-4" /> Logout
-            </button>
-          </div>
-        </div>
-
-        {/* Category selector */}
-        <div className="mb-3 flex flex-wrap gap-2">
-          {CATEGORY_META.filter((c) => visibleTabIds.some((id) => TAB_META[id].category === c.id)).map((c) => {
-            const CatIcon = c.icon;
-            const active = activeCategory === c.id;
-            return (
+                  {adminName || "Staff"}
+                </span>
+                <span
+                  className="mt-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
+                  style={{ background: "rgba(139,92,246,0.15)", color: "#7c3aed" }}
+                >
+                  {ROLE_LABELS[role] ?? role}
+                </span>
+              </div>
               <button
-                key={c.id}
-                onClick={() => selectCategory(c.id)}
-                className="flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all"
-                style={
-                  active
-                    ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" }
-                    : { background: "var(--bg-surface)", border: "1px solid var(--border-primary)", color: "var(--text-secondary)" }
-                }
+                onClick={handleLogout}
+                title="Sign out"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold transition-all hover:brightness-105"
+                style={{
+                  height: "var(--cv-control-h)",
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border-primary)",
+                  color: "var(--text-secondary)",
+                }}
               >
-                <CatIcon className="w-4 h-4" /> {c.label}
+                <LogOut className="h-4 w-4" />
+                <span className="hidden lg:inline">Logout</span>
               </button>
-            );
-          })}
-        </div>
+            </div>
+          </div>
 
-        {/* Tabs within the selected category */}
-        <div
-          className="mb-8 flex flex-wrap gap-1 rounded-xl p-1"
-          style={{ background: "var(--bg-glass)", border: "1px solid var(--border-primary)", width: "fit-content", maxWidth: "100%" }}
-        >
-          {visibleTabIds
-            .filter((id) => TAB_META[id].category === activeCategory)
-            .map((id) => {
-              const meta = TAB_META[id];
-              const Icon = meta.icon;
+          {/* ── Category rail ──────────────────────────────── */}
+          <div className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1 pb-1.5">
+            {CATEGORY_META.filter((c) => visibleTabIds.some((id) => TAB_META[id].category === c.id)).map((c) => {
+              const CatIcon = c.icon;
+              const active = activeCategory === c.id;
               return (
                 <button
-                  key={id}
-                  onClick={() => setTab(id as typeof tab)}
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-                  style={tab === id ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" } : { color: "var(--text-tertiary)" }}
+                  key={c.id}
+                  onClick={() => selectCategory(c.id)}
+                  aria-pressed={active}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-semibold transition-all"
+                  style={
+                    active
+                      ? {
+                          height: "var(--cv-control-h)",
+                          background: "linear-gradient(135deg,#06b6d4,#8b5cf6)",
+                          color: "#fff",
+                          border: "1px solid transparent",
+                        }
+                      : {
+                          height: "var(--cv-control-h)",
+                          background: "var(--bg-surface)",
+                          border: "1px solid var(--border-primary)",
+                          color: "var(--text-secondary)",
+                        }
+                  }
                 >
-                  <Icon className="w-4 h-4" /> {meta.label}
+                  <CatIcon className="h-3.5 w-3.5 shrink-0" /> {c.label}
                 </button>
               );
             })}
+          </div>
+
+          {/* ── Tabs within the selected category ──────────── */}
+          <div
+            className="no-scrollbar mb-2 flex gap-0.5 overflow-x-auto rounded-lg p-0.5"
+            style={{
+              background: "var(--bg-glass)",
+              border: "1px solid var(--border-primary)",
+              width: "fit-content",
+              maxWidth: "100%",
+            }}
+          >
+            {visibleTabIds
+              .filter((id) => TAB_META[id].category === activeCategory)
+              .map((id) => {
+                const meta = TAB_META[id];
+                const Icon = meta.icon;
+                const active = tab === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setTab(id as typeof tab)}
+                    aria-pressed={active}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-semibold transition-colors"
+                    style={
+                      active
+                        ? {
+                            height: "calc(var(--cv-control-h) - 0.25rem)",
+                            background: "linear-gradient(135deg,#06b6d4,#8b5cf6)",
+                            color: "#fff",
+                          }
+                        : {
+                            height: "calc(var(--cv-control-h) - 0.25rem)",
+                            color: "var(--text-tertiary)",
+                          }
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" /> {meta.label}
+                  </button>
+                );
+              })}
+          </div>
         </div>
+      </div>
+
+      {/* ── Panels ───────────────────────────────────────── */}
+      <div className="cv-app-width cv-dense px-3 pb-10 pt-4 sm:px-5 lg:px-6">
 
         {tab === "orders" && <OrdersPanel />}
         {tab === "analytics" && (

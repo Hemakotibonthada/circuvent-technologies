@@ -8,12 +8,12 @@ Source of truth is `SCHEMATIC.md` (pin map + drive chains) + `BOM.csv` (parts).
 | --- | --- |
 | Board file | `cv-tb3.kicad_pcb` |
 | Custom design rules | `cv-tb3.kicad_dru` |
-| Board size | **88.5 x 117.0 mm** (doc target 80 x 60 mm) |
+| Board size | **96.4 x 137.0 mm** (doc target 80 x 60 mm) |
 | Layers | 2 (F.Cu / B.Cu), FR4 1.6 mm, 1 oz Cu |
-| Footprints placed | 53 of 53 BOM positions |
-| Nets | 68 total, 39 multi-pad (routable) |
-| Pads bound to nets | 198 of 198 |
-| Net classes | Default=29, MAINS=7, POWER=3 |
+| Footprints placed | 84 of 84 BOM positions |
+| Nets | 95 total, 61 multi-pad (routable) |
+| Pads bound to nets | 281 of 281 |
+| Net classes | Default=34, HVDC=9, MAINS=15, POWER=3 |
 | Routing | not run |
 | DRC errors / unconnected | **not run** |
 | Fab output | `gerbers/` (Gerber X2, Excellon + map, IPC-D-356, ODB++, IPC-2581), `fab/` (pick-and-place, STEP, fab + assembly PDFs) |
@@ -84,35 +84,96 @@ Nets named `N$<ref>.<pad>` are deliberate single-pad stubs: unused pins,
 the ESP32's internal SPI-flash pads, and unused relay contacts. The generator
 never invents a rail connection it cannot justify from the documentation.
 
-Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R10`, `R11`, `R12`
+Unused BOM positions with no documented connection (fit as DNP or delete from the BOM): `R13`, `R14`, `R15`, `R16`
 
 ## Residual unconnected items - hand-finish list
-The autorouter left 21 connection(s) open. Each one is a real missing copper
+The autorouter left 82 connection(s) open. Each one is a real missing copper
 connection and has to be drawn by hand (or designed out) before fabrication:
 
 | # | Net | Class | From | To |
 | --- | --- | --- | --- | --- |
-| 1 | `AC_L` | MAINS | PTH pad 1 of J1 | Track on F.Cu, length 5.0000 mm |
-| 2 | `AC_L_FUSED` | MAINS | Track on B.Cu, length 12.4200 mm | PTH pad 1 of PS1 |
-| 3 | `AC_L_FUSED` | MAINS | PTH pad 1 of K3 | Track on B.Cu, length 11.1723 mm |
-| 4 | `AC_L_FUSED` | MAINS | PTH pad 1 of K3 | PTH pad 1 of RV1 |
-| 5 | `AC_L_FUSED` | MAINS | Pad 1 of U6 on F.Cu | PTH pad 1 of K3 |
-| 6 | `GND` | POWER | Pad 4 of U6 on F.Cu | Zone on F.Cu, priority 0 |
-| 7 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 8 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 9 | `GND` | POWER | Zone on B.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 10 | `GND` | POWER | Zone on F.Cu, priority 0 | Zone on B.Cu, priority 0 |
-| 11 | `RELAY3_SW` | MAINS | PTH pad 2 of J3 | PTH pad 3 of K3 |
-| 12 | `AC_N` | MAINS | PTH pad 2 of J1 | PTH pad 3 of J2 |
-| 13 | `AC_N` | MAINS | PTH pad 3 of J2 | PTH pad 2 of PS1 |
-| 14 | `AC_N` | MAINS | PTH pad 3 of J2 | PTH pad 2 of RV1 |
-| 15 | `AC_N` | MAINS | PTH pad 2 of RV1 | PTH pad 3 of J3 |
-| 16 | `RELAY1_SW` | MAINS | Pad 1 of Rsh on B.Cu | Pad 2 of U6 on F.Cu |
-| 17 | `RELAY1_SW` | MAINS | Pad 2 of U6 on F.Cu | PTH pad 3 of K1 |
-| 18 | `AC_LOAD` | MAINS | Pad 2 of Rsh on B.Cu | Pad 3 of U6 on F.Cu |
-| 19 | `AC_LOAD` | MAINS | PTH pad 3 of J1 | PTH pad 1 of J2 |
-| 20 | `AC_LOAD` | MAINS | PTH pad 1 of J2 | Pad 2 of Rsh on B.Cu |
-| 21 | `RELAY2_SW` | MAINS | PTH pad 2 of J2 | PTH pad 3 of K2 |
+| 1 | `GND` | POWER | PTH pad 3 of PS1 | Zone on F.Cu, priority 0 |
+| 2 | `GND` | POWER | Pad 4 of U6 on F.Cu | Via on F.Cu - B.Cu |
+| 3 | `RELAY1_A` | Default | Pad 2 of R2 on B.Cu | PTH pad 2 of LED1 |
+| 4 | `RELAY3_OPT` | Default | PTH pad 1 of U5 | Pad 2 of R5 on B.Cu |
+| 5 | `RELAY3_DRV` | Default | PTH pad 3 of U5 | Pad 1 of Q3 on B.Cu |
+| 6 | `+5V` | POWER | PTH pad 1 of J3 | PTH pad 2 of K3 |
+| 7 | `+5V` | POWER | PTH pad 2 of K2 | PTH pad 2 of K1 |
+| 8 | `+5V` | POWER | PTH pad 2 of K3 | PTH pad 2 of K2 |
+| 9 | `+5V` | POWER | Pad 1 of TP4 on F.Cu | PTH pad 1 of D3 |
+| 10 | `+5V` | POWER | PTH pad 1 of C1 | PTH pad 2 of K1 |
+| 11 | `+5V` | POWER | PTH pad 1 of C1 | PTH pad 4 of PS1 |
+| 12 | `+5V` | POWER | PTH pad 1 of D3 | PTH pad 1 of J4 |
+| 13 | `+5V` | POWER | PTH pad 1 of D3 | Pad 3 of U2 on F.Cu |
+| 14 | `+5V` | POWER | PTH pad 4 of U5 | PTH pad 1 of C1 |
+| 15 | `+5V` | POWER | PTH pad 1 of D1 | PTH pad 1 of D2 |
+| 16 | `+5V` | POWER | PTH pad 1 of D1 | PTH pad 4 of U5 |
+| 17 | `+5V` | POWER | PTH pad 1 of D2 | PTH pad 1 of J4 |
+| 18 | `+5V` | POWER | PTH pad 4 of U4 | PTH pad 4 of U3 |
+| 19 | `+5V` | POWER | PTH pad 4 of U4 | PTH pad 1 of D1 |
+| 20 | `RELAY3_A` | Default | Pad 2 of R6 on B.Cu | PTH pad 2 of LED3 |
+| 21 | `RELAY3_COIL` | Default | PTH pad 5 of K3 | PTH pad 2 of D3 |
+| 22 | `RELAY3_COIL` | Default | PTH pad 2 of D3 | Pad 3 of Q3 on B.Cu |
+| 23 | `LED0_A` | Default | PTH pad 2 of LED0 | Pad 2 of R9 on B.Cu |
+| 24 | `TOUCH3__T4` | Default | Pad 1 of TP3 on F.Cu | Pad 16 of U1 on F.Cu |
+| 25 | `+3V3` | POWER | Pad 8 of U6 on F.Cu | Pad 1 of TP5 on F.Cu |
+| 26 | `+3V3` | POWER | Pad 1 of R8 on B.Cu | Pad 8 of U6 on F.Cu |
+| 27 | `+3V3` | POWER | Pad 1 of R8 on B.Cu | Pad 1 of C7 on B.Cu |
+| 28 | `+3V3` | POWER | PTH pad 1 of C2 | Pad 1 of C7 on B.Cu |
+| 29 | `+3V3` | POWER | PTH pad 1 of C2 | Pad 1 of C3 on B.Cu |
+| 30 | `+3V3` | POWER | Pad 1 of C3 on B.Cu | Pad 1 of C4 on B.Cu |
+| 31 | `+3V3` | POWER | Pad 2 of U1 on F.Cu | Pad 1 of C4 on B.Cu |
+| 32 | `+3V3` | POWER | Pad 1 of C6 on B.Cu | Pad 1 of C7 on B.Cu |
+| 33 | `+3V3` | POWER | Pad 1 of C6 on B.Cu | Pad 2 of U2 on F.Cu |
+| 34 | `+3V3` | POWER | Pad 1 of R9 on B.Cu | Pad 2 of U2 on F.Cu |
+| 35 | `+3V3` | POWER | Track on F.Cu, length 6.3000 mm | Pad 1 of C8 on B.Cu |
+| 36 | `+3V3` | POWER | Pad 1 of C8 on B.Cu | Pad 1 of C5 on B.Cu |
+| 37 | `EN` | Default | Pad 2 of R8 on B.Cu | Pad 3 of U1 on F.Cu |
+| 38 | `MTR_CF` | Default | Pad 5 of U6 on F.Cu | Pad 6 of U1 on F.Cu |
+| 39 | `MTR_CF1` | Default | Pad 6 of U6 on F.Cu | Pad 7 of U1 on F.Cu |
+| 40 | `RELAY3` | Default | Pad 1 of R6 on B.Cu | Pad 1 of R5 on B.Cu |
+| 41 | `RELAY3` | Default | Pad 9 of U1 on F.Cu | Pad 1 of R6 on B.Cu |
+| 42 | `RELAY1` | Default | Pad 1 of R1 on B.Cu | Pad 1 of R2 on B.Cu |
+| 43 | `RELAY1` | Default | Pad 10 of U1 on F.Cu | Pad 1 of R1 on B.Cu |
+| 44 | `RELAY2` | Default | Pad 11 of U1 on F.Cu | Pad 1 of R3 on B.Cu |
+| 45 | `RELAY2` | Default | Pad 1 of R3 on B.Cu | Pad 1 of R4 on B.Cu |
+| 46 | `TOUCH2__T3` | Default | Pad 1 of TP2 on F.Cu | Pad 23 of U1 on F.Cu |
+| 47 | `BTN_PIN` | Default | PTH pad 1 of SW1 | PTH pad 1 of SW1 |
+| 48 | `BTN_PIN` | Default | PTH pad 1 of SW1 | Pad 25 of U1 on F.Cu |
+| 49 | `TOUCH1__T0` | Default | Pad 1 of TP1 on F.Cu | Pad 26 of U1 on F.Cu |
+| 50 | `BACKLIGHT` | Default | Pad 1 of R7 on B.Cu | Pad 29 of U1 on F.Cu |
+| 51 | `MTR_SEL` | Default | Pad 7 of U6 on F.Cu | Pad 30 of U1 on F.Cu |
+| 52 | `UART_RX` | Default | PTH pad 2 of JP | Pad 34 of U1 on F.Cu |
+| 53 | `UART_TX` | Default | PTH pad 1 of JP | Pad 35 of U1 on F.Cu |
+| 54 | `RELAY2_A` | Default | Pad 2 of R4 on B.Cu | PTH pad 2 of LED2 |
+| 55 | `BACKLIGHT_OUT` | Default | Pad 3 of Q4 on B.Cu | PTH pad 2 of J4 |
+| 56 | `AC_L_FUSED` | MAINS | PTH pad 1 of RV1 | PTH pad 1 of K3 |
+| 57 | `AC_L_FUSED` | MAINS | PTH pad 1 of K1 | Track on F.Cu, length 5.0000 mm |
+| 58 | `AC_L_FUSED` | MAINS | PTH pad 1 of K2 | PTH pad 1 of K1 |
+| 59 | `AC_L_FUSED` | MAINS | PTH pad 1 of K3 | PTH pad 1 of K2 |
+| 60 | `AC_L_FUSED` | MAINS | PTH pad 1 of K3 | Pad 1 of U6 on F.Cu |
+| 61 | `AC_L_FUSED` | MAINS | PTH pad 1 of PS1 | PTH pad 1 of K1 |
+| 62 | `RELAY2_SW` | MAINS | PTH pad 2 of J2 | PTH pad 3 of K2 |
+| 63 | `RELAY2_COIL` | Default | Pad 3 of Q2 on B.Cu | PTH pad 5 of K2 |
+| 64 | `RELAY2_COIL` | Default | PTH pad 2 of D2 | Pad 3 of Q2 on B.Cu |
+| 65 | `AC_L` | MAINS | PTH pad 1 of J1 | PTH pad 1 of F1 |
+| 66 | `AC_N` | MAINS | PTH pad 2 of J1 | PTH pad 3 of J2 |
+| 67 | `AC_N` | MAINS | PTH pad 3 of J2 | PTH pad 2 of PS1 |
+| 68 | `AC_N` | MAINS | PTH pad 3 of J2 | PTH pad 2 of RV1 |
+| 69 | `AC_N` | MAINS | PTH pad 2 of RV1 | PTH pad 3 of J3 |
+| 70 | `AC_LOAD` | MAINS | Pad 2 of Rsh on B.Cu | Pad 3 of U6 on F.Cu |
+| 71 | `AC_LOAD` | MAINS | PTH pad 3 of J1 | PTH pad 1 of J2 |
+| 72 | `AC_LOAD` | MAINS | PTH pad 1 of J2 | Pad 2 of Rsh on B.Cu |
+| 73 | `RELAY1_COIL` | Default | PTH pad 5 of K1 | Pad 3 of Q1 on B.Cu |
+| 74 | `RELAY1_COIL` | Default | Pad 3 of Q1 on B.Cu | PTH pad 2 of D1 |
+| 75 | `RELAY3_SW` | MAINS | PTH pad 2 of J3 | PTH pad 3 of K3 |
+| 76 | `RELAY1_SW` | MAINS | Pad 1 of Rsh on B.Cu | Pad 2 of U6 on F.Cu |
+| 77 | `RELAY1_SW` | MAINS | Pad 2 of U6 on F.Cu | PTH pad 3 of K1 |
+| 78 | `RELAY2_OPT` | Default | Pad 2 of R3 on B.Cu | PTH pad 1 of U4 |
+| 79 | `RELAY2_DRV` | Default | Pad 1 of Q2 on B.Cu | PTH pad 3 of U4 |
+| 80 | `RELAY1_OPT` | Default | Pad 2 of R1 on B.Cu | PTH pad 1 of U3 |
+| 81 | `RELAY1_DRV` | Default | Pad 1 of Q1 on B.Cu | PTH pad 3 of U3 |
+| 82 | `BACKLIGHT_B` | Default | Pad 1 of Q4 on B.Cu | Pad 2 of R7 on B.Cu |
 
 The `MAINS` entries above are **not** an autorouter shortcoming. Every legal
 path between them is blocked by the 8.0 mm mains clearance and the isolation
@@ -128,12 +189,17 @@ rating, and safety agency approval):
 
 | Ref | Footprint | Mains-side nets | SELV-side nets |
 | --- | --- | --- | --- |
+| `CY1` | capy1 | HV- | GND |
 | `J3` | term3 | AC_N, RELAY3_SW | +5V |
 | `K1` | relay | AC_L_FUSED, N$K1.4, RELAY1_SW | +5V, RELAY1_COIL |
 | `K2` | relay | AC_L_FUSED, N$K2.4, RELAY2_SW | +5V, RELAY2_COIL |
 | `K3` | relay | AC_L_FUSED, N$K3.4, RELAY3_SW | +5V, RELAY3_COIL |
-| `PS1` | hlk | AC_L_FUSED, AC_N | +5V, GND |
-| `U6` | soic8 | AC_LOAD, AC_L_FUSED, RELAY1_SW | +3V3, GND, MTR_CF, MTR_CF1, MTR_SEL |
+| `PC9` | dip4 | EN_UV, HV- | FB_A, FB_K |
+| `T1` | xfmr | BIAS, HV+, HV-, MTR_GND, MTR_SEC, SW_DRAIN | GND, N$T1.3, N$T1.9, SEC |
+| `U20` | dip8 | BYPASS, EN_UV, HV-, SW_DRAIN | N$U20.3 |
+| `U7` | dip4 | MTR_CF_LEDA, MTR_CF_MTR | GND, MTR_CF |
+| `U8` | dip4 | MTR_CF1_LEDA, MTR_CF1_MTR | GND, MTR_CF1 |
+| `U9` | dip4 | MTR_GND, MTR_SEL_MTR | GND, MTR_SEL_LEDA |
 
 An optocoupler or an isolated PSU is fine here. A metering front-end such as
 the BL0937 is **not** - it is galvanically connected to both sides, so either

@@ -2,6 +2,8 @@ import {
   readTankLink,
   tankLevelText,
   formatAge,
+  tankStaleSeconds,
+  tankAbandonSeconds,
   TANK_STALE_S,
   TANK_ABANDON_S,
   TANK_REPORT_INTERVAL_S,
@@ -176,10 +178,78 @@ describe("formatAge", () => {
 
 describe("the thresholds match the firmware", () => {
   it("allows several missed reports before declaring the link down", () => {
-    // CvTankLink.h uses interval * 6. If either side changes alone, the app
-    // and the controller disagree about whether the pump may run — the app
-    // would show a live level while the firmware refuses to pump, or worse.
+    // CvTankLink.h uses interval * CV_TANK_STALE_MISSES. If either side changes
+    // alone, the app and the controller disagree about whether the pump may run
+    // — the app would show a live level while the firmware refuses to pump, or
+    // worse.
     expect(TANK_STALE_S).toBe(TANK_REPORT_INTERVAL_S * 6);
     expect(TANK_ABANDON_S).toBeGreaterThan(TANK_STALE_S);
+  });
+});
+
+describe("a report interval the owner has changed", () => {
+  /*
+   * The interval is settable from the app, to trade battery life against how
+   * quickly a level change shows up. A fixed stale window turns that setting
+   * into a trap: choose a slower cadence to save battery and the link is
+   * permanently stale, so the pump never runs and the app reports a dead
+   * sensor that is transmitting perfectly.
+   */
+  const slow = (over: Record<string, unknown> = {}) => ({
+    sensorPaired: true,
+    sensorIntervalS: 600,
+    ohPct: 42,
+    ...over,
+  });
+
+  it("does not call a slow sensor stale just for being slow", () => {
+    // 10 minutes since the last report, on a 10-minute cadence, is one report.
+    const link = readTankLink(slow({ rfAgeS: 600 }));
+    expect(link.status).toBe("live");
+    expect(link.blocksAutoFill).toBe(false);
+  });
+
+  it("still calls it stale once it has genuinely missed several", () => {
+    const link = readTankLink(slow({ rfAgeS: 600 * 6 + 10 }));
+    expect(link.status).toBe("stale");
+    expect(link.blocksAutoFill).toBe(true);
+  });
+
+  it("scales the abandon window too", () => {
+    // The old fixed 30 minutes would have withdrawn the level after three
+    // reports on a 10-minute cadence.
+    expect(readTankLink(slow({ rfAgeS: 1800 })).levelPct).toBe(42);
+    expect(tankStaleSeconds(600)).toBe(3600);
+    expect(tankAbandonSeconds(600)).toBe(36000);
+  });
+
+  it("floors the abandon window on a fast cadence", () => {
+    // At 10 s, six misses is a minute. Blanking the level after a minute of
+    // ordinary interference would be worse than useless.
+    expect(tankStaleSeconds(10)).toBe(60);
+    expect(tankAbandonSeconds(10)).toBe(TANK_ABANDON_S);
+    expect(readTankLink({ sensorPaired: true, sensorIntervalS: 10, rfAgeS: 300, ohPct: 42 }).levelPct)
+      .toBe(42);
+  });
+
+  it("falls back to the default when no interval is reported", () => {
+    expect(tankStaleSeconds(undefined)).toBe(TANK_STALE_S);
+    expect(tankStaleSeconds(null)).toBe(TANK_STALE_S);
+    expect(tankStaleSeconds(0)).toBe(TANK_STALE_S);
+  });
+
+  it("tells the user the cadence its own sensor is using", () => {
+    expect(readTankLink(slow({ rfAgeS: -1 })).detail).toContain("600");
+    expect(readTankLink({ sensorPaired: true, rfAgeS: -1 }).detail).toContain("30");
+  });
+});
+
+describe("a queued instruction", () => {
+  it("is surfaced so the UI can say the request is waiting", () => {
+    // The sensor is asleep. "Read now" cannot happen now, and a button that
+    // looks like it did nothing is worse than one that says it is waiting.
+    expect(readTankLink({ sensorPaired: true, rfAgeS: 5, downlinkPending: true }).downlinkPending)
+      .toBe(true);
+    expect(readTankLink({ sensorPaired: true, rfAgeS: 5 }).downlinkPending).toBe(false);
   });
 });

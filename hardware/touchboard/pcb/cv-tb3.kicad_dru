@@ -4,6 +4,14 @@
 #
 # Basic insulation (mains net to mains net) comes from the MAINS netclass
 # clearance. This file adds the rules that a netclass cannot express.
+(rule "pkg_internal_CX1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_CX1') && B.insideArea('PKG_CX1')"))
+
+(rule "pkg_internal_CY1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_CY1') && B.insideArea('PKG_CY1')"))
+
 (rule "pkg_internal_F1"
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_F1') && B.insideArea('PKG_F1')"))
@@ -32,9 +40,73 @@
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_K3') && B.insideArea('PKG_K3')"))
 
-(rule "pkg_internal_PS1"
+(rule "pkg_internal_PC9"
     (constraint clearance (min 0.2mm))
-    (condition "A.insideArea('PKG_PS1') && B.insideArea('PKG_PS1')"))
+    (condition "A.insideArea('PKG_PC9') && B.insideArea('PKG_PC9')"))
+
+(rule "pkg_internal_PD1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PD1') && B.insideArea('PKG_PD1')"))
+
+(rule "pkg_internal_PD2"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PD2') && B.insideArea('PKG_PD2')"))
+
+(rule "pkg_internal_PD3"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PD3') && B.insideArea('PKG_PD3')"))
+
+(rule "pkg_internal_PD4"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PD4') && B.insideArea('PKG_PD4')"))
+
+(rule "pkg_internal_PD5"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PD5') && B.insideArea('PKG_PD5')"))
+
+(rule "pkg_internal_PD6"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PD6') && B.insideArea('PKG_PD6')"))
+
+(rule "pkg_internal_PD8"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PD8') && B.insideArea('PKG_PD8')"))
+
+(rule "pkg_internal_PR1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PR1') && B.insideArea('PKG_PR1')"))
+
+(rule "pkg_internal_PR2"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PR2') && B.insideArea('PKG_PR2')"))
+
+(rule "pkg_internal_PZ1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PZ1') && B.insideArea('PKG_PZ1')"))
+
+(rule "pkg_internal_PZ2"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PZ2') && B.insideArea('PKG_PZ2')"))
+
+(rule "pkg_internal_PZ3"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PZ3') && B.insideArea('PKG_PZ3')"))
+
+(rule "pkg_internal_PZ4"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PZ4') && B.insideArea('PKG_PZ4')"))
+
+(rule "pkg_internal_PZ6"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_PZ6') && B.insideArea('PKG_PZ6')"))
+
+(rule "pkg_internal_R8"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_R8') && B.insideArea('PKG_R8')"))
+
+(rule "pkg_internal_R9"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_R9') && B.insideArea('PKG_R9')"))
 
 (rule "pkg_internal_RV1"
     (constraint clearance (min 0.2mm))
@@ -44,9 +116,29 @@
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_Rsh') && B.insideArea('PKG_Rsh')"))
 
+(rule "pkg_internal_T1"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_T1') && B.insideArea('PKG_T1')"))
+
+(rule "pkg_internal_U20"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_U20') && B.insideArea('PKG_U20')"))
+
 (rule "pkg_internal_U6"
     (constraint clearance (min 0.2mm))
     (condition "A.insideArea('PKG_U6') && B.insideArea('PKG_U6')"))
+
+(rule "pkg_internal_U7"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_U7') && B.insideArea('PKG_U7')"))
+
+(rule "pkg_internal_U8"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_U8') && B.insideArea('PKG_U8')"))
+
+(rule "pkg_internal_U9"
+    (constraint clearance (min 0.2mm))
+    (condition "A.insideArea('PKG_U9') && B.insideArea('PKG_U9')"))
 
 
 # Inside a package that bridges the barrier, pin-to-pin spacing is fixed by the
@@ -68,7 +160,11 @@
 # an explicit isolation review.
 (rule "reinforced_mains_to_selv"
     (constraint clearance (min 8.0mm))
-    (condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
+    (condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS' && B.NetClass != 'HVDC' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
+
+(rule "reinforced_hvdc_to_selv"
+    (constraint clearance (min 8.0mm))
+    (condition "A.NetClass == 'HVDC' && B.NetClass != 'HVDC' && B.NetClass != 'MAINS' && !A.insideArea('ISO_BRIDGE') && !B.insideArea('ISO_BRIDGE')"))
 
 
 # Line to neutral and line to switched load is basic insulation and is carried

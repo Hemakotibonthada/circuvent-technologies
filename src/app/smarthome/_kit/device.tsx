@@ -189,7 +189,7 @@ export function PowerButton({
               color: "#fff",
               boxShadow:
                 lit && visual.glow > 0
-                  ? `0 0 ${6 + 12 * visual.glow}px ${visual.tint || "var(--cv-accent)"}`
+                  ? `0 0 calc(${6 + 12 * visual.glow}px * var(--cv-glow-spread, 1)) ${visual.tint || "var(--cv-accent)"}`
                   : "var(--cv-shadow-1)",
             }
           : { background: "var(--cv-input-bg)", border: "1px solid var(--cv-border)", color: "var(--cv-muted)" }
@@ -414,10 +414,11 @@ export function DeviceTile({
                     background: visual.tint || tint,
                     color: "#fff",
                     /* The lamp's own glow, at its own brightness. A fixed
-                       shadow says "on"; this says how on. */
+                       shadow says "on"; this says how on. The multiplier is
+                       the theme's, not the device's — see --cv-glow-spread. */
                     boxShadow:
                       visual.glow > 0
-                        ? `0 0 ${8 + 14 * visual.glow}px ${(visual.tint || tint)}${Math.round(
+                        ? `0 0 calc(${8 + 14 * visual.glow}px * var(--cv-glow-spread, 1)) ${(visual.tint || tint)}${Math.round(
                             visual.glow * 160
                           )
                             .toString(16)

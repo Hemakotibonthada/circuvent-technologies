@@ -302,7 +302,7 @@ export function SeverityBadge({ severity, label }: { severity: Severity; label?:
  * Used for control-plane liveness, where the useful reading is "which leg is
  * down", not an aggregate percentage.
  */
-export function HealthStrip({ items }: { items: { label: string; ok: boolean; detail?: string }[] }) {
+export function HealthStrip({ items }: { items: { label: string; ok: boolean; detail?: string; status?: string; tone?: string }[] }) {
   const { c } = useTheme();
   return (
     <Card padded style={{ marginBottom: 12 }}>
@@ -317,7 +317,12 @@ export function HealthStrip({ items }: { items: { label: string; ok: boolean; de
           <StatusDot ok={it.ok} pulse={it.ok} />
           <Text style={{ color: c.text, fontWeight: "700", fontSize: 14, flex: 1 }}>{it.label}</Text>
           {!!it.detail && <Text style={{ color: c.faint, fontSize: 12 }}>{it.detail}</Text>}
-          <Pill label={it.ok ? "UP" : "DOWN"} color={it.ok ? c.green : c.red} />
+          {/* `status`/`tone` exist because not every leg is binary. A
+              certificate expiring in six weeks is not DOWN — the broker is
+              serving fine — but "UP" is the wrong thing to tell somebody who
+              needs to schedule a renewal. Both default to the UP/DOWN pill, so
+              every existing caller is unaffected. */}
+          <Pill label={it.status ?? (it.ok ? "UP" : "DOWN")} color={it.tone ?? (it.ok ? c.green : c.red)} />
         </View>
       ))}
     </Card>

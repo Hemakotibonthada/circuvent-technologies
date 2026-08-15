@@ -57,6 +57,12 @@ export { useLocalStorage } from "./useLocalStorage";
  */
 export { useCountUp } from "./useCountUp";
 
+/**
+ * Read and write the document-level view settings (density, scale, width)
+ * @returns { settings, ready, update, reset }
+ */
+export { useViewSettings } from "./useViewSettings";
+
 // ============================================================
 // TIMING HOOKS
 // ============================================================

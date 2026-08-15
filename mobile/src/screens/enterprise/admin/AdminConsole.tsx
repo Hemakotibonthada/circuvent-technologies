@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
-import { api, type AdminDevice, type AdminEvent, type AdminStats } from "../../../api";
+import { api, type AdminDevice, type AdminEvent, type AdminHealth, type AdminStats } from "../../../api";
+import { describeBrokerCert } from "../../../broker-cert";
 import { useTheme, Card, useAppActive, EmptyState } from "../../../ui";
-import { HealthStrip, HeroBand, Kpi, KpiGrid, LoadingState } from "../../../enterprise-ui";
+import { Callout, HealthStrip, HeroBand, Kpi, KpiGrid, LoadingState } from "../../../enterprise-ui";
 import { BarChart, Donut, Legend } from "../../../charts";
 import { bucketSeries, fleetHealth, formatDuration, formatRelative, pct } from "../../../enterprise";
 import { unwrap, useAdminResource } from "./useAdmin";
@@ -17,7 +18,10 @@ type LocalScreen = "console" | "users" | "roles" | "audit" | "reports" | "settin
 
 interface ConsoleData {
   stats: AdminStats;
-  health: { mqtt: boolean; db: boolean; uptimeSec: number; node: string };
+  /* AdminHealth rather than a fourth hand-written copy of its shape. The
+     inline structural type here is how this screen missed the certificate
+     field entirely — it could not see what it had not restated. */
+  health: AdminHealth;
   devices: AdminDevice[];
   events: AdminEvent[];
 }
@@ -73,11 +77,13 @@ function ConsoleReady({ data, refreshing, onRefresh, onBack, open }: { data: Con
   const min = times.length ? Math.min(...times) : 0;
   const max = times.length ? Math.max(...times) : 0;
   const bucketSize = min && max ? formatDuration(Math.max(1, (max - min) / 1000 / 8)) : "no observed span";
+  const cert = describeBrokerCert(data.health.brokerCert);
 
   return (
     <AdminScreenFrame title="Admin Console" subtitle="Operations landing page" onBack={onBack} refreshing={refreshing} onRefresh={onRefresh} actions={[{ icon: "refresh", label: "Refresh", onPress: onRefresh }]}>
       <HeroBand label="Control plane" value={data.health.db && data.health.mqtt ? "Healthy" : "Needs attention"} caption="Real-time status from /admin/health" right={<Text style={{ color: c.onAccent, fontWeight: "900" }}>{formatDuration(data.health.uptimeSec)}</Text>} />
-      <HealthStrip items={[{ label: "Database", ok: data.health.db }, { label: "MQTT broker", ok: data.health.mqtt }, { label: "Node runtime", ok: !!data.health.node, detail: data.health.node }, { label: "Uptime", ok: data.health.uptimeSec > 0, detail: formatDuration(data.health.uptimeSec) }]} />
+      {cert.urgent ? <Callout kind={cert.level === "expired" ? "critical" : "warning"} icon="shield" title="Broker certificate" text={cert.advice ?? ""} /> : null}
+      <HealthStrip items={[{ label: "Database", ok: data.health.db }, { label: "MQTT broker", ok: data.health.mqtt }, { label: "Broker certificate", ok: cert.level !== "expired", status: cert.detail.toUpperCase(), tone: cert.level === "expired" ? c.red : cert.level === "expiring" ? c.amber : cert.level === "unknown" ? c.faint : c.green }, { label: "Node runtime", ok: !!data.health.node, detail: data.health.node }, { label: "Uptime", ok: data.health.uptimeSec > 0, detail: formatDuration(data.health.uptimeSec) }]} />
       <KpiGrid>
         <Kpi icon="users" label="Users" value={data.stats.users} />
         <Kpi icon="devices" label="Devices" value={data.stats.devices} />

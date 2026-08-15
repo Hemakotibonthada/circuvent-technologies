@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { useFleet, useIsAdmin, useAdminHealth, useControlPlaneProbe } from "../_data/hooks";
+import { describeBrokerCert } from "../admin/_lib/broker-cert";
 import {
   healthScore,
   getThresholds,
@@ -72,6 +73,8 @@ export function HealthPanel() {
   }).length;
 
   const lastMs = probe.stats.last?.ms ?? null;
+  const cert = describeBrokerCert(adminHealth.health?.brokerCert);
+  const certTone = cert.level === "expired" ? "critical" : cert.level === "expiring" ? "warning" : cert.level === "unknown" ? "info" : "ok";
   const rttColor = (ms: number | null) =>
     ms == null
       ? "var(--cv-muted)"
@@ -167,6 +170,16 @@ export function HealthPanel() {
           >
             Infrastructure (admin)
           </h3>
+          {/* Renewal has a lead time, so the useful moment to say this is weeks
+              before the date. Same wording as the fleet console and the phone —
+              the judgement has one owner in admin/_lib/broker-cert.ts. */}
+          {cert.urgent && (
+            <div className="mb-3">
+              <Callout tone={cert.level === "expired" ? "critical" : "warning"} title="Broker certificate">
+                {cert.advice}
+              </Callout>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {(
               [
@@ -182,6 +195,15 @@ export function HealthPanel() {
                 <Badge tone={ok ? "ok" : "critical"}>{ok ? "OK" : "Down"}</Badge>
               </div>
             ))}
+            <div className="flex items-center gap-2">
+              {/* The broker is up whatever the certificate says, so the dot
+                  tracks the broker and only the badge carries the expiry. */}
+              <StatusDot online={cert.level !== "expired"} pulse={false} />
+              <span className="text-sm font-semibold" style={{ color: "var(--cv-text)" }}>
+                Certificate
+              </span>
+              <Badge tone={certTone}>{cert.detail}</Badge>
+            </div>
             <div className="col-span-2 text-sm" style={{ color: "var(--cv-muted)" }}>
               Uptime:{" "}
               <span className="font-semibold" style={{ color: "var(--cv-text)" }}>

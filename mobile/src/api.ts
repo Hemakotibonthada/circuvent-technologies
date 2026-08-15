@@ -533,12 +533,34 @@ export interface GatePassBody {
   maxUses?: number;
 }
 
+/**
+ * The TLS certificate the MQTT broker presents, from `/admin/health`.
+ *
+ * Mirrors `BrokerCertInfo` in platform/api/src/broker-cert.ts and the console's
+ * copy in src/lib/control-plane.ts. Pinned by tests/broker-cert-surface.test.ts.
+ */
+export interface BrokerCertInfo {
+  subject: string;
+  issuer: string;
+  /** ISO-8601. */
+  validTo: string;
+  daysRemaining: number;
+  /** Set by the server at its own threshold — read it, do not re-derive it. */
+  expiringSoon: boolean;
+}
+
 /** Control-plane liveness (`/admin/health`). */
 export interface AdminHealth {
   mqtt: boolean;
   db: boolean;
   uptimeSec: number;
   node: string;
+  /**
+   * Absent when the API could not reach the broker to inspect it, and on any
+   * control plane older than this field. Optional rather than defaulted, so
+   * "not checked" stays distinguishable from "checked and fine".
+   */
+  brokerCert?: BrokerCertInfo | null;
 }
 
 /** Full device record from `/admin/devices/:id` (superset of AdminDevice). */

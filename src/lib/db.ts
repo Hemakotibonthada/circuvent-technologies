@@ -1005,6 +1005,118 @@ export function allCollections(): (keyof DB)[] {
   return [...(Object.values(TYPED_TABLES) as (keyof DB)[]), ...KV_COLLECTIONS];
 }
 
+/* ------------------------------------------------------------------ *
+ * Per-user console preferences                                        *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Console preferences — channel names, dashboards, profile.
+ *
+ * These lived in a JSON file under DATA_DIR, which on Vercel is neither
+ * writable nor shared: `createFileStore` catches the write failure and
+ * degrades to memory *for that lambda instance*. A rename therefore lasted
+ * until the next cold start and was invisible to every other instance, which
+ * is why a switch renamed on the phone stayed "Channel 3" in the browser, and
+ * why a private window — with no localStorage cache to paint from — showed the
+ * defaults for channels that had been named months ago.
+ *
+ * Stored in `store_kv` rather than a new table because that is exactly the
+ * shape it needs: one JSONB document per (collection, key).
+ */
+const USER_PREFS_COLLECTION = "user_prefs";
+
+export async function dbReadUserPrefs(userKey: string): Promise<Record<string, unknown>> {
+  await initDb();
+  const q = await getQuery();
+  const rows = await q(
+    `SELECT data FROM store_kv WHERE collection = $1 AND key = $2`,
+    [USER_PREFS_COLLECTION, userKey]
+  );
+  const data = rows[0]?.data;
+  return data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+}
+
+/**
+ * Writes one scope, leaving the others alone.
+ *
+ * The merge happens in the statement rather than as read-modify-write in
+ * JavaScript. Two of the same person's devices save at the same time far more
+ * often than it sounds — the phone syncs channel names on resume while the
+ * browser autosaves a dashboard — and a read-modify-write loses whichever
+ * landed first. `data || jsonb_build_object(...)` is atomic, so concurrent
+ * writes to *different* scopes cannot erase each other.
+ */
+export async function dbWriteUserPrefScope(
+  userKey: string,
+  scope: string,
+  value: unknown
+): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q(
+    `INSERT INTO store_kv (collection, key, data)
+     VALUES ($1, $2, jsonb_build_object($3::text, $4::jsonb))
+     ON CONFLICT (collection, key)
+     DO UPDATE SET data = store_kv.data || jsonb_build_object($3::text, $4::jsonb),
+                   updated_at = now()`,
+    [USER_PREFS_COLLECTION, userKey, scope, JSON.stringify(value ?? null)]
+  );
+}
+
+/** Removes one scope. Returns whether there was anything to remove. */
+export async function dbClearUserPrefScope(userKey: string, scope: string): Promise<boolean> {
+  await initDb();
+  const q = await getQuery();
+  const rows = await q(
+    `UPDATE store_kv SET data = data - $3::text, updated_at = now()
+     WHERE collection = $1 AND key = $2 AND data ? $3::text
+     RETURNING key`,
+    [USER_PREFS_COLLECTION, userKey, scope]
+  );
+  return rows.length > 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Feature-module documents                                            *
+ * ------------------------------------------------------------------ */
+
+/**
+ * The durable half of `createFileStore`.
+ *
+ * Those modules — incidents, CMS, pricing, warranty and two dozen others —
+ * each own a JSON file under DATA_DIR. That is correct locally and silently
+ * wrong in production: the filesystem is read-only, `createFileStore` catches
+ * the write failure and continues in memory, so each module's data survives
+ * only until that lambda instance is recycled and is invisible to every other
+ * instance in the meantime. Incidents filed in the morning were simply gone.
+ *
+ * One row per file, keyed by the file name it would otherwise have written, so
+ * a module opts in without changing its shape or its accessors.
+ */
+const FILE_STORE_COLLECTION = "file_store";
+
+export async function dbReadFileStore<T>(filename: string): Promise<T | null> {
+  await initDb();
+  const q = await getQuery();
+  const rows = await q(
+    `SELECT data FROM store_kv WHERE collection = $1 AND key = $2`,
+    [FILE_STORE_COLLECTION, filename]
+  );
+  const data = rows[0]?.data;
+  return data === undefined || data === null ? null : (data as T);
+}
+
+export async function dbWriteFileStore(filename: string, value: unknown): Promise<void> {
+  await initDb();
+  const q = await getQuery();
+  await q(
+    `INSERT INTO store_kv (collection, key, data) VALUES ($1, $2, $3::jsonb)
+     ON CONFLICT (collection, key)
+     DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+    [FILE_STORE_COLLECTION, filename, JSON.stringify(value ?? null)]
+  );
+}
+
 /**
  * Non-destructive connectivity + schema check for a real database. Creates the
  * schema (idempotent), performs an isolated write/read/delete on a reserved

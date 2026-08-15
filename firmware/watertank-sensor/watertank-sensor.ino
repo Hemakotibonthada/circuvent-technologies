@@ -67,7 +67,20 @@ bool paired = false;
 RTC_DATA_ATTR uint32_t rtcSeq = 0;
 RTC_DATA_ATTR bool rtcSeqValid = false;
 
+/*
+ * The highest downlink sequence accepted, kept across sleep for the same
+ * reason in the other direction: without it a recorded "measure now" could be
+ * replayed at this unit repeatedly, and each replay costs a transmission —
+ * which on a battery is the attack that matters here, not the instruction
+ * itself.
+ */
+RTC_DATA_ATTR uint32_t rtcDownSeq = 0;
+
+/** Report cadence, tunable from the app so a roof visit is not needed. */
+RTC_DATA_ATTR uint16_t rtcIntervalS = 0;
+
 uint16_t lastMm = 0;
+bool pairAcked = false;
 
 // ------------------------------------------------------------------ sensing --
 
@@ -154,6 +167,7 @@ void loadIdentity() {
      */
     rtcSeq = store.getUInt("seq", 0) + 1000;
     rtcSeqValid = true;
+    rtcIntervalS = store.getUShort("interval", 0);
   }
 }
 
@@ -197,16 +211,38 @@ void sendPairOffer() {
 void pairingMode() {
   uint32_t started = millis();
   bool led = false;
-  while (millis() - started < CV_TANK_PAIR_WINDOW_MS) {
+  pairAcked = false;
+
+  /*
+   * Stop as soon as the starter acknowledges, rather than transmitting for the
+   * full minute regardless. The installer is standing on a roof; telling them
+   * immediately that it worked is most of the value of having a downlink at all.
+   */
+  while (millis() - started < CV_TANK_PAIR_WINDOW_MS && !pairAcked) {
     sendPairOffer();
+    listenForDownlink();
     led = !led;
     digitalWrite(LED_PIN, led ? HIGH : LOW);
-    delay(1000);
+    if (!pairAcked) delay(900);
+  }
+
+  if (pairAcked) {
+    // Solid, unmistakable: paired.
+    for (int i = 0; i < 3; i++) {
+      digitalWrite(LED_PIN, HIGH); delay(220);
+      digitalWrite(LED_PIN, LOW); delay(120);
+    }
+  } else {
+    /*
+     * Nothing heard us. Say so, rather than claiming success — the previous
+     * behaviour sent people back up a ladder to find out.
+     */
+    for (int i = 0; i < 10; i++) {
+      digitalWrite(LED_PIN, HIGH); delay(60);
+      digitalWrite(LED_PIN, LOW); delay(60);
+    }
   }
   digitalWrite(LED_PIN, LOW);
-  // The starter records the pairing; this unit simply keeps using its key.
-  paired = true;
-  store.putBool("paired", true);
 }
 
 // ------------------------------------------------------------------- report --
@@ -239,11 +275,84 @@ bool radioUp() {
   return true;
 }
 
+// ----------------------------------------------------------------- downlink --
+
+/**
+ * Listen briefly for an instruction from the starter.
+ *
+ * Called immediately after transmitting, which is the only moment a
+ * deep-sleeping unit can cheaply be reached: the radio is already on, and the
+ * starter knows to within milliseconds when to answer. Returns true if a
+ * "measure now" arrived, so the caller can take a fresh reading before sleeping.
+ */
+bool listenForDownlink() {
+  LoRa.receive();
+  uint32_t until = millis() + CV_TANK_RX_WINDOW_MS;
+  bool measureNow = false;
+
+  while ((int32_t)(millis() - until) < 0) {
+    int sz = LoRa.parsePacket();
+    if (sz <= 0) { delay(2); continue; }
+
+    if (sz != (int)sizeof(CvTankDownlink)) {
+      while (LoRa.available()) LoRa.read();   // someone else on the band
+      continue;
+    }
+
+    CvTankDownlink d;
+    uint8_t *raw = (uint8_t *)&d;
+    for (size_t i = 0; i < sizeof(d) && LoRa.available(); i++) raw[i] = (uint8_t)LoRa.read();
+    while (LoRa.available()) LoRa.read();
+
+    if (d.pairId != pairId) continue;
+    if (!cvTankVerifyDownlink(d, linkKey)) continue;
+    // Replays cost this unit a transmission each, which on a battery is the
+    // part worth defending against.
+    if (d.seq <= rtcDownSeq) continue;
+    rtcDownSeq = d.seq;
+
+    if (d.instructions & CV_TANK_DOWN_PAIR_ACK) {
+      /*
+       * The starter has us. This is what pairing was missing: the sensor used
+       * to transmit for the full window and then declare success whether or not
+       * anything heard it, so an installer got a confident "done" indication,
+       * climbed down, and found nothing worked.
+       */
+      pairAcked = true;
+      paired = true;
+      store.putBool("paired", true);
+    }
+
+    if (d.reportIntervalS != 0) {
+      uint16_t want = cvTankClampInterval(d.reportIntervalS);
+      if (want != rtcIntervalS) {
+        rtcIntervalS = want;
+        store.putUShort("interval", want);
+      }
+    }
+
+    if (d.instructions & CV_TANK_DOWN_IDENTIFY) {
+      for (int i = 0; i < 8; i++) {
+        digitalWrite(LED_PIN, HIGH); delay(60);
+        digitalWrite(LED_PIN, LOW); delay(60);
+      }
+    }
+
+    if (d.instructions & CV_TANK_DOWN_MEASURE_NOW) measureNow = true;
+
+    break;   // One instruction per window is enough.
+  }
+
+  return measureNow;
+}
+
 void sleepUntilNextReport() {
   LoRa.sleep();
   SPI.end();
   digitalWrite(SENSOR_EN, LOW);  // the ultrasonic module is the biggest idle draw
-  esp_sleep_enable_timer_wakeup((uint64_t)CV_TANK_REPORT_INTERVAL_MS * 1000ULL);
+  uint32_t ms = (uint32_t)rtcIntervalS * 1000UL;
+  if (ms == 0) ms = CV_TANK_REPORT_INTERVAL_MS;
+  esp_sleep_enable_timer_wakeup((uint64_t)ms * 1000ULL);
   /*
    * Also wake on the pairing button, so pairing does not mean holding a button
    * through a whole sleep cycle on a roof.
@@ -288,6 +397,17 @@ void setup() {
 
   uint16_t mv = readBatteryMv();
   sendReading(lastMm, mv);
+
+  /*
+   * Listen once, right after speaking. If the starter asked for a fresh
+   * reading — someone pulled to refresh in the app — take one and send it now
+   * rather than making them wait out the sleep interval.
+   */
+  if (listenForDownlink()) {
+    lastMm = medianDistanceMm();
+    sendReading(lastMm, readBatteryMv());
+    listenForDownlink();   // the reply may carry a new interval
+  }
 
   // A short blink is worth the microamps: it is the only way an installer on a
   // roof can tell the unit is alive.

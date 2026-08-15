@@ -108,6 +108,82 @@ async function main() {
   assert(lat.some((r) => r.endpoint === "/api/orders" && r.status === 500), "latency error status preserved");
   assert(lat.every((r) => typeof r.ms === "number"), "latency ms column is numeric");
 
+  // ---- per-user console preferences (store_kv) -----------------------------
+  //
+  // Channel names are edited on a phone and read in a browser, so the only
+  // property that matters is that a write from one client is visible to every
+  // other. They previously were not: the store wrote a JSON file, Vercel's
+  // filesystem is read-only, and createFileStore catches that and continues in
+  // memory *per lambda instance*. The console paints from a localStorage cache,
+  // so the browser that did the renaming looked correct while every other
+  // client — and every private window — showed "Channel 3".
+  console.log("user preferences…");
+  const LABELS = { "home-hub-978dde59": { ch1: "FAN", ch2: "Tube light" } };
+
+  assert(Object.keys(await db.dbReadUserPrefs("u1")).length === 0, "unknown user has no prefs");
+
+  await db.dbWriteUserPrefScope("u1", "channel-labels", LABELS);
+  const asBrowser: any = await db.dbReadUserPrefs("u1");
+  assert(asBrowser["channel-labels"]["home-hub-978dde59"].ch1 === "FAN", "a name written by one client is readable by another");
+  assert(asBrowser["channel-labels"]["home-hub-978dde59"].ch3 === undefined, "an unnamed channel stays unnamed (falls back)");
+
+  await db.dbWriteUserPrefScope("u2", "channel-labels", { d: { ch1: "Someone else" } });
+  const stillMine: any = await db.dbReadUserPrefs("u1");
+  assert(stillMine["channel-labels"]["home-hub-978dde59"].ch1 === "FAN", "one account's names are not another's");
+
+  // Two of the same person's devices saving different scopes at the same moment.
+  // A read-modify-write in JavaScript loses whichever landed first; the merge is
+  // done in the statement so it cannot. Issued concurrently so this would notice.
+  await Promise.all([
+    db.dbWriteUserPrefScope("u1", "dashboard", { cols: 4 }),
+    db.dbWriteUserPrefScope("u1", "device-widgets", { d: { ch1: { kind: "fan" } } }),
+    db.dbWriteUserPrefScope("u1", "profile", { displayName: "Hema" }),
+  ]);
+  const merged: any = await db.dbReadUserPrefs("u1");
+  assert(
+    ["channel-labels", "dashboard", "device-widgets", "profile"].every((s) => s in merged),
+    "concurrent writes to different scopes all survive"
+  );
+  assert(merged["channel-labels"]["home-hub-978dde59"].ch2 === "Tube light", "an earlier scope is untouched by later ones");
+
+  // Replacing a scope is wholesale, so clearing a name really clears it.
+  await db.dbWriteUserPrefScope("u1", "channel-labels", { "home-hub-978dde59": { ch1: "FAN" } });
+  const trimmed: any = await db.dbReadUserPrefs("u1");
+  assert(trimmed["channel-labels"]["home-hub-978dde59"].ch2 === undefined, "a removed name does not linger");
+  assert(trimmed.dashboard.cols === 4, "replacing one scope leaves the others alone");
+
+  assert((await db.dbClearUserPrefScope("u1", "channel-labels")) === true, "clearing a scope reports it removed something");
+  const cleared: any = await db.dbReadUserPrefs("u1");
+  assert(!("channel-labels" in cleared), "the cleared scope is gone");
+  assert(cleared.dashboard.cols === 4, "clearing one scope keeps the rest");
+  assert((await db.dbClearUserPrefScope("u1", "channel-labels")) === false, "clearing nothing reports nothing removed");
+  const otherUser: any = await db.dbReadUserPrefs("u2");
+  assert(otherUser["channel-labels"].d.ch1 === "Someone else", "clearing one account does not touch another");
+
+  // ---- feature-module documents (store_kv) --------------------------------
+  //
+  // The durable half of createFileStore. Incidents were the visible casualty:
+  // the store wrote a JSON file, the serverless filesystem is read-only, and
+  // the helper catches that and continues in memory — so a queue that had 32
+  // incidents filed against it read empty, while the counter behind INC-0032
+  // survived in whichever instance still held it.
+  console.log("feature-module documents…");
+  assert((await db.dbReadFileStore("admin-icm.json")) === null, "an unwritten module document reads as absent");
+
+  const icm = { incidents: [{ id: "INC-0001", title: "Gateway timeouts" }], seq: 1, teams: ["Platform"] };
+  await db.dbWriteFileStore("admin-icm.json", icm);
+  const backIcm: any = await db.dbReadFileStore("admin-icm.json");
+  assert(backIcm.incidents[0].id === "INC-0001", "an incident written by one instance is readable by another");
+  assert(backIcm.seq === 1, "the id counter travels with the incidents it numbered");
+
+  await db.dbWriteFileStore("admin-icm.json", { ...icm, seq: 2, incidents: [...icm.incidents, { id: "INC-0002" }] });
+  const grown: any = await db.dbReadFileStore("admin-icm.json");
+  assert(grown.incidents.length === 2 && grown.seq === 2, "a later write replaces the document wholesale");
+
+  await db.dbWriteFileStore("admin-cms.json", { pages: [] });
+  const stillIcm: any = await db.dbReadFileStore("admin-icm.json");
+  assert(stillIcm.incidents.length === 2, "one module's document is not another's");
+
   console.log(failures === 0 ? "\nALL PASSED" : `\n${failures} FAILURE(S)`);
   process.exit(failures === 0 ? 0 : 1);
 }

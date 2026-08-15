@@ -199,6 +199,13 @@ export default function IcmPanel() {
   const [hideDuplicates, setHideDuplicates] = useState(true);
   const [views, setViews] = useState<SavedView[]>([]);
   const [onCall, setOnCall] = useState<Record<string, string>>({});
+  const [teamContacts, setTeamContacts] = useState<Record<string, string[]>>({});
+  const [showTeamMail, setShowTeamMail] = useState(false);
+  const [mailHealth, setMailHealth] = useState<{
+    verdict: "ok" | "degraded" | "broken";
+    summary: string;
+    smtp: { advice: string };
+  } | null>(null);
   const [activeView, setActiveView] = useState("");
   const [postmortemsDue, setPostmortemsDue] = useState<{ id: string; title: string }[]>([]);
   const [actions, setActions] = useState<OpenAction[]>([]);
@@ -221,6 +228,7 @@ export default function IcmPanel() {
         setTeams(b.teams || []);
         setViews(b.views || []);
         setOnCall(b.onCall || {});
+        setTeamContacts(b.teamContacts || {});
         setPostmortemsDue(b.postmortemsDue || []);
         setActions(b.actionsOutstanding || []);
         setNow(b.now || new Date().toISOString());
@@ -234,6 +242,29 @@ export default function IcmPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /*
+   * Whether any of this can actually reach anybody.
+   *
+   * An incident queue whose notifications are silently going nowhere is worse
+   * than no queue: it looks like the team was told. Checked once when the panel
+   * opens, from a timer so the state is set from an external callback rather
+   * than synchronously inside the effect.
+   */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const r = await fetch("/api/admin/emails?health=1", { headers: { "x-admin-token": tok() } });
+          const b = await r.json();
+          if (b?.ok && b.health) setMailHealth(b.health);
+        } catch {
+          /* The banner is an extra; failing to fetch it must not colour the queue. */
+        }
+      })();
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   /*
    * The clocks tick without refetching.
@@ -585,10 +616,58 @@ export default function IcmPanel() {
               .join(" · ")}
           </span>
         )}
+        <button
+          onClick={() => setShowTeamMail((v) => !v)}
+          aria-expanded={showTeamMail}
+          title="Where each team's incident mail goes"
+          className="h-[32px] rounded-full border cv-border px-3 text-xs cv-text-secondary hover:cv-surface-alt"
+        >
+          Team mail
+          {/* Silent routing is the failure this whole path exists to remove, so
+              a team that reaches nobody is called out rather than left to be
+              discovered during an outage. */}
+          {teams.some((t) => !(teamContacts[t] ?? []).length) && (
+            <span className="ml-1.5 text-amber-400">
+              {teams.filter((t) => !(teamContacts[t] ?? []).length).length} unrouted
+            </span>
+          )}
+        </button>
       </div>
+
+      {showTeamMail && (
+        <TeamMailEditor
+          teams={teams}
+          contacts={teamContacts}
+          onSaved={(next) => setTeamContacts(next)}
+          onError={setError}
+        />
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">{error}</div>
+      )}
+
+      {mailHealth && mailHealth.verdict !== "ok" && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{
+            borderColor: mailHealth.verdict === "broken" ? "rgba(220,38,38,0.5)" : "rgba(245,158,11,0.45)",
+            background: mailHealth.verdict === "broken" ? "rgba(220,38,38,0.08)" : "rgba(245,158,11,0.07)",
+          }}
+        >
+          <div
+            className="font-bold"
+            style={{ color: mailHealth.verdict === "broken" ? "#b91c1c" : "#b45309" }}
+          >
+            {mailHealth.verdict === "broken"
+              ? "Incident mail is not being delivered."
+              : "Incident mail is going out on the fallback transport."}
+          </div>
+          <div className="mt-0.5 cv-text-secondary">{mailHealth.summary}</div>
+          {mailHealth.smtp.advice && (
+            <div className="mt-1 text-[12.5px] cv-text-muted">{mailHealth.smtp.advice}</div>
+          )}
+        </div>
       )}
 
       <div className="overflow-hidden rounded-xl border cv-border">
@@ -695,6 +774,101 @@ function IncidentRow({ inc, now, onOpen }: { inc: Incident; now: string; onOpen:
       </td>
       <td className="px-3 py-2.5 text-[12px] cv-text-muted">{formatMins(age)}</td>
     </tr>
+  );
+}
+
+/* ------------------------------------------------------------ team mail -- */
+
+/**
+ * Where each team's incident mail goes.
+ *
+ * A team was only ever a name until this existed: incidents routed to it
+ * notified whoever happened to be assigned, whoever the rota named, and one
+ * global address shared by every team. A team with an empty rota and nobody
+ * assigned notified nobody at all, and there was no screen anywhere that would
+ * have shown you that.
+ */
+function TeamMailEditor({
+  teams,
+  contacts,
+  onSaved,
+  onError,
+}: {
+  teams: string[];
+  contacts: Record<string, string[]>;
+  onSaved: (next: Record<string, string[]>) => void;
+  onError: (message: string) => void;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState("");
+
+  const valueFor = (team: string) => draft[team] ?? (contacts[team] ?? []).join(", ");
+
+  const save = async (team: string) => {
+    setSaving(team);
+    onError("");
+    try {
+      const r = await fetch("/api/admin/icm", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify({ kind: "team-contacts", team, emails: valueFor(team) }),
+      });
+      const b = await r.json();
+      if (!r.ok || !b.success) onError(b.message || "Could not save that address.");
+      else {
+        onSaved(b.teamContacts || {});
+        setDraft((d) => {
+          const next = { ...d };
+          delete next[team];
+          return next;
+        });
+      }
+    } catch {
+      onError("Could not reach the incident service.");
+    }
+    setSaving("");
+  };
+
+  return (
+    <div className="rounded-xl border cv-border p-3">
+      <div className="mb-2 text-[12px] cv-text-secondary">
+        Every incident filed against a team, and every update to it, is mailed to these addresses —
+        alongside whoever is assigned and whoever the rota names. Leave one blank to fall back to the
+        address configured for the deployment.
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {teams.map((team) => {
+          const routed = (contacts[team] ?? []).length > 0;
+          const dirty = draft[team] !== undefined;
+          return (
+            <div key={team} className="flex items-center gap-2">
+              <span
+                className="w-32 shrink-0 truncate text-[12.5px] font-semibold"
+                style={{ color: routed ? "var(--text-primary)" : "#b45309" }}
+                title={routed ? undefined : "No address — incidents for this team reach nobody"}
+              >
+                {team}
+              </span>
+              <input
+                value={valueFor(team)}
+                onChange={(e) => setDraft((d) => ({ ...d, [team]: e.target.value }))}
+                placeholder="team@circuvent.com"
+                aria-label={`Mail for ${team}`}
+                className="h-8 min-w-0 flex-1 rounded-lg border cv-border px-2 text-[12.5px]"
+                style={{ background: "var(--bg-glass)", color: "var(--text-primary)" }}
+              />
+              <button
+                onClick={() => void save(team)}
+                disabled={!dirty || saving === team}
+                className="h-8 shrink-0 rounded-lg border cv-border px-2.5 text-[12px] font-semibold cv-text-secondary disabled:opacity-40"
+              >
+                {saving === team ? "Saving…" : "Save"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

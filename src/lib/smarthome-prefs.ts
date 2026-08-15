@@ -57,43 +57,111 @@ export function useUserPrefs<T>(scope: PrefScope, fallback: T): PrefsApi<T> {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef<T>(value);
   latest.current = value;
+  /*
+   * True from the moment an edit is made until its save has been sent.
+   * A refresh that landed in that window would overwrite what the person is
+   * in the middle of typing with the server's older copy — which reads as the
+   * field undoing itself.
+   */
+  const pending = useRef(false);
+  /*
+   * Set once this device has offered its cached copy to an empty server.
+   * See the adoption branch in `pull`.
+   */
+  const seeded = useRef(false);
+  const persistRef = useRef<(next: T) => void>(() => {});
+
+  /** True for a document that is worth keeping — `{}` is not. */
+  const hasContent = (v: unknown): boolean =>
+    v !== null && typeof v === "object" && Object.keys(v as object).length > 0;
+
+  /** Fetches the authoritative copy and adopts it unless an edit is in flight. */
+  const pull = useCallback(async (): Promise<void> => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/smarthome/prefs?scope=${scope}`, {
+        headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (!d?.ok || pending.current) return;
+
+      if (d.value !== null && d.value !== undefined) {
+        setValue(d.value as T);
+        writeCache(scope, d.value);
+        return;
+      }
+
+      /*
+       * The server has nothing and this device does.
+       *
+       * That combination used to be permanent: preferences were written to a
+       * JSON file that Vercel cannot keep, so every rename ever made lives
+       * only in the localStorage of the browser — or the AsyncStorage of the
+       * phone — that made it. Now that there is somewhere durable to put them,
+       * the first client to notice hands its copy over, and the names appear
+       * on every other device without anybody having to rename anything twice.
+       *
+       * Once only, and only when there is something to offer, so two tabs do
+       * not take turns re-uploading an empty document.
+       */
+      if (!seeded.current && hasContent(latest.current)) {
+        seeded.current = true;
+        persistRef.current(latest.current);
+      }
+    } catch {
+      /* offline — keep the cached copy */
+    }
+  }, [scope]);
 
   // Pull the authoritative copy once the token is available.
   useEffect(() => {
     let cancelled = false;
-    const token = getToken();
-    if (!token) {
-      setLoading(false);
-      return;
+    if (!getToken()) {
+      // No console session yet; nothing to load and nothing to wait for.
+      const t = setTimeout(() => setLoading(false), 0);
+      return () => clearTimeout(t);
     }
-    fetch(`/api/smarthome/prefs?scope=${scope}`, {
-      headers: { authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (cancelled || !d?.ok) return;
-        if (d.value !== null && d.value !== undefined) {
-          setValue(d.value as T);
-          writeCache(scope, d.value);
-        }
-      })
-      .catch(() => {
-        /* offline — keep the cached copy */
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void (async () => {
+      await pull();
+      if (!cancelled) setLoading(false);
+    })();
     return () => {
       cancelled = true;
     };
-  }, [scope]);
+  }, [pull]);
+
+  /*
+   * Re-read when the tab comes back to the front.
+   *
+   * These names are edited from several devices belonging to one person — the
+   * phone in the room with the switch, the browser at a desk. Fetching only on
+   * mount means a tab left open all day keeps showing the name a channel had
+   * when it was opened, and the person renaming it on their phone concludes it
+   * did not work. Focus is the moment they look at it again, which is exactly
+   * when it needs to be right.
+   */
+  useEffect(() => {
+    const onFocus = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void pull();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [pull]);
 
   const persist = useCallback(
     (next: T) => {
       writeCache(scope, next);
       const token = getToken();
       if (!token) return;
+      pending.current = true;
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
         fetch(`/api/smarthome/prefs?scope=${scope}`, {
@@ -101,14 +169,34 @@ export function useUserPrefs<T>(scope: PrefScope, fallback: T): PrefsApi<T> {
           headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
           body: JSON.stringify({ value: next }),
         })
-          .then((r) => {
-            setError(r.ok ? "" : "Saved on this device only — could not reach the server.");
+          .then(async (r) => {
+            /*
+             * `durable` is the server saying whether this outlives the instance
+             * that handled the request. It used to be able to answer "no" and
+             * still return ok, so a rename could be reported as saved and be
+             * gone by the next cold start. Treated as a failure here, because
+             * from the user's point of view that is what it is.
+             */
+            const body = await r.json().catch(() => null);
+            if (!r.ok) setError("Saved on this device only — could not reach the server.");
+            else if (body && body.durable === false) {
+              setError("Saved on this device only — the server has nowhere durable to keep it.");
+            } else setError("");
           })
-          .catch(() => setError("Saved on this device only — you appear to be offline."));
+          .catch(() => setError("Saved on this device only — you appear to be offline."))
+          .finally(() => {
+            pending.current = false;
+          });
       }, 350);
     },
     [scope]
   );
+  /* Assigned in an effect rather than during render: `pull` needs to call the
+     current `persist` without taking it as a dependency, which would rebuild
+     the fetch — and re-run it — on every render. */
+  useEffect(() => {
+    persistRef.current = persist;
+  }, [persist]);
 
   const save = useCallback(
     (next: T) => {

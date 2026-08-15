@@ -82,8 +82,15 @@ extern "C" {
 
 // ---------------------------------------------------------------- protocol --
 
-/** Bumped only for a wire-format change. Receivers reject anything else. */
-#define CV_TANK_PROTO_VERSION 1
+/**
+ * Bumped only for a wire-format change. Receivers reject anything else, so a
+ * half-upgraded pair refuses to talk rather than misreading each other's
+ * fields — which matters here because the two units update separately and a
+ * sensor on a roof can sit a version behind its starter for a while.
+ *
+ * v2 added the downlink (starter -> sensor).
+ */
+#define CV_TANK_PROTO_VERSION 2
 
 /** 'C','V','T' — a cheap first-pass filter before spending time on the MAC. */
 #define CV_TANK_MAGIC0 0x43
@@ -95,8 +102,9 @@ extern "C" {
 
 /** Packet kinds. */
 enum : uint8_t {
-  CV_TANK_MSG_READING = 1,  ///< Routine level report, sensor -> starter.
-  CV_TANK_MSG_PAIR = 2,     ///< Pairing offer, sensor -> starter, only in a window.
+  CV_TANK_MSG_READING = 1,   ///< Routine level report, sensor -> starter.
+  CV_TANK_MSG_PAIR = 2,      ///< Pairing offer, sensor -> starter, only in a window.
+  CV_TANK_MSG_DOWNLINK = 3,  ///< Starter -> sensor. Config, or "measure now".
 };
 
 /** Sensor-side fault flags, carried so the starter can explain itself. */
@@ -104,6 +112,13 @@ enum : uint8_t {
   CV_TANK_FLAG_SENSOR_FAULT = 1 << 0,  ///< Echo out of range or absent.
   CV_TANK_FLAG_LOW_BATTERY = 1 << 1,   ///< Below the replace-me threshold.
   CV_TANK_FLAG_TAMPER = 1 << 2,        ///< Enclosure opened, if fitted.
+};
+
+/** Downlink instructions, starter -> sensor. */
+enum : uint8_t {
+  CV_TANK_DOWN_PAIR_ACK = 1 << 0,   ///< "I have you." Ends the sensor's pairing window.
+  CV_TANK_DOWN_MEASURE_NOW = 1 << 1, ///< Take a reading and send it immediately.
+  CV_TANK_DOWN_IDENTIFY = 1 << 2,    ///< Blink, so an installer can find the right unit.
 };
 
 /*
@@ -131,6 +146,37 @@ struct __attribute__((packed)) CvTankPacket {
 /** Bytes covered by the MAC: everything before the MAC itself. */
 #define CV_TANK_SIGNED_BYTES (sizeof(CvTankPacket) - CV_TANK_MAC_BYTES)
 
+/*
+ * Starter -> sensor.
+ *
+ * The link was one-way to begin with, which cost more than it saved. The
+ * sensor could not be told anything: changing how often it reports, or asking
+ * it for a reading now, or even confirming that pairing had worked, all meant
+ * physically retrieving a unit from a roof.
+ *
+ * Worse, pairing had no acknowledgement at all. The sensor transmitted for
+ * sixty seconds and then declared itself paired whether or not anything had
+ * heard it, so an installer got a confident "done" indication, climbed down,
+ * found nothing worked, and climbed back up.
+ *
+ * Authenticated exactly like the uplink, with its own sequence counter — a
+ * shared counter between two directions would have each side rejecting the
+ * other's traffic as replays.
+ */
+struct __attribute__((packed)) CvTankDownlink {
+  uint8_t magic[3];
+  uint8_t version;
+  uint8_t msgType;        ///< Always CV_TANK_MSG_DOWNLINK.
+  uint8_t pairId;
+  uint8_t instructions;   ///< CV_TANK_DOWN_* bits.
+  uint8_t reserved;
+  uint16_t reportIntervalS;  ///< 0 leaves the current cadence alone.
+  uint32_t seq;
+  uint8_t mac[CV_TANK_MAC_BYTES];
+};
+
+#define CV_TANK_DOWN_SIGNED_BYTES (sizeof(CvTankDownlink) - CV_TANK_MAC_BYTES)
+
 // ------------------------------------------------------------------ timing --
 
 /*
@@ -150,7 +196,60 @@ struct __attribute__((packed)) CvTankPacket {
  * missed reports in a row is a link that is genuinely down.
  */
 #define CV_TANK_REPORT_INTERVAL_MS 30000UL
-#define CV_TANK_STALE_MS (CV_TANK_REPORT_INTERVAL_MS * 6UL)  // 3 minutes
+
+/*
+ * How many consecutive missed reports count as a dead link.
+ *
+ * Expressed as a multiplier rather than a fixed duration because the report
+ * interval is now settable from the app. A fixed three-minute window silently
+ * becomes "permanently stale" the moment somebody chooses a five-minute
+ * cadence to save battery — the pump would stop running and the app would show
+ * a dead sensor that is transmitting perfectly.
+ *
+ * Several misses, so one lost packet is not a fault: a passing vehicle, a
+ * neighbour transmitting, a door closing on the line of sight. Not so many
+ * that a genuinely dead sensor goes unnoticed for long.
+ */
+#define CV_TANK_STALE_MISSES 6UL
+#define CV_TANK_STALE_MS (CV_TANK_REPORT_INTERVAL_MS * CV_TANK_STALE_MISSES)  // 3 minutes at the default
+
+/*
+ * How long the sensor listens after transmitting.
+ *
+ * This is the LoRaWAN Class A shape: the only moment a battery device can
+ * cheaply be reachable is immediately after it has spoken, because the radio
+ * is already powered and the far end knows to within a few milliseconds when
+ * to reply.
+ *
+ * The cost is real but small. Receiving draws roughly a tenth of what
+ * transmitting does, so 400 ms of listening is a fraction of the energy the
+ * transmission before it just spent — a worthwhile trade for not having to
+ * fetch a unit off a roof to change a setting.
+ *
+ * It must comfortably exceed the starter's turnaround. The starter polls its
+ * radio every loop pass and replies as soon as it has accepted a reading, so
+ * the real turnaround is a few milliseconds; the margin is for a starter busy
+ * driving a contactor or reconnecting to MQTT.
+ */
+#define CV_TANK_RX_WINDOW_MS 400UL
+
+/*
+ * Bounds on a remotely-set report interval.
+ *
+ * A downlink is authenticated, so this is not about an attacker — it is about
+ * a bug or a fat-fingered value bricking a unit that is physically hard to
+ * reach. Zero would mean "never report", which reads as a dead sensor and
+ * cannot be undone without a ladder; anything under a few seconds would flatten
+ * the battery in days and violate the duty cycle expected on this band.
+ */
+#define CV_TANK_MIN_INTERVAL_S 10
+#define CV_TANK_MAX_INTERVAL_S 900
+
+inline uint16_t cvTankClampInterval(uint16_t s) {
+  if (s < CV_TANK_MIN_INTERVAL_S) return CV_TANK_MIN_INTERVAL_S;
+  if (s > CV_TANK_MAX_INTERVAL_S) return CV_TANK_MAX_INTERVAL_S;
+  return s;
+}
 
 /*
  * The point at which we stop reporting a level at all, rather than reporting
@@ -261,6 +360,44 @@ inline void cvTankInitPacket(CvTankPacket &p, uint8_t msgType, uint8_t pairId) {
   p.pairId = pairId;
 }
 
+// ---------------------------------------------------------------- downlink --
+
+inline void cvTankInitDownlink(CvTankDownlink &p, uint8_t pairId) {
+  memset(&p, 0, sizeof(p));
+  p.magic[0] = CV_TANK_MAGIC0;
+  p.magic[1] = CV_TANK_MAGIC1;
+  p.magic[2] = CV_TANK_MAGIC2;
+  p.version = CV_TANK_PROTO_VERSION;
+  p.msgType = CV_TANK_MSG_DOWNLINK;
+  p.pairId = pairId;
+}
+
+inline void cvTankSignDownlink(CvTankDownlink &p, const uint8_t key[CV_TANK_KEY_BYTES]) {
+  uint8_t full[CV_TANK_HASH_BYTES];
+  cvTankHmac(full, (const uint8_t *)&p, CV_TANK_DOWN_SIGNED_BYTES, key);
+  memcpy(p.mac, full, CV_TANK_MAC_BYTES);
+}
+
+/**
+ * Verify a downlink. Same constant-time comparison as the uplink, for the same
+ * reason: a byte-at-a-time compare leaks how many leading bytes were right.
+ */
+inline bool cvTankVerifyDownlink(const CvTankDownlink &p, const uint8_t key[CV_TANK_KEY_BYTES]) {
+  if (p.magic[0] != CV_TANK_MAGIC0 || p.magic[1] != CV_TANK_MAGIC1 ||
+      p.magic[2] != CV_TANK_MAGIC2) {
+    return false;
+  }
+  if (p.version != CV_TANK_PROTO_VERSION) return false;
+  if (p.msgType != CV_TANK_MSG_DOWNLINK) return false;
+
+  uint8_t full[CV_TANK_HASH_BYTES];
+  cvTankHmac(full, (const uint8_t *)&p, CV_TANK_DOWN_SIGNED_BYTES, key);
+
+  uint8_t diff = 0;
+  for (size_t i = 0; i < CV_TANK_MAC_BYTES; i++) diff |= (uint8_t)(full[i] ^ p.mac[i]);
+  return diff == 0;
+}
+
 // -------------------------------------------------------------- freshness --
 
 /**
@@ -281,7 +418,16 @@ struct CvTankLinkState {
   int16_t rssi = 0;
   uint32_t accepted = 0;
   uint32_t rejected = 0;  ///< Failed MAC or replayed. A rising count is a signal.
+  /** The cadence the sensor has been told to use. 0 means the default. */
+  uint16_t intervalS = 0;
 };
+
+/** The stale window for this link, scaled to whatever cadence is configured. */
+inline uint32_t cvTankStaleMs(const CvTankLinkState &s) {
+  uint32_t intervalMs =
+      s.intervalS > 0 ? (uint32_t)s.intervalS * 1000UL : CV_TANK_REPORT_INTERVAL_MS;
+  return intervalMs * CV_TANK_STALE_MISSES;
+}
 
 /** Milliseconds since the last accepted reading, saturating rather than wrapping. */
 inline uint32_t cvTankAgeMs(const CvTankLinkState &s, uint32_t nowMs) {
@@ -299,12 +445,20 @@ inline uint32_t cvTankAgeMs(const CvTankLinkState &s, uint32_t nowMs) {
  * `levelMm` without asking this first is the bug this file exists to prevent.
  */
 inline bool cvTankReadingFresh(const CvTankLinkState &s, uint32_t nowMs) {
-  return s.everHeard && cvTankAgeMs(s, nowMs) < CV_TANK_STALE_MS;
+  return s.everHeard && cvTankAgeMs(s, nowMs) < cvTankStaleMs(s);
 }
 
-/** True once the reading is too old to be worth showing at all. */
+/**
+ * True once the reading is too old to be worth showing at all.
+ *
+ * Scales with the cadence too, but never drops below the fixed floor: at a
+ * ten-second interval, six misses is a minute, and withdrawing a level after a
+ * minute would blank the display over an ordinary run of interference.
+ */
 inline bool cvTankReadingAbandoned(const CvTankLinkState &s, uint32_t nowMs) {
-  return !s.everHeard || cvTankAgeMs(s, nowMs) >= CV_TANK_ABANDON_MS;
+  uint32_t abandon = cvTankStaleMs(s) * 10UL;
+  if (abandon < CV_TANK_ABANDON_MS) abandon = CV_TANK_ABANDON_MS;
+  return !s.everHeard || cvTankAgeMs(s, nowMs) >= abandon;
 }
 
 /**

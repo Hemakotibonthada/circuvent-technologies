@@ -215,7 +215,10 @@ export default function OverviewPage() {
             <>
           {/* ------------------------------------------------ health strip -- */}
           <Surface className="mb-6" padded={false}>
-            <div className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-y-0" style={{ borderColor: "var(--cv-border)" }}>
+            {/* sm:divide-x restores the separators the row loses when
+                divide-y is dropped at the 4-column breakpoint — without it the
+                four cells run together as one unbroken strip. */}
+            <div className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-x sm:divide-y-0" style={{ borderColor: "var(--cv-border)" }}>
               <HealthCell
                 label="Realtime link"
                 value={liveStatus === "live" ? "Connected" : liveStatus === "connecting" ? "Connecting" : "Reconnecting"}

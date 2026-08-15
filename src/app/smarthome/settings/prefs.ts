@@ -6,7 +6,13 @@
 
 export const NOTIFY_PREFS_KEY = "cv-notify-prefs";
 export const REDUCED_MOTION_KEY = "cv-prefs-reduced-motion";
-export const DENSITY_KEY = "cv-prefs-density";
+/*
+ * Density moved to src/lib/view-settings.ts, which owns the key and actually
+ * applies it. Re-exported rather than redeclared so there is one definition of
+ * what a density is — the local copy was a two-value union while the applied
+ * setting has three, and a second definition is how they get out of step.
+ */
+export { DENSITY_KEY, type Density } from "@/lib/view-settings";
 
 export interface NotifyPrefs {
   criticalAlerts: boolean;
@@ -25,5 +31,3 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   automationEvents: false,
   successEvents: false,
 };
-
-export type Density = "comfortable" | "compact";

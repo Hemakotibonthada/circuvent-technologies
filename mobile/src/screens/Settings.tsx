@@ -12,6 +12,14 @@ import { ACCENTS, ThemeMode, TAP_SLOP } from "../theme";
 import { tapLight, toggleFeedback, setHapticsEnabled, hapticsEnabled } from "../haptics";
 import { APP_VERSION, APP_BUILD } from "../version";
 import { usePrompt } from "../overlays";
+import {
+  DENSITIES,
+  DENSITY_LABELS,
+  MAX_SCALE,
+  MIN_SCALE,
+  SCALE_STEP,
+} from "../view-settings";
+import { OS_SCALE_NOTE } from "../view-settings-native";
 
 const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = [
   { key: "glass", label: "Glass", sub: "Frosted glassmorphism", icon: "glass" },
@@ -25,7 +33,7 @@ const MODES: { key: ThemeMode; label: string; sub: string; icon: IconName }[] = 
 const DARK_ONLY: ThemeMode[] = ["oled", "neon"];
 
 export default function Settings({ onBack, onKiosk, onChangeWifi }: { onBack?: () => void; onKiosk?: () => void; onChangeWifi?: (d: Device) => void }) {
-  const { c, mode, scheme, accentKey, setMode, setScheme, setAccentKey } = useTheme();
+  const { c, mode, scheme, accentKey, setMode, setScheme, setAccentKey, textScale, density, setTextScale, setDensity } = useTheme();
   const insets = useSafeArea();
   const { account, logout } = useAuth();
   const { devices } = useDevices();
@@ -130,6 +138,86 @@ export default function Settings({ onBack, onKiosk, onChangeWifi }: { onBack?: (
           </View>
         </Card>
         )}
+
+        <SectionLabel>Display</SectionLabel>
+        {/*
+          Text size and density.
+
+          The preview is not decoration. Every other control on this screen
+          shows its result immediately in the thing you are looking at, but a
+          type scale changes the whole app at once — without a fixed sample to
+          compare against, "is that bigger?" is genuinely hard to answer while
+          the labels around the control are moving too.
+        */}
+        <Card padded style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 12 }}>
+            <Icon name="textSize" size={22} color={c.accentHi} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.text, fontWeight: "700", fontSize: 15 }}>Text size</Text>
+              <Text style={{ color: c.faint, fontSize: 12, marginTop: 1 }}>{OS_SCALE_NOTE}</Text>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Stepper
+              label="Smaller text"
+              icon="minus"
+              disabled={textScale <= MIN_SCALE}
+              onPress={() => { tapLight(); setTextScale(textScale - SCALE_STEP); }}
+              c={c}
+            />
+            <View style={{ flex: 1, alignItems: "center" }}>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={{ color: c.text, fontWeight: "900", fontSize: 20 }}
+              >
+                {textScale}%
+              </Text>
+              {textScale !== 100 && (
+                <Pressable onPress={() => { tapLight(); setTextScale(100); }} hitSlop={TAP_SLOP}>
+                  <Text style={{ color: c.accentHi, fontSize: 12, fontWeight: "700" }}>Reset</Text>
+                </Pressable>
+              )}
+            </View>
+            <Stepper
+              label="Larger text"
+              icon="add"
+              disabled={textScale >= MAX_SCALE}
+              onPress={() => { tapLight(); setTextScale(textScale + SCALE_STEP); }}
+              c={c}
+            />
+          </View>
+
+          <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: c.cardHi, borderWidth: 1, borderColor: c.border }}>
+            <Text style={{ color: c.faint, fontSize: 11, fontWeight: "700", marginBottom: 4 }}>PREVIEW</Text>
+            <Text style={{ color: c.text, fontSize: 17, fontWeight: "800" }}>Living room</Text>
+            <Text style={{ color: c.textDim, fontSize: 13, marginTop: 2 }}>3 devices · 2 on · 142 W</Text>
+          </View>
+        </Card>
+
+        <SectionLabel>Spacing</SectionLabel>
+        <Card padded style={{ marginBottom: 16 }}>
+          <View style={s.segRow}>
+            {DENSITIES.map((d) => {
+              const sel = density === d;
+              return (
+                <Pressable
+                  key={d}
+                  onPress={() => { if (!sel) tapLight(); setDensity(d); }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${DENSITY_LABELS[d].label} spacing. ${DENSITY_LABELS[d].hint}`}
+                  accessibilityState={{ selected: sel, checked: sel }}
+                  style={[s.seg, { backgroundColor: sel ? c.accent : "transparent" }]}
+                >
+                  <Text style={{ color: sel ? c.onAccent : c.textDim, fontWeight: "700", fontSize: 13 }}>
+                    {DENSITY_LABELS[d].label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={{ color: c.faint, fontSize: 12, marginTop: 10 }}>{DENSITY_LABELS[density].hint}</Text>
+        </Card>
 
         <SectionLabel>Feedback</SectionLabel>
         <Card padded style={{ marginBottom: 16 }}>
@@ -236,6 +324,34 @@ export default function Settings({ onBack, onKiosk, onChangeWifi }: { onBack?: (
       </ScrollView>
       {promptNode}
     </Screen>
+  );
+}
+
+function Stepper({ label, icon, onPress, disabled, c }: { label: string; icon: IconName; onPress: () => void; disabled?: boolean; c: any }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      // 44pt, stated literally: this control changes text size, so sizing it
+      // in anything that scales with text would make the button that fixes
+      // "everything is too small" the hardest one to hit.
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: c.border,
+        backgroundColor: c.cardHi,
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      <Icon name={icon} size={20} color={disabled ? c.faint : c.text} />
+    </Pressable>
   );
 }
 

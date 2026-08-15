@@ -19,11 +19,11 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   if (!url.searchParams.get("scope")) {
-    return NextResponse.json({ ok: true, prefs: readAll(caller.key), durable: isDurable() });
+    return NextResponse.json({ ok: true, prefs: await readAll(caller.key), durable: isDurable() });
   }
   const scope = scopeOf(request);
   if (!scope) return NextResponse.json({ ok: false, error: "Unknown scope." }, { status: 400 });
-  return NextResponse.json({ ok: true, value: readScope(caller.key, scope), durable: isDurable() });
+  return NextResponse.json({ ok: true, value: await readScope(caller.key, scope), durable: isDurable() });
 }
 
 export async function PUT(request: Request) {
@@ -36,8 +36,17 @@ export async function PUT(request: Request) {
     if (value === undefined) {
       return NextResponse.json({ ok: false, error: "A `value` is required." }, { status: 400 });
     }
-    return NextResponse.json({ ok: true, value: writeScope(caller.key, scope, value), durable: isDurable() });
-  } catch {
+    const saved = await writeScope(caller.key, scope, value);
+    return NextResponse.json({ ok: true, value: saved, durable: isDurable() });
+  } catch (e) {
+    /*
+     * A failed write is reported rather than swallowed. This endpoint used to
+     * be unable to fail: it wrote to an in-memory object, returned ok, and the
+     * rename was gone by the next cold start — the client had no way to know,
+     * so it told the user the name was saved. A 500 here is what makes the
+     * console's "saved on this device only" warning true when it appears.
+     */
+    console.error("[prefs] save failed:", e);
     return NextResponse.json({ ok: false, error: "Could not save the preference." }, { status: 500 });
   }
 }
@@ -47,5 +56,10 @@ export async function DELETE(request: Request) {
   if (!caller) return unauthorized();
   const scope = scopeOf(request);
   if (!scope) return NextResponse.json({ ok: false, error: "Unknown scope." }, { status: 400 });
-  return NextResponse.json({ ok: true, removed: clearScope(caller.key, scope) });
+  try {
+    return NextResponse.json({ ok: true, removed: await clearScope(caller.key, scope) });
+  } catch (e) {
+    console.error("[prefs] clear failed:", e);
+    return NextResponse.json({ ok: false, error: "Could not clear the preference." }, { status: 500 });
+  }
 }

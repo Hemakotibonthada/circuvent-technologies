@@ -9,13 +9,15 @@ import { HealthStrip, Kpi, KpiGrid, Callout, ScreenHeader, MetricRow, LoadingSta
 import { fmtMs, fmtNum, latencyStats, normalizeAdminDevice, Page } from "./parts";
 import { useHealthProbe } from "./useProbe";
 import { logDiagnostic } from "./log";
+import { describeBrokerCert } from "../../../broker-cert";
+import type { BrokerCertInfo } from "../../../api";
 
 export default function SystemHealth({ onBack }: { onBack: () => void }) {
   const { c } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [source, setSource] = useState<"admin" | "public">("public");
-  const [health, setHealth] = useState<{ mqtt?: boolean; db?: boolean; uptimeSec?: number; node?: string; ok?: boolean }>({});
+  const [health, setHealth] = useState<{ mqtt?: boolean; db?: boolean; uptimeSec?: number; node?: string; ok?: boolean; brokerCert?: BrokerCertInfo | null }>({});
   const [stats, setStats] = useState<{ users: number; devices: number; online: number; events7d: number; pendingSignups: number }>();
   const [devices, setDevices] = useState<Device[]>([]);
   const probe = useHealthProbe(15000);
@@ -43,13 +45,25 @@ export default function SystemHealth({ onBack }: { onBack: () => void }) {
   const fh = useMemo(() => fleetHealth(devices), [devices]);
   const goodProbeMs = probe.samples.filter((s) => s.ok).map((s) => s.ms);
   const probeStats = latencyStats(goodProbeMs);
+  /* Only meaningful on the admin leg — the unauthenticated /health does not
+     report the certificate, and showing "not checked" there would look like a
+     broker fault rather than a route that never carried the field. */
+  const cert = useMemo(() => describeBrokerCert(health.brokerCert), [health.brokerCert]);
+  const certTone = cert.level === "expired" ? c.red : cert.level === "expiring" ? c.amber : cert.level === "unknown" ? c.faint : c.green;
 
   return <Screen><ScreenHeader title="System health" subtitle="Control-plane liveness and fleet rollup" onBack={onBack} actions={[{ icon: "refresh", label: "Refresh", onPress: load }]} />
     <Page>{loading ? <LoadingState text="Reading real health endpoints…" /> : error ? <ErrorState text={error} onRetry={load} /> : <>
       <Callout kind="info" icon="latency" title="Measurement source" text={source === "admin" ? "Health strip uses real adminHealth() MQTT and database legs. The chart is an unauthenticated api.health() HTTP round-trip measured on this device." : "Admin health was not available, so this screen is using the unauthenticated api.health() endpoint and user-visible devices."} />
+      {source === "admin" && cert.urgent && (
+        <Callout kind={cert.level === "expired" ? "critical" : "warning"} icon="shield" title="Broker certificate" text={cert.advice ?? ""} />
+      )}
       <HealthStrip items={source === "admin" ? [
         { label: "MQTT broker leg", ok: !!health.mqtt, detail: "adminHealth()" },
         { label: "Database leg", ok: !!health.db, detail: "adminHealth()" },
+        // The broker is up whatever the certificate says, so `ok` tracks the
+        // broker leg and only the pill carries the expiry. Reporting DOWN for
+        // a certificate that still has six weeks left would be false.
+        { label: "Broker certificate", ok: cert.level !== "expired", detail: "adminHealth()", status: cert.detail.toUpperCase(), tone: certTone },
         { label: "Control-plane process", ok: true, detail: health.uptimeSec != null ? formatDuration(health.uptimeSec) : health.node },
       ] : [{ label: "Public /health", ok: health.ok !== false, detail: "api.health()" }]} />
       <KpiGrid>

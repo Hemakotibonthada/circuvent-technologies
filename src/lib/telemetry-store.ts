@@ -36,8 +36,26 @@ import {
   availability,
   availabilityTimeline,
   availabilityResults,
+  percentile,
 } from "./app-insights";
 import { detectAnomalies } from "./insights-anomalies";
+import { runQuery, type QueryResult } from "./app-insights-query";
+import {
+  DEFAULT_COHORTS,
+  cohortStats,
+  flowNodes,
+  funnel,
+  impact,
+  returnBehaviour,
+  sessionSummaries,
+  usageBreakdown,
+  usageOverTime,
+  userFlows,
+  type CohortDefinition,
+  type FunnelStepSpec,
+  type UsageDimension,
+} from "./app-insights-usage";
+import { estimateUsage, samplingAdvice } from "./app-insights-cost";
 import {
   evaluateRules,
   validateRule,
@@ -172,6 +190,170 @@ export function clearTelemetry(): void {
     db.events = [];
   });
 }
+
+/* ------------------------------------------------------------------ *
+ * Logs, Usage and Configure views                                     *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Runs a query from the Logs blade.
+ *
+ * Over the whole buffer rather than the selected window: the window is a
+ * property of the charts, and a query that carries its own `where at > ago(6h)`
+ * being silently intersected with a dropdown nobody was looking at is how
+ * somebody concludes the data is missing.
+ */
+export function queryView(text: string, maxRows?: number, now = new Date().toISOString()): QueryResult {
+  return runQuery(allEvents(), text, { now, maxRows });
+}
+
+/** Sessions, funnels, flows and the rest, for one window. */
+export function usageView(
+  opts: { hours: number; dimension?: UsageDimension; flowNode?: string; bucketMinutes?: number },
+  now = new Date().toISOString(),
+) {
+  const windowed = withinHours(allEvents(), opts.hours, now);
+  const sessions = sessionSummaries(windowed);
+  const nodes = flowNodes(windowed);
+  const node = opts.flowNode && nodes.some((n) => n.path === opts.flowNode) ? opts.flowNode : nodes[0]?.path;
+
+  return {
+    hours: opts.hours,
+    now,
+    overTime: usageOverTime(windowed, { hours: opts.hours, now, bucketMinutes: opts.bucketMinutes }),
+    breakdown: usageBreakdown(windowed, opts.dimension ?? "path").slice(0, 40),
+    dimension: opts.dimension ?? "path",
+    sessions: sessions.slice(0, 100),
+    totals: {
+      sessions: sessions.length,
+      events: windowed.length,
+      pageViews: windowed.filter((e) => e.kind === "pageview").length,
+      failures: windowed.filter((e) => !e.ok).length,
+    },
+    returns: returnBehaviour(windowed),
+    flowNodes: nodes,
+    flow: node ? userFlows(windowed, node) : null,
+  };
+}
+
+/** A funnel, evaluated over the window. Steps come from the caller. */
+export function funnelView(steps: FunnelStepSpec[], hours: number, now = new Date().toISOString()) {
+  return { hours, now, ...funnel(withinHours(allEvents(), hours, now), steps) };
+}
+
+/** Impact of slowness on reaching a goal route. */
+export function impactView(goalPath: string, hours: number, now = new Date().toISOString()) {
+  return { hours, now, ...impact(withinHours(allEvents(), hours, now), { goalPath }) };
+}
+
+/**
+ * Cohort statistics.
+ *
+ * Each cohort's membership is decided by the query engine, so a cohort and a
+ * hand-written `where` clause in the Logs blade always select the same
+ * sessions. A cohort whose filter no longer parses reports the parser's
+ * message rather than quietly matching nothing, which would read as "this
+ * group has stopped using the product".
+ */
+export function cohortView(
+  cohorts: CohortDefinition[],
+  hours: number,
+  now = new Date().toISOString(),
+) {
+  const windowed = withinHours(allEvents(), hours, now);
+  const totalSessions = new Set(windowed.map((e) => e.session)).size;
+
+  const stats = cohorts.map((c) => {
+    try {
+      const matched = runQuery(windowed, `telemetry | where ${c.filter}`, { now });
+      const ids = new Set(matched.rows.map((r) => String(r.id)));
+      return cohortStats(c, windowed.filter((e) => ids.has(e.id)), totalSessions);
+    } catch (err) {
+      return {
+        ...cohortStats(c, [], totalSessions),
+        error: err instanceof Error ? err.message : "That filter could not be read.",
+      };
+    }
+  });
+
+  return { hours, now, totalSessions, cohorts: stats };
+}
+
+/** Ingestion volume, buffer headroom and the sampling recommendation. */
+export function costView(now = new Date().toISOString()) {
+  const usage = estimateUsage(allEvents(), {
+    received: receivedCount(),
+    capacity: MAX_EVENTS,
+    now,
+  });
+  return { now, usage, advice: samplingAdvice(usage) };
+}
+
+/**
+ * Live Metrics — the last minute, per second.
+ *
+ * Deliberately tiny. This is polled roughly once a second, so it must not be
+ * the `insightsView` pass over 20,000 events: an observability console that
+ * costs a full aggregation every second becomes the busiest client of the API
+ * it is watching, and its own load is then the anomaly it reports. Only events
+ * inside the live window are touched.
+ */
+export const LIVE_WINDOW_SECONDS = 60;
+
+export function liveView(now = new Date().toISOString()) {
+  const end = Date.parse(now);
+  const start = end - LIVE_WINDOW_SECONDS * 1000;
+
+  const buckets = new Map<number, { events: number; failures: number; durations: number[]; sessions: Set<string> }>();
+  for (let t = Math.floor(start / 1000) * 1000; t <= end; t += 1000) {
+    buckets.set(t, { events: 0, failures: 0, durations: [], sessions: new Set() });
+  }
+
+  const recent: TelemetryEvent[] = [];
+  for (const e of allEvents()) {
+    const t = Date.parse(e.at);
+    if (Number.isNaN(t) || t < start || t > end) continue;
+    const b = buckets.get(Math.floor(t / 1000) * 1000);
+    if (!b) continue;
+    b.events++;
+    if (!e.ok) b.failures++;
+    if (e.durationMs > 0) b.durations.push(e.durationMs);
+    b.sessions.add(e.session);
+    recent.push(e);
+  }
+
+  const points = [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([t, b]) => ({
+      at: new Date(t).toISOString(),
+      events: b.events,
+      failures: b.failures,
+      sessions: b.sessions.size,
+      p95: b.durations.length ? percentile([...b.durations].sort((x, y) => x - y), 95) : 0,
+    }));
+
+  const total = points.reduce((a, p) => a + p.events, 0);
+  const failures = points.reduce((a, p) => a + p.failures, 0);
+  const allDurations = recent.map((e) => e.durationMs).filter((d) => d > 0).sort((a, b) => a - b);
+
+  return {
+    now,
+    windowSeconds: LIVE_WINDOW_SECONDS,
+    points,
+    /* Per-second rates rather than totals: "12 requests" over an unstated
+       window is not a rate, and the whole point of this blade is the rate. */
+    perSecond: Math.round((total / LIVE_WINDOW_SECONDS) * 100) / 100,
+    failuresPerSecond: Math.round((failures / LIVE_WINDOW_SECONDS) * 100) / 100,
+    failureRate: total ? failures / total : 0,
+    sessions: new Set(recent.map((e) => e.session)).size,
+    p95: percentile(allDurations, 95),
+    /* A live tail, newest first. Capped: this is a glance, not the Logs blade. */
+    samples: [...recent].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 25),
+  };
+}
+
+/** The cohorts offered before anybody saves their own. */
+export { DEFAULT_COHORTS };
 
 export function isDurable(): boolean {
   return store.isDurable();

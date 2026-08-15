@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { toCsv, downloadCsv } from "../smarthome/_kit/primitives";
 import { METRICS, SPLITS, type MetricId, type SplitBy, type MetricSeries } from "@/lib/app-insights";
 import {
@@ -24,6 +25,16 @@ import {
   validateRule,
   type AlertRule,
 } from "@/lib/insights-alert-rules";
+/*
+ * The new blades live in their own files. This panel was already 1,900 lines
+ * with nine blades inline; doubling the blade count inside it would have made
+ * the file the reason nobody adds another one.
+ */
+import LogsBlade from "./insights/LogsBlade";
+import TransactionBlade from "./insights/TransactionBlade";
+import EventDetailDrawer from "./insights/EventDetailDrawer";
+import { CohortsBlade, FunnelBlade, ImpactBlade, UsageBlade } from "./insights/UsageBlades";
+import { ConfigureBlade, LiveBlade, MapBlade } from "./insights/MapLiveBlades";
 
 interface DeployMarker {
   sha: string;
@@ -300,6 +311,93 @@ const WINDOWS = [
   { h: 168, label: "7d" },
 ];
 
+/*
+ * Blades, grouped the way Application Insights groups them.
+ *
+ * The panel had nine tabs in one row; it now has eighteen, and eighteen in one
+ * row is a row nobody reads to the end of. The grouping is Azure's own —
+ * Investigate / Monitoring / Usage / Configure — because anybody who has used
+ * the product already knows which group a thing is in, and inventing a
+ * different taxonomy for the same features only costs them that.
+ */
+type TabId =
+  | "map"
+  | "live"
+  | "search"
+  | "requests"
+  | "dependencies"
+  | "performance"
+  | "failures"
+  | "journeys"
+  | "paths"
+  | "metrics"
+  | "query"
+  | "alerts"
+  | "logs"
+  | "usage"
+  | "funnels"
+  | "cohorts"
+  | "impact"
+  | "configure";
+
+const TAB_GROUPS: { group: string; tabs: { id: TabId; label: string }[] }[] = [
+  {
+    group: "Investigate",
+    tabs: [
+      { id: "map", label: "Application map" },
+      { id: "live", label: "Live metrics" },
+      { id: "search", label: "Transaction search" },
+      { id: "requests", label: "Requests" },
+      { id: "dependencies", label: "Dependencies" },
+      { id: "performance", label: "Performance" },
+      { id: "failures", label: "Failures" },
+      { id: "journeys", label: "User journeys" },
+      { id: "paths", label: "Accessed paths" },
+    ],
+  },
+  {
+    group: "Monitoring",
+    tabs: [
+      { id: "metrics", label: "Metrics" },
+      { id: "query", label: "Logs" },
+      { id: "alerts", label: "Alert rules" },
+      { id: "logs", label: "Recent events" },
+    ],
+  },
+  {
+    group: "Usage",
+    tabs: [
+      { id: "usage", label: "Users & sessions" },
+      { id: "funnels", label: "Funnels" },
+      { id: "cohorts", label: "Cohorts" },
+      { id: "impact", label: "Impact" },
+    ],
+  },
+  { group: "Configure", tabs: [{ id: "configure", label: "Usage & costs" }] },
+];
+
+/**
+ * The badge on each tab.
+ *
+ * Only for the blades whose count is already in hand — the Usage and Logs
+ * blades fetch their own data on open, and fetching it to draw a number on a
+ * tab nobody has clicked is the cost this panel is supposed to be watching for.
+ */
+function COUNTS(view: View | null, rules: RuleRow[]): Partial<Record<TabId, number>> {
+  return {
+    map: view?.map.length,
+    requests: view?.requests.length,
+    dependencies: view?.dependencies.length,
+    performance: view?.performance.length,
+    failures: view?.failures.length,
+    journeys: view?.journeys.length,
+    paths: view?.paths.length,
+    logs: view?.recent.length,
+    alerts: rules.length || undefined,
+    search: view?.recent.length ? new Set(view.recent.map((e) => e.session)).size : undefined,
+  };
+}
+
 function fmtTime(iso: string) {
   try {
     return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -566,9 +664,11 @@ export default function AppInsightsPanel() {
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"requests" | "dependencies" | "performance" | "metrics" | "alerts" | "logs" | "paths" | "failures" | "journeys">("requests");
+  const [tab, setTab] = useState<TabId>("map");
   const [openFailure, setOpenFailure] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState("");
+  /** The log row whose end-to-end detail is open, if any. */
+  const [openEvent, setOpenEvent] = useState<TelemetryEvent | null>(null);
   const [logOutcome, setLogOutcome] = useState<"all" | "failed" | "ok">("all");
   const [metric, setMetric] = useState<MetricId>("count");
   const [splitBy, setSplitBy] = useState<SplitBy>("none");
@@ -874,28 +974,42 @@ export default function AppInsightsPanel() {
           </p>
         </div>
       )}
-      <div className="flex gap-1 border-b cv-border">
-        {([
-          ["requests", "Requests", view?.requests.length],
-          ["dependencies", "Dependencies", view?.dependencies.length],
-          ["performance", "Performance", view?.performance.length],
-          ["metrics", "Metrics", undefined],
-          ["alerts", "Alert rules", rules.length || undefined],
-          ["logs", "Logs", view?.recent.length],
-          ["paths", "Accessed paths", view?.paths.length],
-          ["failures", "Failures", view?.failures.length],
-          ["journeys", "User journeys", view?.journeys.length],
-        ] as const).map(([k, label, n]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k)}
-            className={`h-[44px] border-b-2 px-4 text-sm font-semibold ${
-              tab === k ? "border-cyan-500 text-cyan-300" : "border-transparent cv-text-muted hover:cv-text-primary"
-            }`}
-          >
-            {label}
-            {typeof n === "number" && <span className="ml-1.5 text-[11px] cv-text-muted">{n}</span>}
-          </button>
+      <div className="space-y-1.5 border-b cv-border pb-2">
+        {TAB_GROUPS.map((g) => (
+          <div key={g.group} className="flex flex-wrap items-center gap-1">
+            <span className="w-[5.5rem] shrink-0 text-[10.5px] font-bold uppercase tracking-wide cv-text-muted">
+              {g.group}
+            </span>
+            {g.tabs.map((t) => {
+              const n = COUNTS(view, rules)[t.id];
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  aria-pressed={tab === t.id}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-semibold transition-colors"
+                  style={
+                    tab === t.id
+                      ? { background: "linear-gradient(135deg,#06b6d4,#8b5cf6)", color: "#fff" }
+                      : { color: "var(--text-tertiary)" }
+                  }
+                >
+                  {t.label}
+                  {typeof n === "number" && n > 0 && (
+                    <span
+                      className="rounded-full px-1.5 text-[10.5px] tabular-nums"
+                      style={{
+                        background: tab === t.id ? "rgba(255,255,255,0.22)" : "var(--bg-glass)",
+                        color: tab === t.id ? "#fff" : "var(--text-muted)",
+                      }}
+                    >
+                      {n}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         ))}
       </div>
 
@@ -912,10 +1026,25 @@ export default function AppInsightsPanel() {
         </div>
       )}
 
+      {/*
+        The new blades. Each fetches only while it is the open tab — the Usage,
+        Logs and Live blades run their own passes over the buffer, and paying
+        for all of them on every panel load is exactly the cost this panel
+        exists to make visible.
+      */}
+      {view && tab === "map" && <MapBlade nodes={view.map} />}
+      {tab === "live" && <LiveBlade />}
+      {view && tab === "search" && <TransactionBlade events={view.recent} />}
+      {tab === "query" && <LogsBlade />}
+      {tab === "usage" && <UsageBlade hours={hours} />}
+      {tab === "funnels" && <FunnelBlade hours={hours} />}
+      {tab === "cohorts" && <CohortsBlade hours={hours} />}
+      {tab === "impact" && <ImpactBlade hours={hours} />}
+      {tab === "configure" && <ConfigureBlade />}
+
       {view && tab === "requests" && (
         <div className="space-y-3">
-          {/*
-            Charts first, table second.
+          {/*            Charts first, table second.
 
             The table already answered "which route is slowest". It could not
             answer "is it getting worse", "what proportion of traffic is
@@ -1699,7 +1828,25 @@ export default function AppInsightsPanel() {
               </thead>
               <tbody>
                 {visibleLogs.map((e) => (
-                  <tr key={e.id} className="border-t cv-border">
+                  <tr
+                    key={e.id}
+                    // Whole-row activation, as the equivalent Azure grid does.
+                    // tabIndex + role + key handling because a <tr> is not
+                    // focusable or activatable on its own, and a details view
+                    // reachable only by mouse is not reachable at all for
+                    // somebody driving this from the keyboard.
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Open transaction details for ${e.method ? `${e.method} ` : ""}${e.path} at ${fmtTime(e.at)}`}
+                    onClick={() => setOpenEvent(e)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === "Enter" || ev.key === " ") {
+                        ev.preventDefault();
+                        setOpenEvent(e);
+                      }
+                    }}
+                    className="cursor-pointer border-t cv-border cv-hover"
+                  >
                     <td className="whitespace-nowrap px-3 py-2 text-[12px] cv-text-muted">
                       {fmtTime(e.at)}
                     </td>
@@ -1717,8 +1864,16 @@ export default function AppInsightsPanel() {
                     <td className="px-3 py-2 text-right text-[12px] cv-text-muted">
                       {e.durationMs} ms
                     </td>
-                    <td className="max-w-[280px] truncate px-3 py-2 text-[12px] cv-text-muted">
-                      {e.errorType ? `${e.errorType}: ${e.errorMessage ?? ""}` : ""}
+                    <td className="max-w-[280px] px-3 py-2 text-[12px] cv-text-muted">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate">
+                          {e.errorType ? `${e.errorType}: ${e.errorMessage ?? ""}` : ""}
+                        </span>
+                        {/* The affordance. Without it nothing on the row says
+                            it opens, and the feature is discovered by accident
+                            or not at all. */}
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -1893,6 +2048,18 @@ export default function AppInsightsPanel() {
           ))}
         </div>
       )}
+
+      {/*
+        Last child of the panel, so the overlay is not nested inside anything
+        that could become a containing block for `position: fixed`. Rendered
+        unconditionally and gated internally, so opening and closing does not
+        mount and unmount the focus and scroll-lock effects.
+      */}
+      <EventDetailDrawer
+        event={openEvent}
+        events={view?.recent ?? []}
+        onClose={() => setOpenEvent(null)}
+      />
     </div>
   );
 }

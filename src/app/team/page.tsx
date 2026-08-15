@@ -42,7 +42,7 @@ const teamMembers: TeamMemberData[] = [
     name: "Hema Koteswar Naidu",
     role: "Founder & CEO",
     bio: "A visionary leader with deep expertise in R&D and technological innovation. Hema drives the strategic direction of the lab, focusing on cutting-edge research in AI, distributed systems, IoT, and full-stack engineering. Built 53+ projects across 6 technology domains with 200K+ lines of production code.",
-    image: "https://res.cloudinary.com/djucuoojo/image/upload/v1783642047/IMG_1188_slid82.jpg",
+    image: "https://res.cloudinary.com/djucuoojo/image/upload/v1786709859/Profile-Picture_tvkjlt.png",
     gradient: "from-cyan-500 to-violet-500",
     skills: ["AI/ML", "Full-Stack", "IoT", "DevOps", "Python", "React", "Flutter"],
     socials: {

@@ -137,12 +137,29 @@ export async function loadChannelPrefs(): Promise<void> {
     fetchScope<ChannelConfig>(CONFIG_SCOPE, token),
   ]);
 
+  /*
+   * The server has nothing and this phone does.
+   *
+   * That combination used to be permanent. The site stored these preferences
+   * in a JSON file, which on its serverless host is neither writable nor
+   * shared, so every name ever saved lived only in the cache of the client
+   * that saved it — which is why a channel renamed here still read "Channel 3"
+   * in a browser, and why a private window showed the defaults for everything.
+   *
+   * Now that the site keeps them properly, the first client to notice hands
+   * its copy over. Without this the names on this phone would stay on this
+   * phone until somebody renamed each channel a second time.
+   */
+  const empty = (v: object | null): boolean => !v || Object.keys(v).length === 0;
+  if (empty(nextLabels) && !empty(labels)) await putScope(LABEL_SCOPE, labels, token);
+  if (empty(nextConfig) && !empty(config)) await putScope(CONFIG_SCOPE, config, token);
+
   let changed = false;
-  if (nextLabels) {
+  if (nextLabels && !empty(nextLabels)) {
     labels = nextLabels;
     changed = true;
   }
-  if (nextConfig) {
+  if (nextConfig && !empty(nextConfig)) {
     config = nextConfig;
     changed = true;
   }
