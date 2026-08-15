@@ -39,6 +39,15 @@ export const HUB_CHANNEL_FIELDS = ["power", "power2", "power3", "power4"] as con
 export const TOUCHBOARD_GANG_FIELDS = ["g1", "g2", "g3"] as const;
 
 /**
+ * Touch Board 8 gangs — firmware/touchboard-8/touchboard-8.ino gangKey().
+ * Mirrors TOUCHBOARD8_GANG_FIELDS in src/lib/smarthome-command-map.ts; the two
+ * are kept in step by tests/touchboard8-parity.test.ts.
+ */
+export const TOUCHBOARD8_GANG_FIELDS = [
+  "g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8",
+] as const;
+
+/**
  * Deterministic relay outcome of each Home Hub scene.
  * firmware/home-hub/home-hub.ino applyScene(). Channels a scene does not touch
  * are intentionally absent so nothing is asserted that cannot be predicted.
@@ -84,9 +93,12 @@ export function projectCommand(type: string, cmd: Cmd, state?: Record<string, un
       return patch;
     }
 
-    case "touchboard": {
-      for (const g of TOUCHBOARD_GANG_FIELDS) if (isBool(cmd[g])) patch[g] = cmd[g];
-      if (isBool(cmd.all)) for (const g of TOUCHBOARD_GANG_FIELDS) patch[g] = cmd.all;
+    case "touchboard":
+    case "touchboard-8": {
+      const gangs =
+        type === "touchboard-8" ? TOUCHBOARD8_GANG_FIELDS : TOUCHBOARD_GANG_FIELDS;
+      for (const g of gangs) if (isBool(cmd[g])) patch[g] = cmd[g];
+      if (isBool(cmd.all)) for (const g of gangs) patch[g] = cmd.all;
       if (isNum(cmd.backlight)) patch.backlight = cmd.backlight;
       return patch;
     }

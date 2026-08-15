@@ -66,7 +66,13 @@ import {
 } from "@/lib/smarthome-prefs";
 import { ControlRow, SectionLabel, Toggle, Stepper, StatTile, ScenePill } from "./ui";
 import { Slider } from "./_kit/Slider";
-import { FAN_STEP_LEVEL, levelToSpeed, buildFieldCommand } from "@/lib/smarthome-command-map";
+import {
+  FAN_STEP_LEVEL,
+  levelToSpeed,
+  buildFieldCommand,
+  TOUCHBOARD_GANG_FIELDS,
+  TOUCHBOARD8_GANG_FIELDS,
+} from "@/lib/smarthome-command-map";
 import { effectiveDeviceType } from "./_data/device-type";
 import { useRemoteCamera } from "./useRemoteCamera";
 import { useFrameUrl } from "./useFrameUrl";
@@ -114,6 +120,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   "rfid-gate": { label: "RFID Gate", icon: Car, accent: "#f59e0b", blurb: "Vehicle access barrier" },
   facedoor: { label: "Smart Door", icon: DoorOpen, accent: "#8b5cf6", blurb: "Face / fingerprint / PIN" },
   touchboard: { label: "Touch Board", icon: LayoutGrid, accent: "#06b6d4", blurb: "3-gang metered switch" },
+  "touchboard-8": { label: "Touch Board 8", icon: LayoutGrid, accent: "#06b6d4", blurb: "8-gang metered switch" },
   sentinel: { label: "Sentinel", icon: ShieldAlert, accent: "#ef4444", blurb: "Gas, climate & relays" },
   camera: { label: "Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   cctv: { label: "CCTV Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
@@ -292,6 +299,7 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
     case "facedoor":
       return <FaceDoor d={device} send={send} st={st} />;
     case "touchboard":
+    case "touchboard-8":
       return <TouchBoard d={device} send={send} st={st} />;
     case "sentinel":
       return <Sentinel d={device} send={send} st={st} />;
@@ -1645,13 +1653,21 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   );
 }
 
+/**
+ * Both touch boards, 3-gang and 8-gang.
+ *
+ * One component rather than two because the boards differ only in how many
+ * gangs they have. A copy would be a second place to add a control to, and the
+ * one that got forgotten would be a panel whose last gangs are missing from
+ * the console while the hardware switches them happily.
+ *
+ * The gang list comes from the same constants projectCommand uses, so a tile
+ * here cannot address a field the sketch does not read.
+ */
 function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const chan = useChannelGrid(d);
-  const gangs = [
-    { key: "g1", fallback: "Gang 1" },
-    { key: "g2", fallback: "Gang 2" },
-    { key: "g3", fallback: "Gang 3" },
-  ];
+  const fields = d.type === "touchboard-8" ? TOUCHBOARD8_GANG_FIELDS : TOUCHBOARD_GANG_FIELDS;
+  const gangs = fields.map((key, i) => ({ key, fallback: `Gang ${i + 1}` }));
   const onCount = gangs.filter((g) => b(d.state[g.key])).length;
   return (
     <div>

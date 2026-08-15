@@ -25,6 +25,10 @@ import { DEVICE_META } from "../mobile/src/theme";
 const FIRMWARE_TOGGLE: Record<string, string | null> = {
   // firmware/touchboard: p["g1"] / p["g2"] / p["g3"] / p["all"]
   touchboard: "g1",
+  // firmware/touchboard-8: p["g1"]..p["g8"] / p["all"] — same field shape,
+  // eight of them. `g1` for the card switch, matching the 3-gang board; the
+  // whole-board control is `all`, which capabilities() does not model.
+  "touchboard-8": "g1",
   // firmware/watertank: p["pump"], p["auto"]
   watertank: "pump",
   // firmware/smart-lock: p["locked"], plus lock/unlock actions

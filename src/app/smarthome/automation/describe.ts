@@ -3,7 +3,7 @@
 import type { AutomationTrigger, AutomationAction, AutomationActions } from "@/lib/control-plane";
 import { actionList } from "@/lib/control-plane";
 import { daysText } from "@/lib/smarthome-switches";
-import { buildFieldCommand } from "@/lib/smarthome-command-map";
+import { buildFieldCommand, TOUCHBOARD8_GANG_FIELDS } from "@/lib/smarthome-command-map";
 
 /* ------------------------------------------------------------------ */
 /* Operator display labels                                             */
@@ -238,6 +238,19 @@ export function getCommandFields(type: string): CommandField[] {
         { key: "g1", label: "Gang 1", kind: "bool" },
         { key: "g2", label: "Gang 2", kind: "bool" },
         { key: "g3", label: "Gang 3", kind: "bool" },
+        { key: "all", label: "All gangs", kind: "bool" },
+        { key: "backlight", label: "Backlight", kind: "number", min: 0, max: 100, unit: "%" },
+      ];
+
+    case "touchboard-8":
+      // Derived from the same field list projectCommand uses, so the rule
+      // builder cannot offer a gang the sketch does not read.
+      return [
+        ...TOUCHBOARD8_GANG_FIELDS.map((g, i) => ({
+          key: g,
+          label: `Gang ${i + 1}`,
+          kind: "bool" as const,
+        })),
         { key: "all", label: "All gangs", kind: "bool" },
         { key: "backlight", label: "Backlight", kind: "number", min: 0, max: 100, unit: "%" },
       ];

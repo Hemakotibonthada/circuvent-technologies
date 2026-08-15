@@ -64,6 +64,12 @@ eq("home-hub scene", projectCommand("home-hub", { action: "set", scene: "away" }
   { scene: "away", power: false, power2: false, power3: false, power4: false });
 
 eq("touchboard all", projectCommand("touchboard", { action: "set", all: true }), { g1: true, g2: true, g3: true });
+// The 8-gang board shares the `all` wording with its 3-gang sibling, so the
+// mistake to catch is projecting three gangs for it: five toggles would stay
+// pinned, waiting for an echo the console had already decided not to expect.
+eq("touchboard-8 all", projectCommand("touchboard-8", { action: "set", all: true }),
+  { g1: true, g2: true, g3: true, g4: true, g5: true, g6: true, g7: true, g8: true });
+eq("touchboard-8 single gang", projectCommand("touchboard-8", { action: "set", g7: true }), { g7: true });
 eq("sentinel relay", projectCommand("sentinel", { action: "set", r3: true }), { r3: true });
 eq("sentinel all needs the reported count", projectCommand("sentinel", { action: "set", all: true }), {});
 eq("sentinel all with count", projectCommand("sentinel", { action: "set", all: true }, { relays: 2 }), { r1: true, r2: true });

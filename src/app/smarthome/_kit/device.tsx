@@ -64,6 +64,8 @@ export function deviceMetric(d: Device): string | null {
       return onOf("power", "power2", "power3", "power4");
     case "touchboard":
       return onOf("g1", "g2", "g3");
+    case "touchboard-8":
+      return onOf("g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8");
     case "sentinel": {
       if (s.gasAlarm) return "Gas alarm";
       if (s.hasGas && s.gasWarmingUp) return "Warming up";

@@ -119,6 +119,13 @@ function pinColor(d: Device): { fill: string; active: boolean; label: string } {
       const on = [s.g1, s.g2, s.g3].filter(Boolean).length;
       return on ? { fill: "#22c55e", active: true, label: `${on}/3 on` } : { fill: "#475569", active: false, label: "off" };
     }
+    case "touchboard-8": {
+      const gangs = [s.g1, s.g2, s.g3, s.g4, s.g5, s.g6, s.g7, s.g8];
+      const on = gangs.filter(Boolean).length;
+      return on
+        ? { fill: "#22c55e", active: true, label: `${on}/${gangs.length} on` }
+        : { fill: "#475569", active: false, label: "off" };
+    }
     case "home-hub": {
       const on = [s.power, s.power2, s.power3, s.power4].filter(Boolean).length;
       return on ? { fill: "#22c55e", active: true, label: `${on}/4 on` } : { fill: "#475569", active: false, label: "off" };
@@ -150,6 +157,7 @@ function deviceGlyph(type: string): string {
     watertank: "🌊",
     aquaguard: "💧",
     touchboard: "🎛️",
+    "touchboard-8": "🎛️",
     sentinel: "🧯",
     "motion-sensor": "🚶",
     "energy-monitor": "⚡",

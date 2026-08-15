@@ -97,7 +97,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
         {d.type === "watertank" && <WaterTank d={d} send={send} c={c} />}
         {d.type === "rfid-gate" && <RfidGate d={d} send={send} c={c} />}
         {d.type === "facedoor" && <FaceDoor d={d} send={send} c={c} />}
-        {d.type === "touchboard" && <TouchBoard d={d} send={send} c={c} />}
+        {(d.type === "touchboard" || d.type === "touchboard-8") && <TouchBoard d={d} send={send} c={c} />}
         {d.type === "sentinel" && <Sentinel d={d} send={send} c={c} />}
         {d.type === "anpr-cam" && <AnprCamera d={d} send={send} command={command} c={c} />}
         {(d.type === "drone-link" || d.type === "drone-x1") && <DroneLink d={d} send={send} c={c} />}
@@ -137,7 +137,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
  * precisely how the camera shipped showing JSON on the phone, and it is why
  * adding to this array is on the checklist in Docs/07-adding-a-new-device.md.
  */
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "meter", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "meter", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "touchboard-8", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
 
 // ------------------------------------------------------------ shared bits ---
 

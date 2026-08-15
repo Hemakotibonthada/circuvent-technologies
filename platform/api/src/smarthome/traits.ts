@@ -49,6 +49,16 @@ export interface OnOffMap {
  * "turn on the drone" that an assistant should act on, and none of "turn it
  * off" that should ground an aircraft a pilot is about to fly. It stays out
  * permanently, not until somebody asks for it.
+ *
+ * The touch boards — `touchboard` and `touchboard-8` — are out for a quieter
+ * reason. This map gives an assistant exactly one field per device, and a
+ * wall panel has three or eight independent loads with no principled "the"
+ * switch among them. Mapping it to g1, the way `sentinel` maps to r1, would
+ * mean "turn off the switchboard" leaves seven gangs burning while the
+ * assistant says it worked — a control that answers and does almost nothing,
+ * which is exactly the failure this file keeps out. Individual gangs are
+ * still reachable by voice through the app's Siri sync, which addresses
+ * fields rather than devices.
  */
 export function onOff(type: string): OnOffMap | null {
   switch (type) {

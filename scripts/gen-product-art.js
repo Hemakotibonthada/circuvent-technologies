@@ -99,6 +99,31 @@ ${plate(360, 300)}
     <text x="0" y="100" fill="#94a3b8" font-family="ui-monospace,Menlo,monospace" font-size="22" text-anchor="middle">322 W · PF 0.98</text>
   </g>`,
 
+  "touchboard-8": `  <g transform="translate(400 350)">
+${plate(400, 330)}
+    <!-- 8 pads, two rows of four, mirroring the physical plate -->
+    <g>
+      ${[0, 1, 2, 3]
+        .map(
+          (i) => `<circle cx="${-150 + i * 100}" cy="-88" r="38" fill="#0f172a"/>
+      <circle cx="${-150 + i * 100}" cy="-88" r="38" fill="none" stroke="${"#2dd4bf"}" stroke-width="5" opacity="${i === 0 ? 1 : 0.55}"/>`
+        )
+        .join("\n      ")}
+      ${[0, 1, 2, 3]
+        .map(
+          (i) => `<circle cx="${-150 + i * 100}" cy="8" r="38" fill="#0f172a"/>
+      <circle cx="${-150 + i * 100}" cy="8" r="38" fill="none" stroke="${"#2dd4bf"}" stroke-width="5" opacity="${i === 2 ? 1 : 0.55}"/>`
+        )
+        .join("\n      ")}
+      <circle cx="-150" cy="-88" r="14" fill="${"#2dd4bf"}"/>
+      <circle cx="50" cy="8" r="14" fill="${"#2dd4bf"}"/>
+    </g>
+    <!-- metering readout -->
+    <rect x="-160" y="76" width="320" height="76" rx="14" fill="#0f172a"/>
+    <text x="0" y="114" fill="${"#2dd4bf"}" font-family="ui-monospace,Menlo,monospace" font-size="30" font-weight="700" text-anchor="middle">230V  3.6A</text>
+    <text x="0" y="142" fill="#94a3b8" font-family="ui-monospace,Menlo,monospace" font-size="22" text-anchor="middle">828 W · PF 0.97</text>
+  </g>`,
+
   facedoor: `  <g transform="translate(400 350)">
     <!-- door -->
     <rect x="-150" y="-230" width="300" height="460" rx="20" fill="#1e293b" stroke="#475569" stroke-width="6"/>
@@ -435,6 +460,7 @@ ${plate(380, 330)}
 const LABELS = {
   watertank: ["WaterTank Duo", "#0ea5e9"],
   touchboard: ["Touch Switchboard", "#2dd4bf"],
+  "touchboard-8": ["Touch Switchboard 8", "#2dd4bf"],
   facedoor: ["FaceDoor", "#f43f5e"],
   "rfid-gate": ["RFID Gate", "#f59e0b"],
   camera: ["Camera", "#a855f7"],

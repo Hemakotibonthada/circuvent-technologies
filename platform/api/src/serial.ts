@@ -70,6 +70,7 @@ const PRODUCT_CODES: Record<string, string> = {
   "smart-fan": "FAN",
   "smart-lock": "LCK",
   "touchboard": "TCH",
+  "touchboard-8": "TC8",
   "sentinel": "SNL",
   "camera": "CAM",
   "aquaguard": "AQG",

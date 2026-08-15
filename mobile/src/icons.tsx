@@ -83,6 +83,7 @@ export const ICONS = {
   "rfid-gate": mci("boom-gate"),
   facedoor: mci("door"),
   touchboard: mci("gesture-tap-button"),
+  "touchboard-8": mci("gesture-tap-button"),
   sentinel: mci("smoke-detector-variant"),
 
   // --- channel kinds ------------------------------------------------------

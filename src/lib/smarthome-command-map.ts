@@ -102,6 +102,18 @@ export const HUB_CHANNEL_FIELDS = ["power", "power2", "power3", "power4"] as con
 /** Touch Board gangs — firmware/touchboard/touchboard.ino setRelay(): 'g' + (1+i). */
 export const TOUCHBOARD_GANG_FIELDS = ["g1", "g2", "g3"] as const;
 
+/**
+ * Touch Board 8 gangs — firmware/touchboard-8/touchboard-8.ino gangKey().
+ *
+ * Same field shape as the 3-gang board, eight of them. Listed separately
+ * rather than derived from a count because these two are different hardware:
+ * a 3-gang board that started reporting `g7` would be a bug, and a list that
+ * stretched to fit would hide it.
+ */
+export const TOUCHBOARD8_GANG_FIELDS = [
+  "g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8",
+] as const;
+
 /** Highest relay index any Sentinel board exposes. */
 const SENTINEL_MAX_RELAYS = 32;
 
@@ -168,12 +180,15 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
     }
 
     // -------------------------------------------------------- touchboard --
-    case "touchboard": {
-      for (const g of TOUCHBOARD_GANG_FIELDS) {
+    case "touchboard":
+    case "touchboard-8": {
+      const gangs =
+        type === "touchboard-8" ? TOUCHBOARD8_GANG_FIELDS : TOUCHBOARD_GANG_FIELDS;
+      for (const g of gangs) {
         if (isBool(cmd[g])) patch[g] = cmd[g];
       }
       if (isBool(cmd.all)) {
-        for (const g of TOUCHBOARD_GANG_FIELDS) patch[g] = cmd.all;
+        for (const g of gangs) patch[g] = cmd.all;
       }
       if (isNum(cmd.backlight)) patch.backlight = clamp(cmd.backlight, 0, 100);
       return patch;
@@ -1053,6 +1068,12 @@ export function masterPower(device: {
       };
     case "touchboard":
       return { on: any(s.g1, s.g2, s.g3), label: "All gangs", cmd: (v) => ({ all: v }) };
+    case "touchboard-8":
+      return {
+        on: any(...TOUCHBOARD8_GANG_FIELDS.map((g) => s[g])),
+        label: "All gangs",
+        cmd: (v) => ({ all: v }),
+      };
     case "sentinel": {
       const n = sentinelRelayCount(s);
       // Without a reported relay count there is no honest "all" to offer.

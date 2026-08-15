@@ -172,6 +172,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   "energy-monitor": "power",
   "smart-switch": "power",
   touchboard: "power",
+  "touchboard-8": "power",
   sentinel: "security",
   "home-hub": "neutral",
 };
@@ -217,6 +218,7 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   "rfid-gate": { glyph: "🚗", icon: "rfid-gate", accent: C.amber, grad: GRAD.amber, label: "RFID Gate" },
   facedoor: { glyph: "🚪", icon: "facedoor", accent: C.violet, grad: GRAD.violet, label: "Smart Door", toggle: { field: "locked", label: "Lock" } },
   touchboard: { glyph: "🎛️", icon: "touchboard", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board", toggle: { field: "g1", label: "Gang 1" } },
+  "touchboard-8": { glyph: "🎛️", icon: "touchboard", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board 8", toggle: { field: "g1", label: "Gang 1" } },
   sentinel: { glyph: "🧯", icon: "sentinel", accent: C.red, grad: GRAD.red, label: "Sentinel", toggle: { field: "r1", label: "Relay 1" } },
   camera: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "Camera" },
   cctv: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "CCTV Camera" },

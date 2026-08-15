@@ -76,6 +76,8 @@ export function defaultGangs(d: Device, rawLabels = false): Gang[] {
   switch (d.type) {
     case "touchboard":
       return [mk("g1", "Gang 1"), mk("g2", "Gang 2"), mk("g3", "Gang 3")];
+    case "touchboard-8":
+      return Array.from({ length: 8 }, (_, i) => mk(`g${i + 1}`, `Gang ${i + 1}`));
     case "smart-switch":
       return [mk("power", "Gang 1"), mk("power2", "Gang 2")];
     case "home-hub":
