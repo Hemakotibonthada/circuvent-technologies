@@ -144,6 +144,26 @@ def main() -> int:
     check("=" not in "\n".join(h for _, h, _ in af.secret_homes()),
           "a secret home reads like an assignment rather than a location")
 
+    # --- the pictures actually arrived ----------------------------------
+    # svg_png returns None rather than raising when the renderer cannot read a
+    # source, which is right for a build — one missing illustration must not
+    # cost the whole pack. It does mean a deck can be published with the
+    # pictures quietly absent, and nothing above would notice, so it is checked
+    # here instead.
+    from pptx import Presentation as _P
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    arch_shapes = [sh for slide in _P(str(ARCH)).slides for sh in slide.shapes]
+    arch_pics = sum(1 for sh in arch_shapes if sh.shape_type == MSO_SHAPE_TYPE.PICTURE)
+    check(arch_pics >= 6, f"architecture deck embeds only {arch_pics} pictures")
+
+    # And that they are drawn rather than described: the figures are built from
+    # connectors, which no table or bullet list produces. The enum is named
+    # rather than numbered — the first version of this check guessed 20 for a
+    # line, counted zero, and reported a deck with no diagrams in it as broken.
+    arch_lines = sum(1 for sh in arch_shapes if sh.shape_type == MSO_SHAPE_TYPE.LINE)
+    check(arch_lines >= 25, f"architecture deck has only {arch_lines} drawn connectors")
+
     # --- identity --------------------------------------------------------
     # Case-insensitive: the shared cover renders the company name in capitals.
     for name, text in (("deck", deck), ("handbook", book), ("quick reference", sheet)):

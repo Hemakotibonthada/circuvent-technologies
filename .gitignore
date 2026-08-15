@@ -123,3 +123,10 @@ id_ed25519
 # typed git add scripts/.
 __pycache__/
 *.pyc
+
+# Rasterised artwork for the KT architecture deck. python-pptx cannot embed an
+# SVG, so the product illustrations in public/img are rendered to PNG at build
+# time and cached here. They are already embedded inside the .pptx that ships,
+# so this directory is a build speed-up and nothing more — committing it would
+# be a second copy of public/img that can fall behind the first.
+Docs/kt/_assets/

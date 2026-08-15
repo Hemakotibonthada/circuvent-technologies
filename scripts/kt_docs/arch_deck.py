@@ -25,6 +25,7 @@ with a design department attached.
 from __future__ import annotations
 
 from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
 
 from business_docs.brand import (
     CYAN, CYAN_BRIGHT, VIOLET, INK, INK_DEEP, SLATE, MUTED, PAPER, PAPER_ALT,
@@ -34,6 +35,7 @@ from business_docs.decks import (
 )
 from kt_docs.deck import _kt_title_slide, _ltable, _note
 from kt_docs import arch_facts as af
+from kt_docs import diagrams as dg
 
 
 def _flow(slide, y: float, steps: list[tuple[str, str]]) -> None:
@@ -92,13 +94,22 @@ def build_arch_deck(data: dict, out_path) -> int:
     page += 1
     s = _blank(prs)
     _slide_header(s, "The shape of it", "Four deployables, one broker, two databases")
+    dg.architecture_map(s, top=1.75)
+    _text(s, 0.85, 6.55, 11.6, 0.35,
+          "The broker is the only path between the top two bands and the bottom one. "
+          "The dashed edge is the local bus \u2014 the one connection that never leaves the building.",
+          size=10, color=MUTED)
+    _footer(s, data, page=page)
+    _note(s, "Draw attention to the broker being a single hinge, and to the dashed edge: "
+              "everything else on this diagram stops working when the internet does.")
+
+    # ------------------------------------------------------------ inventory
+    page += 1
+    s = _blank(prs)
+    _slide_header(s, "The four deployables", "Where each one lives and what it owns")
     _ltable(s, ["What", "Lives in", "Runs on", "Owns"],
             [[d.name, d.path, d.runs_on, d.owns] for d in data["deployables"]],
             left=0.85, top=1.95, width=11.6, col_widths=[2.6, 1.5, 2.9, 4.6], size=10.5)
-    _text(s, 0.85, 5.35, 11.6, 0.9,
-          "The broker is the hinge. Everything a customer sees is one of the first three; "
-          "everything that physically happens is the fourth, and the two only ever meet over MQTT.",
-          size=12, color=MUTED)
     _footer(s, data, page=page)
 
     # ------------------------------------------------------------ hot path
@@ -123,17 +134,24 @@ def build_arch_deck(data: dict, out_path) -> int:
     page += 1
     s = _blank(prs)
     _slide_header(s, "MQTT", "The topic contract, which four codebases depend on")
-    _ltable(s, ["Topic", "Direction", "Delivery", "Why it is that way"],
-            [list(r) for r in af.mqtt_topics()],
-            left=0.85, top=1.95, width=11.6, col_widths=[2.5, 1.7, 1.5, 5.9], size=10)
-    _text(s, 0.85, 5.5, 11.6, 0.8,
+    dg.topic_tree(s, left=0.9, top=1.95)
+    _text(s, 0.9, 5.85, 11.6, 0.7,
           "Rename a leaf in the sketch and the console, the app and the bridge all go quiet "
           "without a single error anywhere. These names are an interface, not an implementation detail.",
-          size=11.5, color=MUTED)
+          size=11, color=MUTED)
     _footer(s, data, page=page)
     _note(s, "The retained/not-retained split is the part people get wrong. State is retained so "
               "a new subscriber learns reality immediately; telemetry must not be, or every "
               "reconnect replays an old reading as if it had just happened.")
+
+    # ------------------------------------------------------ MQTT, in detail
+    page += 1
+    s = _blank(prs)
+    _slide_header(s, "MQTT", "Why each topic behaves the way it does")
+    _ltable(s, ["Topic", "Direction", "Delivery", "Why it is that way"],
+            [list(r) for r in af.mqtt_topics()],
+            left=0.85, top=1.95, width=11.6, col_widths=[2.5, 1.7, 1.5, 5.9], size=10)
+    _footer(s, data, page=page)
 
     # ------------------------------------------------------------ the broker
     page += 1
@@ -150,14 +168,20 @@ def build_arch_deck(data: dict, out_path) -> int:
     # ------------------------------------------------------------ certs
     page += 1
     s = _blank(prs)
-    _slide_header(s, "Certificates", "Three separate stories that get mistaken for one")
+    _slide_header(s, "Certificates", "Three chains, and only one of them is ours")
+    dg.cert_chains(s, top=1.95)
+    _footer(s, data, page=page)
+    _note(s, "Everybody reads 'Let's Encrypt' twice and stops paying attention before "
+              "reaching the third column. That third one is the one whose expiry takes the "
+              "whole fleet offline, and no ACME client is watching it.")
+
+    # ------------------------------------------------------ certs, in detail
+    page += 1
+    s = _blank(prs)
+    _slide_header(s, "Certificates", "What each one means for you")
     _ltable(s, ["Where", "Issued by", "Renewal", "What that means for you"],
             [list(r) for r in af.certificates()],
             left=0.85, top=1.95, width=11.6, col_widths=[2.2, 2.5, 1.5, 5.4], size=10)
-    _text(s, 0.85, 5.6, 11.6, 0.8,
-          "Only one of these is ours to renew. It is also the one whose expiry takes the whole "
-          "fleet offline, and the one no ACME client is watching.",
-          size=12, color=MUTED)
     _footer(s, data, page=page)
 
     # ------------------------------------------------------------ pinning
@@ -215,13 +239,63 @@ def build_arch_deck(data: dict, out_path) -> int:
     page += 1
     s = _blank(prs)
     _slide_header(s, "Deployment", "Four things, four different mechanisms")
+    dg.deploy_pipeline(s, top=2.0)
+    _text(s, 0.9, 5.9, 11.6, 0.9,
+          "A local build passing is not evidence the pushed tree builds \u2014 uncommitted files can "
+          "satisfy an import. Diagnose with a worktree at the pushed commit.",
+          size=11.5, color=MUTED)
+    _footer(s, data, page=page)
+
+    # -------------------------------------------------- deployment, in detail
+    page += 1
+    s = _blank(prs)
+    _slide_header(s, "Deployment", "The part of each that bites")
     _ltable(s, ["What", "How it ships", "The part that bites"],
             [list(r) for r in af.deployments()],
             left=0.85, top=1.9, width=11.6, col_widths=[2.4, 3.5, 5.7], size=10.5)
-    _text(s, 0.85, 5.4, 11.6, 0.9,
-          "A local build passing is not evidence the pushed tree builds \u2014 uncommitted files can "
-          "satisfy an import. Diagnose with a worktree at the pushed commit.",
-          size=12, color=MUTED)
+    _footer(s, data, page=page)
+
+    # ------------------------------------------------------------ the flat
+    page += 1
+    s = _blank(prs)
+    _slide_header(s, "A three-bedroom flat", "The same switch, two ways to reach the light")
+    dg.home_plan(s, top=1.95)
+    _footer(s, data, page=page)
+    _note(s, "Point at the lower row: that is what a cross-room switch used to do every single "
+              "time. Two boards two metres apart, and the command leaves the country and comes "
+              "back. The dashed line is the same action after the local bus.")
+
+    # ------------------------------------------------------------ the fleet
+    page += 1
+    s = _blank(prs)
+    _slide_header(s, "The fleet", f"{len(data['devices'])} device types ship from firmware/")
+    shown = [
+        ("product-touchboard-8", "Touch Board 8"),
+        ("product-touchboard", "Touch Board"),
+        ("product-home-hub", "Home Hub"),
+        ("product-camera", "Camera"),
+        ("product-sentinel", "Sentinel"),
+        ("product-watertank", "WaterTank"),
+    ]
+    x, drawn = 0.85, 0
+    for name, label in shown:
+        if dg.picture(s, name, x, 1.95, 1.85):
+            # Below the artwork, not on it. The images are square, so a label
+            # placed by eye at "about here" landed inside the picture, where
+            # dark text on a dark illustration is invisible rather than wrong.
+            _text(s, x, 3.88, 1.85, 0.28, label, size=9.5, bold=True, color=INK,
+                  align=PP_ALIGN.CENTER)
+            drawn += 1
+            x += 1.95
+    _text(s, 0.85, 4.35, 11.6, 0.4,
+          "Artwork is rasterised at build time from public/img, which "
+          "scripts/gen-product-art.js owns. Nothing here is a screenshot that can go stale "
+          "against the shop.",
+          size=10, color=MUTED)
+    _bullets(s, 0.85, 4.95, 11.6, 1.5, [
+        "Every one of these has a console control surface, a phone control surface and a command-map entry \u2014 tests/firmware-console-parity.test.ts fails the build if one is added without them.",
+        "A device type touches roughly thirty files across four surfaces. Docs/07-adding-a-new-device.md is the checklist, and it names five failures that produce no error at all.",
+    ], size=11.5)
     _footer(s, data, page=page)
 
     # ------------------------------------------------------------ local bus
