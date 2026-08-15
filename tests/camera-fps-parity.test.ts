@@ -298,6 +298,54 @@ describe("camera frame rate", () => {
     });
   });
 
+  describe("the console does not clamp what the firmware allows", () => {
+    /*
+     * The sliders read their maximum from the sketch, so they were already
+     * right. CAM_FPS_MAX is a second, independent copy of the same limit, and
+     * it is the one that decides what a command projects to — so when it fell
+     * behind, the slider offered 60, the device ran 60, and the console put 30
+     * on the screen.
+     *
+     * This drifted at 15-vs-30 and again at 30-vs-60. Both times the symptom
+     * was a number quietly corrected to a smaller one, which is invisible
+     * unless you are looking for it. Asserting the value against the sketch is
+     * the only version of this check that cannot go stale.
+     */
+    const commandMap = fs.readFileSync(
+      path.join(root, "src", "lib", "smarthome-command-map.ts"),
+      "utf8"
+    );
+
+    /** Value of an exported `const NAME = <number>`. */
+    function constant(src: string, name: string): number {
+      const m = src.match(new RegExp(`const\\s+${name}\\s*=\\s*(\\d+)`));
+      if (!m) throw new Error(`${name} not found`);
+      return Number(m[1]);
+    }
+
+    it("caps projected frame rate at the firmware's limit, not below it", () => {
+      expect(constant(commandMap, "CAM_FPS_MAX")).toBe(Number(define("FPS_MAX")));
+    });
+
+    it("offers presets that reach the firmware's limit", () => {
+      const presets = commandMap.match(/CAM_FPS_PRESETS\s*=\s*\[([^\]]+)\]/);
+      if (!presets) throw new Error("CAM_FPS_PRESETS not found");
+      const max = Math.max(...presets[1].split(",").map((v) => Number(v.trim())));
+      expect(max).toBe(Number(define("FPS_MAX")));
+    });
+
+    it("does not write the ceiling down as a number in prose", () => {
+      /*
+       * Each stale comment named the then-current limit, so it read as
+       * authoritative long after it stopped being true. Comments may point at
+       * the sketch; they may not restate its value.
+       */
+      for (const src of [mobileCameras, mobileControl, commandMap]) {
+        expect(src).not.toMatch(/FPS_MAX\s+\d+/);
+      }
+    });
+  });
+
   describe("the picture is labelled with the size it actually is", () => {
     it("publishes the streaming resolution, not only the chosen one", () => {
       /*

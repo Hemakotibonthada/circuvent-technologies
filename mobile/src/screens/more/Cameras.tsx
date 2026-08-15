@@ -21,7 +21,9 @@ import {
 } from "../../recording";
 
 /*
- * firmware/camera/camera.ino defines FPS_MAX 30.
+ * The frame rates this screen offers come from the sketch's `#define FPS_MAX`,
+ * and tests/camera-fps-parity.test.ts reads that value rather than trusting
+ * this comment to stay true.
  *
  * This read [1, 5, 10, 15] under a comment asserting "the firmware clamps to
  * 15fps". It does not, and never did. Control.tsx had already been corrected;
@@ -30,7 +32,8 @@ import {
  * for more than half the available frame rate. The device silently constrains
  * whatever it is sent, so nothing ever contradicted the comment.
  *
- * Kept in step with the sketch by tests/camera-fps-parity.test.ts.
+ * The number is deliberately not restated here. Writing it down is what went
+ * stale the first two times.
  */
 const FPS_OPTIONS = [1, 5, 10, 15, 24, 30, 45, 60] as const;
 const RESOLUTIONS = ["QVGA", "CIF", "VGA", "SVGA", "XGA"] as const;

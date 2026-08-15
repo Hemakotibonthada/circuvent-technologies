@@ -31,16 +31,31 @@ export interface CommandPayload {
 /**
  * The camera's frame-rate ceiling, from firmware/camera/camera.ino.
  *
- * `#define FPS_MAX 30`. This was clamped to 15 here, so a camera told to run at
- * 30 reported 30 and the console immediately overwrote it with 15 — the number
- * on screen disagreed with the hardware, and the stepper appeared to refuse
- * anything above half its own maximum. The firmware constant is the only real
- * limit; keep this in step with it.
+ * This must equal the sketch's `#define FPS_MAX`. It has now drifted twice, in
+ * the same direction, for the same reason: the firmware gained frame rate and
+ * this constant stayed where it was.
+ *
+ * First it sat at 15 while the firmware did 30, so a camera told to run at 30
+ * reported 30 and the console immediately overwrote it with 15. Then the
+ * firmware went to 60 and this sat at 30, so the sliders — which read their
+ * maximum from the sketch and so correctly offered 60 — sent a value this then
+ * clamped straight back down. Both times the number on screen disagreed with
+ * the hardware, and both times nothing failed: `clamp` is not an error, it is
+ * a quiet correction of something that was already right.
+ *
+ * tests/camera-fps-parity.test.ts now reads the sketch and fails if these
+ * disagree, so the drift cannot happen a third time silently.
  */
-export const CAM_FPS_MAX = 30;
+export const CAM_FPS_MAX = 60;
 
-/** The frame rates worth offering as presets. The device accepts any 1..30. */
-export const CAM_FPS_PRESETS = [1, 5, 8, 10, 15, 20, 25, 30] as const;
+/**
+ * The frame rates worth offering as presets. The device accepts any 1..60.
+ *
+ * 45 and 60 are here because the firmware can now reach them; a preset list
+ * that stops at half the hardware's capability is the slider bug again, just
+ * spelled as a dropdown.
+ */
+export const CAM_FPS_PRESETS = [1, 5, 8, 10, 15, 20, 25, 30, 45, 60] as const;
 
 /**
  * Fan speed, in the two forms the fleet understands.

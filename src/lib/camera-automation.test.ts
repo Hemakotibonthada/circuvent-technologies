@@ -70,16 +70,18 @@ describe("camera automations", () => {
     expect(buildFieldCommand("camera", "power", true)).toBeNull();
   });
 
-  it("projects 30 fps without clamping it back down", () => {
-    // Was clamped to 15 here while the firmware's FPS_MAX is 30, so the console
-    // overwrote the device's real value with a smaller one.
-    const patch = projectCommand("camera", { action: "set", fps: 30 });
-    expect(patch.fps).toBe(30);
-    expect(CAM_FPS_MAX).toBe(30);
+  it("projects the firmware's full frame rate without clamping it back down", () => {
+    // This has been wrong twice. It clamped to 15 while the firmware did 30,
+    // then to 30 once the firmware reached 60 — each time the console
+    // overwrote the device's real value with a smaller one, and each time the
+    // clamp did exactly what a clamp is supposed to do, silently.
+    const patch = projectCommand("camera", { action: "set", fps: 60 });
+    expect(patch.fps).toBe(60);
+    expect(CAM_FPS_MAX).toBe(60);
   });
 
   it("still clamps beyond what the firmware accepts", () => {
-    expect(projectCommand("camera", { action: "set", fps: 99 }).fps).toBe(30);
+    expect(projectCommand("camera", { action: "set", fps: 99 }).fps).toBe(60);
     expect(projectCommand("camera", { action: "set", fps: 0 }).fps).toBe(1);
   });
 });
