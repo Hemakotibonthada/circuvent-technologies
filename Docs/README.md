@@ -56,6 +56,18 @@ PDF). They are **generated** from the live catalogue by
 every document instead of leaving a stale figure in a deck nobody remembers to
 edit. See [business/README.md](./business/README.md).
 
+### Knowledge transfer
+
+`Docs/kt/` holds the engineering handover pack — a session deck (PPTX), a
+handbook (DOCX) and a two-page quick reference (PDF). Like the business
+documents these are **generated**, by `npm run docs:kt`: the device list is the
+firmware tree, the document index is this folder, and the traps table is parsed
+out of [00 — Start here](./00-start-here.md), so the pack cannot quietly fall
+behind the system it describes.
+
+It is an index with opinions, not a replacement for these documents. See
+[kt/README.md](./kt/README.md).
+
 ## The system in one paragraph
 
 Circuvent sells and operates smart-home hardware. A **Next.js site** on Vercel is

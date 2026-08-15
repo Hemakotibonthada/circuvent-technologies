@@ -108,3 +108,9 @@ id_ed25519
 # generated route handlers under src/app/.well-known/workflow/ ignore
 # themselves, but this one is ours to declare.
 .workflow-data/
+
+# Python bytecode from the document generators. Not ignored until now only
+# because scripts/business_docs was staged by explicit path and nobody ever
+# typed git add scripts/.
+__pycache__/
+*.pyc
