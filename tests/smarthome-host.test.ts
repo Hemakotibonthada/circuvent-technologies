@@ -13,7 +13,43 @@
  * exclusions; only requesting /api/health, /favicon.ico and /robots.txt found
  * it. Hence this, in plain JavaScript, with a test.
  */
-import { HOME_HOSTS, servedFromRoot, smartHomePath } from "@/lib/smarthome-host";
+import { HOME_HOSTS, isConsoleHost, servedFromRoot, smartHomePath } from "@/lib/smarthome-host";
+
+/*
+ * The console appeared on its own subdomain with the corporate navigation bar
+ * sitting on top of it — Home / Projects / Domains / Shop / Services stacked
+ * over the device console's own header.
+ *
+ * The server had got it right and rendered no navigation. The client changed
+ * its mind at hydration: the chrome gate asked `usePathname()`, which is the
+ * rewritten `/smarthome` on the server but the browser's `/` in the page, so
+ * the gate flipped to false and put the bar back. Server HTML alone looked
+ * correct, which is why this needed to be seen in a browser to be found.
+ */
+describe("isConsoleHost", () => {
+  it.each(["home.circuvent.com", "iot.circuvent.com", "IOT.Circuvent.com"])(
+    "%s is the console's own hostname",
+    (host) => expect(isConsoleHost(host)).toBe(true)
+  );
+
+  it("ignores a port, so it still holds on a dev server", () => {
+    expect(isConsoleHost("home.circuvent.com:3000")).toBe(true);
+  });
+
+  it.each(["circuvent.com", "www.circuvent.com", "home.circuvent.com.attacker.net"])(
+    "%s is not",
+    (host) => expect(isConsoleHost(host)).toBe(false)
+  );
+
+  it("is false during server rendering, where there is no window", () => {
+    // The server does not need it: its `usePathname()` is already /smarthome.
+    // Returning false here rather than guessing is what keeps the two sides
+    // agreeing instead of fighting over the nav bar.
+    expect(isConsoleHost(null)).toBe(false);
+    expect(isConsoleHost(undefined)).toBe(false);
+    expect(isConsoleHost("")).toBe(false);
+  });
+});
 
 describe("which hostnames serve the smart home console", () => {
   it.each(["home.circuvent.com", "iot.circuvent.com", "HOME.circuvent.com"])(

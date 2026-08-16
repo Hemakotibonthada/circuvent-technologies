@@ -20,6 +20,24 @@
 export const HOME_HOSTS = /^(home|iot)\.circuvent\.com$/i;
 
 /**
+ * Is this request being served as the console's own site?
+ *
+ * Needed on both sides of hydration, and for a reason worth writing down.
+ * The proxy rewrites `home.circuvent.com/` to `/smarthome`, so the server sees
+ * the rewritten path while the browser's URL — and therefore `usePathname()`
+ * after hydration — stays `/`. A gate keyed only on the path agrees with
+ * itself on the server, renders no navigation, and then changes its mind the
+ * moment React hydrates: the corporate nav bar drops in on top of the console.
+ *
+ * The hostname is the one fact both sides can read identically, so the gate is
+ * keyed on that as well as the path.
+ */
+export function isConsoleHost(host: string | null | undefined): boolean {
+  if (!host) return false;
+  return HOME_HOSTS.test(host.split(":")[0]);
+}
+
+/**
  * Paths that mean the same thing on every hostname and must not be remapped.
  *
  * This list is the whole difficulty of mounting a subtree on a hostname. Miss
