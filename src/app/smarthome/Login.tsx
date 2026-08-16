@@ -192,7 +192,7 @@ export default function Login() {
             </div>
           </motion.div>
 
-          <div className="text-xs text-slate-600">© Circuvent Technologies · self-hosted control plane</div>
+          <div className="text-xs text-slate-400">© Circuvent Technologies · self-hosted control plane</div>
         </div>
 
         {/* Right form panel */}
@@ -204,17 +204,33 @@ export default function Login() {
             className="w-full max-w-md"
           >
             {/* Mobile brand */}
-            <div className="mb-8 flex items-center gap-3 justify-center lg:hidden">
-              <div
-                className="h-[44px] w-[44px] rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
-                style={{ background: "var(--cv-gradient)" }}
-              >
-                <Cpu className="h-6 w-6 text-white" />
+            <div className="mb-8 lg:hidden">
+              <div className="flex items-center gap-3 justify-center">
+                <div
+                  className="h-[44px] w-[44px] rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
+                  style={{ background: "var(--cv-gradient)" }}
+                >
+                  <Cpu className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <div className="text-white font-extrabold text-xl leading-none">Circuvent</div>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-400">Device Console</div>
+                </div>
               </div>
-              <div>
-                <div className="text-white font-extrabold text-xl leading-none">Circuvent</div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-400">Device Console</div>
-              </div>
+
+              {/*
+               * The whole proposition — the headline, the description, the three
+               * assurances — sits in a panel that is `hidden lg:flex`, so on a
+               * phone none of it existed: a bare "Welcome back" box on a dark
+               * background, with nothing saying what the box was for. A phone is
+               * where a smart-home console is normally opened, so this is a
+               * short version of the same claim, sized not to push the form
+               * below the fold.
+               */}
+              <p className="mt-5 text-center text-sm leading-relaxed text-slate-400">
+                Devices, energy, security and automations — one self-hosted
+                control plane for everything you own.
+              </p>
             </div>
 
             <div className="cvlogin-card rounded-2xl border border-white/10 p-6 md:p-8">
@@ -246,6 +262,7 @@ export default function Login() {
                   <Field icon={<Lock className="h-4 w-4" />}>
                     <input
                       className="cv-input tracking-[0.5em] text-center text-lg"
+                      aria-label="Reset code from your email"
                       placeholder="000000"
                       inputMode="numeric"
                       maxLength={6}
@@ -257,6 +274,7 @@ export default function Login() {
                   <Field icon={<Lock className="h-4 w-4" />}>
                     <input
                       className="cv-input"
+                      aria-label="New password"
                       placeholder="New password"
                       type="password"
                       value={password}
@@ -278,6 +296,7 @@ export default function Login() {
                   <Field icon={<Lock className="h-4 w-4" />}>
                     <input
                       className="cv-input tracking-[0.5em] text-center text-lg"
+                      aria-label="Sign-in code from your email"
                       placeholder="000000"
                       inputMode="numeric"
                       maxLength={6}
@@ -303,6 +322,7 @@ export default function Login() {
                         <Field icon={<UserIcon className="h-4 w-4" />}>
                           <input
                             className="cv-input"
+                            aria-label="Full name"
                             placeholder="Full name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
@@ -317,6 +337,7 @@ export default function Login() {
                   <Field icon={<Mail className="h-4 w-4" />}>
                     <input
                       className="cv-input"
+                      aria-label="Email address"
                       placeholder="Email"
                       type="email"
                       value={email}
@@ -337,6 +358,7 @@ export default function Login() {
                         <Field icon={<Lock className="h-4 w-4" />}>
                           <input
                             className="cv-input"
+                            aria-label="Password"
                             placeholder="Password"
                             type="password"
                             value={password}
@@ -461,7 +483,18 @@ export default function Login() {
               )}
             </div>
 
-            <p className="text-center text-xs text-slate-500 mt-6">
+            {/*
+             * The same three assurances the desktop panel makes, as a compact
+             * row rather than cards, so a phone gets the claim without the form
+             * being pushed off the screen.
+             */}
+            <div className="mt-6 flex items-center justify-center gap-4 lg:hidden">
+              <Assurance icon={<Radio className="h-3.5 w-3.5" />} label="Real-time" />
+              <Assurance icon={<ShieldCheck className="h-3.5 w-3.5" />} label="Encrypted" />
+              <Assurance icon={<Zap className="h-3.5 w-3.5" />} label="Automated" />
+            </div>
+
+            <p className="text-center text-xs text-slate-400 mt-6">
               Self-hosted control plane · end-to-end encrypted device link
             </p>
           </motion.div>
@@ -585,8 +618,19 @@ function Feature({ icon, label, sub, delay }: { icon: React.ReactNode; label: st
     >
       <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-300">{icon}</div>
       <div className="text-sm font-semibold text-white">{label}</div>
-      <div className="text-[11px] text-slate-500">{sub}</div>
+      {/* slate-500 measured 4.15:1 here, just under the 4.5 AA needs at 11px */}
+      <div className="text-[11px] text-slate-400">{sub}</div>
     </motion.div>
+  );
+}
+
+/** The compact, phone-sized form of a Feature: icon and claim, no card. */
+function Assurance({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[12px] text-slate-400">
+      <span className="text-cyan-300">{icon}</span>
+      {label}
+    </div>
   );
 }
 
