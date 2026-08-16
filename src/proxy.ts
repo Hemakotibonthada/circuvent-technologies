@@ -9,32 +9,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { CSP } from "@/lib/csp";
 import { categorySlug } from "@/lib/shop-categories";
-import { smartHomePath } from "@/lib/smarthome-host";
 
 export function proxy(request: NextRequest) {
-  /*
-   * The smart home console, mounted at the root of its own hostname.
-   *
-   * Done here rather than with a `rewrites()` entry because the exclusions are
-   * the whole difficulty and they have to be readable. A bare catch-all sends
-   * /api/devices to /smarthome/api/devices and every script to
-   * /smarthome/_next/..., so all 143 API routes and every asset 404: the app
-   * renders its shell and then does nothing, which is the hardest kind of
-   * broken to diagnose. Expressing that as a negative lookahead inside a
-   * path-to-regexp `source` is possible to write and impossible to trust — the
-   * first attempt matched none of the three exclusions and was only caught by
-   * requesting them.
-   */
-  const mounted = smartHomePath(
-    request.headers.get("host") ?? "",
-    request.nextUrl.pathname
-  );
-  if (mounted) {
-    const url = request.nextUrl.clone();
-    url.pathname = mounted;
-    return NextResponse.rewrite(url);
-  }
-
   /*
    * Categories moved from /shop?cat=Safety to /shop/c/safety.
    *
