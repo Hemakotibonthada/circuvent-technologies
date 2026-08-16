@@ -429,29 +429,114 @@ function Metric({ label, value, tone, icon: Icon }: { label: string; value: stri
 }
 
 /** Volume over the window, with failures stacked in red. */
-function Series({ series }: { series: InsightsSummary["series"] }) {
+/**
+ * The events-over-time bar chart above the tab strip.
+ *
+ * It used to be a bare row of bars in a box: no title, no axis, no legend and
+ * no empty state. On a quiet window that renders as a blank panel with one
+ * faint block in the corner, which reads as a chart that failed to load — and
+ * the 2%-tall stubs it drew for empty buckets were the same colour as real
+ * data, so "nothing happened" and "something small happened" looked identical.
+ *
+ * A chart that cannot be misread has to say what it is counting, how far back
+ * it reaches, and what its tallest bar is worth. Without the scale, one event
+ * and a million events draw exactly the same picture.
+ */
+export function Series({ series, hours }: { series: InsightsSummary["series"]; hours: number }) {
+  const total = series.reduce((n, b) => n + b.count, 0);
+  const failed = series.reduce((n, b) => n + b.failures, 0);
   const max = Math.max(1, ...series.map((b) => b.count));
+  const bucketMins = series.length ? Math.max(1, Math.round((hours * 60) / series.length)) : 0;
+
+  /*
+   * Said out loud rather than drawn as an empty box. "Nothing was recorded" is
+   * a real and common answer on a low-traffic window, and it is not the same
+   * answer as "this panel is broken" — which is what a blank chart looks like.
+   */
+  if (!series.length || total === 0) {
+    return (
+      <div className="rounded-xl border cv-border cv-surface p-4">
+        <div className="text-sm font-semibold cv-text-secondary">Events over time</div>
+        <div className="mt-1 text-[13px] cv-text-muted">
+          No events were recorded in the last {hours}h. Nothing is wrong with the chart — the
+          telemetry buffer is simply empty for this window.
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-24 items-end gap-[2px] rounded-xl border cv-border cv-surface p-3">
-      {series.map((b, i) => {
-        const h = (b.count / max) * 100;
-        const fh = b.count ? (b.failures / b.count) * h : 0;
-        return (
-          <div
-            key={i}
-            className="flex-1 rounded-sm"
-            style={{ height: `${Math.max(2, h)}%`, position: "relative", background: "var(--accent-cyan-muted)" }}
-            title={`${fmtTime(b.at)} · ${b.count} events, ${b.failures} failed`}
-          >
-            {b.failures > 0 && (
+    <div className="rounded-xl border cv-border cv-surface p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div className="text-sm font-semibold cv-text-secondary">Events over time</div>
+        <div className="flex items-center gap-3 text-[11px] cv-text-muted">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--accent-cyan)" }} aria-hidden />
+            {total.toLocaleString()} event{total === 1 ? "" : "s"}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-sm bg-red-500" aria-hidden />
+            {failed.toLocaleString()} failed
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-stretch gap-2">
+        {/* The scale. One event and a million draw the same bars without it. */}
+        <div className="flex w-10 shrink-0 flex-col justify-between py-[1px] text-right text-[10px] cv-text-muted">
+          <span>{max.toLocaleString()}</span>
+          <span>0</span>
+        </div>
+
+        <div
+          className="flex h-24 flex-1 items-end gap-[2px] border-b border-l pb-[1px] pl-[1px]"
+          style={{ borderColor: "var(--border-primary)" }}
+          role="img"
+          aria-label={`Events over the last ${hours} hours: ${total} events, ${failed} failed, peak ${max} in a ${bucketMins} minute bucket.`}
+        >
+          {series.map((b, i) => {
+            const h = (b.count / max) * 100;
+            const failPct = b.count ? (b.failures / b.count) * 100 : 0;
+            const label = `${fmtTime(b.at)} · ${b.count} events, ${b.failures} failed`;
+
+            /*
+             * An empty bucket is drawn as a hairline on the baseline, not as a
+             * short bar in the data colour. The old version made zero look like
+             * a small non-zero reading.
+             */
+            if (!b.count) {
+              return (
+                <div key={i} className="flex-1 self-end" title={label}>
+                  <div className="h-[1px] w-full" style={{ background: "var(--border-primary)" }} />
+                </div>
+              );
+            }
+
+            return (
               <div
-                className="absolute bottom-0 left-0 right-0 rounded-sm bg-red-500"
-                style={{ height: `${(fh / Math.max(h, 0.001)) * 100}%` }}
-              />
-            )}
-          </div>
-        );
-      })}
+                key={i}
+                className="relative flex-1 rounded-sm"
+                style={{ height: `${Math.max(3, h)}%`, background: "var(--accent-cyan)" }}
+                title={label}
+              >
+                {b.failures > 0 && (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 rounded-sm bg-red-500"
+                    style={{ height: `${failPct}%` }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Where the window starts and ends, so "the right edge" means something. */}
+      <div className="mt-1 flex justify-between pl-12 text-[10px] cv-text-muted">
+        <span>{fmtTime(series[0].at)}</span>
+        <span>each bar {bucketMins}m</span>
+        <span>now</span>
+      </div>
     </div>
   );
 }
@@ -888,6 +973,7 @@ export default function AppInsightsPanel() {
           </button>
           <button
             onClick={() => void clear()}
+            aria-label="Discard buffered telemetry"
             className="inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-3 text-sm cv-text-muted hover:cv-surface-alt"
             title="Discard the buffer"
           >
@@ -914,7 +1000,7 @@ export default function AppInsightsPanel() {
             <Metric label="P95" value={`${s.p95}ms`} tone={s.p95 > 2000 ? "#f59e0b" : "var(--text-primary)"} icon={Gauge} />
           </div>
 
-          <Series series={s.series} />
+          <Series series={s.series} hours={hours} />
 
           {/*
             Said plainly rather than hidden. The buffer is a fixed-size ring, so

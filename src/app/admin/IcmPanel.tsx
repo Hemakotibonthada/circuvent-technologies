@@ -200,6 +200,13 @@ export default function IcmPanel() {
   const [activeView, setActiveView] = useState("");
   const [postmortemsDue, setPostmortemsDue] = useState<{ id: string; title: string }[]>([]);
   const [actions, setActions] = useState<OpenAction[]>([]);
+  /*
+   * Selection for bulk work. A queue fills up in bursts — one rollout files
+   * eleven incidents against the same service — and acknowledging eleven
+   * incidents one page at a time is how an ack SLA gets breached by the
+   * console rather than by the outage.
+   */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -298,6 +305,80 @@ export default function IcmPanel() {
   );
 
   const open = useMemo(() => incidents.find((i) => i.id === openId) ?? null, [incidents, openId]);
+
+  /**
+   * The same action across every selected incident.
+   *
+   * Sequential, not `Promise.all`. Each of these writes a timeline entry and
+   * re-reads the record, and firing eleven concurrent read-modify-writes at one
+   * JSON store is how two of them end up with the other's timeline. Eleven
+   * round trips is slower and correct.
+   *
+   * Failures are counted rather than thrown, because a partial result is the
+   * normal case: "already acknowledged" comes back for anything somebody else
+   * picked up while this was open, and that is information, not an error.
+   */
+  const bulkAct = useCallback(
+    async (action: "acknowledge" | "mitigate" | "resolve", ids: string[]) => {
+      const verb = action === "acknowledge" ? "Acknowledge" : action === "mitigate" ? "Mitigate" : "Resolve";
+      const many = `${ids.length} incident${ids.length === 1 ? "" : "s"}`;
+
+      /*
+       * Mitigate and resolve write their note into the incident's mitigation
+       * and root cause. Sending a canned "bulk action" string would stamp that
+       * placeholder onto every record at once and it would still be there
+       * during the postmortem, so the note is asked for rather than invented.
+       * Acknowledging records no text, so it only needs confirming.
+       */
+      let note = "";
+      if (action === "acknowledge") {
+        if (!confirm(`Acknowledge ${many}?`)) return;
+      } else {
+        const answer = prompt(
+          `${verb} ${many}.\n\nThis note is written to every one of them — say what was actually done.`
+        );
+        if (!answer?.trim()) return;
+        note = answer.trim();
+      }
+
+      setBusy(true);
+      setError("");
+      let failed = 0;
+
+      for (const id of ids) {
+        try {
+          const r = await fetch("/api/admin/icm", {
+            method: "PATCH",
+            headers: { "content-type": "application/json", "x-admin-token": tok() },
+            body: JSON.stringify({ id, action, note }),
+          });
+          const b = await r.json();
+          if (!r.ok || !b.success) failed += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+
+      if (failed) {
+        setError(
+          `${ids.length - failed} of ${ids.length} went through. ${failed} did not — most likely already ${action}d by somebody else.`
+        );
+      }
+      setSelected(new Set());
+      setBusy(false);
+      void load();
+    },
+    [load]
+  );
+
+  /*
+   * Selection is dropped whenever the list changes underneath it. Keeping ids
+   * that are no longer on screen means a bulk action that hits incidents the
+   * person cannot see and did not mean to pick.
+   */
+  useEffect(() => {
+    setSelected(new Set());
+  }, [status, sev, slaFilter, q, hideDuplicates]);
 
   /*
    * Applying a view writes its filters into the controls rather than bypassing
@@ -661,12 +742,70 @@ export default function IcmPanel() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border cv-border">
+      {/*
+        Only present when something is selected. A toolbar of permanently
+        greyed-out bulk buttons is a row of controls that look available and do
+        nothing, which is the mistake this console keeps making.
+      */}
+      {selected.size > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2 rounded-xl border p-3"
+          style={{ borderColor: "var(--border-accent)", background: "var(--bg-surface)" }}
+        >
+          <span className="text-sm font-semibold cv-text-primary">
+            {selected.size} selected
+          </span>
+          <button
+            disabled={busy}
+            onClick={() => void bulkAct("acknowledge", [...selected])}
+            className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border cv-border px-3 text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
+          >
+            <CheckCircle2 className="h-4 w-4" aria-hidden /> Acknowledge
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => void bulkAct("mitigate", [...selected])}
+            className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border cv-border px-3 text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
+          >
+            <ShieldCheck className="h-4 w-4" aria-hidden /> Mitigate
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => void bulkAct("resolve", [...selected])}
+            className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border cv-border px-3 text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
+          >
+            <CheckCircle2 className="h-4 w-4" aria-hidden /> Resolve
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="ml-auto h-[38px] rounded-lg px-3 text-sm cv-text-muted hover:cv-surface-alt"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-xl border cv-border">
         <table className="w-full text-left text-sm">
           <thead className="cv-surface-alt text-[11px] uppercase tracking-wide cv-text-muted">
             <tr>
+              <th className="w-9 px-2 py-2">
+                <input
+                  type="checkbox"
+                  aria-label="Select every incident in this view"
+                  checked={incidents.length > 0 && selected.size === incidents.length}
+                  ref={(el) => {
+                    /* Partly-selected is its own state and has to look like one. */
+                    if (el) el.indeterminate = selected.size > 0 && selected.size < incidents.length;
+                  }}
+                  onChange={(e) =>
+                    setSelected(e.target.checked ? new Set(incidents.map((i) => i.id)) : new Set())
+                  }
+                />
+              </th>
               <th className="px-3 py-2">Sev</th>
               <th className="px-3 py-2">Incident</th>
+              <th className="px-3 py-2">Owning service</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Owner</th>
               <th className="px-3 py-2">Ack</th>
@@ -677,14 +816,14 @@ export default function IcmPanel() {
           <tbody>
             {loading && incidents.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center cv-text-muted">
+                <td colSpan={9} className="px-3 py-8 text-center cv-text-muted">
                   Loading the queue…
                 </td>
               </tr>
             )}
             {!loading && incidents.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-10 text-center">
+                <td colSpan={9} className="px-3 py-10 text-center">
                   <ShieldCheck className="mx-auto mb-2 h-8 w-8 text-emerald-500" aria-hidden />
                   <div className="font-semibold cv-text-secondary">Nothing open</div>
                   <div className="text-[13px] cv-text-muted">
@@ -694,7 +833,21 @@ export default function IcmPanel() {
               </tr>
             )}
             {incidents.map((inc) => (
-              <IncidentRow key={inc.id} inc={inc} now={now} onOpen={() => setOpenId(inc.id)} />
+              <IncidentRow
+                key={inc.id}
+                inc={inc}
+                now={now}
+                onOpen={() => setOpenId(inc.id)}
+                selected={selected.has(inc.id)}
+                onToggle={() =>
+                  setSelected((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(inc.id)) next.delete(inc.id);
+                    else next.add(inc.id);
+                    return next;
+                  })
+                }
+              />
             ))}
           </tbody>
         </table>
@@ -732,31 +885,68 @@ function clocksFor(inc: Incident, now: string) {
   return { ack: ackClock(inc, now), mitigate: mitigateClock(inc, now) };
 }
 
-function IncidentRow({ inc, now, onOpen }: { inc: Incident; now: string; onOpen: () => void }) {
+function IncidentRow({
+  inc,
+  now,
+  onOpen,
+  selected,
+  onToggle,
+}: {
+  inc: Incident;
+  now: string;
+  onOpen: () => void;
+  selected: boolean;
+  onToggle: () => void;
+}) {
   const c = clocksFor(inc, now);
   const age = Math.round((new Date(now).getTime() - new Date(inc.createdAt).getTime()) / 60_000);
   const bad = c.ack.state === "breached" || c.mitigate.state === "breached";
 
+  /*
+   * The left edge carries severity, always — that is what makes a queue
+   * readable at a glance, before any of the text is read.
+   *
+   * Breach used to own this bar, which meant severity was only ever visible in
+   * the chip, and a Sev0 sitting inside its SLA looked exactly like a Sev4.
+   * Breach now tints the row instead, so the two signals stack rather than one
+   * hiding the other.
+   */
   return (
     <tr
       onClick={onOpen}
       className="cursor-pointer border-t cv-border hover:cv-hover"
-      style={bad ? { boxShadow: "inset 3px 0 0 #ef4444" } : undefined}
+      style={{
+        boxShadow: `inset 4px 0 0 ${SEV_STYLE[inc.severity].ring}`,
+        background: bad ? "rgba(239,68,68,0.07)" : undefined,
+      }}
     >
+      <td className="w-9 px-2 py-2.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          aria-label={`Select ${inc.id}`}
+          /* The row opens the incident; the checkbox must not. */
+          onClick={(e) => e.stopPropagation()}
+          onChange={onToggle}
+        />
+      </td>
       <td className="px-3 py-2.5">
         <SevChip sev={inc.severity} />
       </td>
       <td className="px-3 py-2.5">
         <div className="font-semibold cv-text-primary">{inc.title}</div>
-        <div className="text-[12px] cv-text-muted">
-          {inc.id} · {inc.owningTeam}
-          {inc.affectedServices.length > 0 && ` · ${inc.affectedServices.join(", ")}`}
-        </div>
+        <div className="text-[12px] cv-text-muted">{inc.id}</div>
+      </td>
+      <td className="px-3 py-2.5 text-[12px] cv-text-secondary">
+        {inc.affectedServices.length > 0 ? inc.affectedServices.join(", ") : <span className="cv-text-muted">—</span>}
       </td>
       <td className="px-3 py-2.5">
         <span className="text-[12px] cv-text-secondary">{STATUS_LABEL[inc.status]}</span>
       </td>
-      <td className="px-3 py-2.5 text-[12px] cv-text-muted">{inc.assignedTo || "—"}</td>
+      <td className="px-3 py-2.5 text-[12px]">
+        <div className="cv-text-secondary">{inc.owningTeam}</div>
+        <div className="cv-text-muted">{inc.assignedTo || "unassigned"}</div>
+      </td>
       <td className="px-3 py-2.5">
         <SlaPill state={c.ack.state} mins={c.ack.minutesRemaining} label="Time to acknowledge" />
       </td>

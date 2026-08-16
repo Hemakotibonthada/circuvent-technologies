@@ -27,6 +27,7 @@ import {
   TrafficChart,
 } from "@/app/admin/insights-charts";
 import { IcmAnalytics } from "@/app/admin/IcmAnalytics";
+import { Series } from "@/app/admin/AppInsightsPanel";
 import type {
   DependencyStat,
   FailureGroup,
@@ -292,5 +293,63 @@ describe("IcmAnalytics", () => {
     // "0m" would claim an instant resolution; there is simply no measurement.
     render(<IcmAnalytics incidents={[incident({ resolvedAt: null })]} />);
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The events-over-time chart above the tab strip.
+ *
+ * It was a bare row of bars: no title, no scale, no legend and no empty state.
+ * On a quiet window that draws a blank panel with one faint block in it, which
+ * is indistinguishable from a chart that failed to load — and the stubs it drew
+ * for empty buckets used the data colour, so nothing and something looked the
+ * same. These tests hold the fixed version to saying what it is counting.
+ */
+describe("events-over-time chart", () => {
+  it("says the window was quiet rather than drawing an empty box", () => {
+    render(<Series series={points(12, 0, 0)} hours={24} />);
+    expect(screen.getByText(/No events were recorded in the last 24h/i)).toBeInTheDocument();
+  });
+
+  it("does not blame itself for an empty window", () => {
+    // The distinction the old blank panel could not make.
+    render(<Series series={[]} hours={1} />);
+    expect(screen.getByText(/Nothing is wrong with the chart/i)).toBeInTheDocument();
+  });
+
+  it("states the scale, so one event and a million do not draw the same picture", () => {
+    render(<Series series={points(6, 7, 0)} hours={6} />);
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("totals what it is showing, including failures", () => {
+    render(<Series series={points(4, 5, 2)} hours={4} />);
+    expect(screen.getByText("20 events")).toBeInTheDocument();
+    expect(screen.getByText("8 failed")).toBeInTheDocument();
+  });
+
+  it("says how much time one bar covers", () => {
+    render(<Series series={points(12, 3, 0)} hours={24} />);
+    expect(screen.getByText(/each bar 120m/)).toBeInTheDocument();
+  });
+
+  /*
+   * The load-bearing one. An empty bucket must not be drawn in the data colour:
+   * that is what made "nothing happened" read as "something small happened".
+   */
+  it("draws an empty bucket as a baseline, not as a short bar", () => {
+    const mixed = [...points(1, 10, 0), ...points(1, 0, 0)];
+    const { container } = render(<Series series={mixed} hours={2} />);
+    const cyan = Array.from(container.querySelectorAll<HTMLElement>("[style]")).filter((el) =>
+      (el.getAttribute("style") || "").includes("--accent-cyan")
+    );
+    // One legend swatch and exactly one data bar; the zero bucket contributes none.
+    expect(cyan).toHaveLength(2);
+  });
+
+  it("describes itself for a screen reader", () => {
+    render(<Series series={points(3, 4, 1)} hours={3} />);
+    expect(screen.getByRole("img", { name: /12 events, 3 failed, peak 4/i })).toBeInTheDocument();
   });
 });
