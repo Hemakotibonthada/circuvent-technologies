@@ -43,7 +43,6 @@ import { discountPct, isSoldOut } from "@/lib/shop-filters";
 import { useCart } from "./CartProvider";
 import { useToast } from "./ToastProvider";
 import Tilt3D from "./Tilt3D";
-import DeliveryEstimate from "./DeliveryEstimate";
 
 interface ShopStageProps {
   products: Product[];
@@ -163,10 +162,16 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
         * Anchored to the top with the content padded below it. The first
         * version centred it vertically, where the glass panel covered all but
         * two letters — the single largest element on the page, illegible.
+        *
+        * The type and the padding below it are one decision, not two: the
+        * padding exists only to clear this text, so it is sized from the same
+        * clamp. At 13vw the headline alone reserved up to 144px of the first
+        * screen and pushed the first product 1806px down on a phone — over two
+        * screens of scrolling on a page whose entire job is showing products.
         */}
       <div
         aria-hidden="true"
-        className="cv-stage-type pointer-events-none absolute inset-x-0 top-3 select-none px-4 text-center font-extrabold tracking-tight sm:top-5"
+        className="cv-stage-type pointer-events-none absolute inset-x-0 top-2 select-none px-4 text-center font-extrabold tracking-tight sm:top-3"
       >
         {headline}
       </div>
@@ -181,9 +186,20 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
         }}
       />
 
-      <div className="relative grid gap-6 p-5 pt-[clamp(3.5rem,11vw,8rem)] sm:p-8 sm:pt-[clamp(4rem,11vw,9rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-8">
+      {/*
+        * Explicit px/pb/pt rather than `p-4`, deliberately.
+        *
+        * The listing opts into the site's density system, and those rules
+        * target utility classes by name — `.cv-dense .p-4 { padding: 0.85rem }`
+        * sets all four sides and outranks an arbitrary `pt-[...]` on the same
+        * element. Written as `p-4 pt-[clamp(...)]` the top padding was silently
+        * replaced by the density value, the headline lost its clearance and
+        * disappeared behind the product image. Not matching `.p-4` at all is
+        * what keeps this one padding under the component's control.
+        */}
+      <div className="relative grid gap-4 px-4 pb-4 pt-[clamp(2.6rem,6.5vw,3.5rem)] sm:gap-6 sm:px-6 sm:pb-6 sm:pt-[clamp(3rem,6.5vw,4rem)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-8">
         {/* ---- info panel ------------------------------------------------ */}
-        <div className="order-2 lg:order-1">
+        <div className="order-2 min-w-0 lg:order-1">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={p.id}
@@ -191,7 +207,7 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
               animate={{ opacity: 1, y: 0 }}
               exit={reduce ? undefined : { opacity: 0, y: -10 }}
               transition={{ duration: reduce ? 0 : 0.34, ease: EASE_BACK }}
-              className="cv-stage-panel rounded-3xl p-5 sm:p-6"
+              className="cv-stage-panel rounded-2xl p-4 sm:p-5"
             >
               <span
                 className="text-[11px] font-bold uppercase tracking-[0.18em]"
@@ -201,7 +217,7 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
               </span>
 
               <h2
-                className="mt-2 text-2xl font-bold leading-tight sm:text-3xl"
+                className="mt-1.5 text-xl font-bold leading-tight sm:text-2xl"
                 style={{ color: "var(--text-primary)" }}
               >
                 <Link href={`/shop/${p.slug}`} className="rounded focus-visible:outline-none focus-visible:ring-2">
@@ -209,15 +225,18 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
                 </Link>
               </h2>
 
+              {/* One line here, not two: the tagline is repeated verbatim on
+                  the card in the grid below, so a second wrapped line costs
+                  height on the first screen and tells nobody anything new. */}
               <p
-                className="mt-2 max-w-md text-[13px] leading-relaxed sm:text-sm"
+                className="mt-1 line-clamp-1 max-w-md text-[13px] leading-relaxed sm:text-sm"
                 style={{ color: "var(--text-tertiary)" }}
               >
                 {p.tagline}
               </p>
 
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <span className="text-3xl font-extrabold tabular-nums" style={{ color: "var(--text-primary)" }}>
+              <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                <span className="text-2xl font-extrabold tabular-nums sm:text-[1.75rem]" style={{ color: "var(--text-primary)" }}>
                   {formatINR(p.price)}
                 </span>
                 {p.compareAt && discount > 0 && (
@@ -235,9 +254,7 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
                 )}
               </div>
 
-              <DeliveryEstimate />
-
-              <div className="mt-5 flex flex-wrap items-center gap-2.5">
+              <div className="mt-4 flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={handleAdd}
@@ -260,8 +277,17 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
             </motion.div>
           </AnimatePresence>
 
-          {/* ---- controls --------------------------------------------- */}
-          <div className="mt-5 flex items-center gap-3">
+          {/* ---- controls ---------------------------------------------
+            *
+            * `min-w-0` on both the row and the rail, and it is load-bearing.
+            * A flex item defaults to `min-width: auto`, so the scrolling rail
+            * refused to shrink below the full width of its six 44px thumbs:
+            * the column measured 412px inside a 358px stage and the panel's
+            * right edge — price, buttons and all — was silently clipped by the
+            * stage's own overflow:hidden. Nothing scrolled and nothing warned;
+            * it simply looked cut off on a phone.
+            */}
+          <div className="mt-3 flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={() => go(-1)}
@@ -285,8 +311,15 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
               * Thumbnails double as the slide indicators. Real buttons with
               * names, not dots: "go to slide 3" tells a screen-reader user
               * nothing, and a 6px dot is under any sane touch target.
+              *
+              * Scrolls rather than wraps. Six 44px thumbs plus the two arrows
+              * are wider than a 390px phone, so wrapping put a second 44px row
+              * under the stage on exactly the screen with the least room. The
+              * thumbs keep their full size and the row keeps its height; the
+              * overflow is swipeable, which is the gesture already being used
+              * on a carousel.
               */}
-            <div className="ml-1 flex flex-wrap gap-2">
+            <div className="cv-thumb-rail ml-1 flex min-w-0 flex-nowrap gap-2 overflow-x-auto">
               {slides.map((s, i) => (
                 <button
                   key={s.id}
@@ -294,7 +327,7 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
                   onClick={() => { setDir(i > index ? 1 : -1); setIndex(i); }}
                   aria-label={s.name}
                   aria-current={i === index ? "true" : undefined}
-                  className="relative h-[44px] w-[44px] overflow-hidden rounded-xl border transition-transform hover:scale-105 motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2"
+                  className="relative h-[44px] w-[44px] shrink-0 overflow-hidden rounded-xl border transition-transform hover:scale-105 motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2"
                   style={{
                     borderColor: i === index ? "var(--accent-cyan)" : "var(--border-primary)",
                     background: "var(--bg-surface)",
@@ -317,7 +350,16 @@ export default function ShopStage({ products, eyebrow, headline }: ShopStageProp
         {/* ---- the alcove ------------------------------------------------- */}
         <div className="order-1 lg:order-2">
           <Tilt3D max={6} perspective={1000} lift={10} sheen={false}>
-            <div className="cv-alcove relative aspect-[4/3] overflow-hidden rounded-[24px]">
+            {/*
+              * The alcove sets the stage's height on every screen, because it
+              * is always the tallest thing in the row — so its aspect ratio is
+              * the single biggest lever on how much of the fold the showcase
+              * takes. Wider as the viewport grows: at 4/3 the column is 600px
+              * across on a laptop, which made the alcove 450px tall on its own
+              * and pushed the grid off the screen. The product is centred in a
+              * lot of empty backdrop, so a wider crop loses none of it.
+              */}
+            <div className="cv-alcove relative aspect-[16/9] overflow-hidden rounded-[20px] sm:aspect-[4/3] lg:aspect-[16/9]">
               {/* The light bar: the single cue that turns a rounded rectangle
                   into a lit display niche. Dimmed to nothing in light mode,
                   where the aura is doing the work instead. */}

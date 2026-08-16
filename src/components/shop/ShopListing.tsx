@@ -122,9 +122,17 @@ export default function ShopListing({
         ]}
       />
 
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-8 lg:px-8">
+      {/*
+        * `cv-dense` opts this page into the density setting.
+        *
+        * The site already has one — comfortable/cozy/compact, resolved to CSS
+        * variables on <html> before first paint — and the storefront was
+        * simply not wired to it, so choosing "compact" in settings changed
+        * every surface except the one with the most content on it.
+        */}
+      <section className="cv-dense relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
-        <nav aria-label="Breadcrumb" className="mb-6">
+        <nav aria-label="Breadcrumb" className="mb-3">
           <ol className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
             <li>
               <Link href="/" className="transition-opacity hover:opacity-70">
@@ -174,7 +182,7 @@ export default function ShopListing({
           * ShopStage is a Client Component and therefore a leaf: the page
           * stays a Server Component and the category links stay real anchors.
           */}
-        <header className="mb-8">
+        <header className="mb-5">
           <ShopStage
             products={visible}
             eyebrow="Circuvent Store"
@@ -191,42 +199,80 @@ export default function ShopListing({
           <h1 id="shop-hero-title" className="sr-only">
             {activeCategory ? `${activeCategory} devices` : "Bring home Circuvent"}
           </h1>
-          <p className="mt-6 max-w-2xl text-sm sm:text-base" style={{ color: "var(--text-tertiary)" }}>
-            {activeCategory
-              ? `Every ${activeCategory.toLowerCase()} device we make - designed, flashed and shipped by our own R&D lab in India, with a ${WARRANTY_MONTHS}-month warranty and free shipping over ${formatINR(SHIPPING.freeOver)}.`
-              : `Smart, made-in-India devices - designed, flashed and shipped by our own R&D lab. Free shipping over ${formatINR(SHIPPING.freeOver)}, cash on delivery or wallet, and a ${WARRANTY_MONTHS}-month warranty on every product.`}
-          </p>
 
           {/*
-            * Stats stay, below the stage rather than inside it. They are the
-            * kind of proof a buyer scans on the way to the grid, and putting
-            * them in the glass panel would have pushed the price and the buy
-            * button below the fold on a phone.
+            * Blurb, proof and category nav on one line instead of three.
+            *
+            * These were three stacked blocks — a two-line paragraph, a
+            * four-column stat grid, then the category chips — and together
+            * they cost around 470px between the stage and the first product.
+            * Every one of them is scanned, not read: nobody parses "21 in
+            * stock of 22" as a sentence, they glance at it. Laid out as a
+            * single wrapping row they say exactly the same things in roughly a
+            * third of the height, and on a phone they stack in the order a
+            * shopper actually wants them — what this is, then what it costs.
+            *
+            * The paragraph stays in the markup at full length rather than
+            * being trimmed: it is the page's only prose, it carries the
+            * made-in-India and warranty claims for search, and clamping it
+            * visually costs nothing that a crawler reads.
             */}
-          <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {stats.map((s) => (
-              <div key={s.label}>
-                <dt className="sr-only">{s.label}</dt>
-                <dd>
-                  <span className="block text-xl font-extrabold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                    {s.value}
-                  </span>
-                  {/* --text-tertiary, not --text-muted: the latter measures
-                      2.36:1 on the dark surface, well under the 4.5:1 floor. */}
-                  <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    {s.label}
-                  </span>
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+            <p
+              className="line-clamp-1 max-w-2xl text-[13px] leading-relaxed sm:line-clamp-2 sm:text-sm"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              {activeCategory
+                ? `Every ${activeCategory.toLowerCase()} device we make - designed, flashed and shipped by our own R&D lab in India, with a ${WARRANTY_MONTHS}-month warranty and free shipping over ${formatINR(SHIPPING.freeOver)}.`
+                : `Smart, made-in-India devices - designed, flashed and shipped by our own R&D lab. Free shipping over ${formatINR(SHIPPING.freeOver)}, cash on delivery or wallet, and a ${WARRANTY_MONTHS}-month warranty on every product.`}
+            </p>
 
-          {/* Crawlable category entry points — each is a real, prerendered page. */}
-          <nav aria-label="Shop by category" className="mt-6 flex flex-wrap gap-2">
+            {/*
+              * Stats as an inline row, not a grid of display numbers.
+              *
+              * They are proof a buyer scans on the way to the grid, so they
+              * keep their tabular figures and their honest labels — the
+              * "in stock of N" wording is load-bearing and stays — but at
+              * body size in one line rather than as four 20px numerals with
+              * their own row.
+              */}
+            <dl className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs lg:shrink-0 lg:justify-end">
+              {stats.map((s) => (
+                <div key={s.label} className="flex items-baseline gap-1.5">
+                  <dt className="sr-only">{s.label}</dt>
+                  <dd className="flex items-baseline gap-1.5">
+                    <span
+                      className="text-sm font-bold tabular-nums"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {s.value}
+                    </span>
+                    {/* --text-tertiary, not --text-muted: the latter measures
+                        2.36:1 on the dark surface, well under the 4.5:1 floor. */}
+                    <span style={{ color: "var(--text-tertiary)" }}>{s.label}</span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {/*
+            * Crawlable category entry points — each is a real, prerendered page.
+            *
+            * One scrolling row on a phone, wrapping from `sm` up. Five chips
+            * with names like "Water Management" wrap to two 44px rows at
+            * 390px, which is 50px of the first screen spent on a second line
+            * holding one chip. They stay full-size, real anchors and in the
+            * same DOM order; only the overflow behaviour changes.
+            */}
+          <nav
+            aria-label="Shop by category"
+            className="cv-chip-rail mt-3 flex flex-nowrap gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible"
+          >
             <Link
               href="/shop"
               aria-current={activeCategory ? undefined : "page"}
-              className="inline-flex min-h-[44px] items-center rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors"
+              className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-[13px] font-medium transition-colors"
               style={{
                 background: activeCategory ? "var(--bg-surface)" : "var(--accent-cyan-muted)",
                 borderColor: activeCategory ? "var(--border-primary)" : "var(--border-accent)",
@@ -242,7 +288,7 @@ export default function ShopListing({
                   key={c}
                   href={categoryPath(c)}
                   aria-current={isActive ? "page" : undefined}
-                  className="inline-flex min-h-[44px] items-center rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors"
+                  className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border px-3 py-1 text-[13px] font-medium transition-colors"
                   style={{
                     background: isActive ? "var(--accent-cyan-muted)" : "var(--bg-surface)",
                     borderColor: isActive ? "var(--border-accent)" : "var(--border-primary)",
@@ -261,7 +307,7 @@ export default function ShopListing({
         </Suspense>
 
         {/* Buying FAQs — also emitted as FAQPage structured data above. */}
-        <section className="mt-20" aria-labelledby="shop-faq-heading">
+        <section className="mt-14" aria-labelledby="shop-faq-heading">
           <h2
             id="shop-faq-heading"
             className="text-xl font-bold"

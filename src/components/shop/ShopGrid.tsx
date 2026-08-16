@@ -158,28 +158,39 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
 
   return (
     <div>
-      {/* Trust strip */}
-      <ul className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/*
+        * Trust strip, as one line rather than four tiles.
+        *
+        * These were four bordered cards with 40px icon chips and two lines of
+        * text each — on a phone that is two rows of them, roughly 160px, sitting
+        * between the header and the first product. They are reassurance, not
+        * content: a shopper registers "free shipping, warranty, COD, made in
+        * India" at a glance and never reads the sub-line twice.
+        *
+        * Kept as a single bordered rail so it still reads as one unit, with the
+        * detail line shown from `sm` up where there is room for it. Same four
+        * facts, same icons, about a third of the height.
+        */}
+      <ul
+        className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border px-4 py-2.5"
+        style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+      >
         {BENEFITS.map((b) => (
-          <li
-            key={b.title}
-            className="flex items-center gap-3 rounded-xl border p-4"
-            style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
-          >
-            <span
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg"
-              style={{ background: "var(--accent-cyan-muted)", color: "var(--accent-cyan)" }}
-            >
-              <b.icon className="h-5 w-5" aria-hidden="true" />
+          <li key={b.title} className="flex min-w-0 items-center gap-2">
+            <b.icon
+              className="h-4 w-4 shrink-0"
+              aria-hidden="true"
+              style={{ color: "var(--accent-cyan)" }}
+            />
+            <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+              {b.title}
             </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                {b.title}
-              </p>
-              <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                {b.sub}
-              </p>
-            </div>
+            <span
+              className="hidden truncate text-xs sm:inline"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {b.sub}
+            </span>
           </li>
         ))}
       </ul>
@@ -215,7 +226,7 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
             onOpenFilters={() => setFiltersOpen(true)}
           />
 
-          <div className="mt-5">
+          <div className="mt-4">
             {!loading && correction.corrected && results.length > 0 && (
               <p
                 className="mb-4 text-sm"
@@ -232,7 +243,13 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
               <ProductGridSkeleton count={6} view={state.view} />
             ) : results.length > 0 ? (
               <>
-                <div className={isList ? "grid gap-4" : "grid gap-6 sm:grid-cols-2 lg:grid-cols-3"}>
+                <div
+                  className={
+                    isList
+                      ? "grid gap-3"
+                      : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                  }
+                >
                   {shown.map((p, i) => (
                     <ProductCard
                       key={p.id}

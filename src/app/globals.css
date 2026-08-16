@@ -884,12 +884,35 @@ select:-webkit-autofill {
 .cv-stage-type {
   /* Clamped rather than a fixed size: this is the one element that has to
      scale with the viewport, and a fixed size either overflows a phone or
-     looks timid on a desktop. */
-  font-size: clamp(3rem, 13vw, 10rem);
+     looks timid on a desktop.
+
+     Reduced from clamp(3rem, 13vw, 10rem). At 13vw this decorative word was
+     the tallest thing on the page and the stage's top padding existed purely
+     to clear it, which together put the first product 1806px down on a phone.
+     It still reads as the oversized backdrop it was designed to be; it just no
+     longer outbids the products for the first screen.
+
+     The 3.75rem ceiling is not arbitrary: at 0.86 line-height the word is 52px
+     tall and sits 12px from the top, so it finishes at 64px — exactly the
+     stage's own top padding. Raising this without raising that padding hides
+     the headline behind the product image, which is how it was lost once
+     already. The two numbers are one decision. */
+  font-size: clamp(2rem, 6.5vw, 3.75rem);
   line-height: 0.86;
   color: var(--stage-type-color);
   text-shadow: var(--stage-type-shadow);
 }
+
+/*
+ * No max-height here on purpose.
+ *
+ * Capping the stage was the obvious way to stop it owning the fold, and it is
+ * wrong: .cv-stage is overflow-hidden, so a cap does not compress the showcase,
+ * it amputates it — on a short viewport the price and the "Add to bag" button
+ * are simply cut off, with no scrollbar and nothing to say they exist. The
+ * height is reduced by making the contents smaller instead, which is bounded
+ * by construction and cannot hide a control.
+ */
 
 .cv-stage-panel {
   background: var(--stage-panel-bg);
@@ -903,6 +926,50 @@ select:-webkit-autofill {
 .cv-alcove {
   background: var(--alcove-bg);
   box-shadow: var(--alcove-inset);
+}
+
+/*
+ * The carousel's thumbnail rail scrolls horizontally on narrow screens. The
+ * scrollbar itself is hidden because the thumbs are visibly cut off at the
+ * edge, which is the affordance — a scrollbar under a 44px row is thicker
+ * than the gap above it and reads as a rendering fault.
+ */
+.cv-thumb-rail,
+.cv-chip-rail {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+}
+.cv-thumb-rail::-webkit-scrollbar,
+.cv-chip-rail::-webkit-scrollbar {
+  display: none;
+}
+.cv-thumb-rail > *,
+.cv-chip-rail > * {
+  scroll-snap-align: start;
+}
+
+/*
+ * Skip layout and paint for product cards that are not on screen.
+ *
+ * The listing renders every product it has — 24 of them, each with a photo,
+ * a rating, badges and three buttons — and the browser lays out and paints all
+ * of it before the shopper sees the second row. `content-visibility: auto`
+ * lets it do that work only as each card approaches the viewport.
+ *
+ * `contain-intrinsic-size` is the half that must not be forgotten: without it
+ * a skipped card measures zero, the page collapses to a fraction of its real
+ * height, and the scrollbar jumps as cards render. The value is the measured
+ * card height, so the scrollbar is right from the first frame and stays right.
+ *
+ * Deliberately not applied to the first row: `content-visibility` on the LCP
+ * element delays the very paint being optimised for.
+ */
+@supports (content-visibility: auto) {
+  .cv-card-defer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 380px;
+  }
 }
 
 .cv-alcove-light {

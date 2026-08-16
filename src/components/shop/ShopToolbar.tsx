@@ -129,57 +129,69 @@ export default function ShopToolbar({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenFilters}
-          className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold lg:hidden"
-          style={{
-            background: "var(--bg-surface)",
-            borderColor: activeCount ? "var(--border-accent)" : "var(--border-primary)",
-            color: activeCount ? "var(--accent-cyan)" : "var(--text-secondary)",
-          }}
-        >
-          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-          Filters
-          {activeCount > 0 && (
-            <span
-              className="rounded-full px-1.5 text-[11px] font-bold"
-              style={{ background: "var(--accent-cyan)", color: "#fff" }}
-            >
-              {activeCount}
-            </span>
-          )}
-        </button>
-
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2">
-            <span className="sr-only">Sort products by</span>
-            <select
-              value={state.sort}
-              onChange={(e) => onChange({ sort: e.target.value as SortId })}
-              className="min-h-[44px] rounded-xl border px-3 py-3 text-sm outline-none sm:py-2.5"
-              style={{
-                background: "var(--bg-surface)",
-                borderColor: "var(--border-primary)",
-                color: "var(--text-primary)",
-              }}
-            >
-              {SORT_OPTIONS.map((s) => (
-                <option key={s.id} value={s.id}>
-                  Sort: {s.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div
-            className="hidden items-center rounded-xl border p-1 sm:flex"
-            role="group"
-            aria-label="Result layout"
-            style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+        {/*
+          * Filters and sort share a row on a phone.
+          *
+          * The toolbar is a column below `sm`, so search, the filters button
+          * and the sort control each took a full 48px row — about 110px of the
+          * first screen for two controls that fit side by side comfortably.
+          * `sm:contents` dissolves this wrapper at the breakpoint where the
+          * toolbar becomes a row, so the layout from `sm` up is byte for byte
+          * what it was.
+          */}
+        <div className="flex items-center gap-3 sm:contents">
+          <button
+            type="button"
+            onClick={onOpenFilters}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold sm:flex-none lg:hidden"
+            style={{
+              background: "var(--bg-surface)",
+              borderColor: activeCount ? "var(--border-accent)" : "var(--border-primary)",
+              color: activeCount ? "var(--accent-cyan)" : "var(--text-secondary)",
+            }}
           >
-            {viewButton("grid", LayoutGrid, "Grid view")}
-            {viewButton("list", List, "List view")}
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            Filters
+            {activeCount > 0 && (
+              <span
+                className="rounded-full px-1.5 text-[11px] font-bold"
+                style={{ background: "var(--accent-cyan)", color: "#fff" }}
+              >
+                {activeCount}
+              </span>
+            )}
+          </button>
+
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2">
+              <span className="sr-only">Sort products by</span>
+              <select
+                value={state.sort}
+                onChange={(e) => onChange({ sort: e.target.value as SortId })}
+                className="min-h-[44px] rounded-xl border px-3 py-3 text-sm outline-none sm:py-2.5"
+                style={{
+                  background: "var(--bg-surface)",
+                  borderColor: "var(--border-primary)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                {SORT_OPTIONS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    Sort: {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div
+              className="hidden items-center rounded-xl border p-1 sm:flex"
+              role="group"
+              aria-label="Result layout"
+              style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+            >
+              {viewButton("grid", LayoutGrid, "Grid view")}
+              {viewButton("list", List, "List view")}
+            </div>
           </div>
         </div>
       </div>

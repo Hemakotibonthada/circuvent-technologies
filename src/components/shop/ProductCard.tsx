@@ -231,13 +231,20 @@ export default function ProductCard({
 
   return (
     <motion.article
+      data-testid="product-card"
       initial={reduceMotion ? false : { opacity: 0, y: 16 }}
       whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.3, delay: Math.min(index, 5) * 0.04 }}
+      /*
+       * Cards past the first row opt out of layout and paint until they are
+       * near the viewport. The first row never does: it holds the LCP image,
+       * and deferring that would slow down the one paint that is being
+       * measured. Four is the first row at the widest grid.
+       */
       className={`group relative flex overflow-hidden rounded-2xl border transition-shadow duration-300 hover:shadow-lg ${
-        isList ? "flex-col sm:flex-row" : "h-full flex-col"
-      }`}
+        index >= 4 ? "cv-card-defer " : ""
+      }${isList ? "flex-col sm:flex-row" : "h-full flex-col"}`}
       style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", boxShadow: "var(--shadow-sm)" }}
     >
       {/* Media */}
@@ -262,9 +269,16 @@ export default function ProductCard({
               sizes={
                 isList
                   ? "(max-width: 640px) 100vw, 224px"
-                  : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  /*
+                   * Four columns from xl, three from lg, and a 248px facet
+                   * rail eating into the row at both — so the old flat "33vw"
+                   * over-fetched by more than double on a wide screen. These
+                   * bands track the grid in ShopGrid; they have to be changed
+                   * together or the browser downloads the wrong candidate.
+                   */
+                  : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 27vw, 19vw"
               }
-              className={isList ? "h-44 w-full sm:h-full sm:min-h-[200px]" : "h-48 w-full"}
+              className={isList ? "h-44 w-full sm:h-full sm:min-h-[200px]" : "h-40 w-full"}
             />
           </Link>
 
@@ -330,7 +344,7 @@ export default function ProductCard({
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 flex-col p-5">
+      <div className="flex flex-1 flex-col p-4">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
             {product.category}
@@ -338,25 +352,40 @@ export default function ProductCard({
           <Stars rating={product.rating} reviewCount={product.reviewCount} />
         </div>
 
-        <h3 className="mt-1 text-lg font-bold leading-snug" style={{ color: "var(--text-primary)" }}>
+        <h3 className="mt-1 text-base font-bold leading-snug" style={{ color: "var(--text-primary)" }}>
           <Link href={href} className="transition-opacity hover:opacity-80">
             {product.name}
           </Link>
         </h3>
-        <p className="mt-1 line-clamp-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
+        <p
+          className={`mt-1 text-[13px] ${isList ? "line-clamp-2" : "line-clamp-1"}`}
+          style={{ color: "var(--text-tertiary)" }}
+        >
           {product.tagline}
         </p>
 
-        <ul className="mt-3 space-y-1">
-          {product.specs.slice(0, isList ? 4 : 3).map((s) => (
-            <li key={s} className="flex items-start gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-              <Check className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" style={{ color: "var(--accent-cyan)" }} />{" "}
-              {s}
-            </li>
-          ))}
-        </ul>
+        {/*
+          * Specs are list-view only.
+          *
+          * Three ticked bullets under every card cost around 60px each, and in
+          * a 24-product grid that is most of a screen spent on text nobody
+          * compares across cards — a shopper scanning a grid reads the photo,
+          * the name, the price and the rating, then opens the one they want.
+          * List view is the opposite: it exists to be read row by row, the
+          * width is there, and the specs are the reason to use it.
+          */}
+        {isList && (
+          <ul className="mt-3 space-y-1">
+            {product.specs.slice(0, 4).map((s) => (
+              <li key={s} className="flex items-start gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                <Check className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" style={{ color: "var(--accent-cyan)" }} />{" "}
+                {s}
+              </li>
+            ))}
+          </ul>
+        )}
 
-        <div className={`mt-auto pt-4 ${isList ? "flex flex-wrap items-end justify-between gap-4" : ""}`}>
+        <div className={`mt-auto pt-3 ${isList ? "flex flex-wrap items-end justify-between gap-4" : ""}`}>
           {priceBlock}
           <div className={isList ? "min-w-[220px] flex-1" : "mt-3"}>
             {actions}
