@@ -52,7 +52,7 @@
  *          a gas alarm that cut a relay and could never clear itself. Two
  *          units in the field were sitting in exactly that state.
  */
-#define CV_FW_VERSION "1.1.0"
+#define CV_FW_VERSION "1.1.1"
 
 #include <CircuventDevice.h>
 #include <Preferences.h>

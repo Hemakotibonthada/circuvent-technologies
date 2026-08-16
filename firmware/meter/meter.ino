@@ -38,6 +38,12 @@
  * sees only optocoupler outputs. Nothing here may assume otherwise — there is
  * no shared ground with the metering front end.
  */
+/* Version history: 1.1.0 is the first build that survives a power cut with the
+   router still down - see tests/firmware-power-restore.test.ts. Declared
+   explicitly so the fleet can tell fixed devices from unfixed ones; without
+   it every sketch reported the library default and they were
+   indistinguishable. */
+#define CV_FW_VERSION "1.1.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 

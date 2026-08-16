@@ -67,7 +67,7 @@
  */
 
 /** Version history: 1.0.0 initial MAVLink bridge + mission supervisor. */
-#define CV_FW_VERSION "1.0.0"
+#define CV_FW_VERSION "1.0.1"
 
 #include <CircuventDevice.h>
 #include <Preferences.h>

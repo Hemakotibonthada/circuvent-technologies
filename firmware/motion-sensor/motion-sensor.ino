@@ -3,6 +3,12 @@
  * PIR motion → automate a light output, push instant cloud alerts, arm/disarm.
  * Deps: CircuventDevice, ArduinoJson. Hardware: HC-SR501 PIR.
  */
+/* Version history: 1.1.0 is the first build that survives a power cut with the
+   router still down - see tests/firmware-power-restore.test.ts. Declared
+   explicitly so the fleet can tell fixed devices from unfixed ones; without
+   it every sketch reported the library default and they were
+   indistinguishable. */
+#define CV_FW_VERSION "1.1.0"
 #include <CircuventDevice.h>
 
 // Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.

@@ -37,7 +37,7 @@
  *        filtered on version skipped exactly the units that needed it.
  * 2.0.0  Production hardening: 4 channels, schedules, NVS boot restore.
  */
-#define CV_FW_VERSION "2.3.0"
+#define CV_FW_VERSION "2.3.1"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 #include <time.h>

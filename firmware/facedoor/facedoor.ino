@@ -16,7 +16,7 @@
  */
 /** Version history: 1.0.0 initial; 1.1.0 adds OTA (from CircuventDevice);
  *  1.2.0 adds a time-boxed face-enrolment mode driven from the app or the door. */
-#define CV_FW_VERSION "1.2.0"
+#define CV_FW_VERSION "1.2.1"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 

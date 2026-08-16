@@ -97,6 +97,28 @@ extern "C" void randombytes(unsigned char *p, unsigned long long n) {
 #define CV_RELAY_ACTIVE_LOW 1
 #endif
 
+/**
+ * Shortest press that counts as a press at all.
+ *
+ * Below this it is electrical noise on a button cable, not a finger. Without
+ * it a glitch that straddled two polls could still reach the three-second
+ * branch and erase somebody's Wi-Fi.
+ */
+#ifndef CV_RESET_DEBOUNCE_MS
+#define CV_RESET_DEBOUNCE_MS 80
+#endif
+
+/**
+ * How often a device sitting in its setup portal re-checks for its home Wi-Fi.
+ *
+ * Only ever used when credentials exist. A portal raised on a device that has
+ * somewhere to go is a temporary state, and the router coming back is the
+ * event that should end it — not somebody noticing and power-cycling.
+ */
+#ifndef CV_PORTAL_WIFI_RETRY_MS
+#define CV_PORTAL_WIFI_RETRY_MS 20000UL
+#endif
+
 /** The level that drives a relay to `on`, given the board's polarity. */
 static inline int cvRelayLevel(bool on) {
 #if CV_RELAY_ACTIVE_LOW
@@ -836,6 +858,15 @@ class CircuventDevice {
   bool _resetActiveLow = true;
   uint32_t _resetHoldStart = 0;
   bool _resetLatched = false;
+  /*
+   * False until the reset pin has been seen released since boot.
+   *
+   * A long press that was already in progress when the device powered on is
+   * not a press — nobody was holding it *for this boot*. See _pollResetButton.
+   */
+  bool _resetArmed = false;
+  bool _resetBootWarned = false;
+  uint32_t _lastPortalWifiTry = 0;
   // cached async Wi-Fi scan (keeps GET /scan fast for the app)
   String _scanCache = "[]";
   uint32_t _scanStartedAt = 0;
@@ -1036,6 +1067,34 @@ class CircuventDevice {
   void _portalLoop() {
     _dns.processNextRequest();
     _server.handleClient();
+
+    /*
+     * A portal on a device that still has credentials is a temporary state.
+     *
+     * The event that should end it is the router coming back, not somebody
+     * noticing and power-cycling. This is the belt to the braces in begin():
+     * that one stops the AP being raised after a power cut in the first place,
+     * and this one gets a device home if it is in AP mode for any other reason
+     * — a setup window nobody used, a portal raised before this firmware was
+     * installed, or a rejoin that happened while the owner was mid-setup.
+     *
+     * Silent about failure on purpose. This runs every twenty seconds forever,
+     * and a device with a router that is genuinely gone would otherwise fill
+     * its log with the same line all night.
+     */
+    if (_ssid.length() && millis() - _lastPortalWifiTry > CV_PORTAL_WIFI_RETRY_MS) {
+      _lastPortalWifiTry = millis();
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.println(F("[CV] Home Wi-Fi is back — leaving setup mode"));
+        delay(200);
+        ESP.restart();
+      } else {
+        // STA is still up alongside the AP (WIFI_AP_STA), so this costs the
+        // portal nothing: the phone stays connected while the attempt runs.
+        WiFi.begin(_ssid.c_str(), _pass.c_str());
+      }
+    }
+
     /*
      * Close a requested setup window that nobody used, and go back to work.
      * Only ever set when credentials exist, so this cannot strand a device
@@ -1075,9 +1134,51 @@ class CircuventDevice {
     int v = digitalRead(_resetPin);
     return _resetActiveLow ? (v == LOW) : (v == HIGH);
   }
-  // Long-press handling: ~3s → Wi-Fi reset, ~8s → factory reset. Fires on release.
+
+  /**
+   * Long-press handling: ~3s → Wi-Fi reset, ~8s → factory reset. Fires on release.
+   *
+   * WHY A PRESS MUST BE SEEN TO START
+   *
+   * This used to act on whatever the pin read from the first pass of loop(),
+   * which meant a pin that was *already* low when the device booted counted as
+   * a deliberate long press. Nobody can hold a button for a device that is not
+   * running yet, so that reading was always wrong — and the consequences were
+   * the two most destructive things this library can do.
+   *
+   * It matters most after a power cut, which is exactly when it is least
+   * survivable. The reset line is GPIO0 on every one of our boards: a
+   * strapping pin, usually on an RC network, often wired to an auto-reset
+   * circuit. On a slow or dirty mains restore it can sit low for seconds while
+   * the rail comes up. The device then wakes, reads a three-second press it
+   * invented, erases the Wi-Fi credentials, and opens its setup hotspot — or
+   * reads eight seconds and factory-resets, taking the relay states with it.
+   *
+   * From the outside that is: the power came back, and the device never
+   * rejoined the network. Not "it could not reach the router" — it has nothing
+   * left to reach it with, so it will still be sitting in AP mode hours later
+   * when the router has long since recovered. Which is the fault as reported
+   * from the field.
+   *
+   * So the button is armed only once it has been observed released. A real
+   * press always begins with a release before it; a phantom one at boot never
+   * does.
+   */
   void _pollResetButton() {
     if (_resetPin < 0) return;
+
+    if (!_resetArmed) {
+      // Not yet seen released since boot. Ignore everything until it is.
+      if (!_resetPressed()) {
+        _resetArmed = true;
+      } else if (!_resetBootWarned) {
+        _resetBootWarned = true;
+        Serial.println(F("[CV] Reset pin held at boot — ignoring until released. "
+                         "A press cannot have started before the device did."));
+      }
+      return;
+    }
+
     if (_resetPressed()) {
       if (_resetHoldStart == 0) _resetHoldStart = millis();
       uint32_t held = millis() - _resetHoldStart;
@@ -1089,6 +1190,12 @@ class CircuventDevice {
     if (_resetHoldStart) {
       uint32_t held = millis() - _resetHoldStart;
       _resetHoldStart = 0; _resetLatched = false;
+      /*
+       * A press shorter than the debounce window is electrical noise, not a
+       * finger. Without this a glitch on a long button cable could still reach
+       * the three-second branch if it happened to straddle two polls.
+       */
+      if (held < CV_RESET_DEBOUNCE_MS) return;
       if (held >= 8000) _factoryReset();
       else if (held >= 3000) _clearWifi();
     }

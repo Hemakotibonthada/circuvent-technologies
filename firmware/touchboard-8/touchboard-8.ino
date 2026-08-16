@@ -39,7 +39,7 @@
  *      T5 — see the pin map, it is not an arbitrary choice.
  */
 /** Version history: 1.0.0 initial 8-gang board; 1.1.0 adds the local home link. */
-#define CV_FW_VERSION "1.1.0"
+#define CV_FW_VERSION "1.1.1"
 #include <CircuventDevice.h>
 #include <CvHomeLink.h>
 #include <Preferences.h>

@@ -4,6 +4,12 @@
  * Deps: CircuventDevice, ArduinoJson. Hardware: SCT-013 CT clamp on an ADC pin
  * with a burden resistor + bias network.
  */
+/* Version history: 1.1.0 is the first build that survives a power cut with the
+   router still down - see tests/firmware-power-restore.test.ts. Declared
+   explicitly so the fleet can tell fixed devices from unfixed ones; without
+   it every sketch reported the library default and they were
+   indistinguishable. */
+#define CV_FW_VERSION "1.1.0"
 #include <CircuventDevice.h>
 
 // Identical firmware — Wi-Fi + identity are provisioned by the Circuvent app.

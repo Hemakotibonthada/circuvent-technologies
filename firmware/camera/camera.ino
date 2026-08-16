@@ -135,7 +135,7 @@
  *     camera must not disable itself over a *setting*, in a house nobody can
  *     visit, when it could have lowered the number by itself.
  */
-#define CV_FW_VERSION "1.14.3"
+#define CV_FW_VERSION "1.14.4"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"

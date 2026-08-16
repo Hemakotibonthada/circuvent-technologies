@@ -11,7 +11,7 @@
  * Standard Circuvent protocol (cv/<id>/state|telemetry). Board: ESP32.
  */
 /** Version history: 1.0.0 initial; 1.1.0 adds OTA (from CircuventDevice). */
-#define CV_FW_VERSION "1.1.0"
+#define CV_FW_VERSION "1.1.1"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 

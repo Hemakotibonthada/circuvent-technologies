@@ -38,7 +38,7 @@
  * Deps: CircuventDevice, ArduinoJson, LoRa.  Board: ESP32.
  */
 /** Version history: 1.0.0 initial; 1.1.0 adds OTA; 2.0.0 overhead level over LoRa. */
-#define CV_FW_VERSION "2.0.0"
+#define CV_FW_VERSION "2.0.1"
 #include <CircuventDevice.h>
 #include <LoRa.h>
 #include <Preferences.h>

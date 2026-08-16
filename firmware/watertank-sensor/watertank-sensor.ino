@@ -13,7 +13,7 @@
  * Deps: CircuventDevice (for CvTankLink + tweetnacl), LoRa by Sandeep Mistry.
  * Board: ESP32.
  */
-#define CV_FW_VERSION "1.0.0"
+#define CV_FW_VERSION "1.0.1"
 
 #include <Arduino.h>
 #include <LoRa.h>
