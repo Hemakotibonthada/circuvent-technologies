@@ -29,6 +29,7 @@ import {
   LifeBuoy,
   UserCog,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import OrdersPanel from "./OrdersPanel";
 import InventoryPanel from "./InventoryPanel";
@@ -171,6 +172,27 @@ const ROLE_LABELS: Record<string, string> = {
   support: "Support Staff",
 };
 
+/*
+ * What went wrong when single sign-on comes back unhappy.
+ *
+ * Written out here because the redirect can only carry a short code, and
+ * "sso_error=not-staff" in the address bar tells the person nothing. The
+ * distinction that matters most is the last one: signing in worked perfectly
+ * and the account simply has no role in this console, which is a different
+ * problem from a broken password and needs a different person to fix it.
+ */
+const SSO_ERRORS: Record<string, string> = {
+  cancelled: "Sign-in was cancelled.",
+  expired: "That sign-in took too long. Please try again.",
+  state: "That sign-in could not be verified. Please try again.",
+  exchange: "Could not complete sign-in with the identity service.",
+  userinfo: "Could not read your account details. Please try again.",
+  unverified: "Your Circuvent email address has not been verified.",
+  "not-staff":
+    "Your Circuvent account signed in, but it has no role in this console. Ask an administrator to add you.",
+  provider: "The identity service refused the sign-in.",
+};
+
 // Every tab, grouped into a category so the nav reads as sections instead of
 // one long wall of buttons. Categories with zero visible tabs (per role) are
 // hidden automatically.
@@ -301,6 +323,55 @@ export default function AdminDashboard() {
 
   // Check existing session
   useEffect(() => {
+    /*
+     * A sign-in that came back from auth.circuvent.com arrives as ?sso=<code>.
+     * Redeemed before the stored-token check, because the point of arriving
+     * this way is that there is no stored token yet. The code is swapped for
+     * the console's ordinary bearer token and the query string is scrubbed, so
+     * the address bar does not keep a credential-shaped thing in history.
+     */
+    const url = new URL(window.location.href);
+    const handoff = url.searchParams.get("sso");
+    const ssoError = url.searchParams.get("sso_error");
+
+    const scrub = () => {
+      url.searchParams.delete("sso");
+      url.searchParams.delete("sso_error");
+      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    };
+
+    if (ssoError) {
+      setAuthError(SSO_ERRORS[ssoError] ?? "Single sign-on did not complete. Please try again.");
+      scrub();
+    }
+
+    if (handoff) {
+      fetch("/api/admin/auth/sso/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: handoff }),
+      })
+        .then(async (res) => {
+          const d = await res.json().catch(() => ({}));
+          if (res.ok && d.token) {
+            sessionStorage.setItem("admin-token", d.token);
+            setRole(d.role || "superadmin");
+            setAdminName(d.name || "");
+            setAdminEmail(d.email || "");
+            setMustChangePw(!!d.mustChangePassword);
+            setAuthenticated(true);
+          } else {
+            setAuthError(d.error || "Single sign-on did not complete. Please try again.");
+          }
+        })
+        .catch(() => setAuthError("Single sign-on did not complete. Please try again."))
+        .finally(() => {
+          scrub();
+          setChecking(false);
+        });
+      return;
+    }
+
     const token = sessionStorage.getItem("admin-token");
     if (token) {
       fetch("/api/admin/auth", { headers: { "x-admin-token": token } })
@@ -604,6 +675,37 @@ export default function AdminDashboard() {
                 </button>
               </>
             )}
+
+            {/*
+              Sign in with the Circuvent account instead of a console-local
+              password. Offered unconditionally: unlike a passkey there is
+              nothing about the browser that can stop it working, and if the
+              deployment has not been configured the start route says so
+              plainly rather than failing somewhere in the middle.
+            */}
+            <div className="flex items-center gap-3 pt-1">
+              <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
+              <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                or
+              </span>
+              <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
+            </div>
+            <a
+              href="/api/admin/auth/sso/start"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all"
+              style={{
+                background: "var(--bg-glass)",
+                border: "1px solid var(--border-primary)",
+                color: "var(--text-primary)",
+              }}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Sign in with Circuvent
+            </a>
+            <p className="text-center text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+              Uses your Circuvent account and its two-step verification. You
+              still need a staff role here.
+            </p>
           </form>
           )}
         </motion.div>
