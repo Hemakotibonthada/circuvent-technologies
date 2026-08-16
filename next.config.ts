@@ -86,41 +86,6 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "no-store, must-revalidate" },
         ],
       },
-      {
-        /*
-         * The storefront listing, cached at the edge.
-         *
-         * /shop is `force-dynamic` — filters live in the query string, so the
-         * listing is rendered per request to keep deep links like
-         * ?cat=Safety server-rendered and crawlable. The cost of that was
-         * paid on every single visit: no CDN cache at all, so each visitor
-         * waited for a lambda and a database read. Measured against
-         * production, `/` returned in 217 ms on a cache HIT while `/shop`
-         * took 600–1900 ms warm and **8.4 s** on the first request after an
-         * idle period.
-         *
-         * `stale-while-revalidate` is what makes this safe as well as fast:
-         * after `s-maxage` the edge still answers instantly from the stale
-         * copy and refreshes in the background, so no visitor ever waits for
-         * a render. A price edited in the admin appears within the minute.
-         *
-         * Cached per full URL, so filtered views benefit too.
-         *
-         * Safe to share between visitors because nothing in this render is
-         * user-specific: the page reads no cookies and no session, and the
-         * cart and account are client components that hydrate in the browser.
-         * The pages that *are* per-user — /shop/account, /shop/devices,
-         * /shop/invoice — are separate routes and are deliberately not matched
-         * here.
-         */
-        source: "/shop",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, s-maxage=60, stale-while-revalidate=600",
-          },
-        ],
-      },
     ];
   },
 };
