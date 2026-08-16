@@ -195,11 +195,11 @@ export default function ShopGrid({ initialProducts }: { initialProducts?: Produc
         ))}
       </ul>
 
-      <div className="lg:grid lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-8">
+      <div className="lg:grid lg:grid-cols-[232px_minmax(0,1fr)] lg:gap-6">
         {/* Desktop facets */}
         <aside className="hidden lg:block">
           <div
-            className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-2xl border p-5"
+            className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-2xl border p-4"
             style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
           >
             <ShopFilters

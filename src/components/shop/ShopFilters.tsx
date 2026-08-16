@@ -17,7 +17,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <fieldset className="border-0 p-0">
       <legend
-        className="mb-2.5 text-xs font-semibold uppercase tracking-[0.12em]"
+        className="mb-1.5 text-xs font-semibold uppercase tracking-[0.12em]"
         style={{ color: "var(--text-muted)" }}
       >
         {title}
@@ -64,7 +64,7 @@ export default function ShopFilters({
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="cv-facets flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
           Filters
@@ -92,14 +92,14 @@ export default function ShopFilters({
             return (
               <li key={c.value}>
                 <label
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors"
+                  className="cv-facet-row flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors"
                   style={toggleRow(checked)}
                 >
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggleCategory(c.value)}
-                    className="inline-flex h-[44px] w-[44px] items-center justify-center h-4 w-4 shrink-0 accent-cyan-600"
+                    className="h-4 w-4 shrink-0 accent-cyan-600"
                   />
                   <span className="min-w-0 truncate">{c.value}</span>
                   <Count n={c.count} />
@@ -126,7 +126,7 @@ export default function ShopFilters({
                     )
                   }
                   aria-pressed={active}
-                  className="min-h-[44px] flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors"
+                  className="cv-facet-row flex min-h-[44px] w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors"
                   style={toggleRow(active)}
                 >
                   <span
@@ -200,7 +200,7 @@ export default function ShopFilters({
                   onClick={() => onChange({ minRating: active ? null : r.value })}
                   aria-pressed={active}
                   disabled={r.count === 0 && !active}
-                  className="min-h-[44px] flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors disabled:opacity-40"
+                  className="cv-facet-row flex min-h-[44px] w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors disabled:opacity-40"
                   style={toggleRow(active)}
                 >
                   <Star
@@ -231,14 +231,14 @@ export default function ShopFilters({
             return (
               <li key={key}>
                 <label
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors"
+                  className="cv-facet-row flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors"
                   style={toggleRow(active)}
                 >
                   <input
                     type="checkbox"
                     checked={active}
                     onChange={() => onChange({ [key]: !active } as Partial<FilterState>)}
-                    className="inline-flex h-[44px] w-[44px] items-center justify-center h-4 w-4 shrink-0 accent-cyan-600"
+                    className="h-4 w-4 shrink-0 accent-cyan-600"
                   />
                   <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>{label}</span>

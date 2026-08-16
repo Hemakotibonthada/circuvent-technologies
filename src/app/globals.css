@@ -950,6 +950,34 @@ select:-webkit-autofill {
 }
 
 /*
+ * The facet panel, at two sizes.
+ *
+ * Every row here carries a 44px minimum because that is the touch target
+ * floor, and the same markup renders in the mobile filter sheet — so the
+ * number is not negotiable there. On a desktop it is: with a mouse, 44px per
+ * row over four categories, five price bands, four rating bands and three
+ * toggles makes a sidebar taller than the products beside it, which is what
+ * the compact pass was about.
+ *
+ * `pointer: fine` is the honest way to split those cases. It asks what the
+ * primary input device actually is rather than guessing from viewport width,
+ * so a touchscreen laptop keeps the full targets and a mouse gets the density.
+ * A width breakpoint would have taken the targets away from exactly the
+ * hybrid devices that need them.
+ */
+@media (pointer: fine) {
+  .cv-facets {
+    gap: 0.875rem;
+  }
+  .cv-facets .cv-facet-row {
+    min-height: 2rem;
+  }
+  .cv-facets input[type="number"] {
+    min-height: 2.125rem;
+  }
+}
+
+/*
  * Skip layout and paint for product cards that are not on screen.
  *
  * The listing renders every product it has — 24 of them, each with a photo,
