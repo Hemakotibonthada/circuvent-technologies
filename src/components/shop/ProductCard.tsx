@@ -6,6 +6,7 @@ import { ArrowRight, Check, Eye, GitCompareArrows, Heart, ShoppingCart } from "l
 import { formatINR, type Product } from "@/lib/shop-data";
 import { discountPct, isLowStock, isSoldOut, savingOf, type ViewMode } from "@/lib/shop-filters";
 import { productAvailability } from "@/lib/product-availability";
+import RestockCardButton from "./RestockCardButton";
 import { useCart } from "./CartProvider";
 import { useWishlist } from "./WishlistProvider";
 import { useCompare, MAX_COMPARE } from "./CompareProvider";
@@ -192,16 +193,31 @@ export default function ProductCard({
 
   const actions = (
     <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={handleAdd}
-        disabled={soldOut}
-        className="min-h-[44px] flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-      >
-        <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-        {availability.cta}
-        <span className="sr-only"> — {product.name}</span>
-      </button>
+      {/*
+       * A sold-out card offers to tell you when it is back, rather than only
+       * refusing. The disabled button that used to sit here alone was a dead
+       * end on the one surface where somebody has already decided they want
+       * the thing — they are looking at it and they know the price.
+       *
+       * `offerRestockAlert` rather than `soldOut`: a product that has not
+       * launched yet, or one that is discontinued and never coming back, must
+       * not be offered a restock alert. product-availability.ts is the one
+       * place that knows the difference.
+       */}
+      {availability.offerRestockAlert ? (
+        <RestockCardButton productId={product.id} />
+      ) : (
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={soldOut}
+          className="min-h-[44px] flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+        >
+          <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+          {availability.cta}
+          <span className="sr-only"> — {product.name}</span>
+        </button>
+      )}
       <Link
         href={href}
         aria-label={`View full details for ${product.name}`}

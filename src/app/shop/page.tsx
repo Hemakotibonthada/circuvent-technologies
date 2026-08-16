@@ -9,6 +9,7 @@ import JsonLd from "@/components/JsonLd";
 import { getMergedProducts } from "@/lib/shop-catalog";
 import { formatINR, SHIPPING } from "@/lib/shop-data";
 import { countActiveFilters, discountPct, parseFilters } from "@/lib/shop-filters";
+import { productAvailability } from "@/lib/product-availability";
 import { SITE_URL } from "@/lib/config";
 import {
   generatePageMetadata,
@@ -120,8 +121,30 @@ export default async function ShopPage({
   const cheapest = products.length ? Math.min(...products.map((p) => p.price)) : 0;
   const bestDiscount = products.reduce((max, p) => Math.max(max, discountPct(p)), 0);
 
+  /*
+   * Counted, not assumed.
+   *
+   * This read `products.length` under the label "Devices in stock", which is
+   * the catalogue size and has nothing to do with stock. With most of the
+   * catalogue sold out it sat directly above a grid of "Out of stock" badges
+   * announcing that twenty-two devices were available — the first thing a
+   * shopper reads on the page, and provably false by the time their eye
+   * reaches the second row.
+   *
+   * A number that looks authoritative and is wrong is worse than no number:
+   * it is the page telling somebody it does not know what it is talking about,
+   * before they have scrolled.
+   */
+  const buyable = products.filter((p) => productAvailability(p).canBuy).length;
+
   const stats = [
-    { value: `${products.length}`, label: "Devices in stock" },
+    {
+      value: `${buyable}`,
+      // The label changes with the number rather than the number being bent to
+      // fit the label. "0 in stock" is a fact somebody can act on; "22 devices
+      // in stock" above sold-out cards is not.
+      label: buyable === products.length ? "Devices in stock" : `In stock of ${products.length}`,
+    },
     { value: `${categories.length}`, label: "Categories" },
     { value: avgRating > 0 ? avgRating.toFixed(1) : "New", label: "Average rating", star: avgRating > 0 },
     { value: `from ${formatINR(cheapest)}`, label: "Entry price" },
