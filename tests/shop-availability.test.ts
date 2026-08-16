@@ -26,7 +26,13 @@ import { productAvailability } from "@/lib/product-availability";
 const root = path.join(__dirname, "..");
 const read = (...p: string[]) => fs.readFileSync(path.join(root, ...p), "utf8");
 
-const shopPage = read("src", "app", "shop", "page.tsx");
+/*
+ * The listing moved out of the route and into a component when categories
+ * became their own pages: /shop and /shop/c/[category] render the same
+ * listing. The invariant is unchanged and still belongs wherever the headline
+ * is rendered, so this follows the code rather than being relaxed.
+ */
+const shopPage = read("src", "components", "shop", "ShopListing.tsx");
 const card = read("src", "components", "shop", "ProductCard.tsx");
 const cardButton = read("src", "components", "shop", "RestockCardButton.tsx");
 const detailForm = read("src", "components", "shop", "RestockNotify.tsx");
@@ -46,7 +52,11 @@ describe("the in-stock figure is counted, not assumed", () => {
   it("says what the number means when it is not the whole catalogue", () => {
     // "0 in stock of 22" is a fact somebody can act on. "22 devices in stock"
     // above sold-out cards is not.
-    expect(shopPage).toMatch(/In stock of \$\{products\.length\}/);
+    //
+    // Counted against what the page is showing, not the catalogue: on a
+    // category page the catalogue total would be misleading in exactly the way
+    // the original number was.
+    expect(shopPage).toMatch(/In stock of \$\{visible\.length\}/);
   });
 
   it("counts the way the page now claims to", () => {
