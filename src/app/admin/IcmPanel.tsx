@@ -22,11 +22,13 @@ import {
   BarChart3,
 } from "lucide-react";
 import { IcmAnalytics } from "./IcmAnalytics";
+import IncidentSummaryCard from "./IncidentSummaryCard";
 import {
   SLA,
   SEVERITIES,
   ackClock,
   formatMins,
+  formatWhen,
   mitigateClock,
   type Incident,
   type Severity,
@@ -121,19 +123,8 @@ const STATUS_LABEL: Record<Incident["status"], string> = {
   resolved: "Resolved",
 };
 
-function fmtTime(iso: string | null) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString("en-IN", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "—";
-  }
-}
+/** One owner for this format; the summary card states times too. */
+const fmtTime = formatWhen;
 
 /* ------------------------------------------------------------ small parts -- */
 
@@ -874,7 +865,11 @@ function TeamMailEditor({
 
 /* -------------------------------------------------------------- the detail -- */
 
-function IncidentDetail({
+/** The sections of an incident, in the order somebody works through one. */
+type DetailTab = "summary" | "routing" | "links" | "retro";
+
+/** Exported for tests: the detail is the half of this panel worth rendering. */
+export function IncidentDetail({
   incident: inc,
   now,
   teams,
@@ -894,7 +889,21 @@ function IncidentDetail({
   const [note, setNote] = useState("");
   const [assignee, setAssignee] = useState("");
   const [team, setTeam] = useState(inc.owningTeam);
+  const [tab, setTab] = useState<DetailTab>("summary");
   const c = clocksFor(inc, now);
+
+  /*
+   * Counts sit on the tabs that have something waiting in them, so the shape
+   * of the incident is readable without opening anything. A "Related" tab with
+   * a 3 on it is the difference between somebody checking for a duplicate and
+   * somebody not thinking to.
+   */
+  const DETAIL_TABS: Array<{ id: DetailTab; label: string; count?: number }> = [
+    { id: "summary", label: "Summary & discussion", count: inc.timeline?.length },
+    { id: "routing", label: "Routing & resolution" },
+    { id: "links", label: "Related", count: inc.links?.length },
+    { id: "retro", label: "Retrospective", count: inc.postmortem ? 1 : 0 },
+  ];
 
   const send = (body: Record<string, unknown>) => {
     onAct({ id: inc.id, ...body });
@@ -1014,37 +1023,83 @@ function IncidentDetail({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
-            <MessageSquare className="h-4 w-4" aria-hidden /> Discussion &amp; timeline
-          </h3>
+      {/*
+       * Tabs, the way IcM lays an incident out.
+       *
+       * This was one long scroll: SLA cards, actions, discussion, routing,
+       * links and the postmortem editor all stacked. That is fine for an
+       * incident with three timeline entries and unusable for the ones that
+       * matter, where the thing somebody needs is forty entries down and the
+       * postmortem is below that.
+       *
+       * The header and the action bar stay outside the tabs on purpose —
+       * severity, the clocks and "acknowledge" have to be reachable from
+       * wherever you are, because they are what the page is for.
+       */}
+      <div
+        role="tablist"
+        aria-label="Incident sections"
+        className="flex flex-wrap gap-1 border-b"
+        style={{ borderColor: "var(--border-primary)" }}
+      >
+        {DETAIL_TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className="relative min-h-[44px] px-3 text-sm font-medium transition-colors"
+            style={{
+              color: tab === t.id ? "var(--accent-cyan-text)" : "var(--text-secondary)",
+              borderBottom: tab === t.id ? "2px solid var(--accent-cyan)" : "2px solid transparent",
+            }}
+          >
+            {t.label}
+            {t.count !== undefined && t.count > 0 && (
+              <span className="ml-1.5 text-[11px] cv-text-muted">{t.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
 
-          <div className="rounded-xl border cv-border cv-surface p-3">
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={3}
-              placeholder="Add a comment, or a note to attach to the next action…"
-              className="w-full rounded-lg border cv-border cv-surface-alt px-3 py-2 text-sm cv-text-primary placeholder:cv-text-muted"
-              aria-label="Comment"
-            />
-            <button
-              disabled={busy || !note.trim()}
-              onClick={() => send({ action: "comment", body: note })}
-              className="mt-2 inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-4 text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
-            >
-              Comment
-            </button>
+      {tab === "summary" && (
+        <div className="space-y-4">
+          <IncidentSummaryCard incident={inc} now={now} />
+          <div className="space-y-3">
+            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
+              <MessageSquare className="h-4 w-4" aria-hidden /> Discussion
+            </h3>
+
+            <div className="rounded-xl border cv-border cv-surface p-3">
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                placeholder="Add a comment, or a note to attach to the next action…"
+                className="w-full rounded-lg border cv-border cv-surface-alt px-3 py-2 text-sm cv-text-primary placeholder:cv-text-muted"
+                aria-label="Comment"
+              />
+              <button
+                disabled={busy || !note.trim()}
+                onClick={() => send({ action: "comment", body: note })}
+                className="mt-2 inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-4 text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
+              >
+                Comment
+              </button>
+            </div>
+
+            {/* Newest first: an incident is read from what just happened. */}
+            <ol className="space-y-2">
+              {[...inc.timeline].reverse().map((t) => (
+                <TimelineRow key={t.id} entry={t} />
+              ))}
+            </ol>
           </div>
-
-          <ol className="space-y-2">
-            {[...inc.timeline].reverse().map((t) => (
-              <TimelineRow key={t.id} entry={t} />
-            ))}
-          </ol>
         </div>
+      )}
 
+      {tab === "routing" && (
+        <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
             <UserPlus className="h-4 w-4" aria-hidden /> Routing
@@ -1086,29 +1141,54 @@ function IncidentDetail({
               Route
             </button>
           </div>
-
-          {(inc.mitigation || inc.rootCause) && (
-            <div className="space-y-2 rounded-xl border cv-border cv-surface p-3 text-sm">
-              {inc.mitigation && (
-                <div>
-                  <div className="text-[11px] uppercase cv-text-muted">Mitigation</div>
-                  <div className="cv-text-secondary">{inc.mitigation}</div>
-                </div>
-              )}
-              {inc.rootCause && (
-                <div>
-                  <div className="text-[11px] uppercase cv-text-muted">Root cause</div>
-                  <div className="cv-text-secondary">{inc.rootCause}</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <LinkEditor incident={inc} busy={busy} onSend={send} />
-
-          <PostmortemEditor incident={inc} busy={busy} onSend={send} />
         </div>
-      </div>
+
+          {/*
+           * Always rendered, empty or not. Hiding these when unset left a tab
+           * called "Routing & resolution" showing nothing about resolution, and
+           * an absent mitigation is a fact worth stating — it is the difference
+           * between "nobody has stopped this yet" and "the panel didn't load".
+           */}
+          <div className="space-y-3">
+            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
+              <ShieldCheck className="h-4 w-4" aria-hidden /> Resolution
+            </h3>
+            <div className="space-y-3 rounded-xl border cv-border cv-surface p-3 text-sm">
+              <div>
+                <div className="text-[11px] uppercase cv-text-muted">Mitigation</div>
+                {inc.mitigation ? (
+                  <div className="cv-text-secondary">{inc.mitigation}</div>
+                ) : (
+                  <div className="cv-text-muted">
+                    Not recorded. It is written when the incident is mitigated.
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="text-[11px] uppercase cv-text-muted">Root cause</div>
+                {inc.rootCause ? (
+                  <div className="cv-text-secondary">{inc.rootCause}</div>
+                ) : (
+                  <div className="cv-text-muted">
+                    Not recorded. It is written when the incident is resolved.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/*
+       * Related incidents get their own tab, which is IcM's "Troubleshooting".
+       * It is where somebody goes first on a page they have been paged to:
+       * "has this happened before, and what fixed it" is answered by the links,
+       * and burying them under the routing form made that the last thing found
+       * rather than the first.
+       */}
+      {tab === "links" && <LinkEditor incident={inc} busy={busy} onSend={send} />}
+
+      {tab === "retro" && <PostmortemEditor incident={inc} busy={busy} onSend={send} />}
     </div>
   );
 }

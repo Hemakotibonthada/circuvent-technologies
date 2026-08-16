@@ -1203,4 +1203,26 @@ export function formatMins(mins: number | null): string {
   return h ? `${d}d ${h}h` : `${d}d`;
 }
 
+/**
+ * A timestamp as the incident console writes it: "10 Feb, 03:30 am".
+ *
+ * Lives here rather than in the panel because the summary card states times
+ * too, and the two were drifting the moment there were two copies — the card
+ * rendered "10/2/2025, 3:50:00 am" directly under a clock reading "10 Feb,
+ * 03:50 am", which reads as two different events.
+ */
+export function formatWhen(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+
 
