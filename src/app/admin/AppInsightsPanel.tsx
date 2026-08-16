@@ -35,6 +35,7 @@ import TransactionBlade from "./insights/TransactionBlade";
 import EventDetailDrawer from "./insights/EventDetailDrawer";
 import { CohortsBlade, FunnelBlade, ImpactBlade, UsageBlade } from "./insights/UsageBlades";
 import { ConfigureBlade, LiveBlade, MapBlade } from "./insights/MapLiveBlades";
+import SuiteFailures from "./SuiteFailures";
 
 interface DeployMarker {
   sha: string;
@@ -328,6 +329,7 @@ type TabId =
   | "dependencies"
   | "performance"
   | "failures"
+  | "suite"
   | "journeys"
   | "paths"
   | "metrics"
@@ -351,6 +353,7 @@ const TAB_GROUPS: { group: string; tabs: { id: TabId; label: string }[] }[] = [
       { id: "dependencies", label: "Dependencies" },
       { id: "performance", label: "Performance" },
       { id: "failures", label: "Failures" },
+      { id: "suite", label: "Suite failures" },
       { id: "journeys", label: "User journeys" },
       { id: "paths", label: "Accessed paths" },
     ],
@@ -2023,6 +2026,13 @@ export default function AppInsightsPanel() {
           </div>
         </div>
       )}
+
+      {/*
+        Not gated on `view`: this blade fetches from its own collector, so an
+        empty telemetry buffer for this website must not hide failures reported
+        by the other applications.
+      */}
+      {tab === "suite" && <SuiteFailures />}
 
       {view && tab === "failures" && (
         <div className="space-y-2">
