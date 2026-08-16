@@ -43,7 +43,51 @@ interface WarrantyDB {
   cases: RmaCase[];
 }
 
-const store = createFileStore<WarrantyDB>("admin-warranty.json", () => ({ registrations: [], cases: [] }));
+const store = createFileStore<WarrantyDB>(
+  "admin-warranty.json",
+  () => ({ registrations: [], cases: [] }),
+  /*
+   * Kept in the database, not just in a file.
+   *
+   * Everything below worked and none of it survived. The serverless host has
+   * no writable disk, so `createFileStore` degrades to memory for the life of
+   * one lambda instance: a warranty registered the moment an order was marked
+   * delivered went into whichever instance handled that click, and the Warranty
+   * & RMA screen — served by a different instance minutes later — read an empty
+   * document and showed nothing. The same applied to registrations typed in by
+   * support and to every RMA case ever opened.
+   *
+   * There is no error in that sequence. Each request succeeds, the panel
+   * renders, and the data is simply not there afterwards, which is the hardest
+   * kind of failure to notice and the worst one to have in the record that
+   * decides whether a customer is still under cover.
+   */
+  { durable: true }
+);
+
+/**
+ * Loads the authoritative copy before a request reads or writes.
+ *
+ * Mirrors `revalidateIcm()`: the accessors below stay synchronous and every
+ * route awaits this first. Skipping it cannot corrupt the document —
+ * `createFileStore` refuses to save a store it has not hydrated — but it does
+ * mean serving one instance's empty copy, and any write in that request is
+ * refused and logged.
+ */
+export async function revalidateWarranty(): Promise<void> {
+  await store.hydrate();
+}
+
+/**
+ * Waits for the pending database write to land.
+ *
+ * Awaited before responding rather than fired and forgotten: a serverless
+ * function that returns before its promises settle is frozen mid-write, and the
+ * registration is lost — which looks exactly like the bug this is fixing.
+ */
+export async function flushWarranty(): Promise<void> {
+  await store.flush();
+}
 
 export function listRegistrations(): WarrantyRegistration[] {
   return [...store.read().registrations].sort((a, b) => b.createdAt.localeCompare(a.createdAt));

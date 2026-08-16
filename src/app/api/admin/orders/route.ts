@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listOrders, updateOrder, creditWallet, logAudit, addOrderNote, type StoredOrder } from "@/lib/store";
 import { sendStatusEmail } from "@/lib/order-core";
 import { adminFromRequest, requireArea } from "@/lib/admin-auth";
+import { revalidateWarranty, flushWarranty } from "@/lib/admin-warranty";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -112,6 +113,20 @@ export async function PATCH(request: Request) {
     if (typeof trackingNumber === "string") patch.trackingNumber = trackingNumber;
     if (typeof carrier === "string") patch.carrier = carrier;
 
+    /*
+     * Marking an order delivered starts its warranty, and `updateOrder`
+     * registers it synchronously. The warranty store is a separate durable
+     * document, so it has to be loaded before that write and its flush awaited
+     * afterwards — exactly as its own routes do.
+     *
+     * Without the hydrate the registration is refused and logged rather than
+     * saved; without the flush the response returns, the lambda is frozen
+     * mid-write, and it is lost. Both failures leave the order correctly
+     * delivered and the warranty simply missing, which nobody notices until a
+     * customer claims.
+     */
+    await revalidateWarranty();
+
     const updated = updateOrder(orderNo, patch, note);
     if (!updated) return NextResponse.json({ success: false, message: "Order not found." }, { status: 404 });
 
@@ -134,6 +149,9 @@ export async function PATCH(request: Request) {
         carrier: updated.carrier,
       }).catch(() => {});
     }
+
+    // The warranty rows created by the delivery above are on their own document.
+    await flushWarranty();
 
     return NextResponse.json({ success: true, order: updated });
   } catch {

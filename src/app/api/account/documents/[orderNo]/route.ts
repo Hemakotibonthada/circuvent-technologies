@@ -4,7 +4,7 @@ import { verifyToken, tokenFromRequest } from "@/lib/account";
 import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildDocument, availableDocuments, type DocumentKind, type DocumentOrderLike } from "@/lib/documents";
-import { registrationsForOrder } from "@/lib/admin-warranty";
+import { registrationsForOrder, revalidateWarranty } from "@/lib/admin-warranty";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +64,9 @@ export async function GET(request: Request, ctx: { params: Promise<{ orderNo: st
   }
 
   await revalidate(["orders"]);
+  // The per-unit cover records live on their own durable document; without
+  // this the warranty certificate lists no devices at all.
+  await revalidateWarranty();
 
   // getOrder matches on order number AND email, so an order belonging to
   // somebody else resolves to nothing rather than to their address.
