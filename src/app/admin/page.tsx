@@ -682,14 +682,21 @@ export default function AdminDashboard() {
               nothing about the browser that can stop it working, and if the
               deployment has not been configured the start route says so
               plainly rather than failing somewhere in the middle.
+
+              The divider only appears when the passkey block has not already
+              drawn one. Both blocks owning a rule produced two "OR"s stacked
+              on top of each other, which reads as a missing option between
+              them.
             */}
-            <div className="flex items-center gap-3 pt-1">
-              <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
-              <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-                or
-              </span>
-              <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
-            </div>
+            {!passkeySupported && (
+              <div className="flex items-center gap-3 pt-1">
+                <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
+                <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                  or
+                </span>
+                <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
+              </div>
+            )}
             <a
               href="/api/admin/auth/sso/start"
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all"
