@@ -66,6 +66,31 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  async redirects() {
+    return [
+      {
+        /*
+         * The documentation moved to /developer and onto its own subdomain.
+         *
+         * Done here rather than with `permanentRedirect()` in the page,
+         * because that page is statically prerendered: Next served a 200 shell
+         * that only redirected once JavaScript ran. The API server publishes
+         * this exact URL in its `/v1` index as `documentation`, so it is baked
+         * into every client that has read the index — it needs to be a real
+         * 308 that a crawler and a non-browser client both follow.
+         */
+        source: "/developers",
+        destination: "/developer",
+        permanent: true,
+      },
+      {
+        source: "/developers/:path*",
+        destination: "/developer/:path*",
+        permanent: true,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

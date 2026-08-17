@@ -4,14 +4,20 @@ import path from "node:path";
 /**
  * The published API surface must match the router.
  *
- * `/v1` advertises `https://circuvent.com/openapi.json` by URL, and
- * `/developers` is the page a human reads before writing any code. Both had
+ * `/v1` advertises `https://circuvent.com/openapi.json` by URL, and the
+ * developer portal is what a human reads before writing any code. Both had
  * silently fallen a whole feature behind the router — the entire ANPR surface
  * existed, was scoped, rate-limited and live, and appeared in neither.
  *
  * Nothing errors when that happens. The endpoint simply cannot be discovered,
  * which is indistinguishable from it not existing. These tests make the drift
  * fail the build instead.
+ *
+ * The documentation used to be one page at `src/app/developers/page.tsx`. It is
+ * now the portal under `src/app/developer/`, served at /developer and at the
+ * root of developer.circuvent.com, with the endpoint table generated from
+ * openapi.json. This reads all of it, so the check follows the content rather
+ * than the file it used to live in.
  */
 
 // This file lives in tests/, so the repository root is one level up.
@@ -21,7 +27,29 @@ const openapi = JSON.parse(fs.readFileSync(path.join(root, "public", "openapi.js
   components?: { responses?: Record<string, unknown>; securitySchemes?: Record<string, unknown> };
   tags?: { name: string }[];
 };
-const devPage = fs.readFileSync(path.join(root, "src", "app", "developers", "page.tsx"), "utf8");
+/**
+ * Everything a developer can read, as one string.
+ *
+ * The generated endpoint table, the hand-written companion data, and every
+ * page of the portal. Concatenated because these assertions ask "is this
+ * discoverable at all", and it does not matter which of the files carries it.
+ */
+const devPage = (() => {
+  const files = [
+    path.join(root, "src", "lib", "developer-api.generated.ts"),
+    path.join(root, "src", "lib", "developer-docs.ts"),
+  ];
+  const portal = path.join(root, "src", "app", "developer");
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".tsx") || entry.name.endsWith(".ts")) files.push(full);
+    }
+  };
+  walk(portal);
+  return files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+})();
 
 /** Scopes the control plane actually issues — mirrors API_SCOPES. */
 const SCOPES = [
