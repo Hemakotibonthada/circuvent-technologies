@@ -21,9 +21,9 @@ import { ViewSettingsPanel } from "@/components/ViewSettings";
    two screens should be offered the same looks. tests/theme-mode-parity pins
    the list and the dark-only rule. */
 const MODES: { key: ThemeMode; label: string; desc: string }[] = [
-  { key: "glass", label: "Glass", desc: "Frosted cards over an accent glow — default" },
+  { key: "glass", label: "Glass", desc: "Frosted cards over an accent glow" },
   { key: "aurora", label: "Aurora", desc: "Classic dark smart-home panels" },
-  { key: "neo", label: "Neo", desc: "Soft extruded surfaces and shadows" },
+  { key: "neo", label: "Neo", desc: "Soft extruded surfaces and shadows — default" },
   { key: "oled", label: "OLED", desc: "True black — saves power on a wall tablet" },
   { key: "neon", label: "Neon", desc: "Glowing cards on deep violet" },
 ];

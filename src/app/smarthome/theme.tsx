@@ -40,19 +40,26 @@ export const ACCENTS: Accent[] = [
 
 const KEY = "cv-console-theme";
 
-/* Console default. Glass-on-dark is the house look: the accessory tiles read
-   as frosted panes over the accent wash, which is what the product screenshots
-   and the mobile app ship with. Changing these two constants changes the
-   default everywhere — every consumer reads them rather than hard-coding. */
-export const DEFAULT_MODE: ThemeMode = "glass";
-export const DEFAULT_SCHEME: Scheme = "dark";
+/* Console default. Neo-on-light is the house look: softly extruded tiles on a
+   white field, which reads well on a wall tablet in a lit room and is what the
+   console should open as. Changing these two constants changes the default
+   everywhere — every consumer reads them rather than hard-coding.
 
-/* The preference written by builds before glass-dark became the default. The
-   old provider persisted its defaults on first paint, so a stored value of
-   exactly this triple cannot be distinguished from "never chose anything" —
-   we treat it as unset and adopt the new default. Anything else was a
-   deliberate choice and is preserved. */
-const LEGACY_DEFAULT = { mode: "aurora", scheme: "dark", accentKey: "brand" } as const;
+   Anybody who has actually chosen a look keeps it: the provider only writes to
+   storage after a deliberate change, so a stored preference is always somebody's
+   decision rather than a default that happened to be stamped on them. */
+export const DEFAULT_MODE: ThemeMode = "neo";
+export const DEFAULT_SCHEME: Scheme = "light";
+
+/* Preferences written by builds before this default. The old provider persisted
+   its defaults on first paint, so a stored value of exactly one of these
+   triples cannot be distinguished from "never chose anything" — we treat it as
+   unset and adopt the new default. Anything else was a deliberate choice and is
+   preserved. */
+const LEGACY_DEFAULTS = [
+  { mode: "aurora", scheme: "dark", accentKey: "brand" },
+  { mode: "glass", scheme: "dark", accentKey: "brand" },
+] as const;
 
 interface ThemeValue {
   mode: ThemeMode;
@@ -296,10 +303,12 @@ export function ConsoleThemeProvider({ children }: { children: React.ReactNode }
       const raw = localStorage.getItem(KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as Partial<{ mode: ThemeMode; scheme: Scheme; accentKey: string }>;
-      const untouched =
-        saved.mode === LEGACY_DEFAULT.mode &&
-        saved.scheme === LEGACY_DEFAULT.scheme &&
-        saved.accentKey === LEGACY_DEFAULT.accentKey;
+      const untouched = LEGACY_DEFAULTS.some(
+        (d) =>
+          saved.mode === d.mode &&
+          saved.scheme === d.scheme &&
+          saved.accentKey === d.accentKey
+      );
       if (untouched) return;
       if (saved.mode) setMode(saved.mode);
       if (saved.scheme) setScheme(saved.scheme);

@@ -505,6 +505,103 @@ export default function Login() {
         .cvlogin {
           background: radial-gradient(1200px 800px at 15% -10%, #0d1b34 0%, #070b16 55%, #05070f 100%);
         }
+
+        /*
+         * The sign-in screen in the light scheme.
+         *
+         * This page paints its own background rather than using the console's
+         * surfaces, so when the default became Neo White it kept its dark
+         * gradient while the theme's light tokens recoloured the text on top of
+         * it — headline, labels and the passkey button all went dark-on-dark and
+         * were very nearly invisible. The door has to match the house.
+         *
+         * Scoped to [data-cv-scheme="light"], so the dark design is untouched
+         * for anybody who has chosen it.
+         */
+        [data-cv-scheme="light"] .cvlogin {
+          background: radial-gradient(1200px 800px at 15% -10%, #eaf4fb 0%, #f5f8fc 55%, #ffffff 100%);
+          color: #0f172a;
+        }
+        [data-cv-scheme="light"] .cvlogin .text-slate-400 {
+          color: #55637a;
+        }
+        [data-cv-scheme="light"] .cvlogin .text-slate-500 {
+          color: #64748b;
+        }
+        [data-cv-scheme="light"] .cvlogin .text-white,
+        [data-cv-scheme="light"] .cvlogin h1,
+        [data-cv-scheme="light"] .cvlogin h2 {
+          color: #0f172a;
+        }
+        /* The brand tile and the primary button keep white type: both sit on
+           the accent gradient, not on the page. */
+        [data-cv-scheme="light"] .cvlogin [style*="--cv-gradient"],
+        [data-cv-scheme="light"] .cvlogin button[type="submit"] {
+          color: #ffffff;
+        }
+        [data-cv-scheme="light"] .cvlogin-grid {
+          background-image: linear-gradient(rgba(71, 85, 105, 0.08) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(71, 85, 105, 0.08) 1px, transparent 1px);
+        }
+        [data-cv-scheme="light"] .cvlogin-orb {
+          opacity: 0.28;
+        }
+        [data-cv-scheme="light"] .cvlogin-vignette {
+          background: radial-gradient(ellipse at center, transparent 45%, rgba(15, 23, 42, 0.06) 100%);
+        }
+        [data-cv-scheme="light"] .cvlogin-card {
+          background: rgba(255, 255, 255, 0.82);
+          border-color: rgba(15, 23, 42, 0.1);
+          box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        /* Fields and the outlined buttons: the dark design draws them with
+           white-alpha borders, which vanish on white. */
+        /* Fields and the outlined buttons: the dark design draws them with
+           white-alpha borders, which the light shim remaps to a near-white
+           token — invisible on a white card. */
+        html[data-cv-scheme="light"] .cvlogin .border-white\\/10 {
+          border-color: rgba(15, 23, 42, 0.14) !important;
+        }
+        /* The field wrapper carries its own class rather than being reached
+           through its Tailwind utilities: the light shim remaps those by
+           attribute selector, so overriding bg-black/25 here would mean
+           matching a moving target. One class this page owns is stabler. */
+        html[data-cv-scheme="light"] .cvlogin .cvlogin-field {
+          background-color: #ffffff !important;
+          border-color: rgba(15, 23, 42, 0.14) !important;
+        }
+        html[data-cv-scheme="light"] .cvlogin .cvlogin-field:focus-within {
+          border-color: rgba(6, 182, 212, 0.6) !important;
+          background-color: #ffffff !important;
+        }
+        html[data-cv-scheme="light"] .cvlogin .bg-white\\/\\[0\\.03\\] {
+          background-color: rgba(255, 255, 255, 0.9) !important;
+        }
+        /*
+         * The field is the box; the input inside it is not.
+         *
+         * Neo recesses every input with an inset shadow, which is right on a
+         * bare field and wrong inside a wrapper that is already drawing one —
+         * it produced a grey pill sitting in, and overflowing, the box it was
+         * meant to be part of.
+         *
+         * Marked important deliberately. The rule being overridden is the neo
+         * theme's recessed-field selector, which is more specific than any
+         * selector this page could reasonably write; matching it would mean an
+         * unreadable chain that breaks the moment either side is edited. This
+         * is a narrow, page-scoped exception to a theme-wide rule, which is
+         * exactly what important is for.
+         */
+        html[data-cv-scheme="light"] .cvlogin .cv-input {
+          color: #0f172a !important;
+          background: transparent !important;
+          border: 0 !important;
+          box-shadow: none !important;
+        }
+        html[data-cv-scheme="light"] .cvlogin .cv-input::placeholder {
+          color: #94a3b8;
+        }
         .cvlogin-grid {
           background-image: linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
             linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
@@ -636,7 +733,7 @@ function Assurance({ icon, label }: { icon: React.ReactNode; label: string }) {
 
 function Field({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-3 transition focus-within:border-cyan-500/50 focus-within:bg-black/40">
+    <div className="cvlogin-field flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-3 transition focus-within:border-cyan-500/50 focus-within:bg-black/40">
       <span className="text-slate-500">{icon}</span>
       {children}
     </div>
