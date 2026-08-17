@@ -9,7 +9,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { CSP } from "@/lib/csp";
 import { categorySlug } from "@/lib/shop-categories";
-import { mountedPath } from "@/lib/host-mounts";
+import { mountAction } from "@/lib/host-mounts";
+import { SITE_URL } from "@/lib/config";
 
 export function proxy(request: NextRequest) {
   /*
@@ -25,15 +26,26 @@ export function proxy(request: NextRequest) {
    * path-to-regexp `source` is possible to write and impossible to trust — the
    * first attempt matched none of the three exclusions and was only caught by
    * requesting them.
+   *
+   * A path the portal does not serve is redirected to the main site here, at
+   * the edge, where a real 3xx is still possible. A route that calls
+   * `redirect()` has already started streaming its layout, so Next answers 200
+   * with a client-side hop instead.
    */
-  const mounted = mountedPath(
+  const action = mountAction(
     request.headers.get("host") ?? "",
-    request.nextUrl.pathname
+    request.nextUrl.pathname,
+    SITE_URL
   );
-  if (mounted) {
+  if (action?.kind === "rewrite") {
     const url = request.nextUrl.clone();
-    url.pathname = mounted;
+    url.pathname = action.path;
     return NextResponse.rewrite(url);
+  }
+  if (action?.kind === "redirect") {
+    const target = new URL(action.url);
+    target.search = request.nextUrl.search;
+    return NextResponse.redirect(target, 307);
   }
 
   /*

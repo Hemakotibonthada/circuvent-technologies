@@ -376,6 +376,15 @@ export interface ContactMessage {
 
 export interface AlertSettings {
   notifyEmail?: string;
+  /**
+   * Circuvent groups the performance report also goes to, by address.
+   *
+   * Addresses rather than ids, because a group is a mail-enabled list and the
+   * address is what actually delivers. Membership stays in the directory — a
+   * copy of who is in the group would start reaching the wrong people the day
+   * somebody joins or leaves.
+   */
+  reportGroups?: string[];
   lowStockThreshold: number;
   onNewOrder: boolean;
   onLowStock: boolean;

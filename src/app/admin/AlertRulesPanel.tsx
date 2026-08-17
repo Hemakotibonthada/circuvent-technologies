@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, Save, Send, FileBarChart, Loader2, CheckCircle2 } from "lucide-react";
+import { BellRing, Save, Send, FileBarChart, Loader2, CheckCircle2, Users } from "lucide-react";
 import { GaugeChart } from "./charts";
 
 function tok() {
@@ -22,8 +22,17 @@ interface Settings {
   onExpiringBatch: boolean;
   dailyReport: boolean;
   reportRangeDays: number;
+  /** Circuvent group addresses the report also goes to. */
+  reportGroups?: string[];
   lastDigestAt?: string;
   lastReportAt?: string;
+}
+
+interface DirectoryGroup {
+  id: string;
+  email: string;
+  name: string;
+  description: string;
 }
 
 const card: React.CSSProperties = { background: "var(--bg-surface)", border: "1px solid var(--border-primary)" };
@@ -54,6 +63,8 @@ export default function AlertRulesPanel() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [canEdit, setCanEdit] = useState(true);
+  const [groups, setGroups] = useState<DirectoryGroup[] | null>(null);
+  const [directoryReady, setDirectoryReady] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -68,9 +79,48 @@ export default function AlertRulesPanel() {
     }
   }, []);
 
+  /*
+   * The groups a report can be addressed to, loaded once.
+   *
+   * Separate from the settings call because the directory is another service:
+   * if it is unreachable the rules screen must still work, so a failure here
+   * leaves an empty picker with an explanation rather than blocking the page.
+   */
+  const loadGroups = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/groups", { headers: { "x-admin-token": tok() } });
+      if (!r.ok) {
+        setGroups([]);
+        setDirectoryReady(false);
+        return;
+      }
+      const d = (await r.json()) as { groups: DirectoryGroup[]; configured: boolean };
+      setGroups(d.groups ?? []);
+      setDirectoryReady(d.configured !== false);
+    } catch {
+      setGroups([]);
+      setDirectoryReady(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadGroups();
+  }, [load, loadGroups]);
+
+  /** Ticks or unticks one group as a recipient. */
+  const toggleGroup = (email: string) => {
+    setS((prev) => {
+      if (!prev) return prev;
+      const current = prev.reportGroups ?? [];
+      return {
+        ...prev,
+        reportGroups: current.includes(email)
+          ? current.filter((e) => e !== email)
+          : [...current, email],
+      };
+    });
+  };
 
   const save = async () => {
     if (!s) return;
@@ -108,8 +158,13 @@ export default function AlertRulesPanel() {
         body: body ? JSON.stringify(body) : undefined,
       });
       const d = await r.json();
-      if (d.sent) setMsg(`Sent to ${d.to}.`);
-      else setMsg(d.reason || d.error || "Nothing sent.");
+      if (d.sent) {
+        // Names every address it reached. "Sent" beside a group nobody in it
+        // received is the failure this screen exists to make visible.
+        const to = Array.isArray(d.to) ? d.to.join(", ") : d.to;
+        const failed = Array.isArray(d.failed) && d.failed.length ? ` Failed: ${d.failed.join(", ")}.` : "";
+        setMsg(`Sent to ${to}.${failed}`);
+      } else setMsg(d.reason || d.error || "Nothing sent.");
       load();
     } catch {
       setMsg("Network error.");
@@ -199,6 +254,87 @@ export default function AlertRulesPanel() {
             </label>
           </div>
 
+          {/*
+            Who the report goes to, shown here rather than behind a settings
+            page: this sits directly above "Send report now", so the recipients
+            are visible at the moment somebody decides to send.
+          */}
+          <div className="rounded-xl border p-3" style={{ borderColor: "var(--border-primary)" }}>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
+              <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                Also send to groups
+              </span>
+            </div>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              Circuvent groups from the directory. Everyone in the group receives it, and
+              membership is read at send time — nobody has to be added here when they join.
+              The address above still receives it as well.
+            </p>
+
+            {groups === null ? (
+              <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                Loading groups…
+              </p>
+            ) : !directoryReady ? (
+              <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                The directory could not be reached, so no groups can be listed. The report
+                will still go to the address above.
+              </p>
+            ) : groups.length === 0 ? (
+              <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                No mail-enabled groups exist yet. Create one in the identity console and it
+                will appear here.
+              </p>
+            ) : (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {groups.map((g) => {
+                  const checked = (s.reportGroups ?? []).includes(g.email);
+                  return (
+                    <label
+                      key={g.id}
+                      className="flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2"
+                      style={{
+                        borderColor: checked ? "var(--accent-cyan)" : "var(--border-primary)",
+                        background: checked ? "var(--bg-glass)" : "transparent",
+                        opacity: canEdit ? 1 : 0.6,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={checked}
+                        disabled={!canEdit}
+                        onChange={() => toggleGroup(g.email)}
+                      />
+                      <span className="min-w-0">
+                        <span
+                          className="block truncate text-sm font-medium"
+                          style={{ color: "var(--text-primary)" }}
+                        >
+                          {g.name}
+                        </span>
+                        <span
+                          className="block truncate text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          {g.email}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="mt-3 text-xs" style={{ color: "var(--text-tertiary)" }}>
+              {(s.reportGroups ?? []).length
+                ? `Report goes to ${s.notifyEmail || "the owner"} and ${(s.reportGroups ?? []).length} group(s).`
+                : `Report goes to ${s.notifyEmail || "the owner"} only.`}{" "}
+              Save to apply this to the scheduled report as well.
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={save}
@@ -216,7 +352,14 @@ export default function AlertRulesPanel() {
               <Send className="h-4 w-4" /> Send digest now
             </button>
             <button
-              onClick={() => trigger("/api/admin/reports/send", { days: s.reportRangeDays })}
+              onClick={() =>
+                trigger("/api/admin/reports/send", {
+                  days: s.reportRangeDays,
+                  // Sent from the screen's current state, so a tick applies to
+                  // this send without having to save first.
+                  groups: s.reportGroups ?? [],
+                })
+              }
               disabled={busy}
               className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold"
               style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}

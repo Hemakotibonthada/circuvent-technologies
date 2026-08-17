@@ -16,7 +16,38 @@ export interface HostMount {
   hosts: RegExp;
   /** The path prefix in this app that actually renders. */
   prefix: string;
+  /**
+   * The paths this subtree serves, relative to its prefix, when that set is
+   * small and known. The prefix root is implied.
+   *
+   * Where this is given, a request for anything else on the hostname is sent
+   * to the main site rather than rewritten into a page that cannot exist. The
+   * console omits it because its route set is large and changes often; the
+   * documentation portal is nine pages, and a parity test keeps this list
+   * equal to the one the navigation is built from.
+   */
+  pages?: string[];
 }
+
+/**
+ * The documentation portal's pages.
+ *
+ * Spelled out here rather than imported from `developer-docs.ts` on purpose:
+ * this module is bundled into the edge proxy, and that one carries every code
+ * sample in the documentation. `developer-docs-parity.test.ts` asserts the two
+ * lists are equal, so the copy cannot drift.
+ */
+export const DEVELOPER_PAGES = [
+  "quickstart",
+  "authentication",
+  "scopes",
+  "endpoints",
+  "commands",
+  "browser",
+  "webhooks",
+  "errors",
+  "limits",
+];
 
 /**
  * Every hostname mounted onto a subtree of this app.
@@ -27,7 +58,7 @@ export interface HostMount {
  */
 export const HOST_MOUNTS: HostMount[] = [
   { hosts: /^(home|iot)\.circuvent\.com$/i, prefix: "/smarthome" },
-  { hosts: /^developer\.circuvent\.com$/i, prefix: "/developer" },
+  { hosts: /^developer\.circuvent\.com$/i, prefix: "/developer", pages: DEVELOPER_PAGES },
 ];
 
 /**
@@ -67,6 +98,41 @@ export function mountedPath(host: string, pathname: string): string | null {
   if (!mount) return null;
   if (servedFromRoot(pathname)) return null;
   return `${mount.prefix}${pathname === "/" ? "" : pathname}`;
+}
+
+/** What the proxy should do with a request. */
+export type MountAction =
+  | { kind: "rewrite"; path: string }
+  | { kind: "redirect"; url: string };
+
+/**
+ * How a request to a mounted hostname is served.
+ *
+ * A path the subtree does not have is **redirected to the main site**, not
+ * rewritten. `developer.circuvent.com/domains` is a real address people
+ * reached — the corporate nav rendered on the portal for a while and its links
+ * pointed at corporate pages — and rewriting it produced `/developer/domains`,
+ * which can only be a 404.
+ *
+ * Decided here rather than by a catch-all route, because a page that calls
+ * `redirect()` has already begun streaming its layout: Next answers 200 with a
+ * client-side hop instead of a 3xx, so the address bar stays put for anything
+ * that is not a browser, and the shell flashes for anything that is.
+ */
+export function mountAction(host: string, pathname: string, mainSite: string): MountAction | null {
+  const name = (host ?? "").split(":")[0];
+  const mount = HOST_MOUNTS.find((m) => m.hosts.test(name));
+  if (!mount) return null;
+  if (servedFromRoot(pathname)) return null;
+
+  if (mount.pages) {
+    const slug = pathname === "/" ? "" : pathname.replace(/^\/+/, "").replace(/\/+$/, "");
+    if (slug && !mount.pages.includes(slug)) {
+      return { kind: "redirect", url: `${mainSite}${pathname}` };
+    }
+  }
+
+  return { kind: "rewrite", path: `${mount.prefix}${pathname === "/" ? "" : pathname}` };
 }
 
 /** Is this request being served as a mounted subtree's own site? */

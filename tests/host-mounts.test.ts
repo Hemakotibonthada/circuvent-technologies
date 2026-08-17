@@ -7,8 +7,10 @@
  * anywhere.
  */
 import {
+  DEVELOPER_PAGES,
   HOST_MOUNTS,
   isMountedHost,
+  mountAction,
   mountPrefixFor,
   mountedPath,
   servedFromRoot,
@@ -69,6 +71,73 @@ describe("the developer portal's hostname", () => {
     expect(mountPrefixFor("home.circuvent.com")).toBe("/smarthome");
     expect(mountPrefixFor("circuvent.com")).toBeNull();
     expect(mountPrefixFor(null)).toBeNull();
+  });
+});
+
+describe("a path the portal does not serve", () => {
+  const MAIN = "https://circuvent.com";
+
+  /*
+   * The address from the report. While the corporate nav rendered on the
+   * portal, its links pointed at corporate pages, so people reached
+   * developer.circuvent.com/domains — which rewrites to /developer/domains and
+   * can only 404.
+   */
+  it("goes to the main site instead of a page that cannot exist", () => {
+    expect(mountAction("developer.circuvent.com", "/domains", MAIN)).toEqual({
+      kind: "redirect",
+      url: "https://circuvent.com/domains",
+    });
+  });
+
+  it("sends every corporate path there, not just the one that was reported", () => {
+    for (const p of ["/shop", "/about", "/contact", "/services", "/blog"]) {
+      expect(mountAction("developer.circuvent.com", p, MAIN)).toEqual({
+        kind: "redirect",
+        url: `https://circuvent.com${p}`,
+      });
+    }
+  });
+
+  it("still rewrites every real portal page", () => {
+    expect(mountAction("developer.circuvent.com", "/", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/developer",
+    });
+    for (const slug of DEVELOPER_PAGES) {
+      expect(mountAction("developer.circuvent.com", `/${slug}`, MAIN)).toEqual({
+        kind: "rewrite",
+        path: `/developer/${slug}`,
+      });
+    }
+  });
+
+  it("tolerates a trailing slash rather than bouncing a real page away", () => {
+    expect(mountAction("developer.circuvent.com", "/scopes/", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/developer/scopes/",
+    });
+  });
+
+  it("leaves the API and assets alone rather than redirecting them", () => {
+    for (const p of ["/api/devices", "/openapi.json", "/_next/static/x.js"]) {
+      expect(mountAction("developer.circuvent.com", p, MAIN)).toBeNull();
+    }
+  });
+
+  /*
+   * The console has no page list, because its route set is large and moves.
+   * Everything on that hostname is still rewritten, as before.
+   */
+  it("does not redirect on a mount that has not declared its pages", () => {
+    expect(mountAction("home.circuvent.com", "/anything", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/smarthome/anything",
+    });
+  });
+
+  it("does nothing at all on the main site", () => {
+    expect(mountAction("circuvent.com", "/domains", MAIN)).toBeNull();
   });
 });
 

@@ -15,6 +15,7 @@ import path from "node:path";
 
 import { API_ENDPOINTS, API_SCOPES } from "@/lib/developer-api.generated";
 import { DOC_PAGES, SCOPE_DESCRIPTIONS } from "@/lib/developer-docs";
+import { DEVELOPER_PAGES } from "@/lib/host-mounts";
 
 /* tests/ sits at the repo root, so one level up is the repo — not two. */
 const root = path.join(__dirname, "..");
@@ -102,6 +103,9 @@ describe("the portal's pages", () => {
     const routes = fs
       .readdirSync(dir, { withFileTypes: true })
       .filter((e) => e.isDirectory() && !e.name.startsWith("_"))
+      // `[...slug]` is the catch-all that forwards non-portal paths to the main
+      // site, not a page anything should navigate to.
+      .filter((e) => !e.name.startsWith("["))
       .map((e) => e.name)
       .sort();
     expect(routes).toEqual(DOC_PAGES.map((p) => p.slug).sort());
@@ -114,5 +118,17 @@ describe("the portal's pages", () => {
       expect(p.title.trim().length).toBeGreaterThan(0);
       expect(p.blurb.trim().length).toBeGreaterThan(0);
     }
+  });
+
+  /*
+   * The edge proxy carries its own copy of this list, because importing this
+   * module would pull every code sample in the documentation into the edge
+   * bundle. A copy is only safe while something checks it.
+   *
+   * If they disagree, a page either 404s on the subdomain or gets bounced to
+   * the main site — both of which look like the page simply not existing.
+   */
+  it("matches the list the edge proxy routes on", () => {
+    expect([...DEVELOPER_PAGES].sort()).toEqual(DOC_PAGES.map((p) => p.slug).sort());
   });
 });
