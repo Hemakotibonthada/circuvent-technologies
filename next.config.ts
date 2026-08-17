@@ -70,6 +70,27 @@ const nextConfig: NextConfig = {
     return [
       {
         /*
+         * Firmware moved out of the application bundle into R2.
+         *
+         * Eighteen images, about twenty megabytes, were committed under
+         * `public/fw/` and shipped with every deployment — and a device
+         * downloading one pulled it through this application's bandwidth.
+         * They now live in a separate **public** bucket, because a device
+         * doing an OTA check holds no credentials and cannot sign a request,
+         * while the bucket holding resumes must never be public.
+         *
+         * The redirect keeps any URL already in the field working. Nothing in
+         * the code ever hardcoded `/fw/...` — the OTA URL has always been
+         * supplied by an operator — but a device flashed with one, or a
+         * bookmark, would otherwise 404.
+         */
+        source: "/fw/:file",
+        destination:
+          "https://pub-d7f0dba2b9e5487092a2a1de50a12a2c.r2.dev/fw/:file",
+        permanent: true,
+      },
+      {
+        /*
          * The documentation moved to /developer and onto its own subdomain.
          *
          * Done here rather than with `permanentRedirect()` in the page,

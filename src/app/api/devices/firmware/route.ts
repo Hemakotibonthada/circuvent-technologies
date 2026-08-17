@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
  * can self-update (see CircuventDevice::checkOTA). Publishing is env-driven so
  * ops can roll out a build without a code change:
  *
- *   OTA_AQUAGUARD = "2.1.0|https://cdn.circuvent.com/fw/aquaguard-2.1.0.bin"
- *   OTA_HOME_HUB  = "2.1.0|https://cdn.circuvent.com/fw/home-hub-2.1.0.bin"
+ *   OTA_AQUAGUARD = "2.1.0|https://pub-d7f0dba2b9e5487092a2a1de50a12a2c.r2.dev/fw/aquaguard-2.1.0.bin"
+ *   OTA_HOME_HUB  = "2.1.0|https://pub-d7f0dba2b9e5487092a2a1de50a12a2c.r2.dev/fw/home-hub-2.3.0.bin"
  *
  * When no newer build is configured, an empty manifest is returned and the
  * device stays on its current firmware.
