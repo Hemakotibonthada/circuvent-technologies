@@ -300,6 +300,8 @@ export interface AdminUser {
   tokenVersion?: number;
   /** Forces a change at next sign-in regardless of age (e.g. after an admin reset). */
   mustChangePassword?: boolean;
+  /** Created by a group grant over SSO rather than added here by hand. */
+  ssoProvisioned?: boolean;
 }
 
 export interface OrderNote {
