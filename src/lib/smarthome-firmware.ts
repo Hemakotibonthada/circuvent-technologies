@@ -1,8 +1,22 @@
-// Firmware & Changelog Hub — a static, versioned reference of the latest
-// known firmware per device type (mirrors firmware/<device>/*.ino version
-// history) so users can see at a glance whether their device is behind, and
-// what changed. Purely informational + a live comparison against each
-// device's own `fw_version` field (already returned by control-plane.ts).
+// Firmware & Changelog Hub — the latest known firmware per device type, so a
+// user can see whether their device is behind and what changed.
+//
+// The catalogue is GENERATED from the firmware sources, which declare their own
+// version and document their own history. It used to be hand-maintained and had
+// drifted into fiction: twelve of thirteen entries advertised versions that were
+// never built, the camera was fourteen minor versions stale in the other
+// direction, and eleven device types were missing altogether.
+//
+// That is not a cosmetic problem. `isBehind` compares a device's reported
+// version against this, so an invented "latest" tells every unit running the
+// newest firmware there is that it is out of date, permanently — and an OTA
+// campaign filtered on version matches nothing. The hub's own history records
+// that exact failure happening once before.
+//
+// Regenerate after changing any firmware:
+//   node scripts/generate-firmware-catalog.cjs
+
+import { GENERATED_FIRMWARE_CATALOG } from "./firmware-catalog.generated";
 
 export interface FirmwareInfo {
   deviceType: string;
@@ -10,21 +24,7 @@ export interface FirmwareInfo {
   changelog: { version: string; notes: string[] }[];
 }
 
-export const FIRMWARE_CATALOG: FirmwareInfo[] = [
-  { deviceType: "smart-plug", latestVersion: "2.1.0", changelog: [{ version: "2.1.0", notes: ["Improved energy accuracy", "Faster reconnect after Wi-Fi drop"] }, { version: "2.0.0", notes: ["Captive portal provisioning"] }] },
-  { deviceType: "smart-switch", latestVersion: "2.0.2", changelog: [{ version: "2.0.2", notes: ["Fixed boot-state restore edge case"] }] },
-  { deviceType: "smart-light", latestVersion: "1.8.0", changelog: [{ version: "1.8.0", notes: ["Smoother PWM dimming curve"] }] },
-  { deviceType: "smart-fan", latestVersion: "1.4.0", changelog: [{ version: "1.4.0", notes: ["Added preset speed profiles"] }] },
-  { deviceType: "curtain", latestVersion: "1.3.1", changelog: [{ version: "1.3.1", notes: ["Improved stop-position accuracy"] }] },
-  { deviceType: "smart-lock", latestVersion: "1.6.0", changelog: [{ version: "1.6.0", notes: ["Auto-lock timer configurable from app"] }] },
-  { deviceType: "motion-sensor", latestVersion: "1.5.0", changelog: [{ version: "1.5.0", notes: ["Reduced false triggers in low light"] }] },
-  { deviceType: "camera", latestVersion: "1.0.0", changelog: [{ version: "1.0.0", notes: ["Live JPEG streaming over MQTT", "On-board motion detection without extra hardware", "Dimmable illuminator and 180° rotation"] }] },
-  { deviceType: "energy-monitor", latestVersion: "1.7.0", changelog: [{ version: "1.7.0", notes: ["Higher sample rate for spikes"] }] },
-  { deviceType: "aquaguard", latestVersion: "2.2.0", changelog: [{ version: "2.2.0", notes: ["Improved dry-run detection", "Dual-tank coordination fixes"] }] },
-  { deviceType: "home-hub", latestVersion: "2.4.0", changelog: [{ version: "2.4.0", notes: ["Scene scheduling reliability improvements"] }] },
-  { deviceType: "guardian", latestVersion: "1.9.0", changelog: [{ version: "1.9.0", notes: ["Faster GPS fix on cold start"] }] },
-  { deviceType: "agri-starter", latestVersion: "1.2.0", changelog: [{ version: "1.2.0", notes: ["SMS command retry logic"] }] },
-];
+export const FIRMWARE_CATALOG: FirmwareInfo[] = GENERATED_FIRMWARE_CATALOG;
 
 export function getFirmwareInfo(deviceType: string): FirmwareInfo | undefined {
   return FIRMWARE_CATALOG.find((f) => f.deviceType === deviceType);
