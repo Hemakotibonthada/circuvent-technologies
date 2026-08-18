@@ -64,6 +64,19 @@ const schema = z.object({
   // cannot be talked into minting sessions.
   FEDERATION_SECRET: z.string().default(""),
   /*
+   * Single sign-on against the company identity provider.
+   *
+   * FEDERATION_SECRET above lets a trusted server assert an address; this
+   * accepts a token the provider itself signed, which is a different and
+   * stronger claim — a leaked client id cannot forge one.
+   *
+   * Both empty by default. A deployment that has configured neither cannot be
+   * talked into minting a session, which is the behaviour to have when the
+   * setting is missing rather than merely unset.
+   */
+  AUTH_ISSUER: z.string().default("https://auth.circuvent.com"),
+  SSO_CLIENT_ID: z.string().default(""),
+  /*
    * ANPR plate recognition.
    *
    * Optional by design. With none of this set the ANPR pipeline still runs

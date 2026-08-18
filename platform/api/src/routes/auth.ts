@@ -8,6 +8,7 @@ import { issueRefreshToken, rotateRefreshToken, revokeAllRefreshTokens } from ".
 import { sendOtpEmail, sendPasswordResetEmail } from "../mail";
 import { config } from "../config";
 import { logger } from "../logger";
+import { ssoEnabled, verifyIdToken } from "../sso";
 
 export const authRouter = Router();
 
@@ -281,6 +282,74 @@ authRouter.post("/federated", async (req, res) => {
     res.json(await sessionResponse(Number(user.id), email, user.name));
   } catch (err) {
     logger.error({ err }, "federated sign-in failed");
+    res.status(500).json({ error: "Could not create a session." });
+  }
+});
+
+/**
+ * POST /auth/sso — sign in with a Circuvent identity token.
+ *
+ * The difference from /auth/federated is who is trusted. Federation trusts the
+ * caller, which is why it needs a shared secret and why only a server may use
+ * it. This trusts the identity provider's signature, so the token can be
+ * handed over by the browser that obtained it: forging one needs the
+ * provider's private key, not a secret this application also holds.
+ *
+ * The console account is provisioned on first arrival, the same way federation
+ * does it, because the directory decides who exists and this side only caches
+ * that decision.
+ */
+authRouter.post("/sso", async (req, res) => {
+  if (!ssoEnabled()) {
+    res.status(404).json({ error: "Single sign-on is not enabled." });
+    return;
+  }
+
+  const idToken = typeof req.body?.idToken === "string" ? req.body.idToken.trim() : "";
+  if (!idToken) {
+    res.status(400).json({ error: "An identity token is required." });
+    return;
+  }
+
+  let claims;
+  try {
+    claims = await verifyIdToken(idToken);
+  } catch (err) {
+    // Deliberately not echoed to the caller: the reason a token failed is
+    // useful to whoever is probing and useless to a legitimate user, who can
+    // only sign in again.
+    logger.warn({ err }, "sso token rejected");
+    res.status(401).json({ error: "That sign-in could not be verified." });
+    return;
+  }
+
+  try {
+    const found = await pool.query<{ id: number; name: string }>(
+      `SELECT id, name FROM users WHERE email = $1`,
+      [claims.email]
+    );
+    let user = found.rows[0];
+
+    if (!user) {
+      /*
+       * An unusable password, not a blank one. The account exists so the
+       * directory's decision is cached here, but it must not become a second
+       * way in: nothing can present a password that hashes to random bytes.
+       */
+      const unusable = await hashPassword(crypto.randomBytes(32).toString("hex"));
+      const created = await pool.query<{ id: number; name: string }>(
+        `INSERT INTO users (email, name, password) VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE SET name = COALESCE(NULLIF(users.name, ''), EXCLUDED.name)
+         RETURNING id, name`,
+        [claims.email, claims.name ?? "", unusable]
+      );
+      user = created.rows[0];
+      logger.info({ email: claims.email }, "sso created a console account");
+    }
+
+    res.json(await sessionResponse(Number(user.id), claims.email, user.name));
+  } catch (err) {
+    logger.error({ err }, "sso sign-in failed");
     res.status(500).json({ error: "Could not create a session." });
   }
 });

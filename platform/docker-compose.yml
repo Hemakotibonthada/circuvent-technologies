@@ -98,6 +98,12 @@ services:
       OTP_DEBUG: ${OTP_DEBUG:-false}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       FEDERATION_SECRET: ${FEDERATION_SECRET:-}
+      # Single sign-on against the company identity provider. Listed here for
+      # the same reason as everything else in this block: compose passes
+      # through exactly what is named, and an unset SSO_CLIENT_ID makes
+      # /auth/sso answer 404 rather than fail loudly.
+      AUTH_ISSUER: ${AUTH_ISSUER:-https://auth.circuvent.com}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID:-}
       # ANPR. These MUST be listed here, not only in .env.example: compose
       # passes through exactly what is named below, which is how
       # FEDERATION_SECRET stayed silently unset and SSO kept returning 501.
