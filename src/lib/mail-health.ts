@@ -2,19 +2,22 @@
  * Can this deployment actually deliver mail?
  *
  * Every notification path in the product — order confirmations, OTPs, incident
- * pages — ends in `sendMail`, which tries SMTP and falls back to Resend. When
- * both are misconfigured it returns false, writes a line to the log, and the
- * product carries on looking healthy. That is the failure this module exists to
- * make visible, and it is not hypothetical: this deployment is currently in
- * exactly that state.
+ * pages — ends in `sendMail`, which sends over SMTP to the Circuvent mail
+ * server. When that is misconfigured `sendMail` returns false, writes a line to
+ * the log, and the product carries on looking healthy. That is the failure this
+ * module exists to make visible.
  *
- *   - SMTP is pointed at `smtpout.secureserver.net` and the credential is
- *     rejected: `535 Authentication Failed for contact@circuvent.com`.
- *   - Resend then refuses every recipient except the API key owner, because
- *     the sandbox sender `onboarding@resend.dev` is still in use.
+ * ── There is deliberately no second transport ──
  *
- * So an incident filed against a team notifies nobody, and the only evidence is
- * a log line on a server nobody is reading during an outage.
+ * `sendMail` used to fall back to the Resend API directly, and this module
+ * reported on it. Both are gone. That fallback sent from `onboarding@resend.dev`
+ * — Resend's sandbox sender, which refuses every recipient except the API key
+ * owner — so it could not deliver to a customer, and because it bypassed the
+ * mail server its sends never appeared in the outbound counts that read the
+ * mail server's log. The mail server already relays through Resend using our
+ * own authenticated domain, so routing everything through it loses no
+ * redundancy. Reporting a fallback that no longer exists would be worse than
+ * reporting nothing, so `verdict` is now simply whether SMTP works.
  *
  * ── On the host name ──
  *
@@ -56,7 +59,6 @@ export interface MailHealth {
     /** True when the host looks like a webmail front-end rather than a relay. */
     suspectHost: boolean;
   };
-  resend: TransportReport & { sandbox: boolean };
   from: string;
   checkedAt: string;
 }
@@ -160,37 +162,10 @@ export async function checkMailHealth(timeoutMs = 8000): Promise<MailHealth> {
     }
   }
 
-  /*
-   * Resend is checked by configuration rather than by calling it: the only way
-   * to prove the sandbox limit is to attempt a delivery, and a health check
-   * that sends real mail every time it runs is its own problem.
-   */
-  const resendKey = process.env.RESEND_API_KEY?.trim() ?? "";
-  const resendFrom = process.env.RESEND_FROM?.trim() ?? "";
-  const sandbox = !resendFrom || /resend\.dev/i.test(resendFrom);
-  const resend: MailHealth["resend"] = {
-    configured: !!resendKey,
-    ok: !!resendKey && !sandbox,
-    sandbox,
-    problem: !resendKey
-      ? "Resend is not configured."
-      : sandbox
-        ? "Resend is on the sandbox sender, which only delivers to the API key owner."
-        : "",
-    advice: !resendKey
-      ? "Optional. It is the fallback for when SMTP is unavailable."
-      : sandbox
-        ? "Verify a domain at resend.com/domains and set RESEND_FROM to an address on it."
-        : "",
-  };
+  const verdict: MailVerdict = smtp.ok ? "ok" : "broken";
+  const summary = smtp.ok
+    ? `Mail is being delivered through ${host}.`
+    : `Mail is not being delivered. ${smtp.problem}`.trim();
 
-  const verdict: MailVerdict = smtp.ok ? "ok" : resend.ok ? "degraded" : "broken";
-  const summary =
-    verdict === "ok"
-      ? `Mail is being delivered through ${host}.`
-      : verdict === "degraded"
-        ? `SMTP is not working (${smtp.problem}) — mail is going out through Resend instead.`
-        : `Mail is not being delivered. ${smtp.problem} ${resend.problem}`.trim();
-
-  return { verdict, summary, smtp, resend, from, checkedAt };
+  return { verdict, summary, smtp, from, checkedAt };
 }

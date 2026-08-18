@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
-import { Resend } from "resend";
 import { products, computeTotals, formatINR } from "./shop-data";
 import { validateCoupon } from "./coupons";
 import { listProducts } from "./store";
@@ -48,8 +47,20 @@ export interface MailMeta {
 
 /**
  * Sends one email and records it to the email evidence log (email_history).
- * Prefers SMTP (the store's own domain mailbox) and falls back to Resend.
- * Returns true on delivery; every attempt (success or failure) is logged.
+ *
+ * SMTP only, and deliberately so. Everything goes through the Circuvent mail
+ * server at SMTP_HOST, which is the single point every application's outbound
+ * mail converges on — it is what the free-allowance counter reads, and it is
+ * the only path that sends from our own authenticated domain.
+ *
+ * There used to be a direct Resend fallback here. It was removed because it was
+ * worse than the thing it was backing up in every respect: it sent from
+ * `onboarding@resend.dev`, Resend's sandbox sender, which refuses every
+ * recipient except the API key owner, so it could not actually deliver to a
+ * customer; and because it bypassed the mail server it consumed the same Resend
+ * free allowance without appearing in any of our counts. The mail server
+ * already relays through Resend using our verified domain, so routing through
+ * it loses no redundancy and gains correct accounting.
  */
 export async function sendMail(
   to: string,
@@ -80,37 +91,11 @@ export async function sendMail(
       console.error("SMTP send error:", e);
     }
   }
-  if (!ok && process.env.RESEND_API_KEY) {
-    provider = "resend";
-    fromUsed = "Circuvent Store <onboarding@resend.dev>";
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const r = (await resend.emails.send({ from: fromUsed, to: [to], cc, subject, html, replyTo: replyToUsed || undefined })) as { data: { id?: string } | null; error: { message?: string } | string | null };
-      if (r.error) {
-        error = typeof r.error === "string" ? r.error : r.error.message || JSON.stringify(r.error);
-        // onboarding@resend.dev is Resend's sandbox sender: it can only deliver
-        // to the API key owner's own address, and rejects every other recipient
-        // with a 403. Called out explicitly because the generic message reads
-        // like a transient error, and this one silently broke every OTP.
-        if (/only send testing emails|verify a domain/i.test(error)) {
-          console.error(
-            `Resend is in sandbox mode and refused to mail ${to}. ` +
-              "Configure SMTP_HOST/SMTP_USER/SMTP_PASS to send from the Circuvent mail server, " +
-              "or verify a domain at resend.com/domains."
-          );
-        } else {
-          console.error("Resend send error:", r.error);
-        }
-      } else {
-        ok = true;
-        messageId = r.data?.id ?? null;
-      }
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      console.error("Resend send error:", e);
-    }
+  if (provider === "none") {
+    error =
+      error ||
+      "No mail transport configured (set SMTP_HOST, SMTP_USER and SMTP_PASS to reach the Circuvent mail server)";
   }
-  if (provider === "none") error = error || "No mail transport configured (set SMTP_* or RESEND_API_KEY)";
 
   await recordEmail({
     to,

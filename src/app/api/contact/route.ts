@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
 import { clientIp } from "@/lib/client-ip";
-import { Resend } from "resend";
 import { rateLimit } from "@/lib/rate-limit";
 import { addContactMessage, flushNow } from "@/lib/store";
-import { recordEmail } from "@/lib/email-log";
-
-// Instantiated lazily so a missing RESEND_API_KEY doesn't crash the route at
-// import time (the Resend constructor throws on an empty key). The handler
-// already guards for the missing key and returns a graceful 500.
-let resendClient: Resend | null = null;
-function getResend(): Resend {
-  if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY);
-  return resendClient;
-}
+import { sendMail } from "@/lib/order-core";
 
 /** Per-service team routing. Overridable via env; defaults to a team alias on the domain. */
 function teamEmailFor(service?: string): string | undefined {
@@ -95,22 +85,9 @@ export async function POST(request: Request) {
       data: { name, email, submittedAt: new Date().toISOString() },
     });
 
-    if (!process.env.RESEND_API_KEY) {
-      console.warn("RESEND_API_KEY not configured — contact message saved but not emailed.");
-      return successResponse;
-    }
-
-    // Send email via Resend
-    // NOTE: Using onboarding@resend.dev + owner email for testing.
-    // For production, verify your domain at resend.com/domains and update
-    // `from` to use your domain (e.g., contact@circuvent.com) and `to` as needed.
-    const { data, error: resendError } = await getResend().emails.send({
-      from: "Circuvent Contact <onboarding@resend.dev>",
-      to: [process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com"],
-      cc: team ? [team] : undefined,
-      replyTo: email,
-      subject: `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`,
-      html: `
+    const recipient = process.env.CONTACT_EMAIL || "contact@circuvent.com";
+    const subject = `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`;
+    const html = `
         <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: linear-gradient(135deg, #06b6d4, #8b5cf6); padding: 24px; border-radius: 12px 12px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 20px;">New Contact Form Submission</h1>
@@ -147,31 +124,34 @@ export async function POST(request: Request) {
             </p>
           </div>
         </div>
-      `,
-    });
+      `;
 
-    await recordEmail({
-      to: process.env.CONTACT_EMAIL || "hemakotibonthada@gmail.com",
-      from: "Circuvent Contact <onboarding@resend.dev>",
-      replyTo: email,
-      cc: team || null,
-      subject: `[Circuvent] New inquiry from ${name}${company ? ` (${company})` : ""}`,
+    /*
+     * Sent through the shared sender, so it leaves via the Circuvent mail
+     * server like everything else.
+     *
+     * This route used to call the Resend API directly, from
+     * `onboarding@resend.dev` to a hardcoded gmail address. That sender is
+     * Resend's sandbox: it can only deliver to the API key owner, so the
+     * routing rules below were decorative. It also bypassed the mail server
+     * entirely, which meant these sends consumed the Resend free allowance
+     * without ever appearing in the outbound counts that read the mail
+     * server's log.
+     *
+     * sendMail writes the evidence-log entry itself, which is why this route
+     * no longer records one by hand.
+     */
+    const sent = await sendMail(recipient, subject, html, email, {
       type: "contact",
-      status: resendError ? "failed" : "sent",
-      provider: "resend",
-      messageId: data?.id ?? null,
-      error: resendError ? (typeof resendError === "string" ? resendError : JSON.stringify(resendError)) : null,
+      cc: team ? [team] : undefined,
       related: email,
-      bodyHtml: `<div style="font-family:system-ui,sans-serif"><h2>New Contact Form Submission</h2><table><tr><td>Name</td><td>${name}</td></tr><tr><td>Email</td><td>${email}</td></tr>${company ? `<tr><td>Company</td><td>${company}</td></tr>` : ""}${service ? `<tr><td>Service</td><td>${service}</td></tr>` : ""}${budget ? `<tr><td>Budget</td><td>${budget}</td></tr>` : ""}</table><p style="white-space:pre-wrap">${String(message).replace(/</g, "&lt;")}</p></div>`,
-      meta: { name, email, company, service, budget, team },
     });
 
-    if (resendError) {
-      console.warn("Resend error (message still saved to admin):", JSON.stringify(resendError));
-      return successResponse;
+    if (!sent) {
+      console.warn(
+        "Contact email could not be sent; the message is still saved for the admin."
+      );
     }
-
-    console.log("Contact email sent successfully:", JSON.stringify(data, null, 2));
 
     return successResponse;
   } catch (error) {

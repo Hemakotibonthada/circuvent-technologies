@@ -145,21 +145,27 @@ describe("the webmail host trap", () => {
   });
 });
 
-describe("the fallback transport", () => {
-  it("calls the sandbox sender out, because it delivers to exactly one address", async () => {
+describe("the transport it no longer has", () => {
+  /*
+   * These used to assert that a broken SMTP config degraded gracefully onto
+   * Resend. It never did: the fallback sent from `onboarding@resend.dev`, which
+   * only delivers to the API key owner, and it bypassed the mail server so its
+   * sends were invisible to our outbound counts. The fallback has been removed,
+   * and what matters now is that a broken SMTP config is reported as broken
+   * rather than quietly excused by a second transport.
+   */
+  it("calls broken SMTP broken, with no fallback to hide behind", async () => {
     configureSmtp();
     verifyMock.mockRejectedValue(smtpError("EAUTH", 535));
     process.env.RESEND_API_KEY = "re_test";
 
     const h = await checkMailHealth();
 
-    expect(h.resend.sandbox).toBe(true);
-    expect(h.resend.ok).toBe(false);
     expect(h.verdict).toBe("broken");
     expect(h.summary).toMatch(/not being delivered/i);
   });
 
-  it("counts a verified sender as a working fallback, but says SMTP is still broken", async () => {
+  it("is not rescued by a Resend key, however well configured it looks", async () => {
     configureSmtp();
     verifyMock.mockRejectedValue(smtpError("EAUTH", 535));
     process.env.RESEND_API_KEY = "re_test";
@@ -167,17 +173,15 @@ describe("the fallback transport", () => {
 
     const h = await checkMailHealth();
 
-    expect(h.resend.ok).toBe(true);
-    expect(h.verdict).toBe("degraded");
-    expect(h.summary).toMatch(/going out through Resend/i);
+    expect(h.verdict).toBe("broken");
+    expect(h.summary).not.toMatch(/resend/i);
   });
 
-  it("treats a resend.dev sender as sandbox however it is written", async () => {
+  it("does not report on Resend at all", async () => {
     configureSmtp();
     process.env.RESEND_API_KEY = "re_test";
-    process.env.RESEND_FROM = "Circuvent <onboarding@RESEND.DEV>";
 
-    expect((await checkMailHealth()).resend.sandbox).toBe(true);
+    expect(await checkMailHealth()).not.toHaveProperty("resend");
   });
 });
 
