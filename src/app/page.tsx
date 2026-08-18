@@ -280,16 +280,28 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-6 mb-16">
             {officeSuiteApps.map((app, i) => (
               <ScrollReveal key={app.title} delay={i * 0.12}>
-                <TiltCard tiltAmount={6}>
-                  <motion.a
-                    href={app.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Explore Circuvent ${app.title}`}
-                    className="group relative block overflow-hidden rounded-2xl transition-all duration-500 h-full cursor-pointer"
-                    style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}
-                    whileHover={{ y: -4 }}
-                  >
+                {/*
+                  No TiltCard here, deliberately.
+
+                  A pointer-tracking tilt rotates the card toward the cursor,
+                  and this card *is* a link with a visible "Explore" affordance
+                  in its corner. Aiming at that corner tilted the card toward
+                  you, lifted it 4px and scaled it 1.02 — so the target moved
+                  as you approached it, and moved more the closer you got.
+                  That is a Fitts's-law problem, not a taste one.
+
+                  The hover response is now shadow and the gradient bar
+                  brightening: both read instantly and neither displaces
+                  anything the user is trying to hit.
+                */}
+                <a
+                  href={app.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Explore Circuvent ${app.title}`}
+                  className="group relative block overflow-hidden rounded-2xl h-full cursor-pointer transition-shadow duration-300 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                  style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}
+                >
                     {/* Top gradient bar */}
                     <div className={`h-1 bg-gradient-to-r ${app.gradient} opacity-60 group-hover:opacity-100 transition-opacity duration-500`} />
 
@@ -353,8 +365,7 @@ export default function Home() {
                         </span>
                       </div>
                     </div>
-                  </motion.a>
-                </TiltCard>
+                </a>
               </ScrollReveal>
             ))}
           </div>

@@ -6,6 +6,12 @@ import { onEvent } from "../automations";
 import { onOwnershipChange } from "../ownership";
 import { sendPushToHome } from "../push";
 import { parseCapture, type AnprCapture, type TriggerReasonName } from "./protocol";
+import {
+  anprImageKey,
+  deleteObject,
+  isObjectStoreConfigured,
+  putObject,
+} from "../storage/objects";
 import { getRecogniser, type RawCandidate } from "./recognizer";
 import { normalisePlate, prettyPlate, voteOnBurst, type PlateVerdict } from "./plate";
 import { applyRead, laneDirection, type Direction, type LaneDirection } from "./visits";
@@ -95,15 +101,33 @@ async function deviceInfo(deviceId: string): Promise<DeviceInfo> {
   const hit = ownerCache.get(deviceId);
   if (hit && Date.now() - hit.at < OWNER_TTL_MS) return { ownerId: hit.ownerId, lane: hit.lane };
   try {
-    const { rows } = await pool.query<{ owner_id: number | null; state: Record<string, unknown> | null }>(
-      `SELECT owner_id, state FROM devices WHERE id = $1`,
+    const { rows } = await pool.query<{
+      owner_id: number | null;
+      state: Record<string, unknown> | null;
+      lane_direction: string | null;
+    }>(
+      `SELECT d.owner_id, d.state, l.direction AS lane_direction
+         FROM devices d
+         LEFT JOIN anpr_lanes l ON l.device_id = d.id
+        WHERE d.id = $1`,
       [deviceId]
     );
     const ownerId = rows[0]?.owner_id ?? null;
-    // The lane comes from what the firmware published, so a camera remounted
-    // on the exit side reports its own new role rather than needing a
-    // server-side setting kept in step by hand.
-    const lane = laneDirection(rows[0]?.state?.direction);
+    /*
+     * The lane comes from what the firmware published, so a camera remounted
+     * on the exit side reports its own new role rather than needing a
+     * server-side setting kept in step by hand.
+     *
+     * An ordinary camera driven as a lane has no such state key — it is not
+     * ANPR firmware and knows nothing about lanes — so the row in `anpr_lanes`
+     * answers for it. The device still wins where it has an opinion: a device
+     * that observes its own mounting beats a setting somebody typed.
+     */
+    const declared = rows[0]?.state?.direction;
+    const lane =
+      declared === undefined || declared === null
+        ? laneDirection(rows[0]?.lane_direction)
+        : laneDirection(declared);
     ownerCache.set(deviceId, { ownerId, lane, at: Date.now() });
     return { ownerId, lane };
   } catch (err) {
@@ -128,6 +152,58 @@ export function handleAnprCapture(deviceId: string, payload: Buffer): void {
   void collect(deviceId, capture).catch((err) =>
     logger.error({ err, deviceId }, "anpr collect failed")
   );
+}
+
+/**
+ * The same pipeline, entered from a frame rather than from a capture.
+ *
+ * `handleAnprCapture` is for a device that speaks the ANPR wire format. This is
+ * for `lane.ts` driving an ordinary camera: the frames come back on
+ * `cv/<id>/frame` as bare JPEGs with no header, so the metadata the header
+ * would have carried is supplied by the caller that asked for them.
+ *
+ * Everything downstream — burst collection, sharpest-frame selection, voting,
+ * the allow list, visits, occupancy, automations, webhooks, the report — is
+ * shared. That is the whole point of entering here rather than reimplementing
+ * a second pipeline: a plate read from a camera and a plate read from an
+ * anpr-cam must be the same kind of thing, or every consumer needs to know
+ * which sort of hardware produced it.
+ */
+export function ingestFrame(
+  deviceId: string,
+  jpeg: Buffer,
+  meta: { captureId: number; burst: number; reason: TriggerReasonName }
+): Promise<void> {
+  if (jpeg.length === 0 || jpeg.length > MAX_CAPTURE_BYTES) return Promise.resolve();
+  return collect(deviceId, {
+    captureId: meta.captureId,
+    seq: 0,
+    burst: Math.max(1, meta.burst),
+    reason: meta.reason,
+    width: 0,
+    height: 0,
+    jpeg,
+  }).catch((err) => logger.error({ err, deviceId }, "anpr frame ingest failed"));
+}
+
+/**
+ * Closes a burst early.
+ *
+ * A camera lane knows when it has stopped asking for frames, and that is
+ * sooner than `BURST_WINDOW_MS`. Without this a manual capture would sit for
+ * four seconds before anything happened, which reads as a broken button.
+ * Harmless if the burst has already closed on its own.
+ *
+ * THE CALLER MUST HAVE AWAITED ITS INGESTS FIRST. `collect` is async — it
+ * resolves the device's owner before buffering a single byte — so a frame
+ * handed to `ingestFrame` is not in `pending` yet when the next line of the
+ * caller runs. Flushing in that gap closes the burst on the frames that had
+ * landed, and the stragglers then arrive to find no burst and open a *second*
+ * one, which times out four seconds later as a second read. One vehicle, two
+ * arrivals, two rows in somebody's gate log. `lane.ts` awaits them.
+ */
+export function flushCapture(deviceId: string, captureId: number): void {
+  close(`${deviceId}:${captureId}`);
 }
 
 async function collect(deviceId: string, c: AnprCapture): Promise<void> {
@@ -233,6 +309,16 @@ interface Decision {
  * stated: if the two ever disagree, refusing entry is recoverable by a person
  * at the gate and admitting the wrong vehicle is not.
  *
+ * Allow then outranks watch, and that ordering is load-bearing rather than
+ * arbitrary. The unique index is per *scope* — (owner, plate, device) — so a
+ * plate can legitimately hold a global `watch` and a device-scoped `allow` at
+ * the same time, which is a real configuration: "tell me whenever this van
+ * turns up anywhere, and let it through the yard gate". Ranking watch first
+ * made the watch row win, the `device_id NULLS LAST` tiebreak never applied,
+ * and the gate never opened for a vehicle the owner had explicitly allowed at
+ * that camera. It failed safe — nobody wrong was admitted — but a resident
+ * left outside their own gate is still the feature not working.
+ *
  * A read the recogniser was not sure about never resolves to `allow`. It may
  * still resolve to `deny` — being unsure is a reason not to open a barrier,
  * never a reason to skip a block.
@@ -254,7 +340,7 @@ async function decide(
         AND (device_id IS NULL OR device_id = $3)
         AND (valid_from IS NULL OR valid_from <= now())
         AND (valid_to   IS NULL OR valid_to   >= now())
-      ORDER BY CASE kind WHEN 'deny' THEN 0 WHEN 'watch' THEN 1 ELSE 2 END,
+      ORDER BY CASE kind WHEN 'deny' THEN 0 WHEN 'allow' THEN 1 ELSE 2 END,
                device_id NULLS LAST`,
     [ownerId, plate, deviceId]
   );
@@ -267,6 +353,59 @@ async function decide(
     return { decision: "unknown", ruleId: Number(hit.id), label: hit.label };
   }
   return { decision: kind, ruleId: Number(hit.id), label: hit.label };
+}
+
+interface StoredCapture {
+  /** Base64 JPEG, when the image lives in the row. */
+  thumb: string | null;
+  /** Object key, when it lives in the bucket. */
+  key: string | null;
+  bytes: number;
+}
+
+/**
+ * Puts the capture wherever this deployment keeps captures.
+ *
+ * A bucket wins when one is configured, and the two are mutually exclusive per
+ * row: writing both would double the storage to protect against a failure that
+ * the fallback below already handles.
+ *
+ * THE FALLBACK IS THE POINT. An upload can fail for reasons that have nothing
+ * to do with this read — an expired key, a bucket that has hit its quota, a
+ * network partition between the VM and Cloudflare. When it does, the capture
+ * goes into the row exactly as it did before object storage existed, subject
+ * to the same `ANPR_THUMBNAIL_MAX_KB` ceiling. Losing the photograph of one
+ * arrival is a bad day; losing the arrival because the picture would not
+ * upload is a gate that stopped working, and those are not the same failure.
+ *
+ * The ceiling is `ANPR_IMAGE_MAX_KB` for an object and `ANPR_THUMBNAIL_MAX_KB`
+ * for a row, because the reason for the small one — bytes sitting in Postgres,
+ * inflated a third by base64, carried by every dump — does not apply to a
+ * bucket.
+ */
+async function storeCapture(ownerId: number, source: Buffer | undefined): Promise<StoredCapture> {
+  const empty: StoredCapture = { thumb: null, key: null, bytes: 0 };
+  if (!source || source.length === 0) return empty;
+
+  if (isObjectStoreConfigured()) {
+    const maxObject = config.ANPR_IMAGE_MAX_KB * 1024;
+    if (maxObject > 0 && source.length <= maxObject) {
+      const key = anprImageKey(ownerId);
+      if (await putObject(key, source, "image/jpeg")) {
+        return { thumb: null, key, bytes: source.length };
+      }
+      logger.warn(
+        { ownerId, bytes: source.length },
+        "anpr capture upload failed — falling back to the database"
+      );
+    }
+  }
+
+  const maxThumb = config.ANPR_THUMBNAIL_MAX_KB * 1024;
+  if (maxThumb > 0 && source.length <= maxThumb) {
+    return { thumb: source.toString("base64"), key: null, bytes: source.length };
+  }
+  return empty;
 }
 
 async function process(b: PendingBurst): Promise<void> {
@@ -282,7 +421,7 @@ async function process(b: PendingBurst): Promise<void> {
     else if (r.reason && !reason) reason = r.reason;
   }
 
-  const verdict: PlateVerdict | null = voteOnBurst(candidates);
+  const verdict: PlateVerdict | null = voteOnBurst(candidates, chosen.length);
   const recognised = !!verdict && verdict.valid;
   const confident = recognised && verdict!.confidence >= config.ANPR_MIN_CONFIDENCE;
 
@@ -302,17 +441,16 @@ async function process(b: PendingBurst): Promise<void> {
   // The image kept is the one recognition actually ran on, not an arbitrary
   // frame: when a read is disputed, the picture has to be the evidence rather
   // than a different photograph of the same car.
-  const maxThumb = config.ANPR_THUMBNAIL_MAX_KB * 1024;
   const source = chosen[0];
-  const thumb = maxThumb > 0 && source && source.length <= maxThumb ? source.toString("base64") : null;
+  const stored = await storeCapture(b.ownerId, source);
 
   let readId: number | null = null;
   try {
     const { rows } = await pool.query<{ id: string }>(
       `INSERT INTO plate_reads
          (device_id, owner_id, capture_id, plate, plate_raw, confidence, votes, samples,
-          kind, status, reason, decision, rule_id, trigger, thumb, ms)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          kind, status, reason, decision, rule_id, trigger, thumb, ms, image_key, image_bytes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING id`,
       [
         b.deviceId,
@@ -329,8 +467,10 @@ async function process(b: PendingBurst): Promise<void> {
         decision,
         ruleId,
         b.reason,
-        thumb,
+        stored.thumb,
         Date.now() - started,
+        stored.key,
+        stored.bytes,
       ]
     );
     readId = Number(rows[0]?.id ?? 0) || null;
@@ -562,6 +702,62 @@ async function announce(b: PendingBurst, a: Announcement): Promise<void> {
 }
 
 /**
+ * Deletes stored capture objects older than `days`, in bounded batches.
+ *
+ * ORDER MATTERS, AND IT IS DELETE-THEN-FORGET. The object is removed first and
+ * the column cleared only for the keys that actually went. The other order —
+ * clear the column, then delete — loses the key on any failure and orphans the
+ * object forever, because the row was the only thing that knew its name. This
+ * way a bucket that is refusing deletes today costs nothing: the rows keep
+ * their keys and the next sweep retries them.
+ *
+ * Batched because a deployment that has had object storage switched on for a
+ * year has a first sweep measured in tens of thousands of objects, and issuing
+ * all of them at once would open that many sockets from a 1 vCPU VM. The cap
+ * per run means a large backlog drains over several nights rather than in one,
+ * which is the correct trade for a housekeeping job nobody is waiting on.
+ */
+const OBJECT_SWEEP_BATCH = 500;
+const OBJECT_SWEEP_MAX_BATCHES = 20;
+
+async function sweepExpiredObjects(days: number): Promise<void> {
+  if (!isObjectStoreConfigured() || days <= 0) return;
+
+  let removed = 0;
+  for (let batch = 0; batch < OBJECT_SWEEP_MAX_BATCHES; batch++) {
+    const { rows } = await pool.query<{ id: string; image_key: string }>(
+      `SELECT id, image_key FROM plate_reads
+        WHERE image_key IS NOT NULL AND ts < now() - ($1 || ' days')::interval
+        ORDER BY ts
+        LIMIT $2`,
+      [days, OBJECT_SWEEP_BATCH]
+    );
+    if (!rows.length) break;
+
+    const gone: string[] = [];
+    for (const row of rows) {
+      if (await deleteObject(row.image_key)) gone.push(row.id);
+    }
+    if (gone.length) {
+      await pool.query(
+        `UPDATE plate_reads SET image_key = NULL, image_bytes = 0 WHERE id = ANY($1::bigint[])`,
+        [gone]
+      );
+      removed += gone.length;
+    }
+    // Every delete in this batch failed: the bucket is unreachable or the
+    // credentials are wrong. Retrying 19 more batches against it would turn a
+    // configuration error into ten thousand failed requests.
+    if (!gone.length) {
+      logger.warn({ days }, "anpr object sweep made no progress — stopping");
+      break;
+    }
+    if (rows.length < OBJECT_SWEEP_BATCH) break;
+  }
+  if (removed) logger.info({ removed, days }, "anpr capture objects deleted");
+}
+
+/**
  * Deletes expired plate history.
  *
  * Two ages, on purpose: images are cleared first and the row survives. See the
@@ -577,7 +773,22 @@ export async function sweepPlateRetention(): Promise<void> {
           WHERE thumb IS NOT NULL AND ts < now() - ($1 || ' days')::interval`,
         [config.ANPR_IMAGE_RETENTION_DAYS]
       );
+      await sweepExpiredObjects(config.ANPR_IMAGE_RETENTION_DAYS);
     }
+    /*
+     * Objects belonging to rows about to be deleted go first.
+     *
+     * The row is the only record of the key, so deleting it while the object
+     * survives orphans the object permanently: nothing left in the system
+     * knows the key exists, and the bucket grows forever with data nobody can
+     * find, list by owner, or produce on a deletion request. When the image
+     * window is shorter than the metadata window this is usually a no-op,
+     * because the images went at the earlier sweep — but the two are
+     * independently configurable and `ANPR_IMAGE_RETENTION_DAYS=0` (never
+     * expire images early) is a legitimate setting that makes this the only
+     * thing that ever deletes them.
+     */
+    await sweepExpiredObjects(config.ANPR_RETENTION_DAYS);
     await pool.query(`DELETE FROM plate_reads WHERE ts < now() - ($1 || ' days')::interval`, [
       config.ANPR_RETENTION_DAYS,
     ]);
@@ -623,6 +834,16 @@ export function startAnpr(): void {
   // change, a device re-claimed by a different account inside that window
   // would file the new owner's plate reads into the previous owner's log.
   onOwnershipChange(invalidateAnprOwner);
+  /*
+   * Ordinary cameras driven as lanes. Started here rather than in index.ts so
+   * that anything turning the ANPR pipeline on gets the lanes with it — two
+   * switches for one feature is how half of it ends up disabled in production.
+   *
+   * Imported lazily for the reason mqtt.ts states about this module: lane.ts
+   * needs `ingestFrame` and `flushCapture` from here, so a static import back
+   * would close the cycle at module-evaluation time.
+   */
+  void import("./lane").then((m) => m.startCameraLanes());
   void sweepPlateRetention();
   sweepTimer = setInterval(() => void sweepPlateRetention(), 24 * 60 * 60 * 1000);
   sweepTimer.unref?.();

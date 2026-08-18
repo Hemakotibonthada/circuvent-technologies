@@ -20,3 +20,17 @@ platform/
 **/dist
 **/.turbo
 **/.expo
+
+# Secrets.
+#
+# This file *replaces* .gitignore for uploads -- Vercel does not consult both --
+# so the `.env*` rule in .gitignore does not apply here. Without these lines
+# `vercel deploy` uploads real env files into the deployment source.
+#
+# Two separate problems, and the second is easy to miss: the credentials end up
+# in the deployment, *and* Next loads an uploaded .env during the build, so
+# local values silently win over the ones configured on the project -- which is
+# how a production build ends up pointing at a dev database or localhost URL.
+.env
+.env.*
+!.env.example

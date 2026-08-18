@@ -6,13 +6,18 @@ import {
   HelpCircle, Truck, CreditCard, RotateCcw, ShieldCheck, Wrench, Wifi, Gift,
   MapPin, Clock, PackageCheck, IndianRupee, Bell, PackageOpen, Wallet, XCircle,
   CheckCircle2, AlertTriangle, LifeBuoy, FileText, ShoppingBag, Copyright, Scale,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 
+// A name missing from this map renders the section with no icon and without the
+// indent the others get, which reads as a layout bug rather than a missing
+// import -- so anything referenced by a page needs an entry here.
 const ICONS: Record<string, LucideIcon> = {
   HelpCircle, Truck, CreditCard, RotateCcw, ShieldCheck, Wrench, Wifi, Gift,
   MapPin, Clock, PackageCheck, IndianRupee, Bell, PackageOpen, Wallet, XCircle,
   CheckCircle2, AlertTriangle, LifeBuoy, FileText, ShoppingBag, Copyright, Scale,
+  Building2,
 };
 
 export interface ContentSection {

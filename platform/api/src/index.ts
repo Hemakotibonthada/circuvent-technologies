@@ -146,6 +146,26 @@ async function main(): Promise<void> {
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 
+  /*
+   * The last line of defence for a handler that threw.
+   *
+   * Express 4 routes a *synchronous* throw here and does nothing with a
+   * rejected promise, so this catches the first kind and the process-level
+   * handler below catches the second. Both exist because neither is enough
+   * alone, and because the failure they prevent is disproportionate: a single
+   * bad request that reached an unguarded `pool.query` used to end the process
+   * for every tenant on it.
+   *
+   * The body says nothing about the error. A stack trace or a Postgres message
+   * on a 500 tells an attacker the schema; the log has both, keyed by a
+   * request id the operator can search for.
+   */
+  app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    logger.error({ err, method: req.method, path: req.path }, "unhandled route error");
+    if (res.headersSent) return;
+    res.status(500).json({ error: "Internal error", code: "internal_error" });
+  });
+
   const server = http.createServer(app);
   attachWebSocket(server);
 
@@ -164,6 +184,32 @@ async function main(): Promise<void> {
   };
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
+
+  /*
+   * A rejected promise must not end the fleet.
+   *
+   * Node exits on an unhandled rejection by default, and Express 4 turns every
+   * async route handler that rejects into exactly that: `pool.query` with a
+   * malformed id raises, nothing is awaiting the handler, and the control
+   * plane — every account, every device, every open WebSocket — goes down
+   * because one request had a letter where a number belonged.
+   *
+   * Logging and continuing is the right trade *here specifically*, and the
+   * reasoning matters because the opposite is the usual advice. This process
+   * holds no in-memory state that a rejection can corrupt: sessions are JWTs,
+   * device state is in Postgres, and the MQTT client reconnects. The request
+   * that caused it gets no response and times out, which is a bad minute for
+   * one caller. Crashing turns that into an outage for everybody, and on a
+   * single-VM deployment (Docs/12-vm-runbook.md) there is no second replica to
+   * take over while it restarts.
+   *
+   * It is logged at error with the reason attached so it cannot pass as
+   * healthy: this is a net for bugs nobody found yet, not a way to stop
+   * finding them.
+   */
+  process.on("unhandledRejection", (reason) => {
+    logger.error({ err: reason }, "unhandled promise rejection — request dropped, process kept alive");
+  });
 }
 
 main().catch((err) => {

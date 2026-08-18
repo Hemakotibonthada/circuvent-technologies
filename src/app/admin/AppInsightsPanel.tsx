@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { toCsv, downloadCsv } from "../smarthome/_kit/primitives";
 import { METRICS, SPLITS, type MetricId, type SplitBy, type MetricSeries } from "@/lib/app-insights";
@@ -33,6 +33,7 @@ import {
 import LogsBlade from "./insights/LogsBlade";
 import TransactionBlade from "./insights/TransactionBlade";
 import EventDetailDrawer from "./insights/EventDetailDrawer";
+import RangeBrush, { FULL_RANGE, isFullRange, sliceFor, withinRange, type BrushRange } from "./insights/RangeBrush";
 import { CohortsBlade, FunnelBlade, ImpactBlade, UsageBlade } from "./insights/UsageBlades";
 import { ConfigureBlade, LiveBlade, MapBlade } from "./insights/MapLiveBlades";
 import SuiteFailures from "./SuiteFailures";
@@ -770,6 +771,11 @@ export default function AppInsightsPanel() {
   const [availMode, setAvailMode] = useState<"line" | "scatter">("line");
   const [availTarget, setAvailTarget] = useState("");
   const [availOutcome, setAvailOutcome] = useState<"all" | "ok" | "failed">("all");
+  /* The brushed sub-window. Reset whenever the loaded window changes, or the
+     fractions would silently mean a different span than the one they were
+     dragged over. */
+  const [availRange, setAvailRange] = useState<BrushRange>(FULL_RANGE);
+  useEffect(() => setAvailRange(FULL_RANGE), [hours]);
 
   const fileFromFailure = useCallback(async (f: FailureGroup) => {
     setFiledFailures((s) => ({ ...s, [f.key]: "filing" }));
@@ -818,6 +824,66 @@ export default function AppInsightsPanel() {
     if (q && !e.path.toLowerCase().includes(q)) return false;
     return true;
   });
+
+  /**
+   * Everything the Availability blade shows, narrowed to the brushed window.
+   *
+   * The per-test table is *recomputed* here rather than filtered, because the
+   * server's `availability` rows are aggregates over the whole loaded window.
+   * Showing those next to a brushed chart would put "100%" beside a graph with
+   * a visible hole in it — the two would disagree on screen, which is worse
+   * than not offering the brush at all.
+   */
+  const brushedAvail = useMemo(() => {
+    const series = view?.availabilitySeries ?? [];
+    const allResults = view?.availabilityResults ?? [];
+    const { from, to } = sliceFor(series.length, availRange);
+    const points = series.length ? series.slice(from, to + 1) : [];
+
+    const firstMs = series.length ? Date.parse(series[0].at) : NaN;
+    const lastMs = series.length ? Date.parse(series[series.length - 1].at) : NaN;
+    const results = isFullRange(availRange)
+      ? allResults
+      : allResults.filter((r) => withinRange(r.at, firstMs, lastMs, availRange));
+
+    /* Per-target rollup over exactly the results being shown. */
+    const byTarget = new Map<string, { target: string; checks: number; failed: number; totalMs: number; durations: number[]; lastFailureAt: string | null }>();
+    for (const r of results) {
+      const row = byTarget.get(r.target) ?? { target: r.target, checks: 0, failed: 0, totalMs: 0, durations: [], lastFailureAt: null };
+      row.checks += 1;
+      row.totalMs += r.durationMs;
+      row.durations.push(r.durationMs);
+      if (!r.ok) {
+        row.failed += 1;
+        if (!row.lastFailureAt || r.at > row.lastFailureAt) row.lastFailureAt = r.at;
+      }
+      byTarget.set(r.target, row);
+    }
+
+    const tests = [...byTarget.values()]
+      .map((row) => {
+        const sorted = [...row.durations].sort((a, b) => a - b);
+        // Nearest-rank, matching lib/app-insights.ts. An interpolating
+        // percentile invents a duration that never happened, which is
+        // indefensible beside a table listing every check.
+        const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil(0.95 * sorted.length) - 1));
+        return {
+          target: row.target,
+          uptime: row.checks > 0 ? (row.checks - row.failed) / row.checks : 1,
+          checks: row.checks,
+          avgMs: row.checks > 0 ? Math.round(row.totalMs / row.checks) : 0,
+          p95Ms: sorted.length ? sorted[idx] : 0,
+          lastFailureAt: row.lastFailureAt,
+        };
+      })
+      .sort((a, b) => a.uptime - b.uptime || a.target.localeCompare(b.target));
+
+    /* Fall back to the server's aggregate when the brush is untouched and no
+       individual results were returned — an older API build sends the rollup
+       without the raw rows, and an empty table there would read as an outage. */
+    const fallback = view?.availability ?? [];
+    return { points, results, tests: tests.length || results.length ? tests : fallback };
+  }, [view?.availabilitySeries, view?.availabilityResults, view?.availability, availRange]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1312,7 +1378,92 @@ export default function AppInsightsPanel() {
                 </div>
               </div>
 
-              <AvailabilityChart points={view.availabilitySeries ?? []} mode={availMode} />
+              <AvailabilityChart points={brushedAvail.points} mode={availMode} />
+
+              {/*
+                The scrubber. Azure puts one under this chart, and it is what
+                turns "99.2% today" into "41% between 03:10 and 03:25" — the
+                only version of that number anyone can act on. It narrows what
+                is shown from data already loaded, so it is instant and cannot
+                fail; widening past the window is the time-range control's job.
+              */}
+              {(view.availabilitySeries ?? []).length > 2 && (
+                <RangeBrush
+                  label="Availability window"
+                  points={(view.availabilitySeries ?? []).map((p) => ({ at: p.at, value: p.uptime }))}
+                  value={availRange}
+                  onChange={setAvailRange}
+                  formatAt={fmtTime}
+                />
+              )}
+
+              {/*
+                Availability results, as Azure's right-hand panel states them.
+                A percentage answers "how good", a count answers "how many
+                people hit it" — and a 99.9% month with 4,000 checks is a very
+                different conversation from 99.9% with 40.
+              */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border cv-border cv-surface p-3">
+                  <div className="mb-2 text-sm font-bold cv-text-primary">
+                    Availability results
+                    {!isFullRange(availRange) && (
+                      <span className="ml-2 text-[11px] font-normal cv-text-muted">in the selected window</span>
+                    )}
+                  </div>
+                  {(() => {
+                    const total = brushedAvail.results.length;
+                    const ok = brushedAvail.results.filter((r) => r.ok).length;
+                    const failed = total - ok;
+                    const pctOf = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+                    return (
+                      <div className="space-y-2">
+                        {([
+                          ["Successful", ok, "#34d399"],
+                          ["Failed", failed, "#f87171"],
+                        ] as const).map(([label, n, colour]) => (
+                          <div key={label} className="flex items-center gap-3">
+                            <span className="w-20 shrink-0 text-[12px] cv-text-secondary">{label}</span>
+                            <span className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: "var(--border-primary)" }}>
+                              {/* Zero draws nothing rather than a hairline: a
+                                  visible bar for "no failures" reads as some. */}
+                              <span className="block h-full rounded-full" style={{ width: `${pctOf(n)}%`, background: colour }} />
+                            </span>
+                            <span className="w-16 shrink-0 text-right text-[12px] font-semibold tabular-nums cv-text-primary">
+                              {n.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="pt-1 text-[11px] cv-text-muted">
+                          {total === 0
+                            ? "No checks ran in this window."
+                            : `${total.toLocaleString()} checks · ${pctOf(ok).toFixed(pctOf(ok) === 100 ? 0 : 2)}% successful`}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="rounded-xl border cv-border cv-surface p-3">
+                  <div className="mb-2 text-sm font-bold cv-text-primary">Slowest check</div>
+                  {(() => {
+                    /* The check that took longest, named. An average hides the
+                       one request that timed out, which is the one worth
+                       opening. */
+                    const worst = [...brushedAvail.results].sort((a, b) => b.durationMs - a.durationMs)[0];
+                    if (!worst) return <p className="text-[12px] cv-text-muted">Nothing measured in this window.</p>;
+                    return (
+                      <div className="space-y-1 text-[12px]">
+                        <div className="font-mono cv-text-secondary">{worst.target}</div>
+                        <div className="text-2xl font-bold tabular-nums cv-text-primary">{worst.durationMs} ms</div>
+                        <div className="cv-text-muted">
+                          {fmtTime(worst.at)} · {worst.ok ? `HTTP ${worst.status}` : worst.detail || "failed"}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
 
               <div className="overflow-x-auto rounded-xl border cv-border">
                 <table className="w-full text-left text-sm">
@@ -1327,7 +1478,7 @@ export default function AppInsightsPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {view.availability.map((a) => (
+                    {brushedAvail.tests.map((a) => (
                       <tr
                         key={a.target}
                         onClick={() => setAvailTarget(availTarget === a.target ? "" : a.target)}
@@ -1364,7 +1515,7 @@ export default function AppInsightsPanel() {
                 /* Drill in. An uptime percentage says something is wrong; only
                    the individual results say when it started and what it
                    answered. */
-                const results = (view.availabilityResults ?? []).filter(
+                const results = brushedAvail.results.filter(
                   (r) => !availTarget || r.target === availTarget
                 );
                 const failed = results.filter((r) => !r.ok);

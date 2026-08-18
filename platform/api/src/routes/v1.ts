@@ -16,6 +16,7 @@ import {
 import { logger } from "../logger";
 import { onlineColumn, onlineSql } from "../device-online";
 import { analysePlate, normalisePlate, prettyPlate } from "../anpr/plate";
+import { getObject } from "../storage/objects";
 import { listVehicles, visitsFor } from "../anpr/visits";
 import { occupancy } from "../anpr/site";
 
@@ -660,7 +661,8 @@ route.get("/plates", requireApiAccess("plates:read"), async (req: ApiRequest, re
     decision: string; trigger: string; ts: Date; has_thumb: boolean;
   }>(
     `SELECT id, device_id, capture_id, plate, confidence, votes, samples, kind,
-            status, reason, decision, trigger, ts, (thumb IS NOT NULL) AS has_thumb
+            status, reason, decision, trigger, ts,
+            (thumb IS NOT NULL OR image_key IS NOT NULL) AS has_thumb
        FROM plate_reads
       WHERE owner_id = $1
         AND ($3::text IS NULL OR device_id = $3)
@@ -694,19 +696,39 @@ route.get("/plates", requireApiAccess("plates:read"), async (req: ApiRequest, re
   });
 });
 
-/** GET /v1/plates/:id/image — the capture the plate was read from, as JPEG. */
+/**
+ * GET /v1/plates/:id/image — the capture the plate was read from, as JPEG.
+ *
+ * Both storage backends, exactly as the console route serves them: a row
+ * written before object storage was configured carries base64 in `thumb`, one
+ * written since carries a key. An integration polling this must not have to
+ * know which, or care that a deployment switched.
+ */
 route.get("/plates/:id/image", requireApiAccess("plates:read"), async (req: ApiRequest, res) => {
-  const { rows } = await pool.query<{ thumb: string | null }>(
-    `SELECT thumb FROM plate_reads WHERE id = $1 AND owner_id = $2`,
-    [Number(req.params.id), req.user!.uid]
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Bad read id.", code: "bad_request" });
+    return;
+  }
+
+  const { rows } = await pool.query<{ thumb: string | null; image_key: string | null }>(
+    `SELECT thumb, image_key FROM plate_reads WHERE id = $1 AND owner_id = $2`,
+    [id, req.user!.uid]
   );
-  const thumb = rows[0]?.thumb;
-  if (!thumb) {
+  const row = rows[0];
+  if (!row) {
     res.status(404).json({ error: "No image for that read.", code: "not_found" });
     return;
   }
-  const buf = Buffer.from(thumb, "base64");
+
+  const body = row.image_key ? await getObject(row.image_key) : null;
+  const buf = body ?? (row.thumb ? Buffer.from(row.thumb, "base64") : null);
+  if (!buf) {
+    res.status(404).json({ error: "No image for that read.", code: "not_found" });
+    return;
+  }
   res.setHeader("content-type", "image/jpeg");
+  res.setHeader("content-length", String(buf.length));
   res.setHeader("cache-control", "private, max-age=86400, immutable");
   res.end(buf);
 });

@@ -59,7 +59,17 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Circuvent Technologies",
     description: "Engineering What's Next — AI, IoT, Full-Stack",
-    creator: siteConfig.twitterHandle,
+    // Attribution is omitted unless a real handle is configured. The card still
+    // renders as summary_large_image without it; pointing it at an account that
+    // does not exist does not.
+    ...(siteConfig.twitterHandle
+      ? { site: siteConfig.twitterHandle, creator: siteConfig.twitterHandle }
+      : {}),
+    // X reads twitter:image in preference to og:image and only falls back when
+    // it is absent. Naming it explicitly keeps the card from quietly
+    // downgrading to `summary` if that fallback ever changes, and it is the
+    // same artwork either way.
+    images: [{ url: siteConfig.ogImage, alt: siteConfig.name }],
   },
   // Mirrors robots.ts. Those two disagreeing is the kind of thing that only
   // surfaces once dev.circuvent.com is already in Google's index, which is very

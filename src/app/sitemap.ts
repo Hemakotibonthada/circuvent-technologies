@@ -7,39 +7,46 @@ import { products as shopProducts } from "@/lib/shop-data";
 import { catalogueCategories, categoryPath } from "@/lib/shop-categories";
 import { SITE_URL } from "@/lib/config";
 
+/**
+ * `lastModified` is only set where a real date exists.
+ *
+ * It used to be `new Date()` for almost every URL, which told Google that the
+ * entire site — terms, warranty, every project page — changed at the moment of
+ * the last deploy. Google calibrates how much it trusts lastmod per site, and a
+ * feed where everything always changed is a feed it learns to ignore, taking
+ * the entries that *are* accurate down with it. Omitting the field is
+ * well-defined and strictly better than asserting something false.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date().toISOString();
-
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [
-    { url: SITE_URL, lastModified: now, changeFrequency: "daily", priority: 1.0 },
-    { url: `${SITE_URL}/shop`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${SITE_URL}/projects`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE_URL}/services`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${SITE_URL}/blog`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${SITE_URL}/team`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${SITE_URL}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${SITE_URL}/careers`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE_URL}/open-source`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${SITE_URL}/stack`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${SITE_URL}/architecture`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${SITE_URL}/case-studies`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${SITE_URL}/roadmap`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${SITE_URL}/docs`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${SITE_URL}/domains`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${SITE_URL}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${SITE_URL}/shipping`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
-    { url: `${SITE_URL}/returns-policy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
-    { url: `${SITE_URL}/warranty`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
-    { url: `${SITE_URL}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
-    { url: `${SITE_URL}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: SITE_URL, changeFrequency: "daily", priority: 1.0 },
+    { url: `${SITE_URL}/shop`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE_URL}/projects`, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${SITE_URL}/services`, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${SITE_URL}/blog`, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/team`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/contact`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/careers`, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/open-source`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/stack`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/architecture`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE_URL}/case-studies`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/roadmap`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE_URL}/docs`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/domains`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${SITE_URL}/faq`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE_URL}/shipping`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/returns-policy`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/warranty`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/terms`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   // Shop product detail pages
   const shopPages: MetadataRoute.Sitemap = shopProducts.map((p) => ({
     url: `${SITE_URL}/shop/${p.slug}`,
-    lastModified: now,
     changeFrequency: "weekly" as const,
     priority: p.featured ? 0.8 : 0.6,
   }));
@@ -54,18 +61,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
    * page a search like "smart lock india" should land on.
    *
    * Derived from the static catalogue, like the product pages above, so the
-   * sitemap stays a pure synchronous function. Categories that exist only in
-   * the database are absent by the same token: they are reachable and
-   * indexable, just not advertised here until they ship in the catalogue.
+   * sitemap stays a pure synchronous function. Admin-only categories are
+   * absent by the same token; they are reachable and indexable, just not
+   * advertised here until they ship in the catalogue.
    */
   const categoryPages: MetadataRoute.Sitemap = catalogueCategories(shopProducts).map((c) => ({
     url: `${SITE_URL}${categoryPath(c)}`,
-    lastModified: now,
     changeFrequency: "weekly" as const,
     priority: 0.7,
   }));
 
-  // Blog posts
+  // Blog posts — the one collection that carries a genuine publication date.
   const blogPages: MetadataRoute.Sitemap = blogPosts.map((post) => ({
     url: `${SITE_URL}/blog/${post.slug}`,
     lastModified: post.date,
@@ -76,7 +82,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Project detail pages
   const projectPages: MetadataRoute.Sitemap = projects.map((project) => ({
     url: `${SITE_URL}/projects/${project.id}`,
-    lastModified: now,
     changeFrequency: "monthly" as const,
     priority: project.featured ? 0.8 : 0.5,
   }));
@@ -84,15 +89,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Domain pages
   const domainPages: MetadataRoute.Sitemap = domains.map((domain) => ({
     url: `${SITE_URL}/domains/${domain.slug}`,
-    lastModified: now,
     changeFrequency: "monthly" as const,
     priority: 0.7,
   }));
 
-  // Career detail pages
+  // Career detail pages — dated from when the role was actually opened.
   const careerPages: MetadataRoute.Sitemap = careerRoles.map((role) => ({
     url: `${SITE_URL}/careers/${role.id}`,
-    lastModified: now,
+    ...(role.datePosted ? { lastModified: role.datePosted } : {}),
     changeFrequency: "weekly" as const,
     priority: 0.6,
   }));

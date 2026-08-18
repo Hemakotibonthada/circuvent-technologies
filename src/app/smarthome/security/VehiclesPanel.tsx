@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import {
   controlPlane,
+  type AnprLane,
+  type AnprLaneCandidate,
   type AnprSettings,
   type Occupancy,
   type PlateRead,
@@ -1277,6 +1279,271 @@ function InsightsPanel({ onOpen }: { onOpen: (plate: string) => void }) {
 }
 
 /**
+ * Cameras — turning an ordinary camera into a plate reader.
+ *
+ * The screen this feature exists for. An `anpr-cam` arrives already reading
+ * plates and needs nothing here; a `camera` is the one most accounts actually
+ * have on the gate, and until now it could not read a plate at all.
+ *
+ * It states what the trade is, in the place where somebody is making it. The
+ * server-driven path is genuinely worse than dedicated ANPR firmware — a beat
+ * slower, no region of interest, metered for the whole scene rather than for a
+ * retro-reflective plate — and a customer who discovers that at a barrier at
+ * night concludes the product is broken. A customer who read it here concludes
+ * they need the other camera, which is true.
+ */
+function CamerasPanel() {
+  const [lanes, setLanes] = useState<AnprLane[] | null>(null);
+  const [cameras, setCameras] = useState<AnprLaneCandidate[]>([]);
+  const [recogniser, setRecogniser] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const [capture, setCapture] = useState<{ deviceId: string; ok: boolean; message: string } | null>(null);
+  const [prepared, setPrepared] = useState<{ deviceId: string; notes: string[] } | null>(null);
+
+  const load = useCallback(() => {
+    void controlPlane.anprLanes().then((r) => {
+      if (r.ok) {
+        setLanes(r.data.lanes);
+        setCameras(r.data.cameras);
+        setRecogniser(r.data.recogniser);
+        setError("");
+      } else {
+        setError((r.data as { error?: string })?.error || "Could not load cameras.");
+      }
+    });
+  }, []);
+
+  useEffect(load, [load]);
+
+  const laneFor = (deviceId: string) => lanes?.find((l) => l.deviceId === deviceId) ?? null;
+
+  const save = async (deviceId: string, patch: Partial<AnprLane>) => {
+    setBusy(deviceId);
+    setCapture(null);
+    try {
+      const r = await controlPlane.saveAnprLane(deviceId, patch);
+      if (r.ok) {
+        // Enrolling changes the camera's own settings when it has to. Saying so
+        // is the difference between a helpful default and somebody later
+        // finding their camera on a resolution they did not choose.
+        setPrepared(r.data.prepared?.length ? { deviceId, notes: r.data.prepared } : null);
+        load();
+      } else {
+        setError((r.data as { error?: string })?.error || "Could not save.");
+      }
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const remove = async (deviceId: string) => {
+    setBusy(deviceId);
+    setCapture(null);
+    try {
+      const r = await controlPlane.deleteAnprLane(deviceId);
+      if (r.ok) load();
+      else setError((r.data as { error?: string })?.error || "Could not turn it off.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const captureNow = async (deviceId: string) => {
+    setBusy(deviceId);
+    setCapture(null);
+    try {
+      const r = await controlPlane.anprCapture(deviceId);
+      setCapture({
+        deviceId,
+        ok: r.ok,
+        message: r.ok
+          ? "Burst requested — the read appears in the plate log in a few seconds."
+          : (r.data as { error?: string })?.error || "Could not take a capture.",
+      });
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (error && !lanes) return <ErrorState message={error} onRetry={load} />;
+  if (!lanes) return <LoadingState label="Loading cameras" />;
+
+  const eligible = cameras.filter((c) => c.eligible);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {recogniser === "none" && (
+        <Callout tone="warning" title="No plate recogniser is configured">
+          A lane will still capture vehicles, record arrivals and fire automations, but no number
+          plates will be read until <code className="mx-1 rounded bg-black/30 px-1 py-0.5 text-[12px]">ANPR_PROVIDER</code>
+          is set on the control plane.
+        </Callout>
+      )}
+
+      <Callout tone="info" title="What a camera lane can and cannot do">
+        A camera does not read plates itself. Turning this on lets the control plane drive it: when
+        the camera reports motion it is asked for a short burst of stills, and those go through the
+        same pipeline a dedicated ANPR camera uses — so the reads, the allow list, the in/out ledger
+        and the daily report all work identically. It is genuinely worse in three ways worth knowing
+        before mounting one: the trigger arrives a beat later than firmware would manage, so a
+        vehicle that stops at a barrier reads far better than one driving through; motion is judged
+        on the whole frame, so a footpath or a swaying branch can start a burst; and the exposure is
+        metered for the whole scene, so a plate at night may wash out under headlights.
+      </Callout>
+
+      {!eligible.length ? (
+        <EmptyState
+          icon={ScanSearch}
+          title="No cameras on this account"
+          body="Add a camera and it can be used as an ANPR lane here."
+        />
+      ) : (
+        eligible.map((cam) => {
+          const lane = laneFor(cam.deviceId);
+          const working = busy === cam.deviceId;
+          return (
+            <Surface key={cam.deviceId}>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0">
+                  <div className="text-[16px] font-bold" style={{ color: "var(--cv-text)" }}>
+                    {cam.name}
+                  </div>
+                  <div className="text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
+                    {cam.room || "No room"} · {cam.deviceId}
+                  </div>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  {lane?.enabled && <Badge tone="ok">Reading plates</Badge>}
+                  <Button
+                    variant={lane?.enabled ? "secondary" : "primary"}
+                    busy={working}
+                    disabled={working}
+                    onClick={() =>
+                      lane?.enabled ? remove(cam.deviceId) : save(cam.deviceId, { enabled: true })
+                    }
+                  >
+                    {lane?.enabled ? "Turn off" : "Read plates on this camera"}
+                  </Button>
+                </div>
+              </div>
+
+              {lane?.enabled && (
+                <>
+                  {prepared?.deviceId === cam.deviceId && (
+                    <div className="mt-4">
+                      <Callout tone="info" title="The camera was adjusted to make this work">
+                        {prepared.notes.join(". ")}.
+                      </Callout>
+                    </div>
+                  )}
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Field
+                      label="Lane direction"
+                      hint="The mounting decides this. A dedicated entry or exit lane is always more accurate than one camera doing both."
+                    >
+                      <SelectInput
+                        value={lane.direction}
+                        disabled={working}
+                        onChange={(v) => save(cam.deviceId, { direction: v })}
+                        options={[
+                          { value: "both", label: "Shared lane (in and out)" },
+                          { value: "in", label: "Entry only" },
+                          { value: "out", label: "Exit only" },
+                        ]}
+                      />
+                    </Field>
+                    <Field label="Frames per vehicle" hint="Two give agreement, three break a tie.">
+                      <NumberInput
+                        value={lane.burst}
+                        min={1}
+                        max={8}
+                        disabled={working}
+                        onChange={(v) => save(cam.deviceId, { burst: v })}
+                      />
+                    </Field>
+                    <Field label="Gap between frames (ms)" hint="Below ~150 ms the camera is still reading out the last one.">
+                      <NumberInput
+                        value={lane.burstGapMs}
+                        min={150}
+                        max={3000}
+                        step={50}
+                        disabled={working}
+                        onChange={(v) => save(cam.deviceId, { burstGapMs: v })}
+                      />
+                    </Field>
+                    <Field
+                      label="Quiet period (ms)"
+                      hint="Stops one vehicle idling in frame being read as a dozen arrivals."
+                    >
+                      <NumberInput
+                        value={lane.cooldownMs}
+                        min={1000}
+                        max={600000}
+                        step={1000}
+                        disabled={working}
+                        onChange={(v) => save(cam.deviceId, { cooldownMs: v })}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="mt-4">
+                    <Field
+                      label="Illuminator (0 to leave it alone)"
+                      hint="Pulsed for the burst and turned off again. Held on continuously it is a nuisance indoors and cooks the camera."
+                    >
+                      <NumberInput
+                        value={lane.illuminate}
+                        min={0}
+                        max={100}
+                        step={10}
+                        disabled={working}
+                        onChange={(v) => save(cam.deviceId, { illuminate: v })}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Button
+                      icon={ScanSearch}
+                      busy={working}
+                      disabled={working}
+                      onClick={() => captureNow(cam.deviceId)}
+                    >
+                      Capture now
+                    </Button>
+                    <span className="text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
+                      {lane.triggers} burst{lane.triggers === 1 ? "" : "es"} so far
+                      {lane.lastTriggerAt ? ` · last ${formatDateTime(lane.lastTriggerAt)}` : ""}
+                    </span>
+                  </div>
+
+                  {capture?.deviceId === cam.deviceId && (
+                    <div className="mt-3">
+                      <Callout tone={capture.ok ? "ok" : "critical"}>{capture.message}</Callout>
+                    </div>
+                  )}
+                </>
+              )}
+            </Surface>
+          );
+        })
+      )}
+
+      {cameras.some((c) => !c.eligible) && (
+        <p className="text-[12px]" style={{ color: "var(--cv-text-dim)" }}>
+          {cameras
+            .filter((c) => !c.eligible)
+            .map((c) => c.name)
+            .join(", ")}{" "}
+          already read plates in firmware and need nothing here.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * Vehicles — the ANPR plate log, the vehicle register, the site state and the
  * lists.
  *
@@ -1292,12 +1559,12 @@ function InsightsPanel({ onOpen }: { onOpen: (plate: string) => void }) {
  * history, decide about it) and the actions move between them.
  */
 export function VehiclesPanel() {
-  const [view, setView] = useState<"log" | "vehicles" | "site" | "insights" | "lists">("log");
+  const [view, setView] = useState<"log" | "vehicles" | "site" | "insights" | "lists" | "cameras">("log");
   const [plate, setPlate] = useState<string | null>(null);
 
   // A selected vehicle takes over the panel, so switching view must clear it —
   // otherwise the segmented control appears to do nothing.
-  const changeView = (v: "log" | "vehicles" | "site" | "insights" | "lists") => {
+  const changeView = (v: "log" | "vehicles" | "site" | "insights" | "lists" | "cameras") => {
     setPlate(null);
     setView(v);
   };
@@ -1314,6 +1581,7 @@ export function VehiclesPanel() {
             { value: "site", label: "Site" },
             { value: "insights", label: "Insights" },
             { value: "lists", label: "Allow & block" },
+            { value: "cameras", label: "Cameras" },
           ]}
         />
       </div>
@@ -1327,6 +1595,8 @@ export function VehiclesPanel() {
         <SitePanel />
       ) : view === "insights" ? (
         <InsightsPanel onOpen={(p) => { setView("vehicles"); setPlate(p); }} />
+      ) : view === "cameras" ? (
+        <CamerasPanel />
       ) : (
         <PlateLists />
       )}

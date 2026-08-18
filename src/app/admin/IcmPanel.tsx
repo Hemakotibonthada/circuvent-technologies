@@ -22,6 +22,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { IcmAnalytics } from "./IcmAnalytics";
+import { ICM_PRODUCTS, productLabels, productTeams, teamForProducts } from "@/lib/icm-products";
 import IncidentSummaryCard from "./IncidentSummaryCard";
 import {
   SLA,
@@ -856,6 +857,7 @@ export default function IcmPanel() {
       {creating && (
         <DeclareDialog
           teams={teams}
+          teamContacts={teamContacts}
           onClose={() => setCreating(false)}
           onCreated={() => {
             setCreating(false);
@@ -1687,13 +1689,16 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
 
 function DeclareDialog({
   teams,
+  teamContacts,
   onClose,
   onCreated,
 }: {
   teams: string[];
+  teamContacts: Record<string, string[]>;
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const contactsFor = (team: string) => teamContacts[team] ?? [];
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   /*
@@ -1705,7 +1710,11 @@ function DeclareDialog({
    */
   const [severity, setSeverity] = useState<Severity>(3);
   const [owningTeam, setOwningTeam] = useState(teams[0] || "Platform");
-  const [services, setServices] = useState("");
+  const [productIds, setProductIds] = useState<string[]>([]);
+  /* Once the team has been chosen by hand, the product mapping stops
+     overriding it — otherwise ticking a second product silently undoes the
+     correction somebody just made. */
+  const [teamTouched, setTeamTouched] = useState(false);
   const [customers, setCustomers] = useState("0");
   const [impactAgo, setImpactAgo] = useState("0");
   const [busy, setBusy] = useState(false);
@@ -1728,7 +1737,7 @@ function DeclareDialog({
           description,
           severity,
           owningTeam,
-          affectedServices: services.split(",").map((s) => s.trim()).filter(Boolean),
+          affectedServices: productLabels(productIds),
           customersImpacted: Number(customers) || 0,
           impactStartedAt: new Date(Date.now() - mins * 60_000).toISOString(),
         }),
@@ -1796,19 +1805,85 @@ function DeclareDialog({
             />
           </div>
 
+          {/*
+            Which product broke.
+ 
+            This was a comma-separated text box, and every incident in the queue
+            shows "—" for it: at 2am nobody types a taxonomy from memory. It was
+            also inert — notifications route on `owningTeam`, chosen from a
+            separate dropdown, so "what broke" and "who gets woken" were two
+            independent answers that disagreed whenever somebody was in a hurry.
+ 
+            Picking a product now sets the team, because those are the same
+            decision. The dropdown below stays editable for the cases the
+            catalogue cannot know.
+          */}
+          <div>
+            <span className="mb-1 block text-[12px] cv-text-muted" id="inc-products-label">
+              Affected product
+            </span>
+            <div
+              role="group"
+              aria-labelledby="inc-products-label"
+              className="grid gap-1.5 rounded-lg border cv-border p-2 sm:grid-cols-2"
+            >
+              {ICM_PRODUCTS.map((p) => {
+                const checked = productIds.includes(p.id);
+                return (
+                  <label
+                    key={p.id}
+                    className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 hover:cv-surface-alt"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = checked
+                          ? productIds.filter((x) => x !== p.id)
+                          : [...productIds, p.id];
+                        setProductIds(next);
+                        /* Follow the catalogue only while it is unambiguous, and
+                           never overwrite a team the person chose by hand — the
+                           override exists precisely for the cases the mapping
+                           gets wrong. */
+                        const routed = teamForProducts(next);
+                        if (routed && !teamTouched) setOwningTeam(routed);
+                      }}
+                      className="h-4 w-4 shrink-0 accent-cyan-600"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-medium cv-text-primary">{p.label}</span>
+                      <span className="block truncate text-[11px] cv-text-muted">{p.hint}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-team">Owning team</label>
               <select
                 id="inc-team"
                 value={owningTeam}
-                onChange={(e) => setOwningTeam(e.target.value)}
+                onChange={(e) => {
+                  setTeamTouched(true);
+                  setOwningTeam(e.target.value);
+                }}
                 className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
               >
-                {teams.map((t) => (
+                {[...new Set([...teams, ...productTeams()])].sort().map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
+              <span className="mt-1 block text-[11px] cv-text-muted">
+                {/* Say where the mail is going, before it is sent. A routing
+                    decision the filer cannot see is one they cannot correct. */}
+                {contactsFor(owningTeam).length > 0
+                  ? `Notifies ${contactsFor(owningTeam).join(", ")}`
+                  : "No address is configured for this team — it will fall back to the default recipients."}
+              </span>
             </div>
             <div>
               {/*
@@ -1826,16 +1901,6 @@ function DeclareDialog({
                 min={0}
                 value={impactAgo}
                 onChange={(e) => setImpactAgo(e.target.value)}
-                className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[12px] cv-text-muted" htmlFor="inc-svcs">Affected services</label>
-              <input
-                id="inc-svcs"
-                value={services}
-                onChange={(e) => setServices(e.target.value)}
-                placeholder="control-plane, mqtt"
                 className="h-[44px] w-full rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
               />
             </div>

@@ -52,7 +52,7 @@ const docSections: DocSection[] = [
         title: "Quick Setup",
         description: "Get Circuvent Technologies projects running locally in minutes.",
         code: `# Clone a project
-git clone https://github.com/circuvent-technologies/nexus-ai-os.git
+git clone https://github.com/Hemakotibonthada/nexus-ai-os.git
 cd nexus-ai-os
 
 # Install dependencies
@@ -874,7 +874,7 @@ git clone https://github.com/YOUR_USERNAME/project-name.git
 cd project-name
 
 # Step 3: Add upstream remote
-git remote add upstream https://github.com/circuvent-technologies/project-name.git
+git remote add upstream https://github.com/Hemakotibonthada/project-name.git
 
 # Step 4: Create feature branch
 git checkout -b feature/your-feature-name
@@ -1164,7 +1164,7 @@ export default function DocsPage() {
         titleHighlight="Integration?"
         description="Our documentation is continuously updated. Can't find what you need? Reach out and we'll help."
         primaryCTA={{ label: "Contact Us", href: "/contact" }}
-        secondaryCTA={{ label: "View Source", href: "https://github.com/circuvent-technologies" }}
+        secondaryCTA={{ label: "View Source", href: "https://github.com/Hemakotibonthada" }}
       />
     </>
   );

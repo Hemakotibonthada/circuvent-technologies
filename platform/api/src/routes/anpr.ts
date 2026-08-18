@@ -8,6 +8,8 @@ import { analysePlate, normalisePlate, prettyPlate } from "../anpr/plate";
 import { listVehicles, visitsFor } from "../anpr/visits";
 import { getSettings, listOverstays, occupancy, saveSettings } from "../anpr/site";
 import { sendReport } from "../anpr/report";
+import { deleteLane, isLane, listLanes, saveLane, triggerLane } from "../anpr/lane";
+import { getObject, presignGet } from "../storage/objects";
 import { config } from "../config";
 
 /**
@@ -19,6 +21,25 @@ import { config } from "../config";
  * `owner_id` would return the neighbours' as readily as your own.
  */
 export const anprRouter = Router();
+
+/**
+ * A path parameter that is going into a BIGINT column.
+ *
+ * Returns null for anything Postgres would reject. This is not defensive
+ * tidiness: `pool.query` with a non-numeric id raises `invalid input syntax
+ * for type bigint`, and an async Express 4 handler that rejects has nobody to
+ * catch it — Express 4 only routes errors from *synchronous* throws and
+ * explicit `next(err)`, so the rejection reaches Node as an unhandled one and
+ * the process exits. `PATCH /anpr/rules/x` was a one-line request that took
+ * the whole control plane down for every tenant on it.
+ *
+ * There is a safety net in index.ts now as well, but a net is for the bugs
+ * nobody found; a parameter whose type is known belongs checked at the door.
+ */
+function numericId(raw: string): number | null {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 && n <= Number.MAX_SAFE_INTEGER ? n : null;
+}
 
 /* ------------------------------------------------------------------ */
 /* Reads                                                               */
@@ -87,7 +108,8 @@ function readShape(r: ReadRow) {
 const READ_COLUMNS = `
   r.id, r.device_id, d.name AS device_name, r.capture_id, r.plate, r.plate_raw,
   r.confidence, r.votes, r.samples, r.kind, r.status, r.reason, r.decision,
-  r.rule_id, r.trigger, r.ms, r.ts, (r.thumb IS NOT NULL) AS has_thumb,
+  r.rule_id, r.trigger, r.ms, r.ts,
+  (r.thumb IS NOT NULL OR r.image_key IS NOT NULL) AS has_thumb,
   r.direction, r.visit_id`;
 
 /** GET /anpr/reads?deviceId=&plate=&decision=&status=&since=&limit= */
@@ -129,23 +151,95 @@ anprRouter.get("/reads", requireAuth, async (req: AuthedRequest, res) => {
  * Served as real `image/jpeg` rather than base64 in JSON so a browser caches
  * it, an `<img>` tag can point straight at it, and it can be saved or attached
  * to a ticket without decoding anything.
+ *
+ * Two storage backends, one URL. A row written before object storage was
+ * configured — or by a deployment that has no bucket, or by one whose upload
+ * failed — holds its image in `thumb`; everything since holds a key. The key
+ * wins when both are somehow present. The console does not know or care which,
+ * which is what lets a bucket be switched on for an existing deployment
+ * without a migration and without breaking every historical read.
+ *
+ * The ownership check comes first and is not optional at either branch: this is
+ * a photograph of somebody's vehicle, and `id` is a sequential integer, so
+ * without it the whole fleet's captures are one incrementing URL away.
  */
 anprRouter.get("/reads/:id/image", requireAuth, async (req: AuthedRequest, res) => {
-  const { rows } = await pool.query<{ thumb: string | null }>(
-    `SELECT thumb FROM plate_reads WHERE id = $1 AND owner_id = $2`,
-    [req.params.id, req.user!.uid]
-  );
-  const thumb = rows[0]?.thumb;
-  if (!thumb) {
+  const id = numericId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ error: "Bad read id." });
+    return;
+  }
+
+  let row: { thumb: string | null; image_key: string | null } | undefined;
+  try {
+    const { rows } = await pool.query<{ thumb: string | null; image_key: string | null }>(
+      `SELECT thumb, image_key FROM plate_reads WHERE id = $1 AND owner_id = $2`,
+      [id, req.user!.uid]
+    );
+    row = rows[0];
+  } catch (err) {
+    logger.error({ err, id }, "anpr image lookup failed");
+    res.status(500).json({ error: "Could not load the image." });
+    return;
+  }
+
+  if (!row) {
     res.status(404).json({ error: "No image for this read." });
     return;
   }
-  const buf = Buffer.from(thumb, "base64");
-  res.setHeader("content-type", "image/jpeg");
-  res.setHeader("content-length", String(buf.length));
+
   // Immutable: a stored capture never changes. Private, because it is a
   // photograph of somebody's vehicle and must not sit in a shared cache.
-  res.setHeader("cache-control", "private, max-age=86400, immutable");
+  const cache = "private, max-age=86400, immutable";
+
+  if (row.image_key) {
+    /*
+     * Redirecting hands the bytes to the bucket's edge instead of the VM's
+     * uplink, which matters on a site doing thousands of reads a day. It is
+     * off by default because a presigned URL, however short-lived, is a
+     * fetchable link to a photograph that then exists in browser history and
+     * in any referrer that leaks — and the safe default is worth more than the
+     * bandwidth on a household gate.
+     */
+    if (config.S3_PRESIGN_GET === "true") {
+      const url = presignGet(row.image_key, 300);
+      if (url) {
+        res.setHeader("cache-control", "private, max-age=240");
+        res.redirect(302, url);
+        return;
+      }
+    }
+
+    const buf = await getObject(row.image_key);
+    if (buf) {
+      res.setHeader("content-type", "image/jpeg");
+      res.setHeader("content-length", String(buf.length));
+      res.setHeader("cache-control", cache);
+      res.end(buf);
+      return;
+    }
+    /*
+     * The row names an object that is not there.
+     *
+     * 404 rather than 500, and deliberately so: the overwhelmingly common
+     * cause is a bucket lifecycle rule that expired the object before the
+     * retention sweep cleared the column, which is the storage working as
+     * configured. A 500 would send somebody looking for a broken API.
+     */
+    logger.warn({ id, key: row.image_key }, "anpr capture object missing");
+    res.status(404).json({ error: "The image for this read has expired." });
+    return;
+  }
+
+  if (!row.thumb) {
+    res.status(404).json({ error: "No image for this read." });
+    return;
+  }
+
+  const buf = Buffer.from(row.thumb, "base64");
+  res.setHeader("content-type", "image/jpeg");
+  res.setHeader("content-length", String(buf.length));
+  res.setHeader("cache-control", cache);
   res.end(buf);
 });
 
@@ -566,8 +660,16 @@ anprRouter.patch("/rules/:id", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
   const { kind, label, enabled, validFrom, validTo } = parsed.data;
-  const { rows } = await pool.query<RuleRow>(
-    `UPDATE plate_rules
+  const id = numericId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ error: "Bad rule id." });
+    return;
+  }
+
+  let rows: RuleRow[];
+  try {
+    ({ rows } = await pool.query<RuleRow>(
+      `UPDATE plate_rules
         SET kind       = COALESCE($3, kind),
             label      = COALESCE($4, label),
             enabled    = COALESCE($5, enabled),
@@ -575,21 +677,26 @@ anprRouter.patch("/rules/:id", requireAuth, async (req: AuthedRequest, res) => {
             valid_to   = CASE WHEN $8::boolean THEN $9::timestamptz ELSE valid_to   END
       WHERE id = $1 AND owner_id = $2
       RETURNING ${RULE_COLUMNS}`,
-    [
-      req.params.id,
-      req.user!.uid,
-      kind ?? null,
-      label ?? null,
-      enabled ?? null,
-      // "validFrom was supplied" and "validFrom is null" are different
-      // requests — the second clears the window — and COALESCE cannot tell
-      // them apart, so the presence flag is passed separately.
-      validFrom !== undefined,
-      validFrom ?? null,
-      validTo !== undefined,
-      validTo ?? null,
-    ]
-  );
+      [
+        id,
+        req.user!.uid,
+        kind ?? null,
+        label ?? null,
+        enabled ?? null,
+        // "validFrom was supplied" and "validFrom is null" are different
+        // requests — the second clears the window — and COALESCE cannot tell
+        // them apart, so the presence flag is passed separately.
+        validFrom !== undefined,
+        validFrom ?? null,
+        validTo !== undefined,
+        validTo ?? null,
+      ]
+    ));
+  } catch (err) {
+    logger.error({ err }, "anpr rule update failed");
+    res.status(500).json({ error: "Could not save the rule." });
+    return;
+  }
   if (!rows[0]) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -598,10 +705,22 @@ anprRouter.patch("/rules/:id", requireAuth, async (req: AuthedRequest, res) => {
 });
 
 anprRouter.delete("/rules/:id", requireAuth, async (req: AuthedRequest, res) => {
-  const { rowCount } = await pool.query(`DELETE FROM plate_rules WHERE id = $1 AND owner_id = $2`, [
-    req.params.id,
-    req.user!.uid,
-  ]);
+  const id = numericId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ error: "Bad rule id." });
+    return;
+  }
+  let rowCount: number | null;
+  try {
+    ({ rowCount } = await pool.query(`DELETE FROM plate_rules WHERE id = $1 AND owner_id = $2`, [
+      id,
+      req.user!.uid,
+    ]));
+  } catch (err) {
+    logger.error({ err }, "anpr rule delete failed");
+    res.status(500).json({ error: "Could not delete the rule." });
+    return;
+  }
   if (!rowCount) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -620,12 +739,24 @@ anprRouter.delete("/rules/:id", requireAuth, async (req: AuthedRequest, res) => 
 anprRouter.post("/rules/from-read/:id", requireAuth, async (req: AuthedRequest, res) => {
   const kind = ["allow", "deny", "watch"].includes(String(req.body?.kind)) ? String(req.body.kind) : "allow";
   const label = String(req.body?.label ?? "").slice(0, 80);
+  const id = numericId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ error: "Bad read id." });
+    return;
+  }
 
-  const { rows: readRows } = await pool.query<{ plate: string; device_id: string }>(
-    `SELECT plate, device_id FROM plate_reads WHERE id = $1 AND owner_id = $2`,
-    [req.params.id, req.user!.uid]
-  );
-  const read = readRows[0];
+  let read: { plate: string; device_id: string } | undefined;
+  try {
+    const { rows: readRows } = await pool.query<{ plate: string; device_id: string }>(
+      `SELECT plate, device_id FROM plate_reads WHERE id = $1 AND owner_id = $2`,
+      [id, req.user!.uid]
+    );
+    read = readRows[0];
+  } catch (err) {
+    logger.error({ err }, "anpr rule from read lookup failed");
+    res.status(500).json({ error: "Could not save the rule." });
+    return;
+  }
   if (!read || !read.plate) {
     res.status(404).json({ error: "No recognised plate on that read." });
     return;
@@ -653,22 +784,262 @@ anprRouter.post("/rules/from-read/:id", requireAuth, async (req: AuthedRequest, 
  *
  * The installer's tool. Aim the camera, press this, and see what the pipeline
  * makes of the vehicle in front of it, rather than waiting for one to arrive.
+ *
+ * One route for both kinds of camera, because "capture now" means the same
+ * thing to the person pressing it. An `anpr-cam` is told to capture and does
+ * the burst itself; an ordinary camera enrolled as a lane is driven through
+ * `triggerLane`, which asks for the snapshots and groups the frames. Making
+ * the console choose between two endpoints would push a hardware distinction
+ * into a button.
  */
 anprRouter.post("/devices/:id/capture", requireAuth, async (req: AuthedRequest, res) => {
-  const own = await pool.query(`SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2`, [
-    req.params.id,
-    req.user!.uid,
-  ]);
+  const deviceId = req.params.id;
+  const own = await pool.query<{ type: string }>(
+    `SELECT type FROM devices WHERE id = $1 AND owner_id = $2`,
+    [deviceId, req.user!.uid]
+  );
   if (!own.rowCount) {
     res.status(404).json({ error: "Device not found" });
     return;
   }
+
+  if (isLane(deviceId)) {
+    // Manual, so it deliberately ignores the lane cooldown — see triggerLane.
+    const captureId = triggerLane(deviceId, "manual");
+    if (captureId === null) {
+      res.status(409).json({
+        error: "That camera is already taking a burst.",
+        code: "capture_in_progress",
+      });
+      return;
+    }
+    res.json({ success: true, captureId, via: "lane" });
+    return;
+  }
+
   try {
-    publishCommand(req.params.id, { action: "capture" });
-    res.json({ success: true });
+    publishCommand(deviceId, { action: "capture" });
+    res.json({ success: true, via: "device" });
   } catch {
     // publishCommand throws while the broker is restarting. A 503 is something
     // a client can retry; a hung request is not.
     res.status(503).json({ error: "Broker unavailable — try again in a moment.", code: "broker_down" });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* Camera lanes                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ANPR on an ordinary camera.
+ *
+ * A lane is what turns a `camera` — the one already mounted on the gate — into
+ * a plate reader, by moving the trigger logic an `anpr-cam` runs in firmware
+ * into the control plane. See anpr/lane.ts for what that costs and what it
+ * cannot do.
+ *
+ * `GET` returns the lanes alongside the cameras that could become one, because
+ * the question the console is really asking is "which of my cameras can do
+ * this, and which are doing it" — and answering only the second half means
+ * building the first from a separate device list that has to be filtered by
+ * type in the browser.
+ */
+anprRouter.get("/lanes", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const [lanes, cameras] = await Promise.all([
+      listLanes(req.user!.uid),
+      pool.query<{ id: string; name: string | null; type: string; room: string | null }>(
+        `SELECT id, name, type, room FROM devices
+          WHERE owner_id = $1 AND type IN ('camera', 'anpr-cam')
+          ORDER BY name NULLS LAST, id`,
+        [req.user!.uid]
+      ),
+    ]);
+
+    res.json({
+      lanes,
+      /*
+       * `anpr-cam` units are listed and marked as not eligible rather than
+       * omitted. They already read plates in firmware, and a console that
+       * simply hides them invites "why is my ANPR camera missing from the ANPR
+       * page" — the answer being that it needs nothing from this feature.
+       */
+      cameras: cameras.rows.map((c) => ({
+        deviceId: c.id,
+        name: c.name || c.id,
+        type: c.type,
+        room: c.room,
+        eligible: c.type === "camera",
+        reason: c.type === "camera" ? null : "This camera reads plates on its own.",
+      })),
+      recogniser: config.ANPR_PROVIDER,
+    });
+  } catch (err) {
+    logger.error({ err }, "anpr lanes query failed");
+    res.status(500).json({ error: "Could not load the camera lanes." });
+  }
+});
+
+const laneSchema = z.object({
+  enabled: z.boolean().optional(),
+  direction: z.enum(["in", "out", "both"]).optional(),
+  burst: z.number().int().optional(),
+  burstGapMs: z.number().int().optional(),
+  cooldownMs: z.number().int().optional(),
+  illuminate: z.number().int().optional(),
+});
+
+/**
+ * PUT /anpr/lanes/:deviceId — enrol a camera, or change how its lane behaves.
+ *
+ * Refuses anything that is not a plain `camera`. An `anpr-cam` driven this way
+ * would be asked for snapshots it answers on the frame topic *as well as*
+ * publishing its own bursts on the ANPR topic, so one vehicle would be read
+ * twice and paired into two visits. The check is here rather than in the
+ * console because the console is not the only client.
+ */
+anprRouter.put("/lanes/:deviceId", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = laneSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid lane", details: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const deviceId = req.params.deviceId;
+  try {
+    const { rows } = await pool.query<{ type: string }>(
+      `SELECT type FROM devices WHERE id = $1 AND owner_id = $2`,
+      [deviceId, req.user!.uid]
+    );
+    const device = rows[0];
+    if (!device) {
+      res.status(404).json({ error: "Device not found" });
+      return;
+    }
+    if (device.type !== "camera") {
+      res.status(400).json({
+        error:
+          device.type === "anpr-cam"
+            ? "An ANPR camera reads plates itself and does not need a lane."
+            : "Only a camera can be used as an ANPR lane.",
+        code: "wrong_device_type",
+      });
+      return;
+    }
+
+    const lane = await saveLane(req.user!.uid, deviceId, parsed.data);
+    if (!lane) {
+      res.status(404).json({ error: "Device not found" });
+      return;
+    }
+
+    const prepared = lane.enabled ? await prepareCamera(deviceId) : [];
+    res.json({ lane, prepared });
+  } catch (err) {
+    logger.error({ err, deviceId }, "anpr lane save failed");
+    res.status(500).json({ error: "Could not save the lane." });
+  }
+});
+
+/**
+ * Resolutions a still can be taken at, smallest first.
+ *
+ * Only the ordering matters here; the names are the ones `firmware/camera`
+ * accepts on `{"action":"set","resolution":…}`.
+ */
+const RESOLUTIONS = ["QQVGA", "QCIF", "HQVGA", "QVGA", "CIF", "HVGA", "VGA", "SVGA", "XGA", "SXGA", "UXGA"];
+
+/**
+ * The smallest still a plate can actually be read from.
+ *
+ * A QVGA frame is 320x240. A number plate occupying a generous fifth of that
+ * width is ~64 pixels across for ten characters — six pixels each, which is
+ * below what any recogniser can segment, let alone read. A lane on a QVGA
+ * camera is therefore not "less accurate", it is a feature that cannot work,
+ * and it fails as "every read is unrecognised", which reads as a broken
+ * recogniser rather than a resolution setting.
+ */
+const MIN_ANPR_RESOLUTION = "SVGA";
+
+/**
+ * Puts a camera into a state where a lane can actually work.
+ *
+ * Two settings, both of which are silent, invisible failures if left wrong:
+ * motion detection off means the lane never triggers at all, and a resolution
+ * below SVGA means it triggers forever and never reads anything.
+ *
+ * The resolution is only ever raised, never lowered — somebody running UXGA
+ * stills chose that, and a feature that quietly reduced their picture quality
+ * would be a worse surprise than the one it fixed. What was changed is returned
+ * so the console can say so; changing a customer's camera settings without
+ * telling them is how the next person to look at that screen concludes the
+ * device is misconfigured.
+ */
+async function prepareCamera(deviceId: string): Promise<string[]> {
+  const changed: string[] = [];
+  let state: Record<string, unknown> = {};
+  try {
+    const { rows } = await pool.query<{ state: Record<string, unknown> | null }>(
+      `SELECT state FROM devices WHERE id = $1`,
+      [deviceId]
+    );
+    state = rows[0]?.state ?? {};
+  } catch (err) {
+    logger.error({ err, deviceId }, "anpr lane camera state lookup failed");
+  }
+
+  const command: Record<string, unknown> = { action: "set" };
+
+  /*
+   * A lane is useless if the camera is not detecting motion, and motion
+   * detection is off on a camera nobody has configured. Turning it on here is
+   * the difference between "ANPR enabled" meaning something and meaning a
+   * switch that silently never fires.
+   */
+  if (state.motion !== true) {
+    command.motion = true;
+    changed.push("Motion detection turned on");
+  }
+
+  const current = String(state.resolution ?? "");
+  const currentIndex = RESOLUTIONS.indexOf(current);
+  const minIndex = RESOLUTIONS.indexOf(MIN_ANPR_RESOLUTION);
+  if (currentIndex >= 0 && currentIndex < minIndex) {
+    command.resolution = MIN_ANPR_RESOLUTION;
+    changed.push(`Still resolution raised from ${current} to ${MIN_ANPR_RESOLUTION} so a plate is legible`);
+  }
+
+  if (Object.keys(command).length > 1) {
+    try {
+      publishCommand(deviceId, command);
+    } catch {
+      // The broker is restarting. The lane still exists and the settings can be
+      // applied later; refusing to save the lane over this would be worse.
+      return [];
+    }
+  }
+  return changed;
+}
+
+/**
+ * DELETE /anpr/lanes/:deviceId — stop using this camera as a lane.
+ *
+ * The camera's own motion detection is deliberately left on. It was very
+ * probably already on for the recording and notification features, and turning
+ * something off that this route did not turn on is how a customer loses motion
+ * alerts they never connected to ANPR.
+ */
+anprRouter.delete("/lanes/:deviceId", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const removed = await deleteLane(req.user!.uid, req.params.deviceId);
+    if (!removed) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, "anpr lane delete failed");
+    res.status(500).json({ error: "Could not remove the lane." });
   }
 });

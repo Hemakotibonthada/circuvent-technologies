@@ -1,5 +1,6 @@
 import { config } from "../config";
 import { logger } from "../logger";
+import { localRecogniser } from "./local";
 
 /**
  * The OCR boundary.
@@ -251,6 +252,14 @@ let active: PlateRecogniser | null = null;
 export function getRecogniser(): PlateRecogniser {
   if (active) return active;
   switch (config.ANPR_PROVIDER) {
+    case "local":
+      /*
+       * Ours, on our own hardware. Statically imported: the back edge from
+       * `local/` to this file is `import type` only, so it is erased at compile
+       * time and there is no runtime cycle to break.
+       */
+      active = localRecogniser();
+      break;
     case "platerecognizer":
       active = platerecognizerRecogniser();
       break;

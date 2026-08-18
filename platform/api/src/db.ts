@@ -719,6 +719,87 @@ export async function initDb(): Promise<void> {
     ALTER TABLE anpr_settings ADD COLUMN IF NOT EXISTS report_hour INT NOT NULL DEFAULT 7;
 
     /*
+     * The capture, when it lives in a bucket rather than in this column.
+     *
+     * "thumb" is kept and still read: rows written before object storage was
+     * configured hold their image there, and a deployment with no bucket still
+     * writes there. The two are mutually exclusive per row, and the read path
+     * prefers the key — see GET /anpr/reads/:id/image.
+     *
+     * "image_bytes" is the size of the object. It is stored rather than
+     * derived because the only other way to answer "how much is this account
+     * holding" is to HEAD every object, and the retention sweep needs to
+     * report what it freed after the objects are already gone.
+     */
+    ALTER TABLE plate_reads ADD COLUMN IF NOT EXISTS image_key TEXT;
+    ALTER TABLE plate_reads ADD COLUMN IF NOT EXISTS image_bytes INT NOT NULL DEFAULT 0;
+    /*
+     * The retention sweep's working set: rows that still name an object older
+     * than the image window. Partial, because the overwhelming majority of
+     * rows have no key at all and scanning them to find the few that do is the
+     * one query that gets slower every day the product succeeds.
+     */
+    CREATE INDEX IF NOT EXISTS idx_plate_reads_image_key
+      ON plate_reads(ts) WHERE image_key IS NOT NULL;
+
+    /*
+     * ANPR on a camera that is not an ANPR camera.
+     *
+     * The anpr-cam firmware decides when a vehicle is worth photographing and
+     * publishes a burst on cv/<id>/anpr. An ordinary "camera" cannot: it
+     * detects motion and it takes snapshots, but it has no notion of a lane, a
+     * burst or a capture id.
+     *
+     * That gap is the difference between "ANPR works if you buy the ANPR
+     * camera" and "ANPR works on the camera you already have on the gate". The
+     * ordinary camera already publishes a {type:"motion"} telemetry event and
+     * already answers {"action":"snapshot"} — so the missing piece is a lane
+     * definition and something to drive the burst, and both can live here. No
+     * firmware change, and a device already deployed and online can start
+     * reading plates.
+     *
+     * One row per camera. "direction" mirrors the anpr-cam state key of the
+     * same name and means the same thing, so visits.ts needs no knowledge of
+     * which kind of camera produced a read.
+     */
+    CREATE TABLE IF NOT EXISTS anpr_lanes (
+      device_id     TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      enabled       BOOLEAN NOT NULL DEFAULT true,
+      -- in | out | both — the mounting decides this, exactly as on anpr-cam.
+      direction     TEXT NOT NULL DEFAULT 'both',
+      -- Frames per trigger. Three is the anpr-cam default and the number
+      -- voteOnBurst is tuned for: two give agreement, three break a tie.
+      burst         INT NOT NULL DEFAULT 3,
+      -- Milliseconds between snapshot requests within one burst.
+      burst_gap_ms  INT NOT NULL DEFAULT 400,
+      /*
+       * Minimum gap between triggers, in milliseconds.
+       *
+       * The camera's own motion detector re-arms after MOTION_COOLDOWN_MS
+       * (15 s), but a lane cooldown is a separate lever: it is what stops one
+       * vehicle sitting in frame with its indicator flashing from being read
+       * as twelve arrivals, and it is what bounds the cost of a recogniser
+       * that is billed per call.
+       */
+      cooldown_ms   INT NOT NULL DEFAULT 8000,
+      /*
+       * Turn the illuminator on for the burst and off again afterwards.
+       *
+       * Off by default. A camera indoors does not want it, and a flash LED
+       * held on continuously is both a nuisance and the fastest way to cook an
+       * ESP32-CAM — which is why it is pulsed for the burst rather than left
+       * to a user to remember to turn off.
+       */
+      illuminate    INT NOT NULL DEFAULT 0,
+      triggers      BIGINT NOT NULL DEFAULT 0,
+      last_trigger_at TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_anpr_lanes_owner ON anpr_lanes(owner_id);
+
+    /*
      * ============================ DRONE ==================================
      *
      * A flight, from arm to disarm.

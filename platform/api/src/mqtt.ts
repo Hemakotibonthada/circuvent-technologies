@@ -264,8 +264,26 @@ const lastFrameAt = new Map<string, number>();
  */
 export const watchedDevices = new Set<string>();
 
+/**
+ * Devices whose frames must reach the bus with nobody watching.
+ *
+ * The gate above is right for live video: a camera streaming to an audience of
+ * zero is pure cost. It is exactly wrong for ANPR on an ordinary camera, which
+ * works by asking for snapshots and reading the frames that come back — and a
+ * gate camera does its work precisely when nobody has the console open. Left
+ * as it was, plates would only ever be read while somebody happened to be
+ * watching, which is the same failure the `anpr` topic is kept separate from
+ * `frame` to avoid (see topics.anpr in config.ts).
+ *
+ * A separate set rather than adding the device to `watchedDevices`: that one is
+ * refcounted by ws.ts against real sockets, and a lane writing into it would
+ * corrupt the count and leave a camera streaming after the last viewer left.
+ * Held only for the ~2 s a burst takes.
+ */
+export const frameTaps = new Set<string>();
+
 function handleFrame(deviceId: string, buf: Buffer): void {
-  if (!watchedDevices.has(deviceId)) return;
+  if (!watchedDevices.has(deviceId) && !frameTaps.has(deviceId)) return;
   if (buf.length === 0 || buf.length > MAX_FRAME_BYTES) return;
 
   const now = Date.now();

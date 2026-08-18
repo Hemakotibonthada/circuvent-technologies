@@ -465,8 +465,8 @@ export default function ApiKeysPanel() {
       <Callout tone="info" title="Building an integration?">
         API keys let your own dashboard read devices and send commands without a Circuvent login.
         The full reference, quickstart and copy-paste examples are at{" "}
-        <a href="/developers" className="font-semibold underline" style={{ color: "var(--cv-accent-hi)" }}>
-          circuvent.com/developers
+        <a href="/developer" className="font-semibold underline" style={{ color: "var(--cv-accent-hi)" }}>
+          circuvent.com/developer
         </a>
         .
       </Callout>

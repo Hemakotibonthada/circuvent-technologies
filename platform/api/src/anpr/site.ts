@@ -150,6 +150,18 @@ export async function isFirstSighting(
 }
 
 /**
+ * Accounts currently announced as full.
+ *
+ * The latch that makes the "site is full" alert edge-triggered. In memory
+ * rather than in a column because it is a notification-suppression detail, not
+ * a fact about the site: a control plane that restarts announcing a full site
+ * once more is a far smaller failure than one that reads and writes a row on
+ * every arrival to avoid it. Bounded by the number of accounts that have both
+ * a capacity set and a full site.
+ */
+const fullAlerted = new Set<number>();
+
+/**
  * Announces occupancy consequences for a vehicle that has just arrived.
  *
  * Edge-triggered: the "site is full" alert fires on the transition into full,
@@ -188,9 +200,29 @@ export async function onVehicleEntered(
     if (settings.capacity == null || !settings.alertFull) return;
 
     const { inside } = await occupancy(ownerId);
-    // Exactly equal, not >=: this vehicle is the one that filled the site, so
-    // the alert fires once on the way in rather than on every arrival after.
-    if (inside === settings.capacity) {
+    /*
+     * Fires on crossing the line, not on landing exactly on it.
+     *
+     * This was `inside === capacity`, which reads as an edge trigger and is
+     * not one: `inside` is a live COUNT of open visits, not a counter stepped
+     * by one. Two arrivals processed concurrently (MAX_INFLIGHT is 2), or a
+     * missed exit resolving, move it from capacity-1 to capacity+1 without
+     * ever being equal to capacity — and the alert the operator relies on
+     * silently never arrived for that fill.
+     *
+     * Latched instead, in the same way overstay is: announced once when the
+     * site becomes full, and re-armed only after occupancy drops back below
+     * capacity. An alert that repeats on every arrival while a car park is
+     * full gets muted, and a muted channel is where the next real alert dies.
+     */
+    if (inside < settings.capacity) {
+      fullAlerted.delete(ownerId);
+      return;
+    }
+    if (fullAlerted.has(ownerId)) return;
+    fullAlerted.add(ownerId);
+
+    {
       await recordEvent(
         ownerId,
         "alert",

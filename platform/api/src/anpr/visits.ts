@@ -92,11 +92,29 @@ export interface ApplyResult {
 /**
  * Applies one recognised read to the visit ledger.
  *
- * Runs inside a transaction with the open visit locked FOR UPDATE. Two frames
- * of the same burst can produce two reads, and two cameras can see one vehicle
- * within a second; without the lock both would find "no open visit" and open
- * two, leaving a phantom visit that never closes and a vehicle permanently
- * "inside".
+ * Runs inside a transaction that first takes an advisory lock on the
+ * (owner, plate) pair. Two frames of the same burst can produce two reads, and
+ * two cameras can see one vehicle within a second; without serialising them
+ * both would find "no open visit" and open two, leaving a phantom visit that
+ * never closes and a vehicle permanently "inside".
+ *
+ * THE LOCK IS ON THE PAIR, NOT ON THE ROW, AND THAT IS THE WHOLE POINT.
+ *
+ * This was `SELECT … FOR UPDATE` on the open visit, which reads as though it
+ * serialises the pairing and does not: `FOR UPDATE` locks the rows a query
+ * *returns*, and the case that has to be serialised is precisely the one that
+ * returns none. Two concurrent arrivals for one plate both saw `open = null`,
+ * both took zero locks, and both inserted an `open` visit — the exact phantom
+ * the comment claimed to prevent. It is reachable in normal operation:
+ * `MAX_INFLIGHT` is 2, OCR is a multi-second network call, and an entry/exit
+ * camera pair sees one vehicle within a second.
+ *
+ * `pg_advisory_xact_lock` has no such gap — the lock exists whether or not a
+ * row does — and it is held for the transaction, released on COMMIT or
+ * ROLLBACK, and shared across control-plane replicas because it lives in
+ * Postgres rather than in a process. The `FOR UPDATE` is kept as well: it costs
+ * nothing under the advisory lock and keeps the row honest against any future
+ * writer that does not take it.
  */
 export async function applyRead(args: ApplyArgs): Promise<ApplyResult | null> {
   const { ownerId, plate, deviceId, readId, lane } = args;
@@ -106,6 +124,16 @@ export async function applyRead(args: ApplyArgs): Promise<ApplyResult | null> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    /*
+     * Keyed on owner *and* plate so two different vehicles never wait on each
+     * other, and the same vehicle at two gates always does. hashtext collides
+     * at 1 in 4 billion, and a collision costs one pairing waiting briefly for
+     * an unrelated one — not a wrong answer.
+     */
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, [
+      `anpr-visit:${ownerId}:${plate}`,
+    ]);
 
     const { rows } = await client.query<VisitRow>(
       `SELECT id, plate, entry_at, exit_at, entry_device, exit_device,
@@ -287,10 +315,20 @@ export async function listVehicles(ownerId: number, days: number, limit: number)
        -- DISTINCT ON keeps one rule per plate: a device-scoped rule and a
        -- global one can both match, and duplicating the row would double the
        -- vehicle in the list.
+       --
+       -- The validity window is applied here as well as in decide(). Without
+       -- it the register labels a vehicle "allow" or "deny" from a rule whose
+       -- window lapsed at noon — a contractor's expired pass reading exactly
+       -- like a permanent resident's, which Docs/20-anpr.md §8 says must not
+       -- happen. The gate itself was never affected (decide() honours the
+       -- window and the decision is stored per read); this is the screen
+       -- somebody checks before believing the gate.
        LEFT JOIN LATERAL (
          SELECT kind, label FROM plate_rules
           WHERE owner_id = $1 AND plate = r.plate AND enabled
-          ORDER BY CASE kind WHEN 'deny' THEN 0 WHEN 'watch' THEN 1 ELSE 2 END
+            AND (valid_from IS NULL OR valid_from <= now())
+            AND (valid_to   IS NULL OR valid_to   >= now())
+          ORDER BY CASE kind WHEN 'deny' THEN 0 WHEN 'allow' THEN 1 ELSE 2 END
           LIMIT 1
        ) pr ON true
       ORDER BY r.last_seen DESC

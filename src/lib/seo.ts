@@ -18,6 +18,14 @@ const SITE_DESCRIPTION = siteConfig.description;
 const DEFAULT_OG_IMAGE = siteConfig.ogImage;
 const TWITTER_HANDLE = siteConfig.twitterHandle;
 
+/**
+ * `twitter:creator` only when a real account is configured.
+ *
+ * Spreading an empty object is how an unset handle disappears from the tag list
+ * entirely rather than being emitted as an empty attribute.
+ */
+const twitterCreator = TWITTER_HANDLE ? { creator: TWITTER_HANDLE } : {};
+
 // ============================================================
 // PAGE-SPECIFIC METADATA
 // ============================================================
@@ -129,7 +137,10 @@ export const pageMetadata: Record<string, PageMeta> = {
     title: "Developer Platform — API & Webhooks",
     description: "Integrate Circuvent smart-home devices into your own dashboard. REST API, scoped API keys, signed webhooks, and copy-paste examples in cURL, Node.js and Python.",
     keywords: ["IoT API", "Smart Home API", "Developer Platform", "Webhooks", "REST API", "API Keys", "Device Control API"],
-    path: "/developers",
+    // The portal moved to /developer; /developers is a 308 to it. The canonical
+    // must name the page that actually serves, or every link the redirect
+    // catches credits a URL that answers with a redirect.
+    path: "/developer",
   },
   domains: {
     title: "Technology Domains",
@@ -235,7 +246,7 @@ export function generatePageMetadata(pageKey: string): Metadata {
       card: "summary_large_image",
       title: page.title,
       description: page.description,
-      creator: TWITTER_HANDLE,
+      ...twitterCreator,
       images: [page.ogImage || DEFAULT_OG_IMAGE],
     },
     alternates: {
@@ -279,7 +290,7 @@ export function generateBlogPostMetadata(post: {
       card: "summary_large_image",
       title: post.title,
       description: post.excerpt,
-      creator: TWITTER_HANDLE,
+      ...twitterCreator,
     },
   };
 }
@@ -375,6 +386,7 @@ export function getProductJsonLd(p: {
   reviewCount?: number;
   stock?: number;
   available?: boolean;
+  sku?: string;
 }) {
   const inStock = (p.available ?? true) && (p.stock ?? 1) > 0;
   // Data-URL images (admin-uploaded) are invalid in JSON-LD — fall back to OG.
@@ -390,15 +402,23 @@ export function getProductJsonLd(p: {
     image: [absImg],
     brand: { "@type": "Brand", name: SITE_NAME },
     url,
+    // Google warns on an offer with no price validity and will not show a
+    // price in the rich result without one. A year out is the convention for
+    // a catalogue that is not on a fixed promotion.
     offers: {
       "@type": "Offer",
       price: String(Math.round(p.price)),
       priceCurrency: "INR",
+      priceValidUntil: priceValidUntil(),
+      itemCondition: "https://schema.org/NewCondition",
       availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       url,
-      seller: { "@type": "Organization", name: SITE_NAME },
+      // The seller is the company entity, not a fresh anonymous Organization
+      // that merely repeats its name -- see ORGANIZATION_ID.
+      seller: { "@id": ORGANIZATION_ID },
     },
   };
+  if (p.sku) data.sku = p.sku;
   if (p.reviewCount && p.reviewCount > 0 && p.rating) {
     data.aggregateRating = {
       "@type": "AggregateRating",
@@ -453,21 +473,105 @@ export function getAboutPageJsonLd(opts: { description?: string } = {}) {
 }
 
 /**
+ * Stable identifier for the company as an *entity*, distinct from any one page.
+ *
+ * Every JSON-LD block in the suite refers back to this `@id` instead of
+ * repeating an inline Organization. Repeated, slightly-different copies read as
+ * several similar companies rather than one, which is the opposite of what is
+ * needed here.
+ */
+export const ORGANIZATION_ID = "https://circuvent.com/#organization";
+
+/**
+ * Profiles that demonstrably exist and are controlled by the company.
+ *
+ * `sameAs` is the main mechanism Google has for tying a website to an entity it
+ * already knows about, and it is only worth anything when the URLs resolve. The
+ * previous list pointed at `linkedin.com/company/circuvent-technologies` and
+ * `twitter.com/circuvent_tech`, both of which 404, and at an empty GitHub org —
+ * so the one corroborating profile that does exist, `/company/circuvent`, was
+ * never claimed. For a coined brand that Google reads as a misspelling of
+ * "circumvent", that corroboration is the whole game, so this list is
+ * deliberately short and every entry is checked.
+ */
+export const VERIFIED_PROFILES = [
+  "https://www.linkedin.com/company/circuvent",
+  "https://github.com/Hemakotibonthada",
+] as const;
+
+/**
+ * Fallback opening date for a role whose data carries none.
+ *
+ * A constant rather than `new Date()`: a posting whose date advances with every
+ * build never ages, which is both untrue and a reason for Google to distrust
+ * the feed. Roles should set `datePosted` in services-data.ts; this only keeps
+ * the markup valid when one is added without it.
+ */
+const DEFAULT_JOB_POSTED_DATE = "2026-01-05";
+
+/**
+ * One year out, as a plain date.
+ *
+ * `priceValidUntil` in the past makes Google drop the price from the rich
+ * result entirely, so it cannot be a hardcoded literal that quietly expires.
+ */
+function priceValidUntil(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * Organization structured data
  */
 export function getOrganizationJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": ORGANIZATION_ID,
     name: SITE_NAME,
+    // "Circuvent" is a coined word one character from "circumvent", so search
+    // engines treat the query as a typo and correct it. Naming the short forms
+    // explicitly is how the token gets attached to this entity rather than to
+    // the dictionary word.
+    alternateName: ["Circuvent", "Circuvent Tech", "circuvent.com"],
+    legalName: SITE_NAME,
     url: SITE_URL,
     description: SITE_DESCRIPTION,
-    logo: `${SITE_URL}${siteConfig.logo}`,
+    slogan: "Engineering What's Next",
+    logo: {
+      "@type": "ImageObject",
+      url: `${SITE_URL}${siteConfig.logo}`,
+      width: 512,
+      height: 512,
+    },
+    image: `${SITE_URL}${siteConfig.ogImage}`,
     foundingDate: "2023-01-01",
+    founder: {
+      "@type": "Person",
+      name: "Hema Koteswar Bonthada",
+      jobTitle: "Founder",
+      url: "https://github.com/Hemakotibonthada",
+    },
     numberOfEmployees: {
       "@type": "QuantitativeValue",
       value: "1-10",
     },
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Hyderabad",
+      addressRegion: "Telangana",
+      addressCountry: "IN",
+    },
+    contactPoint: [
+      {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: siteConfig.contact.email,
+        areaServed: "Worldwide",
+        availableLanguage: ["en"],
+      },
+    ],
     areaServed: "Worldwide",
     knowsAbout: [
       "Artificial Intelligence",
@@ -482,11 +586,7 @@ export function getOrganizationJsonLd() {
       "Python",
       "ESP32",
     ],
-    sameAs: [
-      "https://github.com/circuvent-technologies",
-      "https://linkedin.com/company/circuvent-technologies",
-      "https://twitter.com/circuvent_tech",
-    ],
+    sameAs: [...VERIFIED_PROFILES],
   };
 }
 
@@ -497,9 +597,16 @@ export function getWebsiteJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": `${SITE_URL}/#website`,
     name: SITE_NAME,
+    alternateName: ["Circuvent", "Circuvent Tech"],
     url: SITE_URL,
     description: SITE_DESCRIPTION,
+    inLanguage: "en",
+    // Points at the Organization rather than restating it, so the two blocks
+    // describe one entity with a site instead of two unrelated things that
+    // happen to share a name.
+    publisher: { "@id": ORGANIZATION_ID },
     potentialAction: {
       "@type": "SearchAction",
       target: `${SITE_URL}/projects?search={search_term_string}`,
@@ -519,6 +626,8 @@ export function getBlogPostJsonLd(post: {
   date: string;
   readTime: string;
   category: string;
+  /** ISO date of the last substantive edit, when it differs from publication. */
+  updated?: string;
 }) {
   return {
     "@context": "https://schema.org",
@@ -529,13 +638,17 @@ export function getBlogPostJsonLd(post: {
       "@type": "Person",
       name: post.author,
     },
-    publisher: {
-      "@type": "Organization",
-      name: SITE_NAME,
-      url: SITE_URL,
-    },
+    // The company entity rather than a fresh anonymous Organization repeating
+    // its own name. Every inline copy is a separate node as far as a crawler is
+    // concerned, which is the opposite of what this brand needs.
+    publisher: { "@id": ORGANIZATION_ID },
+    // Article rich results require an image. Posts carry no artwork of their
+    // own -- only a gradient and an icon -- so this points at the per-post card
+    // generated by app/blog/[slug]/opengraph-image.tsx, which is a real 1200x630
+    // PNG rather than the site-wide default every post would otherwise share.
+    image: [`${SITE_URL}/blog/${post.slug}/opengraph-image`],
     datePublished: post.date,
-    dateModified: post.date,
+    dateModified: post.updated || post.date,
     url: `${SITE_URL}/blog/${post.slug}`,
     mainEntityOfPage: {
       "@type": "WebPage",
@@ -570,8 +683,7 @@ export function getSoftwareJsonLd(project: {
       priceCurrency: "USD",
     },
     author: {
-      "@type": "Organization",
-      name: SITE_NAME,
+      "@id": ORGANIZATION_ID,
     },
     applicationSuite: SITE_NAME,
     isAccessibleForFree: true,
@@ -580,8 +692,58 @@ export function getSoftwareJsonLd(project: {
 }
 
 /**
- * Job posting structured data
+ * Job posting structured data.
+ *
+ * Three things here decide whether Google Jobs will show the posting at all:
+ *
+ * - `jobLocation.address` must be a PostalAddress object. It used to be the raw
+ *   display string ("Remote / India"), which is not a valid address and makes
+ *   the posting ineligible rather than merely imperfect.
+ * - `datePosted` must be a real, stable date. It used to be `new Date()`, so
+ *   every role claimed to have been posted the moment the site was built —
+ *   permanently today, on every deploy. Google treats a posting that never ages
+ *   as untrustworthy, and it is also simply false.
+ * - `validThrough` is required in practice; without it a posting goes stale and
+ *   is dropped with no signal.
  */
+const EMPLOYMENT_TYPES: Record<string, string> = {
+  "full-time": "FULL_TIME",
+  "part-time": "PART_TIME",
+  contract: "CONTRACTOR",
+  contractor: "CONTRACTOR",
+  internship: "INTERN",
+  intern: "INTERN",
+  temporary: "TEMPORARY",
+};
+
+/** Splits "Remote / Hyderabad, India" into something schema.org accepts. */
+function jobLocationFor(location: string) {
+  const isRemote = /remote/i.test(location);
+  // Strip the "Remote /" prefix so the locality is not literally "Remote".
+  const physical = location.replace(/remote\s*\/?\s*/i, "").trim();
+  const locality = physical && !/^india$/i.test(physical) ? physical : "Hyderabad";
+
+  return {
+    jobLocation: {
+      "@type": "Place",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: locality.replace(/,\s*India$/i, ""),
+        addressRegion: "Telangana",
+        addressCountry: "IN",
+      },
+    },
+    // Google requires this pair for anything remote, and will otherwise show
+    // the role only to people searching the physical location.
+    ...(isRemote
+      ? {
+          jobLocationType: "TELECOMMUTE",
+          applicantLocationRequirements: { "@type": "Country", name: "India" },
+        }
+      : {}),
+  };
+}
+
 export function getJobPostingJsonLd(role: {
   title: string;
   description: string;
@@ -589,24 +751,25 @@ export function getJobPostingJsonLd(role: {
   type: string;
   experience: string;
   id: string;
+  /** ISO date the role was opened. Required for Google Jobs to age it. */
+  datePosted?: string;
 }) {
+  const datePosted = role.datePosted || DEFAULT_JOB_POSTED_DATE;
+  const validThrough = new Date(datePosted);
+  validThrough.setMonth(validThrough.getMonth() + 6);
+
   return {
     "@context": "https://schema.org",
     "@type": "JobPosting",
     title: role.title,
     description: role.description,
-    datePosted: new Date().toISOString(),
-    hiringOrganization: {
-      "@type": "Organization",
-      name: SITE_NAME,
-      url: SITE_URL,
-    },
-    jobLocation: {
-      "@type": "Place",
-      address: role.location,
-    },
-    employmentType: role.type === "Full-time" ? "FULL_TIME" : "CONTRACTOR",
+    datePosted,
+    validThrough: validThrough.toISOString().slice(0, 10),
+    hiringOrganization: { "@id": ORGANIZATION_ID },
+    ...jobLocationFor(role.location),
+    employmentType: EMPLOYMENT_TYPES[role.type.toLowerCase().trim()] ?? "FULL_TIME",
     experienceRequirements: role.experience,
+    directApply: true,
     url: `${SITE_URL}/careers/${role.id}`,
   };
 }

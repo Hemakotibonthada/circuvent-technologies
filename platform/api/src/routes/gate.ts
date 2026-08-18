@@ -111,9 +111,17 @@ gateRouter.get("/passes", requireAuth, async (req: AuthedRequest, res) => {
 
 // Revoke a pass.
 gateRouter.post("/passes/:id/revoke", requireAuth, async (req: AuthedRequest, res) => {
+  // Number("x") is NaN, and NaN reaches Postgres as the literal "NaN", which a
+  // BIGINT column rejects — rejecting the query, the handler's promise, and
+  // (on Express 4) the process. Checked here rather than relied on downstream.
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Bad pass id." });
+    return;
+  }
   const { rowCount } = await pool.query(
     `UPDATE gate_passes SET revoked = true WHERE id = $1 AND owner_id = $2`,
-    [Number(req.params.id), req.user!.uid]
+    [id, req.user!.uid]
   );
   if (!rowCount) {
     res.status(404).json({ error: "Not found" });

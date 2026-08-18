@@ -124,9 +124,32 @@ services:
       ANPR_REGION: ${ANPR_REGION:-in}
       ANPR_TIMEOUT_MS: ${ANPR_TIMEOUT_MS:-12000}
       ANPR_MIN_CONFIDENCE: ${ANPR_MIN_CONFIDENCE:-70}
+      # The local recogniser (ANPR_PROVIDER=local): Tesseract, running here, on
+      # hardware already paid for. Every hosted ANPR service bills per read, and
+      # a gate camera reads for as long as it is mounted.
+      ANPR_LOCAL_BINARY: ${ANPR_LOCAL_BINARY:-tesseract}
+      ANPR_LOCAL_LANG: ${ANPR_LOCAL_LANG:-eng}
+      ANPR_LOCAL_TIMEOUT_MS: ${ANPR_LOCAL_TIMEOUT_MS:-15000}
+      ANPR_LOCAL_MAX_REGIONS: ${ANPR_LOCAL_MAX_REGIONS:-3}
       ANPR_RETENTION_DAYS: ${ANPR_RETENTION_DAYS:-90}
       ANPR_IMAGE_RETENTION_DAYS: ${ANPR_IMAGE_RETENTION_DAYS:-30}
       ANPR_THUMBNAIL_MAX_KB: ${ANPR_THUMBNAIL_MAX_KB:-96}
+      # Object storage for ANPR captures (S3 or Cloudflare R2). Optional: with
+      # no bucket the images stay in plate_reads.thumb exactly as before.
+      # THIS BUCKET MUST BE PRIVATE — it holds photographs of vehicles and of
+      # whoever was walking past. It is NOT the public circuvent-firmware
+      # bucket, which is public only because an ESP32 doing an OTA check cannot
+      # sign a request.
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      S3_TIMEOUT_MS: ${S3_TIMEOUT_MS:-10000}
+      S3_PRESIGN_GET: ${S3_PRESIGN_GET:-false}
+      ANPR_IMAGE_MAX_KB: ${ANPR_IMAGE_MAX_KB:-1024}
       # Sender for the daily gate report. Separate from EMAIL_FROM, which signs
       # OTP and password-reset mail from a no-reply identity — a report is
       # something a facilities manager replies to. Must stay on a domain

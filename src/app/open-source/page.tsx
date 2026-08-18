@@ -194,7 +194,7 @@ export default function OpenSourcePage() {
                 </h2>
               </div>
               <a
-                href="https://github.com/circuvent-technologies"
+                href="https://github.com/Hemakotibonthada"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -352,7 +352,7 @@ export default function OpenSourcePage() {
         title="Ready to"
         titleHighlight="Contribute?"
         description="Whether you're fixing a typo or adding a major feature, every contribution matters. Join our community of builders."
-        primaryCTA={{ label: "View on GitHub", href: "https://github.com/circuvent-technologies" }}
+        primaryCTA={{ label: "View on GitHub", href: "https://github.com/Hemakotibonthada" }}
         secondaryCTA={{ label: "View Projects", href: "/projects" }}
       />
     </>

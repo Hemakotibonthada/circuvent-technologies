@@ -4,11 +4,19 @@ import JsonLd from "@/components/JsonLd";
 import { getFAQJsonLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "FAQ — Circuvent",
-  description: "Answers to common questions about Circuvent smart devices, orders, payments, shipping, returns and warranty.",
+  title: "FAQ — Circuvent Technologies",
+  description:
+    "Answers about Circuvent Technologies — who we are, why the name is often confused with the word 'circumvent', and how orders, payments, shipping, returns and warranty work for Circuvent Smart devices.",
 };
 
 const FAQ_JSONLD = [
+  // Deliberately first. "Circuvent" is one character from "circumvent", so
+  // search engines treat the brand as a misspelling and silently rewrite the
+  // query to a different, unrelated company. This entry is the plainest
+  // on-page statement that the token is a real name, and as FAQPage structured
+  // data it is directly eligible to be surfaced against that exact confusion.
+  { question: "Is Circuvent the same as Circumvent?", answer: "No — they are unrelated. Circuvent Technologies is an engineering company based in Hyderabad, India, building AI, IoT and full-stack systems, online at circuvent.com. The name is spelled C-I-R-C-U-V-E-N-T, with no 'm'. Search engines often autocorrect it to the English word 'circumvent', which returns a different company entirely." },
+  { question: "What is Circuvent Technologies?", answer: "Circuvent Technologies is an Indian engineering company founded in 2023 that builds intelligent systems across AI, IoT and full-stack software. Alongside client work it ships its own products: Circuvent Mail, the CV-365 workspace, an HRMS and ATS, and made-in-India Circuvent Smart devices." },
   { question: "Do I need an account to order?", answer: "You can browse freely, but placing an order requires a quick sign-up so we can email your invoice and let you track delivery. Sign-up is verified with a one-time code sent to your email." },
   { question: "Can I edit or cancel my order?", answer: "Yes — from your account's Orders section you can cancel an order before it ships. Paid orders are refunded to your Circuvent wallet instantly on cancellation." },
   { question: "What payment methods do you accept?", answer: "UPI, credit/debit cards and net banking via Razorpay (India), Cash on Delivery on eligible orders, and your Circuvent wallet balance." },
@@ -31,6 +39,14 @@ export default function FAQPage() {
       titleHighlight="Questions"
       description="Everything you need to know about ordering, payments, delivery, warranty and our smart devices. Can't find an answer? Reach out any time."
       sections={[
+        {
+          icon: "Building2",
+          title: "About the name",
+          content: [
+            "Is Circuvent the same as Circumvent? No — they are unrelated. Circuvent Technologies is an engineering company based in Hyderabad, India, building AI, IoT and full-stack systems. The name is spelled C-I-R-C-U-V-E-N-T, with no 'm'. Search engines often autocorrect it to the English word 'circumvent', which returns a different company entirely.",
+            "What is Circuvent Technologies? An Indian engineering company founded in 2023, building intelligent systems across AI, IoT and full-stack software — and shipping its own products: Circuvent Mail, the CV-365 workspace, an HRMS and ATS, and made-in-India Circuvent Smart devices.",
+          ],
+        },
         {
           icon: "HelpCircle",
           title: "Orders & Accounts",

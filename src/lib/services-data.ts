@@ -387,11 +387,21 @@ export interface CareerRole {
   niceToHave: string[];
   benefits: string[];
   gradient: string;
+  /**
+   * ISO date the role was opened.
+   *
+   * Feeds JobPosting.datePosted. The schema previously used `new Date()`, so
+   * every role claimed to have been posted on the day of the last deploy and
+   * never aged -- Google treats a posting that is permanently "today" as
+   * untrustworthy. Update this when a role is genuinely re-opened.
+   */
+  datePosted?: string;
 }
 
 export const careerRoles: CareerRole[] = [
   {
     id: "senior-ai-engineer",
+    datePosted: "2026-01-05",
     title: "Senior AI Engineer",
     department: "AI & Agents",
     type: "Full-time",
@@ -432,6 +442,7 @@ export const careerRoles: CareerRole[] = [
   },
   {
     id: "iot-platform-engineer",
+    datePosted: "2026-01-12",
     title: "IoT Platform Engineer",
     department: "IoT & Embedded",
     type: "Full-time",
@@ -472,6 +483,7 @@ export const careerRoles: CareerRole[] = [
   },
   {
     id: "full-stack-developer",
+    datePosted: "2026-02-02",
     title: "Full-Stack Developer",
     department: "Web & Mobile",
     type: "Full-time",
@@ -512,6 +524,7 @@ export const careerRoles: CareerRole[] = [
   },
   {
     id: "flutter-mobile-engineer",
+    datePosted: "2026-02-16",
     title: "Flutter Mobile Engineer",
     department: "Mobile",
     type: "Contract / Full-time",
@@ -552,6 +565,7 @@ export const careerRoles: CareerRole[] = [
   },
   {
     id: "frontend-design-engineer",
+    datePosted: "2026-03-09",
     title: "Frontend / Design Engineer",
     department: "Design & Frontend",
     type: "Full-time",
@@ -592,6 +606,7 @@ export const careerRoles: CareerRole[] = [
   },
   {
     id: "devops-platform-engineer",
+    datePosted: "2026-03-23",
     title: "DevOps & Platform Engineer",
     department: "Infrastructure",
     type: "Full-time",

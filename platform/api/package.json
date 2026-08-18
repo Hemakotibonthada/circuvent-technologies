@@ -18,6 +18,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^8.6.0",
     "helmet": "^8.3.0",
+    "jpeg-js": "^0.4.4",
     "jsonwebtoken": "^9.0.2",
     "mqtt": "^5.10.1",
     "nodemailer": "^9.0.3",

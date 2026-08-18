@@ -159,6 +159,115 @@ authorises anything by itself.
 
 ---
 
+## 2a. ANPR on a camera that is not an ANPR camera
+
+Everything above describes `anpr-cam`. Most accounts do not own one — they own a
+`camera`, already mounted, already looking at the gate. A **lane** is what lets
+that camera read plates, and it needs no firmware change at all.
+
+The ordinary camera cannot decide when a vehicle is worth photographing, and it
+has no notion of a lane, a burst or a capture id. But `firmware/camera` has
+shipped two primitives since long before ANPR existed:
+
+- it detects motion by frame differencing and publishes
+  `{"type":"motion","source":"image"|"pir"}` on telemetry, and
+- it answers `{"action":"snapshot"}` by publishing one still on `cv/<id>/frame`.
+
+So the missing part is not hardware. It is the *decision of when*, the grouping
+of frames into a burst, and the lane direction — all of which move into the
+control plane. `platform/api/src/anpr/lane.ts` is the `anpr-cam` trigger state
+machine, running on the server, driving a camera by command:
+
+```
+ telemetry {type:"motion"} ──▶ [cooldown] ──▶ N x {"action":"snapshot"}
+                                                       │
+ cv/<id>/frame ──▶ bus device:frame ──▶ [collect] ──────┘
+                                             │
+                                             ▼
+                                    ingestFrame() — the same pipeline
+```
+
+**Nothing downstream knows the difference.** The read, the vote, the allow list,
+the visit, the occupancy count, the automation, the webhook and the daily report
+are the code paths §4 onwards describes. That is the point of entering at
+`ingestFrame` rather than writing a second pipeline: a plate read from a camera
+and a plate read from an ANPR camera must be the same kind of thing, or every
+consumer needs to know which sort of hardware produced it.
+
+### The frame tap
+
+`handleFrame` in `mqtt.ts` drops every frame unless somebody is watching, which
+is right for live video and exactly wrong here — a gate camera does its work
+when nobody has the console open. `frameTaps` is a second set, held only for the
+~2 s a burst takes, that `handleFrame` also consults.
+
+It is deliberately **not** `watchedDevices`: that set is refcounted by `ws.ts`
+against real sockets, and a lane writing into it would corrupt the count and
+leave a camera streaming after the last viewer left.
+
+### What is honestly worse about it
+
+Stated here, and in the console where somebody is choosing, rather than
+discovered at a barrier at night:
+
+| | `anpr-cam` | camera lane |
+| --- | --- | --- |
+| Trigger latency | firmware, microseconds after the motion | a broker round trip plus the camera's own `MOTION_COOLDOWN_MS` |
+| Region of interest | configurable rectangle; trees and footpaths excluded | whole frame — a swaying branch starts a burst |
+| Exposure | `ae_level(-1)`, metered for a retro-reflective plate | metered for the whole scene, so a plate can clip to white under headlights |
+| Frame selection | the camera picks sharp frames | the server picks the largest of what came back |
+
+A vehicle that **stops** at a barrier reads well on a lane. One driving through
+at speed is what the dedicated camera is for.
+
+### Settings
+
+`anpr_lanes`, one row per camera. Every bound is enforced server-side in
+`LIMITS` because each is something a slider could otherwise be dragged to a
+value that costs money or breaks the camera.
+
+| Column | Default | Meaning |
+| --- | --- | --- |
+| `direction` | `both` | Same meaning as the `anpr-cam` state key — see §7 |
+| `burst` | `3` | Frames per trigger, 1–8 |
+| `burst_gap_ms` | `400` | 150–3000. Below ~150 ms the sensor is still reading out |
+| `cooldown_ms` | `8000` | Minimum gap between **motion** triggers |
+| `illuminate` | `0` | Flash level pulsed for the burst, then turned off |
+
+**The cooldown never applies to a manual capture.** "Capture now" that silently
+does nothing for eight seconds is a control that appears broken, and whoever
+pressed it is usually standing at the barrier looking at the vehicle the camera
+just missed.
+
+**The illuminator is pulsed, never left on.** Held on continuously it is a
+nuisance pointed at a window and the fastest way to cook an ESP32-CAM, so it is
+turned off on every exit path — including the one where no frame came back.
+
+**Enrolling a camera also turns its motion detection on.** A lane on a camera
+that is not detecting motion is a switch that silently never fires.
+
+**A camera that changes hands stops being a lane.** The row would go with the
+device on a delete, but a *transfer* keeps the row and changes
+`devices.owner_id`; a lane still holding the previous owner's id would file the
+new owner's plate reads into the old owner's log.
+
+### Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/anpr/lanes` | Every lane, plus the account's cameras and whether each is eligible |
+| PUT | `/anpr/lanes/:deviceId` | Enrol a camera, or change its lane |
+| DELETE | `/anpr/lanes/:deviceId` | Stop driving it |
+| POST | `/anpr/devices/:id/capture` | Burst now — one route for both kinds of camera |
+
+`PUT` refuses anything that is not a plain `camera`. An `anpr-cam` driven this
+way would answer snapshots on the frame topic *as well as* publishing its own
+bursts, so one vehicle would be read twice and paired into two visits.
+
+In the console: **Security → Vehicles → Cameras**.
+
+---
+
 ## 3. The wire format — `cv/<id>/anpr`
 
 Binary, QoS 0, **never retained**, **never persisted as telemetry** — the same
@@ -323,8 +432,54 @@ an image, and it needs its own retention.
 | --- | --- | --- |
 | `ANPR_RETENTION_DAYS` | `90` | Plate history — reads **and visits** |
 | `ANPR_IMAGE_RETENTION_DAYS` | `30` | **Images, cleared first** |
-| `ANPR_THUMBNAIL_MAX_KB` | `96` | Larger captures are recorded without an image |
+| `ANPR_THUMBNAIL_MAX_KB` | `96` | Larger captures are recorded without an image — **only when there is no bucket** |
+| `ANPR_IMAGE_MAX_KB` | `1024` | The same ceiling when captures go to a bucket |
 | `ANPR_MIN_CONFIDENCE` | `70` | Below this, never `allow` |
+
+### Where the image lives
+
+Two backends, one URL. `GET /anpr/reads/:id/image` serves either, so a bucket
+can be switched on for an existing deployment without a migration and without
+breaking a single historical read.
+
+**In the row (`plate_reads.thumb`, base64).** The original, and still the
+fallback. It is why `ANPR_THUMBNAIL_MAX_KB` is only 96 KB: base64 inflates a
+JPEG by a third, TOAST compresses it badly because it is already compressed, and
+every `pg_dump` and every replica carries every photograph of every car that
+ever came to the gate. The cap is paid for in evidence — a capture over it was
+recorded with **no image at all**, which is exactly the read somebody later
+disputes.
+
+**In a bucket (`plate_reads.image_key`).** S3 or Cloudflare R2, signed by hand
+in `storage/objects.ts` — the same SigV4 routine `scripts/upload-firmware-to-r2.cjs`
+has run in production, typed and shared, rather than 15 MB of `@aws-sdk` across
+40 packages to issue three request shapes on a 1 vCPU VM. Configuring a bucket
+removes the reason for the small ceiling, so `ANPR_IMAGE_MAX_KB` takes over at
+1 MB — comfortably more than the largest frame an OV2640 can produce.
+
+**The bucket must be private, and there is no setting that publishes it.** This
+is deliberately *not* the `circuvent-firmware` bucket: that one is public
+because an ESP32 doing an OTA check cannot sign a request. This one holds
+photographs of vehicles, and of whoever happened to be walking past.
+`S3_PRESIGN_GET` will redirect to a five-minute presigned URL to move the bytes
+off the VM's uplink, and it is **off by default** — a presigned URL, however
+short-lived, is a fetchable link that then exists in browser history and in any
+referrer that leaks.
+
+**A failed upload falls back to the row.** An expired key, a bucket at its
+quota, a partition between the VM and Cloudflare — none of those should cost the
+arrival. Losing the photograph of one vehicle is a bad day; losing the vehicle
+because its picture would not upload is a gate that stopped working.
+
+**Retention deletes the object first, then forgets the key.** The other
+order — clear the column, then delete — loses the key on any failure and orphans
+the object forever, because the row was the only thing that knew its name. This
+way a bucket refusing deletes today costs nothing: the rows keep their keys and
+the next sweep retries them. The sweep is batched, and stops early when a whole
+batch fails rather than turning a wrong credential into ten thousand requests.
+
+Rough disk cost with no bucket: a busy gate at ~50 vehicles/day, ~90 KB a
+capture, base64 inflated by a third, over 30 days ≈ **200 MB** in Postgres.
 
 **Images expire before the metadata, and that gap is the point.** "A vehicle
 with this plate arrived at 19:42" is what an access review needs months later.

@@ -52,12 +52,21 @@ export const siteConfig = {
     "Engineering intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering. 53+ projects. 200K+ lines of code. Zero limits.",
   logo: "/logo-mark.png",
   ogImage: "/og-image.png",
-  twitterHandle: "@circuvent_tech",
+  /**
+   * X/Twitter handle for card attribution.
+   *
+   * Empty by default: `@circuvent_tech` was advertised in `twitter:site`,
+   * `twitter:creator` and `sameAs`, but the account does not exist — x.com
+   * returns 404 for it. A card attributed to a missing handle is a dead
+   * reference, and in `sameAs` it actively weakens entity resolution, which is
+   * the thing this brand can least afford. Set NEXT_PUBLIC_TWITTER_HANDLE once
+   * a real account exists and every tag picks it up.
+   */
+  twitterHandle: process.env.NEXT_PUBLIC_TWITTER_HANDLE || "",
   themeColor: "#030712",
   social: {
     github: "https://github.com/Hemakotibonthada",
-    linkedin: "https://linkedin.com/company/circuvent",
-    twitter: "https://twitter.com/circuvent_tech",
+    linkedin: "https://www.linkedin.com/company/circuvent",
   },
   contact: {
     email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM || "hello@circuvent.com",

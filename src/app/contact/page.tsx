@@ -4,7 +4,6 @@ import { useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import ContactForm from "@/components/ContactForm";
 import ScrollReveal from "@/components/ScrollReveal";
-import TiltCard from "@/components/TiltCard";
 import { ShimmerText } from "@/components/AnimationEffects";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -189,11 +188,16 @@ export default function ContactPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {engagementTypes.map((type, i) => (
               <ScrollReveal key={type.title} delay={i * 0.1}>
-                <TiltCard tiltAmount={6}>
-                  <motion.div
-                    whileHover={{ y: -4 }}
+                {/*
+                  No TiltCard: this card holds a link that is only revealed on
+                  hover, in the corner a pointer-tracking tilt moves most. The
+                  act of hovering to reveal the arrow was also the act of
+                  moving it. Hover now reads through shadow and the top bar,
+                  neither of which displaces the target.
+                */}
+                <motion.div
                     onClick={() => setSelectedEngagement(type.title === selectedEngagement ? null : type.title)}
-                    className={`group relative overflow-hidden rounded-2xl backdrop-blur-xl p-6 cursor-pointer transition-all duration-300 h-full ${
+                    className={`group relative overflow-hidden rounded-2xl backdrop-blur-xl p-6 cursor-pointer transition-shadow duration-300 hover:shadow-xl h-full ${
                       selectedEngagement === type.title ? "ring-2 ring-cyan-500/30" : ""
                     }`}
                     style={{
@@ -229,7 +233,6 @@ export default function ContactPage() {
                       )}
                     </div>
                   </motion.div>
-                </TiltCard>
               </ScrollReveal>
             ))}
           </div>

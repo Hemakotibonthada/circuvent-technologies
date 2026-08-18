@@ -204,6 +204,40 @@ export interface AnprSettings {
   reportHour: number;
 }
 
+/**
+ * An ordinary camera driven as an ANPR lane.
+ *
+ * The trigger logic an `anpr-cam` runs in firmware, running in the control
+ * plane instead: motion telemetry starts a burst, the burst is a run of
+ * `snapshot` commands, and the frames that come back enter the same pipeline.
+ */
+export interface AnprLane {
+  deviceId: string;
+  enabled: boolean;
+  /** The mounting decides this. `both` alternates against the vehicle's state. */
+  direction: "in" | "out" | "both";
+  /** Frames per trigger. Two give agreement, three break a tie. */
+  burst: number;
+  burstGapMs: number;
+  /** Minimum gap between motion triggers. Never applies to a manual capture. */
+  cooldownMs: number;
+  /** Illuminator level pulsed for the burst, 0-100. 0 leaves it alone. */
+  illuminate: number;
+  triggers: number;
+  lastTriggerAt: string | null;
+}
+
+/** A camera that could become a lane, or is one already. */
+export interface AnprLaneCandidate {
+  deviceId: string;
+  name: string;
+  type: string;
+  room: string | null;
+  /** False for an `anpr-cam`: it reads plates itself and needs no lane. */
+  eligible: boolean;
+  reason: string | null;
+}
+
 /* ---------------------------------------------------------------- */
 /* Drone                                                             */
 /* ---------------------------------------------------------------- */
@@ -1300,7 +1334,34 @@ export const controlPlane = {
       body: JSON.stringify({ kind, label }),
     }),
   anprCapture: (deviceId: string) =>
-    req<{ success: boolean }>("/anpr/devices/" + encodeURIComponent(deviceId) + "/capture", { method: "POST" }),
+    req<{ success: boolean; captureId?: number; via?: "lane" | "device" }>(
+      "/anpr/devices/" + encodeURIComponent(deviceId) + "/capture",
+      { method: "POST" }
+    ),
+
+  // ---- ANPR on an ordinary camera (lanes) ---------------------------------
+  /**
+   * A lane turns a `camera` into a plate reader.
+   *
+   * `anpr-cam` firmware decides when a vehicle is worth photographing and
+   * publishes a burst itself. An ordinary camera cannot, but it does detect
+   * motion and it does answer `snapshot` — so the control plane supplies the
+   * trigger, the burst and the lane direction, and the read that comes out is
+   * the same kind of read. See Docs/20-anpr.md §2a.
+   *
+   * The list comes back with the account's cameras alongside it, because the
+   * question the screen is asking is "which of my cameras can do this, and
+   * which are doing it" — building the first half from a separate device call
+   * would mean filtering by device type in the browser.
+   */
+  anprLanes: () => req<{ lanes: AnprLane[]; cameras: AnprLaneCandidate[]; recogniser: string }>("/anpr/lanes"),
+  saveAnprLane: (deviceId: string, body: Partial<Omit<AnprLane, "deviceId" | "triggers" | "lastTriggerAt">>) =>
+    req<{ lane: AnprLane; prepared?: string[]; error?: string }>("/anpr/lanes/" + encodeURIComponent(deviceId), {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteAnprLane: (deviceId: string) =>
+    req<{ success: boolean }>("/anpr/lanes/" + encodeURIComponent(deviceId), { method: "DELETE" }),
 
   // ---- drone --------------------------------------------------------------
   droneLive: () => req<{ aircraft: LiveAircraft[]; limits: DroneLimits }>("/drone/live"),

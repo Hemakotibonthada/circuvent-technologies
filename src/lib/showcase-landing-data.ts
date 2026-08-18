@@ -484,7 +484,7 @@ export const faqItems = [
   },
   {
     question: "Are your projects open source?",
-    answer: "Yes, all 53+ projects are MIT-licensed and publicly available on GitHub. We believe in transparency and contributing to the open-source community. Browse our full portfolio at github.com/circuvent-technologies.",
+    answer: "Yes, all 53+ projects are MIT-licensed and publicly available on GitHub. We believe in transparency and contributing to the open-source community. Browse our full portfolio at github.com/Hemakotibonthada.",
   },
   {
     question: "What about ongoing support and maintenance?",

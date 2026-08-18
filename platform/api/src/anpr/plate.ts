@@ -240,7 +240,7 @@ export interface PlateVerdict {
  * "A vehicle arrived and we could not read it" is a useful, actionable fact;
  * a fabricated plate is not, and would be acted on.
  */
-export function voteOnBurst(candidates: PlateCandidate[]): PlateVerdict | null {
+export function voteOnBurst(candidates: PlateCandidate[], framesAttempted?: number): PlateVerdict | null {
   if (!candidates.length) return null;
 
   interface Tally { plate: string; kind: PlateKind; valid: boolean; votes: number; confSum: number; corrections: number }
@@ -264,7 +264,26 @@ export function voteOnBurst(candidates: PlateCandidate[]): PlateVerdict | null {
   }
   if (!byPlate.size) return null;
 
-  const samples = candidates.length;
+  /*
+   * The denominator is the frames the recogniser was *asked* about, not the
+   * answers it happened to give back.
+   *
+   * This used to be `candidates.length`, which quietly deleted every frame
+   * that read nothing from the denominator — and a frame that reads nothing is
+   * a blurred, dark or empty one, which is exactly the evidence that should
+   * count against a plate. Three frames of which two were unreadable scored
+   * 1/1 = full agreement, so `agreement * 60` alone put any valid registration
+   * at 75 before the recogniser's own confidence was even considered. The
+   * result was that ANPR_MIN_CONFIDENCE could not fail a single-frame read at
+   * any threshold below 75, and the "independent frames must agree" guarantee
+   * that Docs/20-anpr.md §4 describes — the one safeguard standing between an
+   * OCR string and an opened barrier — did nothing whenever only one frame
+   * read. A single hallucination from a general vision model was enough.
+   *
+   * Floored at the number of candidates, because a caller that does not know
+   * how many frames it sent must not be able to produce agreement above 1.
+   */
+  const samples = Math.max(candidates.length, framesAttempted ?? candidates.length);
   const ranked = [...byPlate.values()].sort((a, b) => {
     if (a.valid !== b.valid) return a.valid ? -1 : 1;
     if (a.votes !== b.votes) return b.votes - a.votes;

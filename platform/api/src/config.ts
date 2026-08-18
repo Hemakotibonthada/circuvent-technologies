@@ -89,10 +89,33 @@ const schema = z.object({
   FACE_API_KEY: z.string().default(""),
   FACE_TIMEOUT_MS: z.coerce.number().default(10000),
 
-  ANPR_PROVIDER: z.enum(["none", "platerecognizer", "openai", "http"]).default("none"),
+  ANPR_PROVIDER: z.enum(["none", "local", "platerecognizer", "openai", "http"]).default("none"),
   ANPR_BASE_URL: z.string().default(""),
   ANPR_API_KEY: z.string().default(""),
   ANPR_MODEL: z.string().default("gpt-4o-mini"),
+  /*
+   * The local recogniser: our own, on our own hardware.
+   *
+   * `local` runs Tesseract as a subprocess against a plate strip this codebase
+   * locates and prepares itself. It exists because every hosted ANPR service
+   * bills per read, and a gate camera reads continuously for as long as it is
+   * mounted — a metered recogniser turns a camera somebody bought into a
+   * subscription they did not agree to, and stops working the day a card
+   * expires. It also keeps the photographs on the box, which is the whole
+   * premise of the retention rules below.
+   *
+   * It is honestly worse than a purpose-built ANPR model on a moving, angled or
+   * dirty plate, and Docs/20-anpr.md says so rather than implying parity.
+   */
+  ANPR_LOCAL_BINARY: z.string().default("tesseract"),
+  ANPR_LOCAL_LANG: z.string().default("eng"),
+  /** Per-image ceiling. A hung classifier must not hold an ANPR burst open. */
+  ANPR_LOCAL_TIMEOUT_MS: z.coerce.number().default(15000),
+  /**
+   * Plate-shaped regions attempted per frame before falling back to the whole
+   * frame. Each is a subprocess, so this is the CPU budget per frame.
+   */
+  ANPR_LOCAL_MAX_REGIONS: z.coerce.number().min(1).max(8).default(3),
   /** Two-letter region hint, e.g. `in`. Improves format disambiguation. */
   ANPR_REGION: z.string().default("in"),
   ANPR_TIMEOUT_MS: z.coerce.number().default(12000),
@@ -122,6 +145,63 @@ const schema = z.object({
    * half-written JPEG renders as a grey box and looks like a camera fault.
    */
   ANPR_THUMBNAIL_MAX_KB: z.coerce.number().min(0).max(2048).default(96),
+  /*
+   * ============================ OBJECT STORAGE =========================
+   *
+   * Where ANPR captures are kept. Optional, and unset is a supported state:
+   * without a bucket the images stay in `plate_reads.thumb` exactly as they
+   * always have, bounded by ANPR_THUMBNAIL_MAX_KB above.
+   *
+   * With a bucket configured the ceiling stops applying — the reason for it
+   * was that the bytes were sitting in Postgres, inflated a third by base64,
+   * carried by every dump and every replica. `ANPR_IMAGE_MAX_KB` is the
+   * separate, much larger ceiling that applies to an object, and exists only
+   * to stop a misconfigured camera filling a bucket.
+   *
+   * S3 and R2 are the same API here. For R2, `R2_ACCOUNT_ID` alone is enough
+   * — the endpoint is derived from it — and the region is `auto`. For AWS,
+   * set `S3_ENDPOINT` empty, `S3_REGION` to the real region, and
+   * `S3_FORCE_PATH_STYLE=false`.
+   *
+   * THE BUCKET MUST BE PRIVATE, and is a different bucket from the public
+   * `circuvent-firmware` one. Firmware has to be fetchable by a device holding
+   * no credentials; a photograph of somebody's car must not be fetchable by
+   * anyone at all without a session. There is no setting here that publishes
+   * it, and `S3_PUBLIC_BASE_URL` is deliberately absent for that reason.
+   */
+  S3_BUCKET: z.string().default(""),
+  S3_ACCESS_KEY_ID: z.string().default(""),
+  S3_SECRET_ACCESS_KEY: z.string().default(""),
+  /** Full endpoint, e.g. https://<account>.r2.cloudflarestorage.com. */
+  S3_ENDPOINT: z.string().default(""),
+  /** Cloudflare shorthand: the endpoint is derived when S3_ENDPOINT is empty. */
+  R2_ACCOUNT_ID: z.string().default(""),
+  /** `auto` for R2. A real region for AWS. */
+  S3_REGION: z.string().default("auto"),
+  /** R2 requires path-style. S3 accepts it. Set "false" for virtual-hosted. */
+  S3_FORCE_PATH_STYLE: z.string().default("true"),
+  S3_TIMEOUT_MS: z.coerce.number().default(10000),
+  /*
+   * Largest capture stored as an object, in KB.
+   *
+   * Ten times the database ceiling, because the constraint that produced that
+   * number is gone. A UXGA capture from an OV2640 at quality 10 is ~250 KB, so
+   * 1 MB holds the largest picture the hardware can produce with room to
+   * spare, and still refuses a device publishing something that is not a
+   * still frame.
+   */
+  ANPR_IMAGE_MAX_KB: z.coerce.number().min(0).max(16384).default(1024),
+  /*
+   * Serve captures by redirecting to a presigned URL instead of proxying.
+   *
+   * Off by default, and the default is the safer one rather than the cheaper
+   * one: proxying keeps the image behind the same session check as every other
+   * route and never puts a fetchable URL into a browser's history, a referrer
+   * header or a screenshot. Turning it on moves the bytes off the VM's uplink,
+   * which is worth having on a busy site — the link expires in five minutes,
+   * but it is a link.
+   */
+  S3_PRESIGN_GET: z.string().default("false"),
   /*
    * Sender for the daily report.
    *

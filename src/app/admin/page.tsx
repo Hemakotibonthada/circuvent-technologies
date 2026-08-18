@@ -743,9 +743,19 @@ export default function AdminDashboard() {
      * read at 50% browser zoom. The rows below are the same controls at
      * toolbar height, and they scroll sideways instead of wrapping.
      */
-    <div className="min-h-screen pt-[72px]">
+    /*
+     * No top padding, and the header sticks to 0.
+     *
+     * Both numbers used to be 72px, reserving room for the marketing nav that
+     * SiteChrome rendered above this page. That nav is no longer drawn on
+     * /admin — an operations console does not want a Shop link, and two
+     * stacked toolbars cost ~120px before any data — so the offset now
+     * reserves space for nothing and would leave a gap above a header that
+     * sticks 72px down the screen.
+     */
+    <div className="min-h-screen">
       <div
-        className="sticky top-[72px] z-30 backdrop-blur-xl"
+        className="sticky top-0 z-30 backdrop-blur-xl"
         style={{
           background: "var(--bg-overlay)",
           borderBottom: "1px solid var(--border-primary)",
