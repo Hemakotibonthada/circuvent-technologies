@@ -33,7 +33,7 @@ function jwkFor(key: crypto.KeyObject, kid: string) {
 
 /** Serves discovery and the published keys, as the provider would. */
 function stubProvider(publish: crypto.KeyObject = good.publicKey): void {
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
     const url = String(input);
     const body = url.includes("openid-configuration")
       ? { jwks_uri: `${ISSUER}/.well-known/jwks.json` }
@@ -125,7 +125,7 @@ describe("single sign-on token verification", () => {
 
     const rotated = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
     const NEW_KID = "test-key-2";
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
       const url = String(input);
       const body = url.includes("openid-configuration")
         ? { jwks_uri: `${ISSUER}/.well-known/jwks.json` }
