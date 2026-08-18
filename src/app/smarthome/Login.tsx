@@ -595,9 +595,41 @@ export default function Login() {
          */
         html[data-cv-scheme="light"] .cvlogin .cv-input {
           color: #0f172a !important;
-          background: transparent !important;
+          /*
+           * background-COLOR, not the background shorthand.
+           *
+           * The shorthand resets every background property it does not name,
+           * including background-clip — which is the one thing keeping Chrome's
+           * autofill paint off this field. Writing the shorthand here put
+           * background-clip back to border-box, and since this rule is both
+           * more specific and important, the autofill rule below lost. The
+           * result was the blue block sitting inside each field once the
+           * browser filled it in.
+           *
+           * No backticks in this block: these rules live in a template literal,
+           * and one would end it.
+           */
+          background-color: transparent !important;
           border: 0 !important;
           box-shadow: none !important;
+        }
+        html[data-cv-scheme="light"] .cvlogin .cv-input:-webkit-autofill,
+        html[data-cv-scheme="light"] .cvlogin .cv-input:-webkit-autofill:hover,
+        html[data-cv-scheme="light"] .cvlogin .cv-input:-webkit-autofill:focus,
+        html[data-cv-scheme="light"] .cvlogin .cv-input:-webkit-autofill:active {
+          /*
+           * The dark rule's ink is #e2e8f0, chosen for a dark glass card. On the
+           * light card that is near-white on white: the address and the password
+           * dots were technically rendered and effectively unreadable.
+           *
+           * The -webkit-text-fill-color property beats the color property, so
+           * the light color declared above does not reach an autofilled field
+           * on its own.
+           */
+          -webkit-text-fill-color: #0f172a;
+          -webkit-background-clip: text !important;
+          background-clip: text !important;
+          caret-color: #0f172a;
         }
         html[data-cv-scheme="light"] .cvlogin .cv-input::placeholder {
           color: #94a3b8;
