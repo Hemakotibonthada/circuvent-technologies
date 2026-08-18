@@ -4,8 +4,23 @@ import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/newsletter
- * 
- * Subscribes an email to the Buttondown newsletter.
+ *
+ * Subscribes an email to the Buttondown newsletter using confirmed (double)
+ * opt-in.
+ *
+ * Two rules here are deliberate and must not be relaxed:
+ *
+ *  1. `consent` must be explicitly true. The caller ticks a separate,
+ *     non-prechecked box that asks for nothing but marketing consent, so
+ *     subscribing is never a side effect of some other action.
+ *  2. We do NOT send `type: "regular"`. Buttondown's default creates the
+ *     subscriber as `unactivated` and emails a confirmation link, so an
+ *     address only joins the list once its owner clicks it. Passing
+ *     `type: "regular"` would let anyone subscribe someone else's address
+ *     without their knowledge.
+ *
+ * Consent metadata is stored alongside the subscriber so we can evidence when
+ * and where each person opted in.
  */
 export async function POST(request: Request) {
   try {
@@ -19,11 +34,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email } = await request.json();
+    const { email, consent, source } = await request.json();
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
         { success: false, error: "Please provide a valid email address." },
+        { status: 400 }
+      );
+    }
+
+    if (consent !== true) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Please tick the consent box to confirm you'd like to receive these emails.",
+        },
         { status: 400 }
       );
     }
@@ -46,21 +72,28 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         email_address: email,
-        type: "regular",
+        metadata: {
+          consent_given_at: new Date().toISOString(),
+          consent_source:
+            typeof source === "string" && source ? source : "circuvent.com",
+          consent_ip: ip,
+          consent_method: "explicit checkbox + confirmed opt-in",
+        },
       }),
     });
 
     if (response.status === 201) {
       return NextResponse.json({
         success: true,
-        message: "You're subscribed! Welcome aboard.",
+        message:
+          "Almost there — check your inbox and click the confirmation link to finish subscribing.",
       });
     }
 
     if (response.status === 409) {
       return NextResponse.json({
         success: true,
-        message: "You're already subscribed!",
+        message: "You're already on the list!",
       });
     }
 

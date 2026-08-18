@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, useInView } from "framer-motion";
 import Link from "next/link";
-import { Github, Linkedin, Twitter, Mail, ArrowUpRight, Heart, Sparkles, Code2, Cpu, Globe, Send, ChevronUp } from "lucide-react";
+import { Github, Linkedin, Mail, ArrowUpRight, Heart, Sparkles, Code2, Cpu, Globe, ChevronUp } from "lucide-react";
+import Newsletter from "@/components/Newsletter";
 
 const footerLinks = {
   shop: [
@@ -19,7 +20,7 @@ const footerLinks = {
     { label: "Open Source", href: "/open-source" },
     { label: "Blog", href: "/blog" },
     { label: "Docs", href: "/docs" },
-    { label: "Developer API", href: "/developers" },
+    { label: "Developer API", href: "/developer" },
   ],
   company: [
     { label: "About", href: "/about" },
@@ -36,11 +37,15 @@ const footerLinks = {
   ],
 };
 
+// Social links are also brand signals: a crawler follows them, and a dead one
+// is a claim the company cannot back up. `twitter.com/circuvent` 404s, so it is
+// gone rather than left as decoration — it is re-added the moment a real
+// account exists. The email also now points at the company domain rather than a
+// personal gmail address, which is what the rest of the site advertises.
 const socials = [
   { icon: Github, href: "https://github.com/Hemakotibonthada", label: "GitHub", color: "#ffffff", hoverBg: "rgba(255,255,255,0.1)" },
-  { icon: Linkedin, href: "https://linkedin.com/company/circuvent", label: "LinkedIn", color: "#0a66c2", hoverBg: "rgba(10,102,194,0.1)" },
-  { icon: Twitter, href: "https://twitter.com/circuvent", label: "Twitter", color: "#1da1f2", hoverBg: "rgba(29,161,242,0.1)" },
-  { icon: Mail, href: "mailto:hemakotibonthada@gmail.com", label: "Email", color: "#06b6d4", hoverBg: "rgba(6,182,212,0.1)" },
+  { icon: Linkedin, href: "https://www.linkedin.com/company/circuvent", label: "LinkedIn", color: "#0a66c2", hoverBg: "rgba(10,102,194,0.1)" },
+  { icon: Mail, href: "mailto:contact@circuvent.com", label: "Email", color: "#06b6d4", hoverBg: "rgba(6,182,212,0.1)" },
 ];
 
 const stats = [
@@ -50,19 +55,9 @@ const stats = [
 ];
 
 export default function Footer() {
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
   const footerRef = useRef<HTMLElement>(null);
   const isInView = useInView(footerRef, { once: true, amount: 0.1 });
-
-  const handleSubscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !email.includes("@")) return;
-    setSubscribed(true);
-    setEmail("");
-    setTimeout(() => setSubscribed(false), 5000);
-  };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -149,44 +144,7 @@ export default function Footer() {
                 </p>
               </div>
             </div>
-            <form onSubmit={handleSubscribe} className="flex gap-2 w-full sm:w-auto">
-              {subscribed ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-emerald-500"
-                  style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}
-                >
-                  <Heart className="w-4 h-4" /> Subscribed!
-                </motion.div>
-              ) : (
-                <>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="hello@circuvent.com"
-                    aria-label="Email address for newsletter"
-                    className="min-h-[44px] flex-1 sm:w-64 px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
-                    style={{
-                      background: "var(--bg-surface)",
-                      border: "1px solid var(--border-primary)",
-                      color: "var(--text-primary)",
-                    }}
-                  />
-                  <motion.button
-                    type="submit"
-                    aria-label="Subscribe to newsletter"
-                    className="inline-flex min-h-[44px] items-center justify-center px-5 py-2.5 rounded-xl text-sm font-medium text-white shrink-0"
-                    style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)" }}
-                    whileHover={{ scale: 1.02, boxShadow: "0 4px 20px rgba(6,182,212,0.3)" }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Send className="w-4 h-4" />
-                  </motion.button>
-                </>
-              )}
-            </form>
+            <Newsletter variant="inline" className="w-full sm:w-auto sm:max-w-md" />
           </div>
         </motion.div>
 

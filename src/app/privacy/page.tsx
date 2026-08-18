@@ -11,7 +11,7 @@ const sections = [
     content: [
       "When you visit our website, we may collect certain information automatically, including your IP address, browser type, operating system, referring URLs, and pages visited. This data helps us understand how visitors use our site and improve the user experience.",
       "If you contact us through our contact form, we collect the information you provide, including your name, email address, company name, and message content. This information is used solely to respond to your inquiry.",
-      "We may also collect information when you subscribe to our newsletter, including your email address. You can unsubscribe at any time using the link provided in each email.",
+      "We may also collect information when you subscribe to our newsletter, including your email address. The newsletter is entirely optional and is never a condition of contacting us, buying from us, or using the site: you subscribe only by entering your address and separately ticking the consent box, and we then email you a confirmation link that you must click before we send you anything. We record when and where that consent was given. You can unsubscribe at any time using the link provided in each email.",
     ],
   },
   {

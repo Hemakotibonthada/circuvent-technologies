@@ -13,6 +13,47 @@ interface NewsletterProps {
   variant?: "inline" | "card";
 }
 
+/**
+ * Marketing consent, asked as its own question.
+ *
+ * Deliberately starts unticked and is never bundled with anything else, so
+ * consent is a separate affirmative act rather than a condition of using the
+ * site. Do not precheck it.
+ */
+function ConsentCheckbox({
+  id,
+  checked,
+  onChange,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="flex items-start gap-2.5 text-left cursor-pointer"
+    >
+      <input
+        id={id}
+        name="newsletter-consent"
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-[3px] h-4 w-4 shrink-0 cursor-pointer rounded"
+        style={{ accentColor: "var(--accent-cyan)" }}
+      />
+      <span
+        className="text-xs leading-relaxed"
+        style={{ color: "var(--text-tertiary)" }}
+      >
+        Yes, email me occasional engineering insights and project updates. I can
+        unsubscribe at any time.
+      </span>
+    </label>
+  );
+}
+
 export default function Newsletter({
   title = "Stay in the Loop",
   description = "Get engineering insights, project updates, and open source news delivered to your inbox.",
@@ -20,8 +61,10 @@ export default function Newsletter({
   variant = "card",
 }: NewsletterProps) {
   const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,13 +75,28 @@ export default function Newsletter({
       return;
     }
 
+    if (!consent) {
+      setErrorMessage(
+        "Please tick the box to confirm you'd like to receive these emails."
+      );
+      setStatus("error");
+      return;
+    }
+
     setStatus("loading");
 
     try {
       const response = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          consent,
+          source:
+            typeof window !== "undefined"
+              ? window.location.pathname
+              : "circuvent.com",
+        }),
       });
 
       const result = await response.json();
@@ -49,50 +107,67 @@ export default function Newsletter({
         return;
       }
 
+      setSuccessMessage(result.message || "Check your inbox to confirm.");
       setStatus("success");
       setEmail("");
+      setConsent(false);
 
-      // Reset after 4 seconds
-      setTimeout(() => setStatus("idle"), 4000);
+      // Reset after 8 seconds — long enough to read the confirmation notice
+      setTimeout(() => setStatus("idle"), 8000);
     } catch {
       setErrorMessage("Something went wrong. Please try again.");
       setStatus("error");
     }
   };
 
+  const consentInputId = `newsletter-consent-${variant}`;
+
   if (variant === "inline") {
     return (
       <div className={className}>
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <div className="flex-1">
-            <Input
-              type="email"
-              placeholder="hello@circuvent.com"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (status === "error") setStatus("idle");
-              }}
-              leftIcon={<Mail className="w-4 h-4" />}
-              error={status === "error" ? errorMessage : undefined}
-            />
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Input
+                type="email"
+                placeholder="hello@circuvent.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (status === "error") setStatus("idle");
+                }}
+                leftIcon={<Mail className="w-4 h-4" />}
+                error={status === "error" ? errorMessage : undefined}
+              />
+            </div>
+            <Button
+              type="submit"
+              disabled={status === "loading" || status === "success" || !consent}
+              className="shrink-0"
+            >
+              {status === "loading" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : status === "success" ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : (
+                <>
+                  Subscribe
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
           </div>
-          <Button
-            type="submit"
-            disabled={status === "loading" || status === "success"}
-            className="shrink-0"
-          >
-            {status === "loading" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : status === "success" ? (
-              <CheckCircle className="w-4 h-4" />
-            ) : (
-              <>
-                Subscribe
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </Button>
+          <ConsentCheckbox
+            id={consentInputId}
+            checked={consent}
+            onChange={(value) => {
+              setConsent(value);
+              if (status === "error") setStatus("idle");
+            }}
+          />
+          {status === "success" && (
+            <p className="text-xs text-emerald-500">{successMessage}</p>
+          )}
         </form>
       </div>
     );
@@ -142,7 +217,7 @@ export default function Newsletter({
             >
               <CheckCircle className="w-5 h-5 text-emerald-500" />
               <span className="text-sm font-medium text-emerald-500">
-                You&apos;re subscribed! Welcome aboard.
+                {successMessage}
               </span>
             </motion.div>
           ) : (
@@ -152,42 +227,53 @@ export default function Newsletter({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onSubmit={handleSubmit}
-              className="flex flex-col sm:flex-row gap-3"
+              className="space-y-4"
             >
-              <div className="flex-1">
-                <Input
-                  type="email"
-                  placeholder="hello@circuvent.com"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (status === "error") setStatus("idle");
-                  }}
-                  leftIcon={<Mail className="w-4 h-4" />}
-                  error={status === "error" ? errorMessage : undefined}
-                />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <Input
+                    type="email"
+                    placeholder="hello@circuvent.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (status === "error") setStatus("idle");
+                    }}
+                    leftIcon={<Mail className="w-4 h-4" />}
+                    error={status === "error" ? errorMessage : undefined}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={status === "loading" || !consent}
+                  className="shrink-0 group"
+                >
+                  {status === "loading" ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      Subscribe
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
+                </Button>
               </div>
-              <Button
-                type="submit"
-                size="lg"
-                disabled={status === "loading"}
-                className="shrink-0 group"
-              >
-                {status === "loading" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    Subscribe
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
-              </Button>
+              <ConsentCheckbox
+                id={consentInputId}
+                checked={consent}
+                onChange={(value) => {
+                  setConsent(value);
+                  if (status === "error") setStatus("idle");
+                }}
+              />
             </motion.form>
           )}
         </AnimatePresence>
 
         <p className="text-xs mt-4" style={{ color: "var(--text-muted)" }}>
-          No spam. Unsubscribe at any time. Read our{" "}
+          We&apos;ll email you to confirm before sending anything. No spam,
+          unsubscribe at any time. Read our{" "}
           <a href="/privacy" className="underline hover:text-[var(--accent-cyan)]">
             Privacy Policy
           </a>
