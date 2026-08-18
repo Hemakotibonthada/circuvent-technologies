@@ -197,6 +197,31 @@ export async function initDb(): Promise<void> {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- Brute-force lockouts.
+    --
+    -- The rate limiter in front of /auth caps the pace at twenty requests a
+    -- minute per address. That is a flood control, not a guessing control:
+    -- twelve hundred attempts an hour, indefinitely, is a workable rate for
+    -- walking a password list.
+    --
+    -- Rows are keyed by scope so the same table can hold both halves of the
+    -- defence. An address alone lets a botnet try one password per account
+    -- from a different IP each time; an account alone lets one address work
+    -- through a list of accounts, failing once each, and trip nothing.
+    CREATE TABLE IF NOT EXISTS auth_lockouts (
+      scope_kind        TEXT NOT NULL CHECK (scope_kind IN ('ip', 'email')),
+      scope_value       TEXT NOT NULL,
+      failures          INT NOT NULL DEFAULT 0,
+      window_started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      blocked_until     TIMESTAMPTZ,
+      updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (scope_kind, scope_value)
+    );
+
+    -- Answering "is this caller locked out" on every sign-in attempt.
+    CREATE INDEX IF NOT EXISTS auth_lockouts_blocked_idx
+      ON auth_lockouts (blocked_until) WHERE blocked_until IS NOT NULL;
+
     -- Scheduler tick claims.
     --
     -- Time-triggered automations were de-duplicated by a variable inside the

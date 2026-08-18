@@ -9,6 +9,13 @@ import { sendOtpEmail, sendPasswordResetEmail } from "../mail";
 import { config } from "../config";
 import { logger } from "../logger";
 import { ssoEnabled, verifyIdToken } from "../sso";
+import {
+  checkLockout,
+  clearFailures,
+  clientIp,
+  recordFailure,
+  LOCKOUT_MINUTES,
+} from "../login-guard";
 
 export const authRouter = Router();
 
@@ -175,13 +182,37 @@ authRouter.post("/login", async (req, res) => {
     return;
   }
   const emailNorm = parsed.data.email.trim().toLowerCase();
+  const ip = clientIp(req);
   try {
+    /*
+     * Checked before the password, so a locked-out caller cannot keep using
+     * this endpoint as an oracle — and so the cost of being locked out is a
+     * cheap query rather than a bcrypt comparison per attempt.
+     */
+    const lock = await checkLockout(ip, emailNorm);
+    if (lock.blocked) {
+      res.setHeader("Retry-After", String(lock.retryAfterSeconds));
+      res.status(429).json({
+        error: "Too many failed sign-in attempts. Try again later.",
+        retryAfterSeconds: lock.retryAfterSeconds,
+      });
+      return;
+    }
+
     const { rows } = await pool.query<{ id: number; name: string; password: string; blocked: boolean }>(
       `SELECT id, name, password, blocked FROM users WHERE email = $1`,
       [emailNorm]
     );
     const user = rows[0];
     if (!user || !(await verifyPassword(parsed.data.password, user.password))) {
+      // An unknown address counts too. Only counting failures against accounts
+      // that exist turns the counter itself into a way to enumerate them.
+      const nowLocked = await recordFailure(ip, emailNorm);
+      if (nowLocked) {
+        res.setHeader("Retry-After", String(LOCKOUT_MINUTES * 60));
+        res.status(429).json({ error: "Too many failed sign-in attempts. Try again later." });
+        return;
+      }
       res.status(401).json({ error: "Invalid email or password." });
       return;
     }
@@ -193,8 +224,12 @@ authRouter.post("/login", async (req, res) => {
       res.status(403).json({ error: "This account has been disabled." });
       return;
     }
+    // Someone who mistypes twice and then gets in should not stay two thirds
+    // of the way to a lockout for the rest of the window.
+    await clearFailures(ip, emailNorm);
     res.json(await sessionResponse(Number(user.id), emailNorm, user.name));
-  } catch {
+  } catch (err) {
+    logger.error({ err }, "login failed");
     res.status(500).json({ error: "Login failed." });
   }
 });
