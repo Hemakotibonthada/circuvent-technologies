@@ -4,29 +4,42 @@ import { rateLimit } from "@/lib/rate-limit";
 import { addContactMessage, flushNow } from "@/lib/store";
 import { sendMail } from "@/lib/order-core";
 
-/** Per-service team routing. Overridable via env; defaults to a team alias on the domain. */
+/**
+ * Per-service team routing, when it has somewhere to route to.
+ *
+ * These used to default to `ai@`, `iot@`, `web@`, `mobile@`, `enterprise@` and
+ * `devops@` on the domain. None of those addresses exist — not as mailboxes and
+ * not in the alias table — so every enquiry that named a service was CC'd to a
+ * dead address and produced a bounce. A bounce our own relay has to handle, at
+ * a moment when our sending reputation is under review.
+ *
+ * So the defaults are gone rather than invented. Set the matching TEAM_*_EMAIL
+ * variable to turn routing on for a service; until then an enquiry simply goes
+ * to the main contact address, which is what was actually happening anyway.
+ */
 function teamEmailFor(service?: string): string | undefined {
   if (!service) return undefined;
   const key = service.toLowerCase();
-  const env = (n: string) => process.env[n];
+  const env = (n: string) => process.env[n]?.trim() || undefined;
   const map: Record<string, string | undefined> = {
-    "ai-ml": env("TEAM_AI_EMAIL") || "ai@circuvent.com",
-    ai: env("TEAM_AI_EMAIL") || "ai@circuvent.com",
-    iot: env("TEAM_IOT_EMAIL") || "iot@circuvent.com",
-    web: env("TEAM_WEB_EMAIL") || "web@circuvent.com",
-    "web-development": env("TEAM_WEB_EMAIL") || "web@circuvent.com",
-    mobile: env("TEAM_MOBILE_EMAIL") || "mobile@circuvent.com",
-    enterprise: env("TEAM_ENTERPRISE_EMAIL") || "enterprise@circuvent.com",
-    devops: env("TEAM_DEVOPS_EMAIL") || "devops@circuvent.com",
-    cloud: env("TEAM_DEVOPS_EMAIL") || "devops@circuvent.com",
+    "ai-ml": env("TEAM_AI_EMAIL"),
+    ai: env("TEAM_AI_EMAIL"),
+    iot: env("TEAM_IOT_EMAIL"),
+    web: env("TEAM_WEB_EMAIL"),
+    "web-development": env("TEAM_WEB_EMAIL"),
+    mobile: env("TEAM_MOBILE_EMAIL"),
+    enterprise: env("TEAM_ENTERPRISE_EMAIL"),
+    devops: env("TEAM_DEVOPS_EMAIL"),
+    cloud: env("TEAM_DEVOPS_EMAIL"),
   };
   return map[key];
 }
 
 /**
  * POST /api/contact
- * 
- * Handles contact form submissions via Resend email.
+ *
+ * Handles contact form submissions. The message is saved for the admin and
+ * emailed through the Circuvent mail server.
  */
 export async function POST(request: Request) {
   try {
