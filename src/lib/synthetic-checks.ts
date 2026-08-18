@@ -76,37 +76,22 @@ export function defaultChecks(): SyntheticCheck[] {
     web("web-dev", "dev.circuvent.com", "https://dev.circuvent.com/api/health", "Platform"),
     web("mail-prod", "mail.circuvent.com", "https://mail.circuvent.com/api/health", "Platform"),
     web("mail-dev", "dev.mail.circuvent.com", "https://dev.mail.circuvent.com/api/health", "Platform"),
-    web("office-web", "office.circuvent.com", "https://office.circuvent.com", "Web"),
     /*
-     * The Office API, at the path the proxy actually answers on. This is the
-     * check that would have caught the outage: the site above returns 200 the
-     * whole time, because a static bundle serves fine no matter what its API
-     * is doing.
+     * Office was retired, so its three checks are gone with it — the web bundle,
+     * the API behind the proxy, and the realtime socket.
+     *
+     * Monitoring a service nobody runs any more produces exactly one outcome: a
+     * red row, or a page, for something that is supposed to be off. The first
+     * time that happens somebody investigates; the second time they learn to
+     * ignore the board, which costs more than the check ever saved.
+     *
+     * Worth noting what those checks knew that a simpler one would not, because
+     * the same trap applies to whatever replaces them: the web check passed
+     * throughout the outage that motivated it, since a static bundle serves fine
+     * however dead its API is. The API check is the one that would have caught
+     * it — and even that reports "ok" from a process whose database has been
+     * deleted, because its health endpoint never asked the database anything.
      */
-    {
-      id: "office-api",
-      name: "Office API",
-      url: "https://mx.circuvent.com/office-api/api/health",
-      method: "GET",
-      expectStatus: [200],
-      expectBody: "ok",
-      owningTeam: "Platform",
-      enabled: true,
-    },
-    /*
-     * And the socket, because it broke independently of the API and was
-     * invisible: the app rendered, and only the live updates were missing.
-     * A bare GET on the Engine.IO endpoint returns a handshake.
-     */
-    {
-      id: "office-socket",
-      name: "Office realtime",
-      url: "https://mx.circuvent.com/office-api/socket.io/?EIO=4&transport=polling",
-      method: "GET",
-      expectStatus: [200],
-      owningTeam: "Platform",
-      enabled: true,
-    },
   ];
 }
 
