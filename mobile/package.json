@@ -24,7 +24,8 @@
     "contrast:check": "node scripts/check-contrast.js",
     "ui:audit": "node scripts/audit-mobile.js --list",
     "states:audit": "node scripts/audit-states.js",
-    "permissions:check": "node scripts/check-permissions.js"
+    "permissions:check": "node scripts/check-permissions.js",
+    "check:16k": "node scripts/check-16k-pages.cjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
