@@ -9,7 +9,22 @@
    explicitly so the fleet can tell fixed devices from unfixed ones; without
    it every sketch reported the library default and they were
    indistinguishable. */
-#define CV_FW_VERSION "1.1.0"
+/* 1.2.0  autoLockSec is published back after a change. It updated the variable and NVS but never cv.set() it, so nothing was marked dirty, no state was pushed, and the console reverted the stepper on the next heartbeat. */
+/*
+ * 1.3.0  The button no longer fights the reset gesture, which on a lock is a
+ *        security problem rather than an annoyance. BTN_PIN is GPIO0, the pin
+ *        `setResetButton(0)` also watches, and the test was level-triggered
+ *        with a 500 ms rate limit — "every 500 ms while held", not "on press".
+ *        Holding BOOT for three seconds to change the Wi-Fi therefore threw the
+ *        bolt about six times and left it wherever the timing landed, which is
+ *        unlocked half the time; it also restarted the auto-relock countdown on
+ *        each pass. Worse, the old test acted on a pin that was already low at
+ *        boot — and GPIO0 is a strapping pin that can sit low while the rail
+ *        comes up, so a power cut could unlock the door on its own. Now a tap,
+ *        via CvTapButton, which refuses to arm until it has seen the pin
+ *        released.
+ */
+#define CV_FW_VERSION "1.3.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 
@@ -21,6 +36,7 @@
 
 CircuventDevice cv("smart-lock");
 Preferences store;
+CvTapButton btn;
 
 bool locked = true;
 bool savedLocked = true;
@@ -43,7 +59,22 @@ void applyLock(bool lock) {
 void onCommand(const String &action, JsonObjectConst p) {
   if (action == "set") {
     if (p["locked"].is<bool>()) applyLock(p["locked"].as<bool>());
-    if (p["autoLockSec"].is<int>()) { autoLockSec = p["autoLockSec"].as<int>(); store.putInt("autoLock", autoLockSec); }
+    if (p["autoLockSec"].is<int>()) {
+      autoLockSec = p["autoLockSec"].as<int>();
+      store.putInt("autoLock", autoLockSec);
+      /*
+       * Publish it back, or the console reverts it.
+       *
+       * `cv.set()` is what marks the state dirty; changing the variable and the
+       * NVS key alone leaves the retained state document holding whatever was
+       * published at boot. Because nothing else here dirtied the state,
+       * `_dispatch`'s `if (_dirty) publishStateNow()` did not fire either — so
+       * the value took effect on the device and the next heartbeat told the app
+       * the old one. The stepper snapped back and the setting looked broken
+       * while working perfectly.
+       */
+      cv.set("autoLockSec", autoLockSec);
+    }
   } else if (action == "lock") {
     applyLock(true);
   } else if (action == "unlock") {
@@ -55,7 +86,7 @@ void setup() {
   Serial.begin(115200);
   pinMode(LOCK_RELAY, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
-  pinMode(BTN_PIN, INPUT_PULLUP);
+  btn.begin(BTN_PIN);
   store.begin("lock", false);
   locked = store.getBool("locked", true);   // fail-safe default: locked
   savedLocked = locked;
@@ -69,10 +100,10 @@ void setup() {
   cv.begin();
 }
 
-unsigned long lastBtn = 0;
 void loop() {
-  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 500) {
-    lastBtn = millis();
+  /* A tap throws the bolt. A multi-second hold is the Wi-Fi/factory reset
+     gesture on this same pin and must not move the lock on its way past. */
+  if (btn.tapped()) {
     applyLock(!locked);
   }
   // Auto re-lock after the configured delay.

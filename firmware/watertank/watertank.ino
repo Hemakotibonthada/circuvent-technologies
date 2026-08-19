@@ -37,8 +37,34 @@
  * broker bridge, web console and mobile app pick it up with no changes.
  * Deps: CircuventDevice, ArduinoJson, LoRa.  Board: ESP32.
  */
-/** Version history: 1.0.0 initial; 1.1.0 adds OTA; 2.0.0 overhead level over LoRa. */
-#define CV_FW_VERSION "2.0.1"
+/*
+ * Version history
+ *   1.0.0  initial
+ *   1.1.0  adds OTA
+ *   2.0.0  overhead level over LoRa
+ *   2.1.0  Sump calibration is validated. A swapped or equal empty/full pair
+ *          silently inverted the level — defeating the pump's dry-run
+ *          interlock — or produced a NaN percentage. The manual button also no
+ *          longer fires repeatedly during the GPIO0 reset gesture, which used
+ *          to disable auto-fill permanently.
+ *   2.2.0  A sump that cannot be read no longer reports 50%. It did, and 50 is
+ *          above every possible sumpMin, so a failed sump ultrasonic satisfied
+ *          the pump's primary dry-run interlock and auto-fill would start the
+ *          motor on it. Also stops a malformed pairing offer from overwriting
+ *          the live sensor's key, and makes the persisted replay counter
+ *          actually apply after a reboot.
+ *   2.3.0  The manual button ignores a pin that was already low at boot. 2.1.0
+ *          made it act on release, which stopped a reset hold from repeatedly
+ *          toggling the pump, but the first pass of loop() still treated an
+ *          already-low GPIO0 as a press beginning at that instant. Nobody can
+ *          start a press before the device is running, and GPIO0 is a strapping
+ *          pin that can sit low for seconds while the rail comes up — so a
+ *          dirty mains restore could release into a valid-looking tap, toggle
+ *          the pump and disable auto-fill on its own. Now shares CvTapButton
+ *          with the other sketches on this pin, which arms only after seeing a
+ *          release.
+ */
+#define CV_FW_VERSION "2.3.0"
 #include <CircuventDevice.h>
 #include <LoRa.h>
 #include <Preferences.h>
@@ -91,7 +117,15 @@ bool pump = false, autoMode = true, dryRun = false, overflow = false;
 bool ohFault = false, sumpFault = false, savedPump = false, savedAuto = true;
 int  ohPct = 0, sumpPct = 0, ohAtStart = 0;
 float ohCm = 0, spCm = 0, amps = 0;
-uint32_t pumpStart = 0, lastStop = 0, lastBtn = 0, lastBeep = 0;
+uint32_t pumpStart = 0, lastStop = 0, lastBeep = 0;
+
+/*
+ * Manual-override button state.
+ *
+ * BTN_PIN is GPIO0, shared with the platform reset gesture, so the press has
+ * to be timed rather than merely sampled — see the handler in loop().
+ */
+CvTapButton btn;
 
 // ---- radio tankLink to the tank-top sensor ----
 CvTankLinkState tankLink;
@@ -172,8 +206,28 @@ float medianCm(int trig, int echo) {
 }
 int pctFromCm(float d, float emptyCm, float fullCm, bool &fault) {
   if (d < 0 || d > emptyCm + 40 || d < fullCm - 10) { fault = true; return -1; }
+  /*
+   * A calibration where "empty" is not further away than "full" is not a
+   * reading, it is a fault.
+   *
+   * This is the guard the shared `cvTankPctFromMm()` in CvTankLink.h already
+   * has, and this near-identical local copy had dropped. Two ways to get here,
+   * both from the app: equal values divide by zero, and for the one distance
+   * that makes the numerator zero as well that is 0.0/0.0 = NaN — which
+   * survives both clamps below, because every comparison against NaN is
+   * false — so `(int)(NaN + 0.5f)` is undefined and `sumpPct` becomes
+   * whatever the FPU left behind. Swapped values are worse because they look
+   * fine: the percentage simply runs backwards, so an empty sump reports full.
+   *
+   * `sumpPct` is the pump's primary dry-run interlock — `setPump` refuses to
+   * start when `sumpPct <= sumpMin`. A silently inverted sump therefore
+   * defeats the first line of defence and leaves only the 60-second dry-run
+   * current detection, i.e. a minute of a pump running dry.
+   */
+  float span = emptyCm - fullCm;
+  if (span <= 0.0f) { fault = true; return -1; }
   fault = false;
-  float pct = (emptyCm - d) / (emptyCm - fullCm) * 100.0f;
+  float pct = (emptyCm - d) / span * 100.0f;
   if (pct < 0) pct = 0; if (pct > 100) pct = 100;
   return (int)(pct + 0.5f);
 }
@@ -252,15 +306,24 @@ void sendPendingDownlink() {
  * then tell it whatever it liked about the water level.
  */
 void handlePairOffer(const CvTankPacket &p, const uint8_t *offeredKey) {
-  memcpy(linkKey, offeredKey, CV_TANK_KEY_BYTES);
-
   /*
-   * Verify the offer against the key it presented. This proves the sender holds
-   * that key rather than having copied a packet, and it rejects a corrupted
-   * frame that happened to survive CRC.
+   * Verified against the offered key BEFORE anything is committed.
+   *
+   * This used to copy the offer straight into `linkKey` and verify afterwards,
+   * so a frame that failed the check had already overwritten the key of the
+   * sensor currently paired. `savePairing()` was never reached, so NVS still
+   * held the right key — but the copy in RAM was wrong, every subsequent
+   * genuine reading failed `cvTankVerify`, and the link stayed dead until
+   * somebody power-cycled the starter. Auto-fill stops with it, so the tank
+   * quietly stops refilling.
+   *
+   * Reaching that state needs only a corrupted frame that survives CRC during
+   * the sixty seconds a pairing window is open — which is precisely when
+   * somebody is on a roof transmitting at full power next to the thing.
    */
-  if (!cvTankVerify(p, linkKey)) { tankLink.rejected++; return; }
+  if (!cvTankVerify(p, offeredKey)) { tankLink.rejected++; return; }
 
+  memcpy(linkKey, offeredKey, CV_TANK_KEY_BYTES);
   pairId = p.pairId;
   sensorPaired = true;
   // A fresh pairing starts replay protection from this packet, not from
@@ -356,6 +419,13 @@ void setPump(bool on) {
    */
   if (on && (dryRun || overflow || sumpPct <= sumpMin)) on = false;
   if (on && !ohLive) on = false;
+  /*
+   * A sump we cannot read is treated exactly like a radio link we cannot
+   * trust. `sumpPct` is -1 while faulted, so the comparison above already
+   * refuses — this is the explicit statement of the rule, so a future change
+   * to what a faulted sump reports cannot quietly re-open the pump.
+   */
+  if (on && sumpFault) on = false;
   if (on && !pump) {
     if (lastStop != 0 && millis() - lastStop < restartDelayMs) return;  // cool-down
     pumpStart = millis(); ohAtStart = ohPct; dryRun = false;
@@ -387,10 +457,34 @@ void onCommand(const String &action, JsonObjectConst p) {
     }
     if (p["ohCapacityL"].is<float>()) { OH_CAP_L = p["ohCapacityL"].as<float>(); cfg = true; }
     if (p["sumpCapacityL"].is<float>()) { SUMP_CAP_L = p["sumpCapacityL"].as<float>(); cfg = true; }
-    if (p["ohEmptyCm"].is<float>()) { OH_EMPTY_CM = p["ohEmptyCm"].as<float>(); cfg = true; }
-    if (p["ohFullCm"].is<float>())  { OH_FULL_CM  = p["ohFullCm"].as<float>();  cfg = true; }
-    if (p["sumpEmptyCm"].is<float>()) { SP_EMPTY_CM = p["sumpEmptyCm"].as<float>(); cfg = true; }
-    if (p["sumpFullCm"].is<float>())  { SP_FULL_CM  = p["sumpFullCm"].as<float>();  cfg = true; }
+    /*
+     * Calibration pairs are applied together, and only if they make sense.
+     *
+     * "Empty" is measured from a sensor at the top of the tank, so it is
+     * always the LARGER distance. These were written straight from the payload
+     * one at a time with no check, which allowed two bad states to be
+     * persisted: equal values (a division by zero in pctFromCm) and swapped
+     * values (a percentage that runs backwards, so an empty sump reports
+     * full — and the sump percentage is what stops the pump running dry).
+     *
+     * Staged into locals first so a payload that sets only one half of a pair
+     * is validated against the value already stored, rather than against
+     * whatever it happens to be mid-update.
+     */
+    {
+      float ohEmpty = OH_EMPTY_CM, ohFull = OH_FULL_CM;
+      float spEmpty = SP_EMPTY_CM, spFull = SP_FULL_CM;
+      if (p["ohEmptyCm"].is<float>()) ohEmpty = p["ohEmptyCm"].as<float>();
+      if (p["ohFullCm"].is<float>())  ohFull  = p["ohFullCm"].as<float>();
+      if (p["sumpEmptyCm"].is<float>()) spEmpty = p["sumpEmptyCm"].as<float>();
+      if (p["sumpFullCm"].is<float>())  spFull  = p["sumpFullCm"].as<float>();
+
+      // Rejected rather than clamped: there is no safe guess at which of the
+      // two numbers the installer meant, and silently "correcting" a swapped
+      // pair would calibrate the tank to a depth nobody chose.
+      if (ohEmpty - ohFull > 0.0f) { OH_EMPTY_CM = ohEmpty; OH_FULL_CM = ohFull; cfg = true; }
+      if (spEmpty - spFull > 0.0f) { SP_EMPTY_CM = spEmpty; SP_FULL_CM = spFull; cfg = true; }
+    }
     if (cfg) saveCfg();
   } else if (action == "resetDryRun") {
     dryRun = false;
@@ -421,6 +515,7 @@ void setup() {
   pinMode(SUMP_TRIG, OUTPUT); pinMode(SUMP_ECHO, INPUT);
   pinMode(OH_FLOAT_HI, INPUT);      // input-only pin; external pull-up
   pinMode(BTN_PIN, INPUT_PULLUP);
+  btn.begin(BTN_PIN);
   analogReadResolution(12);
   loadCfg();
 
@@ -476,14 +571,53 @@ void loop() {
     lastSense = millis();
     spCm = medianCm(SUMP_TRIG, SUMP_ECHO);
     sumpPct = pctFromCm(spCm, SP_EMPTY_CM, SP_FULL_CM, sumpFault);
-    if (sumpFault) sumpPct = sumpPct < 0 ? 50 : sumpPct;
+    /*
+     * A sump that cannot be read is NOT a sump that is half full.
+     *
+     * This used to substitute 50 for a faulted reading, and 50 is above every
+     * plausible `sumpMin` (capped at 60, default 15). So a disconnected or
+     * failed sump ultrasonic did not merely lose a display value — it produced
+     * a number that satisfied the pump's primary dry-run interlock, and
+     * auto-fill would start the motor on it. The only thing left underneath
+     * was the 60-second current-based dry-run trip, i.e. a full minute of a
+     * submersible pump running dry, repeated after every reset of the trip.
+     *
+     * The overhead side has always been handled correctly: a bad reading
+     * clears `ohLive` and nothing may pump. The sump had no equivalent, which
+     * is the whole of this bug. -1 is kept and published, exactly as the
+     * overhead level is when it is not current, and the interlocks below treat
+     * `sumpFault` the way they treat a dead radio link.
+     */
     overflow = (digitalRead(OH_FLOAT_HI) == LOW);
     amps = readAmps();
   }
 
-  // manual override button
-  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 500) {
-    lastBtn = millis(); autoMode = false; saveRun(); setPump(!pump); beep(60);
+  /*
+   * Manual override button — acts on release, and only for a short press.
+   *
+   * BTN_PIN is GPIO0, which is also handed to `cv.setResetButton(0)`. That pin
+   * has two owners: a tap means "toggle the pump", and a multi-second hold is
+   * the platform gesture for "clear Wi-Fi" (3 s) or "factory reset" (8 s).
+   *
+   * This test used to be level-triggered with only a 500 ms rate limit, so a
+   * hold did not belong to the reset gesture alone — it re-fired roughly twice
+   * a second for the whole hold. Each firing set `autoMode = false` and called
+   * `saveRun()`, which commits it to NVS. So somebody holding BOOT to change
+   * the Wi-Fi also, silently and permanently, turned off auto-fill: it survived
+   * the reboot, and the overhead tank then stopped refilling until a person
+   * noticed. The pump was pulsed on the way through too.
+   *
+   * The press/release pair fixed that but kept one hole: it treated a pin that
+   * was *already* low on the first pass of loop() as a press starting then. A
+   * press cannot begin before the device is running, and GPIO0 is a strapping
+   * pin that can sit low for seconds while the rail comes up after a power cut
+   * — so a dirty mains restore could release into a valid-looking tap and
+   * toggle the pump on its own. CvTapButton refuses to arm until it has seen
+   * the pin released, which is the rule `_pollResetButton` already applies to
+   * the other owner of this pin.
+   */
+  if (btn.tapped()) {
+    autoMode = false; saveRun(); setPump(!pump); beep(60);
   }
 
   // ---- safety interlocks ----
@@ -496,6 +630,17 @@ void loop() {
    * a number that is no longer being updated.
    */
   if (pump && !ohLive) { setPump(false); beep(150); }
+  /*
+   * Losing the sump mid-fill is the same shape of problem in the other
+   * direction: the pump is running and the interlock that would have stopped
+   * it before the sump ran dry has just gone blind. Auto mode would catch it
+   * on the next pass because -1 is below any sumpMin, but a manual run would
+   * not, and manual is exactly when somebody is not watching a screen.
+   *
+   * The median of five readings already absorbs a single bad echo, so a trip
+   * here means the sensor is genuinely not answering.
+   */
+  if (pump && sumpFault) { setPump(false); beep(150); }
   // Dry-run: motor drawing current but OH not rising within the window. Only
   // meaningful while the level is actually being updated.
   if (pump && ohLive && millis() - pumpStart > dryRunWindowMs) {
@@ -546,7 +691,14 @@ void loop() {
   cv.set("tankBattLow", (tankLink.flags & CV_TANK_FLAG_LOW_BATTERY) != 0);
 
   cv.set("sumpPct", sumpPct);
-  cv.set("sumpLitres", (int)(SUMP_CAP_L * sumpPct / 100.0f));
+  /*
+   * Litres follows the percentage, including when there is no percentage. A
+   * faulted sump publishing "0 litres" reads as an empty sump — which is a
+   * real condition with a real meaning — where -1 is understood everywhere in
+   * the apps as "no reading" (see TankGauge, which draws it as unknown rather
+   * than empty).
+   */
+  cv.set("sumpLitres", sumpPct < 0 ? -1 : (int)(SUMP_CAP_L * sumpPct / 100.0f));
   cv.set("pump", pump);
   cv.set("auto", autoMode);
   cv.set("dryRun", dryRun);

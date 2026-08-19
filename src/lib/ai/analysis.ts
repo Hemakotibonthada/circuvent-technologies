@@ -19,6 +19,7 @@ import type { Device, AppEvent } from "../control-plane";
 // Value import is safe despite tank-health importing Finding from here: that
 // direction is `import type`, which is erased, so there is no runtime cycle.
 import { findTankSensorProblems } from "../tank-health";
+import { findGuardianProblems } from "../guardian-health";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -421,6 +422,14 @@ export function analyseHome(input: {
      * and the first anyone knows is that there is no water.
      */
     ...findTankSensorProblems(devices),
+    /*
+     * A safety beacon needs its own detector for the same reason, one step
+     * further: it can be online, charged and reporting a position while being
+     * completely unable to call anybody — no contacts, no SIM, no network. The
+     * device does not consider that an error, because nothing has failed yet.
+     * Nobody finds out until the button is held.
+     */
+    ...findGuardianProblems(devices),
   ];
 
   for (const [deviceId, points] of Object.entries(input.telemetry ?? {})) {

@@ -39,7 +39,23 @@
  *      T5 — see the pin map, it is not an arbitrary choice.
  */
 /** Version history: 1.0.0 initial 8-gang board; 1.1.0 adds the local home link. */
-#define CV_FW_VERSION "1.1.1"
+/*
+ * 1.1.2  It no longer invents a mains voltage. `if (volts < 1) volts = 230.0`
+ *        was described as "nominal until the first V sample" and was true only
+ *        of the first few seconds: a board whose voltage sense had failed
+ *        reported exactly 230.0 for the rest of its life, and since the
+ *        published power factor is watts / (volts x amps), the fabricated
+ *        figure quietly corrupted that too. `volts` is now published only when
+ *        it was measured, next to a flag that says so, and the power factor is
+ *        cleared rather than left stale when there is nothing to divide by.
+ *
+ *        Metering is also published on a cadence. All five figures derive from
+ *        pulse counts and changed on every meter window, so the board emitted
+ *        a state message — and a database row — every second of its life, for
+ *        numbers nobody reads at that resolution. A pad press still publishes
+ *        immediately; that is somebody at the wall waiting for a light.
+ */
+#define CV_FW_VERSION "1.1.2"
 #include <CircuventDevice.h>
 #include <CvHomeLink.h>
 #include <Preferences.h>
@@ -191,6 +207,8 @@ void IRAM_ATTR onCF()  { cfCount++; }
 void IRAM_ATTR onCF1() { cf1Count++; }
 
 double volts = 0, amps = 0, watts = 0, pf = 0, kwh = 0;
+/* Whether `volts` came from the sensor or is simply not known. See readMeter. */
+bool voltsMeasured = false;
 uint32_t lastMeter = 0, lastTouchAt = 0, lastTouchRecal = 0;
 
 void calibrateTouch();
@@ -530,14 +548,41 @@ void readMeter() {
   double cfHz  = (cf  * 1000.0) / win;
   double cf1Hz = (cf1 * 1000.0) / win;
   watts = cfHz * PWR_MULT;
-  if (selCurrent) amps = cf1Hz * CUR_MULT; else volts = cf1Hz * VOL_MULT;
+  if (selCurrent) {
+    amps = cf1Hz * CUR_MULT;
+  } else {
+    volts = cf1Hz * VOL_MULT;
+    /*
+     * Whether the voltage is a reading or a guess.
+     *
+     * This used to say `if (volts < 1) volts = 230.0;` — "nominal until the
+     * first V sample". The comment was true of the first few seconds and false
+     * forever after: a board whose voltage sense had failed reported exactly
+     * 230.0 for the rest of its life, and because the published power factor
+     * is watts / (volts x amps), the fabricated number quietly corrupted that
+     * too. A meter that invents a reading is worse than one that admits it
+     * cannot take it. See Docs/31-metering.md, where the same trap cost more.
+     */
+    voltsMeasured = (volts > 1.0);
+  }
   digitalWrite(HLW_SEL, selCurrent ? LOW : HIGH);   // alternate the CF1 measurement
   selCurrent = !selCurrent;
 
-  if (volts < 1) volts = 230.0;                     // nominal until first V sample
-  if (watts > 1 && volts * amps > 1) pf = watts / (volts * amps);
-  if (pf > 1) pf = 1;
-  if (pf < 0) pf = 0;
+  /*
+   * Power factor needs both a load and a voltage worth dividing by. When
+   * either goes, pf is cleared rather than left holding its last value —
+   * a stale 0.98 on a board that has stopped measuring is indistinguishable
+   * from a healthy one.
+   */
+  const double vForPf = voltsMeasured ? volts : 0.0;
+  if (watts > 1 && vForPf * amps > 1) {
+    pf = watts / (vForPf * amps);
+    if (pf > 1) pf = 1;
+    if (pf < 0) pf = 0;
+  } else {
+    pf = 0;
+  }
+
   kwh += watts * (win / 3600000000.0);              // W * hours -> Wh, /1000 -> kWh
   static uint32_t lastSave = 0;
   if (now - lastSave > 60000) { store.putDouble("kwh", kwh); lastSave = now; }
@@ -554,10 +599,32 @@ void loop() {
     cv.set("homePeers", home.livePeers());
   }
 
-  cv.set("watts", (float)watts);
-  cv.set("volts", (float)volts);
-  cv.set("amps", (float)amps);
-  cv.set("pf", (float)pf);
-  cv.set("kwh", (float)kwh);
+  /*
+   * Metering on a cadence.
+   *
+   * Every one of these is a float derived from a pulse count, so all five
+   * changed on each meter window — and CircuventDevice republishes whenever
+   * state is dirty and _minGap has elapsed. A switchboard was therefore
+   * emitting a state message, and a database row, every second of its life:
+   * around 86,000 a day, per board, for numbers nobody reads at that
+   * resolution. A tap on a pad still publishes immediately, because that is
+   * somebody standing at the wall waiting for a light.
+   */
+  static uint32_t lastMeterPub = 0;
+  if (millis() - lastMeterPub >= 15000UL) {
+    lastMeterPub = millis();
+    cv.set("watts", (float)watts);
+    cv.set("amps", (float)amps);
+    cv.set("pf", (float)pf);
+    cv.set("kwh", (float)kwh);
+    /*
+     * The voltage is published only when it was actually measured, alongside
+     * the flag that says so. A console drawing 230 V from a board that cannot
+     * see the mains is the reason this exists.
+     */
+    cv.set("voltsMeasured", voltsMeasured);
+    if (voltsMeasured) cv.set("volts", (float)volts);
+  }
+
   cv.loop();
 }

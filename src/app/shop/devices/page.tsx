@@ -6,13 +6,30 @@ import {
   Plus,
   Power,
   Droplets,
-  Zap,
   ShieldAlert,
-  Activity,
   Cpu,
   Wifi,
   WifiOff,
   RefreshCw,
+  Home,
+  Plug,
+  Lightbulb,
+  Fan,
+  Blinds,
+  Lock,
+  ToggleRight,
+  ToggleLeft,
+  Gauge,
+  ScanLine,
+  Sprout,
+  Waves,
+  Car,
+  DoorOpen,
+  LayoutGrid,
+  Camera as CameraIcon,
+  ScanBarcode,
+  ClipboardCheck,
+  Plane,
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
 import AuthForm from "@/components/shop/AuthForm";
@@ -26,15 +43,48 @@ interface DeviceView {
   state: Record<string, unknown>;
 }
 
+/*
+ * Every type the console knows, with the console's icon.
+ *
+ * This map used to hold eight entries out of twenty-seven, which was invisible
+ * while the page could only ever list devices claimed here. Now that it lists
+ * what a customer actually owns, a missing entry means somebody's camera or
+ * curtain shows up in their own order history as a generic chip. The console
+ * comment that added the last four says it plainly: the same device must not
+ * look like two different things on two screens.
+ *
+ * Kept as its own map rather than importing DEVICE_META, which lives in a
+ * five-thousand-line console component that has no business in the shop
+ * bundle. tests/shop-device-icons.test.ts holds the two in agreement.
+ */
 const TYPE_ICON: Record<string, React.ElementType> = {
-  "smart-plug": Power,
-  "smart-switch": Power,
-  "home-hub": Cpu,
   aquaguard: Droplets,
-  "agri-starter": Droplets,
-  "energy-monitor": Zap,
+  "home-hub": Home,
+  "smart-plug": Plug,
+  "smart-light": Lightbulb,
+  "smart-fan": Fan,
+  curtain: Blinds,
+  "smart-lock": Lock,
+  "smart-switch": ToggleRight,
+  "energy-monitor": Gauge,
+  meter: Gauge,
   guardian: ShieldAlert,
-  "motion-sensor": Activity,
+  "motion-sensor": ScanLine,
+  "agri-starter": Sprout,
+  watertank: Waves,
+  "rfid-gate": Car,
+  switchboard: ToggleLeft,
+  facedoor: DoorOpen,
+  touchboard: LayoutGrid,
+  "touchboard-8": LayoutGrid,
+  sentinel: ShieldAlert,
+  camera: CameraIcon,
+  cctv: CameraIcon,
+  doorbell: CameraIcon,
+  "anpr-cam": ScanBarcode,
+  "rfid-attend": ClipboardCheck,
+  "drone-link": Plane,
+  "drone-x1": Plane,
 };
 
 export default function DevicesPage() {

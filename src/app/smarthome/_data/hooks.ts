@@ -16,6 +16,8 @@ import {
   type AdminHealth,
   type AdminStats,
   type AdminUser,
+  type AnprLane,
+  type AttendanceSite,
   type AppEvent,
   type Automation,
   type Device,
@@ -277,6 +279,108 @@ export function useEvents(limit = 200): EventFeed {
     remove,
     clear,
     severityOf: eventSeverity,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* ANPR presence                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Does this account actually have a number-plate camera?
+ *
+ * The console has one section per capability, and a household that owns two
+ * lamps should not be shown a gate-management section with an empty plate log
+ * in it — an empty screen for a device you do not own reads as something
+ * broken, not as something unbought.
+ *
+ * Two ways to have one, and both count, because both produce plate reads that
+ * land in the same log:
+ *
+ *   - an `anpr-cam`, which reads plates in firmware, or
+ *   - an ordinary `camera` enrolled as an ANPR lane, which the control plane
+ *     drives (see Docs/20-anpr.md §2a).
+ *
+ * The lane lookup is skipped entirely for an account with no camera at all, so
+ * the common case costs no extra request. It rides the shared resource cache,
+ * so the chrome and the Security page ask the same question once between them
+ * rather than once each.
+ */
+export function useAnprPresence(): { hasAnpr: boolean; ready: boolean } {
+  const { devices, loading: fleetLoading } = useFleet();
+
+  const hasAnprCam = useMemo(() => devices.some((d) => d.type === "anpr-cam"), [devices]);
+  const hasCamera = useMemo(() => devices.some((d) => d.type === "camera"), [devices]);
+
+  // Only asked when it could change the answer: an account already holding an
+  // anpr-cam is decided, and one with no camera has nothing to enrol.
+  const res = useResource<AnprLane[]>(
+    "anpr:lanes",
+    () => controlPlane.anprLanes(),
+    (raw) => (raw as { lanes?: AnprLane[] }).lanes ?? [],
+    120_000,
+    hasCamera && !hasAnprCam
+  );
+
+  const hasLane = useMemo(() => (res.data ?? []).some((l) => l.enabled), [res.data]);
+
+  return {
+    hasAnpr: hasAnprCam || hasLane,
+    /*
+     * Ready means "the answer will not change on its own in a moment".
+     *
+     * The nav uses this to avoid rendering the section and then removing it a
+     * beat later, which is worse than showing it slightly late: an item that
+     * appears and vanishes reads as a glitch, and on a phone it moves whatever
+     * the user was about to tap.
+     */
+    ready: !fleetLoading && (hasAnprCam || !hasCamera || !res.loading),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Attendance                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Whether this account runs an attendance system.
+ *
+ * Two ways to be true, and both matter. An `rfid-attend` terminal on the fleet
+ * means somebody has bought the hardware and is about to need the screens even
+ * if they have not created a site yet — so the section has to appear before
+ * there is anything in it, or there is nowhere to do the setting up.
+ *
+ * A site with no terminal is the other order: a school that imported its roll
+ * on a laptop before the readers arrived. Both are real ways to start, and a
+ * check that only understood one of them would leave somebody with hardware
+ * and no screen, or a roll and no way back to it.
+ */
+export function useAttendancePresence(): { hasAttendance: boolean; ready: boolean } {
+  const { devices, loading: fleetLoading } = useFleet();
+
+  const hasTerminal = useMemo(() => devices.some((d) => d.type === "rfid-attend"), [devices]);
+
+  // Only asked when it could change the answer: an account already holding a
+  // terminal is decided.
+  const res = useResource<AttendanceSite[]>(
+    "attendance:sites",
+    () => controlPlane.attendanceSites(),
+    (raw) => (raw as { sites?: AttendanceSite[] }).sites ?? [],
+    120_000,
+    !hasTerminal
+  );
+
+  const hasSite = useMemo(() => (res.data ?? []).length > 0, [res.data]);
+
+  return {
+    hasAttendance: hasTerminal || hasSite,
+    /*
+     * Ready means "the answer will not change on its own in a moment" — the
+     * nav uses it to avoid rendering the section and then removing it a beat
+     * later, which reads as a glitch and moves whatever was about to be
+     * tapped.
+     */
+    ready: !fleetLoading && (hasTerminal || !res.loading),
   };
 }
 

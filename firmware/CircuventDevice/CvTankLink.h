@@ -468,10 +468,27 @@ inline bool cvTankReadingAbandoned(const CvTankLinkState &s, uint32_t nowMs) {
  * hear the same transmission twice, and counting a duplicate as a fresh
  * reading would let a recording of one packet hold the link "alive" forever
  * while the real sensor is flat or removed.
+ *
+ * WHY THE CHECK DOES NOT DEPEND ON `everHeard`
+ *
+ * It used to read `if (s.everHeard && p.seq <= s.lastSeq)`. The starter
+ * restores `lastSeq` from NVS at boot — deliberately, so that "a power cut
+ * would reset replay protection" could not happen — but it cannot restore
+ * `everHeard`, which means "we have heard this sensor since we started" and
+ * has to begin false so a dead sensor is not reported as merely quiet.
+ *
+ * The result was that the persisted counter did nothing at all: the first
+ * packet after every reboot skipped the comparison entirely and was accepted
+ * whatever its sequence, which is exactly the replay the persistence was added
+ * to prevent. Cutting power to the starter is not a difficult attack.
+ *
+ * A restored `lastSeq` is therefore enough on its own to arm the check. Zero
+ * still means "nothing known", which is the state after a factory reset or an
+ * unpair, and the first packet then sets the baseline.
  */
 inline bool cvTankAcceptReading(CvTankLinkState &s, const CvTankPacket &p,
                                 int16_t rssi, uint32_t nowMs) {
-  if (s.everHeard && p.seq <= s.lastSeq) {
+  if ((s.everHeard || s.lastSeq != 0) && p.seq <= s.lastSeq) {
     s.rejected++;
     return false;
   }

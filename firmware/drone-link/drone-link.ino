@@ -67,7 +67,8 @@
  */
 
 /** Version history: 1.0.0 initial MAVLink bridge + mission supervisor. */
-#define CV_FW_VERSION "1.0.1"
+/* 1.1.0  Four MAVLink fields were decoded from the wrong offsets. HDOP read ground speed, so the pre-arm GPS gate never fired; EKF flags read a float mantissa, so the aircraft refused to arm while healthy; climb rate read altitude MSL, so it latched airborne on the ground and refused a normal disarm. */
+#define CV_FW_VERSION "1.1.0"
 
 #include <CircuventDevice.h>
 #include <Preferences.h>
@@ -715,8 +716,17 @@ static void handleMav(const MavMsg &m) {
       break;
 
     case MSG_BATTERY_STATUS: {
-      // current_consumed is at offset 6 in mAh.
-      battConsumedMah = (float)rdI32(m.payload, 6);
+      /*
+       * current_consumed is the FIRST field of BATTERY_STATUS, at offset 0.
+       *
+       * It was read from offset 6, which straddles the high half of
+       * energy_consumed and the low half of temperature — so the reported mAh
+       * was two unrelated fields spliced together. MAVLink v2 orders a payload
+       * by descending field size, so both int32s come before the int16s:
+       * current_consumed@0, energy_consumed@4, temperature@8. The sibling read
+       * of battery_remaining at 35 below is correct and confirms the layout.
+       */
+      battConsumedMah = (float)rdI32(m.payload, 0);
       int8_t pct = (int8_t)m.payload[35];
       if (pct >= 0) battPct = pct;
       break;
@@ -725,8 +735,19 @@ static void handleMav(const MavMsg &m) {
     case MSG_GPS_RAW_INT:
       gpsFix = rd8(m.payload, 28);
       sats = rd8(m.payload, 29);
-      hdopCm = rd16(m.payload, 24);
-      vdopCm = rd16(m.payload, 26);
+      /*
+       * eph/epv (HDOP/VDOP) are at 20 and 22, not 24 and 26.
+       *
+       * 24 and 26 are `vel` (ground speed, cm/s) and `cog` (course). Reading
+       * ground speed as HDOP silently disabled the pre-arm GPS-accuracy gate
+       * below: a stationary aircraft reports vel≈0, and 0 passes
+       * `hdopCm > maxHdopCm` no matter how poor the actual fix is. So an
+       * aircraft with a bad fix armed, and the console showed an excellent
+       * HDOP while it did — a fault reported as health, on the check that
+       * exists to stop a fly-away.
+       */
+      hdopCm = rd16(m.payload, 20);
+      vdopCm = rd16(m.payload, 22);
       break;
 
     case MSG_ATTITUDE:
@@ -749,8 +770,22 @@ static void handleMav(const MavMsg &m) {
     case MSG_VFR_HUD:
       airSpeed    = rdF(m.payload, 0);
       groundSpeed = rdF(m.payload, 4);
-      climbRate   = rdF(m.payload, 8);
-      throttlePct = (int16_t)rd16(m.payload, 16);
+      /*
+       * VFR_HUD is four floats then two integers: airspeed@0, groundspeed@4,
+       * alt@8, climb@12, heading@16, throttle@18.
+       *
+       * climb was read from 8 — which is altitude MSL — and throttle from 16,
+       * which is heading. The altitude one is the damaging half: `climbRate`
+       * gates the airborne latch below (`altRelMm > 500 || climbRate > 1.0f`),
+       * and MSL altitude in metres is greater than 1.0 at every site that is
+       * not at sea level. So `inAir` latched TRUE the moment the aircraft
+       * armed on the ground, and a normal disarm was then refused as
+       * "aircraft is airborne" until the operator sent the force flag —
+       * training people to reach for the emergency override routinely, which
+       * is precisely what that flag must not become.
+       */
+      climbRate   = rdF(m.payload, 12);
+      throttlePct = (int16_t)rd16(m.payload, 18);
       break;
 
     case MSG_HOME_POSITION:
@@ -769,7 +804,24 @@ static void handleMav(const MavMsg &m) {
       break;
 
     case MSG_EKF_STATUS_REPORT: {
-      ekfFlags = rd16(m.payload, 0);
+      /*
+       * `flags` is at offset 20, after the five floats.
+       *
+       * It was read from offset 0, which is the low half of
+       * velocity_variance — a float mantissa being tested for status bits.
+       * EKF_STATUS_REPORT packs its floats first (velocity, pos_horiz,
+       * pos_vert, compass and terrain_alt variances at 0/4/8/12/16), so the
+       * uint16 flags word follows them.
+       *
+       * The consequence ran the opposite way to the GPS bug and was just as
+       * bad: for the small variances a healthy aircraft actually reports,
+       * those mantissa bits rarely happen to have 0, 1 and 4 all set, so
+       * `ekfOk` read false and the aircraft refused to arm with "position
+       * estimate unhealthy" while the EKF was perfectly fine. A gate that
+       * fires on a healthy vehicle gets worked around, and the workaround is
+       * what is in place the day it fires correctly.
+       */
+      ekfFlags = rd16(m.payload, 20);
       // Bits 1 (velocity horiz), 2 (pos horiz rel), 4 (pos horiz abs) plus bit 0
       // (attitude). A missing horizontal position estimate is the one that makes
       // a GPS mode unsafe, so it is the one gating arm.

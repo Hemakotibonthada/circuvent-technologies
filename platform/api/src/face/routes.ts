@@ -31,19 +31,39 @@ import {
   type FaceProfile,
   type FaceSample,
 } from "./match";
+import { addSample, decideFace, MAX_SAMPLES_PER_PROFILE } from "./service";
+import {
+  closeEnrolWindow,
+  openEnrolWindow,
+  rosterDeviceFor,
+  startEnrolCapture,
+  stopEnrolCapture,
+  cameraForLock,
+  listDoors,
+  getDoor,
+  saveDoor,
+  deleteDoor,
+  triggerDoor,
+} from "./door";
 import { getEmbedder, embedFailureMessage } from "./embedder";
 import { requireCapability } from "../home/enforce";
 
 export const faceRouter = Router();
 
-/**
- * How many faces one person may enrol.
- *
- * Enough for glasses, a beard, a hat and a few angles. The cap exists because
- * every sample is compared on every unlock, and an unbounded roster turns a
- * door into something that takes a noticeable moment to open.
+/*
+ * MAX_SAMPLES_PER_PROFILE — how many faces one person may enrol — now lives in
+ * service.ts, next to the code that enforces it. It is imported above because
+ * these routes quote the number back to the app.
  */
-const MAX_SAMPLES_PER_PROFILE = 12;
+
+/**
+ * How many people may be enrolled on one door.
+ *
+ * A household, its cleaner, its dog-walker and a generous margin. The point is
+ * not the exact number: it is that a roster which can grow without limit is a
+ * door that gets slower every time somebody is added, because every sample of
+ * every person is compared on every unlock.
+ */
 const MAX_PROFILES_PER_DEVICE = 50;
 
 /** How long a device-side enrolment window stays open. */
@@ -408,49 +428,26 @@ faceRouter.post(
       return;
     }
 
-    const existing = await pool.query<{ descriptor: number[] }>(
-      `SELECT descriptor FROM face_samples WHERE profile_id = $1`,
-      [profile.id]
-    );
-    const descriptors = existing.rows.map((r) => r.descriptor);
-
-    if (descriptors.length >= MAX_SAMPLES_PER_PROFILE) {
-      res.status(409).json({
-        error: `${profile.name} already has ${MAX_SAMPLES_PER_PROFILE} faces enrolled. Remove one first.`,
-      });
+    const added = await addSample(profile.id, result.descriptor, "mobile");
+    if (!added.ok) {
+      // 409 either way: the roster is full, or this face does not belong on
+      // this person. The code is what lets the app say which.
+      res.status(409).json({ error: added.message, code: added.code });
       return;
     }
-
-    const belongs = sampleBelongsToProfile(result.descriptor, descriptors);
-    if (!belongs.ok) {
-      res.status(409).json({ error: belongs.reason, code: "different-person" });
-      return;
-    }
-    const useful = sampleIsUseful(result.descriptor, descriptors);
-    if (!useful.ok) {
-      res.status(409).json({ error: useful.reason, code: "too-similar" });
-      return;
-    }
-
-    const r = await pool.query(
-      `INSERT INTO face_samples (profile_id, descriptor, source)
-       VALUES ($1, $2::jsonb, 'mobile')
-       RETURNING id, created_at`,
-      [profile.id, JSON.stringify(result.descriptor)]
-    );
 
     await recordEvent(
       req.user!.uid,
       "face",
       `New face enrolled for ${profile.name}`,
-      `Captured from a phone - ${descriptors.length + 1} now stored`,
+      `Captured from a phone - ${added.total} now stored`,
       profile.device_id
     );
 
     res.status(201).json({
-      sample: { id: Number(r.rows[0].id), createdAt: r.rows[0].created_at },
-      total: descriptors.length + 1,
-      remaining: MAX_SAMPLES_PER_PROFILE - (descriptors.length + 1),
+      sample: { id: added.sampleId },
+      total: added.total,
+      remaining: MAX_SAMPLES_PER_PROFILE - added.total,
       embedMs: result.ms,
     });
   }
@@ -539,8 +536,8 @@ faceRouter.post("/enrol/start", requireAuth, async (req: AuthedRequest, res) => 
 
   /*
    * The firmware only needs to know it is enrolling, for how long, and for
-   * whom — it shows that on its LED and refuses to act as a normal lock while
-   * the window is open. The hub does the capturing.
+   * whom — it shows that on its display and refuses to act as a normal lock
+   * while the window is open.
    */
   publishCommand(deviceId, {
     action: "enrol",
@@ -549,6 +546,21 @@ faceRouter.post("/enrol/start", requireAuth, async (req: AuthedRequest, res) => 
     name: profileName,
     seconds: ENROL_WINDOW_SECONDS,
   });
+
+  /*
+   * ...and the server opens the matching window, which is what turns the mode
+   * into actual samples. Without this the door would blink, count down and
+   * capture nothing — which is precisely what it did before there was anything
+   * watching the camera.
+   *
+   * The window is keyed on whichever device the roster hangs off, and the
+   * camera driven is whichever one is paired with this door: enrolment started
+   * on a lock has to reach the camera watching it.
+   */
+  const roster = cameraForLock(deviceId) ? rosterDeviceFor(cameraForLock(deviceId)!) : deviceId;
+  openEnrolWindow(roster, Number(profileId), profileName, ENROL_WINDOW_SECONDS);
+  const camera = cameraForLock(deviceId) ?? deviceId;
+  startEnrolCapture(camera);
 
   await recordEvent(req.user!.uid, "face", `Enrolment started at the door for ${profileName}`, `Open for ${ENROL_WINDOW_SECONDS} seconds`, deviceId);
 
@@ -569,6 +581,9 @@ faceRouter.post("/enrol/stop", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
   publishCommand(deviceId, { action: "enrol", mode: "off" });
+  const camera = cameraForLock(deviceId) ?? deviceId;
+  closeEnrolWindow(rosterDeviceFor(camera));
+  stopEnrolCapture(camera);
   await recordEvent(req.user!.uid, "face", "Enrolment closed", "", deviceId);
   res.json({ ok: true });
 });
@@ -603,54 +618,7 @@ faceRouter.post("/match", requireAuth, async (req: AuthedRequest, res) => {
     return;
   }
 
-  const profilesRes = await pool.query<ProfileRow>(
-    `SELECT * FROM face_profiles WHERE device_id = $1`,
-    [deviceId]
-  );
-  const samplesRes = await pool.query<{ id: string; profile_id: string; descriptor: number[] }>(
-    `SELECT s.id, s.profile_id, s.descriptor
-       FROM face_samples s
-       JOIN face_profiles p ON p.id = s.profile_id
-      WHERE p.device_id = $1`,
-    [deviceId]
-  );
-
-  const profiles = profilesRes.rows.map(toProfile);
-  const samples: FaceSample[] = samplesRes.rows.map((r) => ({
-    id: Number(r.id),
-    profileId: Number(r.profile_id),
-    descriptor: r.descriptor,
-  }));
-
-  const result = matchFace(descriptor, profiles, samples, { threshold });
-
-  await pool.query(
-    `INSERT INTO face_attempts (device_id, profile_id, name, outcome, distance, granted, reason)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [
-      deviceId,
-      result.profile ? result.profile.id : null,
-      result.profile?.name ?? "",
-      result.outcome,
-      result.distance,
-      result.grant,
-      result.reason,
-    ]
-  );
-
-  if (result.grant && result.profile) {
-    /* The firmware already understands this shape — it is the same command the
-       hub sent before any of this existed. */
-    publishCommand(deviceId, {
-      action: "unlock",
-      method: "face",
-      name: result.profile.name,
-    });
-    await recordEvent(req.user!.uid, "face", `${result.profile.name} was let in`, result.reason, deviceId);
-  } else {
-    await recordEvent(req.user!.uid, "face", "A face was refused at the door", result.reason, deviceId);
-    logger.info({ deviceId, outcome: result.outcome }, "face refused");
-  }
+  const result = await decideFace(deviceId, req.user!.uid, descriptor, { threshold });
 
   res.json({
     outcome: result.outcome,
@@ -661,8 +629,7 @@ faceRouter.post("/match", requireAuth, async (req: AuthedRequest, res) => {
   });
 });
 
-/** GET /face/attempts?deviceId=&limit= — the door's memory, refusals included. */
-faceRouter.get("/attempts", requireAuth, async (req: AuthedRequest, res) => {
+/** GET /face/attempts?deviceId=&limit= — the door's memory, refusals included. */faceRouter.get("/attempts", requireAuth, async (req: AuthedRequest, res) => {
   const deviceId = String(req.query.deviceId || "");
   if (!deviceId || !(await ownsDevice(deviceId, req.user!.uid))) {
     res.status(404).json({ error: "Device not found" });
@@ -690,4 +657,170 @@ faceRouter.get("/attempts", requireAuth, async (req: AuthedRequest, res) => {
       at: row.at,
     })),
   });
+});
+
+/* ------------------------------------------------------------------ *
+ * The door camera
+ * ------------------------------------------------------------------ */
+
+/*
+ * Ordered smallest to largest, matching the camera firmware's own list.
+ * Duplicated from the ANPR routes rather than shared, because the two want
+ * different minimums for different reasons and a shared constant would invite
+ * somebody to "fix" one of them.
+ */
+const RESOLUTIONS = ["QVGA", "CIF", "VGA", "SVGA", "XGA", "SXGA", "UXGA"];
+
+/*
+ * SVGA, where ANPR asks only for VGA.
+ *
+ * A plate is a high-contrast strip that survives being small. A face has to
+ * arrive at the embedder about 120 pixels tall before the model can tell one
+ * person from another at all — below roughly 100 the same-person and
+ * different-person distances overlap and no threshold can separate them (the
+ * measurements are in platform/face/embed.py). On VGA that means standing
+ * close enough to touch the door; SVGA buys back a comfortable arm's length.
+ */
+const MIN_FACE_RESOLUTION = "SVGA";
+
+/**
+ * Puts a camera into a state where it can actually recognise somebody.
+ *
+ * Both settings fail silently if left wrong: motion off means the door never
+ * looks, and a small frame means it looks and never recognises anyone. The
+ * resolution is only ever raised — somebody running UXGA chose that, and
+ * quietly reducing their picture quality would be a worse surprise than the
+ * problem being fixed. What changed is returned so the console can say so.
+ */
+async function prepareDoorCamera(deviceId: string): Promise<string[]> {
+  const changed: string[] = [];
+  let state: Record<string, unknown> = {};
+  try {
+    const { rows } = await pool.query<{ state: Record<string, unknown> | null }>(
+      `SELECT state FROM devices WHERE id = $1`,
+      [deviceId]
+    );
+    state = rows[0]?.state ?? {};
+  } catch (err) {
+    logger.error({ err, deviceId }, "face door camera state lookup failed");
+  }
+
+  const command: Record<string, unknown> = { action: "set" };
+  if (state.motion !== true) {
+    command.motion = true;
+    changed.push("Motion detection turned on");
+  }
+  const current = String(state.resolution ?? "");
+  const currentIndex = RESOLUTIONS.indexOf(current);
+  const minIndex = RESOLUTIONS.indexOf(MIN_FACE_RESOLUTION);
+  if (currentIndex >= 0 && currentIndex < minIndex) {
+    command.resolution = MIN_FACE_RESOLUTION;
+    changed.push(`Still resolution raised from ${current} to ${MIN_FACE_RESOLUTION} so a face is large enough to recognise`);
+  }
+
+  if (Object.keys(command).length > 1) {
+    try {
+      publishCommand(deviceId, command);
+    } catch {
+      // The broker is restarting. The door still exists and the settings can be
+      // applied later; refusing to save over this would be worse.
+      return [];
+    }
+  }
+  return changed;
+}
+
+/** GET /face/doors — cameras acting as the eyes of a lock. */
+faceRouter.get("/doors", requireAuth, async (req: AuthedRequest, res) => {
+  res.json({ doors: await listDoors(req.user!.uid) });
+});
+
+const doorSchema = z.object({
+  lockId: z.string().min(1).nullable().optional(),
+  enabled: z.boolean().optional(),
+  burst: z.number().optional(),
+  burstGapMs: z.number().optional(),
+  cooldownMs: z.number().optional(),
+  illuminate: z.number().optional(),
+});
+
+/**
+ * PUT /face/doors/:deviceId — use this camera as a door camera.
+ *
+ * The lock is optional and separately owned. Pairing something that is not
+ * yours would let anybody point their camera at somebody else's front door and
+ * unlock it, so both devices are checked.
+ */
+faceRouter.put("/doors/:deviceId", requireAuth, async (req: AuthedRequest, res) => {
+  const deviceId = String(req.params.deviceId || "");
+  if (!deviceId || !(await ownsDevice(deviceId, req.user!.uid))) {
+    res.status(404).json({ error: "Device not found" });
+    return;
+  }
+  const parsed = doorSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid door settings" });
+    return;
+  }
+  if (parsed.data.lockId) {
+    if (!(await ownsDevice(parsed.data.lockId, req.user!.uid))) {
+      res.status(404).json({ error: "Lock not found" });
+      return;
+    }
+    if (parsed.data.lockId === deviceId) {
+      res.status(400).json({ error: "A camera cannot be its own lock" });
+      return;
+    }
+  }
+
+  try {
+    const door = await saveDoor(req.user!.uid, deviceId, parsed.data);
+    if (!door) {
+      res.status(500).json({ error: "Could not save the door camera." });
+      return;
+    }
+    const changed = door.enabled ? await prepareDoorCamera(deviceId) : [];
+    res.json({ door, changed });
+  } catch (err) {
+    logger.error({ err, deviceId }, "face door save failed");
+    res.status(500).json({ error: "Could not save the door camera." });
+  }
+});
+
+/**
+ * DELETE /face/doors/:deviceId — stop using this camera as a door camera.
+ *
+ * The camera's motion detection is deliberately left on: it was very probably
+ * already on for recording and notifications, and turning off something this
+ * route did not turn on is how somebody loses alerts they never connected to
+ * the door.
+ */
+faceRouter.delete("/doors/:deviceId", requireAuth, async (req: AuthedRequest, res) => {
+  const removed = await deleteDoor(req.user!.uid, String(req.params.deviceId || ""));
+  if (!removed) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json({ success: true });
+});
+
+/**
+ * POST /face/doors/:deviceId/capture — look now.
+ *
+ * The button somebody presses while standing in front of the camera wondering
+ * whether any of this works. It bypasses the motion cooldown for that reason.
+ */
+faceRouter.post("/doors/:deviceId/capture", requireAuth, async (req: AuthedRequest, res) => {
+  const deviceId = String(req.params.deviceId || "");
+  const door = await getDoor(req.user!.uid, deviceId);
+  if (!door) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const captureId = triggerDoor(deviceId, "manual");
+  if (captureId === null) {
+    res.status(409).json({ error: "The camera is already capturing. Try again in a moment." });
+    return;
+  }
+  res.json({ ok: true, captureId, frames: door.burst });
 });

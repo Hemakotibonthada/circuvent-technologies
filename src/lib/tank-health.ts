@@ -56,6 +56,36 @@ export function findTankSensorProblems(devices: Device[]): Finding[] {
     const link = readTankLink(state);
     const name = d.name || d.id;
 
+    /*
+     * The wired sump sensor, which is not part of the radio link at all and
+     * had no detector until watertank 2.2.0.
+     *
+     * It belongs in this file for exactly the reason the header gives: the
+     * controller stays online and looks perfectly healthy while the thing that
+     * decides whether the pump may run has stopped answering. Before 2.2.0 a
+     * failed sump reported 50% and the pump ran on it, so there was nothing to
+     * report — the firmware now refuses, which turns a silent hazard into a
+     * silent stoppage unless something says so.
+     */
+    if (state.sumpFault === true || state.sumpPct === -1) {
+      out.push({
+        id: `tank-sump-fault:${d.id}`,
+        severity: "critical",
+        title: `${name} cannot read its sump`,
+        detail:
+          "The wired sensor in the sump is not returning a usable reading. The controller " +
+          "will not run the pump without it — there is no way to tell whether there is " +
+          "water to pump — so the overhead tank is no longer being filled.",
+        deviceIds: [d.id],
+        evidence: {},
+        suggestion:
+          "Check the sump sensor and its cable at the controller. It is a short wired run, " +
+          "so this is usually a connector rather than the sensor itself.",
+      });
+      // Deliberately not `continue`: the radio findings below are about a
+      // different sensor entirely, and both can be true at once.
+    }
+
     if (link.status === "lost") {
       out.push({
         id: `tank-sensor-lost:${d.id}`,

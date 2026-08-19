@@ -72,6 +72,27 @@ export const CAM_FPS_PRESETS = [1, 5, 8, 10, 15, 20, 25, 30, 45, 60] as const;
  */
 export const FAN_STEP_LEVEL = [0, 33, 66, 100] as const;
 
+/**
+ * What the Guardian firmware will accept, and what it stores.
+ *
+ * Duplicated from firmware/guardian/guardian.ino rather than inferred: the
+ * device stores four contacts in NVS, so a console that offered a fifth would
+ * show a contact in the app that the shoe silently drops — and the shoe is the
+ * only copy that is read when it matters. The hold bounds are the ones in
+ * src/lib/guardian-hold.ts, where the reasoning for both ends lives.
+ */
+export const GUARDIAN_MAX_CONTACTS = 4;
+export const GUARDIAN_HOLD_SEC = { min: 10, max: 120 } as const;
+
+/**
+ * How many phone numbers an Agri Starter will trust.
+ *
+ * Four, because that is what the firmware stores in NVS. A console offering a
+ * fifth would show a number in the app that the box in the field silently
+ * drops — and the box is the only copy that matters when somebody rings it.
+ */
+export const AGRI_MAX_CALLERS = 4;
+
 /** Nearest named step for a continuous level, matching levelToSpeed() in the firmware. */
 export function levelToSpeed(level: number): number {
   if (!Number.isFinite(level) || level <= 0) return 0;
@@ -113,6 +134,17 @@ export const TOUCHBOARD_GANG_FIELDS = ["g1", "g2", "g3"] as const;
 export const TOUCHBOARD8_GANG_FIELDS = [
   "g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8",
 ] as const;
+
+/**
+ * The configurable switchboard's channels.
+ *
+ * The same `g1`..`g8` names as the fixed boards, deliberately: every scene,
+ * automation and voice trait that already understands a gang keeps working
+ * unchanged. What differs is that only the first `state.gangs` of them exist
+ * on any given board, and which ones those are was decided by an engineer on
+ * site — so the UI reads the count from the device rather than assuming.
+ */
+export const SWITCHBOARD_GANG_FIELDS = TOUCHBOARD8_GANG_FIELDS;
 
 /** Highest relay index any Sentinel board exposes. */
 const SENTINEL_MAX_RELAYS = 32;
@@ -269,9 +301,38 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       if (isBool(cmd.power2)) patch.power2 = cmd.power2;
       return patch;
 
-    case "agri-starter":
+    case "agri-starter": {
+      /*
+       * A farm pump, so the projections are chosen for what a farmer sees when
+       * one is wrong. `pump: true` is projected optimistically even though the
+       * starter may refuse it — no mains, a dry-run latch, a restart delay —
+       * because the alternative is a toggle that springs back with no
+       * explanation. The `hold` reason arriving a moment later is what says
+       * why, and src/lib/agri.ts turns it into a sentence.
+       */
+      if (action === "configure") {
+        if (Array.isArray(cmd.callers)) {
+          patch.callers = Math.min(AGRI_MAX_CALLERS, cmd.callers.length);
+        }
+        if (isNum(cmd.ringMin)) patch.ringMin = clamp(Math.round(cmd.ringMin), 0, 720);
+        if (isNum(cmd.maxRunMin)) patch.maxRunMin = clamp(Math.round(cmd.maxRunMin), 5, 720);
+        if (isBool(cmd.dryGuard)) patch.dryGuard = cmd.dryGuard;
+        return patch;
+      }
+      if (action === "runFor") {
+        const mins = isNum(cmd.minutes) ? Math.round(cmd.minutes) : 0;
+        patch.pump = mins > 0;
+        return patch;
+      }
+      if (action === "resetDry") {
+        // Clearing the latch does not itself start the pump — a person has to
+        // decide that, having been to look at the well.
+        patch.dry = false;
+        return patch;
+      }
       if (isBool(cmd.pump)) patch.pump = cmd.pump;
       return patch;
+    }
 
     // ------------------------------------------------------------- light --
     case "smart-light":
@@ -435,6 +496,66 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
 
     // ------------------------------------------------------------ safety --
     case "guardian": {
+      /*
+       * A panic button, so the projections are chosen for what happens when
+       * one of them is wrong at the worst moment.
+       *
+       * `panic` and `cancel` are projected, because the console must show the
+       * alarm as raised or stood down the instant it is asked for rather than
+       * waiting for a device that is, by assumption, somewhere with poor
+       * signal. `test` deliberately projects nothing: it is a rehearsal, and a
+       * console that showed a test as an SOS would teach people to ignore the
+       * red banner.
+       *
+       * `configure` projects only what the device echoes back — the counts and
+       * settings — and never the contacts themselves. Emergency numbers do not
+       * belong in a device's retained state document, which is visible in more
+       * places than a phone book should be.
+       */
+      if (action === "panic") {
+        patch.sos = true;
+        return patch;
+      }
+      if (action === "cancel") {
+        patch.sos = false;
+        return patch;
+      }
+      if (action === "test") return patch;
+      if (action === "escalate") return patch;
+      /*
+       * Journey mode projects its own flag but never `sos`.
+       *
+       * Starting a journey is not an emergency and must not paint the console
+       * red — the whole point is that most journeys end with somebody pressing
+       * "I'm home". The alarm, if it comes, arrives as a real SOS from the
+       * device or from the overdue sweep.
+       */
+      if (action === "journey") {
+        const mins = isNum(cmd.minutes) ? Math.round(cmd.minutes) : 0;
+        patch.journey = mins > 0;
+        return patch;
+      }
+      if (action === "arrived") {
+        patch.journey = false;
+        return patch;
+      }
+      if (action === "setPolice") {
+        // The device reports whether it holds a number, not which one.
+        if (isStr(cmd.number) && cmd.number.trim()) patch.police = 1;
+        return patch;
+      }
+      if (action === "configure") {
+        if (isNum(cmd.holdSec)) {
+          patch.holdSec = clamp(Math.round(cmd.holdSec), GUARDIAN_HOLD_SEC.min, GUARDIAN_HOLD_SEC.max);
+        }
+        if (isBool(cmd.silent)) patch.silent = cmd.silent;
+        if (Array.isArray(cmd.contacts)) {
+          patch.contacts = Math.min(GUARDIAN_MAX_CONTACTS, cmd.contacts.length);
+        }
+        if (isStr(cmd.national) && cmd.national.trim()) patch.national = 1;
+        return patch;
+      }
+
       if (isBool(cmd.armed)) patch.armed = cmd.armed;
       // Only clearing SOS is acknowledged by the firmware.
       if (cmd.sos === false) patch.sos = false;
@@ -567,17 +688,87 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
     }
 
     // ------------------------------------------------------------- gate ---
-    case "rfid-gate": {      if (action === "open" || action === "grantOpen") patch.barrier = "open";
+    case "rfid-gate": {
+      /*
+       * `barrier` is now a measurement — the firmware reports what the open
+       * limit switch says, including "opening" and "jammed" — so an optimistic
+       * projection of "open" would paint over the one state anybody needs to
+       * see. Projected anyway, because a barrier takes seconds to travel and a
+       * control that does nothing for that long feels broken; the device
+       * corrects it within one publish, and "jammed" is what survives.
+       */
+      if (action === "open" || action === "grantOpen") patch.barrier = "open";
       else if (action === "close") patch.barrier = "closed";
+      /*
+       * setTags is the platform replacing the whole allow-list. `tagCount` is
+       * projected so a revocation visibly takes effect rather than looking
+       * ignored until the next heartbeat.
+       */
+      if (action === "setTags" && isStr(cmd.tags)) {
+        const list = cmd.tags.trim();
+        patch.tagCount = list ? list.split(",").filter(Boolean).length : 0;
+      }
       if (isStr(cmd.mode)) patch.mode = cmd.mode;
+      if (isNum(cmd.autoCloseSec)) patch.autoCloseSec = clamp(Math.round(cmd.autoCloseSec), 3, 300);
       return patch;
     }
 
-    // ----------------------------------------------------------- curtain --
+    // ------------------------------------------------------- switchboard --
+    /*
+     * The configurable board. Channels are `g1`..`gN` exactly as on the fixed
+     * touchboards, so everything that already understands a gang keeps working
+     * — what differs is that N is commissioned rather than compiled.
+     */
+    case "switchboard": {
+      if (action === "commission") {
+        /*
+         * Nothing is projected. The board validates the layout, and refuses
+         * one that would harm it, then reboots into it — so the only honest
+         * answer is what it reports afterwards. A console that optimistically
+         * showed eight gangs would show eight for a layout the device threw
+         * out, which is precisely the moment an engineer needs the truth.
+         */
+        return patch;
+      }
+      if (action === "identify" || action === "bind" || action === "recalibrateTouch") {
+        return patch;
+      }
+      if (isBool(cmd.all)) {
+        for (const f of SWITCHBOARD_GANG_FIELDS) patch[f] = cmd.all;
+      }
+      for (const f of SWITCHBOARD_GANG_FIELDS) {
+        if (isBool(cmd[f])) patch[f] = cmd[f];
+      }
+      if (isNum(cmd.backlight)) patch.backlight = clamp(Math.round(cmd.backlight), 0, 100);
+      return patch;
+    }
+
     case "curtain": {
+      /*
+       * Fully open and fully closed are projected, because the firmware treats
+       * them as homing runs that always end against the mechanical stop — so
+       * 0 and 100 are the two positions it is certain to reach.
+       */
       if (action === "open") patch.position = 100;
       else if (action === "close") patch.position = 0;
-      else if (isNum(cmd.position)) patch.position = clamp(Math.round(cmd.position), 0, 100);
+      else if (action === "stop") {
+        /*
+         * Nothing is projected for a stop.
+         *
+         * Where the curtain ends up is whatever the timed estimate says at the
+         * instant the motor cut, which is precisely the number the console
+         * cannot compute. Projecting a guess here would fight the device's own
+         * answer a second later, and the visible result is a slider that jumps.
+         */
+        return patch;
+      } else if (action === "learn" || action === "learnDone") {
+        // A measurement, not a position. `learning` is the device's to report.
+        return patch;
+      } else if (isNum(cmd.travelSec)) {
+        patch.travelSec = clamp(Math.round(cmd.travelSec), 2, 90);
+      } else if (isNum(cmd.position)) {
+        patch.position = clamp(Math.round(cmd.position), 0, 100);
+      }
       // `moving` is transient and driven by the motor loop — never predicted.
       return patch;
     }

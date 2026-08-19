@@ -228,8 +228,12 @@ describe("defaultChecks", () => {
       .map((check) => check.id);
     expect(bareOrigins).toEqual([]);
 
+    // "auth" joins the list because /auth/federated is unambiguously an API
+    // endpoint that happens not to be spelled with "api" in its path. The
+    // property this guards is that no check points at a page a static bundle
+    // could serve — which /auth/... never is.
     const notAnApi = checks
-      .filter((check) => !/health|api|socket/i.test(new URL(check.url).pathname))
+      .filter((check) => !/health|api|socket|auth/i.test(new URL(check.url).pathname))
       .map((check) => check.id);
     expect(notAnApi).toEqual([]);
   });

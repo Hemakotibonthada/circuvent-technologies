@@ -204,3 +204,58 @@ describe("findings are shaped for the alert monitor", () => {
     expect(a[0].id).toBe(b[0].id);
   });
 });
+
+describe("the wired sump sensor", () => {
+  /*
+   * A different sensor from the radio one, and it had no detector at all until
+   * watertank 2.2.0. It belongs in this file for the reason the header gives:
+   * the controller stays online and looks healthy while the thing that decides
+   * whether the pump may run has stopped answering.
+   */
+  it("reports a sump that cannot be read", () => {
+    const f = findTankSensorProblems([tank({ ...healthy, sumpPct: -1, sumpFault: true })]);
+    expect(ids(f)).toContain("tank-sump-fault");
+    expect(f.find((x) => x.id.startsWith("tank-sump-fault"))!.severity).toBe("critical");
+  });
+
+  it("reports it from the sentinel alone", () => {
+    // -1 is the published contract; the flag is a convenience beside it.
+    expect(ids(findTankSensorProblems([tank({ ...healthy, sumpPct: -1 })])))
+      .toContain("tank-sump-fault");
+  });
+
+  it("says why it matters rather than only what broke", () => {
+    const f = findTankSensorProblems([tank({ ...healthy, sumpFault: true, sumpPct: -1 })]);
+    const sump = f.find((x) => x.id.startsWith("tank-sump-fault"))!;
+    expect(sump.detail).toMatch(/will not run the pump/i);
+    expect(sump.suggestion).toMatch(/cable|connector/i);
+  });
+
+  it("stays quiet about a sump that is merely low", () => {
+    // Low is a normal condition the controller waits out. Reporting it as a
+    // fault would make the detector cry wolf every time a sump drains.
+    expect(findTankSensorProblems([tank({ ...healthy, sumpPct: 4, sumpMinPct: 15 })])).toEqual([]);
+  });
+
+  it("stays quiet about a healthy sump", () => {
+    expect(findTankSensorProblems([tank({ ...healthy, sumpPct: 70 })])).toEqual([]);
+  });
+
+  it("reports both sensors when both have failed", () => {
+    // They are independent hardware. Collapsing them would send somebody to
+    // the roof for a fault at the controller, or the other way round.
+    const f = findTankSensorProblems([
+      tank({ ...healthy, rfAgeS: TANK_ABANDON_S + 60, ohPct: -1, sumpPct: -1, sumpFault: true }),
+    ]);
+    expect(ids(f)).toEqual(expect.arrayContaining(["tank-sump-fault", "tank-sensor-lost"]));
+  });
+
+  it("says nothing when the controller itself is offline", () => {
+    // Already reported by findOfflineDevices; a second finding for one outage
+    // buries the one that needs acting on.
+    const f = findTankSensorProblems([
+      tank({ ...healthy, sumpPct: -1, sumpFault: true }, { online: false }),
+    ]);
+    expect(f).toEqual([]);
+  });
+});

@@ -30,6 +30,7 @@ const SRC = join(__dirname);
  */
 const PROMISES: Array<{ capability: string; provenBy: string; feature: string }> = [
   { capability: "faceRecognition", provenBy: "face/routes.ts", feature: "FaceDoor enrolment and matching" },
+  { capability: "attendance", provenBy: "attend/routes.ts", feature: "RFID attendance and access control" },
   { capability: "householdSharing", provenBy: "home/routes.ts", feature: "household members and invitations" },
   { capability: "anpr", provenBy: "anpr/index.ts", feature: "number-plate recognition" },
   { capability: "droneTelemetry", provenBy: "drone/index.ts", feature: "drone telemetry and flight log" },

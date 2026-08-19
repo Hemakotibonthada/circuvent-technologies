@@ -52,6 +52,51 @@ export const CAPABILITIES = [
    */
   "faceRecognition",
   /**
+   * Attendance and RFID access control: /attendance/*, the terminal allow-list
+   * push, the punch ingest and the register.
+   *
+   * Worth stating what its absence means, because it is not simply a missing
+   * screen. Terminals decide locally from a list this build pushes; against a
+   * control plane without it, a reader would sit there holding whatever list
+   * it was last given, admitting people indefinitely and recording nothing. A
+   * client should say the control plane needs upgrading rather than show an
+   * empty register that looks like a school where nobody came in.
+   */
+  "attendance",
+  /**
+   * The Guardian personal safety beacon: /guardian/*, the incident record and
+   * the nearest-station push.
+   *
+   * Its absence does not stop a Guardian raising an alarm — that is the whole
+   * design, and the device does it over its own SIM with numbers cached in
+   * NVS. What is lost is everything around it: no incident is recorded, no
+   * track is kept, contacts with the app get no push, and — the one that
+   * degrades the offline path itself — nothing resolves which police station
+   * is nearest, so the device goes on using whichever number it was last told,
+   * or falls back to the national emergency number.
+   *
+   * A client should therefore say the control plane needs upgrading rather
+   * than present the device as unmonitored, which would suggest it is not
+   * working when in fact it is.
+   */
+  "guardian",
+  /**
+   * Gate access control: /gate/devices/*, the tag allow-list push and the
+   * access log.
+   *
+   * Its absence does not stop a barrier working — the device decides locally
+   * from a list in NVS, which is the whole design, because a driveway box is
+   * offline often enough that asking a server is not an access-control
+   * strategy. What is lost is everything that gives the list meaning: nothing
+   * records who came through, and nothing brings time-limited tags in and out
+   * of force, so a contractor's pass that should expire at 17:00 goes on
+   * opening the gate until somebody notices.
+   *
+   * A client should say the control plane needs upgrading rather than present
+   * an empty access log, which looks like a night when nobody arrived.
+   */
+  "gateAccess",
+  /**
    * Households: /home/*, the x-circuvent-home header, and the capability
    * guard on commands.
    *

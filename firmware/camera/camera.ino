@@ -135,7 +135,17 @@
  *     camera must not disable itself over a *setting*, in a house nobody can
  *     visit, when it could have lowered the number by itself.
  */
-#define CV_FW_VERSION "1.14.4"
+/* 1.14.5  Motion detection survives SVGA. MD_MAX_PIXELS was VGA-sized, so raising the resolution for plate reading made the camera switch its own motion detection off - which is the ANPR lane's trigger. */
+/*
+ * 1.14.6  A streaming camera stopped writing a database row twelve times a
+ *         second. `frames` was published on every pass of loop() and
+ *         increments once per delivered frame, so at 15fps the state was dirty
+ *         continuously and the library republished every _minGap — about a
+ *         million messages a day per camera, each one an INSERT. It was
+ *         invisible: the pictures arrived and the device was healthy. The
+ *         counters are diagnostics and now go out every ten seconds.
+ */
+#define CV_FW_VERSION "1.14.6"
 
 #include "esp_camera.h"
 #include "esp_http_server.h"
@@ -2316,7 +2326,21 @@ bool sccbAlive() {
  * add up. A cap keeps a UXGA frame from asking for 60 kB of DRAM; above it,
  * motion detection turns itself off rather than guessing at a smaller buffer.
  */
-#define MD_MAX_PIXELS (80 * 60)   // VGA at 1/8. Covers every resolution we scan.
+/*
+ * Largest frame motion detection will decode, as 1/8-scale pixels.
+ *
+ * Was VGA (80x60 = 4800), which put SVGA (100x75 = 7500) over the line — and
+ * SVGA is the resolution a plate needs to be legible, so enabling ANPR on a
+ * camera raised the resolution and the camera answered by switching its own
+ * motion detection off. The ANPR lane's trigger *is* that motion event, so the
+ * feature disabled the thing it runs on, and the only symptom was a lane that
+ * never fired.
+ *
+ * SVGA at 1/8 scale is 15 kB of RGB565, which is affordable on any board with
+ * PSRAM. UXGA (200x150 = 30000, 60 kB) is still refused, which is what the cap
+ * was for.
+ */
+#define MD_MAX_PIXELS (100 * 75)  // SVGA at 1/8. Covers every resolution we scan.
 
 static uint8_t *mdRgb = nullptr;  // 1/8-scale RGB565 decode target
 static int mdW = 0, mdH = 0;      // dimensions the buffers are currently sized for
@@ -3093,9 +3117,27 @@ void loop() {
     cv.publishStateNow();
   }
 
-  cv.set("frames", frameCount);
-  cv.set("dropped", dropCount);
-  cv.set("lanViewers", lanViewers);
+  /*
+   * Counters on a cadence, not on every pass.
+   *
+   * `frames` increments once per delivered frame, so at 15fps this dirtied the
+   * state fifteen times a second — and CircuventDevice republishes whenever
+   * state is dirty and _minGap (80 ms) has elapsed. A streaming camera was
+   * therefore emitting roughly twelve state messages a second, over a million
+   * a day, every one of them an INSERT. Nothing looked wrong: the pictures
+   * arrived, the device was healthy, and the table and the bill grew.
+   *
+   * The numbers themselves are diagnostics — how many frames have gone out,
+   * how many were dropped, who is watching on the LAN — and nobody reads them
+   * at a finer resolution than this.
+   */
+  static uint32_t lastCounters = 0;
+  if (now - lastCounters >= 10000UL) {
+    lastCounters = now;
+    cv.set("frames", frameCount);
+    cv.set("dropped", dropCount);
+    cv.set("lanViewers", lanViewers);
+  }
 
   cv.loop();
 }

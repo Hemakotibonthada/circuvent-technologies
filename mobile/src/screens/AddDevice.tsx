@@ -25,7 +25,7 @@ import { useKeyboardHeight } from "../keyboard";
 import { Icon, type IconName } from "../icons";
 import { deviceMeta, DEVICE_META, TAP_SLOP, type Palette } from "../theme";
 import {
-  wifiAutoSupported, ensureWifiPermissions, discoverDeviceAPs, connectToDeviceAP,
+  wifiAutoSupported, wifiJoinSupported, ensureWifiPermissions, discoverDeviceAPs, connectToDeviceAP,
   leaveDeviceAP, rssiBars, type DeviceAP,
 } from "../wifi";
 
@@ -242,6 +242,33 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
     } catch {
       setConnectingSsid("");
       setApError(`Couldn't join ${ap.ssid}. Tap it to retry, or use "Connect manually".`);
+    }
+  };
+
+  /**
+   * Join a hotspot we already know the name of, without scanning for it.
+   *
+   * This is how iOS gets the same one-tap onboarding as Android. It cannot scan
+   * for the device, but it does not need to: the QR label filled in targetSsid,
+   * and joining a network by name is something iOS permits through the Hotspot
+   * Configuration entitlement this app ships.
+   *
+   * Failure is not a dead end — the manual instructions and "Open Wi-Fi
+   * settings" stay on screen underneath, so a refusal here leaves the user
+   * exactly where they were before the button existed.
+   */
+  const joinNamedAP = async () => {
+    if (!targetSsid) return;
+    setApError(""); setConnectingSsid(targetSsid);
+    try {
+      await connectToDeviceAP(targetSsid);
+      await sleep(1200);
+      setAutoMode(true);
+      setConnectingSsid("");
+      goWifi(true);
+    } catch {
+      setConnectingSsid("");
+      setApError(`Couldn't join ${targetSsid} automatically. Follow the steps below instead.`);
     }
   };
 
@@ -590,6 +617,24 @@ export default function AddDevice({ onClose }: { onClose: (added: boolean) => vo
               </View>
             )}
             <ProgressLog items={[{ msg: "Account prepared ✓", state: "ok" }]} />
+            {/*
+              iOS cannot scan, but it can join a network it is handed the name
+              of — and the QR label just handed us one. Shown only when we know
+              the name and the phone cannot reach the radar; Android goes to the
+              discovery list instead.
+            */}
+            {wifiJoinSupported() && !wifiAutoSupported() && !!targetSsid && (
+              <Pressable
+                style={[s.secondary, !!connectingSsid && { opacity: 0.6 }]}
+                disabled={!!connectingSsid}
+                onPress={joinNamedAP}
+              >
+                <Text style={s.secondaryT}>
+                  {connectingSsid ? `Joining ${targetSsid}…` : `Join ${targetSsid} for me`}
+                </Text>
+              </Pressable>
+            )}
+            {!!apError && <Text style={s.err}>{apError}</Text>}
             <Text style={[s.lead, { marginTop: 14 }]}>
               1. Power on the device, wait ~15s.{"\n"}
               2. Tap below, join <Text style={s.b}>{targetSsid || "Circuvent-Setup-…"}</Text> (no password).{"\n"}

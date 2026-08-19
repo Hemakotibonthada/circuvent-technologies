@@ -15,6 +15,24 @@
 /*
  * Version history — bump this whenever behaviour changes, not just features.
  *
+ * 2.4.0  A channel no longer switches itself on at boot. The button handler
+ *        compared the first reading in loop() against an assumed "released",
+ *        so a pin already low at power-up read as a deliberate press and
+ *        toggled the relay — caught on a live unit that came back from an OTA
+ *        reboot with a channel energised after it had been switched off. On a
+ *        mains board that is an appliance turning itself on after a power cut.
+ *        Also picks up the setup-mode confirmation below.
+ * 2.3.1  Picks up the CircuventDevice setup-portal fixes. `action:"setup"` did
+ *        not exist before this build, so a console asking a 2.3.0 unit to open
+ *        its hotspot was silently ignored — the owner was told to join a
+ *        network that was never going to appear. The device now publishes
+ *        `setupMode` before it drops the link, so the console can tell an
+ *        obeyed request from an ignored one. The portal's network list also
+ *        concatenated each SSID straight into the page's HTML, and an SSID is
+ *        whatever a radio in range chooses to broadcast — so a quote in a
+ *        neighbour's network name broke the form, and a tag in it ran script
+ *        on the page where the owner types their Wi-Fi password. The same page
+ *        ran a blocking 2-4 s scan inside the HTTP handler on every request.
  * 2.3.0  OTA reports its own outcome. 2.2.0 wrote failures to Serial and
  *        nowhere else, so on a deployed unit a rejected certificate, a 404
  *        and a command that never arrived all looked identical: nothing
@@ -37,7 +55,7 @@
  *        filtered on version skipped exactly the units that needed it.
  * 2.0.0  Production hardening: 4 channels, schedules, NVS boot restore.
  */
-#define CV_FW_VERSION "2.3.1"
+#define CV_FW_VERSION "2.4.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 #include <time.h>
@@ -56,7 +74,27 @@ CircuventDevice cv("home-hub");
 Preferences store;
 
 bool relayOn[NUM_CH] = {false, false, false, false};
+/*
+ * Button state, primed from the pins before anything is acted on.
+ *
+ * `lastBtn` used to be initialised to `true` (released) and compared against
+ * the very first reading in loop(). A pin that was *already* low when the
+ * device booted therefore looked like a fresh falling edge, and the channel
+ * toggled itself. Nobody can press a button for a device that is not running
+ * yet, so that reading was always wrong.
+ *
+ * It is not hypothetical and it is not rare: this was caught on a live unit,
+ * which came back from an OTA reboot with channel 1 energised after it had
+ * been switched off. On a board that switches mains, that is a light or an
+ * appliance turning itself on after every power cut — and the owner has no
+ * reason to connect it to the button at all.
+ *
+ * This is the same fault, and the same fix, as `_pollResetButton` in
+ * CircuventDevice: the input is not trusted until it has been sampled once
+ * with the device actually running.
+ */
 bool lastBtn[NUM_CH] = {true, true, true, true};
+bool btnPrimed = false;
 uint32_t btnAt[NUM_CH] = {0, 0, 0, 0};
 String scene = "home";
 Rule rules[MAX_RULES];
@@ -165,13 +203,20 @@ void setup() {
 
 void loop() {
   // physical buttons (local-first: work even when offline)
-  for (int i = 0; i < NUM_CH; i++) {
-    bool s = digitalRead(BTN[i]);
-    if (lastBtn[i] && !s && millis() - btnAt[i] > 250) {  // falling edge
-      btnAt[i] = millis();
-      writeRelay(i, !relayOn[i]);
+  if (!btnPrimed) {
+    // First pass: record what the pins actually read, and act on nothing. A
+    // press has to *begin* while the device is running to count as one.
+    for (int i = 0; i < NUM_CH; i++) lastBtn[i] = digitalRead(BTN[i]);
+    btnPrimed = true;
+  } else {
+    for (int i = 0; i < NUM_CH; i++) {
+      bool s = digitalRead(BTN[i]);
+      if (lastBtn[i] && !s && millis() - btnAt[i] > 250) {  // falling edge
+        btnAt[i] = millis();
+        writeRelay(i, !relayOn[i]);
+      }
+      lastBtn[i] = s;
     }
-    lastBtn[i] = s;
   }
 
   if (!clockReady && time(nullptr) > 1700000000) clockReady = true;

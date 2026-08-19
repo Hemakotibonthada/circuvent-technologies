@@ -161,6 +161,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   "smart-lock": "entry",
   facedoor: "entry",
   "rfid-gate": "entry",
+  "rfid-attend": "entry",
   "anpr-cam": "entry",
   // Not "entry": a drone is not a way in or out of anywhere. Its own
   // category would be a tab with one device in it, so it sits with the
@@ -173,6 +174,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   "smart-switch": "power",
   touchboard: "power",
   "touchboard-8": "power",
+  switchboard: "power",
   sentinel: "security",
   "home-hub": "neutral",
 };
@@ -219,6 +221,9 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   facedoor: { glyph: "🚪", icon: "facedoor", accent: C.violet, grad: GRAD.violet, label: "Smart Door", toggle: { field: "locked", label: "Lock" } },
   touchboard: { glyph: "🎛️", icon: "touchboard", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board", toggle: { field: "g1", label: "Gang 1" } },
   "touchboard-8": { glyph: "🎛️", icon: "touchboard", accent: C.cyan, grad: GRAD.cyan, label: "Touch Board 8", toggle: { field: "g1", label: "Gang 1" } },
+  /* Made to order: the gang count is commissioned, so the card shows the first
+     channel and the device screen reads the real number off the device. */
+  switchboard: { glyph: "🎚️", icon: "touchboard", accent: C.cyan, grad: GRAD.cyan, label: "Switchboard", toggle: { field: "g1", label: "Channel 1" } },
   sentinel: { glyph: "🧯", icon: "sentinel", accent: C.red, grad: GRAD.red, label: "Sentinel", toggle: { field: "r1", label: "Relay 1" } },
   camera: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "Camera" },
   cctv: { glyph: "📷", icon: "camera", accent: C.violet, grad: GRAD.violet, label: "CCTV Camera" },
@@ -227,6 +232,14 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   // load. Offering it as a tile toggle would put "turn the ANPR camera off"
   // one accidental tap away on the dashboard, next to the lamps.
   "anpr-cam": { glyph: "🔢", icon: "anpr-cam", accent: C.cyan, grad: GRAD.cyan, label: "ANPR Camera" },
+  /*
+   * No `toggle`, for the same reason as the ANPR camera and more so. The only
+   * booleans this device has are the buzzer and "let unknown cards in when
+   * offline" — and the second is the setting that decides whether a network
+   * outage opens the building. A tile toggle would put that one accidental tap
+   * from the lamps on somebody's dashboard.
+   */
+  "rfid-attend": { glyph: "🪪", icon: "rfid-gate", accent: C.violet, grad: GRAD.violet, label: "Attendance Reader" },
   // No `toggle`, for a sharper reason than the ANPR camera's: this device's
   // only boolean is `allowArm`, an aircraft's permission to fly. A tile
   // toggle would put that one tap from a lamp on the dashboard, and an

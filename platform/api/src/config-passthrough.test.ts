@@ -35,7 +35,16 @@ function schemaKeys(): string[] {
 
 /** Keys compose hands to the api service. */
 function composeKeys(): Set<string> {
-  const api = composeSrc.slice(composeSrc.indexOf("  api:"), composeSrc.indexOf("  caddy:"));
+  // Bounded by the *next* service rather than by `caddy:` specifically. The
+  // original hard-coded that name, which quietly made the check depend on the
+  // order services happen to appear in — adding one between `api` and `caddy`
+  // would have folded its environment into this set and weakened the test
+  // without failing it.
+  const start = composeSrc.indexOf("  api:");
+  assert.ok(start >= 0, "could not locate the api service");
+  const rest = composeSrc.slice(start + 1);
+  const next = rest.search(/^ {2}[a-z][a-z0-9_-]*:$/m);
+  const api = next >= 0 ? rest.slice(0, next) : rest;
   const env = api.slice(api.indexOf("environment:"), api.indexOf("depends_on:"));
   assert.ok(env.length > 0, "could not locate the api environment block");
   return new Set([...env.matchAll(/^\s+([A-Z][A-Z0-9_]+):/gm)].map((m) => m[1]));

@@ -26,49 +26,59 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+/**
+ * The parts of the account screen that hang off the customer's profile.
+ *
+ * `show` picks one. These were previously rendered as three stacked sections
+ * on a page that already had six others; the account rail now mounts one
+ * section at a time, so this renders the requested part and nothing else.
+ *
+ * They stay in one component because they share ProfileProvider — splitting
+ * them into three files would mean three copies of the same profile fetch, or
+ * a provider hoisted into the page for the benefit of one section at a time.
+ */
 export default function AccountExtras({
   authHeaders,
   onWalletChange,
   onProfileChange,
+  show,
 }: {
   authHeaders: Headers;
   onWalletChange?: () => void;
   onProfileChange?: () => void;
+  show: "profile" | "rewards" | "notifications";
 }) {
   return (
     <ProfileProvider authHeaders={authHeaders} onProfileChange={onProfileChange}>
-      <section className="mt-10 scroll-mt-24">
-        <h2 className="mb-4 text-xl font-semibold" style={headingStyle}>
-          Manage your account
-        </h2>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <PersonalInfoCard />
-          <BusinessCard />
-          <NotificationPrefsCard />
-          <SecurityCard authHeaders={authHeaders} />
-          <div className="lg:col-span-2">
-            <AddressBook authHeaders={authHeaders} />
+      {show === "profile" && (
+        <section>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <PersonalInfoCard />
+            <BusinessCard />
+            <NotificationPrefsCard />
+            <SecurityCard authHeaders={authHeaders} />
+            <div className="lg:col-span-2">
+              <AddressBook authHeaders={authHeaders} />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-semibold" style={headingStyle}>
-          Rewards &amp; offers
-        </h2>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <LoyaltyCard authHeaders={authHeaders} onWalletChange={onWalletChange} />
-          <ReferralCard authHeaders={authHeaders} />
-          <GiftCardCard authHeaders={authHeaders} onWalletChange={onWalletChange} />
-        </div>
-      </section>
+      {show === "rewards" && (
+        <section>
+          <div className="grid gap-6 lg:grid-cols-3">
+            <LoyaltyCard authHeaders={authHeaders} onWalletChange={onWalletChange} />
+            <ReferralCard authHeaders={authHeaders} />
+            <GiftCardCard authHeaders={authHeaders} onWalletChange={onWalletChange} />
+          </div>
+        </section>
+      )}
 
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-semibold" style={headingStyle}>
-          Notifications
-        </h2>
-        <NotificationsCard authHeaders={authHeaders} />
-      </section>
+      {show === "notifications" && (
+        <section>
+          <NotificationsCard authHeaders={authHeaders} />
+        </section>
+      )}
     </ProfileProvider>
   );
 }

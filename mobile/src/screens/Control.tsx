@@ -4,11 +4,20 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import Slider from "@react-native-community/slider";
 import { api, Device } from "../api";
+import type { GuardianContactInput } from "../api";
+import { describeGesture } from "../guardian-hold";
+import {
+  describeRegistration,
+  readReadiness,
+  signalBars,
+  type GuardianState as GuardianStateShape,
+} from "../guardian-health";
 import { readOtaStatus, otaNotice, isUpdating, describeCameraFault } from "../camera-status";
 import { useDevices, capabilities, capabilitiesFor } from "../store";
 import { Screen, Card, useTheme, ArcGauge, PillSelector, PillToggle, SectionLabel, BackButton, HeaderAction, useSpin, useGlowPulse, GlowTile, PresetRow, NeoRaised, ColorGrid } from "../ui";
 import { useThrottled } from "../throttle";
-import { readTankLink, tankLevelText, formatAge, type TankDeviceState } from "../tank-link";
+import { readTankLink, readPumpHold, tankLevelText, formatAge, type TankDeviceState } from "../tank-link";
+import { describeHold, readHold, type AgriState } from "../agri";
 import { PowerDial, SlideToConfirm } from "../controls";
 import { tapLight, toggleFeedback } from "../haptics";
 import { FAN_PRESETS, fanCommand, fanHint, fanLevel } from "../fan";
@@ -96,6 +105,8 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
         {d.type === "agri-starter" && <AgriStarter d={d} send={send} c={c} />}
         {d.type === "watertank" && <WaterTank d={d} send={send} c={c} />}
         {d.type === "rfid-gate" && <RfidGate d={d} send={send} c={c} />}
+      {d.type === "curtain" && <Curtain d={d} send={send} c={c} />}
+      {d.type === "switchboard" && <ConfigurableBoard d={d} send={send} c={c} />}
         {d.type === "facedoor" && <FaceDoor d={d} send={send} c={c} />}
         {(d.type === "touchboard" || d.type === "touchboard-8") && <TouchBoard d={d} send={send} c={c} />}
         {d.type === "sentinel" && <Sentinel d={d} send={send} c={c} />}
@@ -137,7 +148,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
  * precisely how the camera shipped showing JSON on the phone, and it is why
  * adding to this array is on the checklist in Docs/07-adding-a-new-device.md.
  */
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "meter", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "facedoor", "touchboard", "touchboard-8", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "meter", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "curtain", "switchboard", "facedoor", "touchboard", "touchboard-8", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -413,11 +424,24 @@ function HomeHub({ d, send, c }: { d: Device; send: (p: Record<string, unknown>)
   );
 }
 
+/**
+ * The plug has no metering front end.
+ *
+ * This showed `state.watts` as "Live power draw" while the firmware published a
+ * hard-coded 42.5 W. Read the value instead of assuming it: a plug that reports
+ * a wattage gets the reading, one that does not gets its state.
+ */
 function SmartPlug({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const on = !!d.state.power;
+  const metered = typeof d.state.watts === "number";
   return (
     <View>
-      <Big value={Number(d.state.watts ?? 0).toFixed(1)} unit=" W" caption="Live power draw" c={c} />
-      <Row label="Power" c={c}><Sw v={!!d.state.power} on={(v) => send({ power: v })} c={c} /></Row>
+      {metered ? (
+        <Big value={Number(d.state.watts).toFixed(1)} unit=" W" caption="Live power draw" c={c} />
+      ) : (
+        <Big value={on ? "On" : "Off"} caption="Socket state — this plug does not measure power" c={c} />
+      )}
+      <Row label="Power" c={c}><Sw v={on} on={(v) => send({ power: v })} c={c} /></Row>
     </View>
   );
 }
@@ -672,14 +696,37 @@ function SwitchGangs({ d, send, c, sendFor }: { d: Device; send: (p: Record<stri
   );
 }
 
+/**
+ * The CT-clamp energy monitor.
+ *
+ * A clamp measures current only — watts is `amps x assumed volts x assumed
+ * power factor`. Both assumptions live in the device, and both are wrong on a
+ * 110 V supply or a reactive load, so the headline number can be off by a
+ * factor of two while looking perfectly healthy.
+ *
+ * The screen used to caption it "Instantaneous load", which reads as a
+ * measurement. It now says what it is and shows the assumptions behind it. The
+ * calibration that corrects them stays a console job, for the same reason the
+ * cv-em panel below does: it needs a reference load at a consumer unit.
+ */
 function EnergyMonitor({ d, c }: { d: Device; c: Palette }) {
+  const amps = Number(d.state.amps ?? 0);
+  /* Older builds published neither, having had them compiled in. */
+  const volts = Number(d.state.volts ?? 0) > 0 ? Number(d.state.volts) : 230;
+  const pf = Number(d.state.pf ?? 0) > 0 ? Number(d.state.pf) : 0.95;
+
   return (
     <View>
-      <Big value={Number(d.state.watts ?? 0).toFixed(0)} unit=" W" caption="Instantaneous load" c={c} />
+      <Big value={Number(d.state.watts ?? 0).toFixed(0)} unit=" W" caption="Estimated load" c={c} />
       <View style={{ flexDirection: "row", gap: 10 }}>
-        <MiniStat label="Current" value={`${Number(d.state.amps ?? 0).toFixed(2)} A`} c={c} />
+        <MiniStat label="Current" value={`${amps.toFixed(2)} A`} c={c} />
         <MiniStat label="Energy" value={`${Number(d.state.kwh ?? 0).toFixed(2)} kWh`} c={c} />
       </View>
+      <Text style={{ color: c.faint, fontSize: 12, marginTop: 10, lineHeight: 17 }}>
+        Only the current is measured. Watts assumes {volts.toFixed(0)} V at a power factor of{" "}
+        {pf.toFixed(2)} — on a motor, fan or LED driver the real figure is lower and this will
+        read high. Correct it from the console.
+      </Text>
     </View>
   );
 }
@@ -739,22 +786,327 @@ function EnergyMeter({ d, c }: { d: Device; c: Palette }) {
   );
 }
 
+/**
+ * Circuvent Guardian — the beacon worn in a shoe.
+ *
+ * The phone matters here exactly once: to set the device up. After that the
+ * beacon works entirely on its own SIM — which is the whole design, because
+ * the phone is the first thing taken from somebody in trouble.
+ *
+ * So this screen leads with whether the setup has actually been done. A
+ * Guardian with no contacts looks identical to a working one from the outside:
+ * online, charged, a GPS fix. The difference appears on the day the button is
+ * held, and that is far too late to discover it.
+ */
 function Guardian({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const lat = d.state.lat != null ? Number(d.state.lat) : null;
   const lng = d.state.lng != null ? Number(d.state.lng) : null;
+  const hasFix = !!d.state.fix;
+  const ready = !!d.state.ready;
+  const holdSec = Number(d.state.holdSec ?? 30);
+  const holdPct = Number(d.state.holdPct ?? 0);
+  const contactCount = Number(d.state.contacts ?? 0);
+  const bars = signalBars(d.state.csq);
+  const journeyOn = !!d.state.journey;
+  const journeyLeft = Number(d.state.journeyLeft ?? 0);
+  const readiness = readReadiness(d.state as GuardianStateShape, d.online !== false);
+
+  const [contacts, setContacts] = useState<GuardianContactInput[]>([]);
+  const [national, setNational] = useState("112");
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  /*
+   * Whether the contact list could be read at all.
+   *
+   * Kept apart from "there are no contacts", because on a safety beacon those
+   * two look identical on screen and mean opposite things. Swallowing the
+   * failure showed an empty list — which reads as "nobody is configured" — and
+   * then helpfully opened the setup form, as though the device were
+   * unprovisioned. Somebody could re-enter contacts that were already there,
+   * or worse, believe the beacon was set up when the screen simply failed.
+   */
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .guardianContacts(d.id)
+      .then((r) => {
+        if (!alive) return;
+        if (!r.ok) {
+          setLoadError("Could not load the emergency contacts.");
+          return;
+        }
+        setLoadError("");
+        const list = r.data.contacts.map((x) => ({ name: x.name, phone: x.phone }));
+        setContacts(list);
+        /* Open the setup automatically when there is nothing there — but only
+           on a load that actually succeeded. Somebody who has just paired a
+           safety device should not have to go looking for it. */
+        if (list.length === 0) setSetupOpen(true);
+      })
+      .catch(() => {
+        if (alive) setLoadError("Could not load the emergency contacts.");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [d.id]);
+
+  const save = async () => {
+    const clean = contacts.filter((x) => x.name.trim() && x.phone.trim());
+    if (clean.length === 0) {
+      Alert.alert("Add someone first", "The beacon needs at least one person to call for help.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const saved = await api.saveGuardianContacts(d.id, clean);
+      if (!saved.ok) {
+        Alert.alert("Could not save", (saved.data as any)?.error ?? "Check the phone numbers.");
+        return;
+      }
+      const pushed = await api.provisionGuardian(d.id, { national: national.trim(), holdSec });
+      if (pushed.ok) {
+        Alert.alert(
+          "Beacon is ready",
+          `${clean.length} contact${clean.length === 1 ? "" : "s"} written to the device. It can now raise an alarm on its own, with no phone and no internet.`,
+        );
+        setSetupOpen(false);
+      } else {
+        /*
+         * Saved here, not confirmed there — and the difference matters on this
+         * device. The setup stays open rather than closing on a write that may
+         * not have landed, because a closed form reads as "done".
+         */
+        Alert.alert(
+          "Saved, but not confirmed",
+          "The contacts are saved here, but the beacon did not confirm — it may be offline. Open this screen again when it reconnects.",
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runTest = async () => {
+    const r = await api.testGuardian(d.id);
+    Alert.alert(
+      r.ok ? "Test sent" : "Could not send",
+      r.ok
+        ? "Your contacts will get a message saying it is a test. Police were not contacted."
+        : "The beacon did not accept the test.",
+    );
+  };
+
   return (
     <View>
       {!!d.state.sos && (
         <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1, alignItems: "center" }}>
-          <Text style={{ color: c.red, fontSize: 18, fontWeight: "800", marginBottom: 10 }}>🆘 SOS TRIGGERED</Text>
-          <Pressable hitSlop={TAP_SLOP} onPress={() => send({ sos: false })} style={{ backgroundColor: c.red, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}><Text style={{ color: "#fff", fontWeight: "700" }}>Clear alert</Text></Pressable>
+          <Text style={{ color: c.red, fontSize: 18, fontWeight: "800", marginBottom: 4 }}>🆘 SOS TRIGGERED</Text>
+          <Text style={{ color: c.faint, fontSize: 12, textAlign: "center", marginBottom: 10 }}>
+            The beacon has messaged your contacts and the nearest station over its own SIM.
+            {hasFix ? " Position is live." : " No live GPS fix."}
+          </Text>
+          <Pressable
+            hitSlop={TAP_SLOP}
+            onPress={() => send({ action: "cancel" })}
+            style={{ backgroundColor: c.red, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "700" }}>Stand down — false alarm</Text>
+          </Pressable>
         </Card>
       )}
+
+      {!d.state.sos && holdPct > 0 && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.amber, borderWidth: 1 }}>
+          <Text style={{ color: c.amber, fontWeight: "800" }}>
+            Button held — SOS in about {Math.max(1, Math.round((holdSec * (100 - holdPct)) / 100))}s
+          </Text>
+        </Card>
+      )}
+
+      {!ready && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.amber, borderWidth: 1 }}>
+          <Text style={{ color: c.amber, fontWeight: "800", marginBottom: 4 }}>
+            Not set up yet
+          </Text>
+          <Text style={{ color: c.faint, fontSize: 12, lineHeight: 17 }}>
+            This beacon has nobody to call, so holding the button would do nothing. Add a contact
+            below — it only has to be done once.
+          </Text>
+        </Card>
+      )}
+
+      {/* A list that could not be read is not an empty list. Said plainly,
+          because on this device the two look the same and mean opposite
+          things. */}
+      {!!loadError && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.amber, borderWidth: 1 }}>
+          <Text style={{ color: c.amber, fontSize: 12, lineHeight: 17 }}>
+            {loadError} What is shown below may be out of date — the beacon itself is unaffected
+            and still holds whatever was last written to it.
+          </Text>
+        </Card>
+      )}
+
       <Row label="Armed" c={c}><Sw v={!!d.state.armed} on={(v) => send({ armed: v })} c={c} /></Row>
+      <Row label="Silent" c={c}>
+        <Sw v={d.state.silent !== false} on={(v) => send({ action: "configure", silent: v })} c={c} />
+      </Row>
+
       <View style={{ flexDirection: "row", gap: 10 }}>
         <MiniStat label="Battery" value={`${Number(d.state.battery ?? 0)}%`} c={c} />
-        <MiniStat label="Location" value={lat != null && lng != null ? `${lat.toFixed(2)}, ${lng.toFixed(2)}` : "—"} c={c} />
+        <MiniStat
+          label="Location"
+          value={lat != null && lng != null ? `${lat.toFixed(2)}, ${lng.toFixed(2)}` : "No fix"}
+          c={c}
+        />
       </View>
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+        <MiniStat
+          label="Signal"
+          value={bars === null ? "—" : bars === 0 ? "None" : `${bars}/5`}
+          c={c}
+        />
+        <MiniStat
+          label="SIM"
+          value={d.state.sim === false ? "Missing" : d.state.reg !== undefined ? describeRegistration(Number(d.state.reg)) : "—"}
+          c={c}
+        />
+      </View>
+
+      {/* Whether it could actually call for help — a beacon with no signal or
+          an expired SIM looks identical to a working one. */}
+      {!readiness.ok && !!readiness.detail && (
+        <Card padded style={{ marginTop: 10, borderColor: c.red, borderWidth: 1 }}>
+          <Text style={{ color: c.red, fontSize: 12, lineHeight: 17 }}>{readiness.detail}</Text>
+        </Card>
+      )}
+
+      {/* Journey mode. The most useful thing on a phone, because it is started
+          at the moment somebody sets off. */}
+      {journeyOn ? (
+        <Card padded style={{ marginTop: 12, borderColor: c.cyan, borderWidth: 1 }}>
+          <Text style={{ color: c.cyan, fontWeight: "800", marginBottom: 6 }}>
+            {journeyLeft > 0
+              ? `Journey — ${Math.ceil(journeyLeft / 60)} min left`
+              : "Journey overdue"}
+          </Text>
+          <Pressable
+            onPress={() => { tapLight(); send({ action: "arrived" }); }}
+            style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.cyan }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800" }}>Arrived safely</Text>
+          </Pressable>
+        </Card>
+      ) : (
+        <View style={{ marginTop: 12 }}>
+          <Text style={{ color: c.faint, fontSize: 12, marginBottom: 6, lineHeight: 17 }}>
+            Walking somewhere? Start a journey. If nobody confirms you arrived, the alarm is raised
+            for you — which covers what the button cannot.
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {[10, 20, 45].map((m) => (
+              <Pressable
+                key={m}
+                onPress={() => { tapLight(); send({ action: "journey", minutes: m }); }}
+                style={{ flex: 1, minHeight: 42, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card }}
+              >
+                <Text style={{ color: c.text, fontWeight: "700" }}>{m} min</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
+      <Text style={{ color: c.faint, fontSize: 12, marginTop: 10, lineHeight: 17 }}>
+        {describeGesture(holdSec * 1000)}
+      </Text>
+
+      {!setupOpen ? (
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+          <Pressable
+            onPress={() => setSetupOpen(true)}
+            style={{ flex: 1, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card }}
+          >
+            <Text style={{ color: c.text, fontWeight: "700" }}>
+              Emergency contacts ({contactCount})
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={runTest}
+            disabled={contactCount === 0}
+            style={{ minHeight: 44, paddingHorizontal: 16, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, opacity: contactCount === 0 ? 0.4 : 1 }}
+          >
+            <Text style={{ color: c.text, fontWeight: "700" }}>Test</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Card padded style={{ marginTop: 12 }}>
+          <Text style={{ color: c.text, fontWeight: "800", marginBottom: 4 }}>Who should be called?</Text>
+          <Text style={{ color: c.faint, fontSize: 12, marginBottom: 10, lineHeight: 17 }}>
+            These are written into the beacon itself, so it can text and call them with no phone and
+            no internet. The first one is also rung — put whoever is most likely to answer at the
+            top. Use the full international number, starting with +.
+          </Text>
+
+          {contacts.map((x, i) => (
+            <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+              <TextInput
+                value={x.name}
+                onChangeText={(v) => setContacts((p) => p.map((y, j) => (j === i ? { ...y, name: v } : y)))}
+                placeholder={i === 0 ? "Mum" : "Name"}
+                placeholderTextColor={c.faint}
+                style={{ flex: 1, minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 10 }}
+              />
+              <TextInput
+                value={x.phone}
+                onChangeText={(v) => setContacts((p) => p.map((y, j) => (j === i ? { ...y, phone: v } : y)))}
+                placeholder="+919876543210"
+                placeholderTextColor={c.faint}
+                keyboardType="phone-pad"
+                style={{ flex: 1.3, minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 10 }}
+              />
+              <Pressable
+                onPress={() => setContacts((p) => p.filter((_, j) => j !== i))}
+                style={{ minHeight: 48, paddingHorizontal: 12, justifyContent: "center" }}
+              >
+                <Text style={{ color: c.red }}>✕</Text>
+              </Pressable>
+            </View>
+          ))}
+
+          {contacts.length < 4 && (
+            <Pressable
+              onPress={() => setContacts((p) => [...p, { name: "", phone: "" }])}
+              style={{ minHeight: 48, justifyContent: "center", alignItems: "center", borderRadius: 8, borderWidth: 1, borderStyle: "dashed", borderColor: c.border, marginBottom: 10 }}
+            >
+              <Text style={{ color: c.text }}>Add contact</Text>
+            </Pressable>
+          )}
+
+          <Text style={{ color: c.faint, fontSize: 11, marginBottom: 4 }}>National emergency number</Text>
+          <TextInput
+            value={national}
+            onChangeText={setNational}
+            placeholder="112"
+            placeholderTextColor={c.faint}
+            keyboardType="phone-pad"
+            style={{ minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 10, marginBottom: 10 }}
+          />
+
+          <Pressable
+            onPress={save}
+            disabled={busy}
+            style={{ minHeight: 46, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.green, opacity: busy ? 0.6 : 1 }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800" }}>
+              {busy ? "Writing to beacon…" : "Save to beacon"}
+            </Text>
+          </Pressable>
+        </Card>
+      )}
     </View>
   );
 }
@@ -772,18 +1124,91 @@ function MotionSensor({ d, send, c }: { d: Device; send: (p: Record<string, unkn
   );
 }
 
+/**
+ * The Agri GSM Starter.
+ *
+ * The pump is at the bottom of a field and cannot be looked at, so this leads
+ * with why it is or is not running. "Off" is the same information as no
+ * information: no mains means wait, a restart delay means wait a moment, a dry
+ * run means go and look at the well now.
+ */
 function AgriStarter({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const power = !!d.state.power_available;
+  const state = d.state as AgriState;
+  const hold = readHold(state);
+  const holdText = describeHold(hold, state);
+  const dryLatched = !!d.state.dry;
+  const callerCount = Number(d.state.callers ?? 0);
+  const minsLeft = Number(d.state.minsLeft ?? 0);
+  const ringMin = Number(d.state.ringMin ?? 30);
+
+  const tone =
+    holdText.severity === "critical" ? c.red
+      : holdText.severity === "warning" ? c.amber
+      : holdText.severity === "info" ? c.cyan
+      : c.border;
+
   return (
     <View>
-      <Row label="Pump" c={c}><Sw v={!!d.state.pump} on={(v) => send({ pump: v })} c={c} /></Row>
-      <Card padded style={{ marginBottom: 10 }}>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <Text style={{ color: c.textDim }}>Mains power</Text>
-          <Text style={{ color: power ? c.green : c.red, fontWeight: "700" }}>{power ? "Available" : "Unavailable"}</Text>
-        </View>
+      <Card padded style={{ marginBottom: 12, borderColor: tone, borderWidth: 1 }}>
+        <Text style={{ color: holdText.severity === "none" ? c.text : tone, fontWeight: "700", lineHeight: 19 }}>
+          {holdText.text}
+        </Text>
+        {dryLatched && (
+          <Pressable
+            onPress={() => { tapLight(); send({ action: "resetDry" }); }}
+            style={{ marginTop: 10, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.red }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800" }}>Checked the source — clear cutout</Text>
+          </Pressable>
+        )}
       </Card>
-      {!power && <Alertline c={c} text="⚠ No mains power — pump cannot start" />}
+
+      <Row label="Pump" c={c}><Sw v={!!d.state.pump} on={(v) => send({ pump: v })} c={c} /></Row>
+
+      {/* Bounded runs. Starting a pump and forgetting it is the commonest way
+          one is destroyed. */}
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 4, marginBottom: 10 }}>
+        {[15, 30, 60].map((m) => (
+          <Pressable
+            key={m}
+            onPress={() => { tapLight(); send({ action: "runFor", minutes: m }); }}
+            style={{ flex: 1, minHeight: 42, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card }}
+          >
+            <Text style={{ color: c.text, fontWeight: "700" }}>{m} min</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <MiniStat
+          label="Mains"
+          value={!!d.state.power_available ? "Available" : "Off"}
+          c={c}
+        />
+        <MiniStat label="Time left" value={minsLeft > 0 ? `${minsLeft} min` : "—"} c={c} />
+      </View>
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+        <MiniStat label="Lifetime run" value={`${Number(d.state.runHours ?? 0)} h`} c={c} />
+        <MiniStat label="Dry sensor" value={!!d.state.dryGuard ? "Fitted" : "None"} c={c} />
+      </View>
+
+      {callerCount === 0 ? (
+        <Card padded style={{ marginTop: 12, borderColor: c.amber, borderWidth: 1 }}>
+          <Text style={{ color: c.amber, fontWeight: "700", marginBottom: 4 }}>
+            Phone control is off
+          </Text>
+          <Text style={{ color: c.faint, fontSize: 12, lineHeight: 17 }}>
+            No numbers are authorised, so ringing or texting the starter does nothing. Add yours
+            from the console — without it, any wrong number could operate the pump.
+          </Text>
+        </Card>
+      ) : (
+        <Text style={{ color: c.faint, fontSize: 12, marginTop: 12, lineHeight: 17 }}>
+          A missed call from an authorised phone runs the pump for {ringMin > 0 ? `${ringMin} minutes` : "as long as you like"}.
+          Texting ON, OFF, STATUS or RESET works too, and every command is answered with what
+          actually happened.
+        </Text>
+      )}
     </View>
   );
 }
@@ -889,8 +1314,14 @@ function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown
    * rules and the firmware applies them to the pump.
    */
   const link = readTankLink(d.state as TankDeviceState);
+  const hold = readPumpHold(d.state as TankDeviceState, link);
   const oh = link.levelPct ?? -1;
-  const sump = Number(d.state.sumpPct ?? 0);
+  /*
+   * -1 means "no reading", exactly as the overhead level does. Defaulting a
+   * missing value to 0 would draw an empty sump, which is a real condition
+   * with a real meaning — and the one that makes somebody reach for the pump.
+   */
+  const sump = typeof d.state.sumpPct === "number" ? d.state.sumpPct : -1;
   const auto = !!d.state.auto;
   const start = Number(d.state.startPct ?? 20);
   const stop = Number(d.state.stopPct ?? 95);
@@ -910,7 +1341,7 @@ function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown
             <View style={{ width: 2, height: 40, backgroundColor: c.border, marginVertical: 4 }} />
             <Text style={{ fontSize: 18 }}>💧</Text>
           </View>
-          <TankBar label="Sump" pct={sump} litres={Number(d.state.sumpLitres ?? 0)} c={c} accent={c.accentHi} fault={!!d.state.sumpFault} />
+          <TankBar label="Sump" pct={sump} litres={Number(d.state.sumpLitres ?? -1)} c={c} accent={c.accentHi} fault={!!d.state.sumpFault} />
         </View>
       </Card>
       {/*
@@ -933,8 +1364,33 @@ function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown
         </View>
         <Text style={{ color: c.faint, fontSize: 12, marginTop: 4, lineHeight: 17 }}>{link.detail}</Text>
       </Card>
-      {!!d.state.dryRun && <Alertline c={c} text="⚠ Dry-run cut — reset after checking sump/motor" />}
-      {!!d.state.overflow && <Alertline c={c} text="⚠ Overflow float tripped — pump stopped" />}
+      {/*
+        * One banner, from one function, covering every reason the pump is
+        * held. Dry-run and overflow used to be hand-written here and the two
+        * sump cases had nothing — so a pump held off by a low or unreadable
+        * sump simply appeared not to work. `readPumpHold` mirrors the
+        * firmware's setPump(), and the console renders the same strings.
+        */}
+      {hold.held && (
+        <Card
+          padded
+          style={{
+            marginBottom: 12,
+            borderColor: hold.tone === "bad" ? c.red : hold.tone === "warn" ? c.amber : c.border,
+          }}
+        >
+          <Text
+            style={{
+              color: hold.tone === "bad" ? c.red : hold.tone === "warn" ? c.amber : c.text,
+              fontWeight: "800",
+              fontSize: 13,
+            }}
+          >
+            {hold.label}
+          </Text>
+          <Text style={{ color: c.faint, fontSize: 12, marginTop: 4, lineHeight: 17 }}>{hold.detail}</Text>
+        </Card>
+      )}
       <Row label="Auto-fill" c={c}><Sw v={auto} on={(v) => send({ auto: v })} c={c} /></Row>
       <Row label="Pump" c={c}><Sw v={!!d.state.pump} on={(v) => send({ pump: v })} c={c} /></Row>
       {!!d.state.dryRun && (
@@ -1023,19 +1479,59 @@ function WaterTank({ d, send, c }: { d: Device; send: (p: Record<string, unknown
   );
 }
 
+/**
+ * The RFID gate.
+ *
+ * `barrier` is now what the limit switch says, not what the device commanded —
+ * so a jammed motor reads as jammed rather than as a perfectly healthy "open".
+ * That distinction is the whole reason to show it on a phone: somebody sitting
+ * in a car in front of a barrier needs to know whether to wait or get out.
+ */
 function RfidGate({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
-  const open = String(d.state.barrier ?? "closed") === "open";
+  const barrier = String(d.state.barrier ?? "closed");
+  const jammed = barrier === "jammed";
+  const opening = barrier === "opening";
+  const open = barrier === "open";
   const allowed = !!d.state.lastAllowed;
+  const badFrames = Number(d.state.badFrames ?? 0);
+
+  const tone = jammed ? c.red : open ? c.green : opening ? c.amber : c.textDim;
+
   return (
     <View>
-      <Card padded style={{ marginBottom: 12, alignItems: "center" }}>
-        <Text style={{ fontSize: 26, fontWeight: "800", color: open ? c.green : c.textDim }}>{open ? "BARRIER OPEN" : "BARRIER CLOSED"}</Text>
-        <Text style={{ color: c.faint, marginTop: 6, fontSize: 13 }}>{!!d.state.vehiclePresent ? "🚗 Vehicle at gate" : "No vehicle"} · {Number(d.state.tagCount ?? 0)} tags</Text>
+      <Card padded style={{ marginBottom: 12, alignItems: "center", borderColor: jammed ? c.red : c.border, borderWidth: 1 }}>
+        <Text style={{ fontSize: 24, fontWeight: "800", color: tone }}>
+          {jammed ? "BARRIER JAMMED" : opening ? "OPENING…" : open ? "BARRIER OPEN" : "BARRIER CLOSED"}
+        </Text>
+        <Text style={{ color: c.faint, marginTop: 6, fontSize: 13 }}>
+          {!!d.state.vehiclePresent ? "🚗 Vehicle at gate" : "No vehicle"} · {Number(d.state.tagCount ?? 0)} tags
+        </Text>
       </Card>
+
+      {jammed && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1 }}>
+          <Text style={{ color: c.red, fontSize: 12, lineHeight: 17 }}>
+            The barrier was told to move and the limit switch does not agree — a jam, a tripped
+            supply or a failed motor. Treat this gate as unlocked until somebody has looked at it.
+          </Text>
+        </Card>
+      )}
+
+      {badFrames > 0 && (
+        <Card padded style={{ marginBottom: 12 }}>
+          <Text style={{ color: c.faint, fontSize: 12, lineHeight: 17 }}>
+            {badFrames} unreadable card {badFrames === 1 ? "frame" : "frames"} since power-up. A
+            rising count means interference on the reader cable, and cards will be refused at
+            random until it is fixed.
+          </Text>
+        </Card>
+      )}
+
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
-        <Pressable onPress={() => send({ action: "open" })} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>Open</Text></Pressable>
-        <Pressable onPress={() => send({ action: "close" })} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "800" }}>Close</Text></Pressable>
+        <Pressable onPress={() => { tapLight(); send({ action: "open" }); }} style={{ flex: 1, backgroundColor: c.green, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.onAccent, fontWeight: "800" }}>Open</Text></Pressable>
+        <Pressable onPress={() => { tapLight(); send({ action: "close" }); }} style={{ flex: 1, backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}><Text style={{ color: c.text, fontWeight: "800" }}>Close</Text></Pressable>
       </View>
+
       <Card padded style={{ marginBottom: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <View>
           <Text style={{ color: c.text, fontWeight: "700", fontFamily: "monospace" }}>Tag {Number(d.state.lastTag ?? 0) || "—"}</Text>
@@ -1044,6 +1540,158 @@ function RfidGate({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
         <Text style={{ color: allowed ? c.green : c.red, fontWeight: "800", fontSize: 12 }}>{allowed ? "AUTHORISED" : "DENIED"}</Text>
       </Card>
       <Row label="Auto mode" c={c}><Sw v={String(d.state.mode ?? "auto") === "auto"} on={(v) => send({ mode: v ? "auto" : "manual" })} c={c} /></Row>
+      <Text style={{ color: c.faint, fontSize: 12, marginTop: 8, lineHeight: 17 }}>
+        Vehicles are enrolled from the console, where each tag can be given a name, a registration
+        and the days and hours it is allowed through.
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Circuvent Smart Curtain.
+ *
+ * There is no encoder and no limit switch, so the percentage is inferred from
+ * how long the motor has run, and it drifts. A *full* open or close is what
+ * corrects it — the firmware drives those against the mechanical stop whatever
+ * it believes — which is why those two get real buttons and the slider is for
+ * everything in between.
+ */
+function Curtain({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const position = Number(d.state.position ?? 0);
+  const moving = Number(d.state.moving ?? 0);
+  const travelSec = Number(d.state.travelSec ?? 20);
+  const learning = !!d.state.learning;
+
+  const label =
+    moving > 0 ? "Opening…" : moving < 0 ? "Closing…" : position === 0 ? "Closed" : position === 100 ? "Open" : "Part open";
+
+  return (
+    <View>
+      <Big value={String(position)} unit="%" caption={label} c={c} />
+
+      <View style={{ height: 10, borderRadius: 5, backgroundColor: c.card, overflow: "hidden", marginBottom: 14 }}>
+        <View style={{ width: `${Math.max(0, Math.min(100, position))}%`, height: 10, backgroundColor: c.violet }} />
+      </View>
+
+      <Slider
+        value={position}
+        minimumValue={0}
+        maximumValue={100}
+        step={1}
+        onSlidingComplete={(v: number) => { tapLight(); send({ position: Math.round(v) }); }}
+        minimumTrackTintColor={c.violet}
+        maximumTrackTintColor={c.border}
+        thumbTintColor={c.violet}
+        style={{ marginBottom: 10 }}
+      />
+
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+        <Pressable
+          onPress={() => { tapLight(); send({ action: "open" }); }}
+          style={{ flex: 1, minHeight: 46, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card }}
+        >
+          <Text style={{ color: c.text, fontWeight: "700" }}>Open</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { tapLight(); send({ action: "stop" }); }}
+          style={{ flex: 1, minHeight: 46, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.amber }}
+        >
+          <Text style={{ color: c.amber, fontWeight: "800" }}>Stop</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { tapLight(); send({ action: "close" }); }}
+          style={{ flex: 1, minHeight: 46, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card }}
+        >
+          <Text style={{ color: c.text, fontWeight: "700" }}>Close</Text>
+        </Pressable>
+      </View>
+
+      {learning ? (
+        <Card padded style={{ borderColor: c.cyan, borderWidth: 1 }}>
+          <Text style={{ color: c.cyan, fontWeight: "800", marginBottom: 4 }}>Measuring</Text>
+          <Text style={{ color: c.faint, fontSize: 12, lineHeight: 17, marginBottom: 10 }}>
+            It will close fully, then start opening. Tap the moment it is fully open.
+          </Text>
+          <Pressable
+            onPress={() => { tapLight(); send({ action: "learnDone" }); }}
+            style={{ minHeight: 46, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: c.cyan }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800" }}>It is fully open now</Text>
+          </Pressable>
+        </Card>
+      ) : (
+        <Text style={{ color: c.faint, fontSize: 12, lineHeight: 17 }}>
+          Position is worked out from how long the motor runs — currently {travelSec}s for a full
+          traverse. If the percentage drifts, one full open or close puts it right, because those
+          always drive to the end stop.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+
+/**
+ * The configurable switchboard, on a phone.
+ *
+ * Only the householder's half. The gang count and the names are read off the
+ * device — never assumed — because this board is made to order and a UI that
+ * guesses its size shows either a control that does nothing or hides one that
+ * exists.
+ *
+ * Commissioning stays in the console: it is a job done once, by an engineer
+ * standing at an open wall box, and it involves pin numbers.
+ */
+function ConfigurableBoard({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const gangs = Math.max(0, Math.min(8, Number(d.state.gangs ?? 0)));
+  const layoutOk = d.state.layoutOk !== false;
+  const fields = ["g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8"];
+  const label = (i: number) => String(d.state[`n${i + 1}`] ?? "") || `Channel ${i + 1}`;
+
+  if (gangs === 0 || !layoutOk) {
+    return (
+      <Card padded style={{ borderColor: c.amber, borderWidth: 1 }}>
+        <Text style={{ color: c.amber, fontWeight: "800", marginBottom: 4 }}>
+          {layoutOk ? "Not commissioned yet" : "Layout refused"}
+        </Text>
+        <Text style={{ color: c.faint, fontSize: 12, lineHeight: 17 }}>
+          {layoutOk
+            ? "This board has not been told what it is wired to, so it is driving nothing. An engineer sets that up from the console."
+            : `The board rejected its layout and is driving nothing rather than part of a wall: ${String(d.state.layoutError ?? "")}`}
+        </Text>
+      </Card>
+    );
+  }
+
+  return (
+    <View>
+      {Array.from({ length: gangs }).map((_, i) => (
+        <Row key={fields[i]} label={label(i)} c={c}>
+          <Sw v={!!d.state[fields[i]]} on={(v) => send({ [fields[i]]: v })} c={c} />
+        </Row>
+      ))}
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+        <Pressable
+          onPress={() => { tapLight(); send({ all: true }); }}
+          style={{ flex: 1, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card }}
+        >
+          <Text style={{ color: c.text, fontWeight: "700" }}>All on</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { tapLight(); send({ all: false }); }}
+          style={{ flex: 1, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card }}
+        >
+          <Text style={{ color: c.text, fontWeight: "700" }}>All off</Text>
+        </Pressable>
+      </View>
+      {Number(d.state.homePeers ?? 0) > 0 && (
+        <Text style={{ color: c.faint, fontSize: 12, marginTop: 10, lineHeight: 17 }}>
+          Talking directly to {Number(d.state.homePeers)} other board
+          {Number(d.state.homePeers) === 1 ? "" : "s"} in this home, so pads bound across rooms keep
+          working with the internet down.
+        </Text>
+      )}
     </View>
   );
 }
@@ -1367,13 +2015,24 @@ function TouchBoard({ d, send, c }: { d: Device; send: (p: Record<string, unknow
   const bl = Number(d.state.backlight ?? 60);
   return (
     <View>
+      {/* Voltage is shown only when the board measured it — the firmware used
+          to substitute a nominal 230 V, which hid a failed sensor completely
+          and corrupted the power factor derived from it. */}
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
         <MiniStat label="Power" value={`${Number(d.state.watts ?? 0).toFixed(0)} W`} c={c} />
-        <MiniStat label="Voltage" value={`${Number(d.state.volts ?? 0).toFixed(0)} V`} c={c} />
+        <MiniStat
+          label="Voltage"
+          value={d.state.voltsMeasured === false ? "—" : `${Number(d.state.volts ?? 0).toFixed(0)} V`}
+          c={c}
+        />
         <MiniStat label="Current" value={`${Number(d.state.amps ?? 0).toFixed(2)} A`} c={c} />
       </View>
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 4 }}>
-        <MiniStat label="Power factor" value={Number(d.state.pf ?? 0).toFixed(2)} c={c} />
+        <MiniStat
+          label="Power factor"
+          value={Number(d.state.pf ?? 0) > 0 ? Number(d.state.pf).toFixed(2) : "—"}
+          c={c}
+        />
         <MiniStat label="Energy" value={`${Number(d.state.kwh ?? 0).toFixed(2)} kWh`} c={c} />
       </View>
       <SwitchGangs d={d} send={send} c={c} />
@@ -1418,6 +2077,15 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
   const gasReady = bool("gasReady");
   const climateOk = bool("climateOk");
   const relays = Math.max(1, Math.min(32, num("relays", 4)));
+  /* Which appliances the interlock really cut, named where the householder has
+     named them. `safetyCut` is what was cut; `safetyCutMask` is only what is
+     configured to be. */
+  const cutBits = num("safetyCut", 0);
+  const cutNames = Array.from({ length: relays })
+    .map((_, i) =>
+      (cutBits & (1 << i)) !== 0 ? String(st[`n${i + 1}`] ?? "") || `Relay ${i + 1}` : null,
+    )
+    .filter((x): x is string => x !== null);
   const exhaust = num("exhaustRelay", -1);
   const cutMask = num("safetyCutMask", 0);
   const src = typeof st.lastSource === "string" ? (st.lastSource as string) : "";
@@ -1446,10 +2114,25 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
       {alarm && (
         <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1, alignItems: "center" }}>
           <Icon name="alert" size={26} color={c.red} />
-          <Text style={{ color: c.red, fontSize: 18, fontWeight: "800", marginTop: 6 }}>GAS DETECTED</Text>
-          <Text style={{ color: c.textDim, fontSize: 13, marginTop: 6, textAlign: "center" }}>
-            Ventilate the room and check for a leak before clearing. The alarm stays on until someone dismisses it.
+          <Text style={{ color: c.red, fontSize: 18, fontWeight: "800", marginTop: 6 }}>
+            {bool("gasPresent") ? "GAS DETECTED" : "GAS ALARM — AIR CLEAR NOW"}
           </Text>
+          <Text style={{ color: c.textDim, fontSize: 13, marginTop: 6, textAlign: "center" }}>
+            {bool("gasPresent")
+              ? "Ventilate the room and check for a leak. The alarm cannot be cleared while gas is still present."
+              : "The air is back to normal, but the alarm is held until you dismiss it — so the reason anything was switched off stays on screen."}
+          </Text>
+
+          {/* What the interlock did. Without this an appliance is simply off,
+              and whoever finds it switches it back on never knowing there was
+              a leak. */}
+          {bool("safetyEngaged") && (
+            <Text style={{ color: c.red, fontSize: 12, marginTop: 8, textAlign: "center", lineHeight: 17 }}>
+              Safety interlock engaged{cutNames.length > 0 ? `: ${cutNames.join(", ")} switched off` : ""}.
+              Clearing stops the exhaust; the appliances stay off for you to restore.
+            </Text>
+          )}
+
           <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
             <Pressable
               onPress={() => { tapLight(); send({ muted: true }); }}
@@ -1458,8 +2141,9 @@ function Sentinel({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
               <Text style={{ color: c.text, fontWeight: "700" }}>Silence 5 min</Text>
             </Pressable>
             <Pressable
+              disabled={bool("gasPresent")}
               onPress={() => { tapLight(); send({ action: "clearAlarm" }); }}
-              style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 18, borderRadius: 10, backgroundColor: c.red }}
+              style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 18, borderRadius: 10, backgroundColor: c.red, opacity: bool("gasPresent") ? 0.4 : 1 }}
             >
               <Text style={{ color: "#fff", fontWeight: "800" }}>Clear alarm</Text>
             </Pressable>

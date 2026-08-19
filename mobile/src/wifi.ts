@@ -1,8 +1,15 @@
-// Circuvent device Wi-Fi helper — wraps react-native-wifi-reborn to auto-discover
-// and auto-connect to a device's setup hotspot (open "Circuvent-Setup-XXXX" AP),
-// so the user never has to leave the app for Android Settings. Degrades cleanly
-// on iOS / Expo Go where the native module or scanning isn't available: callers
-// then fall back to the manual "join in Settings" flow.
+// Circuvent device Wi-Fi helper — wraps react-native-wifi-reborn to discover and
+// join a device's setup hotspot (open "Circuvent-Setup-XXXX" AP) so the user
+// never has to leave the app for Settings.
+//
+// Two capabilities, not one. Scanning for nearby SSIDs is Android-only — iOS
+// has no public API for it. Joining a network *by name* works on both, because
+// iOS exposes NEHotspotConfiguration and this app ships the entitlement for it.
+//
+// So iOS skips discovery and is handed the hotspot name directly, which the app
+// already knows from the QR label. Only when the native module is missing
+// entirely (Expo Go, Simulator) do callers fall back to the manual
+// "join in Settings" flow.
 import { Platform, PermissionsAndroid, NativeModules } from "react-native";
 
 export const AP_PREFIX = "Circuvent-Setup-";
@@ -32,9 +39,39 @@ try {
   Wifi = null;
 }
 
-/** True only when the native Wi-Fi control module is usable (Android build). */
+/**
+ * True only when the native module can *scan* for nearby networks.
+ *
+ * Android only, and not because of the module: iOS has no public API for
+ * listing nearby SSIDs at all, at any entitlement level. That is why the
+ * discovery step is Android-only and iOS is offered the device's hotspot by
+ * name instead.
+ */
 export function wifiAutoSupported(): boolean {
   return Platform.OS === "android" && !!Wifi && !!NativeModules.WifiManager;
+}
+
+/**
+ * True when the app can *join* a named network itself.
+ *
+ * Scanning and joining are different capabilities and were treated as one, so
+ * iOS got neither — it was sent to Settings to type the hotspot name by hand.
+ * But iOS can join a network it is told the name of, through
+ * NEHotspotConfiguration, and this app already ships the entitlement for it:
+ * app.config.js lists com.apple.developer.networking.HotspotConfiguration
+ * among the capabilities a free Apple ID cannot provision, which is only
+ * relevant because the paid builds do.
+ *
+ * And the name is never a mystery — the QR label scanned a moment earlier
+ * carries the hardware id the hotspot is named after.
+ *
+ * On Android this is the same answer as scanning. On iOS it is the difference
+ * between onboarding a device inside the app and telling somebody to go to
+ * Settings, find a hotspot, come back, and hope the phone has not wandered off
+ * to a network with working internet in the meantime.
+ */
+export function wifiJoinSupported(): boolean {
+  return (Platform.OS === "android" || Platform.OS === "ios") && !!Wifi;
 }
 
 /** Request the runtime permissions Android needs to scan for / connect to Wi-Fi. */
@@ -115,7 +152,7 @@ export async function discoverDeviceAPs(
  * dialog in-app — no Settings trip. Throws on failure so callers can fall back.
  */
 export async function connectToDeviceAP(ssid: string): Promise<void> {
-  if (!wifiAutoSupported() || !Wifi) throw new Error("wifi-auto-unsupported");
+  if (!wifiJoinSupported() || !Wifi) throw new Error("wifi-auto-unsupported");
   await Wifi.connectToProtectedSSID(ssid, "", false, false);
   try {
     await Wifi.forceWifiUsageWithOptions(true, { noInternet: true });
@@ -126,7 +163,7 @@ export async function connectToDeviceAP(ssid: string): Promise<void> {
 
 /** Release the device-AP binding and disconnect, restoring normal connectivity. */
 export async function leaveDeviceAP(): Promise<void> {
-  if (!wifiAutoSupported() || !Wifi) return;
+  if (!wifiJoinSupported() || !Wifi) return;
   try {
     await Wifi.forceWifiUsageWithOptions(false, { noInternet: false });
   } catch {

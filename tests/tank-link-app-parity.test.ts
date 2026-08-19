@@ -41,6 +41,24 @@ const CASES: Array<[string, web.TankDeviceState]> = [
   ["zero rssi means unknown", { sensorPaired: true, rfAgeS: 5, ohPct: 40, rfRssi: 0 }],
   ["full tank", { sensorPaired: true, rfAgeS: 5, ohPct: 100 }],
   ["empty tank", { sensorPaired: true, rfAgeS: 5, ohPct: 0 }],
+
+  /*
+   * The pump-hold cases. From watertank 2.2.0 a sump that cannot be read holds
+   * the pump, and both surfaces have to say the same thing about it — a
+   * console reading "sump sensor failed" beside a phone showing a working
+   * pump switch is how somebody concludes the app is broken and goes to the
+   * panel instead.
+   */
+  ["sump unreadable", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: -1, sumpFault: true }],
+  ["sump unreadable, no flag", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: -1 }],
+  ["sump low", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: 10, sumpMinPct: 15 }],
+  ["sump exactly at the floor", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: 15, sumpMinPct: 15 }],
+  ["sump just above the floor", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: 16, sumpMinPct: 15 }],
+  ["dry-run latched", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: 80, dryRun: true }],
+  ["overflow float", { sensorPaired: true, rfAgeS: 5, ohPct: 99, sumpPct: 80, overflow: true }],
+  ["dry-run outranks a low sump", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: 2, dryRun: true }],
+  ["stale link holds the pump", { sensorPaired: true, rfAgeS: web.TANK_STALE_S + 60, ohPct: 40, sumpPct: 80 }],
+  ["nothing wrong", { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: 80, sumpMinPct: 15 }],
 ];
 
 describe("tank link thresholds", () => {
@@ -115,6 +133,80 @@ describe("the invariant that matters", () => {
         const text = web.tankLevelText(link);
         expect(text === "—" || text.includes("last known")).toBe(true);
       }
+    }
+  });
+});
+
+describe("readPumpHold agrees across web and app", () => {
+  it.each(CASES)("%s", (_name, state) => {
+    const w = web.readPumpHold(state, web.readTankLink(state));
+    const a = app.readPumpHold(state, app.readTankLink(state));
+    expect({ held: a.held, reason: a.reason, tone: a.tone, label: a.label, detail: a.detail })
+      .toEqual({ held: w.held, reason: w.reason, tone: w.tone, label: w.label, detail: w.detail });
+  });
+});
+
+describe("what holds the pump", () => {
+  const hold = (s: web.TankDeviceState) => web.readPumpHold(s, web.readTankLink(s));
+  const healthy = { sensorPaired: true, rfAgeS: 5, ohPct: 40, sumpPct: 80, sumpMinPct: 15 };
+
+  it("says nothing when nothing is wrong", () => {
+    expect(hold(healthy).held).toBe(false);
+  });
+
+  it("reports a sump that cannot be read", () => {
+    /*
+     * The case that motivated all of this. Before watertank 2.2.0 a failed
+     * sump published 50%, which is above every possible sumpMin, so the pump's
+     * primary dry-run interlock was satisfied by a sensor that was not
+     * answering.
+     */
+    expect(hold({ ...healthy, sumpPct: -1, sumpFault: true }).reason).toBe("sump-fault");
+  });
+
+  it("reports it from the sentinel alone, without the flag", () => {
+    // Older firmware, or a state message that lost a field: -1 is the
+    // published contract and is enough on its own.
+    expect(hold({ ...healthy, sumpPct: -1 }).reason).toBe("sump-fault");
+  });
+
+  it("distinguishes a low sump from a broken one", () => {
+    const low = hold({ ...healthy, sumpPct: 10 });
+    expect(low.reason).toBe("sump-low");
+    // Nothing is broken and nothing needs doing, so it must not be dressed up
+    // as a fault — an alarm that fires while the system is behaving correctly
+    // is an alarm people learn to ignore.
+    expect(low.tone).toBe("idle");
+  });
+
+  it("holds at the floor and releases just above it", () => {
+    // Mirrors the firmware's `sumpPct <= sumpMin`.
+    expect(hold({ ...healthy, sumpPct: 15 }).reason).toBe("sump-low");
+    expect(hold({ ...healthy, sumpPct: 16 }).held).toBe(false);
+  });
+
+  it("puts the latched trip ahead of conditions that clear themselves", () => {
+    // A dry-run trip stays until somebody resets it, so it outranks a low sump
+    // that may well have refilled by the time the screen is read.
+    expect(hold({ ...healthy, sumpPct: 2, dryRun: true }).reason).toBe("dry-run");
+  });
+
+  it("reports the overflow float", () => {
+    expect(hold({ ...healthy, overflow: true }).reason).toBe("overflow");
+  });
+
+  it("reports a missing level", () => {
+    expect(hold({ ...healthy, rfAgeS: web.TANK_STALE_S + 60 }).reason).toBe("no-level");
+  });
+
+  it("always gives something to do about it", () => {
+    // A banner that names a problem without a next step is the state somebody
+    // screenshots and sends to support.
+    for (const [, state] of CASES) {
+      const h = hold(state);
+      if (!h.held) continue;
+      expect(h.label.length).toBeGreaterThan(8);
+      expect(h.detail.length).toBeGreaterThan(30);
     }
   });
 });

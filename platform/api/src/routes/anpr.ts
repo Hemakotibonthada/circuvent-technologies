@@ -959,8 +959,24 @@ const RESOLUTIONS = ["QQVGA", "QCIF", "HQVGA", "QVGA", "CIF", "HVGA", "VGA", "SV
  * camera is therefore not "less accurate", it is a feature that cannot work,
  * and it fails as "every read is unrecognised", which reads as a broken
  * recogniser rather than a resolution setting.
+ *
+ * VGA AND NOT SVGA, AND THE REASON IS NOT PICTURE QUALITY.
+ *
+ * SVGA reads plates better. But `firmware/camera` decodes motion at 1/8 scale
+ * into a fixed buffer, and a frame larger than its `MD_MAX_PIXELS` makes the
+ * camera **turn its own motion detection off** rather than allocate more. That
+ * cap was VGA-sized, so raising a camera to SVGA silently disabled the motion
+ * event — which is the lane's trigger. The feature switched off the thing it
+ * runs on, and the only symptom was a lane that never fired.
+ *
+ * The firmware cap is now SVGA-sized, but a deployed camera cannot be assumed
+ * to have that build and most cannot be reflashed on demand. VGA is the
+ * largest frame every shipped build will still scan for motion, so it is what
+ * a lane asks for: a legible plate on a camera that still triggers beats an
+ * excellent plate on one that never does. An installer who wants SVGA can set
+ * it by hand, and a newer build will keep detecting motion at it.
  */
-const MIN_ANPR_RESOLUTION = "SVGA";
+const MIN_ANPR_RESOLUTION = "VGA";
 
 /**
  * Puts a camera into a state where a lane can actually work.
@@ -996,6 +1012,11 @@ async function prepareCamera(deviceId: string): Promise<string[]> {
    * detection is off on a camera nobody has configured. Turning it on here is
    * the difference between "ANPR enabled" meaning something and meaning a
    * switch that silently never fires.
+   *
+   * Set *after* the resolution in the same command, and stated last here for
+   * the same reason: the camera disables motion detection by itself when the
+   * frame is too large to scan, so the two settings are coupled and the order
+   * they are decided in matters. See MIN_ANPR_RESOLUTION.
    */
   if (state.motion !== true) {
     command.motion = true;

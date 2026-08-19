@@ -11,6 +11,14 @@ import {
 export interface Account {
   email: string;
   name: string;
+  /**
+   * Set when the customer has a profile picture; also its cache key.
+   *
+   * Kept here rather than fetched by each consumer so the header can show the
+   * picture without asking, and so a header that asked would not fire a 404 on
+   * every page for the majority who have not set one.
+   */
+  avatarUpdatedAt?: string;
 }
 
 interface AccountContextValue {
@@ -27,6 +35,8 @@ interface AccountContextValue {
   verifyOtp: (email: string, otp: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
   refreshWallet: () => Promise<void>;
+  /** Re-reads the profile, so a new picture shows in the header immediately. */
+  refreshAccount: () => Promise<void>;
   authHeaders: () => Record<string, string>;
 }
 
@@ -84,9 +94,47 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token]);
 
+  /**
+   * Pulls the fields the header shows but the sign-in response does not carry.
+   *
+   * The stored session holds only the address and name, which is all it needed
+   * when every avatar was generated initials. It is written back to
+   * localStorage so the picture is there on the next page load rather than
+   * appearing a moment after each navigation.
+   */
+  const refreshAccount = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/account/profile", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const d = await res.json();
+      const fresh = d.account as { name?: string; avatarUpdatedAt?: string } | undefined;
+      if (!fresh) return;
+      setAccount((prev) => {
+        if (!prev) return prev;
+        const next: Account = {
+          ...prev,
+          name: fresh.name || prev.name,
+          avatarUpdatedAt: fresh.avatarUpdatedAt,
+        };
+        try {
+          localStorage.setItem(KEY, JSON.stringify({ account: next, token }));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [token]);
+
   useEffect(() => {
-    if (token) refreshWallet();
-  }, [token, refreshWallet]);
+    if (token) {
+      refreshWallet();
+      refreshAccount();
+    }
+  }, [token, refreshWallet, refreshAccount]);
 
   const login = useCallback<AccountContextValue["login"]>(
     async (email, password) => {
@@ -174,7 +222,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AccountContext.Provider
-      value={{ account, token, wallet, ready, login, register, verifyOtp, logout, refreshWallet, authHeaders }}
+      value={{ account, token, wallet, ready, login, register, verifyOtp, logout, refreshWallet, refreshAccount, authHeaders }}
     >
       {children}
     </AccountContext.Provider>

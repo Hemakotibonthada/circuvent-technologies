@@ -200,6 +200,21 @@ describe("outputs come back the way the owner left them", () => {
     // auto disabled would quietly stop filling.
     aquaguard: ["auto"],
     watertank: ["auto"],
+    /*
+     * Same argument at a gate, and the failure is more visible: a barrier that
+     * came back from a power cut with auto mode off stops opening for
+     * authorised tags, and the residents sit outside their own gate wondering
+     * why their card has stopped working. It energises nothing by itself —
+     * `auto` only decides whether a *scanned* tag opens the barrier.
+     *
+     * The gate only appears in this list at all since 2.0.0, when it started
+     * claiming its relays through cvRelayInit. Before that it drove them with
+     * bare pinMode and digitalWrite, which meant it escaped this check
+     * entirely — while being the sketch that most needed it, because on an
+     * active-low board that left both the OPEN and CLOSE relays energised from
+     * the moment it powered on.
+     */
+    "rfid-gate": ["auto"],
   };
 
   it.each(relayDrivers.map((s) => s.name))(

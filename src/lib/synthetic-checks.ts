@@ -77,6 +77,39 @@ export function defaultChecks(): SyntheticCheck[] {
     web("mail-prod", "mail.circuvent.com", "https://mail.circuvent.com/api/health", "Platform"),
     web("mail-dev", "dev.mail.circuvent.com", "https://dev.mail.circuvent.com/api/health", "Platform"),
     /*
+     * Single sign-on between the storefront and the console.
+     *
+     * This is here because it failed silently for an unknown length of time.
+     * The secret was set on the website and never on the control plane, so
+     * /auth/federated answered 404 "Federation is not enabled." Nothing
+     * escalated: the shop's minting helper returns null by design — a shop that
+     * cannot reach the smart-home service should still let people shop — and
+     * the only visible symptom was customers being told "No devices linked yet"
+     * on a page listing hardware that was online at the time.
+     *
+     * No credential is needed to detect it, which is the point. An unsigned
+     * POST is rejected either way; what differs is how:
+     *
+     *   400 "Invalid input"              federation is on, guard is running
+     *   401 "Bad signature."             same, if validation order ever changes
+     *   404 "Federation is not enabled." the fault this watches for
+     *
+     * So the healthy answer is a refusal, and the alarm is the route politely
+     * saying the feature is off. Both refusals are listed rather than just the
+     * one observed, because which of the two comes back depends on the order of
+     * two guards inside the handler, and a monitor that fails when somebody
+     * reorders equivalent validation is a monitor people learn to ignore.
+     */
+    {
+      id: "cp-federation",
+      name: "Storefront ↔ console single sign-on",
+      url: "https://api.circuvent.com/auth/federated",
+      method: "POST",
+      expectStatus: [400, 401],
+      owningTeam: "Platform",
+      enabled: true,
+    },
+    /*
      * Office was retired, so its three checks are gone with it — the web bundle,
      * the API behind the proxy, and the realtime socket.
      *

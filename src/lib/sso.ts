@@ -24,7 +24,7 @@ import { logger } from "./logger";
  * browser client and pulling it into a server route drags localStorage-bound
  * code along with it for the sake of one string.
  */
-const CONTROL_PLANE_URL = (
+export const CONTROL_PLANE_URL = (
   process.env.CONTROL_PLANE_URL ||
   process.env.NEXT_PUBLIC_CONTROL_PLANE_URL ||
   "https://api.circuvent.com"

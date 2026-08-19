@@ -125,6 +125,71 @@ describe("the firmware's safety gate", () => {
     expect(source).toMatch(/p\.seq\s*<=\s*s\.lastSeq/);
   });
 
+  it("applies the replay check to the counter restored from flash", () => {
+    /*
+     * The check used to read `if (s.everHeard && p.seq <= s.lastSeq)`. The
+     * starter restores `lastSeq` from NVS at boot precisely so a power cut
+     * cannot reopen the replay window — but `everHeard` means "heard since we
+     * started" and has to begin false, so the restored counter was loaded and
+     * then skipped, and the first packet after every reboot was accepted
+     * whatever its sequence.
+     *
+     * Pinned as a shape rather than a behaviour because this header is C and
+     * cannot be executed from here; the point is that `lastSeq` alone must be
+     * able to arm the check.
+     */
+    expect(source).toMatch(/s\.everHeard\s*\|\|\s*s\.lastSeq\s*!=\s*0/);
+  });
+
+  it("verifies a pairing offer before adopting its key", () => {
+    /*
+     * Copying the offered key into place and verifying afterwards left the
+     * live sensor's key overwritten when the check failed — the link then
+     * stayed dead until the starter was power-cycled, taking auto-fill with
+     * it. The memcpy must come after the verify.
+     */
+    const starter = readFileSync(join(ROOT, "firmware", "watertank", "watertank.ino"), "utf8");
+    const verify = starter.indexOf("cvTankVerify(p, offeredKey)");
+    const adopt = starter.indexOf("memcpy(linkKey, offeredKey");
+    expect(verify).toBeGreaterThan(-1);
+    expect(adopt).toBeGreaterThan(verify);
+  });
+
+  it("refuses to pump on a sump it cannot read", () => {
+    /*
+     * A faulted sump used to be substituted with 50%, which is above every
+     * possible sumpMin — so a dead sump sensor satisfied the pump's primary
+     * dry-run interlock and auto-fill would start the motor on it.
+     */
+    const starter = readFileSync(join(ROOT, "firmware", "watertank", "watertank.ino"), "utf8");
+    expect(starter).toMatch(/if\s*\(\s*on\s*&&\s*sumpFault\s*\)\s*on\s*=\s*false/);
+    expect(starter).toMatch(/if\s*\(pump\s*&&\s*sumpFault\)\s*\{\s*setPump\(false\)/);
+  });
+
+  it("no longer invents a sump percentage", () => {
+    // The specific line that caused it. Its return would be silent.
+    const starter = readFileSync(join(ROOT, "firmware", "watertank", "watertank.ino"), "utf8");
+    expect(starter).not.toMatch(/sumpPct\s*=\s*sumpPct\s*<\s*0\s*\?\s*50/);
+  });
+
+  it("holds the sensor's supply line through deep sleep", () => {
+    /*
+     * The ESP32 releases digital outputs the moment deep sleep begins, so
+     * driving SENSOR_EN low without latching it left the ultrasonic module's
+     * enable floating for the whole interval — on the one device in the fleet
+     * that runs from a cell on a roof.
+     */
+    const sensor = readFileSync(
+      join(ROOT, "firmware", "watertank-sensor", "watertank-sensor.ino"),
+      "utf8"
+    );
+    expect(sensor).toMatch(/gpio_hold_en\(\(gpio_num_t\)SENSOR_EN\)/);
+    expect(sensor).toMatch(/gpio_deep_sleep_hold_en\(\)/);
+    // And released on the way back, or the pin stays frozen and the sensor is
+    // never powered up again.
+    expect(sensor).toMatch(/gpio_hold_dis\(\(gpio_num_t\)SENSOR_EN\)/);
+  });
+
   it("compares MACs in constant time", () => {
     // A byte-at-a-time comparison leaks how many leading bytes were correct,
     // and a radio attacker can retry indefinitely.

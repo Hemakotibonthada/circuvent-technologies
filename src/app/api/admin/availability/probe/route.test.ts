@@ -376,12 +376,20 @@ describe("the sweep watches the rest of the suite", () => {
     process.env.ICM_NOTIFY_EMAIL = "oncall@circuvent.com";
   });
 
-  /** Answers 200 for everything except the hosts named. */
+  /** Answers healthily for everything except the hosts named. */
   const failing = (broken: string[]) =>
     jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (broken.some((b) => url.includes(b))) return new Response("", { status: 503 });
-      return new Response('{"status":"ok"}', { status: 200 });
+      /*
+       * "Healthy" is whatever the check itself calls healthy, not a blanket
+       * 200. An authenticated endpoint proves it is alive by refusing — the
+       * federation check is watching for a 404 that means the feature is
+       * switched off, so its healthy answer is a 400. Hardcoding 200 here
+       * would fail every such check against a service that is perfectly fine.
+       */
+      const check = defaultChecks().find((c) => c.url === url);
+      return new Response('{"status":"ok"}', { status: check?.expectStatus[0] ?? 200 });
     }) as unknown as typeof fetch;
 
   it("reports every check, not just the failures", async () => {

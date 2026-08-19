@@ -130,6 +130,17 @@ export function getEmbedder(): FaceEmbedder {
   return cached;
 }
 
+/**
+ * Test seam. Pass null to fall back to the configured embedder.
+ *
+ * The same shape as `__setRecogniserForTests` in the ANPR pipeline, and for
+ * the same reason: the door driver has to be exercised through its real frame
+ * handling, and the only part of that which cannot run in a test is the model.
+ */
+export function __setEmbedderForTests(e: FaceEmbedder | null): void {
+  cached = e;
+}
+
 /** Human wording for a failure, used verbatim by the app. */
 export function embedFailureMessage(reason: EmbedResult["reason"]): string {
   switch (reason) {

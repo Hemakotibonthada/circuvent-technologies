@@ -37,6 +37,15 @@ below is reference material that assumes you can already run things.
 | **Fly and log a drone** | [21 — Drone Link](./21-drone.md) |
 | **Fly our own aircraft** | [22 — Drone X1](./22-drone-x1.md) |
 | **Understand the two-part water tank and its radio link** | [28 — WaterTank radio link](./28-watertank-radio-link.md) |
+| **Recognise a face at a door** | [29 — FaceDoor](./29-facedoor.md) |
+| **Take attendance, or control room access, with RFID** | [30 — Attendance](./30-attendance.md) |
+| **Measure electricity — and know what the number means** | [31 — Metering](./31-metering.md) |
+| **Call for help from a button in a shoe** | [32 — Guardian](./32-guardian.md) |
+| **Start a farm pump from a phone with no internet** | [33 — Agri Starter](./33-agri-starter.md) |
+| **Let the right cars through a barrier** | [34 — RFID Gate](./34-rfid-gate.md) |
+| **Drive a curtain to a position it cannot measure** | [35 — Smart Curtain](./35-curtain.md) |
+| **Build a switchboard to order, on site** | [36 — Configurable Switchboard](./36-switchboard.md) |
+| **Understand why the shop showed a customer no devices** | [37 — The two device registries](./37-shop-fleet.md) |
 
 ### Working here
 

@@ -175,6 +175,40 @@ services:
     logging: *default-logging
     networks: [internal]
 
+  face:
+    # The face embedder for FaceDoor. See platform/face/embed.py for why this
+    # is a separate container and why its output is scaled before it reaches
+    # the matcher.
+    #
+    # Deliberately NOT in `api`'s depends_on. The API is designed to run with
+    # FACE_EMBEDDER=none — enrolment from a photograph is the only thing that
+    # stops working — and a model that fails to load must not be able to keep
+    # the whole control plane, and therefore every other device in every home,
+    # from starting.
+    build:
+      context: ./face
+    restart: unless-stopped
+    environment:
+      PORT: "8000"
+      FACE_API_KEY: ${FACE_API_KEY:-}
+      FACE_SCORE_THRESHOLD: ${FACE_SCORE_THRESHOLD:-0.7}
+      FACE_MIN_PX: ${FACE_MIN_PX:-120}
+      FACE_MAX_DETECT_PX: ${FACE_MAX_DETECT_PX:-1024}
+      FACE_LOCK_WAIT_S: ${FACE_LOCK_WAIT_S:-6}
+    # Not published to the host: nothing outside the compose network has any
+    # business talking to it, and it authenticates with an optional shared
+    # secret rather than a login.
+    expose:
+      - "8000"
+    # OpenCV plus a 37 MB model on a 956 MB VM. The cap is the point: if the
+    # embedder ever leaks or is handed something enormous, the kernel kills
+    # *it* rather than picking a victim — and the OOM killer's usual choice on
+    # this box would be Postgres.
+    mem_limit: 384m
+    memswap_limit: 768m
+    logging: *default-logging
+    networks: [internal]
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

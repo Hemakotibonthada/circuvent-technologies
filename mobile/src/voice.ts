@@ -111,7 +111,21 @@ function statusOf(d: Device): string {
      * measuring any more.
      */
     const link = readTankLink(s as TankDeviceState);
-    const sump = `sump ${Number(s.sumpPct ?? 0)} percent`;
+    /*
+     * The sump has exactly the same problem, and from watertank 2.2.0 it has
+     * the same sentinel: -1 means the wired sump sensor is not returning a
+     * usable reading. This said `Number(s.sumpPct ?? 0)` — one line below a
+     * comment explaining why that was wrong for the overhead level — so a
+     * failed sump would have been read out as "sump minus one percent", and
+     * before the sentinel as a confident "sump zero percent".
+     *
+     * Saying a sump is empty is a prompt to go and look at a pump. Saying it
+     * cannot be read is a prompt to go and look at the sensor. They send
+     * somebody to different ends of the building.
+     */
+    const sumpPct = typeof s.sumpPct === "number" ? s.sumpPct : -1;
+    const sump =
+      sumpPct < 0 ? "The sump level is not being read." : `The sump is ${sumpPct} percent.`;
     if (link.levelPct === null) {
       return link.status === "unpaired"
         ? `${d.name} has no tank sensor paired, so I cannot read the overhead level. ${sump}`
@@ -120,7 +134,7 @@ function statusOf(d: Device): string {
     if (!link.levelIsCurrent) {
       return `${d.name} overhead was ${link.levelPct} percent when the sensor last reported, ${formatAge(link.ageS ?? 0)} ago. ${sump}`;
     }
-    return `${d.name} overhead is ${link.levelPct} percent, ${sump}`;
+    return `${d.name} overhead is ${link.levelPct} percent. ${sump}`;
   }
   if (d.type === "aquaguard") return `${d.name} is at ${Number(s.level ?? 0)} percent`;
   if (d.type === "facedoor" || d.type === "smart-lock") return `${d.name} is ${s.locked ? "locked" : "unlocked"}`;

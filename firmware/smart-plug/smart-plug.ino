@@ -8,7 +8,25 @@
    explicitly so the fleet can tell fixed devices from unfixed ones; without
    it every sketch reported the library default and they were
    indistinguishable. */
-#define CV_FW_VERSION "1.1.0"
+/* 1.1.1  The status LED is no longer inverted. It was driven through cvRelayWrite(), which applies the relay board's active-LOW polarity, so the LED lit when the socket was off. */
+/*
+ * 1.2.0  Stops reporting a wattage it cannot measure. There is no metering
+ *        front end on this board — the sketch published a hard-coded 42.5 W
+ *        whenever the socket was on, and the console rendered it in large type
+ *        under the caption "Live power draw". It was a placeholder that reached
+ *        customers: every plug in the fleet claimed the same fictitious load,
+ *        and anything reading `watts` (dashboards, automations, reports) was
+ *        being fed a constant. A plug that says nothing about power is honest;
+ *        one that invents it is not. Fit a BL0937 and it can be reinstated —
+ *        firmware/meter already has the driver, and Docs/31-metering.md the
+ *        traps.
+ *
+ *        The button also no longer fights the reset gesture: level-triggered
+ *        with a 400 ms rate limit, it switched the socket about twenty times
+ *        during an eight-second factory-reset hold, and acted on a pin that was
+ *        already low at boot. Now a tap, via CvTapButton.
+ */
+#define CV_FW_VERSION "1.2.0"
 #include <CircuventDevice.h>
 #include <fauxmoESP.h>
 #include <Preferences.h>
@@ -22,13 +40,17 @@
 CircuventDevice cv("smart-plug");
 fauxmoESP fauxmo;
 Preferences store;
+CvTapButton btn;
 bool power = false;
 bool savedPower = false;
 
 void applyPower(bool on) {
   power = on;
   cvRelayWrite(RELAY_PIN, on);
-  cvRelayWrite(LED_PIN, on);
+  // The status LED is wired active-HIGH, like every other sketch in the fleet.
+  // cvRelayWrite() applies the *relay* board's active-LOW polarity, so using it
+  // here lit the LED when the socket was off and darkened it when on.
+  digitalWrite(LED_PIN, on ? HIGH : LOW);
   if (power != savedPower) {
     store.putBool("power", power);
     savedPower = power;
@@ -44,7 +66,7 @@ void setup() {
   Serial.begin(115200);
   cvRelayInit(RELAY_PIN);
   pinMode(LED_PIN, OUTPUT);
-  pinMode(BTN_PIN, INPUT_PULLUP);
+  btn.begin(BTN_PIN);
   store.begin("plug", false);
   power = store.getBool("power", false);
   savedPower = power;
@@ -63,14 +85,20 @@ void setup() {
   fauxmo.onSetState([](unsigned char, const char *, bool state, unsigned char) { applyPower(state); });
 }
 
-unsigned long lastBtn = 0;
 void loop() {
   fauxmo.handle();
-  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 400) {
-    lastBtn = millis();
-    applyPower(!power);
-  }
-  // TODO: replace with a real HLW8012 / BL0937 energy reading
-  cv.set("watts", power ? 42.5f : 0.0f);
+  /* A tap toggles the socket; a long hold is the reset gesture on this same
+     pin and is left to the library, which is already timing it. */
+  if (btn.tapped()) applyPower(!power);
+  /*
+   * No `watts` here on purpose.
+   *
+   * This board has no metering front end. What stood here published a constant
+   * 42.5 W whenever the socket was on, behind a TODO — and the console showed
+   * it as "Live power draw". Publishing nothing means the app has no reading to
+   * show, which is true; publishing 42.5 meant every plug we have ever shipped
+   * reported the same invented load, and automations and reports consumed it as
+   * if it were measured.
+   */
   cv.loop();
 }

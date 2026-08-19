@@ -38,12 +38,31 @@
  * sees only optocoupler outputs. Nothing here may assume otherwise — there is
  * no shared ground with the metering front end.
  */
-/* Version history: 1.1.0 is the first build that survives a power cut with the
-   router still down - see tests/firmware-power-restore.test.ts. Declared
-   explicitly so the fleet can tell fixed devices from unfixed ones; without
-   it every sketch reported the library default and they were
-   indistinguishable. */
-#define CV_FW_VERSION "1.1.0"
+/* Version history
+ *   1.1.0  first build that survives a power cut with the router still down —
+ *          see tests/firmware-power-restore.test.ts. Declared explicitly so the
+ *          fleet can tell fixed devices from unfixed ones; without it every
+ *          sketch reported the library default and they were indistinguishable.
+ *   1.2.0  CF1 is cleared whenever SEL changes. It was not, and the settle
+ *          window (1 s) is shorter than the staleness timeout (2 s), so a
+ *          period measured before the switch was still accepted afterwards as
+ *          the newly selected quantity — a channel with nothing plugged into
+ *          it reported roughly 0.9 A, because current mode produces no CF1
+ *          edges and the voltage pulse rate was read as current. Also stops
+ *          `volts` holding its last value forever when the voltage sense goes
+ *          quiet (which silently corrupted the published power factor), and
+ *          samples on a fixed cadence rather than publishing twelve state
+ *          messages a second under load.
+ *
+ *          SEL_LEVEL_FOR_CURRENT is defined once instead of twice. The old
+ *          #if/#else pair tripped a "redefined" warning in the .ino-to-.cpp
+ *          conversion pass; the compiler proper resolved it correctly, so
+ *          shipped boards were right, but an unknown METER_PART silently
+ *          inherited HLW8012 polarity — now a hard #error. platformio.ini
+ *          was a copy of energy-monitor's and gained real envs for the
+ *          single-channel and HLW8012 variants, which had never been built.
+ */
+#define CV_FW_VERSION "1.2.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 
@@ -66,11 +85,30 @@
 #define METER_PART PART_BL0937
 #endif
 
-#if METER_PART == PART_BL0937
-#define SEL_LEVEL_FOR_CURRENT HIGH
-#else
-#define SEL_LEVEL_FOR_CURRENT LOW
+/*
+ * An unknown part is refused rather than defaulted.
+ *
+ * This was `#if BL0937 / #else`, so any value that was not BL0937 — a typo in
+ * a build flag, a third part added later — silently got HLW8012's polarity.
+ * That is precisely trap one: the board comes up looking healthy and reports
+ * the voltage as the current.
+ */
+#if METER_PART != PART_BL0937 && METER_PART != PART_HLW8012
+#error "CV_METER_PART: set METER_PART to PART_BL0937 or PART_HLW8012"
 #endif
+
+/*
+ * One definition, not two.
+ *
+ * Written as an #if/#else pair of #defines, this produced a "redefined"
+ * warning from the .ino-to-.cpp conversion pass, which does not evaluate the
+ * conditionals — so both branches were seen and the second won *in that pass*.
+ * The compiler proper resolved it correctly (verified with a static_assert),
+ * so no shipped board was affected, but a warning that is noise on a constant
+ * this dangerous is a warning nobody will read closely the day it means
+ * something. The ternary is constant-folded and cannot disagree with itself.
+ */
+#define SEL_LEVEL_FOR_CURRENT (METER_PART == PART_BL0937 ? HIGH : LOW)
 
 /*
  * Host GPIOs. The board brings out CH<n>_CF, CH<n>_CF1 and one shared SEL on
@@ -113,6 +151,25 @@ const uint32_t PULSE_TIMEOUT_MS = 2000;
  * period measurement at low current.
  */
 const uint32_t SEL_SETTLE_MS = 1000;
+
+/*
+ * How often the measured values are refreshed and offered to the library.
+ *
+ * The library publishes a changed state at most every `_minGap` (80 ms), and
+ * "changed" here means any float differing from the last one sent. Active
+ * power is derived from the interval between CF edges, which at 2 kW is around
+ * 1350 Hz — so a new, very slightly different number was available on
+ * essentially every pass of a loop with nothing to slow it down, and the meter
+ * published twelve times a second. That is over a million MQTT messages a day
+ * per device, each of which the control plane writes to Postgres.
+ *
+ * Half a second is far faster than anybody reads a live power figure and still
+ * leaves the ten-second heartbeat as the floor. Energy integration is
+ * unaffected: it runs off the same values with a zero-order hold over the real
+ * elapsed interval, and half a second of hold on a quantity that is itself an
+ * average over one mains cycle changes nothing measurable.
+ */
+const uint32_t SAMPLE_MS = 500;
 
 /* ------------------------------------------------------------------ */
 /* Pulse capture                                                       */
@@ -170,6 +227,38 @@ static float freqOf(PulseInput &in, uint32_t timeoutMs) {
   return 1000000.0f / (float)period;
 }
 
+/**
+ * Throw away what CF1 captured before SEL changed.
+ *
+ * THIS IS THE WHOLE REASON SEL IS DANGEROUS.
+ *
+ * CF1 carries current or voltage depending on SEL, and the capture below holds
+ * the last period it saw regardless of which. Without this, the reading taken
+ * after a switch can still be the *previous* quantity: the settle window is
+ * one second and the staleness timeout is two, so a period measured before the
+ * switch stays inside the timeout and is accepted as the newly selected
+ * quantity.
+ *
+ * At zero load that is not a subtle error. Current mode produces no CF1 edges
+ * at all, so a channel with nothing plugged into it would report the voltage
+ * pulse rate as current — roughly 0.9 A out of thin air, on a meter somebody
+ * is reading their bill against.
+ *
+ * Clearing both fields makes freqOf() return zero until genuinely new edges
+ * arrive after the switch, which is the same "silence is zero" rule the file
+ * header sets out for CF. The cost is that two edges must land inside the
+ * one-second window, so currents below about 2 Hz of CF1 read as zero — well
+ * under the threshold the two-second timeout already imposed.
+ */
+static void resetCf1Capture() {
+  noInterrupts();
+  for (int i = 0; i < METER_CHANNELS; i++) {
+    cf1In[i].lastEdgeUs = 0;
+    cf1In[i].periodUs = 0;
+  }
+  interrupts();
+}
+
 /* ------------------------------------------------------------------ */
 /* State                                                               */
 /* ------------------------------------------------------------------ */
@@ -191,6 +280,7 @@ bool selCurrent = true;          /* what CF1 is currently reporting */
 uint32_t selSwitchedAt = 0;
 uint32_t lastAccumMs = 0;
 uint32_t lastPersistMs = 0;
+uint32_t lastSampleMs = 0;
 
 static const char *chKey(const char *base, int i, char *buf, size_t n) {
   if (i == 0) snprintf(buf, n, "%s", base);
@@ -301,6 +391,9 @@ void setup() {
   digitalWrite(PIN_SEL, SEL_LEVEL_FOR_CURRENT);
   selCurrent = true;
   selSwitchedAt = millis();
+  /* Nothing has been captured yet, but be explicit: the same rule applies at
+     boot as at every switch after it. */
+  resetCf1Capture();
 
   for (int i = 0; i < METER_CHANNELS; i++) {
     pinMode(PIN_CF[i], INPUT);
@@ -342,6 +435,18 @@ void setup() {
 void loop() {
   uint32_t now = millis();
 
+  /*
+   * Everything below is on the sample cadence. The energy integral uses the
+   * real elapsed interval either way, so slowing the sampling does not slow
+   * the accumulation — it only stops the meter publishing a marginally
+   * different float thousands of times a second.
+   */
+  if (now - lastSampleMs < SAMPLE_MS) {
+    cv.loop();
+    return;
+  }
+  lastSampleMs = now;
+
   /* Active power is always available: CF never shares its pin. */
   for (int i = 0; i < METER_CHANNELS; i++) {
     watts[i] = freqOf(cfIn[i], PULSE_TIMEOUT_MS) * powerK;
@@ -360,10 +465,23 @@ void loop() {
     } else {
       /* All channels share one mains reference, so any pulsing channel gives
          the voltage. */
+      float v = 0.0f;
       for (int i = 0; i < METER_CHANNELS; i++) {
         float hz = freqOf(cf1In[i], PULSE_TIMEOUT_MS);
-        if (hz > 0.0f) { volts = hz * voltageK; break; }
+        if (hz > 0.0f) { v = hz * voltageK; break; }
       }
+      /*
+       * Zero when nothing pulsed, rather than keeping the last value.
+       *
+       * This is "trap two" from the file header, which was applied to power
+       * and missed here: `volts` was only ever assigned inside the `hz > 0`
+       * branch, so a front end that stopped reporting voltage left the last
+       * reading in place indefinitely. A meter with its voltage sense broken
+       * would have gone on saying 230 V for as long as it was powered — and
+       * because the published power factor is watts / (volts x amps), a stale
+       * voltage quietly corrupts that too.
+       */
+      volts = v;
     }
     /* Voltage moves slowly and current does not, so spend most of the time on
        current: three current windows for each voltage window. */
@@ -372,6 +490,8 @@ void loop() {
     selCurrent = (cycle != 0);
     digitalWrite(PIN_SEL, selCurrent ? SEL_LEVEL_FOR_CURRENT : !SEL_LEVEL_FOR_CURRENT);
     selSwitchedAt = now;
+    /* Nothing captured before this instant describes what CF1 carries now. */
+    resetCf1Capture();
   }
 
   /* Integrate energy from measured power over the real elapsed interval. */

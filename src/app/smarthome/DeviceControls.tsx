@@ -44,16 +44,25 @@ import {
   Ear,
   Volume2,
   ScanBarcode,
+  ClipboardCheck,
   Plane,
   ScanSearch,
   Crosshair,
   ShieldCheck,
   Ban,
+  ToggleLeft,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { controlPlane, type Device } from "@/lib/control-plane";
+import {
+  controlPlane,
+  type Device,
+  type GateEvent,
+  type GateTag,
+  type GateTagInput,
+  type GuardianContactInput,
+} from "@/lib/control-plane";
 import type { FieldStatus } from "@/lib/smarthome-realtime";
 import { haptic } from "@/lib/smarthome-realtime";
 import { useCameraFrames, useNow } from "@/lib/control-plane-live";
@@ -70,10 +79,28 @@ import {
   FAN_STEP_LEVEL,
   levelToSpeed,
   buildFieldCommand,
+  AGRI_MAX_CALLERS,
+  GUARDIAN_MAX_CONTACTS,
+  SWITCHBOARD_GANG_FIELDS,
   TOUCHBOARD_GANG_FIELDS,
   TOUCHBOARD8_GANG_FIELDS,
 } from "@/lib/smarthome-command-map";
+import { describeHold, readHold, type AgriState } from "@/lib/agri";
+import {
+  MAX_CHANNELS,
+  TEMPLATES,
+  encodeLayout,
+  validateLayout,
+  type Channel,
+  type Layout,
+} from "@/lib/switchboard";
 import { effectiveDeviceType } from "./_data/device-type";
+import {
+  describeRegistration,
+  readReadiness,
+  signalBars,
+  type GuardianState as GuardianStateShape,
+} from "@/lib/guardian-health";
 import { useRemoteCamera } from "./useRemoteCamera";
 import { useFrameUrl } from "./useFrameUrl";
 import { readOtaStatus, otaNotice, isUpdating } from "./ota-status";
@@ -81,9 +108,10 @@ import { describeCameraFault } from "./camera-fault";
 import { chooseTarget, startRecording, MEMORY_CLIP_MAX_BYTES, type Recorder } from "./recording";
 import { useCameraListen, useCameraTalk } from "./useCameraAudio";
 import { useControlPlaneCapability, stalePlaneAdvice } from "@/lib/control-plane-health";
-import { readTankLink, tankLevelText, formatAge, type TankDeviceState } from "@/lib/tank-link";
+import { readTankLink, readPumpHold, tankLevelText, formatAge, type TankDeviceState } from "@/lib/tank-link";
 import { LevelSlider, PowerDial, SlideToConfirm } from "./_kit/controls";
 import FacePanel from "./FacePanel";
+import DoorCameraPanel from "./DoorCameraPanel";
 
 export interface DeviceTypeMeta {
   label: string;
@@ -118,6 +146,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   "agri-starter": { label: "Agri Starter", icon: Sprout, accent: "#22c55e", blurb: "Farm pump control" },
   watertank: { label: "WaterTank Duo", icon: Waves, accent: "#06b6d4", blurb: "Sump + overhead auto-fill" },
   "rfid-gate": { label: "RFID Gate", icon: Car, accent: "#f59e0b", blurb: "Vehicle access barrier" },
+  switchboard: { label: "Switchboard", icon: ToggleLeft, accent: "#06b6d4", blurb: "Made-to-order wall board" },
   facedoor: { label: "Smart Door", icon: DoorOpen, accent: "#8b5cf6", blurb: "Face / fingerprint / PIN" },
   touchboard: { label: "Touch Board", icon: LayoutGrid, accent: "#06b6d4", blurb: "3-gang metered switch" },
   "touchboard-8": { label: "Touch Board 8", icon: LayoutGrid, accent: "#06b6d4", blurb: "8-gang metered switch" },
@@ -126,6 +155,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   cctv: { label: "CCTV Camera", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   doorbell: { label: "Video Doorbell", icon: CameraIcon, accent: "#8b5cf6", blurb: "Live video & motion" },
   "anpr-cam": { label: "ANPR Camera", icon: ScanBarcode, accent: "#0ea5e9", blurb: "Reads vehicle number plates" },
+  "rfid-attend": { label: "Attendance Reader", icon: ClipboardCheck, accent: "#8b5cf6", blurb: "RFID attendance & door access" },
   "drone-link": { label: "Drone Link", icon: Plane, accent: "#6366f1", blurb: "Flight telemetry & mission bridge" },
   "drone-x1": { label: "Drone X1", icon: Plane, accent: "#6366f1", blurb: "Circuvent flight stack" },
 };
@@ -283,7 +313,7 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
     case "smart-switch":
       return <SmartSwitch d={device} send={send} st={st} />;
     case "energy-monitor":
-      return <EnergyMonitor d={device} />;
+      return <EnergyMonitor d={device} send={send} st={st} />;
     case "meter":
       return <EnergyMeter d={device} send={send} st={st} />;
     case "guardian":
@@ -296,6 +326,10 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <WaterTank d={device} send={send} st={st} />;
     case "rfid-gate":
       return <RfidGate d={device} send={send} st={st} />;
+    case "curtain":
+      return <Curtain d={device} send={send} st={st} />;
+    case "switchboard":
+      return <Switchboard d={device} send={send} st={st} />;
     case "facedoor":
       return <FaceDoor d={device} send={send} st={st} />;
     case "touchboard":
@@ -309,6 +343,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <CameraDevice d={device} send={send} st={st} />;
     case "anpr-cam":
       return <AnprCamera d={device} send={send} st={st} />;
+    case "rfid-attend":
+      return <AttendanceReader d={device} send={send} st={st} />;
     case "drone-link":
     case "drone-x1":
       return <DroneLink d={device} send={send} st={st} />;
@@ -991,19 +1027,48 @@ function ChannelEditor({
   );
 }
 
+/**
+ * Circuvent Smart Plug.
+ *
+ * There is no metering front end on this board. The panel used to render
+ * `state.watts` in large type under "Live power draw", and the firmware
+ * published a hard-coded 42.5 W whenever the socket was on — so every plug we
+ * have shipped showed the same invented figure, presented as a measurement.
+ *
+ * The firmware stopped publishing it in 1.2.0. This reads the value rather than
+ * assuming it: a plug that reports a wattage gets the reading, one that does
+ * not gets its state instead. That way a future metered plug needs no change
+ * here, and the present one stops claiming something it cannot know.
+ */
 function SmartPlug({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const on = b(d.state.power);
+  const metered = typeof d.state.watts === "number";
+
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
-        <div className="text-5xl font-extrabold text-white">
-          {n(d.state.watts).toFixed(1)}
-          <span className="text-xl text-slate-400"> W</span>
-        </div>
-        <div className="text-slate-500 text-sm mt-2">Live power draw</div>
+        {metered ? (
+          <>
+            <div className="text-5xl font-extrabold text-white">
+              {n(d.state.watts).toFixed(1)}
+              <span className="text-xl text-slate-400"> W</span>
+            </div>
+            <div className="text-slate-500 text-sm mt-2">Live power draw</div>
+          </>
+        ) : (
+          <>
+            <div className="text-5xl font-extrabold" style={{ color: on ? "#22c55e" : "#64748b" }}>
+              {on ? "On" : "Off"}
+            </div>
+            <div className="text-slate-500 text-sm mt-2">
+              Socket state — this plug does not measure power
+            </div>
+          </>
+        )}
       </div>
       <SectionLabel>Controls</SectionLabel>
       <ControlRow label="Power">
-        <Toggle checked={b(d.state.power)} onChange={(v) => send({ power: v })} status={st("power")} label="Power" />
+        <Toggle checked={on} onChange={(v) => send({ power: v })} status={st("power")} label="Power" />
       </ControlRow>
     </div>
   );
@@ -1034,21 +1099,163 @@ function SmartSwitch({ d, send, st }: { d: Device; send: SendFn; st: StatusFn })
   );
 }
 
-function EnergyMonitor({ d }: { d: Device }) {
+/**
+ * Circuvent Energy Monitor — a CT clamp on one conductor.
+ *
+ * A current transformer measures current and nothing else. Watts here is
+ * `amps x assumed volts x assumed power factor`, and both assumptions are the
+ * device's, not measurements. That is fine on a 230 V resistive load and badly
+ * wrong elsewhere: on a 110 V supply every reading is roughly double, and on a
+ * fan or an LED driver the real power factor is nearer 0.5 than the assumed
+ * 0.95.
+ *
+ * This panel used to show the watts alone and say "read-only meter — no
+ * controls". Both halves of that were a problem. The number was presented as
+ * a measurement when it is partly a guess, and the firmware does accept a
+ * calibration trim and a supply voltage — the console simply never offered
+ * them, so the only way to correct a doubled reading was to recompile.
+ *
+ * So: show what is assumed, next to what it produces, and let it be corrected.
+ */
+function EnergyMonitor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const [calOpen, setCalOpen] = useState(false);
+  const [trueWatts, setTrueWatts] = useState("");
+  const [trueVolts, setTrueVolts] = useState("");
+  const [trueAmps, setTrueAmps] = useState("");
+
+  const watts = n(d.state.watts);
+  const amps = n(d.state.amps);
+  /* The firmware publishes what it assumed. Older builds did not, so fall back
+     to the values those builds had compiled in rather than showing nothing. */
+  const volts = n(d.state.volts) > 0 ? n(d.state.volts) : 230;
+  const pf = n(d.state.pf) > 0 ? n(d.state.pf) : 0.95;
+
+  const calibrate = () => {
+    /*
+     * Same contract, and the same reason for going through buildFieldCommand,
+     * as the cv-em meter panel: the trims divide, so a zero or a stray
+     * character would leave the device confidently wrong rather than
+     * uncalibrated. One command per quantity.
+     */
+    const trims: [string, string][] = [
+      ["calibrateWatts", trueWatts],
+      ["calibrateVolts", trueVolts],
+      ["calibrateAmps", trueAmps],
+    ];
+
+    let sent = 0;
+    for (const [field, raw] of trims) {
+      const value = parseFloat(raw);
+      if (!isFinite(value)) continue;
+      const cmd = buildFieldCommand("energy-monitor", field, value);
+      if (cmd) {
+        send(cmd as Record<string, unknown>);
+        sent += 1;
+      }
+    }
+    if (sent === 0) return;
+
+    setCalOpen(false);
+    setTrueWatts("");
+    setTrueVolts("");
+    setTrueAmps("");
+  };
+
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
         <div className="text-6xl font-extrabold" style={{ color: "#f59e0b" }}>
-          {n(d.state.watts).toFixed(0)}
+          {watts.toFixed(0)}
           <span className="text-2xl text-slate-400"> W</span>
         </div>
-        <div className="text-slate-500 text-sm mt-2">Instantaneous load</div>
+        <div className="text-slate-500 text-sm mt-2">Instantaneous load — estimated</div>
       </div>
       <div className="flex gap-3 mt-4">
-        <StatTile label="Current" value={`${n(d.state.amps).toFixed(2)} A`} />
+        <StatTile label="Current" value={`${amps.toFixed(2)} A`} />
         <StatTile label="Energy" value={`${n(d.state.kwh).toFixed(2)} kWh`} />
       </div>
-      <p className="text-slate-500 text-sm mt-4 italic">Read-only meter — no controls.</p>
+
+      {/*
+        * Current is the only measured quantity, so it is the only one stated
+        * plainly. Saying so is what lets someone judge the watts figure
+        * instead of trusting it.
+        */}
+      <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+        <p className="text-[12px] text-slate-400">
+          Only the current is measured. Watts is {amps.toFixed(2)} A x {volts.toFixed(0)} V
+          x {pf.toFixed(2)} power factor — the voltage and power factor are assumed. Set the
+          supply voltage below if this is not a {volts.toFixed(0)} V circuit; on a motor, a fan
+          or an LED driver the true power factor is well below {pf.toFixed(2)} and the reading
+          will be high.
+        </p>
+      </div>
+
+      {!calOpen ? (
+        <button
+          onClick={() => setCalOpen(true)}
+          className="mt-3 min-h-[40px] w-full rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10"
+        >
+          Calibrate
+        </button>
+      ) : (
+        <div className="mt-3 rounded-xl border border-amber-700/50 bg-amber-950/20 p-3">
+          <p className="text-[12px] text-amber-200">
+            Run a load whose true draw you know and enter it, or set the supply voltage on its
+            own. Leave a box empty to leave it alone.
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <label className="text-[11px] text-slate-400">
+              True watts
+              <input
+                inputMode="decimal"
+                value={trueWatts}
+                onChange={(e) => setTrueWatts(e.target.value)}
+                placeholder={watts > 0 ? watts.toFixed(0) : "1000"}
+                className="mt-1 h-[38px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+            </label>
+            <label className="text-[11px] text-slate-400">
+              Supply volts
+              <input
+                inputMode="decimal"
+                value={trueVolts}
+                onChange={(e) => setTrueVolts(e.target.value)}
+                placeholder={volts.toFixed(0)}
+                className="mt-1 h-[38px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+            </label>
+            <label className="text-[11px] text-slate-400">
+              True amps
+              <input
+                inputMode="decimal"
+                value={trueAmps}
+                onChange={(e) => setTrueAmps(e.target.value)}
+                placeholder={amps > 0 ? amps.toFixed(2) : "4.35"}
+                className="mt-1 h-[38px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+            </label>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={calibrate}
+              className={`min-h-[40px] flex-1 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white ${pendCls(st("watts"))}`}
+            >
+              Apply
+            </button>
+            <button
+              onClick={() => setCalOpen(false)}
+              className="min-h-[40px] rounded-xl border border-white/15 px-4 text-sm text-slate-300 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-amber-200/70">
+            Watts and amps both scale the clamp&apos;s trim, so calibrating at no load does
+            nothing — there is no current to compare against. Supply volts is stored as the
+            assumption, not trimmed.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1278,30 +1485,328 @@ function EnergyMeter({ d, send, st }: { d: Device; send: SendFn; st: StatusFn })
   );
 }
 
+/**
+ * Circuvent Guardian — a personal safety beacon worn in a shoe.
+ *
+ * The panel is arranged around two questions, in this order:
+ *
+ *   1. Is somebody in trouble right now?
+ *   2. If they were, would this device actually be able to say so?
+ *
+ * The second is the one that used to have no answer anywhere. A Guardian with
+ * no contacts provisioned looks identical to a working one — it is online, it
+ * has battery, it has a GPS fix — and the difference only shows up on the day
+ * the button is held. So readiness is stated plainly, and the setup that fixes
+ * it is on the same screen rather than buried.
+ */
 function Guardian({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const lat = d.state.lat != null ? n(d.state.lat) : null;
   const lng = d.state.lng != null ? n(d.state.lng) : null;
+  const hasFix = b(d.state.fix);
+  const fixAge = n(d.state.fixAgeSec);
+  const sos = b(d.state.sos);
+  const ready = b(d.state.ready);
+  const contactCount = n(d.state.contacts);
+  const holdSec = n(d.state.holdSec, 30);
+  const holdPct = n(d.state.holdPct);
+  const silent = b(d.state.silent);
+  const bars = signalBars(d.state.csq);
+  const journeyOn = b(d.state.journey);
+  const journeyLeft = n(d.state.journeyLeft);
+  const readiness = readReadiness(d.state as GuardianStateShape, d.online !== false);
+
+  const [contacts, setContacts] = useState<GuardianContactInput[]>([]);
+  const [national, setNational] = useState("112");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    controlPlane
+      .guardianContacts(d.id)
+      .then((r) => {
+        if (!alive) return;
+        if (r.ok) {
+          setContacts(
+            r.data.contacts.map((c) => ({ name: c.name, phone: c.phone, relation: c.relation })),
+          );
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+    return () => {
+      alive = false;
+    };
+  }, [d.id]);
+
+  const setContact = (i: number, patch: Partial<GuardianContactInput>) => {
+    setContacts((prev) => prev.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  };
+
+  const save = async () => {
+    setBusy("save");
+    setNote("");
+    try {
+      const clean = contacts.filter((c) => c.name.trim() && c.phone.trim());
+      /*
+       * Both results are checked.
+       *
+       * A save that failed and reported success is the whole failure mode this
+       * product cannot have: the screen would show four contacts, the shoe
+       * would hold none, and nobody would find out until the button was held.
+       */
+      const saved = await controlPlane.saveGuardianContacts(d.id, clean);
+      if (!saved.ok) {
+        setNote((saved.data as { error?: string })?.error ?? "Could not save the contacts.");
+        return;
+      }
+      const pushed = await controlPlane.provisionGuardian(d.id, {
+        national: national.trim(),
+        holdSec,
+        silent,
+      });
+      if (!pushed.ok) {
+        setNote("Contacts saved, but the beacon did not confirm. It may be offline — try again when it reconnects.");
+        return;
+      }
+      setNote(`Saved. ${clean.length} contact${clean.length === 1 ? "" : "s"} written to the device.`);
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Could not save.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const runTest = async () => {
+    setBusy("test");
+    setNote("");
+    try {
+      const r = await controlPlane.testGuardian(d.id);
+      setNote(
+        r.ok
+          ? "Test sent. Your contacts will receive a message saying it is a test. Police were not contacted."
+          : "Could not send the test.",
+      );
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Could not send the test.");
+    } finally {
+      setBusy("");
+    }
+  };
+
   return (
     <div>
-      {b(d.state.sos) && (
+      {sos && (
         <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-5 mb-4 flex flex-col items-center">
-          <div className="text-red-400 font-extrabold text-lg mb-3">SOS TRIGGERED</div>
+          <div className="text-red-400 font-extrabold text-lg mb-1">SOS TRIGGERED</div>
+          <div className="text-[12px] text-red-200/80 mb-3 text-center">
+            Contacts and the nearest station have been messaged from the device itself.
+            {lat != null && lng != null && hasFix ? " Position is live." : " No live GPS fix."}
+          </div>
           <button
-            onClick={() => send({ sos: false })}
+            onClick={() => send({ action: "cancel" })}
             className={`rounded-xl bg-red-500 px-5 py-2.5 font-semibold text-white hover:bg-red-600 active:scale-95 transition ${pendCls(st("sos"))}`}
           >
-            Clear alert
+            Stand down — false alarm
           </button>
         </div>
       )}
+
+      {/* Mid-press. Without this the console looks idle while somebody is
+          twenty seconds into asking for help. */}
+      {!sos && holdPct > 0 && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 mb-4">
+          <div className="text-amber-300 font-bold text-sm">
+            Button held — SOS in about {Math.max(1, Math.round((holdSec * (100 - holdPct)) / 100))}s
+          </div>
+          <div className="mt-2 h-2 w-full rounded-full bg-black/30">
+            <div className="h-2 rounded-full bg-amber-400" style={{ width: `${holdPct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {!ready && (
+        <div className="rounded-2xl border border-amber-600/50 bg-amber-950/30 p-4 mb-4">
+          <div className="text-amber-200 font-bold text-sm">This beacon cannot raise an alarm yet</div>
+          <p className="text-[12px] text-amber-200/80 mt-1">
+            It has no emergency contacts and no fallback number, so holding the button would do
+            nothing. Add at least one contact below and save.
+          </p>
+        </div>
+      )}
+
       <SectionLabel>Controls</SectionLabel>
-      <ControlRow label="Armed" hint="Arm the safety beacon">
+      <ControlRow label="Armed" hint="A disarmed beacon ignores the button entirely">
         <Toggle checked={b(d.state.armed)} onChange={(v) => send({ armed: v })} status={st("armed")} label="Armed" />
       </ControlRow>
+      <ControlRow label="Silent" hint="No buzzer, so nobody nearby knows help was called">
+        <Toggle
+          checked={silent}
+          onChange={(v) => send({ action: "configure", silent: v })}
+          status={st("silent")}
+          label="Silent"
+        />
+      </ControlRow>
+
       <div className="flex gap-3 mt-4">
         <StatTile label="Battery" value={`${n(d.state.battery)}%`} accent="#22c55e" />
-        <StatTile label="Location" value={lat != null && lng != null ? `${lat.toFixed(3)}, ${lng.toFixed(3)}` : "—"} />
+        <StatTile
+          label="Location"
+          value={
+            lat != null && lng != null
+              ? hasFix
+                ? `${lat.toFixed(3)}, ${lng.toFixed(3)}`
+                : `${lat.toFixed(3)}, ${lng.toFixed(3)} (${Math.round(fixAge / 60)}m old)`
+              : "No fix"
+          }
+        />
       </div>
+      <div className="flex gap-3 mt-3">
+        <StatTile label="Satellites" value={`${n(d.state.sats)}`} />
+        <StatTile label="Hold to trigger" value={`${holdSec}s`} />
+      </div>
+      <div className="flex gap-3 mt-3">
+        <StatTile
+          label="Mobile signal"
+          value={bars === null ? "Unknown" : bars === 0 ? "None" : `${bars}/5`}
+          accent={bars !== null && bars >= 2 ? "#22c55e" : "#f59e0b"}
+        />
+        <StatTile
+          label="SIM"
+          value={
+            d.state.sim === false
+              ? "Missing"
+              : d.state.reg !== undefined
+                ? describeRegistration(n(d.state.reg))
+                : "—"
+          }
+        />
+      </div>
+
+      {/*
+        * Whether it could actually call for help, said once and plainly.
+        *
+        * A beacon with no signal or an expired prepaid SIM is online, charged
+        * and reporting a position — indistinguishable from a working one until
+        * the button is held.
+        */}
+      {!readiness.ok && readiness.detail && (
+        <div className="mt-3 rounded-xl border border-red-600/50 bg-red-950/30 p-3">
+          <p className="text-[12px] text-red-200">{readiness.detail}</p>
+        </div>
+      )}
+
+      <SectionLabel>Journey</SectionLabel>
+      <p className="text-[12px] text-slate-400 mb-2">
+        For getting home. Say how long it should take; if nobody confirms arrival, the alarm is
+        raised automatically. It covers what the button cannot — being unable to press it.
+      </p>
+      {journeyOn ? (
+        <div className="rounded-xl border border-sky-600/40 bg-sky-950/20 p-3">
+          <div className="text-sky-200 text-sm font-semibold">
+            Journey running{journeyLeft > 0 ? ` — ${Math.ceil(journeyLeft / 60)} min left` : " — overdue"}
+          </div>
+          <button
+            onClick={() => send({ action: "arrived" })}
+            className={`mt-2 min-h-[40px] w-full rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white ${pendCls(st("journey"))}`}
+          >
+            Arrived safely
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          {[10, 20, 45].map((m) => (
+            <button
+              key={m}
+              onClick={() => send({ action: "journey", minutes: m })}
+              className="min-h-[40px] flex-1 rounded-xl border border-white/15 bg-black/20 text-sm text-slate-200 hover:bg-white/10"
+            >
+              {m} min
+            </button>
+          ))}
+        </div>
+      )}
+
+      <SectionLabel>Emergency contacts</SectionLabel>
+      <p className="text-[12px] text-slate-400 mb-2">
+        Written into the beacon itself, so it can message and call them over its own SIM with no
+        phone, no Wi-Fi and no internet. The first contact is also called by voice — put whoever is
+        most likely to pick up at the top. {GUARDIAN_MAX_CONTACTS} maximum, because that is what the
+        device stores.
+      </p>
+
+      {!loaded ? (
+        <p className="text-slate-500 text-sm">Loading…</p>
+      ) : (
+        <div className="space-y-2">
+          {contacts.map((c, i) => (
+            <div key={i} className="grid gap-2 sm:grid-cols-[1fr_1.2fr_auto]">
+              <input
+                value={c.name}
+                onChange={(e) => setContact(i, { name: e.target.value })}
+                placeholder={i === 0 ? "Mum" : "Name"}
+                className="h-[38px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+              <input
+                value={c.phone}
+                onChange={(e) => setContact(i, { phone: e.target.value })}
+                placeholder="+919876543210"
+                inputMode="tel"
+                className="h-[38px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+              />
+              <button
+                onClick={() => setContacts((p) => p.filter((_, j) => j !== i))}
+                className="h-[38px] rounded-lg border border-white/15 px-3 text-sm text-slate-300 hover:bg-white/10"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {contacts.length < GUARDIAN_MAX_CONTACTS && (
+            <button
+              onClick={() => setContacts((p) => [...p, { name: "", phone: "" }])}
+              className="min-h-[38px] w-full rounded-lg border border-dashed border-white/20 text-sm text-slate-300 hover:bg-white/5"
+            >
+              Add contact
+            </button>
+          )}
+
+          <label className="block text-[11px] text-slate-400 pt-2">
+            National emergency number
+            <input
+              value={national}
+              onChange={(e) => setNational(e.target.value)}
+              placeholder="112"
+              inputMode="tel"
+              className="mt-1 h-[38px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+            />
+            <span className="block mt-1 text-slate-500">
+              Used when we have not resolved a nearer police station — so there is always somebody
+              to reach.
+            </span>
+          </label>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={save}
+              disabled={busy !== ""}
+              className="min-h-[40px] flex-1 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {busy === "save" ? "Saving…" : "Save to device"}
+            </button>
+            <button
+              onClick={runTest}
+              disabled={busy !== "" || contactCount === 0}
+              title={contactCount === 0 ? "Add a contact first" : "Send a test message to your contacts"}
+              className="min-h-[40px] rounded-xl border border-white/15 px-4 text-sm text-slate-200 hover:bg-white/10 disabled:opacity-40"
+            >
+              {busy === "test" ? "Sending…" : "Send test"}
+            </button>
+          </div>
+          {note && <p className="text-[12px] text-slate-300 pt-1">{note}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -1330,21 +1835,154 @@ function MotionSensor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
   );
 }
 
+/**
+ * Circuvent Agri GSM Starter.
+ *
+ * The pump is at the bottom of a field and the farmer cannot look at it. So the
+ * panel leads with why it is or is not running — which used to be a single
+ * "mains available" line, and is now the difference between waiting, doing
+ * nothing, and getting on a motorbike.
+ *
+ * The other half is the phone control the product is sold on. Until numbers are
+ * provisioned nothing is trusted, which is the fix for a firmware that let any
+ * incoming call toggle a stranger's pump — but it also means ringing the box
+ * does nothing, and somebody has to be told that.
+ */
 function AgriStarter({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const power = b(d.state.power_available);
+  const state = d.state as AgriState;
+  const hold = readHold(state);
+  const holdText = describeHold(hold, state);
+  const dryLatched = b(d.state.dry);
+  const callerCount = n(d.state.callers);
+  const ringMin = n(d.state.ringMin, 30);
+  const minsLeft = n(d.state.minsLeft);
+  const runHours = n(d.state.runHours);
+
+  const [numbers, setNumbers] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    // The device reports how many it holds, not which — a phone book does not
+    // belong in a retained state document. The list is edited here and pushed.
+    if (!loaded) setLoaded(true);
+  }, [loaded]);
+
+  const holdTone =
+    holdText.severity === "critical"
+      ? "border-red-500/40 bg-red-500/10 text-red-200"
+      : holdText.severity === "warning"
+        ? "border-amber-600/50 bg-amber-950/30 text-amber-200"
+        : holdText.severity === "info"
+          ? "border-sky-600/40 bg-sky-950/20 text-sky-200"
+          : "border-white/10 bg-black/20 text-slate-300";
+
   return (
     <div>
+      <div className={`rounded-2xl border p-4 mb-4 ${holdTone}`}>
+        <div className="text-sm font-semibold">{holdText.text}</div>
+        {dryLatched && (
+          <button
+            onClick={() => send({ action: "resetDry" })}
+            className={`mt-3 min-h-[40px] w-full rounded-xl bg-red-600 px-4 text-sm font-semibold text-white ${pendCls(st("dry"))}`}
+          >
+            I have checked the water source — clear the cutout
+          </button>
+        )}
+      </div>
+
       <SectionLabel>Controls</SectionLabel>
-      <ControlRow label="Pump" hint="Start / stop the irrigation pump">
+      <ControlRow label="Pump" hint={`Starts a ${ringMin > 0 ? `${ringMin} minute` : "continuous"} run`}>
         <Toggle checked={b(d.state.pump)} onChange={(v) => send({ pump: v })} status={st("pump")} label="Pump" />
       </ControlRow>
-      <div className="flex items-center gap-2 mt-3 text-sm">
-        <span className="text-slate-400">Mains power:</span>
-        <span className="font-semibold" style={{ color: power ? "#22c55e" : "#ef4444" }}>
-          {power ? "Available" : "Unavailable"}
-        </span>
+
+      {/* Timed irrigation. The commonest way a pump is destroyed is being
+          started and forgotten, so the quick actions are all bounded. */}
+      <div className="flex gap-2 mt-3">
+        {[15, 30, 60].map((m) => (
+          <button
+            key={m}
+            onClick={() => send({ action: "runFor", minutes: m })}
+            className="min-h-[40px] flex-1 rounded-xl border border-white/15 bg-black/20 text-sm text-slate-200 hover:bg-white/10"
+          >
+            Run {m} min
+          </button>
+        ))}
       </div>
-      {!power && <div className="mt-3"><AlertBanner text="No mains power — pump cannot start." /></div>}
+
+      <div className="flex gap-3 mt-4">
+        <StatTile
+          label="Mains"
+          value={b(d.state.power_available) ? "Available" : "Off"}
+          accent={b(d.state.power_available) ? "#22c55e" : "#ef4444"}
+        />
+        <StatTile label="Time left" value={minsLeft > 0 ? `${minsLeft} min` : "—"} />
+      </div>
+      <div className="flex gap-3 mt-3">
+        <StatTile label="Lifetime run" value={`${runHours} h`} />
+        <StatTile
+          label="Dry-run sensor"
+          value={b(d.state.dryGuard) ? "Fitted" : "Not fitted"}
+        />
+      </div>
+
+      <SectionLabel>Phone control</SectionLabel>
+      {callerCount === 0 ? (
+        <div className="rounded-xl border border-amber-600/50 bg-amber-950/30 p-3 mb-2">
+          <p className="text-[12px] text-amber-200">
+            No numbers are authorised, so ringing or texting this starter does nothing. That is
+            deliberate — an unrestricted starter can be operated by a wrong number — but it does
+            mean phone control is off until you add one below.
+          </p>
+        </div>
+      ) : (
+        <p className="text-[12px] text-slate-400 mb-2">
+          {callerCount} number{callerCount === 1 ? "" : "s"} authorised. A missed call toggles the
+          pump; texting <span className="font-mono">ON</span>, <span className="font-mono">OFF</span>,{" "}
+          <span className="font-mono">STATUS</span> or <span className="font-mono">RESET</span> also
+          works. Every command is answered with what actually happened.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {numbers.map((v, i) => (
+          <div key={i} className="flex gap-2">
+            <input
+              value={v}
+              onChange={(e) => setNumbers((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+              placeholder="+919876543210"
+              inputMode="tel"
+              className="h-[38px] flex-1 rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+            />
+            <button
+              onClick={() => setNumbers((p) => p.filter((_, j) => j !== i))}
+              className="h-[38px] rounded-lg border border-white/15 px-3 text-sm text-slate-300 hover:bg-white/10"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        {numbers.length < AGRI_MAX_CALLERS && (
+          <button
+            onClick={() => setNumbers((p) => [...p, ""])}
+            className="min-h-[38px] w-full rounded-lg border border-dashed border-white/20 text-sm text-slate-300 hover:bg-white/5"
+          >
+            Add a number
+          </button>
+        )}
+        {numbers.length > 0 && (
+          <button
+            onClick={() =>
+              send({
+                action: "configure",
+                callers: numbers.map((x) => x.trim()).filter(Boolean),
+              })
+            }
+            className={`min-h-[40px] w-full rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white ${pendCls(st("callers"))}`}
+          >
+            Save to the starter
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -1408,6 +2046,7 @@ function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
    * keeps the two thresholds from drifting apart.
    */
   const link = readTankLink(d.state as TankDeviceState);
+  const hold = readPumpHold(d.state as TankDeviceState, link);
   const oh = link.levelPct ?? -1;
   const sump = n(d.state.sumpPct);
   const toneCls =
@@ -1463,21 +2102,52 @@ function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
         </div>
       </div>
 
-      {b(d.state.dryRun) && <div className="mt-3"><AlertBanner text="Dry-run detected — pump cut. Reset after checking the sump/motor." /></div>}
-      {b(d.state.overflow) && <div className="mt-3"><AlertBanner text="Overflow float tripped — pump stopped." /></div>}
+      {/*
+        * One banner, from one function, covering every reason the pump is
+        * held. The dry-run and overflow cases used to have hand-written
+        * banners here and the two sump cases had nothing at all — so a pump
+        * held off by a low or unreadable sump simply appeared not to work.
+        * `readPumpHold` mirrors the firmware's `setPump()` so a new interlock
+        * has exactly one place to be explained.
+        */}
+      {hold.held && (
+        <div className="mt-3">
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              hold.tone === "bad"
+                ? "border-red-500/40 bg-red-950/25 text-red-200"
+                : hold.tone === "warn"
+                  ? "border-amber-500/40 bg-amber-950/25 text-amber-200"
+                  : "border-white/10 bg-black/20 text-slate-300"
+            }`}
+          >
+            <strong>{hold.label}</strong>
+            <div className="mt-0.5 text-xs opacity-90">{hold.detail}</div>
+          </div>
+        </div>
+      )}
 
       <SectionLabel>Controls</SectionLabel>
       <ControlRow
         label="Auto-fill"
         hint={
-          link.blocksAutoFill
-            ? "Paused — the controller will not pump without a current tank level"
+          hold.held
+            ? `Paused — ${hold.label.toLowerCase()}`
             : "Fill the overhead tank automatically from the sump"
         }
       >
         <Toggle checked={b(d.state.auto)} onChange={(v) => send({ auto: v })} status={st("auto")} label="Auto-fill" />
       </ControlRow>
-      <ControlRow label="Pump" hint={b(d.state.auto) ? "Overridden by auto-fill" : "Manual pump control"}>
+      <ControlRow
+        label="Pump"
+        hint={
+          b(d.state.auto)
+            ? "Overridden by auto-fill"
+            : hold.held
+              ? "The controller will refuse to start while it is held"
+              : "Manual pump control"
+        }
+      >
         <Toggle checked={b(d.state.pump)} onChange={(v) => send({ pump: v })} status={st("pump")} label="Pump" />
       </ControlRow>
       {b(d.state.dryRun) && (
@@ -1568,39 +2238,633 @@ function WaterTank({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   );
 }
 
+/**
+ * Circuvent RFID Gate.
+ *
+ * Three things a person wants from a barrier, in this order: what is it doing,
+ * who has been through, and who is allowed. The old panel answered only the
+ * first, and answered it with a belief rather than a measurement — the limit
+ * switch was wired and never read, so a jammed motor showed as "open".
+ */
 function RfidGate({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const open = String(d.state.barrier ?? "closed") === "open";
-  const allowed = b(d.state.lastAllowed);
+  const barrier = String(d.state.barrier ?? "closed");
+  const jammed = barrier === "jammed";
+  const opening = barrier === "opening";
+  const open = barrier === "open";
+  const badFrames = n(d.state.badFrames);
+
+  const [tags, setTags] = useState<GateTag[]>([]);
+  const [events, setEvents] = useState<GateEvent[]>([]);
+  const [note, setNote] = useState("");
+  const [draft, setDraft] = useState<{ tag: string; label: string; vehicle: string }>({
+    tag: "",
+    label: "",
+    vehicle: "",
+  });
+
+  const reload = useCallback(async () => {
+    const [t, e] = await Promise.all([
+      controlPlane.gateTags(d.id),
+      controlPlane.gateEvents(d.id, { limit: 20 }),
+    ]);
+    if (t.ok) setTags(t.data.tags);
+    if (e.ok) setEvents(e.data.events);
+  }, [d.id]);
+
+  useEffect(() => {
+    void reload().catch(() => {});
+  }, [reload]);
+
+  /* The last scan the device reported, offered as a one-tap enrolment. Reading
+     a number off a windshield tag is the part people get wrong. */
+  const lastTag = n(d.state.lastTag);
+  const lastKnown = tags.some((t) => t.tag === lastTag);
+
+  const saveTag = async (body: GateTagInput) => {
+    const r = await controlPlane.saveGateTag(d.id, body);
+    setNote(r.ok ? "Saved and pushed to the gate." : "Could not save that tag.");
+    if (r.ok) {
+      setDraft({ tag: "", label: "", vehicle: "" });
+      await reload();
+    }
+  };
+
+  const barrierTone = jammed
+    ? "text-red-400"
+    : open
+      ? "text-green-400"
+      : opening
+        ? "text-amber-300"
+        : "text-slate-300";
+
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
-        <div className={`text-3xl font-extrabold ${open ? "text-green-400" : "text-slate-300"}`}>
-          {open ? "BARRIER OPEN" : "BARRIER CLOSED"}
+        <div className={`text-3xl font-extrabold ${barrierTone}`}>
+          {jammed
+            ? "BARRIER JAMMED"
+            : opening
+              ? "OPENING…"
+              : open
+                ? "BARRIER OPEN"
+                : "BARRIER CLOSED"}
         </div>
         <div className="mt-2 text-sm text-slate-400">
-          {b(d.state.vehiclePresent) ? "🚗 Vehicle at gate" : "No vehicle detected"} · {n(d.state.tagCount)} tags enrolled
+          {b(d.state.vehiclePresent) ? "🚗 Vehicle at gate" : "No vehicle detected"} ·{" "}
+          {n(d.state.tagCount)} tags on the barrier
         </div>
       </div>
+
+      {jammed && (
+        <div className="mt-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3">
+          <p className="text-[12px] text-red-200">
+            The barrier was commanded to move and the limit switch does not agree. That is a jam, a
+            tripped supply or a failed motor — not something the gate can clear by itself. Anything
+            relying on this gate being shut should be treated as unlocked until somebody has looked.
+          </p>
+        </div>
+      )}
+
+      {badFrames > 0 && (
+        <div className="mt-3 rounded-xl border border-amber-600/50 bg-amber-950/30 p-3">
+          <p className="text-[12px] text-amber-200">
+            {badFrames} unreadable card {badFrames === 1 ? "frame" : "frames"} since power-up. A few
+            is normal; a steadily rising count means interference on the reader run — usually the
+            Wiegand cable sharing a duct with the gate motor. Cards will be refused at random until
+            it is fixed.
+          </p>
+        </div>
+      )}
 
       <SectionLabel>Barrier</SectionLabel>
       <div className="flex gap-2.5">
-        <button onClick={() => send({ action: "open" })} className={`min-h-[44px] flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition ${pendCls(st("barrier"))}`}>Open</button>
-        <button onClick={() => send({ action: "close" })} className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("barrier"))}`}>Close</button>
-      </div>
-
-      <SectionLabel>Last scan</SectionLabel>
-      <div className="rounded-xl border border-white/10 bg-black/20 p-4 flex items-center justify-between">
-        <div>
-          <div className="font-mono text-white">Tag {n(d.state.lastTag) || "—"}</div>
-          <div className="text-xs text-slate-400">{n(d.state.scanCount)} scans total</div>
-        </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-bold ${allowed ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"}`}>
-          {allowed ? "AUTHORISED" : "DENIED"}
-        </span>
+        <button
+          onClick={async () => {
+            // Through the platform, so a manual opening appears in the log
+            // alongside the tags — otherwise the record shows four cars on an
+            // evening when six came in.
+            await controlPlane.openGate(d.id);
+            void reload();
+          }}
+          className={`min-h-[44px] flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition ${pendCls(st("barrier"))}`}
+        >
+          Open
+        </button>
+        <button
+          onClick={() => send({ action: "close" })}
+          className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("barrier"))}`}
+        >
+          Close
+        </button>
       </div>
       <ControlRow label="Mode" hint="Auto opens for authorised tags">
-        <Toggle checked={String(d.state.mode ?? "auto") === "auto"} onChange={(v) => send({ mode: v ? "auto" : "manual" })} status={st("mode")} label="Auto mode" />
+        <Toggle
+          checked={String(d.state.mode ?? "auto") === "auto"}
+          onChange={(v) => send({ mode: v ? "auto" : "manual" })}
+          status={st("mode")}
+          label="Auto mode"
+        />
       </ControlRow>
+
+      <SectionLabel>Authorised vehicles</SectionLabel>
+      {lastTag > 0 && !lastKnown && (
+        <div className="rounded-xl border border-sky-600/40 bg-sky-950/20 p-3 mb-2">
+          <p className="text-[12px] text-sky-200">
+            Last scan was tag <span className="font-mono">{lastTag}</span>, which is not enrolled.
+          </p>
+          <button
+            onClick={() => setDraft((p) => ({ ...p, tag: String(lastTag) }))}
+            className="mt-2 min-h-[36px] rounded-lg border border-white/15 px-3 text-sm text-slate-200 hover:bg-white/10"
+          >
+            Enrol this tag
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {tags.map((t) => (
+          <div
+            key={t.id}
+            className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-3"
+          >
+            <div className="min-w-0">
+              <div className="text-sm text-white truncate">{t.label || "Unnamed"}</div>
+              <div className="text-[11px] text-slate-500 font-mono">
+                {t.tag}
+                {t.vehicle ? ` · ${t.vehicle}` : ""}
+                {t.days.length > 0 ? ` · ${t.days.length} day rule` : ""}
+                {t.validTo ? ` · until ${new Date(t.validTo).toLocaleDateString()}` : ""}
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                await controlPlane.deleteGateTag(d.id, t.id);
+                await reload();
+              }}
+              className="ml-3 shrink-0 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10"
+            >
+              Revoke
+            </button>
+          </div>
+        ))}
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+          <input
+            value={draft.tag}
+            onChange={(e) => setDraft((p) => ({ ...p, tag: e.target.value }))}
+            placeholder="Tag number"
+            inputMode="numeric"
+            className="h-[38px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+          />
+          <input
+            value={draft.label}
+            onChange={(e) => setDraft((p) => ({ ...p, label: e.target.value }))}
+            placeholder="Who"
+            className="h-[38px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+          />
+          <input
+            value={draft.vehicle}
+            onChange={(e) => setDraft((p) => ({ ...p, vehicle: e.target.value }))}
+            placeholder="Reg"
+            className="h-[38px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+          />
+          <button
+            onClick={() => {
+              const tag = Number(draft.tag);
+              if (!Number.isFinite(tag) || tag <= 0) {
+                setNote("Enter the tag number the reader reported.");
+                return;
+              }
+              void saveTag({ tag, label: draft.label, vehicle: draft.vehicle });
+            }}
+            className="h-[38px] rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white"
+          >
+            Add
+          </button>
+        </div>
+        {note && <p className="text-[12px] text-slate-300">{note}</p>}
+      </div>
+
+      <SectionLabel>Access log</SectionLabel>
+      {events.length === 0 ? (
+        <p className="text-slate-500 text-sm">Nothing recorded yet.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {events.map((e) => (
+            <div
+              key={e.id}
+              className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <div className="text-sm text-slate-200 truncate">
+                  {e.label || (e.tag != null ? `Tag ${e.tag}` : "Manual")}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  {new Date(e.at).toLocaleString()} · {e.reason}
+                </div>
+              </div>
+              <span
+                className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  e.allowed ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"
+                }`}
+              >
+                {e.allowed ? "IN" : "DENIED"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Circuvent Smart Curtain.
+ *
+ * The device has no encoder and no limit switches, so the position it reports
+ * is inferred from how long the motor has run — and it drifts. The one thing
+ * that corrects it is a *full* open or close, which the firmware runs against
+ * the mechanical stop whatever it believes.
+ *
+ * That is worth saying on the screen, because the natural reaction to a slider
+ * that reads 40% while the curtain is clearly at 30% is to conclude the device
+ * is broken, when the fix is one tap on Close.
+ */
+function Curtain({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const position = n(d.state.position);
+  const moving = n(d.state.moving);
+  const travelSec = n(d.state.travelSec, 20);
+  const learning = b(d.state.learning);
+
+  return (
+    <div>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
+        <div className="flex items-end justify-between">
+          <div className="text-5xl font-extrabold text-white">
+            {position}
+            <span className="text-2xl text-slate-400">%</span>
+          </div>
+          <div className="text-sm text-slate-400">
+            {moving > 0 ? "Opening…" : moving < 0 ? "Closing…" : position === 0 ? "Closed" : position === 100 ? "Open" : "Part open"}
+          </div>
+        </div>
+
+        {/* Drawn as the opening, not the fabric. */}
+        <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-black/40">
+          <div
+            className="h-3 rounded-full transition-[width] duration-500"
+            style={{ width: `${position}%`, background: "#8b5cf6" }}
+          />
+        </div>
+      </div>
+
+      <SectionLabel>Position</SectionLabel>
+      <Slider
+        value={position}
+        min={0}
+        max={100}
+        unit="%"
+        onCommit={(v) => send({ position: v })}
+        label="Curtain position"
+      />
+
+      <div className="flex gap-2.5 mt-3">
+        <button
+          onClick={() => send({ action: "open" })}
+          className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("position"))}`}
+        >
+          Open
+        </button>
+        <button
+          onClick={() => send({ action: "stop" })}
+          className="min-h-[44px] flex-1 rounded-xl border border-amber-500/40 bg-amber-500/10 py-2.5 font-semibold text-amber-200 hover:bg-amber-500/20 active:scale-95 transition"
+        >
+          Stop
+        </button>
+        <button
+          onClick={() => send({ action: "close" })}
+          className={`min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition ${pendCls(st("position"))}`}
+        >
+          Close
+        </button>
+      </div>
+
+      <SectionLabel>Calibration</SectionLabel>
+      {learning ? (
+        <div className="rounded-xl border border-sky-600/40 bg-sky-950/20 p-4">
+          <p className="text-[12px] text-sky-200">
+            The curtain will close fully, then start opening. Tap the moment it is
+            <strong> fully open</strong> — that is the measurement.
+          </p>
+          <button
+            onClick={() => send({ action: "learnDone" })}
+            className="mt-3 min-h-[44px] w-full rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white"
+          >
+            It is fully open now
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <p className="text-[12px] text-slate-400">
+            Position is worked out from how long the motor runs, so it needs to know how long a
+            full traverse takes. Currently <strong>{travelSec}s</strong>. A full open or close
+            always drives to the end stop, so if the percentage ever drifts, one of those puts it
+            right.
+          </p>
+          <button
+            onClick={() => send({ action: "learn" })}
+            className="mt-3 min-h-[40px] w-full rounded-xl border border-white/15 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10"
+          >
+            Measure the travel time
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Circuvent Configurable Switchboard.
+ *
+ * Two audiences, and they want opposite things.
+ *
+ * The **householder** wants the gangs their board actually has, named the way
+ * the engineer named them, and nothing else. So the normal view is drawn from
+ * `state.gangs` and `n1..nN` — never from an assumed size, because a UI that
+ * guesses is how a gang ends up either missing or present-but-dead.
+ *
+ * The **engineer**, once, wants to declare what they built: how many channels,
+ * which pin drives which relay, whether each has a pad or a retrofitted rocker.
+ * That is behind Commissioning, and it is deliberately not hidden behind a
+ * separate app — the person doing it is standing at the board with a phone,
+ * and the thing they most need is to press a channel and see which light
+ * blinks.
+ */
+function Switchboard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const gangs = Math.max(0, Math.min(MAX_CHANNELS, n(d.state.gangs)));
+  const layoutOk = d.state.layoutOk !== false;
+  const layoutError = String(d.state.layoutError ?? "");
+  const commissioned = gangs > 0 && layoutOk;
+
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Layout>(() => TEMPLATES["3g"].layout);
+  const [note, setNote] = useState("");
+
+  const problems = validateLayout(draft);
+  const errors = problems.filter((p) => p.severity === "error");
+  const warnings = problems.filter((p) => p.severity === "warn");
+
+  const label = (i: number) => String(d.state[`n${i + 1}`] ?? "") || `Channel ${i + 1}`;
+  const onCount = Array.from({ length: gangs }).filter((_, i) =>
+    b(d.state[SWITCHBOARD_GANG_FIELDS[i]]),
+  ).length;
+
+  const setCh = (i: number, patch: Partial<Channel>) =>
+    setDraft((p) => ({ ...p, channels: p.channels.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
+
+  return (
+    <div>
+      {!commissioned && (
+        <div className="rounded-2xl border border-amber-600/50 bg-amber-950/30 p-4 mb-4">
+          <div className="text-amber-200 font-bold text-sm">
+            {layoutOk ? "Not commissioned yet" : "Layout refused"}
+          </div>
+          <p className="text-[12px] text-amber-200/80 mt-1">
+            {layoutOk
+              ? "This board does not know what it is wired to, so it is driving nothing at all. That is the safe state — open Commissioning and describe the board."
+              : `The board rejected the layout and is driving nothing rather than part of a wall: ${layoutError}`}
+          </p>
+        </div>
+      )}
+
+      {commissioned && (
+        <>
+          <SectionLabel right={`${onCount}/${gangs} on`}>Gangs</SectionLabel>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {Array.from({ length: gangs }).map((_, i) => {
+              const field = SWITCHBOARD_GANG_FIELDS[i];
+              return (
+                <ControlRow key={field} label={label(i)}>
+                  <Toggle
+                    checked={b(d.state[field])}
+                    onChange={(v) => send({ [field]: v })}
+                    status={st(field)}
+                    label={label(i)}
+                  />
+                </ControlRow>
+              );
+            })}
+          </div>
+          <div className="flex gap-2.5 mt-3">
+            <button
+              onClick={() => send({ all: true })}
+              className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10"
+            >
+              All on
+            </button>
+            <button
+              onClick={() => send({ all: false })}
+              className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10"
+            >
+              All off
+            </button>
+          </div>
+        </>
+      )}
+
+      <SectionLabel>Commissioning</SectionLabel>
+      {!open ? (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <p className="text-[12px] text-slate-400">
+            {commissioned
+              ? `${gangs} channel${gangs === 1 ? "" : "s"} configured. Local bus: ${String(d.state.homeLink ?? "—")}${
+                  n(d.state.homePeers) > 0 ? ` · ${n(d.state.homePeers)} boards nearby` : ""
+                }.`
+              : "Describe what this board is wired to."}
+          </p>
+          <button
+            onClick={() => setOpen(true)}
+            className="mt-3 min-h-[40px] w-full rounded-xl border border-white/15 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10"
+          >
+            {commissioned ? "Change the wiring" : "Commission this board"}
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+          <div>
+            <div className="text-[11px] text-slate-400 mb-1">Start from</div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(TEMPLATES).map(([key, t]) => (
+                <button
+                  key={key}
+                  onClick={() => setDraft(t.layout)}
+                  className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10"
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {draft.channels.map((c, i) => (
+              <div key={i} className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                <div className="grid gap-2 sm:grid-cols-[1.4fr_auto_auto_auto]">
+                  <input
+                    value={c.name}
+                    onChange={(e) => setCh(i, { name: e.target.value })}
+                    placeholder={`Channel ${i + 1}`}
+                    className="h-[36px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+                  />
+                  <label className="text-[10px] text-slate-500">
+                    Relay
+                    <input
+                      value={c.relayPin}
+                      onChange={(e) => setCh(i, { relayPin: Number(e.target.value) })}
+                      inputMode="numeric"
+                      className="mt-0.5 h-[36px] w-[70px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-[10px] text-slate-500">
+                    Input
+                    <input
+                      value={c.inputPin ?? ""}
+                      onChange={(e) =>
+                        setCh(i, {
+                          inputPin: e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      inputMode="numeric"
+                      className="mt-0.5 h-[36px] w-[70px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-[10px] text-slate-500">
+                    Kind
+                    <select
+                      value={c.inputKind}
+                      onChange={(e) => setCh(i, { inputKind: e.target.value as Channel["inputKind"] })}
+                      className="mt-0.5 h-[36px] rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-white"
+                    >
+                      <option value="touch">Pad</option>
+                      <option value="button">Switch</option>
+                      <option value="none">None</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <select
+                    value={c.kind}
+                    onChange={(e) => setCh(i, { kind: e.target.value as Channel["kind"] })}
+                    className="h-[32px] rounded-lg border border-white/15 bg-black/30 px-2 text-xs text-white"
+                  >
+                    {["light", "fan", "socket", "geyser", "pump", "other"].map((k) => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
+                  </select>
+                  {/*
+                    * The most useful button on this screen. An engineer at the
+                    * board cannot tell which relay is the porch light without
+                    * switching it and walking outside; this blinks the load so
+                    * somebody can call up the stairs.
+                    */}
+                  {commissioned && i < gangs && (
+                    <button
+                      onClick={() => send({ action: "identify", gang: i + 1 })}
+                      className="h-[32px] rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 text-xs font-semibold text-sky-200"
+                    >
+                      Blink this one
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setDraft((p) => ({ ...p, channels: p.channels.filter((_, j) => j !== i) }))}
+                    className="ml-auto h-[32px] rounded-lg border border-white/15 px-3 text-xs text-slate-300 hover:bg-white/10"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {draft.channels.length < MAX_CHANNELS && (
+              <button
+                onClick={() =>
+                  setDraft((p) => ({
+                    ...p,
+                    channels: [
+                      ...p.channels,
+                      {
+                        name: "",
+                        relayPin: 26,
+                        inputPin: null,
+                        inputKind: "none",
+                        restore: "last",
+                        kind: "light",
+                      },
+                    ],
+                  }))
+                }
+                className="min-h-[38px] w-full rounded-lg border border-dashed border-white/20 text-sm text-slate-300 hover:bg-white/5"
+              >
+                Add a channel
+              </button>
+            )}
+          </div>
+
+          {/* Everything wrong, at once — somebody on a ladder wants to fix it
+              in one pass rather than one message at a time. */}
+          {errors.length > 0 && (
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3">
+              {errors.map((p, i) => (
+                <p key={i} className="text-[12px] text-red-200">
+                  {p.channel >= 0 ? `Channel ${p.channel + 1}: ` : ""}
+                  {p.message}
+                </p>
+              ))}
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div className="rounded-lg border border-amber-600/50 bg-amber-950/30 p-3">
+              {warnings.map((p, i) => (
+                <p key={i} className="text-[12px] text-amber-200">
+                  {p.channel >= 0 ? `Channel ${p.channel + 1}: ` : ""}
+                  {p.message}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              disabled={errors.length > 0}
+              onClick={() => {
+                send({
+                  action: "commission",
+                  layout: encodeLayout(draft),
+                  backlight: draft.backlight,
+                });
+                setNote("Sent. The board checks it again itself, then restarts into it.");
+                setOpen(false);
+              }}
+              className="min-h-[40px] flex-1 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              Write to the board
+            </button>
+            <button
+              onClick={() => setOpen(false)}
+              className="min-h-[40px] rounded-xl border border-white/15 px-4 text-sm text-slate-300 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            The board validates this again before it accepts it, and refuses anything that could
+            stop it booting — a channel on GPIO12 or the reset pin, two jobs on one pin, or a relay
+            on an input-only pin. It restarts into the new layout so every pin starts from a known
+            state.
+          </p>
+        </div>
+      )}
+      {note && <p className="text-[12px] text-slate-300 mt-2">{note}</p>}
     </div>
   );
 }
@@ -1609,6 +2873,9 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const locked = b(d.state.locked);
   const LockIcon = locked ? Lock : LockOpen;
   const enrolling = b(d.state.enrolling);
+  const lockedOutFor = n(d.state.lockedOutFor);
+  const failed = n(d.state.failedAttempts);
+  const maxFails = n(d.state.maxFails, 5);
   return (
     <div>
       <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
@@ -1618,6 +2885,26 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
           {String(d.state.lastMethod ?? "—")}{d.state.lastName ? ` · ${String(d.state.lastName)}` : ""}
         </div>
       </div>
+
+      {lockedOutFor > 0 && (
+        /*
+         * The keypad has locked itself after too many wrong PINs. Shown here
+         * because the household's first sign of it is a door that ignores
+         * them, and "the keypad is in a cooling-off period" is a very
+         * different problem from "the lock is broken" — one needs patience,
+         * the other needs a callout.
+         */
+        <div className="mt-3 rounded-xl border border-amber-600/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+          <strong>The keypad is locked out for about {lockedOutFor}s.</strong> Too many wrong
+          PINs were entered. Face and fingerprint still work, and so does Unlock below.
+        </div>
+      )}
+      {lockedOutFor === 0 && failed > 0 && (
+        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-xs text-slate-400">
+          {failed} wrong {failed === 1 ? "PIN" : "PINs"} since the last successful entry —
+          {" "}{Math.max(0, maxFails - failed)} left before the keypad locks out.
+        </div>
+      )}
 
       {enrolling && (
         /*
@@ -1630,6 +2917,7 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
           <strong>Enrolling {String(d.state.enrolName || "a new face")}.</strong> The door will
           not unlock until this finishes
           {n(d.state.enrolSecondsLeft) > 0 ? ` — about ${n(d.state.enrolSecondsLeft)}s left` : ""}.
+          {n(d.state.enrolSamples) > 0 ? ` ${n(d.state.enrolSamples)} captured so far.` : ""}
         </div>
       )}
 
@@ -1647,8 +2935,126 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
         <Stepper value={n(d.state.autoLockSec, 8)} onChange={(v) => send({ autoLockSec: v })} min={0} max={120} suffix="s" />
       </ControlRow>
 
+      <SectionLabel>Keypad</SectionLabel>
+      <PinSetter
+        label="Entry PIN"
+        hint={b(d.state.pinSet) ? "Set — enter a new one to replace it" : "Not set. The keypad cannot open the door until it is."}
+        isSet={b(d.state.pinSet)}
+        onSave={(pin) => send({ pin })}
+        onClear={() => send({ pin: "" })}
+      />
+      <PinSetter
+        label="Admin PIN"
+        hint={
+          b(d.state.adminPinSet)
+            ? "Set — press A on the keypad to open the door's own menu"
+            : "Not set. Without it the door's on-keypad admin menu stays closed."
+        }
+        isSet={b(d.state.adminPinSet)}
+        onSave={(pin) => send({ adminPin: pin })}
+        onClear={() => send({ adminPin: "" })}
+      />
+      <ControlRow label="Wrong PINs allowed" hint="Before the keypad locks out for a while">
+        <Stepper value={maxFails} onChange={(v) => send({ maxFails: v })} min={3} max={20} step={1} />
+      </ControlRow>
+      <ControlRow label="Lockout" hint="First lockout; it doubles each time">
+        <Stepper value={n(d.state.lockoutSec, 60)} onChange={(v) => send({ lockoutSec: v })} min={10} max={900} step={10} suffix="s" />
+      </ControlRow>
+      {d.state.display === false && (
+        <div className="mt-2 rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-xs text-slate-400">
+          No display was found on this door. Everything still works; the panel simply cannot
+          show the PIN entry, the enrolment countdown or the lockout.
+        </div>
+      )}
+
       <SectionLabel>Who this door opens for</SectionLabel>
       <FacePanel deviceId={d.id} deviceName={d.name} />
+    </div>
+  );
+}
+
+/**
+ * Setting a PIN, typed twice.
+ *
+ * Twice because there is no way to read it back — the door stores a salted
+ * hash, deliberately — so a typo becomes a lock nobody can open from the
+ * keypad, discovered by somebody standing outside it. The value is never
+ * echoed back from the device and is not logged anywhere on the way.
+ */
+function PinSetter({
+  label,
+  hint,
+  isSet,
+  onSave,
+  onClear,
+}: {
+  label: string;
+  hint: string;
+  isSet: boolean;
+  onSave: (pin: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [a, setA] = useState("");
+  const [b2, setB2] = useState("");
+  const valid = /^\d{4,12}$/.test(a);
+  const matches = a === b2;
+
+  if (!open) {
+    return (
+      <ControlRow label={label} hint={hint}>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setOpen(true); setA(""); setB2(""); }}
+            className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"
+          >
+            {isSet ? "Change" : "Set"}
+          </button>
+          {isSet && (
+            <button
+              onClick={onClear}
+              className="min-h-[44px] rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-slate-400 hover:bg-white/10 active:scale-95 transition"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </ControlRow>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-4">
+      <div className="text-sm font-semibold text-slate-200">{label}</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <input
+          type="password" inputMode="numeric" autoComplete="new-password" placeholder="4 to 12 digits"
+          value={a} onChange={(e) => setA(e.target.value.replace(/\D/g, "").slice(0, 12))}
+          className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
+        />
+        <input
+          type="password" inputMode="numeric" autoComplete="new-password" placeholder="Type it again"
+          value={b2} onChange={(e) => setB2(e.target.value.replace(/\D/g, "").slice(0, 12))}
+          className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
+        />
+      </div>
+      {a.length > 0 && !valid && <div className="mt-2 text-xs text-amber-300">A PIN is 4 to 12 digits.</div>}
+      {valid && b2.length > 0 && !matches && <div className="mt-2 text-xs text-amber-300">The two do not match.</div>}
+      <div className="mt-3 flex gap-2">
+        <button
+          disabled={!valid || !matches}
+          onClick={() => { onSave(a); setOpen(false); setA(""); setB2(""); }}
+          className="min-h-[44px] flex-1 rounded-xl border border-violet-500/40 bg-violet-500/10 py-2 font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40 active:scale-95 transition"
+        >
+          Save
+        </button>
+        <button
+          onClick={() => { setOpen(false); setA(""); setB2(""); }}
+          className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-4 text-slate-300 hover:bg-white/10 active:scale-95 transition"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -1664,22 +3070,140 @@ function FaceDoor({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
  * The gang list comes from the same constants projectCommand uses, so a tile
  * here cannot address a field the sketch does not read.
  */
-function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const chan = useChannelGrid(d);
+/**
+ * An RFID attendance and access terminal.
+ *
+ * The device page is deliberately not where a register is administered — that
+ * is a whole section, under Attendance. What belongs here is what belongs on
+ * any device page: is this box working, what is it doing, and the handful of
+ * settings that are about the hardware rather than about the school.
+ *
+ * The two warnings below are the faults that otherwise present as "the cards
+ * stopped working", which is a support call rather than a diagnosis.
+ */
+function AttendanceReader({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const online = b(d.state.reader);
+  const queued = n(d.state.queued);
+  const cards = n(d.state.aclCount);
+  const dir = String(d.state.direction ?? "in");
+  return (
+    <div>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6 flex flex-col items-center">
+        <ScanLine className="h-12 w-12" style={{ color: "#8b5cf6" }} />
+        <div className="mt-3 text-2xl font-extrabold text-slate-200">
+          {String(d.state.terminalName ?? "Reader")}
+        </div>
+        <div className="mt-1 text-sm text-slate-400">
+          {dir === "out" ? "Counts as leaving" : dir === "auto" ? "Alternates in and out" : "Counts as arriving"}
+        </div>
+      </div>
+
+      {d.state.reader === false && (
+        <div className="mt-3 rounded-xl border border-red-500/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+          <strong>No card reader is answering.</strong> Nothing responded on SPI, which on these
+          installs is almost always the ribbon cable to the RC522. The terminal is otherwise
+          healthy, which is why this needs saying — it will sit here looking fine and never see
+          a card.
+        </div>
+      )}
+      {queued > 0 && (
+        <div className="mt-3 rounded-xl border border-amber-600/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+          <strong>{queued} scans are waiting to upload.</strong> They were recorded while this
+          reader could not reach the broker and will replay on their own. The register is behind
+          by that many until they do.
+        </div>
+      )}
+
+      <SectionLabel>Controls</SectionLabel>
+      <div className="flex gap-2.5">
+        <button onClick={() => send({ action: "open" })}
+                className={`min-h-[44px] flex-1 rounded-xl border border-green-500/40 bg-green-500/10 py-2.5 font-semibold text-green-300 hover:bg-green-500/20 active:scale-95 transition flex items-center justify-center gap-2 ${pendCls(st("doorReleased"))}`}>
+          <LockOpen className="h-4 w-4" /> Release door
+        </button>
+        <button onClick={() => send({ action: "sync" })}
+                className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 py-2.5 font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition">
+          Upload now
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Scans today" value={String(n(d.state.scansToday))} />
+        <StatTile label="Cards loaded" value={String(cards)} accent={cards === 0 ? "#f59e0b" : undefined} />
+        <StatTile label="Waiting to send" value={String(queued)} accent={queued > 0 ? "#f59e0b" : undefined} />
+        <StatTile label="Card reader" value={online ? "OK" : "missing"} accent={online ? undefined : "#ef4444"} />
+      </div>
+
+      <ControlRow label="Door release" hint="How long the strike stays open">
+        <Stepper value={n(d.state.relaySec, 5)} onChange={(v) => send({ relaySec: v })} min={1} max={30} step={1} suffix="s" />
+      </ControlRow>
+      <ControlRow label="Ignore repeat taps" hint="The same card again inside this is one scan">
+        <Stepper value={n(d.state.dedupeSec, 8)} onChange={(v) => send({ dedupeSec: v })} min={1} max={120} step={1} suffix="s" />
+      </ControlRow>
+      <ControlRow label="Door held alarm" hint="Warn when a door stays open this long">
+        <Stepper value={n(d.state.heldOpenSec, 30)} onChange={(v) => send({ heldOpenSec: v })} min={5} max={600} step={5} suffix="s" />
+      </ControlRow>
+      <ControlRow label="Buzzer">
+        <Toggle checked={b(d.state.buzzer)} onChange={(v) => send({ buzzer: v })} status={st("buzzer")} label="Buzzer" />
+      </ControlRow>
+      <ControlRow
+        label="Let unknown cards in when offline"
+        hint="Off means the door refuses everything it does not already know when the network is down"
+      >
+        <Toggle checked={b(d.state.offlineFailOpen)} onChange={(v) => send({ offlineFailOpen: v })} status={st("offlineFailOpen")} label="Fail open" />
+      </ControlRow>
+
+      <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-slate-400">
+        Who this reader lets in is managed under{" "}
+        <Link href="/smarthome/attendance?tab=terminals" className="text-violet-300 underline">
+          Attendance → Readers
+        </Link>
+        . The card list is pushed there and held on the device, so it keeps working when this
+        page cannot be reached.
+      </div>
+    </div>
+  );
+}
+
+function TouchBoard({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {  const chan = useChannelGrid(d);
   const fields = d.type === "touchboard-8" ? TOUCHBOARD8_GANG_FIELDS : TOUCHBOARD_GANG_FIELDS;
   const gangs = fields.map((key, i) => ({ key, fallback: `Gang ${i + 1}` }));
   const onCount = gangs.filter((g) => b(d.state[g.key])).length;
   return (
     <div>
+      {/*
+        * The voltage is shown only when the board actually measured it.
+        *
+        * The firmware used to substitute a nominal 230 V whenever the reading
+        * was missing, which meant a failed voltage sense was indistinguishable
+        * from a healthy board — and the power factor, being watts / (volts x
+        * amps), inherited the fiction. Now it says it does not know, which is
+        * the honest answer and the one that gets the sensor looked at.
+        */}
       <div className="grid grid-cols-3 gap-3">
         <StatTile label="Power" value={`${n(d.state.watts).toFixed(0)} W`} />
-        <StatTile label="Voltage" value={`${n(d.state.volts).toFixed(0)} V`} />
+        <StatTile
+          label="Voltage"
+          value={
+            d.state.voltsMeasured === false
+              ? "—"
+              : `${n(d.state.volts).toFixed(0)} V`
+          }
+        />
         <StatTile label="Current" value={`${n(d.state.amps).toFixed(2)} A`} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <StatTile label="Power factor" value={n(d.state.pf).toFixed(2)} />
+        <StatTile
+          label="Power factor"
+          value={n(d.state.pf) > 0 ? n(d.state.pf).toFixed(2) : "—"}
+        />
         <StatTile label="Energy" value={`${n(d.state.kwh).toFixed(2)} kWh`} />
       </div>
+      {d.state.voltsMeasured === false && (
+        <p className="mt-2 text-[12px] text-amber-200/80">
+          No mains voltage reading from this board, so the power factor cannot be worked out
+          either. The current and energy figures are unaffected.
+        </p>
+      )}
 
       <SectionLabel right={chan.header(`${onCount}/${gangs.length} on`)}>Gangs</SectionLabel>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -1723,15 +3247,41 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const exhaust = n(s.exhaustRelay, -1);
   const chans = Array.from({ length: relays }, (_, i) => ({ key: `r${i + 1}`, fallback: `Relay ${i + 1}` }));
   const onCount = chans.filter((cch) => b(s[cch.key])).length;
+  /* Which appliances the interlock actually switched off, by name where the
+     householder has named them. `safetyCut` is what was really cut, as opposed
+     to `safetyCutMask`, which is only what is configured to be cut. */
+  const cut = n(s.safetyCut, 0);
+  const cutNames = chans
+    .map((cch, i) => ((cut & (1 << i)) !== 0 ? String(s[`n${i + 1}`] ?? "") || cch.fallback : null))
+    .filter((x): x is string => x !== null);
 
   return (
     <div>
       {alarm && (
         <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-5 mb-4 flex flex-col items-center text-center">
-          <div className="text-red-400 font-extrabold text-lg">GAS DETECTED</div>
+          <div className="text-red-400 font-extrabold text-lg">
+            {b(s.gasPresent) ? "GAS DETECTED" : "GAS ALARM — AIR IS CLEAR NOW"}
+          </div>
           <p className="mt-2 text-sm text-slate-300">
-            Ventilate the room and check for a leak before clearing. The alarm latches until someone dismisses it.
+            {b(s.gasPresent)
+              ? "Ventilate the room and check for a leak. The alarm cannot be cleared while gas is still present."
+              : "The air has returned to normal, but the alarm is held until somebody dismisses it — so the reason the appliances below were cut stays on screen."}
           </p>
+
+          {/* What the interlock actually did. Without this the appliances are
+              simply off, and whoever finds them switches them back on never
+              knowing there was a leak. */}
+          {b(s.safetyEngaged) && (
+            <p className="mt-2 text-[12px] text-red-200">
+              Safety interlock engaged:
+              {cut > 0
+                ? ` ${cutNames.join(", ")} switched off`
+                : " no appliances needed cutting"}
+              {exhaust >= 0 ? `, exhaust on ${chans[exhaust]?.fallback ?? `relay ${exhaust + 1}`}` : ""}.
+              Clearing the alarm stops the exhaust; the appliances stay off for you to restore.
+            </p>
+          )}
+
           <div className="mt-4 flex gap-2.5">
             <button
               onClick={() => send({ muted: true })}
@@ -1740,12 +3290,20 @@ function Sentinel({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
               Silence 5 min
             </button>
             <button
+              disabled={b(s.gasPresent)}
+              title={b(s.gasPresent) ? "There is still gas in the room" : undefined}
               onClick={() => send({ action: "clearAlarm" })}
-              className={`min-h-[44px] rounded-xl bg-red-500 px-5 text-sm font-semibold text-white hover:bg-red-600 active:scale-95 transition ${pendCls(st("gasAlarm"))}`}
+              className={`min-h-[44px] rounded-xl bg-red-500 px-5 text-sm font-semibold text-white hover:bg-red-600 active:scale-95 transition disabled:opacity-40 disabled:hover:bg-red-500 ${pendCls(st("gasAlarm"))}`}
             >
               Clear alarm
             </button>
           </div>
+          {b(s.clearRefused) && b(s.gasPresent) && (
+            <p className="mt-2 text-[12px] text-red-200">
+              The panel refused to clear: doing so would switch the extractor off in the middle of a
+              leak. Silence the siren instead.
+            </p>
+          )}
         </div>
       )}
 
@@ -2586,6 +4144,9 @@ function CameraDevice({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }
 
       <SectionLabel>Camera storage</SectionLabel>
       <CameraStorage d={d} send={send} st={st} />
+
+      <SectionLabel>Face unlock</SectionLabel>
+      <DoorCameraPanel deviceId={d.id} deviceName={d.name} />
 
       <SectionLabel>Audio</SectionLabel>
       <CameraAudio d={d} />

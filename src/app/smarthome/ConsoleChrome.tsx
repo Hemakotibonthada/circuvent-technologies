@@ -29,6 +29,8 @@ import {
   MoreHorizontal,
   Plane,
   Radio,
+  ScanSearch,
+  ClipboardCheck,
   Settings,
   ShieldAlert,
   Video,
@@ -48,7 +50,7 @@ import VisitingBanner from "./VisitingBanner";
 import CommandRefusalHost from "./CommandRefusalHost";
 import { CommandPalette, ToastHost, useCommandPaletteHotkey, useEscape, useFocusTrap, useScrollLock, type Command as PaletteCommand } from "./_kit/overlays";
 import { StatusDot } from "./_kit/primitives";
-import { useFleet, useScenes } from "./_data/hooks";
+import { useFleet, useScenes, useAnprPresence, useAttendancePresence } from "./_data/hooks";
 
 export interface NavItem {
   href: string;
@@ -58,6 +60,16 @@ export interface NavItem {
   /** Sub-views inside the section, surfaced in the command palette. */
   tabs?: { id: string; label: string }[];
   adminOnly?: boolean;
+  /**
+   * Shown only when the account owns the hardware the section is about.
+   *
+   * A section with nothing in it is not neutral: an empty plate log reads as a
+   * broken feature rather than an unbought one, and every account pays for the
+   * clutter. `adminOnly` answers a question about the person; this answers one
+   * about the fleet, so it is a separate flag rather than a second meaning
+   * layered onto the first.
+   */
+  requires?: "anpr" | "attendance";
   /** Shown in the mobile bottom bar rather than the "More" sheet. */
   primary?: boolean;
 }
@@ -123,6 +135,26 @@ export const NAV: NavItem[] = [
     ],
   },
   {
+    href: "/smarthome/anpr",
+    label: "ANPR Camera",
+    icon: ScanSearch,
+    /*
+     * Only for accounts that actually have one — either an `anpr-cam`, or an
+     * ordinary camera enrolled as a lane. Placed directly after Cameras
+     * because that is where somebody looks for it, and because the two are
+     * frequently the same physical device wearing a second hat.
+     */
+    requires: "anpr",
+    tabs: [
+      { id: "log", label: "Plate log" },
+      { id: "vehicles", label: "Vehicles" },
+      { id: "site", label: "Site" },
+      { id: "insights", label: "Insights" },
+      { id: "lists", label: "Allow & block" },
+      { id: "cameras", label: "Cameras" },
+    ],
+  },
+  {
     href: "/smarthome/security",
     label: "Security",
     icon: ShieldAlert,
@@ -132,6 +164,29 @@ export const NAV: NavItem[] = [
       { id: "cameras", label: "Cameras" },
       { id: "vehicles", label: "Vehicles" },
       { id: "modes", label: "Modes" },
+    ],
+  },
+  {
+    href: "/smarthome/attendance",
+    label: "Attendance",
+    icon: ClipboardCheck,
+    /*
+     * Only for accounts running one. A home does not have a register, and an
+     * empty one would read as a broken feature rather than an unbought one.
+     *
+     * Placed after Security because that is what it is to whoever installed
+     * it: the readers on the doors are an access-control system that also
+     * happens to produce a register.
+     */
+    requires: "attendance",
+    tabs: [
+      { id: "live", label: "Live" },
+      { id: "register", label: "Register" },
+      { id: "people", label: "People" },
+      { id: "cards", label: "Cards" },
+      { id: "terminals", label: "Readers" },
+      { id: "schedules", label: "Schedules" },
+      { id: "reports", label: "Reports" },
     ],
   },
   {
@@ -180,6 +235,37 @@ export const NAV: NavItem[] = [
  * whole console down.
  */
 let adminCache: { uid: number; admin: boolean } | null = null;
+
+/**
+ * The sections an account can see, and the tabs inside them.
+ *
+ * Pure, exported and tested because getting it wrong is invisible in the worst
+ * direction: a section that never appears looks identical to a feature nobody
+ * shipped, and one that always appears is clutter nobody reports. Both are
+ * silent, so the rule is pinned rather than eyeballed.
+ *
+ * `adminOnly` is a question about the person; `requires` is a question about
+ * the fleet. Security additionally gives up its Vehicles tab once the dedicated
+ * ANPR section is showing — before that it is the only way to enrol a camera as
+ * a lane and must stay, and after it there would be two doors to one room.
+ */
+export function visibleNav(
+  nav: NavItem[],
+  { isAdmin, hasAnpr, hasAttendance }: { isAdmin: boolean; hasAnpr: boolean; hasAttendance?: boolean }
+): NavItem[] {
+  return nav
+    .filter(
+      (n) =>
+        (!n.adminOnly || isAdmin) &&
+        (n.requires !== "anpr" || hasAnpr) &&
+        (n.requires !== "attendance" || Boolean(hasAttendance))
+    )
+    .map((n) =>
+      n.href === "/smarthome/security" && hasAnpr
+        ? { ...n, tabs: n.tabs?.filter((t) => t.id !== "vehicles") }
+        : n
+    );
+}
 
 export default function ConsoleChrome({ children }: { children: React.ReactNode }) {
   const { ready, user } = useConsole();
@@ -272,7 +358,12 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
   // Close the mobile sheet on navigation.
   useEffect(() => setMoreOpen(false), [pathname]);
 
-  const nav = useMemo(() => NAV.filter((n) => !n.adminOnly || isAdmin), [isAdmin]);
+  const { hasAnpr } = useAnprPresence();
+  const { hasAttendance } = useAttendancePresence();
+  const nav = useMemo(
+    () => visibleNav(NAV, { isAdmin, hasAnpr, hasAttendance }),
+    [isAdmin, hasAnpr, hasAttendance]
+  );
   const current = useMemo(() => nav.find((n) => isActive(n)) ?? nav[0], [nav, isActive]);
 
   const commands = useMemo<PaletteCommand[]>(() => {

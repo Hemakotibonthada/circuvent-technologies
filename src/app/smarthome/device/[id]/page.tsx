@@ -258,13 +258,51 @@ function SetupModeCard({ device }: { device: { id: string; online: boolean } }) 
        * request the control plane accepted and the device rejected.
        */
       const ok = r.ok && r.data?.success !== false;
+      if (!ok) {
+        setMsg({ ok: false, text: r.data?.error || "The device did not accept the request." });
+        setBusy(false);
+        return;
+      }
+
+      /*
+       * WAIT FOR THE DEVICE TO SAY IT IS DOING IT.
+       *
+       * `success` here means the control plane published to MQTT — nothing
+       * more. A device on firmware older than the `setup` action drops the
+       * command silently: `_dispatch` has no branch for it and every sketch's
+       * handler begins `if (action != "set") return;`. That is not a
+       * hypothetical, it is what a unit running home-hub 2.3.0 does, and the
+       * old copy here told its owner to go and join a network that was never
+       * going to appear.
+       *
+       * So the device now publishes `setupMode` immediately before it drops
+       * the Wi-Fi link, and this waits for that echo. Silence is reported as
+       * silence, with the actual reason — because "no hotspot appeared" sends
+       * somebody to power-cycle a device that is working perfectly.
+       */
+      const deadline = Date.now() + 15_000;
+      let confirmed = false;
+      while (Date.now() < deadline && !confirmed) {
+        await new Promise((res) => setTimeout(res, 1500));
+        const d = await controlPlane.device(device.id);
+        if (d.ok && (d.data as { device?: { state?: Record<string, unknown> } })?.device?.state?.setupMode === true) {
+          confirmed = true;
+        }
+      }
+
       setMsg(
-        ok
+        confirmed
           ? {
               ok: true,
-              text: "Setup mode requested. Join the Circuvent-Setup network from your phone — the device closes it again after 10 minutes.",
+              text: "The device confirmed it is opening setup mode. Join the Circuvent-Setup network from your phone — it closes again after 10 minutes.",
             }
-          : { ok: false, text: r.data?.error || "The device did not accept the request." }
+          : {
+              ok: false,
+              text:
+                "The request was delivered but the device never confirmed it, so no hotspot is expected. " +
+                "This is what firmware older than the setup feature does — update it from Admin → Firmware, " +
+                "or hold the device's button for 3 seconds to open setup by hand.",
+            }
       );
     } catch {
       setMsg({ ok: false, text: "Could not reach the device." });
@@ -292,6 +330,11 @@ function SetupModeCard({ device }: { device: { id: string; online: boolean } }) 
         <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
         {busy ? "Asking the device…" : "Open setup mode"}
       </button>
+      {busy && (
+        <p className="mt-2 text-[12px]" style={{ color: "var(--cv-muted)" }}>
+          Waiting for the device to confirm — it reports setup mode before it drops off Wi-Fi.
+        </p>
+      )}
       {msg && (
         <p
           className="mt-3 text-[13px]"

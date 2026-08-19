@@ -381,9 +381,15 @@ const SETTABLE = new Set(["power", "power2", "power3", "power4", "pump", "auto",
  * would fire on things the user did not mean. `rfLinkUp` and `tankBattPct` are
  * deliberately NOT hidden: "tell me when the tank sensor stops reporting" is
  * one of the most useful rules this product can offer.
+ *
+ * `sumpFault` and `ohFault` were hidden here for no better reason than sitting
+ * beside the diagnostics. They are the same kind of thing as `rfLinkUp` — a
+ * sensor has stopped answering — and from watertank 2.2.0 a faulted sump holds
+ * the pump off entirely, so "tell me when the sump sensor fails" is a rule
+ * somebody would very much like to have before they run out of water.
  */
 const HIDDEN_FIELDS = new Set([
-  "fw", "rssi", "uptime", "sensorFault", "ohFault", "sumpFault",
+  "fw", "rssi", "uptime", "sensorFault",
   "rfRejected", "pairing", "radioReady", "ohLive",
 ]);
 
@@ -392,6 +398,7 @@ function humanField(f: string): string {
     power: "Power", power2: "Power 2", pump: "Pump", auto: "Auto mode", locked: "Lock", armed: "Armed",
     level: "Level", ohPct: "Overhead %", sumpPct: "Sump %", watts: "Power (W)", volts: "Voltage", amps: "Current",
     temperature: "Temperature", humidity: "Humidity", motion: "Motion", dryRun: "Dry-run", overflow: "Overflow",
+    ohFault: "Overhead sensor faulty", sumpFault: "Sump sensor faulty",
     g1: "Gang 1", g2: "Gang 2", g3: "Gang 3", backlight: "Backlight", battery: "Battery", barrier: "Barrier",
     rfLinkUp: "Tank sensor reporting", rfAgeS: "Tank sensor last heard (s)",
     tankBattPct: "Tank sensor battery %", tankBattLow: "Tank sensor battery low",

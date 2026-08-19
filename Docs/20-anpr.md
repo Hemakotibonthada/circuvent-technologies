@@ -264,7 +264,8 @@ new owner's plate reads into the old owner's log.
 way would answer snapshots on the frame topic *as well as* publishing its own
 bursts, so one vehicle would be read twice and paired into two visits.
 
-In the console: **Security → Vehicles → Cameras**.
+In the console: **ANPR Camera → Cameras**, or **Security → Vehicles → Cameras**
+before the account has a lane — see §10.
 
 ---
 
@@ -374,6 +375,7 @@ the vehicle is still moving.
 | `ANPR_PROVIDER` | Behaviour |
 | --- | --- |
 | `none` *(default)* | No OCR. Everything else still works — see below |
+| `local` | **Ours.** Tesseract on the control-plane VM. No per-read billing, and no photograph leaves the box |
 | `platerecognizer` | platerecognizer.com. Purpose-built, best accuracy |
 | `openai` | Any OpenAI-compatible vision endpoint, including self-hosted |
 | `http` | Your own wrapper. Accepts `{plate, confidence}` or `{results:[…]}` |
@@ -391,6 +393,93 @@ model will cheerfully return a plausible plate for a blurred rectangle. That is
 survivable *here specifically* because `plate.ts` refuses anything that is not a
 real registration and requires frames to agree, so a hallucination must be
 hallucinated identically two or three times before it can be believed.
+
+### `local` — the recogniser we own
+
+`platform/api/src/anpr/local/`. The default choice for a deployment that does
+not want a bill per vehicle.
+
+**Why it exists.** Every hosted ANPR service meters reads. A gate camera reads
+continuously for as long as it is mounted, so a metered recogniser turns a
+camera somebody bought into a subscription they did not agree to — and it stops
+working the day a card expires. It also means every photograph is posted to a
+third party, which quietly undoes the entire argument in §6 about how long
+pictures of people's vehicles should be kept and by whom.
+
+```
+ JPEG ──▶ greyscale ──▶ locate plate-shaped regions (vertical-edge density)
+                                  │
+                  ┌───────────────┴───────────────┐
+                  ▼                               ▼
+        crop, pad, upscale, binarise        (nothing found)
+                  ▼                               ▼
+          tesseract --psm 7            whole frame, tesseract --psm 11
+                  └───────────────┬───────────────┘
+                                  ▼
+                      candidate strings + confidence ──▶ plate.ts
+```
+
+| File | Responsibility |
+| --- | --- |
+| `image.ts` | Decode, crop, resize, illumination normalisation, Otsu, PGM. Pure |
+| `locate.ts` | Where the plate is. Pure |
+| `tesseract.ts` | The classifier boundary — a subprocess |
+| `index.ts` | Orchestration, early exit, whole-frame fallback |
+
+**Localisation is the whole problem.** Handing a full frame to an OCR engine
+does not fail cleanly — it returns the house number, the van's livery and the
+road sign with the same enthusiasm as the registration, and nothing downstream
+can tell which was which. A plate has one property almost nothing else in a
+scene has: a dense run of strong *vertical* edges packed into a short, wide
+rectangle. That is what is detected — not colour, which varies by plate class
+and is destroyed by headlights, and not a template, which works on the plate it
+was tuned against.
+
+**Three settings do most of the work**, and each fixes a failure that otherwise
+looks like "no plate visible":
+
+- *Padding.* The detector finds where the *characters* are, not where the plate
+  is, so a tight crop shaves a stroke off the first and last character. The
+  result is a registration two characters short, which fits no shape and is
+  discarded — a whole read lost to a few pixels of margin.
+- *Upscaling.* Tesseract's LSTM degrades sharply below a ~30 px x-height. A
+  plate 20 px tall in frame is not "low quality" to it, it is unreadable.
+- *Alphabet.* Constrained to `A-Z0-9`, with the dictionaries off. Unconstrained,
+  the engine returns `KAO1AB!234` — because that is valid English text, scored
+  against a language model built for prose. A registration is not a word.
+
+**A subprocess, not `tesseract.js`.** The WASM build keeps its model and scratch
+buffers resident at 150-250 MB; the VM in [12 — VM runbook](./12-vm-runbook.md)
+has ~400 MB free once Postgres, Mosquitto and Caddy have taken theirs. That is
+not a performance question, it is whether the API is OOM-killed overnight. The
+native binary starts, reads one small image, prints and exits, and the kernel
+takes every byte back — at the cost of ~150 ms of process startup, which is
+nothing against a few dozen vehicles a day. `OMP_THREAD_LIMIT=1` keeps it off
+the second core, because a background read must not stall the console.
+
+**It stops at the first region that is a real registration.** Each region is a
+subprocess costing 1-3 seconds, a frame typically offers three, and a burst has
+three frames — so trying every region on every frame turns a six-second read
+into twenty. The early exit uses `analysePlate`, the same authority the pipeline
+uses to decide, so the shortcut and the verdict agree by construction.
+
+**What it is honestly worse at.** It is a general text recogniser, not a plate
+model. It wants a plate roughly square-on, roughly in focus and lit; it reads a
+vehicle stopped at a barrier far better than one driving through; a heavily
+angled or dirty plate will defeat it. The answer to that is a better camera
+position, or `platerecognizer`, not a better sentence here. It is safe to put
+behind a barrier for exactly the reason the `openai` provider is: it only ever
+*proposes*, and `plate.ts` decides.
+
+Measured on the deployed VM, synthetic plates at 800x600: correct read with 0
+corrections at 87-98 confidence, 1.3-2.9 s per frame.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `ANPR_LOCAL_BINARY` | `tesseract` | Shipped in the API image |
+| `ANPR_LOCAL_LANG` | `eng` | Model to load |
+| `ANPR_LOCAL_TIMEOUT_MS` | `15000` | Per image. A hung classifier must not hold a burst open |
+| `ANPR_LOCAL_MAX_REGIONS` | `3` | CPU budget per frame — each region is one subprocess |
 
 ---
 
@@ -596,10 +685,11 @@ looks like a working answer to a typo.
 
 ### In the console
 
-**Security → Vehicles** has three views: the **plate log** (the stream, with an
-in/out tag per read), the **vehicle register** (distinct plates, pass counts,
-who is on the property right now), and the **allow & block lists**. A plate in
-the log links straight to its profile.
+**ANPR Camera** — see §10 for where the section lives and when it appears. Its
+views are the **plate log** (the stream, with an in/out tag per read), the
+**vehicle register** (distinct plates, pass counts, who is on the property right
+now), **Site**, **Insights**, the **allow & block lists**, and **Cameras** for
+lane setup. A plate in the log links straight to its profile.
 
 ---
 
@@ -807,6 +897,33 @@ page of 100 reads stays a few KB, and most rows are never opened.
 5. Press **Capture now** with a car in front of it and check `/smarthome/traffic`.
 6. Add the household's own plates to the allow list — from the log, not by
    typing them, so a transcription error cannot be baked in.
+
+### Where it lives in the console, and when it appears
+
+`/smarthome/anpr` — the **ANPR Camera** section, with the plate log, the vehicle
+register, Site, Insights, the lists and the lane setup as tabs.
+
+**The section is only shown to an account that has a number-plate camera**:
+either an `anpr-cam`, or an ordinary camera enrolled as a lane (§2a).
+`useAnprPresence` decides, and it is the only place that decides. A section is
+not free — most accounts are a few lamps and a hub, and a gate-management
+section they cannot use is clutter at best; at worst an empty plate log reads as
+a broken feature rather than an unbought one.
+
+**Before that, it lives at Security → Vehicles.** That is deliberate rather than
+leftover: the Cameras view inside it is where a plain camera is enrolled, so
+removing it would leave no way to switch the feature on — the section offering
+that control only appears *after* it is on. Once the dedicated section exists,
+`ConsoleChrome` drops Security's Vehicles tab, so there is exactly one home for
+it at any moment and nobody bookmarks the copy that is about to disappear.
+
+The route stays reachable either way. Visiting `/smarthome/anpr` with no ANPR
+camera explains what is missing and links to the enrolment screen, because a
+bookmark or a link in a report that dead-ends is worse than a page that says
+why.
+
+`tests/anpr-nav-visibility.test.ts` pins all of this — both directions fail
+silently, which is exactly why they are tested rather than eyeballed.
 
 ### When plates are not being read
 

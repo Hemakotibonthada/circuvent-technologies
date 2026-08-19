@@ -51,8 +51,36 @@
  *          internal pull-up, so an unplugged detector floated low and latched
  *          a gas alarm that cut a relay and could never clear itself. Two
  *          units in the field were sitting in exactly that state.
+ *   1.1.1  The gas baseline stops tracking while the sensor is faulted. A
+ *          disconnected module reads zero, and averaging that in walked the
+ *          baseline down to nothing — so the moment the sensor came back, its
+ *          ordinary clean-air output sat hundreds of counts "above baseline"
+ *          and tripped the alarm.
+ *   1.2.0  The safety interlock can be stood down. `engageSafety()` was called
+ *          on the alarm edge and had no counterpart anywhere in the file: after
+ *          any gas event the exhaust relay ran indefinitely, and the appliances
+ *          it cut stayed cut — while the alarm cleared itself the moment the
+ *          air improved, so the panel looked perfectly normal and the reason
+ *          those appliances were off was no longer displayed anywhere. Somebody
+ *          would eventually switch the boiler back on, never knowing there had
+ *          been a leak.
+ *
+ *          So the alarm now latches until a person acknowledges it, which is
+ *          what the file header always claimed, and acknowledging is what
+ *          releases the interlock. `gasPresent` carries the live reading and
+ *          drives the siren; `safetyCut` reports which appliances were cut, so
+ *          the app can offer to restore them rather than the panel deciding to
+ *          re-light a gas appliance by itself. Clearing is refused while gas is
+ *          still present — that would only switch the extractor off in the
+ *          middle of a leak, and muting already exists for a loud siren.
+ *
+ *          The raw reading also stopped being published twice a second. It is
+ *          an averaged ADC value that moves on every sample however clean the
+ *          air is, so live state was dirty continuously — about 172,000
+ *          messages a day per panel, each an INSERT, for a diagnostic figure
+ *          the app already charts from telemetry.
  */
-#define CV_FW_VERSION "1.1.1"
+#define CV_FW_VERSION "1.2.0"
 
 #include <CircuventDevice.h>
 #include <Preferences.h>
@@ -352,6 +380,15 @@ void releasePublish() {
 int  gasRaw = 0;
 int  gasBaseline = 0;
 bool gasAlarm = false;
+/** Live: is there gas above the threshold right now. Drives the siren. */
+bool gasPresent = false;
+/** True while the interlock is holding appliances off and the exhaust on. */
+bool safetyEngaged = false;
+/** Which relays this interlock actually switched off, so a person can restore them. */
+uint32_t safetyCut = 0;
+uint32_t lastGasPub = 0;
+/** How often the raw reading reaches live state when nothing is happening. */
+static const uint32_t GAS_PUBLISH_MS = 15000;
 bool gasFault = false;                 // sensor absent / unpowered
 bool gasReady = false;                 // warm-up complete
 uint32_t gasAboveSince = 0;
@@ -693,12 +730,45 @@ void engageSafety() {
   // One publish for the whole interlock. Held across both loops so the app is
   // never shown a half-applied safety action.
   holdPublish();
+  safetyCut = 0;
   for (int i = 0; i < NUM_RELAY; i++) {
-    if (safetyCutMask & (1ul << i)) setRelay(i, false, "gas-alarm");
+    if (safetyCutMask & (1ul << i)) {
+      /* Remembered, so the app can say *which* appliances were cut and why.
+         An appliance that is simply off, with no explanation, gets switched
+         back on by somebody who never knew there had been a leak. */
+      if (relayOn[i]) safetyCut |= (1ul << i);
+      setRelay(i, false, "gas-alarm");
+    }
   }
   if (exhaustRelay >= 0 && exhaustRelay < NUM_RELAY) {
     setRelay(exhaustRelay, true, "gas-alarm");
   }
+  safetyEngaged = true;
+  cv.set("safetyEngaged", true);
+  cv.set("safetyCut", (int)safetyCut);
+  releasePublish();
+}
+
+/**
+ * Stands the interlock down.
+ *
+ * Nothing did this. `engageSafety()` was called on the alarm edge and there was
+ * no counterpart anywhere in the file, so after any gas event the exhaust relay
+ * ran until a person noticed and switched it off by hand — and the appliances
+ * it had cut stayed cut, with the alarm long gone from the screen.
+ *
+ * The cut appliances are deliberately *not* switched back on here. Restoring a
+ * gas appliance automatically, seconds after a leak, is not a decision a panel
+ * should take on somebody's behalf; `safetyCut` tells the app which ones they
+ * were so a person can choose.
+ */
+void releaseSafety() {
+  holdPublish();
+  if (exhaustRelay >= 0 && exhaustRelay < NUM_RELAY) {
+    setRelay(exhaustRelay, false, "alarm-cleared");
+  }
+  safetyEngaged = false;
+  cv.set("safetyEngaged", false);
   releasePublish();
 }
 
@@ -712,7 +782,6 @@ void sampleGas() {
   long acc = 0;
   for (int i = 0; i < 8; i++) acc += analogRead(GAS_ANALOG_PIN);
   gasRaw = (int)(acc / 8);
-  cv.set("gasRaw", gasRaw);
 
   if (!gasReady) {
     if (now < GAS_WARMUP_MS) {
@@ -727,7 +796,27 @@ void sampleGas() {
     if (gasBaseline <= 0) calibrateGas();
   }
 
-  cv.set("gasPct", gasPercent());
+  /*
+   * The reading goes into live state slowly, and into telemetry as history.
+   *
+   * `gasRaw` is an averaged ADC value that moves by a few counts on every
+   * sample no matter how clean the air is, and this runs twice a second — so
+   * publishing it here made the state dirty continuously, and CircuventDevice
+   * republishes whenever state is dirty and _minGap has elapsed. That was
+   * about two state messages a second, forever: 172,000 a day per panel, every
+   * one an INSERT, for a diagnostic number nobody reads at that resolution.
+   * The chart the app draws comes from telemetry, which is already sent once a
+   * minute and carries both figures.
+   *
+   * While an alarm is running it goes out immediately, because that is the one
+   * time somebody is watching the number change.
+   */
+  const bool watching = gasAlarm || gasPresent;
+  if (watching || now - lastGasPub >= GAS_PUBLISH_MS) {
+    lastGasPub = now;
+    cv.set("gasRaw", gasRaw);
+    cv.set("gasPct", gasPercent());
+  }
 
   // Two thresholds, not one: a reading hovering at the limit would otherwise
   // chatter the alarm and the siren on and off.
@@ -760,8 +849,34 @@ void sampleGas() {
   // never run.
   bool moduleTrip = (digitalRead(GAS_DIGITAL_PIN) == LOW) && !gasFault;
 
+  /*
+   * Two facts, kept apart: is there gas *now*, and has an alarm been raised.
+   *
+   * They used to be one flag, and the consequences were a mess. The alarm
+   * cleared itself the moment the air improved — which sounds helpful until
+   * you notice what engageSafety() had done in the meantime and what nothing
+   * ever undid: the appliances it cut stayed cut, and the exhaust it started
+   * ran indefinitely. So the panel returned to looking perfectly normal while
+   * a fan ran forever and a boiler was off for a reason that was no longer
+   * displayed anywhere. Somebody would eventually switch the boiler back on,
+   * never knowing there had been a leak.
+   *
+   * `gasPresent` is live and drives the siren. `gasAlarm` latches until a
+   * person acknowledges it, which is also what releases the interlock — so the
+   * altered state and the explanation for it stay together. The file header
+   * promised a latching alarm; now it is one.
+   */
+  const bool present = (gasRaw >= alarmAt) || moduleTrip;
+
+  if (present != gasPresent) {
+    gasPresent = present;
+    cv.set("gasPresent", gasPresent);
+    if (!gasPresent) buzzerOff();
+    cv.publishStateNow();
+  }
+
   if (!gasAlarm) {
-    if (gasRaw >= alarmAt || moduleTrip) {
+    if (present) {
       if (gasAboveSince == 0) gasAboveSince = now;
       // Sustained, not a spike: a slammed door or a passing aerosol should not
       // empty the house.
@@ -774,11 +889,13 @@ void sampleGas() {
       gasAboveSince = 0;
     }
   } else if (gasRaw < clearAt && !moduleTrip) {
-    gasAlarm = false;
+    /*
+     * The air is clean again. The siren stops and this is published so the app
+     * can offer to stand the alarm down — but the alarm itself, and the
+     * interlock, stay until somebody says so.
+     */
     gasAboveSince = 0;
-    cv.set("gasAlarm", false);
     buzzerOff();
-    cv.publishStateNow();
   }
 
   // Slow baseline tracking, and only while the air is demonstrably clean —
@@ -1061,10 +1178,27 @@ void onCommand(const String &action, JsonObjectConst p) {
   // The alarm latches rather than self-clearing, on the assumption that someone
   // should look before it is dismissed.
   if (action == "clearAlarm") {
+    /*
+     * Refused while there is still gas in the room.
+     *
+     * Clearing an alarm that is still true does not make the room safe — it
+     * releases the exhaust, restores nothing, and the alarm re-raises seconds
+     * later after GAS_ALARM_MIN_MS. Somebody jabbing at the button because the
+     * siren is loud would be switching the extractor off in the middle of a
+     * leak. Muting is the control for that, and it exists.
+     */
+    if (gasPresent) {
+      cv.set("clearRefused", true);
+      cv.publishStateNow();
+      return;
+    }
     gasAlarm = false;
     gasAboveSince = 0;
     cv.set("gasAlarm", false);
+    cv.set("clearRefused", false);
     buzzerOff();
+    /* The whole point: this is what finally stops the exhaust. */
+    if (safetyEngaged) releaseSafety();
     cv.publishStateNow();
     return;
   }

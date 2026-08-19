@@ -100,6 +100,13 @@ export interface TankDeviceState {
   tankBattPct?: number | null;
   tankBattLow?: boolean;
   ohFault?: boolean;
+  /** Set when the wired sump sensor cannot be read. Holds the pump from 2.2.0. */
+  sumpFault?: boolean;
+  /** -1 means no reading, exactly as ohPct does. */
+  sumpPct?: number | null;
+  sumpMinPct?: number | null;
+  dryRun?: boolean;
+  overflow?: boolean;
   sensorIntervalS?: number | null;
   downlinkPending?: boolean;
 }
@@ -273,4 +280,145 @@ export function formatAge(seconds: number): string {
 export function tankLevelText(link: TankLinkState): string {
   if (link.levelPct === null) return "—";
   return link.levelIsCurrent ? `${link.levelPct}%` : `${link.levelPct}% (last known)`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Why the pump is not running                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The reasons a starter refuses to run its pump, in the order it applies them.
+ *
+ * Mirrors `setPump()` in firmware/watertank/watertank.ino. That function is the
+ * single funnel every start goes through, and this is the single funnel every
+ * explanation goes through, so a new interlock added there has exactly one
+ * place to be explained here.
+ */
+export type PumpHoldReason =
+  /** The dry-run trip has latched and needs clearing by hand. */
+  | "dry-run"
+  /** The overflow float is closed. */
+  | "overflow"
+  /** The wired sump sensor is not reading at all. */
+  | "sump-fault"
+  /** The sump is genuinely too low to pump from. Not a fault. */
+  | "sump-low"
+  /** No current overhead level, so there is nothing to fill towards. */
+  | "no-level";
+
+export interface PumpHold {
+  held: boolean;
+  reason: PumpHoldReason | null;
+  /** One line, suitable for a banner. */
+  label: string;
+  /** What to do about it. */
+  detail: string;
+  /** Whether this is a fault or an ordinary condition to wait out. */
+  tone: "bad" | "warn" | "idle";
+}
+
+const NOT_HELD: PumpHold = { held: false, reason: null, label: "", detail: "", tone: "idle" };
+
+/**
+ * Why the pump will not start, or null-ish when nothing is holding it.
+ *
+ * WHY THIS EXISTS
+ *
+ * "The pump will not turn on" is the single most common thing anybody asks
+ * about this product, and until 2.2.0 the answer was visible for two of the
+ * five reasons. The overhead-link reasons were explained well; a dry-run trip
+ * and an overflow float had banners; a sump that was simply too low said
+ * nothing at all, and a sump sensor that had failed did not even hold the pump
+ * — it reported 50% and let it run dry.
+ *
+ * Now that a failed sump correctly refuses to pump, saying so becomes the
+ * difference between a safe interlock and a lock nobody can explain. A control
+ * that silently does nothing is indistinguishable from a broken one.
+ */
+export function readPumpHold(
+  state: TankDeviceState | null | undefined,
+  link: TankLinkState
+): PumpHold {
+  const s = state ?? {};
+
+  /*
+   * Order follows the firmware. Dry-run first because it is latched — it stays
+   * until somebody clears it, so it outranks conditions that may clear
+   * themselves while the person is still reading the screen.
+   */
+  if (s.dryRun === true) {
+    return {
+      held: true,
+      reason: "dry-run",
+      label: "Dry-run trip — pump cut",
+      detail:
+        "The motor drew current without the overhead level rising, so it was stopped to " +
+        "protect it. Check the sump has water and the foot valve is primed, then reset the trip.",
+      tone: "bad",
+    };
+  }
+
+  if (s.overflow === true) {
+    return {
+      held: true,
+      reason: "overflow",
+      label: "Overflow float tripped — pump stopped",
+      detail:
+        "The float at the top of the overhead tank is closed. This is the hardware backstop " +
+        "underneath the level sensor, so it usually means the tank is genuinely full.",
+      tone: "bad",
+    };
+  }
+
+  /*
+   * A sump that cannot be read. Before 2.2.0 this substituted 50% and the pump
+   * ran on it — see Docs/28. It now refuses, and this is what says so.
+   */
+  if (s.sumpFault === true || num(s.sumpPct) === -1) {
+    return {
+      held: true,
+      reason: "sump-fault",
+      label: "Sump level cannot be read — pump held",
+      detail:
+        "The wired sensor in the sump is not returning a usable reading, so there is no way " +
+        "to know whether there is water to pump. Check the sensor and its cable; the pump " +
+        "stays off until it reads again.",
+      tone: "bad",
+    };
+  }
+
+  // No current overhead level. The link card already explains the radio in
+  // detail, so this stays short and defers to it.
+  if (link.blocksAutoFill) {
+    return {
+      held: true,
+      reason: "no-level",
+      label: "No current tank level — pump held",
+      detail:
+        "The controller will not fill towards a level it is not being told. See the sensor " +
+        "status above.",
+      tone: link.tone === "bad" ? "bad" : "warn",
+    };
+  }
+
+  /*
+   * Ordinary, and last: the sump is low. Nothing is broken and nothing needs
+   * doing except waiting for it to refill, which is why it is toned as idle
+   * rather than dressed up as a fault.
+   */
+  const sump = num(s.sumpPct);
+  const sumpMin = num(s.sumpMinPct) ?? 15;
+  if (sump !== null && sump >= 0 && sump <= sumpMin) {
+    return {
+      held: true,
+      reason: "sump-low",
+      label: `Sump too low to pump (${sump}%)`,
+      detail:
+        `The pump is held off below ${sumpMin}% to keep it from running dry. It will start ` +
+        "on its own once the sump refills.",
+      tone: "idle",
+    };
+  }
+
+  return NOT_HELD;
 }

@@ -60,6 +60,42 @@ which is the camera's XCLK. `firmware/camera/camera.ino` now carries a
 compile-time `CV_PIN_CLASH` guard that fails the build if any auxiliary pin
 collides with a camera pin. See [15 — Troubleshooting](./15-troubleshooting.md).
 
+### Sharing GPIO0 with a local button
+
+Most relay devices put their own button on GPIO0 too — the same pin
+`setResetButton(0)` watches. The pin then has two owners: a **tap** means
+"toggle the light / cycle the fan / throw the bolt", and a **multi-second hold**
+is the platform reset gesture.
+
+Reading the pin directly gets this wrong twice, and both were shipped:
+
+```c
+// WRONG. Not "on press" — "every 400 ms for as long as it is held".
+if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 400) { ... }
+```
+
+1. **A hold drives the device all the way through.** Holding BOOT for eight
+   seconds to factory-reset a fan walked it through twenty speed changes,
+   switching the relay and writing NVS each time. On a lock it was the bolt
+   thrown twenty times, ending unlocked about half the time. On a gate, a
+   barrier motor reversed every 600 ms under load.
+2. **A pin that is already low at boot is not a press.** GPIO0 is a strapping
+   pin, usually on an RC network, and can sit low for seconds while the rail
+   comes up after a power cut. Acting on its release means the power came back
+   and the door unlocked itself.
+
+Use **`CvTapButton`**, which acts on release, ignores anything long enough to be
+a reset gesture, and refuses to arm until it has seen the pin released:
+
+```c
+CvTapButton btn;
+void setup() { btn.begin(BTN_PIN); }          // defaults: 40 ms .. 700 ms
+void loop()  { if (btn.tapped()) toggle(); }
+```
+
+`tests/firmware-shared-button.test.ts` checks every sketch that shares the pin
+uses it, and that the level test does not come back.
+
 ## Building and flashing
 
 Each device folder is a PlatformIO project.

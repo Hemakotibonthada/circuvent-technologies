@@ -1172,6 +1172,363 @@ export interface FaceAttempt {
   at: string;
 }
 
+/** A camera acting as the eyes of a door lock. */
+export interface FaceDoorCamera {
+  deviceId: string;
+  ownerId: number;
+  /** The lock this camera unlocks. Null while no lock is fitted yet. */
+  lockId: string | null;
+  enabled: boolean;
+  burst: number;
+  burstGapMs: number;
+  cooldownMs: number;
+  illuminate: number;
+  triggers: number;
+  lastTriggerAt: string | null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Attendance                                                          */
+/* ------------------------------------------------------------------ */
+
+export interface AttendanceSite {
+  id: number;
+  name: string;
+  kind: "school" | "office" | "facility";
+  timezone: string;
+  graceMinutes: number;
+  halfDayAfterMinutes: number;
+  absentAfterMinutes: number;
+  autoOut: boolean;
+  dedupeSeconds: number;
+  notifyGuardians: boolean;
+  notifyAbsence: boolean;
+  people: number;
+  terminals: number;
+}
+
+export interface AttendanceGroup {
+  id: number;
+  name: string;
+  kind: string;
+  parentId: number | null;
+  scheduleId: number | null;
+  leadName: string;
+  leadEmail: string;
+  people: number;
+}
+
+export interface AttendancePerson {
+  id: number;
+  code: string;
+  name: string;
+  role: string;
+  groupId: number | null;
+  groupName: string | null;
+  scheduleId: number | null;
+  email: string;
+  phone: string;
+  guardianName: string;
+  guardianEmail: string;
+  guardianPhone: string;
+  active: boolean;
+  validFrom: string | null;
+  validTo: string | null;
+  photoUrl: string;
+  notes: string;
+  cards: number;
+}
+
+export interface AttendanceCredential {
+  id: number;
+  personId: number;
+  personName: string;
+  personCode: string;
+  kind: string;
+  cardNumber: number;
+  label: string;
+  active: boolean;
+  issuedAt: string;
+  revokedAt: string | null;
+  revokedReason: string;
+  lastSeenAt: string | null;
+}
+
+export interface AttendanceTerminal {
+  deviceId: string;
+  deviceName: string | null;
+  online: boolean;
+  zoneId: number | null;
+  zoneName: string | null;
+  name: string;
+  mode: string;
+  direction: string;
+  enabled: boolean;
+  aclVersion: number;
+  aclCount: number;
+  aclPushedAt: string | null;
+  lastPunchAt: string | null;
+  /** What the terminal says it holds, so a push that never landed is visible. */
+  deviceAclVersion: number | null;
+  deviceAclCount: number | null;
+  queued: number;
+  readerPresent: boolean | null;
+}
+
+export interface AttendanceZone {
+  id: number;
+  name: string;
+  kind: string;
+  countsForAttendance: boolean;
+}
+
+export interface AttendanceSchedule {
+  id: number;
+  name: string;
+  kind: "fixed" | "flexible";
+  windows: Record<string, Array<{ in: string; out: string }>>;
+  graceMinutes: number | null;
+  minMinutes: number;
+}
+
+export interface AttendanceRule {
+  id: number;
+  zoneId: number | null;
+  zoneName: string | null;
+  groupId: number | null;
+  groupName: string | null;
+  personId: number | null;
+  personName: string | null;
+  scheduleId: number | null;
+  scheduleName: string | null;
+  allow: boolean;
+  priority: number;
+  validFrom: string | null;
+  validTo: string | null;
+  note: string;
+}
+
+export interface AttendanceLeave {
+  id: number;
+  personId: number | null;
+  personName: string | null;
+  groupId: number | null;
+  groupName: string | null;
+  kind: string;
+  fromDay: string;
+  toDay: string;
+  countsAsPresent: boolean;
+  note: string;
+  approvedBy: string;
+}
+
+export interface RegisterRow {
+  personId: number;
+  name: string;
+  code: string;
+  role: string;
+  groupName: string | null;
+  status: string;
+  firstIn: string | null;
+  lastOut: string | null;
+  workedMinutes: number;
+  lateMinutes: number;
+  earlyMinutes: number;
+  punches: number;
+  assumedOut: boolean;
+  note: string;
+  manual: boolean;
+}
+
+export interface AttendancePunch {
+  id: number;
+  at: string;
+  deviceAt: string | null;
+  direction: string;
+  granted: boolean;
+  reason: string;
+  method: string;
+  cardNumber: number | null;
+  offline: boolean;
+  deviceId: string | null;
+  personName: string | null;
+  personCode: string | null;
+  zoneName: string | null;
+  terminalName: string | null;
+}
+
+export interface AttendanceLive {
+  day: string;
+  timezone: string;
+  totals: Record<string, number>;
+  onSite: Array<{ personId: number; name: string; code: string; groupName: string | null; since: string }>;
+  recent: Array<{
+    at: string; direction: string; granted: boolean; reason: string;
+    cardNumber: number | null; personName: string | null; personCode: string | null;
+    terminalName: string | null;
+  }>;
+  terminals: Array<{
+    deviceId: string; name: string; online: boolean;
+    lastPunchAt: string | null; aclCount: number; queued: number;
+  }>;
+}
+
+export interface AttendanceSummaryRow {
+  personId: number;
+  name: string;
+  code: string;
+  groupName: string | null;
+  present: number;
+  late: number;
+  absent: number;
+  half: number;
+  leave: number;
+  workedMinutes: number;
+  lateMinutes: number;
+  expected: number;
+  percent: number | null;
+}
+
+/* ---------------------------------------------------------------- *
+ * Guardian personal safety beacon                                    *
+ * ---------------------------------------------------------------- */
+
+export interface GuardianContact {
+  id: number;
+  name: string;
+  /** E.164. The modem will not infer a country code the way a dialler does. */
+  phone: string;
+  relation: string;
+  position: number;
+  notifyPush: boolean;
+}
+
+export type GuardianContactInput = {
+  name: string;
+  phone: string;
+  relation?: string;
+  notifyPush?: boolean;
+};
+
+export interface GuardianIncident {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  /** button | app | test — a test must never be counted as an emergency. */
+  source: string;
+  /** open | acknowledged | resolved | false_alarm */
+  status: string;
+  openedAt: string;
+  acknowledgedAt?: string | null;
+  acknowledgedBy?: string;
+  closedAt?: string | null;
+  /** Null when the device had no fix. Never zero — 0,0 is a real place. */
+  lat: number | null;
+  lng: number | null;
+  stationKm: number | null;
+  stationName: string | null;
+  stationPhone?: string | null;
+}
+
+export interface GuardianTrackPoint {
+  at: string;
+  lat: number;
+  lng: number;
+  /** How old the GPS fix was. A stale point must not be drawn as a live one. */
+  fixAgeSec: number;
+  battery: number | null;
+}
+
+export interface GuardianNotification {
+  target: string;
+  targetName: string;
+  channel: string;
+  ok: boolean;
+  sentBy: string;
+  detail: string;
+  at: string;
+}
+
+export interface GuardianStation {
+  id: number;
+  name: string;
+  phone: string;
+  country: string;
+  district: string;
+  lat: number;
+  lng: number;
+}
+
+export interface GuardianZone {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+  notifyEnter: boolean;
+  notifyExit: boolean;
+  /** Where the wearer was last seen relative to this zone; null = never seen. */
+  presence: "inside" | "outside" | null;
+}
+
+export interface GuardianJourney {
+  id: string;
+  destination: string;
+  startedAt: string;
+  dueAt: string;
+  /** running | arrived | overdue | cancelled */
+  status: string;
+  nudgedAt: string | null;
+}
+
+/* ---------------------------------------------------------------- *
+ * RFID gate                                                         *
+ * ---------------------------------------------------------------- */
+
+export interface GateTag {
+  id: number;
+  /** The number the reader reports, after parity and format decoding. */
+  tag: number;
+  label: string;
+  vehicle: string;
+  active: boolean;
+  validFrom: string | null;
+  validTo: string | null;
+  /** 0 = Sunday. Empty means every day. */
+  days: number[];
+  /** Minutes from local midnight; both null means any time. */
+  fromMinute: number | null;
+  toMinute: number | null;
+  note: string;
+  createdAt: string;
+}
+
+export type GateTagInput = {
+  /** Either the decoded number, or the facility/card pair printed on the tag. */
+  tag?: number;
+  facility?: number;
+  card?: number;
+  label?: string;
+  vehicle?: string;
+  active?: boolean;
+  validFrom?: string | null;
+  validTo?: string | null;
+  days?: number[];
+  fromMinute?: number | null;
+  toMinute?: number | null;
+  note?: string;
+};
+
+export interface GateEvent {
+  id: string;
+  tag: number | null;
+  label: string;
+  allowed: boolean;
+  /** allowed | unknown-tag | revoked | expired | wrong-day | wrong-time | manual */
+  reason: string;
+  at: string;
+}
+
 export const controlPlane = {
   authedBlob,
   login: (email: string, password: string) =>
@@ -1453,6 +1810,181 @@ export const controlPlane = {
       "/face/attempts?deviceId=" + encodeURIComponent(deviceId) + "&limit=" + limit
     ),
 
+  /*
+   * A camera doing the looking for a lock.
+   *
+   * FaceDoor's original design expected "the hub's AI node" to watch a camera
+   * and post descriptors. Nothing plays that part in a Circuvent home, so the
+   * control plane drives an ordinary camera instead — these are the controls
+   * for that arrangement.
+   */
+  faceDoors: () => req<{ doors: FaceDoorCamera[] }>("/face/doors"),
+  saveFaceDoor: (
+    deviceId: string,
+    body: {
+      lockId?: string | null;
+      enabled?: boolean;
+      burst?: number;
+      burstGapMs?: number;
+      cooldownMs?: number;
+      illuminate?: number;
+    }
+  ) =>
+    req<{ door: FaceDoorCamera; changed: string[] }>(
+      "/face/doors/" + encodeURIComponent(deviceId),
+      { method: "PUT", body: JSON.stringify(body) }
+    ),
+  deleteFaceDoor: (deviceId: string) =>
+    req<{ success: boolean }>("/face/doors/" + encodeURIComponent(deviceId), { method: "DELETE" }),
+  captureFaceDoor: (deviceId: string) =>
+    req<{ ok: boolean; captureId: number; frames: number }>(
+      "/face/doors/" + encodeURIComponent(deviceId) + "/capture",
+      { method: "POST" }
+    ),
+
+  /* ---------------------------------------------------------------- *
+   * Attendance and RFID access control
+   * ---------------------------------------------------------------- */
+
+  attendanceSites: () => req<{ sites: AttendanceSite[] }>("/attendance/sites"),
+  createAttendanceSite: (body: { name: string; kind?: string; timezone?: string }) =>
+    req<{ site: AttendanceSite }>("/attendance/sites", { method: "POST", body: JSON.stringify(body) }),
+  updateAttendanceSite: (id: number, body: Record<string, unknown>) =>
+    req<{ site: AttendanceSite }>("/attendance/sites/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteAttendanceSite: (id: number) =>
+    req<{ success: boolean }>("/attendance/sites/" + id, { method: "DELETE" }),
+
+  attendanceGroups: (siteId: number) =>
+    req<{ groups: AttendanceGroup[] }>("/attendance/groups?siteId=" + siteId),
+  createAttendanceGroup: (body: Record<string, unknown>) =>
+    req<{ group: { id: number } }>("/attendance/groups", { method: "POST", body: JSON.stringify(body) }),
+  updateAttendanceGroup: (id: number, body: Record<string, unknown>) =>
+    req<{ success: boolean }>("/attendance/groups/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteAttendanceGroup: (id: number) =>
+    req<{ success: boolean }>("/attendance/groups/" + id, { method: "DELETE" }),
+
+  attendancePeople: (siteId: number, opts: { groupId?: number; q?: string } = {}) =>
+    req<{ people: AttendancePerson[] }>(
+      "/attendance/people?siteId=" + siteId +
+      (opts.groupId ? "&groupId=" + opts.groupId : "") +
+      (opts.q ? "&q=" + encodeURIComponent(opts.q) : "")
+    ),
+  createAttendancePerson: (body: Record<string, unknown>) =>
+    req<{ person: AttendancePerson }>("/attendance/people", { method: "POST", body: JSON.stringify(body) }),
+  updateAttendancePerson: (id: number, body: Record<string, unknown>) =>
+    req<{ person: AttendancePerson }>("/attendance/people/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteAttendancePerson: (id: number) =>
+    req<{ success: boolean }>("/attendance/people/" + id, { method: "DELETE" }),
+  importAttendancePeople: (siteId: number, people: Record<string, unknown>[]) =>
+    req<{ created: number; updated: number; failed: number; errors: string[] }>(
+      "/attendance/people/import",
+      { method: "POST", body: JSON.stringify({ siteId, people }) }
+    ),
+  attendancePerson: (id: number, from?: string, to?: string) =>
+    req<{
+      person: AttendancePerson; groupName: string | null; timezone: string;
+      days: Array<{ day: string; status: string; firstIn: string | null; lastOut: string | null;
+                    workedMinutes: number; lateMinutes: number; earlyMinutes: number;
+                    assumedOut: boolean; note: string; manual: boolean }>;
+      punches: AttendancePunch[];
+      cards: Array<{ id: number; cardNumber: number; kind: string; label: string;
+                     active: boolean; issuedAt: string; revokedAt: string | null }>;
+    }>("/attendance/person/" + id + (from ? "?from=" + from + "&to=" + to : "")),
+
+  attendanceCredentials: (siteId: number, personId?: number) =>
+    req<{ credentials: AttendanceCredential[] }>(
+      "/attendance/credentials?siteId=" + siteId + (personId ? "&personId=" + personId : "")
+    ),
+  createAttendanceCredential: (body: { personId: number; cardNumber: number; kind?: string; label?: string }) =>
+    req<{ credential: { id: number; cardNumber: number } }>(
+      "/attendance/credentials", { method: "POST", body: JSON.stringify(body) }
+    ),
+  revokeAttendanceCredential: (id: number, reason?: string) =>
+    req<{ success: boolean }>("/attendance/credentials/" + id + "/revoke",
+      { method: "POST", body: JSON.stringify({ reason: reason ?? "" }) }),
+
+  attendanceZones: (siteId: number) =>
+    req<{ zones: AttendanceZone[] }>("/attendance/zones?siteId=" + siteId),
+  createAttendanceZone: (body: Record<string, unknown>) =>
+    req<{ zone: { id: number } }>("/attendance/zones", { method: "POST", body: JSON.stringify(body) }),
+  deleteAttendanceZone: (id: number) =>
+    req<{ success: boolean }>("/attendance/zones/" + id, { method: "DELETE" }),
+
+  attendanceTerminals: (siteId: number) =>
+    req<{ terminals: AttendanceTerminal[] }>("/attendance/terminals?siteId=" + siteId),
+  saveAttendanceTerminal: (deviceId: string, body: Record<string, unknown>) =>
+    req<{ success: boolean; cards: number }>(
+      "/attendance/terminals/" + encodeURIComponent(deviceId),
+      { method: "PUT", body: JSON.stringify(body) }
+    ),
+  deleteAttendanceTerminal: (deviceId: string) =>
+    req<{ success: boolean }>("/attendance/terminals/" + encodeURIComponent(deviceId), { method: "DELETE" }),
+  syncAttendanceTerminal: (deviceId: string) =>
+    req<{ success: boolean; cards: number; version: number }>(
+      "/attendance/terminals/" + encodeURIComponent(deviceId) + "/sync", { method: "POST" }
+    ),
+  openAttendanceDoor: (deviceId: string) =>
+    req<{ success: boolean }>(
+      "/attendance/terminals/" + encodeURIComponent(deviceId) + "/open", { method: "POST" }
+    ),
+
+  attendanceSchedules: (siteId: number) =>
+    req<{ schedules: AttendanceSchedule[] }>("/attendance/schedules?siteId=" + siteId),
+  createAttendanceSchedule: (body: Record<string, unknown>) =>
+    req<{ schedule: { id: number } }>("/attendance/schedules", { method: "POST", body: JSON.stringify(body) }),
+  updateAttendanceSchedule: (id: number, body: Record<string, unknown>) =>
+    req<{ success: boolean }>("/attendance/schedules/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteAttendanceSchedule: (id: number) =>
+    req<{ success: boolean }>("/attendance/schedules/" + id, { method: "DELETE" }),
+
+  attendanceRules: (siteId: number) =>
+    req<{ rules: AttendanceRule[] }>("/attendance/rules?siteId=" + siteId),
+  createAttendanceRule: (body: Record<string, unknown>) =>
+    req<{ rule: { id: number } }>("/attendance/rules", { method: "POST", body: JSON.stringify(body) }),
+  deleteAttendanceRule: (id: number) =>
+    req<{ success: boolean }>("/attendance/rules/" + id, { method: "DELETE" }),
+
+  attendanceLeaves: (siteId: number) =>
+    req<{ leaves: AttendanceLeave[] }>("/attendance/leaves?siteId=" + siteId),
+  createAttendanceLeave: (body: Record<string, unknown>) =>
+    req<{ leave: { id: number } }>("/attendance/leaves", { method: "POST", body: JSON.stringify(body) }),
+  deleteAttendanceLeave: (id: number) =>
+    req<{ success: boolean }>("/attendance/leaves/" + id, { method: "DELETE" }),
+
+  attendanceRegister: (siteId: number, day?: string, groupId?: number) =>
+    req<{ day: string; timezone: string; people: RegisterRow[]; totals: Record<string, number> }>(
+      "/attendance/register?siteId=" + siteId +
+      (day ? "&day=" + day : "") + (groupId ? "&groupId=" + groupId : "")
+    ),
+  recomputeAttendance: (siteId: number, from: string, to?: string) =>
+    req<{ success: boolean; days: number; rows: number }>(
+      "/attendance/register/recompute", { method: "POST", body: JSON.stringify({ siteId, from, to }) }
+    ),
+  markAttendance: (personId: number, day: string, status: string, note?: string) =>
+    req<{ success: boolean }>("/attendance/register/" + personId,
+      { method: "PATCH", body: JSON.stringify({ day, status, note: note ?? "" }) }),
+  clearAttendanceOverride: (personId: number, day: string) =>
+    req<{ success: boolean }>("/attendance/register/" + personId + "?day=" + day, { method: "DELETE" }),
+
+  attendanceSummary: (siteId: number, from: string, to: string, groupId?: number) =>
+    req<{ from: string; to: string; people: AttendanceSummaryRow[] }>(
+      "/attendance/summary?siteId=" + siteId + "&from=" + from + "&to=" + to +
+      (groupId ? "&groupId=" + groupId : "")
+    ),
+  attendancePunches: (siteId: number, opts: { limit?: number; refusedOnly?: boolean } = {}) =>
+    req<{ punches: AttendancePunch[] }>(
+      "/attendance/punches?siteId=" + siteId +
+      "&limit=" + (opts.limit ?? 100) + (opts.refusedOnly ? "&granted=false" : "")
+    ),
+  createAttendancePunch: (body: Record<string, unknown>) =>
+    req<{ stored: boolean; reason: string; personId: number | null }>(
+      "/attendance/punches", { method: "POST", body: JSON.stringify(body) }
+    ),
+  attendanceLive: (siteId: number) =>
+    req<AttendanceLive>("/attendance/live?siteId=" + siteId),
+  attendanceExportUrl: (siteId: number, what: string, from: string, to: string) =>
+    `${CONTROL_PLANE_URL}/attendance/export?siteId=${siteId}&what=${what}&from=${from}&to=${to}`,
+
   gatePasses: (deviceId?: string) =>
     req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),  createGatePass: (body: { deviceId: string; label?: string; validToMinutes?: number; maxUses?: number }) =>
     req<{ pass: GatePass }>("/gate/passes", { method: "POST", body: JSON.stringify(body) }),
@@ -1662,6 +2194,132 @@ export const controlPlane = {
   deleteWebhook: (id: number) => req<{ success: boolean }>("/developer/webhooks/" + id, { method: "DELETE" }),
   testWebhook: (id: number) =>
     req<{ delivered: boolean; status?: number; ms: number; error?: string }>("/developer/webhooks/" + id + "/test", {
+      method: "POST",
+    }),
+
+  /* ---------------------------------------------------------------- *
+   * Guardian personal safety beacon
+   * ---------------------------------------------------------------- */
+
+  guardianContacts: (deviceId: string) =>
+    req<{ contacts: GuardianContact[] }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/contacts",
+    ),
+  saveGuardianContacts: (deviceId: string, contacts: GuardianContactInput[]) =>
+    req<{ ok: boolean; count: number }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/contacts",
+      { method: "PUT", body: JSON.stringify({ contacts }) },
+    ),
+  /**
+   * Writes the whole configuration into the device's NVS.
+   *
+   * This is the step that makes the phone unnecessary afterwards: once it has
+   * returned, the beacon can raise an alarm with no app, no Wi-Fi and no
+   * platform, using only its own SIM.
+   */
+  provisionGuardian: (
+    deviceId: string,
+    body: { national?: string; apn?: string; holdSec?: number; silent?: boolean },
+  ) =>
+    req<{ ok: boolean; contacts: number }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/provision",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  testGuardian: (deviceId: string) =>
+    req<{ ok: boolean }>("/guardian/devices/" + encodeURIComponent(deviceId) + "/test", {
+      method: "POST",
+    }),
+  panicGuardian: (deviceId: string) =>
+    req<{ ok: boolean }>("/guardian/devices/" + encodeURIComponent(deviceId) + "/panic", {
+      method: "POST",
+    }),
+  guardianIncidents: (limit = 25) =>
+    req<{ incidents: GuardianIncident[] }>("/guardian/incidents?limit=" + limit),
+  guardianIncident: (id: string) =>
+    req<{
+      incident: GuardianIncident;
+      track: GuardianTrackPoint[];
+      notifications: GuardianNotification[];
+    }>("/guardian/incidents/" + encodeURIComponent(id)),
+  ackGuardianIncident: (id: string) =>
+    req<{ ok: boolean }>("/guardian/incidents/" + encodeURIComponent(id) + "/ack", {
+      method: "POST",
+    }),
+  closeGuardianIncident: (id: string, falseAlarm: boolean) =>
+    req<{ ok: boolean }>("/guardian/incidents/" + encodeURIComponent(id) + "/close", {
+      method: "POST",
+      body: JSON.stringify({ falseAlarm }),
+    }),
+  guardianStations: (at?: { lat: number; lng: number }) =>
+    req<{ stations: GuardianStation[]; nearest?: { station: GuardianStation; km: number } | null }>(
+      "/guardian/stations" + (at ? `?lat=${at.lat}&lng=${at.lng}` : ""),
+    ),
+
+  guardianZones: (deviceId: string) =>
+    req<{ zones: GuardianZone[] }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/zones",
+    ),
+  addGuardianZone: (
+    deviceId: string,
+    body: { name: string; lat: number; lng: number; radiusM: number; notifyEnter?: boolean; notifyExit?: boolean },
+  ) =>
+    req<{ ok: boolean; id: number }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/zones",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  deleteGuardianZone: (deviceId: string, zoneId: number) =>
+    req<{ ok: boolean }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/zones/" + zoneId,
+      { method: "DELETE" },
+    ),
+
+  /** "Walk me home" — armed on the device too, so it survives losing coverage. */
+  startGuardianJourney: (deviceId: string, minutes: number, destination?: string) =>
+    req<{ ok: boolean; dueAt: string; minutes: number }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/journey",
+      { method: "POST", body: JSON.stringify({ minutes, destination }) },
+    ),
+  guardianArrived: (deviceId: string) =>
+    req<{ ok: boolean }>("/guardian/devices/" + encodeURIComponent(deviceId) + "/arrived", {
+      method: "POST",
+    }),
+  guardianJourney: (deviceId: string) =>
+    req<{ journey: GuardianJourney | null }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/journey",
+    ),
+
+  /* ---------------------------------------------------------------- *
+   * RFID gate access
+   * ---------------------------------------------------------------- */
+
+  gateTags: (deviceId: string) =>
+    req<{ tags: GateTag[] }>("/gate/devices/" + encodeURIComponent(deviceId) + "/tags"),
+  saveGateTag: (deviceId: string, body: GateTagInput) =>
+    req<{ ok: boolean; id: number; tag: number }>(
+      "/gate/devices/" + encodeURIComponent(deviceId) + "/tags",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  deleteGateTag: (deviceId: string, tagId: number) =>
+    req<{ ok: boolean }>(
+      "/gate/devices/" + encodeURIComponent(deviceId) + "/tags/" + tagId,
+      { method: "DELETE" },
+    ),
+  gateEvents: (deviceId: string, opts: { limit?: number; deniedOnly?: boolean } = {}) =>
+    req<{ events: GateEvent[] }>(
+      "/gate/devices/" +
+        encodeURIComponent(deviceId) +
+        "/events?limit=" +
+        (opts.limit ?? 50) +
+        (opts.deniedOnly ? "&denied=1" : ""),
+    ),
+  /** Push the list now — for somebody standing at a barrier that will not open. */
+  syncGate: (deviceId: string) =>
+    req<{ ok: boolean }>("/gate/devices/" + encodeURIComponent(deviceId) + "/sync", {
+      method: "POST",
+    }),
+  /** Opens the barrier and records it, so the log matches what happened. */
+  openGate: (deviceId: string) =>
+    req<{ ok: boolean }>("/gate/devices/" + encodeURIComponent(deviceId) + "/open", {
       method: "POST",
     }),
 };

@@ -977,4 +977,72 @@ export const api = {
 
   // ---- device lifecycle ---------------------------------------------------
   deleteDevice: (id: string) => req<{ success: boolean }>("/devices/" + encodeURIComponent(id), { method: "DELETE" }),
+
+  // ---- Guardian personal safety beacon ------------------------------------
+  /*
+   * The first-run setup for a Guardian happens here and then never needs to
+   * happen again. Everything below writes into the device's own NVS, so once
+   * `provisionGuardian` has returned, the beacon raises an alarm over its own
+   * SIM with no phone, no Wi-Fi and no platform involved. That is the point of
+   * the product, and it is why the phone is only ever a setup tool.
+   */
+  guardianContacts: (deviceId: string) =>
+    req<{ contacts: GuardianContact[] }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/contacts",
+    ),
+  saveGuardianContacts: (deviceId: string, contacts: GuardianContactInput[]) =>
+    req<{ ok: boolean; count: number }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/contacts",
+      { method: "PUT", body: JSON.stringify({ contacts }) },
+    ),
+  provisionGuardian: (
+    deviceId: string,
+    body: { national?: string; apn?: string; holdSec?: number; silent?: boolean },
+  ) =>
+    req<{ ok: boolean; contacts: number }>(
+      "/guardian/devices/" + encodeURIComponent(deviceId) + "/provision",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  /** A rehearsal. Goes to the wearer's contacts and deliberately not to police. */
+  testGuardian: (deviceId: string) =>
+    req<{ ok: boolean }>("/guardian/devices/" + encodeURIComponent(deviceId) + "/test", { method: "POST" }),
+  panicGuardian: (deviceId: string) =>
+    req<{ ok: boolean }>("/guardian/devices/" + encodeURIComponent(deviceId) + "/panic", { method: "POST" }),
+  guardianIncidents: (limit = 25) =>
+    req<{ incidents: GuardianIncident[] }>("/guardian/incidents?limit=" + limit),
+  closeGuardianIncident: (id: string, falseAlarm: boolean) =>
+    req<{ ok: boolean }>("/guardian/incidents/" + encodeURIComponent(id) + "/close", {
+      method: "POST",
+      body: JSON.stringify({ falseAlarm }),
+    }),
 };
+
+export interface GuardianContact {
+  id: number;
+  name: string;
+  phone: string;
+  relation: string;
+  position: number;
+  notifyPush: boolean;
+}
+
+export type GuardianContactInput = {
+  name: string;
+  phone: string;
+  relation?: string;
+};
+
+export interface GuardianIncident {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  source: string;
+  status: string;
+  openedAt: string;
+  closedAt?: string | null;
+  /** Null when the device had no fix. Never zero — 0,0 is a real place. */
+  lat: number | null;
+  lng: number | null;
+  stationName: string | null;
+  stationKm: number | null;
+}

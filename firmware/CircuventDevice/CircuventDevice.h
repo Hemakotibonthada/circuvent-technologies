@@ -152,6 +152,86 @@ static inline void cvRelayWrite(uint8_t pin, bool on) {
   digitalWrite(pin, cvRelayLevel(on));
 }
 
+/**
+ * A local button that shares its pin with the reset gesture.
+ *
+ * BTN_PIN is GPIO0 on every board we ship, and GPIO0 is also what is handed to
+ * `setResetButton(0)`. The pin therefore has two owners: a tap means whatever
+ * the sketch decides — toggle the light, cycle the fan, unlock the door — and a
+ * multi-second hold is the platform gesture for "clear Wi-Fi" (3 s) or
+ * "factory reset" (8 s).
+ *
+ * TWO THINGS GO WRONG IF YOU JUST READ THE PIN
+ *
+ * 1. A level test with a rate limit re-fires for the whole hold. `if (low &&
+ *    millis() - last > 400)` is not "on press" — it is "every 400 ms while
+ *    held". Somebody holding BOOT for eight seconds to factory-reset a fan
+ *    therefore cycles it through twenty speed changes on the way, each one
+ *    switching the relay and committing to NVS. On a lock it is twenty
+ *    unlock/lock cycles ending wherever the timing lands; on a gate it is a
+ *    barrier motor reversing every 600 ms.
+ *
+ * 2. A press cannot begin before the device is running. GPIO0 is a strapping
+ *    pin, usually on an RC network and often wired to an auto-reset circuit, so
+ *    on a slow or dirty mains restore it can sit low for seconds while the rail
+ *    comes up. Acting on the release of that phantom press means the power came
+ *    back and the door unlocked itself. `_pollResetButton` refuses to arm until
+ *    it has seen the pin released for this exact reason; a sketch reading the
+ *    same pin has to do the same, or it reintroduces the bug the library went
+ *    to some trouble to remove.
+ *
+ * So: arm only after a release has been observed, act on release, and ignore
+ * anything long enough to belong to the reset gesture — the library is already
+ * measuring that one.
+ */
+struct CvTapButton {
+  /**
+   * @param pin        the pin, read active-low with a pull-up
+   * @param minMs      shortest press that counts, to reject contact bounce
+   * @param maxMs      longest press that still counts as a tap; anything
+   *                   longer belongs to the reset gesture and is dropped
+   */
+  void begin(uint8_t pin, uint16_t minMs = 40, uint16_t maxMs = 700) {
+    _pin = pin;
+    _min = minMs;
+    _max = maxMs;
+    pinMode(_pin, INPUT_PULLUP);
+    _armed = false;
+    _down = false;
+  }
+
+  /** True exactly once, on the release of a press that was a tap. */
+  bool tapped() {
+    const bool down = (digitalRead(_pin) == LOW);
+
+    /*
+     * Held at boot: not a press, because there was nobody to start it. Wait
+     * for the pin to be released before believing anything it says.
+     */
+    if (!_armed) {
+      if (!down) _armed = true;
+      _down = down;
+      return false;
+    }
+
+    bool fired = false;
+    if (down && !_down) {
+      _heldAt = millis();
+    } else if (!down && _down) {
+      const uint32_t held = millis() - _heldAt;
+      fired = (held >= _min && held < _max);
+    }
+    _down = down;
+    return fired;
+  }
+
+ private:
+  uint8_t _pin = 0;
+  uint16_t _min = 40, _max = 700;
+  bool _down = false, _armed = false;
+  uint32_t _heldAt = 0;
+};
+
 // Circuvent's own device CA (public cert). Embedded so every device trusts our
 // self-hosted broker. The CA private key never leaves the server. Rotate via
 // setRootCA() if you ever regenerate it (platform/scripts/gen-certs.sh).
@@ -279,6 +359,16 @@ class CircuventDevice {
 
   /** This device's assigned id — needed to identify itself over plain HTTPS. */
   const String &deviceId() const { return _id; }
+  /**
+   * The device's own key.
+   *
+   * Exposed for firmwares that have a second way to reach the platform — the
+   * Guardian posts incidents over GPRS when it is nowhere near Wi-Fi, and has
+   * to authenticate that request the same way this library's own HTTP calls
+   * do (`x-device-key`). Read-only, and still the same secret: a sketch that
+   * leaks it has the same problem as a library that does.
+   */
+  const String &deviceKey() const { return _key; }
 
   /**
    * Applies the pinned root CA to a caller's TLS client.
@@ -439,6 +529,16 @@ class CircuventDevice {
     _mqtt.setCallback(_cvOnMqttMessage);
     _mqtt.setBufferSize(2048);
     _mqtt.setKeepAlive(45);
+    /*
+     * Explicitly false, not merely absent.
+     *
+     * The portal reboots the device when its window closes, so a fresh boot is
+     * the normal way out of setup mode. Publishing `false` replaces the
+     * retained `true` with a definite answer rather than a missing key, which
+     * a client would otherwise have to interpret — and "the key is gone" and
+     * "I have never heard of this key" look the same from the outside.
+     */
+    set("setupMode", false);
   }
 
   // Call from loop(). Manages Wi-Fi, MQTT (re)connect, state publishing, OTA.
@@ -770,6 +870,27 @@ class CircuventDevice {
     if (minutes > 60) minutes = 60;
     _portalDeadline = _ssid.length() ? millis() + minutes * 60000UL : 0;
     Serial.printf("[CV] Setup mode requested (%u min)\n", (unsigned)minutes);
+    /*
+     * Say so before the link goes down, because afterwards there is no link.
+     *
+     * Raising the AP drops the Wi-Fi association and with it MQTT, so this is
+     * the last moment the device can tell anybody anything. Without this echo
+     * the console has nothing to go on but its own publish succeeding, and a
+     * device that *ignored* the command is indistinguishable from one that
+     * obeyed it — which is exactly what happened to a unit running a build
+     * from before this action existed: the console said "join
+     * Circuvent-Setup", the owner stood there, and no such network ever
+     * appeared.
+     *
+     * `setupMode` is retained state, so the console can wait for it and
+     * distinguish "the device is opening its hotspot" from "the device never
+     * answered — it is probably on firmware too old to know this command".
+     */
+    set("setupMode", true);
+    set("setupMinutes", (int)minutes);
+    publishStateNow();
+    // Give the publish a moment to leave before the radio is reconfigured.
+    delay(250);
     startPortal();
   }
 
@@ -1201,11 +1322,70 @@ class CircuventDevice {
     }
   }
 
+  /**
+   * Escapes text that is about to be placed into the setup page's HTML.
+   *
+   * The setup page lists the Wi-Fi networks the device can see, and **an SSID
+   * is attacker-controlled**: anyone within radio range can broadcast a network
+   * whose name is 32 bytes of whatever they like. Concatenated raw into an
+   * attribute, a name containing a quote closes it, and a name containing a
+   * tag runs script — on the one page in this product where the user is about
+   * to type their home Wi-Fi password, served over plain HTTP on the device's
+   * own access point.
+   *
+   * What that buys an attacker is the password itself (the form is right
+   * there), and `/reset?full=1` on the same origin, which factory-resets the
+   * device.
+   *
+   * The everyday version of the same bug needs no attacker at all: an
+   * apostrophe is common in a network name — "Bob's Wi-Fi" — and it truncated
+   * the option's value, so the user picked their network, the device saved a
+   * different string, and setup failed with nothing to explain it.
+   *
+   * `&` is replaced first, or the escapes introduced after it get re-escaped.
+   */
+  static String _htmlEscape(const String &in) {
+    String out;
+    out.reserve(in.length() + 8);
+    for (size_t i = 0; i < in.length(); i++) {
+      const char c = in[i];
+      switch (c) {
+        case '&': out += F("&amp;"); break;
+        case '<': out += F("&lt;"); break;
+        case '>': out += F("&gt;"); break;
+        case '"': out += F("&quot;"); break;
+        case '\'': out += F("&#39;"); break;
+        default: out += c;
+      }
+    }
+    return out;
+  }
+
   String _portalPage() {
+    /*
+     * The network list comes from the same cached, asynchronous scan the JSON
+     * endpoint uses, rather than a second blocking `WiFi.scanNetworks()` here.
+     *
+     * That blocking call took 2-4 seconds *inside the HTTP handler* — which is
+     * exactly what the comment on `_kickScan` says not to do, and this was the
+     * code contradicting it. It is served on `/` and on `onNotFound`, and a
+     * phone deciding whether it is behind a captive portal hits unmatched paths
+     * repeatedly, so the portal appeared to hang on almost every interaction.
+     *
+     * Reusing `_scanJson()` also means one scan implementation instead of two
+     * that had already drifted: that one de-duplicates repeated SSIDs and skips
+     * empty ones, and this one did neither.
+     */
     String opts;
-    int n = WiFi.scanNetworks();
-    for (int i = 0; i < n && i < 20; i++)
-      opts += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
+    JsonDocument scan;
+    if (deserializeJson(scan, _scanJson()) == DeserializationError::Ok) {
+      for (JsonObjectConst o : scan.as<JsonArrayConst>()) {
+        const String ssid = o["ssid"] | "";
+        if (!ssid.length()) continue;
+        const String safe = _htmlEscape(ssid);
+        opts += "<option value='" + safe + "'>" + safe + " (" + String((int)(o["rssi"] | 0)) + " dBm)</option>";
+      }
+    }
     String p = F("<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"
                  "<title>Circuvent Setup</title>"
                  "<style>body{font-family:system-ui;background:#0b1020;color:#e5e7eb;max-width:420px;margin:24px auto;padding:16px}"
@@ -1217,7 +1397,7 @@ class CircuventDevice {
     p += F("</select><label>Password</label><input name='pass' type='password' placeholder='Wi-Fi password'>"
            "<button type='submit'>Save &amp; connect</button></form>"
            "<p style='opacity:.6;font-size:12px'>Device ID: ");
-    p += _id;
+    p += _htmlEscape(_id);
     p += F("</p>");
     return p;
   }

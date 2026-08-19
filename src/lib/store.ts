@@ -150,6 +150,17 @@ export interface Account {
   notifyPrefs?: NotifyPrefs;
   tokenVersion?: number;
   deletedAt?: string;
+  /*
+   * Object-store key for the profile picture, and when it last changed.
+   *
+   * The key, not the bytes: this row is a JSONB blob read on every sign-in and
+   * every profile fetch, so an inline image would be dragged across the wire on
+   * all of them and carried by every dump besides. `avatarUpdatedAt` is what
+   * the browser caches against — without it a newly uploaded picture sits
+   * behind whatever the old one cached as, and the change looks like it failed.
+   */
+  avatarKey?: string;
+  avatarUpdatedAt?: string;
 }
 
 export interface Address {
@@ -1797,6 +1808,12 @@ export interface PublicAccount {
   gstin?: string;
   businessName?: string;
   notifyPrefs?: NotifyPrefs;
+  /**
+   * Set when the customer has a picture, so the UI knows to ask for it rather
+   * than requesting an avatar for every account and getting a 404 for most.
+   * Carries the timestamp so it doubles as the cache-buster.
+   */
+  avatarUpdatedAt?: string;
 }
 export function publicAccount(email: string): PublicAccount | null {
   const a = getAccount(email);
@@ -1810,6 +1827,7 @@ export function publicAccount(email: string): PublicAccount | null {
     gstin: a.gstin,
     businessName: a.businessName,
     notifyPrefs: a.notifyPrefs,
+    avatarUpdatedAt: a.avatarKey ? a.avatarUpdatedAt : undefined,
   };
 }
 export function updateAccountProfile(
@@ -1828,6 +1846,43 @@ export function updateAccountProfile(
   if (patch.notifyPrefs !== undefined) a.notifyPrefs = { ...a.notifyPrefs, ...patch.notifyPrefs } as NotifyPrefs;
   save();
   return publicAccount(email);
+}
+
+/**
+ * Points an account at a newly stored picture, returning the key it replaced.
+ *
+ * The old key comes back rather than being deleted here, because the store has
+ * no business talking to a bucket. The caller deletes it *after* this returns —
+ * that order matters: delete first and a failure between the two leaves the row
+ * pointing at an object that is gone, which renders as a broken avatar for
+ * everyone until the customer uploads another.
+ */
+export function setAccountAvatar(email: string, key: string): { previousKey?: string } | null {
+  const db = load();
+  const a = db.accounts[email.trim().toLowerCase()];
+  if (!a) return null;
+  const previousKey = a.avatarKey;
+  a.avatarKey = key;
+  a.avatarUpdatedAt = new Date().toISOString();
+  save();
+  return { previousKey: previousKey && previousKey !== key ? previousKey : undefined };
+}
+
+/** Forgets the picture, returning the key the caller should now delete. */
+export function clearAccountAvatar(email: string): { previousKey?: string } | null {
+  const db = load();
+  const a = db.accounts[email.trim().toLowerCase()];
+  if (!a) return null;
+  const previousKey = a.avatarKey;
+  delete a.avatarKey;
+  delete a.avatarUpdatedAt;
+  save();
+  return { previousKey };
+}
+
+/** The stored object key for this account's picture, if it has one. */
+export function accountAvatarKey(email: string): string | null {
+  return getAccount(email)?.avatarKey || null;
 }
 
 // ------------------------------------------------------------- addresses ---

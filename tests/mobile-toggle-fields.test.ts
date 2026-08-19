@@ -29,6 +29,13 @@ const FIRMWARE_TOGGLE: Record<string, string | null> = {
   // eight of them. `g1` for the card switch, matching the 3-gang board; the
   // whole-board control is `all`, which capabilities() does not model.
   "touchboard-8": "g1",
+  /*
+   * firmware/switchboard: the same p["g1"]..p["g8"] / p["all"] shape, but the
+   * number that exist is commissioned rather than compiled. `g1` for the card
+   * switch, because a board always has at least one channel — the device
+   * screen reads the real count off `state.gangs` instead of assuming.
+   */
+  switchboard: "g1",
   // firmware/watertank: p["pump"], p["auto"]
   watertank: "pump",
   // firmware/smart-lock: p["locked"], plus lock/unlock actions
@@ -56,6 +63,15 @@ const FIRMWARE_TOGGLE: Record<string, string | null> = {
   "home-hub": null,
   // firmware/rfid-gate: action open/close — a gate is opened, not switched on.
   "rfid-gate": null,
+  /*
+   * firmware/rfid-attend: no tile toggle.
+   *
+   * Its booleans are `buzzer` and `offlineFailOpen`, and the second decides
+   * whether a network outage opens the building. Neither belongs one
+   * accidental tap from the lamps on a dashboard; the door itself is released
+   * with an explicit action.
+   */
+  "rfid-attend": null,
   // Read-only or non-switchable.
   "energy-monitor": null,
   guardian: null,

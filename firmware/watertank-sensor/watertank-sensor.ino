@@ -13,13 +13,27 @@
  * Deps: CircuventDevice (for CvTankLink + tweetnacl), LoRa by Sandeep Mistry.
  * Board: ESP32.
  */
-#define CV_FW_VERSION "1.0.1"
+/*
+ * Version history
+ *   1.0.0  initial
+ *   1.0.1  pairing is acknowledged by the starter, so the unit stops
+ *          transmitting and reports success only when something heard it
+ *   1.1.0  Holds SENSOR_EN low through deep sleep. The ESP32 releases digital
+ *          outputs the moment it sleeps, so the line that switches off the
+ *          ultrasonic module — the biggest idle draw on a unit that runs from
+ *          a cell on a roof — floated for the whole interval. Also keeps the
+ *          "when did we last persist the sequence" marker in RTC memory, so
+ *          NVS is written every five hundred readings as intended rather than
+ *          on every single wake.
+ */
+#define CV_FW_VERSION "1.1.0"
 
 #include <Arduino.h>
 #include <LoRa.h>
 #include <Preferences.h>
 #include <SPI.h>
 #include <esp_sleep.h>
+#include <driver/gpio.h>
 
 #include "CvTankLink.h"
 
@@ -78,6 +92,25 @@ RTC_DATA_ATTR uint32_t rtcDownSeq = 0;
 
 /** Report cadence, tunable from the app so a roof visit is not needed. */
 RTC_DATA_ATTR uint16_t rtcIntervalS = 0;
+
+/*
+ * How far the persisted sequence may lag the transmitted one.
+ *
+ * In RTC memory, not a function-local static. It was a plain `static` inside
+ * persistSeq(), and ordinary RAM does not survive deep sleep — so it was zero
+ * on every single wake, `rtcSeq - 0 >= 500` was true every time, and this unit
+ * wrote NVS after every reading instead of after every five hundred.
+ *
+ * Nothing was incorrect as a result; it simply spent a flash write, and the
+ * energy for it, on every cycle of a battery-powered unit whose entire design
+ * is about not doing that. The comment in loadIdentity() describing NVS as
+ * lagging was also, in practice, untrue.
+ *
+ * Zero after a true power cut is right: RTC memory is gone, the counter has
+ * just jumped forward by 1000, and recording that promptly is what the jump is
+ * for.
+ */
+RTC_DATA_ATTR uint32_t rtcLastSavedSeq = 0;
 
 uint16_t lastMm = 0;
 bool pairAcked = false;
@@ -172,10 +205,9 @@ void loadIdentity() {
 }
 
 void persistSeq() {
-  static uint32_t lastSaved = 0;
-  if (rtcSeq - lastSaved >= 500) {
+  if (rtcSeq - rtcLastSavedSeq >= 500) {
     store.putUInt("seq", rtcSeq);
-    lastSaved = rtcSeq;
+    rtcLastSavedSeq = rtcSeq;
   }
 }
 
@@ -350,6 +382,24 @@ void sleepUntilNextReport() {
   LoRa.sleep();
   SPI.end();
   digitalWrite(SENSOR_EN, LOW);  // the ultrasonic module is the biggest idle draw
+  /*
+   * ...and hold it there, which is the part that was missing.
+   *
+   * On the ESP32 a digital output is released the moment deep sleep begins:
+   * the pad goes high-impedance unless the pin is an RTC pad with hold
+   * enabled. GPIO27 is one, but nothing was holding it, so this line floated
+   * for the whole sleep interval. What the ultrasonic module's enable input
+   * then did is undefined and depends on the pull on the board — quite
+   * possibly powering the module back up seconds after this line switched it
+   * off, for 30 of every 30 seconds.
+   *
+   * That is the entire point of SENSOR_EN, on the one device in the fleet that
+   * runs from a cell on a roof. Driving the pin low and not holding it is the
+   * kind of bug that shows up as "the batteries only last a month".
+   */
+  gpio_hold_en((gpio_num_t)SENSOR_EN);
+  gpio_deep_sleep_hold_en();
+
   uint32_t ms = (uint32_t)rtcIntervalS * 1000UL;
   if (ms == 0) ms = CV_TANK_REPORT_INTERVAL_MS;
   esp_sleep_enable_timer_wakeup((uint64_t)ms * 1000ULL);
@@ -363,6 +413,14 @@ void sleepUntilNextReport() {
 
 void setup() {
   Serial.begin(115200);
+  /*
+   * Release the hold applied before sleeping, or the pin stays latched at the
+   * level it was frozen at and nothing this function does to it takes effect —
+   * the sensor would never be powered up again.
+   */
+  gpio_deep_sleep_hold_dis();
+  gpio_hold_dis((gpio_num_t)SENSOR_EN);
+
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT);

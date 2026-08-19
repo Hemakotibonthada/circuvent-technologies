@@ -427,6 +427,78 @@ export async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_gate_passes_owner ON gate_passes(owner_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_gate_passes_code ON gate_passes(code);
 
+    /*
+     * A vehicle tag, and when it is allowed through.
+     *
+     * The device holds a bare list of numbers in NVS so the barrier keeps
+     * working with no network. Everything that makes that list *mean*
+     * something — whose car it is, until when, on which days — lives here, and
+     * the platform re-pushes the list as those rules come in and out of force.
+     *
+     * Splitting it that way is deliberate. The gate has no clock it can trust
+     * and no way to be told the time when the network is down, so a rule it
+     * cannot evaluate is a rule it would silently ignore; better that the list
+     * it holds is simply the set of tags that may pass right now.
+     */
+    CREATE TABLE IF NOT EXISTS gate_tags (
+      id          BIGSERIAL PRIMARY KEY,
+      device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      -- The number the reader reports, after parity and format decoding.
+      tag         BIGINT NOT NULL,
+      label       TEXT NOT NULL DEFAULT '',
+      vehicle     TEXT NOT NULL DEFAULT '',
+      active      BOOLEAN NOT NULL DEFAULT true,
+      valid_from  TIMESTAMPTZ,
+      valid_to    TIMESTAMPTZ,
+      /*
+       * Days of the week, 0 = Sunday. Empty means every day.
+       *
+       * A contractor allowed on site Monday to Friday is the ordinary case,
+       * and writing it as a rule rather than relying on somebody remembering
+       * to revoke and reissue is the difference between a restriction that
+       * stays true and one that quietly stops being enforced.
+       */
+      days        SMALLINT[] NOT NULL DEFAULT '{}',
+      -- Minutes from local midnight. Null/null means any time. A window whose
+      -- end is before its start spans midnight, which is a night shift.
+      from_minute INT,
+      to_minute   INT,
+      note        TEXT NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_gate_tags_device ON gate_tags(device_id, active);
+    /* One row per physical tag per gate — re-enrolling updates rather than
+       duplicating, so a replacement cannot leave the old rule in force. */
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_gate_tags_device_tag ON gate_tags(device_id, tag);
+
+    /*
+     * Every scan, allowed or not.
+     *
+     * This is the part a gate is actually for. Without it the device publishes
+     * a telemetry row nobody reads and the question "who came in last night"
+     * has no answer at all — which is the question that gets asked, and the
+     * only reason anybody fits a reader rather than a keypad.
+     *
+     * Denials are recorded as carefully as admissions: a tag refused at 3am is
+     * more interesting than one accepted at 9.
+     */
+    CREATE TABLE IF NOT EXISTS gate_events (
+      id          BIGSERIAL PRIMARY KEY,
+      device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tag         BIGINT,
+      tag_id      BIGINT REFERENCES gate_tags(id) ON DELETE SET NULL,
+      label       TEXT NOT NULL DEFAULT '',
+      allowed     BOOLEAN NOT NULL,
+      -- allowed | unknown-tag | revoked | not-yet-valid | expired |
+      -- wrong-day | wrong-time | pass | manual
+      reason      TEXT NOT NULL DEFAULT 'allowed',
+      at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_gate_events_device ON gate_events(device_id, at DESC);
+    CREATE INDEX IF NOT EXISTS idx_gate_events_owner ON gate_events(owner_id, at DESC);
+
     -- Developer API keys.
     --
     -- Long-lived, independently revocable, scoped credentials for third-party
@@ -823,6 +895,709 @@ export async function initDb(): Promise<void> {
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_anpr_lanes_owner ON anpr_lanes(owner_id);
+
+    /*
+     * A camera pressed into service as the eyes of a door lock.
+     *
+     * FaceDoor's design assumes "the hub's AI node" watches a camera and posts
+     * descriptors to /face/match. No such node exists in a Circuvent home, so
+     * the feature was complete on paper and inert in practice: profiles could
+     * be created, samples stored and thresholds tuned, and nothing ever looked
+     * at anybody. This table is what closes that gap, using the plain ESP32
+     * camera a customer already owns.
+     *
+     * It is deliberately the same arrangement as anpr_lanes rather than a
+     * clever generalisation of it. The two share a mechanism — trigger, ask
+     * for a burst of snapshots, feed the frames somewhere — but they differ in
+     * every decision that matters: what triggers them, how long the answer may
+     * take, and what happens when they are unsure. Merging them would mean one
+     * set of tuning constants serving a car park barrier and a front door.
+     *
+     * lock_id is nullable on purpose. A camera can be enrolling and
+     * recognising faces before any lock is fitted — useful on its own, and it
+     * lets somebody set the roster up before the hardware arrives.
+     */
+    CREATE TABLE IF NOT EXISTS face_doors (
+      device_id     TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      lock_id       TEXT REFERENCES devices(id) ON DELETE SET NULL,
+      enabled       BOOLEAN NOT NULL DEFAULT true,
+      /*
+       * Frames per trigger. Three, because a face is a moving target: one
+       * frame catches a blink or a turn, and the extra two cost a few hundred
+       * milliseconds. Unlike ANPR these are not voted on — the first frame
+       * that yields a confident match wins, because the person is waiting.
+       */
+      burst         INT NOT NULL DEFAULT 3,
+      burst_gap_ms  INT NOT NULL DEFAULT 450,
+      /*
+       * Minimum gap between motion triggers.
+       *
+       * Shorter than a lane's, because the cost of missing a person is that
+       * they stand at their own front door wondering why it will not open,
+       * whereas a missed number plate is read again on the next pass.
+       */
+      cooldown_ms   INT NOT NULL DEFAULT 4000,
+      -- Pulse the illuminator for the burst. A door is used after dark far
+      -- more often than a driveway camera is.
+      illuminate    INT NOT NULL DEFAULT 0,
+      triggers      BIGINT NOT NULL DEFAULT 0,
+      last_trigger_at TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_face_doors_owner ON face_doors(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_face_doors_lock ON face_doors(lock_id);
+
+    /*
+     * ========================= ATTENDANCE ================================
+     *
+     * RFID attendance and access control: a school gate, an office entrance,
+     * a server-room door.
+     *
+     * WHY THIS IS NOT BUILT ON gate_passes OR plate_rules
+     *
+     * Both of those answer "may this thing through, right now" and then forget
+     * about it. An attendance system's whole product is the opposite: the
+     * durable, per-person, per-day record that somebody signs, argues about,
+     * pays wages from, and is legally required to keep. Access is a side
+     * effect of it here, not the point of it.
+     *
+     * THE ONE MODEL THAT SERVES SCHOOLS AND OFFICES
+     *
+     * A school has students in classes with guardians and a register. An
+     * office has employees in departments with managers and a timesheet. They
+     * are the same shape — a person, in a group, expected at certain times,
+     * carrying a credential, passing a door — and the differences are wording
+     * and which report gets printed. Two parallel schemas would have meant two
+     * of everything below and one of them permanently behind the other.
+     */
+
+    /*
+     * A site: one school, one office, one building.
+     *
+     * The tuning lives here rather than in a settings table because there is
+     * exactly one row per site and a join to fetch six integers is a join
+     * nobody enjoys. It is also the level at which these are actually decided
+     * — "we allow ten minutes" is a school policy, not a per-door one.
+     */
+    CREATE TABLE IF NOT EXISTS attend_sites (
+      id            BIGSERIAL PRIMARY KEY,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,
+      -- school | office | facility. Changes wording and which reports are
+      -- offered; never changes what is recorded.
+      kind          TEXT NOT NULL DEFAULT 'school',
+      /*
+       * An IANA zone, not an offset.
+       *
+       * Attendance is entirely a question of local wall-clock time: "late"
+       * means after 08:45 where the building is. An offset would be right for
+       * half the year in most of the world and silently wrong for the other
+       * half, and the day it broke would be a Monday morning in spring with
+       * every arrival marked late.
+       */
+      timezone      TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+      -- Minutes after the start of a window that still count as on time.
+      grace_minutes INT NOT NULL DEFAULT 10,
+      -- Arriving later than this is not lateness, it is a half day.
+      half_day_after_minutes INT NOT NULL DEFAULT 180,
+      -- Somebody who never scanned in is marked absent once the day is this
+      -- far along. Not at midnight: a register is wanted during the day.
+      absent_after_minutes INT NOT NULL DEFAULT 120,
+      /*
+       * People forget to scan out far more often than they forget to scan in,
+       * because leaving is not gated by a door they need opened. Rather than
+       * leaving a shift open forever, an unclosed day is closed at the end of
+       * its window and flagged, so a timesheet is never quietly wrong.
+       */
+      auto_out      BOOLEAN NOT NULL DEFAULT true,
+      -- Two scans of one card closer together than this are one event, on top
+      -- of whatever the terminal already suppressed locally.
+      dedupe_seconds INT NOT NULL DEFAULT 60,
+      notify_guardians BOOLEAN NOT NULL DEFAULT false,
+      notify_absence   BOOLEAN NOT NULL DEFAULT false,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_sites_owner ON attend_sites(owner_id);
+
+    /*
+     * When people are expected.
+     *
+     * windows is one entry per weekday, 0 = Sunday:
+     *   {"1":[{"in":"08:30","out":"15:30"}], "6":[], ...}
+     * A day with no entry is a non-working day for whoever follows this
+     * schedule, which is how a four-day week, a Saturday school and a night
+     * shift are all the same feature rather than three.
+     */
+    CREATE TABLE IF NOT EXISTS attend_schedules (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,
+      -- fixed: measured against the window. flexible: measured in hours worked,
+      -- so an office with core hours and a factory shift both fit.
+      kind          TEXT NOT NULL DEFAULT 'fixed',
+      windows       JSONB NOT NULL DEFAULT '{}'::jsonb,
+      -- Overrides the site default when set. NULL means "use the site's".
+      grace_minutes INT,
+      -- For flexible schedules: the hours that make a full day.
+      min_minutes   INT NOT NULL DEFAULT 0,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_schedules_site ON attend_schedules(site_id);
+
+    /*
+     * A class, a department, a team, a year group.
+     *
+     * parent_id makes "Grade 5" contain "5A" and "5B" without a second table.
+     * A report asked for at any level then walks down, which is what a head of
+     * year and a head of department both actually want.
+     */
+    CREATE TABLE IF NOT EXISTS attend_groups (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      parent_id     BIGINT REFERENCES attend_groups(id) ON DELETE SET NULL,
+      name          TEXT NOT NULL,
+      kind          TEXT NOT NULL DEFAULT 'class',
+      schedule_id   BIGINT REFERENCES attend_schedules(id) ON DELETE SET NULL,
+      -- Free text: form tutor, line manager, shift supervisor.
+      lead_name     TEXT NOT NULL DEFAULT '',
+      lead_email    TEXT NOT NULL DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_groups_site ON attend_groups(site_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attend_groups_name ON attend_groups(site_id, lower(name));
+
+    /*
+     * A person on the roll.
+     *
+     * code is the roll number or employee id — the thing already printed on
+     * their badge and typed into the school's other system. Unique per site so
+     * an import can find its own rows again, which is what makes a re-import
+     * an update rather than a duplicate intake.
+     *
+     * valid_from / valid_to are what make a leaver stop opening doors on the
+     * right day without anybody having to remember. A row is never deleted for
+     * that purpose: their attendance history is the part that has to survive.
+     */
+    CREATE TABLE IF NOT EXISTS attend_people (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      group_id      BIGINT REFERENCES attend_groups(id) ON DELETE SET NULL,
+      code          TEXT NOT NULL,
+      name          TEXT NOT NULL,
+      -- student | staff | employee | visitor | contractor
+      role          TEXT NOT NULL DEFAULT 'student',
+      email         TEXT NOT NULL DEFAULT '',
+      phone         TEXT NOT NULL DEFAULT '',
+      guardian_name  TEXT NOT NULL DEFAULT '',
+      guardian_email TEXT NOT NULL DEFAULT '',
+      guardian_phone TEXT NOT NULL DEFAULT '',
+      -- Overrides the group's schedule. A part-timer in a full-time team.
+      schedule_id   BIGINT REFERENCES attend_schedules(id) ON DELETE SET NULL,
+      active        BOOLEAN NOT NULL DEFAULT true,
+      valid_from    DATE,
+      valid_to      DATE,
+      photo_url     TEXT NOT NULL DEFAULT '',
+      notes         TEXT NOT NULL DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attend_people_code ON attend_people(site_id, lower(code));
+    CREATE INDEX IF NOT EXISTS idx_attend_people_group ON attend_people(group_id);
+    CREATE INDEX IF NOT EXISTS idx_attend_people_site ON attend_people(site_id, active);
+
+    /*
+     * A card, fob, PIN or plate belonging to a person.
+     *
+     * Several per person on purpose: a card and a backup fob, or a card that
+     * was lost and replaced. Revoking is a timestamp rather than a delete
+     * because "who did this card belong to in March" is a question an incident
+     * asks, and a deleted row answers it with silence.
+     *
+     * The unique index covers only live credentials, so a card number can be
+     * reissued to somebody else after the first holder's is revoked — which is
+     * what happens to every plastic card eventually — while two people can
+     * never hold the same live card at once.
+     */
+    CREATE TABLE IF NOT EXISTS attend_credentials (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      person_id     BIGINT NOT NULL REFERENCES attend_people(id) ON DELETE CASCADE,
+      -- card | fob | wiegand | pin | plate
+      kind          TEXT NOT NULL DEFAULT 'card',
+      -- The number the reader reports. BIGINT because Wiegand 34-bit and
+      -- 4-byte MIFARE UIDs both overflow a signed 32-bit column.
+      card_number   BIGINT NOT NULL,
+      label         TEXT NOT NULL DEFAULT '',
+      active        BOOLEAN NOT NULL DEFAULT true,
+      issued_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      revoked_at    TIMESTAMPTZ,
+      revoked_reason TEXT NOT NULL DEFAULT '',
+      last_seen_at  TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attend_cred_live
+      ON attend_credentials(site_id, card_number) WHERE active;
+    CREATE INDEX IF NOT EXISTS idx_attend_cred_person ON attend_credentials(person_id);
+    CREATE INDEX IF NOT EXISTS idx_attend_cred_number ON attend_credentials(site_id, card_number);
+
+    /* A door, gate, turnstile or room that a terminal controls. */
+    CREATE TABLE IF NOT EXISTS attend_zones (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,
+      -- gate | door | room | turnstile
+      kind          TEXT NOT NULL DEFAULT 'door',
+      /*
+       * Whether passing this zone is a register entry or merely a door being
+       * opened. A server-room door should not mark anybody present for the
+       * day; the front gate should.
+       */
+      counts_for_attendance BOOLEAN NOT NULL DEFAULT true,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_zones_site ON attend_zones(site_id);
+
+    /*
+     * A reader on a wall.
+     *
+     * device_id is the primary key because a physical terminal is one device
+     * and one place. acl_version is how "the roster changed" is distinguished
+     * from "this terminal has the roster": the server bumps it on every roster
+     * change and the device reports back what it actually holds, so a terminal
+     * that missed a push is visible rather than merely wrong.
+     */
+    CREATE TABLE IF NOT EXISTS attend_terminals (
+      device_id     TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      zone_id       BIGINT REFERENCES attend_zones(id) ON DELETE SET NULL,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL DEFAULT 'Entrance',
+      -- attendance | access | both. Mirrors the firmware setting.
+      mode          TEXT NOT NULL DEFAULT 'both',
+      -- in | out | auto
+      direction     TEXT NOT NULL DEFAULT 'in',
+      enabled       BOOLEAN NOT NULL DEFAULT true,
+      acl_version   BIGINT NOT NULL DEFAULT 0,
+      acl_pushed_at TIMESTAMPTZ,
+      acl_count     INT NOT NULL DEFAULT 0,
+      last_punch_at TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_terminals_site ON attend_terminals(site_id);
+
+    /*
+     * Who may pass which door, and when.
+     *
+     * A rule with no group and no person applies to everybody; one with a
+     * schedule applies only inside it. Deny beats allow at equal priority,
+     * because the safe reading of a contradictory rule set is the restrictive
+     * one and somebody will eventually write a contradictory rule set.
+     */
+    CREATE TABLE IF NOT EXISTS attend_rules (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      zone_id       BIGINT REFERENCES attend_zones(id) ON DELETE CASCADE,
+      group_id      BIGINT REFERENCES attend_groups(id) ON DELETE CASCADE,
+      person_id     BIGINT REFERENCES attend_people(id) ON DELETE CASCADE,
+      schedule_id   BIGINT REFERENCES attend_schedules(id) ON DELETE SET NULL,
+      allow         BOOLEAN NOT NULL DEFAULT true,
+      priority      INT NOT NULL DEFAULT 0,
+      valid_from    DATE,
+      valid_to      DATE,
+      note          TEXT NOT NULL DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_rules_site ON attend_rules(site_id, zone_id);
+
+    /*
+     * Every presentation of a card, granted or not.
+     *
+     * dedupe_key is what makes the terminal's offline replay safe to repeat.
+     * A terminal that reconnects mid-drain, or is power-cycled with a queue on
+     * it, will send the same punch twice; without an idempotency key the
+     * register would show people arriving twice on the morning after an
+     * outage, which is precisely the morning it is being scrutinised.
+     *
+     * It is a composite of device, sequence, card and device clock rather than
+     * device and sequence alone: a factory reset restarts the sequence at
+     * zero, and a bare (device, seq) key would then silently discard the first
+     * few hundred punches of the terminal's new life.
+     *
+     * person_id is nullable and stays null for a card nobody recognises. That
+     * row is the most important one in the table — an unknown card at a school
+     * gate at 02:00 is the event somebody goes looking for — so it is stored,
+     * not dropped for failing to resolve.
+     */
+    CREATE TABLE IF NOT EXISTS attend_punches (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      device_id     TEXT REFERENCES devices(id) ON DELETE SET NULL,
+      zone_id       BIGINT REFERENCES attend_zones(id) ON DELETE SET NULL,
+      person_id     BIGINT REFERENCES attend_people(id) ON DELETE SET NULL,
+      credential_id BIGINT REFERENCES attend_credentials(id) ON DELETE SET NULL,
+      card_number   BIGINT,
+      direction     TEXT NOT NULL DEFAULT 'in',
+      granted       BOOLEAN NOT NULL DEFAULT false,
+      -- ok | unknown-card | offline | duplicate | not-allowed | out-of-hours |
+      -- expired | revoked
+      reason        TEXT NOT NULL DEFAULT 'ok',
+      -- card | wiegand | rex | remote | manual | api
+      method        TEXT NOT NULL DEFAULT 'card',
+      source        TEXT NOT NULL DEFAULT 'device',
+      device_seq    BIGINT,
+      /*
+       * What the terminal believed the time was, and null when it had no
+       * clock at all. Kept beside the server's own timestamp rather than
+       * replacing it: after an outage the two differ by the length of the
+       * outage, and a register that quietly used arrival-at-the-server time
+       * would show a whole morning of people arriving at once when the line
+       * came back.
+       */
+      device_at     TIMESTAMPTZ,
+      at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+      offline       BOOLEAN NOT NULL DEFAULT false,
+      dedupe_key    TEXT UNIQUE,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_punches_site_at ON attend_punches(site_id, at DESC);
+    CREATE INDEX IF NOT EXISTS idx_attend_punches_person ON attend_punches(person_id, at DESC);
+    CREATE INDEX IF NOT EXISTS idx_attend_punches_device ON attend_punches(device_id, at DESC);
+    CREATE INDEX IF NOT EXISTS idx_attend_punches_card ON attend_punches(site_id, card_number, at DESC);
+
+    /*
+     * One row per person per day: the register.
+     *
+     * Derived from punches and recomputable from them, and stored anyway.
+     * Recomputing on read would mean a monthly report for eight hundred people
+     * scanning four million punch rows, and — more importantly — a register
+     * that silently changes after somebody has printed and signed it. This is
+     * the record; the punches are the evidence for it.
+     *
+     * source says whether a human overrode it. A head of year marking somebody
+     * present because the reader was broken must not be quietly reverted by
+     * the next recompute, so a manual row is never overwritten by the
+     * automatic one.
+     */
+    CREATE TABLE IF NOT EXISTS attend_days (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      person_id     BIGINT NOT NULL REFERENCES attend_people(id) ON DELETE CASCADE,
+      day           DATE NOT NULL,
+      -- present | late | absent | half | leave | holiday | weekend | unknown
+      status        TEXT NOT NULL DEFAULT 'unknown',
+      first_in      TIMESTAMPTZ,
+      last_out      TIMESTAMPTZ,
+      worked_minutes INT NOT NULL DEFAULT 0,
+      late_minutes  INT NOT NULL DEFAULT 0,
+      early_minutes INT NOT NULL DEFAULT 0,
+      punches       INT NOT NULL DEFAULT 0,
+      -- Set when the day was closed by the auto-out rule rather than a scan,
+      -- so a timesheet can show which hours were assumed.
+      assumed_out   BOOLEAN NOT NULL DEFAULT false,
+      note          TEXT NOT NULL DEFAULT '',
+      -- auto | manual
+      source        TEXT NOT NULL DEFAULT 'auto',
+      /*
+       * When a guardian or manager was told about this day.
+       *
+       * Kept on the row the notification is about, so "have we already said
+       * this" is answered by the same unique key as everything else here
+       * (person, day). A separate outbox table would be a second thing to keep
+       * in step, and the failure it invites — telling a parent twice that
+       * their child did not arrive — is one people remember.
+       */
+      notified_at   TIMESTAMPTZ,
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attend_days_person_day ON attend_days(person_id, day);
+    CREATE INDEX IF NOT EXISTS idx_attend_days_site_day ON attend_days(site_id, day);
+    -- Added after the table shipped, so existing deployments get the column.
+    ALTER TABLE attend_days ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+
+    /*
+     * Authorised absence, and site closures.
+     *
+     * One table for both because they are the same statement — "nobody is
+     * expected here then" — differing only in who it covers. A row with no
+     * person and no group is a site holiday; with a group, a class trip; with
+     * a person, their leave.
+     */
+    CREATE TABLE IF NOT EXISTS attend_leaves (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      person_id     BIGINT REFERENCES attend_people(id) ON DELETE CASCADE,
+      group_id      BIGINT REFERENCES attend_groups(id) ON DELETE CASCADE,
+      -- holiday | leave | sick | excused | trip | training | remote
+      kind          TEXT NOT NULL DEFAULT 'leave',
+      from_day      DATE NOT NULL,
+      to_day        DATE NOT NULL,
+      /*
+       * Whether the person is expected to be at work despite not being here.
+       * Working from home is an absence from the building and a normal working
+       * day for a timesheet; a holiday is neither. Collapsing the two makes
+       * one of the two reports wrong.
+       */
+      counts_as_present BOOLEAN NOT NULL DEFAULT false,
+      note          TEXT NOT NULL DEFAULT '',
+      approved_by   TEXT NOT NULL DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_leaves_site ON attend_leaves(site_id, from_day, to_day);
+    CREATE INDEX IF NOT EXISTS idx_attend_leaves_person ON attend_leaves(person_id, from_day);
+
+
+    /*
+     * =========================== GUARDIAN ================================
+     *
+     * A personal safety beacon and the people it calls.
+     *
+     * The wearer is the one person who cannot be relied on to be reachable, so
+     * everything here is arranged for whoever is trying to help them: contacts
+     * are ordered, an incident is a first-class row rather than a device state
+     * bit, and every position ever reported during one is kept.
+     */
+
+    /*
+     * Who gets told, and in what order.
+     *
+     * The order is not decoration. The device calls the first contact by
+     * voice after messaging everybody, because a ringing phone is noticed at
+     * 3am and a text is not — so first place is a decision about who is most
+     * likely to actually pick up, and the person setting this up needs to be
+     * able to make it deliberately.
+     *
+     * The same list lives on the device in NVS, because the whole point is
+     * that it works with no network, no phone and no platform. This table is
+     * the copy the app edits and the device is provisioned from; the device's
+     * copy is the one that matters in an emergency.
+     */
+    CREATE TABLE IF NOT EXISTS guardian_contacts (
+      id            BIGSERIAL PRIMARY KEY,
+      device_id     TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,
+      -- E.164, because it is going to a GSM modem that will not guess a
+      -- country code the way a phone's dialler does.
+      phone         TEXT NOT NULL,
+      relation      TEXT NOT NULL DEFAULT '',
+      position      INT NOT NULL DEFAULT 0,
+      -- Whether this contact also receives push/email from the platform. A
+      -- grandparent may want the SMS and not an app account.
+      notify_push   BOOLEAN NOT NULL DEFAULT true,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_guardian_contacts_device
+      ON guardian_contacts(device_id, position);
+
+    /*
+     * A police station, with a location.
+     *
+     * "Nearest police station" cannot be computed on a device with no map and
+     * no data connection, so the platform resolves it from this table and
+     * pushes the number down to the device, which caches it. That is what
+     * makes an SMS-only alarm reach the right station rather than a national
+     * switchboard.
+     *
+     * Seeded per deployment. A station with no phone number is still useful —
+     * it tells a responder where to go — so the phone is allowed to be empty
+     * and the resolver skips those when choosing who to text.
+     */
+    CREATE TABLE IF NOT EXISTS guardian_police_stations (
+      id            BIGSERIAL PRIMARY KEY,
+      name          TEXT NOT NULL,
+      phone         TEXT NOT NULL DEFAULT '',
+      -- ISO-3166-1 alpha-2, so one table can serve more than one country and
+      -- a resolver never returns a station across an ocean.
+      country       TEXT NOT NULL DEFAULT '',
+      district      TEXT NOT NULL DEFAULT '',
+      lat           DOUBLE PRECISION NOT NULL,
+      lng           DOUBLE PRECISION NOT NULL,
+      active        BOOLEAN NOT NULL DEFAULT true,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_guardian_police_country
+      ON guardian_police_stations(country, active);
+
+    /*
+     * One emergency.
+     *
+     * An incident is a row and not a flag on the device, because the questions
+     * asked afterwards are all about a period of time: when did it start, who
+     * was told, did anyone answer, where did they go. A boolean on the device
+     * answers none of them and is gone the moment it is cleared.
+     *
+     * The source column distinguishes the button from the app and from a test,
+     * and the
+     * distinction matters: a test must never look like an emergency in a
+     * report, and an app-triggered panic did not involve the shoe at all.
+     */
+    CREATE TABLE IF NOT EXISTS guardian_incidents (
+      id            BIGSERIAL PRIMARY KEY,
+      device_id     TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      -- button | app | test
+      source        TEXT NOT NULL DEFAULT 'button',
+      -- open | acknowledged | resolved | false_alarm
+      status        TEXT NOT NULL DEFAULT 'open',
+      opened_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      acknowledged_at TIMESTAMPTZ,
+      acknowledged_by TEXT NOT NULL DEFAULT '',
+      closed_at     TIMESTAMPTZ,
+      /*
+       * Where it started, and whether that was known.
+       *
+       * Nullable rather than zeroed: 0,0 is a real place in the Gulf of
+       * Guinea, and a map pin drawn from it is indistinguishable from a
+       * genuine one. The firmware refuses to send it for the same reason.
+       */
+      opened_lat    DOUBLE PRECISION,
+      opened_lng    DOUBLE PRECISION,
+      -- The station this was routed to, resolved at the moment it opened.
+      station_id    BIGINT REFERENCES guardian_police_stations(id) ON DELETE SET NULL,
+      station_km    DOUBLE PRECISION,
+      note          TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_guardian_incidents_device
+      ON guardian_incidents(device_id, opened_at DESC);
+    /*
+     * At most one open incident per device.
+     *
+     * Without this, a device that republishes sos=true — a reconnect, a
+     * retained message, a heartbeat during the emergency — opens a second
+     * incident, and the contacts get told twice about one event. Partial, so
+     * the history is unconstrained.
+     */
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_guardian_incident_open
+      ON guardian_incidents(device_id) WHERE status IN ('open', 'acknowledged');
+
+    /*
+     * Every position reported while an incident was running.
+     *
+     * Kept in full. A track is what lets somebody following on foot know which
+     * way the wearer went, and it is the part that cannot be reconstructed
+     * afterwards from anything else.
+     */
+    CREATE TABLE IF NOT EXISTS guardian_incident_points (
+      id            BIGSERIAL PRIMARY KEY,
+      incident_id   BIGINT NOT NULL REFERENCES guardian_incidents(id) ON DELETE CASCADE,
+      at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+      lat           DOUBLE PRECISION NOT NULL,
+      lng           DOUBLE PRECISION NOT NULL,
+      -- Age of the GPS fix when it was reported. A point from a two-hour-old
+      -- fix is a different kind of fact from a live one and must not be drawn
+      -- on a map as though it were current.
+      fix_age_sec   INT NOT NULL DEFAULT 0,
+      battery       INT
+    );
+    CREATE INDEX IF NOT EXISTS idx_guardian_points_incident
+      ON guardian_incident_points(incident_id, at);
+
+    /*
+     * Who was told, how, and whether it worked.
+     *
+     * The single most important question after an incident is "did anybody
+     * actually get it", and the honest answer is usually different per channel
+     * — the SMS delivered, the push failed because the phone was off. Storing
+     * one "notified" boolean loses exactly the detail that matters.
+     */
+    CREATE TABLE IF NOT EXISTS guardian_notifications (
+      id            BIGSERIAL PRIMARY KEY,
+      incident_id   BIGINT NOT NULL REFERENCES guardian_incidents(id) ON DELETE CASCADE,
+      -- contact | police | owner
+      target        TEXT NOT NULL,
+      target_name   TEXT NOT NULL DEFAULT '',
+      -- sms | call | push | email
+      channel       TEXT NOT NULL,
+      -- device | platform. The device sends its own SMS over GSM; the platform
+      -- sends push and email. Both are recorded here so one timeline shows
+      -- everything that was attempted.
+      sent_by       TEXT NOT NULL DEFAULT 'platform',
+      ok            BOOLEAN NOT NULL DEFAULT false,
+      detail        TEXT NOT NULL DEFAULT '',
+      at            TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_guardian_notifications_incident
+      ON guardian_notifications(incident_id, at);
+
+    /*
+     * Safe zones — "tell me when they leave school".
+     *
+     * Not tracking. The position is already reported for the sake of an
+     * emergency; a zone turns it into one sentence a parent can act on instead
+     * of a map somebody has to watch.
+     *
+     * The radius is metres and the hysteresis that stops a wearer standing at
+     * the gate from generating an alert every ninety seconds lives in
+     * guardian/geofence.ts, not here — it is a property of GPS noise, not of
+     * any particular school.
+     */
+    CREATE TABLE IF NOT EXISTS guardian_zones (
+      id            BIGSERIAL PRIMARY KEY,
+      device_id     TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,
+      lat           DOUBLE PRECISION NOT NULL,
+      lng           DOUBLE PRECISION NOT NULL,
+      radius_m      INT NOT NULL DEFAULT 200,
+      notify_enter  BOOLEAN NOT NULL DEFAULT true,
+      notify_exit   BOOLEAN NOT NULL DEFAULT true,
+      /*
+       * Where the wearer was last known to be, relative to this zone.
+       *
+       * Persisted rather than held in memory because it is the only thing
+       * stopping a restart from re-announcing every departure that had already
+       * been reported. NULL means "never seen", which is deliberately not the
+       * same as "outside" — the first sighting is recorded silently, since the
+       * wearer did not just arrive anywhere, we only just started looking.
+       */
+      presence      TEXT,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_guardian_zones_device ON guardian_zones(device_id);
+
+    /*
+     * Journey mode — "walk me home".
+     *
+     * Covers what the panic button cannot: being unable to press it. The
+     * deadline is also armed on the device itself, so a wearer who walks out of
+     * coverage is still covered; this row is what the app shows and what
+     * re-arms the device when it comes back.
+     */
+    CREATE TABLE IF NOT EXISTS guardian_journeys (
+      id            BIGSERIAL PRIMARY KEY,
+      device_id     TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      owner_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      destination   TEXT NOT NULL DEFAULT '',
+      started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      due_at        TIMESTAMPTZ NOT NULL,
+      -- running | arrived | overdue | cancelled
+      status        TEXT NOT NULL DEFAULT 'running',
+      nudged_at     TIMESTAMPTZ,
+      closed_at     TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_guardian_journeys_device
+      ON guardian_journeys(device_id, started_at DESC);
+    /* One journey at a time, for the same reason as one open incident. */
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_guardian_journey_running
+      ON guardian_journeys(device_id) WHERE status = 'running';
+
+    /*
+     * How far an unacknowledged incident has been pushed.
+     *
+     * Stored on the incident because the sweep runs on a timer: without a
+     * record of what has already been done, an alarm that is ten minutes old
+     * re-notifies everybody on every pass — a fresh wave of messages every
+     * minute to people who are already on their way.
+     */
+    ALTER TABLE guardian_incidents
+      ADD COLUMN IF NOT EXISTS escalated TEXT NOT NULL DEFAULT '';
+
 
     /*
      * ============================ DRONE ==================================

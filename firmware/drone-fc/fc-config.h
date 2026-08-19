@@ -20,11 +20,20 @@
 //         \ /            X configuration, 5" props, 4S.
 //         / \
 //        /   \
-//    M3(CW)   M2(CCW)
+//    M3(CCW)  M2(CW)
 //        rear
 //
-// Props alternate so the frame's net yaw torque cancels in level flight. The
-// mixer depends on this exact arrangement; swapping two motors without
+// Props alternate so the frame's net yaw torque cancels in level flight, which
+// means the two motors on each diagonal must spin the SAME way: M1+M3 CCW,
+// M2+M4 CW. This diagram previously showed M3 as CW and M2 as CCW, which is
+// not a valid X at all and disagreed with the mixer in control.h — and this
+// file is the one an installer reads when deciding which way to fit the props.
+//
+// The mixer is the authority; it is what actually flies. Anyone propping a
+// build from the old diagram fitted M2 and M3 backwards, which is exactly the
+// failure the paragraph below describes.
+//
+// The mixer depends on this exact arrangement; swapping two motors without
 // swapping their entries turns the yaw axis into positive feedback, and the
 // aircraft spins up on the bench the instant it is armed.
 // ---------------------------------------------------------------------------

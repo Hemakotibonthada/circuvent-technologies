@@ -23,6 +23,8 @@ import {
   LayoutDashboard,
   Search,
   UserCog,
+  Gift,
+  Bell,
   type LucideIcon,
 } from "lucide-react";
 import { useAccount } from "@/components/shop/AccountProvider";
@@ -32,20 +34,38 @@ import { useRouter } from "next/navigation";
 import AuthForm from "@/components/shop/AuthForm";
 import AccountExtras from "@/components/shop/AccountExtras";
 import AccountSectionNav, { type AccountSection } from "@/components/shop/AccountSectionNav";
+import AvatarPicker from "@/components/shop/AvatarPicker";
 import { Skeleton } from "@/components/ui/skeleton";
 import ShopDialog from "@/components/shop/ShopDialog";
 import { returnEligibility } from "@/lib/return-eligibility";
 import { formatINR, products as CATALOG } from "@/lib/shop-data";
 
-// Module-level so the nav's IntersectionObserver isn't rebuilt every render.
+/*
+ * The order of the rail, and the only list of what sections exist.
+ *
+ * Badges are filled in per render from live counts (see SignedIn); this holds
+ * the shape and sequence, which is what a deep link and the arrow keys depend
+ * on staying stable.
+ */
 const ACCOUNT_SECTIONS: AccountSection[] = [
   { id: "account-overview", label: "Overview", icon: LayoutDashboard },
   { id: "account-orders", label: "Orders", icon: Package },
   { id: "account-wallet", label: "Wallet", icon: Wallet },
   { id: "account-personal", label: "Profile", icon: UserCog },
+  { id: "account-rewards", label: "Rewards", icon: Gift },
+  { id: "account-notifications", label: "Alerts", icon: Bell },
   { id: "account-wishlist", label: "Wishlist", icon: Heart },
   { id: "account-support", label: "Support", icon: LifeBuoy },
 ];
+
+const SECTION_IDS = ACCOUNT_SECTIONS.map((s) => s.id);
+const DEFAULT_SECTION = ACCOUNT_SECTIONS[0].id;
+
+/** The section named by a URL hash, or null if it names nothing we have. */
+function sectionFromHash(hash: string): string | null {
+  const id = hash.replace(/^#/, "");
+  return SECTION_IDS.includes(id) ? id : null;
+}
 
 const ORDER_FILTERS: { id: string; label: string; match: (status: string) => boolean }[] = [
   { id: "all", label: "All", match: () => true },
@@ -139,7 +159,7 @@ function avatarBackground(email: string) {
 }
 
 export default function AccountPage() {
-  const { account, token, wallet, ready, logout, refreshWallet, authHeaders } = useAccount();
+  const { account, token, wallet, ready, logout, refreshWallet, refreshAccount, authHeaders } = useAccount();
 
   return (
     <section className="relative z-10 mx-auto max-w-5xl px-6 pb-24 pt-8 lg:px-8">
@@ -154,6 +174,7 @@ export default function AccountPage() {
           wallet={wallet}
           authHeaders={authHeaders}
           refreshWallet={refreshWallet}
+          refreshAccount={refreshAccount}
           onLogout={logout}
         />
       ) : (
@@ -187,9 +208,32 @@ function SectionHeading({ children, action }: { children: React.ReactNode; actio
   );
 }
 
-function StatCard({ href, icon: Icon, label, value, hint }: { href: string; icon: LucideIcon; label: string; value: string; hint: string }) {
-  return (
-    <a href={href} className="rounded-2xl border p-5 transition-colors hover:bg-[var(--bg-surface-hover)]" style={surface}>
+/**
+ * One tile on the overview.
+ *
+ * Takes either a destination or a section to switch to. Most of these point at
+ * another section of this page, which is no longer an anchor jump — but "Latest
+ * order" links out to the tracking page, so both have to work and rendering the
+ * right element for each matters: a button that navigates cannot be opened in a
+ * new tab, and a link that only sets state gives a middle-click a dead URL.
+ */
+function StatCard({
+  href,
+  onSelect,
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  href?: string;
+  onSelect?: () => void;
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  const inner = (
+    <>
       <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-tertiary)" }}>
         <Icon className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> {label}
       </div>
@@ -199,7 +243,22 @@ function StatCard({ href, icon: Icon, label, value, hint }: { href: string; icon
       <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
         {hint}
       </p>
-    </a>
+    </>
+  );
+
+  const className = "rounded-2xl border p-5 text-left transition-colors hover:bg-[var(--bg-surface-hover)]";
+
+  if (href) {
+    return (
+      <a href={href} className={className} style={surface}>
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <button type="button" onClick={onSelect} className={className} style={surface}>
+      {inner}
+    </button>
   );
 }
 
@@ -209,6 +268,7 @@ function SignedIn({
   wallet,
   authHeaders,
   refreshWallet,
+  refreshAccount,
   onLogout,
 }: {
   name: string;
@@ -216,6 +276,7 @@ function SignedIn({
   wallet: number;
   authHeaders: () => Record<string, string>;
   refreshWallet: () => Promise<void>;
+  refreshAccount: () => Promise<void>;
   onLogout: () => void;
 }) {
   const [history, setHistory] = useState<WalletTxn[]>([]);
@@ -237,7 +298,46 @@ function SignedIn({
   const [amount, setAmount] = useState("500");
   const [topupBusy, setTopupBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [profile, setProfile] = useState<{ name?: string; phone?: string; businessName?: string } | null>(null);
+  const [profile, setProfile] = useState<{
+    name?: string;
+    phone?: string;
+    businessName?: string;
+    avatarUpdatedAt?: string;
+  } | null>(null);
+
+  /*
+   * Which section is on screen. One is mounted at a time — see
+   * AccountSectionNav for why this replaced a nine-section scroll.
+   *
+   * The hash is the source of truth on arrival so /shop/account#account-orders
+   * still lands on Orders, which it did when these were anchors and would
+   * otherwise have quietly stopped working for anyone who bookmarked one.
+   */
+  const [section, setSection] = useState<string>(DEFAULT_SECTION);
+
+  useEffect(() => {
+    const apply = () => setSection(sectionFromHash(window.location.hash) ?? DEFAULT_SECTION);
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
+
+  const goToSection = useCallback((id: string) => {
+    setSection(id);
+    /*
+     * replaceState rather than assigning location.hash: the latter makes the
+     * browser jump to the element with that id, and since the panel is what
+     * just changed, that scroll lands somewhere arbitrary mid-render. This
+     * keeps the URL shareable without moving the page.
+     */
+    window.history.replaceState(null, "", `#${id}`);
+    /*
+     * Switching section from a stat card lower down the overview would
+     * otherwise leave the reader scrolled past the rail, looking at the middle
+     * of a panel they have not seen the top of.
+     */
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -444,6 +544,30 @@ function SignedIn({
   const phone = profile?.phone?.trim();
   const businessName = profile?.businessName?.trim();
 
+  /*
+   * The rail's badges. The careers portal ticks a step that is finished;
+   * nothing here is ever finished, so the useful equivalent is how much is in
+   * each section — whether opening Orders is worth it, and what the wallet
+   * holds without going to look.
+   *
+   * Left blank while orders are still loading rather than showing "0", which
+   * would read as "you have no orders" for as long as the request takes.
+   */
+  const sections = useMemo<AccountSection[]>(
+    () =>
+      ACCOUNT_SECTIONS.map((s) => {
+        if (s.id === "account-orders") {
+          return { ...s, badge: loadingOrders ? undefined : orders.length ? String(orders.length) : "None yet" };
+        }
+        if (s.id === "account-wallet") return { ...s, badge: formatINR(wallet) };
+        if (s.id === "account-wishlist") {
+          return { ...s, badge: wishCount ? String(wishCount) : undefined };
+        }
+        return s;
+      }),
+    [loadingOrders, orders.length, wallet, wishCount]
+  );
+
   return (
     <div>
       {/* Welcome + identity hero */}
@@ -455,24 +579,19 @@ function SignedIn({
       </p>
 
       <div className="mt-6 flex flex-col gap-5 rounded-2xl border p-6 sm:flex-row sm:items-center" style={surface}>
-        <div className="relative h-28 w-28 shrink-0">
-          <div
-            className="grid h-28 w-28 place-items-center rounded-full text-3xl font-semibold text-white"
-            style={{ background: avatarBackground(email) }}
-            aria-hidden
-          >
-            {getInitials(displayName, email)}
-          </div>
-          <a
-            href="#account-personal"
-            title="Edit your profile"
-            aria-label="Edit your profile"
-            className="absolute bottom-0 right-0 grid h-9 w-9 place-items-center rounded-full border"
-            style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}
-          >
-            <Pencil className="h-4 w-4" />
-          </a>
-        </div>
+        <AvatarPicker
+          initials={getInitials(displayName, email)}
+          background={avatarBackground(email)}
+          avatarUpdatedAt={profile?.avatarUpdatedAt}
+          authHeaders={authHeaders}
+          onChanged={() => {
+            // Both: the hero reads the page's own profile copy, the header
+            // reads the shared session. Refreshing one leaves the other
+            // showing the picture that was just replaced.
+            loadProfile();
+            refreshAccount();
+          }}
+        />
 
         <div className="min-w-0 flex-1">
           <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
@@ -481,9 +600,14 @@ function SignedIn({
           <p className="truncate text-sm" style={{ color: "var(--text-tertiary)" }}>
             {email}
           </p>
-          <a href="#account-personal" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: "var(--accent-cyan)" }}>
+          <button
+            type="button"
+            onClick={() => goToSection("account-personal")}
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium"
+            style={{ color: "var(--accent-cyan)" }}
+          >
             <Pencil className="h-3.5 w-3.5" /> Edit profile
-          </a>
+          </button>
         </div>
 
         <div className="grid gap-3 text-sm sm:min-w-[160px] sm:border-l sm:pl-6" style={{ borderColor: "var(--border-primary)" }}>
@@ -509,29 +633,31 @@ function SignedIn({
         </div>
       </div>
 
-      <AccountSectionNav sections={ACCOUNT_SECTIONS} />
+      <AccountSectionNav sections={sections} value={section} onChange={goToSection} />
 
       {/* Keep track */}
-      <section id="account-overview" className="mt-8 scroll-mt-28">
+      {section === "account-overview" && (
+      <section id="panel-account-overview" role="tabpanel" aria-labelledby="tab-account-overview" className="mt-8">
         <SectionHeading>Keep track</SectionHeading>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
-            href="#account-orders"
+            onSelect={() => goToSection("account-orders")}
             icon={Package}
             label="Open orders"
             value={orders.length === 0 ? "—" : String(openCount)}
             hint={orders.length === 0 ? "No orders yet" : openCount === 0 ? "All delivered" : "In progress"}
           />
           <StatCard
-            href={latest ? `/track?order=${encodeURIComponent(latest.orderNo)}&email=${encodeURIComponent(email)}` : "#account-orders"}
+            href={latest ? `/track?order=${encodeURIComponent(latest.orderNo)}&email=${encodeURIComponent(email)}` : undefined}
+            onSelect={latest ? undefined : () => goToSection("account-orders")}
             icon={Truck}
             label="Latest order"
             value={latest ? STATUS_LABEL[latest.status] || latest.status : "—"}
             hint={latest ? latest.orderNo : "No orders yet"}
           />
-          <StatCard href="#account-wallet" icon={Wallet} label="Wallet" value={formatINR(wallet)} hint="Store credit" />
+          <StatCard onSelect={() => goToSection("account-wallet")} icon={Wallet} label="Wallet" value={formatINR(wallet)} hint="Store credit" />
           <StatCard
-            href="#account-wishlist"
+            onSelect={() => goToSection("account-wishlist")}
             icon={Heart}
             label="Wishlist"
             value={wishCount === 0 ? "—" : String(wishCount)}
@@ -539,9 +665,11 @@ function SignedIn({
           />
         </div>
       </section>
+      )}
 
       {/* Orders */}
-      <section id="account-orders" className="mt-10 scroll-mt-28">
+      {section === "account-orders" && (
+      <section id="panel-account-orders" role="tabpanel" aria-labelledby="tab-account-orders" className="mt-8">
         <SectionHeading
           action={
             <Link href="/shop" className="text-sm font-medium" style={{ color: "var(--accent-cyan)" }}>
@@ -778,7 +906,7 @@ function SignedIn({
           )}
         </div>
       </section>
-
+      )}
       <ShopDialog
         open={returnFor !== null}
         onClose={() => setReturnFor(null)}
@@ -856,7 +984,8 @@ function SignedIn({
       </ShopDialog>
 
       {/* Wallet */}
-      <section id="account-wallet" className="mt-10 scroll-mt-28">
+      {section === "account-wallet" && (
+      <section id="panel-account-wallet" role="tabpanel" aria-labelledby="tab-account-wallet" className="mt-8">
         <SectionHeading>Wallet</SectionHeading>
         <div className="rounded-2xl border p-6" style={surface}>
           <div className="flex flex-wrap items-end justify-between gap-5">
@@ -947,15 +1076,37 @@ function SignedIn({
           )}
         </div>
       </section>
+      )}
 
-      {/* Manage your account, rewards & notifications */}
-      <AccountExtras authHeaders={authHeaders} onWalletChange={refreshWallet} onProfileChange={loadProfile} />
+      {/* Profile — personal details, business, security, addresses */}
+      {section === "account-personal" && (
+        <section id="panel-account-personal" role="tabpanel" aria-labelledby="tab-account-personal" className="mt-8">
+          <SectionHeading>Manage your account</SectionHeading>
+          <AccountExtras show="profile" authHeaders={authHeaders} onWalletChange={refreshWallet} onProfileChange={loadProfile} />
+        </section>
+      )}
+
+      {/* Rewards — loyalty, referrals, gift cards */}
+      {section === "account-rewards" && (
+        <section id="panel-account-rewards" role="tabpanel" aria-labelledby="tab-account-rewards" className="mt-8">
+          <SectionHeading>Rewards &amp; offers</SectionHeading>
+          <AccountExtras show="rewards" authHeaders={authHeaders} onWalletChange={refreshWallet} onProfileChange={loadProfile} />
+        </section>
+      )}
+
+      {/* Alerts */}
+      {section === "account-notifications" && (
+        <section id="panel-account-notifications" role="tabpanel" aria-labelledby="tab-account-notifications" className="mt-8">
+          <SectionHeading>Notifications</SectionHeading>
+          <AccountExtras show="notifications" authHeaders={authHeaders} onWalletChange={refreshWallet} onProfileChange={loadProfile} />
+        </section>
+      )}
 
       {/* Wishlist */}
-      <WishlistSection ids={wishIds} onRemove={removeWish} onAdd={(p) => add(p)} />
+      {section === "account-wishlist" && <WishlistSection ids={wishIds} onRemove={removeWish} onAdd={(p) => add(p)} />}
 
       {/* Support */}
-      <SupportSection authHeaders={authHeaders} />
+      {section === "account-support" && <SupportSection authHeaders={authHeaders} />}
     </div>
   );
 }
@@ -971,7 +1122,7 @@ function WishlistSection({
 }) {
   const items = ids.map((id) => CATALOG.find((p) => p.id === id || p.slug === id)).filter(Boolean) as typeof CATALOG;
   return (
-    <section id="account-wishlist" className="mt-10 scroll-mt-28">
+    <section id="panel-account-wishlist" role="tabpanel" aria-labelledby="tab-account-wishlist" className="mt-8">
       <SectionHeading>Wishlist{items.length > 0 ? ` · ${items.length}` : ""}</SectionHeading>
       <div className="rounded-2xl border p-6" style={surface}>
         {items.length === 0 ? (
@@ -1088,7 +1239,7 @@ function SupportSection({ authHeaders }: { authHeaders: () => Record<string, str
   const field = "w-full rounded-xl border px-4 py-2.5 text-sm outline-none";
 
   return (
-    <section id="account-support" className="mt-10 scroll-mt-28">
+    <section id="panel-account-support" role="tabpanel" aria-labelledby="tab-account-support" className="mt-8">
       <SectionHeading>Support</SectionHeading>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border p-6" style={surface}>

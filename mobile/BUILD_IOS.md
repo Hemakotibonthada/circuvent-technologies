@@ -75,6 +75,23 @@ On your MacBook (which already has Xcode / the PlatformIO toolchain):
 - `app.json` → `ios.infoPlist` already grants **Camera** (QR scan) and
   **Local Network** access (`NSAllowsLocalNetworking`), which the device
   onboarding flow needs to talk to the setup hotspot at `192.168.4.1`.
+- **Device onboarding works in-app on iOS.** iOS cannot *scan* for nearby
+  Wi-Fi networks — no entitlement unlocks that — so the radar screen is
+  Android-only. It can *join* a network it is given the name of, through the
+  Hotspot Configuration entitlement, and the QR label scanned a moment earlier
+  supplies the name. So iOS skips discovery and offers "Join
+  Circuvent-Setup-XXXX for me" directly. If that is refused, the manual
+  "join in Settings" steps are still on the same screen.
+- **Push notifications** are left to EAS. `expo-notifications` sets
+  `aps-environment` through its own config plugin and EAS picks the value that
+  matches the build profile, so nothing is pinned in `ios.entitlements` — a
+  hardcoded `production` there would stop a development profile installing.
+  The one case where push genuinely does not work is Option B with a free
+  Apple ID (`CV_PERSONAL_TEAM=1`), which strips the entitlement because Xcode
+  refuses to provision it at all; `app.config.js` says so at the point it
+  deletes it.
 - `eas.json` defines `development` (simulator/dev-client), `preview`
   (installable internal build), and `production` (App Store `.aab`/`.ipa`).
-- Bundle id: `com.circuvent.app`. Version `1.0.0`, build `1`.
+- Bundle id: `com.circuvent.app`. Version and build number are read from
+  `app.json` — keep `ios.buildNumber` equal to `android.versionCode` so a
+  report from either platform names the same build.

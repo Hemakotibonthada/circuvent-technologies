@@ -1291,8 +1291,11 @@ function InsightsPanel({ onOpen }: { onOpen: (plate: string) => void }) {
  * retro-reflective plate — and a customer who discovers that at a barrier at
  * night concludes the product is broken. A customer who read it here concludes
  * they need the other camera, which is true.
+ *
+ * Named `LanesPanel` rather than `CamerasPanel` because the Security section
+ * already has one of those and it is about live video. This one is about lanes.
  */
-function CamerasPanel() {
+function LanesPanel() {
   const [lanes, setLanes] = useState<AnprLane[] | null>(null);
   const [cameras, setCameras] = useState<AnprLaneCandidate[]>([]);
   const [recogniser, setRecogniser] = useState("");
@@ -1373,13 +1376,21 @@ function CamerasPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      {recogniser === "none" && (
+      {recogniser === "none" ? (
         <Callout tone="warning" title="No plate recogniser is configured">
           A lane will still capture vehicles, record arrivals and fire automations, but no number
-          plates will be read until <code className="mx-1 rounded bg-black/30 px-1 py-0.5 text-[12px]">ANPR_PROVIDER</code>
-          is set on the control plane.
+          plates will be read. Set
+          <code className="mx-1 rounded bg-black/30 px-1 py-0.5 text-[12px]">ANPR_PROVIDER=local</code>
+          on the control plane to read plates on our own hardware, with nothing billed per read and no
+          photograph leaving the server.
         </Callout>
-      )}
+      ) : recogniser === "local" ? (
+        <Callout tone="info" title="Plates are read on our own hardware">
+          No third party sees these photographs and nothing is billed per read. It wants a plate
+          roughly square-on, in focus and lit — a vehicle that stops at the barrier reads far better
+          than one driving through.
+        </Callout>
+      ) : null}
 
       <Callout tone="info" title="What a camera lane can and cannot do">
         A camera does not read plates itself. Turning this on lets the control plane drive it: when
@@ -1543,60 +1554,89 @@ function CamerasPanel() {
   );
 }
 
+export type VehiclesView = "log" | "vehicles" | "site" | "insights" | "lists" | "cameras";
+
 /**
  * Vehicles — the ANPR plate log, the vehicle register, the site state and the
  * lists.
  *
- * A Security tab rather than a top-level section, following the direction this
- * console has already taken: `cameras`, `rooms`, `groups` and `floorplan` were
- * all standalone routes that got folded into a section. "Which vehicles came to
- * my property" is the same question the Access tab answers for people, so it
- * belongs beside it rather than adding a ninth item to the sidebar for a device
- * most accounts do not own.
+ * TWO HOMES, ONE COMPONENT, NEVER BOTH AT ONCE.
  *
- * Three views share one tab through a segmented switch instead of taking three
- * of Security's tab slots — they are one workflow (see a plate, look up its
- * history, decide about it) and the actions move between them.
+ * Uncontrolled, it is a Security tab that switches its own views with a
+ * segmented control — which is what an account with no ANPR camera sees, and
+ * where a plain camera is enrolled as a lane in the first place.
+ *
+ * Controlled (`view` supplied), the console's own tab strip drives it and the
+ * segmented control is not rendered: that is the dedicated **ANPR Camera**
+ * section, which only appears once the account actually has one. Two tab
+ * strips stacked on top of each other is the obvious failure here, and it is
+ * the reason `view` suppresses the internal one rather than merely presetting
+ * it.
+ *
+ * The controlled caller passes a `key` per tab so React remounts this on a tab
+ * change. That is deliberate and load-bearing: an open vehicle profile takes
+ * over the whole panel, and without the remount it would survive a tab switch
+ * and make the new tab look like it had not changed. Resetting that in an
+ * effect instead would be a render, a paint and then a correction.
+ *
+ * `ConsoleChrome` drops Security's Vehicles tab whenever the dedicated section
+ * is showing, so exactly one of the two is reachable at any moment.
  */
-export function VehiclesPanel() {
-  const [view, setView] = useState<"log" | "vehicles" | "site" | "insights" | "lists" | "cameras">("log");
+export function VehiclesPanel({ view: controlledView }: { view?: VehiclesView } = {}) {
+  const [internalView, setInternalView] = useState<VehiclesView>("log");
   const [plate, setPlate] = useState<string | null>(null);
+  const controlled = controlledView !== undefined;
+  const view = controlledView ?? internalView;
 
-  // A selected vehicle takes over the panel, so switching view must clear it —
-  // otherwise the segmented control appears to do nothing.
-  const changeView = (v: "log" | "vehicles" | "site" | "insights" | "lists" | "cameras") => {
+  const changeView = (v: VehiclesView) => {
+    // A selected vehicle takes over the panel, so switching view must clear it
+    // — otherwise the segmented control appears to do nothing.
     setPlate(null);
-    setView(v);
+    setInternalView(v);
+  };
+
+  /*
+   * Opening a vehicle from the log switches to the register *and* selects it
+   * when this panel owns its own view. When the console's tab strip owns it,
+   * the profile simply takes over the current panel rather than reaching up to
+   * move a tab the user did not touch — a tab that changes itself under a click
+   * is worse than a profile appearing where the click happened.
+   */
+  const openVehicle = (p: string) => {
+    if (!controlled) setInternalView("vehicles");
+    setPlate(p);
   };
 
   return (
     <div>
-      <div className="mb-5">
-        <FilterChips
-          value={view}
-          onChange={changeView}
-          options={[
-            { value: "log", label: "Plate log" },
-            { value: "vehicles", label: "Vehicles" },
-            { value: "site", label: "Site" },
-            { value: "insights", label: "Insights" },
-            { value: "lists", label: "Allow & block" },
-            { value: "cameras", label: "Cameras" },
-          ]}
-        />
-      </div>
+      {!controlled && (
+        <div className="mb-5">
+          <FilterChips
+            value={view}
+            onChange={changeView}
+            options={[
+              { value: "log", label: "Plate log" },
+              { value: "vehicles", label: "Vehicles" },
+              { value: "site", label: "Site" },
+              { value: "insights", label: "Insights" },
+              { value: "lists", label: "Allow & block" },
+              { value: "cameras", label: "Cameras" },
+            ]}
+          />
+        </div>
+      )}
       {plate ? (
         <VehicleProfileView plate={plate} onBack={() => setPlate(null)} />
       ) : view === "log" ? (
-        <PlateLog onOpenVehicle={(p) => { setView("vehicles"); setPlate(p); }} />
+        <PlateLog onOpenVehicle={openVehicle} />
       ) : view === "vehicles" ? (
         <VehicleList onOpen={setPlate} />
       ) : view === "site" ? (
         <SitePanel />
       ) : view === "insights" ? (
-        <InsightsPanel onOpen={(p) => { setView("vehicles"); setPlate(p); }} />
+        <InsightsPanel onOpen={openVehicle} />
       ) : view === "cameras" ? (
-        <CamerasPanel />
+        <LanesPanel />
       ) : (
         <PlateLists />
       )}

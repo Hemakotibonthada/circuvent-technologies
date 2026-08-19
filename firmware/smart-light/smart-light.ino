@@ -3,12 +3,27 @@
  * Relay/MOSFET power + white PWM brightness + optional RGB PWM channels.
  * Deps: CircuventDevice, ArduinoJson. Board: ESP32.
  */
-/* Version history: 1.1.0 is the first build that survives a power cut with the
-   router still down - see tests/firmware-power-restore.test.ts. Declared
-   explicitly so the fleet can tell fixed devices from unfixed ones; without
-   it every sketch reported the library default and they were
-   indistinguishable. */
-#define CV_FW_VERSION "1.1.0"
+/* Version history
+ *   1.1.0  first build that survives a power cut with the router still down —
+ *          see tests/firmware-power-restore.test.ts. Declared explicitly so the
+ *          fleet can tell fixed devices from unfixed ones; without it every
+ *          sketch reported the library default and they were indistinguishable.
+ *   1.2.0  The local button no longer fights the reset gesture. BTN_PIN is
+ *          GPIO0, which is also the pin `setResetButton(0)` watches, and the
+ *          test here was level-triggered with a 400 ms rate limit — so it was
+ *          not "on press" but "every 400 ms while held". Holding BOOT for three
+ *          seconds to change the Wi-Fi strobed the lamp seven times and left it
+ *          wherever the timing landed; eight seconds for a factory reset did it
+ *          twenty times, committing `power` to NVS on each one. It also acted
+ *          on a pin that was already low at boot, which after a power cut is
+ *          not a press at all. Now a tap, via CvTapButton.
+ *
+ *          Setting a brightness on a lamp that is off turns it on, the way
+ *          setting a speed on a stopped fan does. It did not, so the slider
+ *          moved, the command was confirmed, the stored brightness changed and
+ *          the room stayed dark.
+ */
+#define CV_FW_VERSION "1.2.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 
@@ -28,11 +43,11 @@
 
 CircuventDevice cv("smart-light");
 Preferences store;
+CvTapButton btn;
 
 bool power = false, savedPower = false;
 int brightness = 100, savedBrightness = 100;
 String color = "#FFFFFF", savedColor = "#FFFFFF";
-unsigned long lastBtn = 0;
 
 /*
  * Lowest duty that still emits visible light rather than nothing.
@@ -106,7 +121,24 @@ void applyLight() {
 void onCommand(const String &action, JsonObjectConst p) {
   if (action != "set") return;
   if (p["power"].is<bool>()) power = p["power"].as<bool>();
-  if (p["brightness"].is<int>()) brightness = constrain(p["brightness"].as<int>(), 0, 100);
+  if (p["brightness"].is<int>()) {
+    brightness = constrain(p["brightness"].as<int>(), 0, 100);
+    /*
+     * A brightness is a statement about a lamp that is meant to be lit.
+     *
+     * Without this, dragging the slider on a light that is off changed the
+     * stored brightness, published it, and satisfied the console's projection
+     * — so the command confirmed, the slider stayed where it was put, and the
+     * room stayed dark until the user found the separate power switch. The fan
+     * has had the equivalent rule for exactly this reason; the light was
+     * simply missed.
+     *
+     * Zero means off, and an explicit `power` in the same command still wins,
+     * so "set brightness 40 but leave it off" remains expressible.
+     */
+    if (brightness == 0) power = false;
+    else if (!p["power"].is<bool>()) power = true;
+  }
   if (p["color"].is<const char *>()) {
     uint8_t r, g, b;
     parseHexColor(String(p["color"].as<const char *>()), r, g, b);
@@ -117,7 +149,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 void setup() {
   Serial.begin(115200);
   cvRelayInit(RELAY_PIN);
-  pinMode(BTN_PIN, INPUT_PULLUP);
+  btn.begin(BTN_PIN);
   ledcSetup(WHITE_CH, PWM_FREQ, PWM_BITS); ledcAttachPin(WHITE_PWM_PIN, WHITE_CH);
   ledcSetup(RED_CH, PWM_FREQ, PWM_BITS); ledcAttachPin(RGB_R_PIN, RED_CH);
   ledcSetup(GREEN_CH, PWM_FREQ, PWM_BITS); ledcAttachPin(RGB_G_PIN, GREEN_CH);
@@ -137,8 +169,8 @@ void setup() {
 }
 
 void loop() {
-  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 400) {
-    lastBtn = millis(); power = !power; applyLight();
-  }
+  /* A tap toggles; a long hold belongs to the reset gesture the library is
+     already timing on this same pin. */
+  if (btn.tapped()) { power = !power; applyLight(); }
   cv.loop();
 }

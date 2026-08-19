@@ -143,3 +143,6 @@ native/ios/*.xcodeproj/
 native/ios/*.xcworkspace/
 native/ios/build/
 native/ios/DerivedData/
+
+# Written by src/lib/pdf-verify2.test.ts on every run; output, not a fixture.
+pdf-verify.pdf

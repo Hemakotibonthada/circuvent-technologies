@@ -73,7 +73,23 @@ export default function ShopHeader() {
             className="min-h-[44px] min-w-[44px] flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-medium"
             style={{ color: "var(--text-secondary)" }}
           >
-            <UserCircle2 className="h-5 w-5" />
+            {ready && account?.avatarUpdatedAt ? (
+              /*
+                Shown at the size it is displayed. The source is an
+                authenticated route, which next/image cannot fetch, and the
+                object behind it is already a 256px JPEG.
+              */
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`/api/account/avatar?v=${encodeURIComponent(account.avatarUpdatedAt)}`}
+                alt=""
+                width={20}
+                height={20}
+                className="h-5 w-5 rounded-full object-cover"
+              />
+            ) : (
+              <UserCircle2 className="h-5 w-5" />
+            )}
             <span className="hidden max-w-[100px] truncate md:inline">
               {ready && account ? account.name.split(" ")[0] : "Sign in"}
             </span>

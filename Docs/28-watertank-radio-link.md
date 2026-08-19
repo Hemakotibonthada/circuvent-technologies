@@ -133,6 +133,34 @@ If the app's threshold were longer than the firmware's, the app would show a
 healthy level and an idle pump while the controller had silently stopped
 filling. Nothing else would catch that.
 
+### The sump had no equivalent rule until 2.2.0
+
+All of the above is about the overhead level, which arrives by radio and can
+therefore stop arriving. The sump is wired to the starter, so it was treated as
+a sensor that either reads or visibly faults — and it is, but only the reading
+was handled.
+
+`pctFromCm()` returns `-1` on a bad or absent echo, and the caller replaced it
+with **50**. Fifty is above every possible `sumpMin` (default 15, capped at 60),
+and `sumpPct > sumpMin` is the pump's *primary* dry-run interlock — the one
+that exists to stop the motor being run on an empty sump. So a disconnected or
+failed sump ultrasonic did not merely lose a number on a screen: it produced a
+number that satisfied the interlock, and auto-fill would start the pump on it.
+
+What was left underneath was the 60-second current-based dry-run trip, which is
+a full minute of a submersible pump running dry, repeated every time somebody
+cleared the trip.
+
+The overhead side had been reasoned about carefully and the sump had inherited
+none of it. From 2.2.0 the sump is treated exactly like the radio link:
+
+- a faulted reading stays `-1` and is published as `-1`, which every client
+  already renders as "no reading" rather than as an empty tank;
+- `setPump()` refuses to start while `sumpFault` is set;
+- a pump already running is stopped when the sump stops reading, which auto
+  mode would have caught on its own but a **manual** run would not — and manual
+  is exactly when nobody is watching a screen.
+
 ---
 
 ## 5. The packet
@@ -186,6 +214,23 @@ The last accepted sequence is persisted on the starter, so a power cut cannot
 reopen the replay window. The sensor's counter survives deep sleep in RTC memory
 and jumps forward by 1000 after a power cut, because the flash copy lags what
 was actually transmitted.
+
+That persistence did nothing at all until 2.2.0. The check read
+`if (s.everHeard && p.seq <= s.lastSeq)`, and `everHeard` means "we have heard
+this sensor since *we* started" — it has to begin false, so that a starter which
+has never been paired is distinguishable from one whose sensor died a moment
+ago. So the restored counter was loaded, and then skipped: the first packet
+after every reboot was accepted whatever its sequence number. Cutting power to
+the starter is not a difficult attack, and it was the one thing this counter
+existed to survive. A restored `lastSeq` now arms the check on its own; zero
+still means "nothing known", which is the state after an unpair.
+
+The sensor's flash copy also genuinely lags now. Its "when did we last persist"
+marker was a function-local `static`, which is ordinary RAM and therefore zero
+on every wake from deep sleep — so it wrote NVS after *every* reading rather
+than every five hundred. Nothing was incorrect as a result; it simply spent a
+flash write and the energy for it on every cycle of a unit running from a cell
+on a roof. The marker lives in RTC memory from 1.1.0.
 
 ---
 
@@ -261,6 +306,18 @@ somebody to discover.
 **Forget** clears the key and stops the starter accepting anything, which is what
 you want when a sensor is replaced or a unit changes hands.
 
+**A rejected offer no longer breaks the working link.** Until 2.2.0 the starter
+copied the offered key into place and verified it afterwards, so a frame that
+failed the check had already overwritten the key of the sensor currently paired.
+NVS still held the right key — `savePairing()` was never reached — but the copy
+in RAM was wrong, so every genuine reading after it failed its MAC and the link
+stayed dead until somebody power-cycled the starter. Auto-fill stops with the
+link, so the tank quietly stops refilling. Reaching that state needed only a
+corrupted frame surviving CRC during the sixty seconds a window is open, which
+is exactly when somebody is on a roof transmitting at full power beside it.
+The offer is now verified against the key it presents before anything is
+committed.
+
 ---
 
 ## 7. State published by the starter
@@ -285,7 +342,36 @@ New keys alongside the existing ones:
 
 **`-1` rather than omitting the key** is deliberate: a client holding a previous
 value is actively told to drop it, instead of quietly leaving a stale number on
-screen.
+screen. From 2.2.0 `sumpPct` and `sumpLitres` use it too, so a sump that cannot
+be read draws as "no reading" in both apps rather than as an empty sump — which
+is a real condition, and the one that prompts somebody to start a pump.
+
+### Why the pump is not running
+
+Both apps answer this from one function, `readPumpHold()`, duplicated in
+`src/lib/tank-link.ts` and `mobile/src/tank-link.ts` and held together by
+`tests/tank-link-app-parity.test.ts`. It mirrors the order of the interlocks in
+the firmware's `setPump()`, so a new interlock has exactly one place to be
+explained:
+
+| Reason | Tone | Meaning |
+| --- | --- | --- |
+| `dry-run` | fault | Latched trip; needs clearing by hand, so it outranks conditions that clear themselves |
+| `overflow` | fault | The float at the top of the overhead tank is closed |
+| `sump-fault` | fault | The wired sump sensor is not reading — new in 2.2.0 |
+| `no-level` | fault/warn | No current overhead level; the link card above explains it |
+| `sump-low` | ordinary | The sump is genuinely low. Nothing is broken; it starts again on its own |
+
+"The pump will not turn on" is the most common question this product gets, and
+until 2.2.0 only two of those five were visible anywhere. The last one matters
+as much as the faults: an alarm that fires while the system is behaving
+correctly is an alarm people learn to ignore, so a low sump is toned as
+information rather than dressed up as a failure.
+
+A failed sump also raises a **critical** finding in `src/lib/tank-health.ts`,
+alongside the radio ones, for the reason that file exists: the controller is
+mains powered and stays perfectly online while the thing that decides whether
+the pump may run has stopped answering.
 
 ### Commands
 
@@ -338,6 +424,26 @@ the roof. The freshness window scales with it automatically.
 `tankBattLow` is raised at 3.45 V so the app can warn before the link dies
 rather than after. A low battery is the only tank finding that arrives **before**
 the outage — see `src/lib/tank-health.ts`.
+
+### Two things were quietly working against all of that
+
+Both fixed in 1.1.0, and both invisible except as "the batteries do not last".
+
+**`SENSOR_EN` was not held through deep sleep.** The line that cuts power to the
+ultrasonic module — the biggest idle draw on the unit — was driven low and then
+released, because the ESP32 puts its pads into high impedance the moment deep
+sleep begins unless the pin is an RTC pad with the hold latch enabled. GPIO27
+is an RTC pad; nothing was holding it. What the module's enable input did for
+the next 30 seconds depended on the pull on the board, and could perfectly well
+have been "power back up". `gpio_hold_en()` plus `gpio_deep_sleep_hold_en()`
+now latch it, and `setup()` releases the latch before driving the pin again —
+without that release the pin stays frozen and the sensor is never powered up.
+
+**NVS was written on every wake.** The marker recording how far the persisted
+sequence number lagged the transmitted one was a function-local `static`, which
+is ordinary RAM and does not survive deep sleep. It was therefore zero every
+time, the "have we drifted 500 yet" test was always true, and a flash write
+happened every cycle instead of every five hundred.
 
 ---
 

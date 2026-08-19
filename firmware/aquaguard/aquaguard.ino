@@ -14,7 +14,18 @@
  * Deps: CircuventDevice, ArduinoJson.  Board: ESP32.
  */
 /** Version history: 2.0.0 initial; 2.1.0 adds OTA (from CircuventDevice). */
-#define CV_FW_VERSION "2.1.1"
+/* 2.2.0  A latched dry run can be cleared again. The guard returned before the only line that reset it and there was no resetDryRun action, so one trip - often a false one on a slow inflow - killed the pump until somebody cut power. A user-initiated start now clears it; automation still cannot. */
+/*
+ * 2.3.0  The manual override no longer fires throughout the reset gesture.
+ *        BTN_PIN is GPIO0, shared with `setResetButton(0)`, and the test was a
+ *        level read with a 500 ms rate limit — so holding BOOT to change the
+ *        Wi-Fi ran the override about six times, each pulsing the pump and
+ *        setting `autoMode = false`. Auto-fill stayed off afterwards and the
+ *        tank stopped refilling until somebody noticed. It also acted on a pin
+ *        already low at boot, which after a power cut is not a press. Now a
+ *        tap, via CvTapButton.
+ */
+#define CV_FW_VERSION "2.3.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 
@@ -43,13 +54,14 @@ uint32_t restartDelayMs = 3UL  * 60UL * 1000UL;  // motor cool-down between runs
 uint32_t dryRunWindowMs = 90UL * 1000UL;         // must see level rise within this
 
 CircuventDevice cv("aquaguard");
+CvTapButton btn;
 Preferences store;
 
 bool pump = false, autoMode = true, dryRun = false, overflow = false, sensorFault = false;
 bool pumpIntent = false, savedPumpIntent = false, savedAutoMode = true;
 int  level = 0, levelAtStart = 0;
 float distanceCm = 0;
-uint32_t pumpStart = 0, lastStop = 0, lastBtn = 0, lastBeep = 0;
+uint32_t pumpStart = 0, lastStop = 0, lastBeep = 0;
 
 void beep(int ms) { digitalWrite(BUZZER_PIN, HIGH); delay(ms); digitalWrite(BUZZER_PIN, LOW); }
 
@@ -86,9 +98,37 @@ void saveRunState() {
   }
 }
 
-void setPump(bool on) {
+/**
+ * Drives the pump.
+ *
+ * `userIntent` marks a start that a person asked for — the app's pump switch
+ * or the panel button — as opposed to one the automation decided on.
+ *
+ * WHY THAT DISTINCTION EXISTS
+ *
+ * `dryRun` latches when the level does not rise within `dryRunWindowMs`, and
+ * it used to be unclearable. The latch is tested in the guard below, which
+ * returns *before* the only line that reset it, so every subsequent start —
+ * app, button, automation, boot — hit the guard and bailed. Nothing else
+ * cleared it: it is not restored from NVS and, unlike watertank, this sketch
+ * had no `resetDryRun` command.
+ *
+ * So one dry-run trip killed the pump permanently. Not "until the water came
+ * back" — permanently, until somebody cut power to the controller. And the
+ * trip is easy to hit falsely: the test is "level rose less than 3% in 90
+ * seconds", which a large tank on a slow inflow does routinely. The console
+ * showed `dryRun: true` and offered no control that worked.
+ *
+ * A person pressing the button is asserting there is water now, so their
+ * start clears the latch and re-arms the detector — if they are wrong it
+ * simply trips again 90 seconds later, which is the correct cost. Automation
+ * deliberately does not clear it (it is already gated on `!dryRun`), because a
+ * latch an unattended loop can reset is not a latch.
+ */
+void setPump(bool on, bool userIntent = false) {
   pumpIntent = on;
   saveRunState();
+  if (on && userIntent) dryRun = false;
   if (on && (overflow || dryRun)) {
     pump = false;
     digitalWrite(MOTOR_RELAY, cvRelayLevel(false));
@@ -139,10 +179,25 @@ int computeLevel() {
 }
 
 void onCommand(const String &action, JsonObjectConst p) {
+  /*
+   * Clearing the dry-run latch, by name.
+   *
+   * The same action watertank already exposes, so the two pump products
+   * answer the same command rather than one of them being a special case the
+   * console has to remember. Reached before the `set` filter because it is its
+   * own verb, not a field.
+   */
+  if (action == "resetDryRun") {
+    dryRun = false;
+    cv.set("dryRun", false);
+    cv.publishStateNow();
+    return;
+  }
   if (action != "set") return;
   bool cfg = false;
   if (p["auto"].is<bool>()) { autoMode = p["auto"].as<bool>(); saveRunState(); }
-  if (p["pump"].is<bool>()) { autoMode = false; setPump(p["pump"].as<bool>()); }
+  // A person asking for the pump clears a latched dry run — see setPump().
+  if (p["pump"].is<bool>()) { autoMode = false; setPump(p["pump"].as<bool>(), true); }
   if (p["startPct"].is<int>())  { startPct = constrain(p["startPct"].as<int>(), 5, 90); cfg = true; }
   if (p["stopPct"].is<int>())   { stopPct  = constrain(p["stopPct"].as<int>(), startPct + 5, 100); cfg = true; }
   if (p["maxRuntimeMin"].is<int>()) { maxRuntimeMs = (uint32_t)p["maxRuntimeMin"].as<int>() * 60000UL; cfg = true; }
@@ -155,6 +210,7 @@ void setup() {
   pinMode(US_TRIG, OUTPUT); pinMode(US_ECHO, INPUT);
   pinMode(FLOAT_LOW, INPUT_PULLUP); pinMode(FLOAT_HIGH, INPUT_PULLUP);
   pinMode(BTN_PIN, INPUT_PULLUP);
+  btn.begin(BTN_PIN);
   loadCfg();
   level = computeLevel();
   setPump(pumpIntent);
@@ -168,9 +224,25 @@ void setup() {
 void loop() {
   level = computeLevel();
 
-  // manual override (long-safe debounce)
-  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 500) {
-    lastBtn = millis(); autoMode = false; setPump(!pump); beep(60);
+  /*
+   * Manual override — on release, and only for a tap.
+   *
+   * "long-safe debounce" it was not: a level test with a 500 ms rate limit
+   * re-fires twice a second for the whole press. BTN_PIN is GPIO0, the pin the
+   * platform reset gesture uses, so holding BOOT for three seconds to change
+   * the Wi-Fi ran this six times — each one setting `autoMode = false` and
+   * pulsing the pump. Auto-fill was left off afterwards and stayed off, so the
+   * tank simply stopped refilling until somebody noticed.
+   *
+   * It also acted on a pin that was already low at boot, which after a power
+   * cut is not a press at all — GPIO0 can sit low while the rail comes up.
+   * CvTapButton arms only once it has seen a release, and drops anything long
+   * enough to belong to the reset gesture.
+   */
+  if (btn.tapped()) {
+    // Pressed by a person standing at the tank, so it clears a latched dry run
+    // for the same reason the app's switch does.
+    autoMode = false; setPump(!pump, true); beep(60);
   }
 
   // ---- safety interlocks (highest priority) ----

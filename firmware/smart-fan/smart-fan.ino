@@ -24,12 +24,23 @@
  * means the slowest speed the motor will actually run at, not one percent of
  * duty. Below that is off, with nothing in between.
  */
-/* Version history: 1.1.0 is the first build that survives a power cut with the
-   router still down - see tests/firmware-power-restore.test.ts. Declared
-   explicitly so the fleet can tell fixed devices from unfixed ones; without
-   it every sketch reported the library default and they were
-   indistinguishable. */
-#define CV_FW_VERSION "1.1.0"
+/* Version history
+ *   1.1.0  first build that survives a power cut with the router still down —
+ *          see tests/firmware-power-restore.test.ts. Declared explicitly so the
+ *          fleet can tell fixed devices from unfixed ones; without it every
+ *          sketch reported the library default and they were indistinguishable.
+ *   1.2.0  The local button no longer fights the reset gesture. BTN_PIN is
+ *          GPIO0, the same pin `setResetButton(0)` watches, and the test here
+ *          was level-triggered with a 400 ms rate limit — not "on press" but
+ *          "every 400 ms while held". Holding BOOT for eight seconds to factory
+ *          reset therefore walked the fan through about twenty positions on the
+ *          way, switching the relay and committing to NVS each time: a motor
+ *          started and stopped twenty times in eight seconds, which is inrush
+ *          the relay contacts are not specified for. It also acted on a pin
+ *          already low at boot, which after a power cut is not a press at all.
+ *          Now a tap, via CvTapButton.
+ */
+#define CV_FW_VERSION "1.2.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 
@@ -46,10 +57,10 @@
 
 CircuventDevice cv("smart-fan");
 Preferences store;
+CvTapButton btn;
 
 bool power = false, savedPower = false;
 int level = 33, savedLevel = 33;   /* 0..100, the real setting */
-unsigned long lastBtn = 0;
 
 /* The four positions the button cycles, and what `speed` means. */
 const uint8_t STEP_LEVEL[4] = {0, 33, 66, 100};
@@ -120,7 +131,7 @@ void onCommand(const String &action, JsonObjectConst p) {
 void setup() {
   Serial.begin(115200);
   cvRelayInit(FAN_RELAY);
-  pinMode(BTN_PIN, INPUT_PULLUP);
+  btn.begin(BTN_PIN);
   ledcSetup(SPEED_CH, PWM_FREQ, PWM_BITS);
   ledcAttachPin(SPEED_PWM_PIN, SPEED_CH);
 
@@ -142,10 +153,10 @@ void setup() {
 }
 
 void loop() {
-  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtn > 400) {
-    lastBtn = millis();
+  if (btn.tapped()) {
     /* The button still walks four positions: off, low, medium, high. A
-       continuous slider is for the app; a wall button wants detents. */
+       continuous slider is for the app; a wall button wants detents. A long
+       hold is the reset gesture and is not ours to act on. */
     int s = levelToSpeed(level);
     if (!power) { power = true; if (s == 0) s = 1; }
     else if (s < 3) s++;

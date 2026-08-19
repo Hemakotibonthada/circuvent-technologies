@@ -34,6 +34,10 @@ import { consoleRouter } from "./routes/console";
 import { startAutomationScheduler } from "./automations";
 import { startWebhooks } from "./webhooks";
 import { startAnpr } from "./anpr";
+import { startFaceDoors } from "./face/door";
+import { startAttendanceSystem, attendanceRouter } from "./attend";
+import { startGuardianSystem, guardianRouter } from "./guardian";
+import { startGateSystem, gateAccessRouter } from "./gate";
 import { startDrone } from "./drone";
 import { startLivenessSweeper } from "./liveness";
 import { asActor } from "./home/enforce";
@@ -138,6 +142,9 @@ async function main(): Promise<void> {
   app.use("/energy", energyRouter);
   app.use("/admin", asActor, adminRouter);
   app.use("/gate", gateRouter);
+  app.use("/attendance", attendanceRouter);
+  app.use("/guardian", guardianRouter);
+  app.use("/gate", gateAccessRouter);
   app.use("/anpr", anprRouter);
   app.use("/drone", droneRouter);
   // Mounted last so it can never shadow an API path: it only claims "/" and
@@ -172,6 +179,10 @@ async function main(): Promise<void> {
   startAutomationScheduler();
   startWebhooks();
   startAnpr();
+  startFaceDoors();
+  startAttendanceSystem();
+  startGuardianSystem();
+  startGateSystem();
   startDrone();
   startLivenessSweeper();
 
