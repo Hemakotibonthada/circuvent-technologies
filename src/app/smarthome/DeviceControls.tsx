@@ -328,6 +328,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <RfidGate d={device} send={send} st={st} />;
     case "curtain":
       return <Curtain d={device} send={send} st={st} />;
+    case "rccar":
+      return <RcCar d={device} send={send} st={st} />;
     case "switchboard":
       return <Switchboard d={device} send={send} st={st} />;
     case "facedoor":
@@ -2490,8 +2492,87 @@ function RfidGate({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
  * that reads 40% while the curtain is clearly at 30% is to conclude the device
  * is broken, when the fix is one tap on Close.
  */
-function Curtain({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
-  const position = n(d.state.position);
+/**
+ * The RC car, from the console.
+ *
+ * Deliberately not a driving surface. Steering and throttle live on the
+ * handset or on the phone over the ESP-NOW link, which is the one with a
+ * 120 ms failsafe and a driver watching the car — a browser tab on the far end
+ * of the internet has neither, and a page that offered a throttle would be
+ * offering to drive a vehicle somebody else is standing next to.
+ *
+ * What it does offer is the thing a browser is genuinely better at: telling
+ * you where the car is up to, and taking it away from whoever has it. The
+ * immobiliser is the whole point of this panel.
+ */
+function RcCar({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const mode = typeof d.state.mode === "string" ? d.state.mode : "immobilised";
+  const speed = n(d.state.speedCms);
+  const battPct = n(d.state.battPct);
+  const linked = b(d.state.linked);
+  const failsafe = b(d.state.failsafe);
+  const odo = n(d.state.odoM);
+  const lost = n(d.state.rxLost);
+  const good = n(d.state.rxGood);
+
+  /* Loss as a share of what was sent, which is what a driver feels. RSSI is
+     not available from this radio's callback — see the note in rccar.ino. */
+  const quality = good + lost > 0 ? Math.round((good / (good + lost)) * 100) : null;
+
+  return (
+    <div>
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
+        <div className="flex items-end justify-between">
+          <div className="text-5xl font-extrabold text-white">
+            {Math.abs(Math.round((speed * 0.036) * 10)) / 10}
+            <span className="text-2xl text-slate-400"> km/h</span>
+          </div>
+          <div className="text-sm text-slate-400">
+            {failsafe ? "Stopped — link lost" : linked ? "Driver connected" : "No driver"}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <p className="text-slate-400">Battery</p>
+            <p className="text-white">{battPct}%</p>
+          </div>
+          <div>
+            <p className="text-slate-400">Trip</p>
+            <p className="text-white">{odo} m</p>
+          </div>
+          <div>
+            <p className="text-slate-400">Link</p>
+            <p className="text-white">{quality === null ? "—" : `${quality}%`}</p>
+          </div>
+        </div>
+      </div>
+
+      {/*
+        Immobilise is offered whenever the car is not already immobilised, and
+        it is the only control here that changes what the vehicle does. The
+        others are modes somebody hands to a driver before they start.
+      */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {(["immobilised", "beginner", "normal", "sport"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => send({ mode: m })}
+            className={`rounded-xl px-4 py-2 text-sm font-medium ${
+              mode === m ? "bg-white text-black" : "border border-white/10 text-slate-300"
+            }`}
+          >
+            {m === "immobilised" ? "Immobilise" : m[0].toUpperCase() + m.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {st("mode")}
+    </div>
+  );
+}
+
+function Curtain({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {  const position = n(d.state.position);
   const moving = n(d.state.moving);
   const travelSec = n(d.state.travelSec, 20);
   const learning = b(d.state.learning);

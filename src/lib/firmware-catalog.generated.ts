@@ -126,6 +126,13 @@ export const GENERATED_FIRMWARE_CATALOG: FirmwareInfo[] = [
     ],
   },
   {
+    deviceType: "rccar",
+    latestVersion: "1.0.0",
+    changelog: [
+    { version: "1.0.0", notes: ["initial vehicle firmware."] },
+    ],
+  },
+  {
     deviceType: "rfid-attend",
     latestVersion: "1.0.0",
     changelog: [
