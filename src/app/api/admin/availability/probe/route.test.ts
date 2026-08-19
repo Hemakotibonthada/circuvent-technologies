@@ -18,6 +18,7 @@
 import { GET } from "@/app/api/admin/availability/probe/route";
 import { allEvents, clearTelemetry, ingest } from "@/lib/telemetry-store";
 import { CONTROL_PLANE_URL } from "@/lib/control-plane";
+import { defaultChecks } from "@/lib/synthetic-checks";
 
 const realFetch = global.fetch;
 
@@ -387,36 +388,36 @@ describe("the sweep watches the rest of the suite", () => {
     global.fetch = failing([]);
     const body = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
 
-    expect(body.synthetic.length).toBeGreaterThan(4);
+    expect(body.synthetic.length).toBe(defaultChecks().length);
     expect(body.synthetic.every((s: { ok: boolean }) => s.ok)).toBe(true);
   });
 
   it("files and emails when another app in the suite goes down", async () => {
     // Exactly the outage that motivated this: the page serves fine, the API
     // behind it does not.
-    global.fetch = failing(["mx.circuvent.com/office-api/api/health"]);
+    global.fetch = failing(["https://mail.circuvent.com/api/health"]);
 
     const body = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
 
-    const officeApi = body.synthetic.find((s: { id: string }) => s.id === "office-api");
-    expect(officeApi.ok).toBe(false);
-    expect(officeApi.reason).toContain("503");
+    const broken = body.synthetic.find((s: { id: string }) => s.id === "mail-prod");
+    expect(broken.ok).toBe(false);
+    expect(broken.reason).toContain("503");
 
     // And the page check still passed, which is the point — it always did.
-    expect(body.synthetic.find((s: { id: string }) => s.id === "office-web").ok).toBe(true);
+    expect(body.synthetic.find((s: { id: string }) => s.id === "web-prod").ok).toBe(true);
 
     expect(body.detection.incidentsFiled.length).toBeGreaterThan(0);
-    expect(sent.some((m) => m.subject.includes("Office API"))).toBe(true);
+    expect(sent.some((m) => m.subject.includes("mail.circuvent.com"))).toBe(true);
   });
 
   it("does not open a second incident while the outage continues", async () => {
-    global.fetch = failing(["mx.circuvent.com/office-api/socket.io"]);
+    global.fetch = failing(["https://circuvent.com/api/health"]);
 
     const first = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
     expect(first.detection.incidentsFiled.length).toBeGreaterThan(0);
 
     const second = await (await GET(req({ authorization: "Bearer test-secret" }))).json();
-    expect(second.synthetic.find((s: { id: string }) => s.id === "office-socket").ok).toBe(false);
+    expect(second.synthetic.find((s: { id: string }) => s.id === "web-prod").ok).toBe(false);
     expect(second.detection.incidentsFiled).toEqual([]);
   });
 

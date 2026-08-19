@@ -205,20 +205,33 @@ describe("defaultChecks", () => {
     expect(hosts.size).toBeGreaterThan(2);
   });
 
-  it("checks the Office API behind its proxy prefix, not just the page", () => {
+  it("checks an API endpoint for every service, not just a page", () => {
     /*
      * The outage that motivated this: office.circuvent.com returned 200
-     * throughout, because a static bundle serves fine no matter what its API
-     * is doing. Only a check against the API itself would have caught it.
+     * throughout, because a static bundle serves fine no matter what its API is
+     * doing. Only a check against the API itself would have caught it.
+     *
+     * That app has since been retired and its checks removed with it, so this
+     * no longer names it. The lesson outlived the service, and what it asserts
+     * now is the property that mattered — no check may point at a bare origin,
+     * because a page answering 200 says nothing about whether the thing behind
+     * it works.
      */
     const checks = defaultChecks();
-    const page = checks.find((c) => c.id === "office-web");
-    const api = checks.find((c) => c.id === "office-api");
-    const socket = checks.find((c) => c.id === "office-socket");
+    expect(checks.length).toBeGreaterThan(0);
 
-    expect(page).toBeDefined();
-    expect(api?.url).toBe("https://mx.circuvent.com/office-api/api/health");
-    expect(socket?.url).toContain("/office-api/socket.io/");
+    // Collected rather than asserted one at a time, because jest's `expect`
+    // takes no message argument — so a failure has to carry the offending id
+    // in the value it compares, or it says only "false is not true".
+    const bareOrigins = checks
+      .filter((check) => new URL(check.url).pathname === "/")
+      .map((check) => check.id);
+    expect(bareOrigins).toEqual([]);
+
+    const notAnApi = checks
+      .filter((check) => !/health|api|socket/i.test(new URL(check.url).pathname))
+      .map((check) => check.id);
+    expect(notAnApi).toEqual([]);
   });
 
   it("has unique ids, since the fingerprint is built from them", () => {
