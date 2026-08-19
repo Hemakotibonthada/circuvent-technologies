@@ -147,10 +147,45 @@ rather than a list — an operator needs one instruction, not a scoreboard.
 
 | Condition | Response | Why not something else |
 | --- | --- | --- |
-| Radio lost | Level, descend at 35% throttle | **Not** a power cut. Cutting drops the aircraft wherever it is, which may be over someone. Every certified failsafe descends. |
+| Radio lost | Hold level ~0.7 s, then descend, then **stop** | **Not** a power cut. Cutting drops the aircraft wherever it is, which may be over someone. Every certified failsafe descends — and every one of them ends. |
 | Tilt > 75° | Cut motors | Past this an angle controller cannot recover, and an inverted quad under a level controller drives itself into the ground at full power. |
+| Impact > 4 g, or inverted for 0.4 s | Cut motors, latch | A crashed aircraft that keeps driving motors destroys the ESCs and can walk itself across a field. |
+| Pack below 3.3 V/cell for 1.5 s | Cap throttle to the descent value | Filtered and dwelled so a punch-out's sag does not land an aircraft with half a pack. |
 | IMU fault | Cut motors | Continuing would fly on a stale attitude. |
-| Arm switch off | Disarm | The pilot's decision, always honoured. |
+| Arm switch off **while the link is up** | Disarm | The pilot's decision, always honoured — see below for why the qualifier matters. |
+
+### The failsafe had no ending
+
+Worth stating plainly because it shipped, and because it is invisible until the
+moment it matters.
+
+The failsafe did the hard part correctly: it levelled the aircraft and
+descended under control rather than cutting power. What it never did was stop.
+`Sbus::sw()` returns the last decoded channel values, and those persist after
+the link drops — so the arm switch still read "on", `armLatch` never cleared,
+and the state machine had no other exit. The aircraft descended, touched down,
+and sat there with four propellers at 35% throttle until the pack went flat or
+it flipped hard enough to trip the tilt cutoff.
+
+From the outside it looks like a working failsafe right up to the moment it
+lands.
+
+Three changes, in `flight-safety.h`:
+
+1. **The descent is bounded by a timer**, and the timer is the guarantee. It
+   depends on no sensor reading being correct.
+2. **Touchdown detection only ever ends the descent sooner.** A quad on the
+   ground stops rotating, because the controller's corrections no longer move
+   it; one descending through air is continuously correcting. That is a
+   heuristic, and it is treated as one — a heuristic that can fail to fire
+   costs a few extra seconds, while a heuristic that *must* fire to stop the
+   motors is one that eventually does not.
+3. **The arm switch is only trusted to disarm while the link is up.** Acting on
+   a stale switch is what left the aircraft with no exit.
+
+A failsafe landing and a crash both **latch**. The aircraft will not arm again
+until the pilot moves the arm switch off, so it cannot quietly re-arm itself on
+the next frame the receiver happens to decode.
 
 ### The SBUS flags byte
 
@@ -197,7 +232,23 @@ deadline and nothing below this line is safe.
 
 ### 2 — Props OFF, motor map
 
-Arm. Confirm each motor spins at idle. Push each stick and confirm:
+**Use the motor test rather than arming.** In the console, with the aircraft
+disarmed and the transmitter on with the throttle down, the drone page offers
+**M1…M4** under Bench tools. Each spins one motor at 10%.
+
+Confirm, for each in turn:
+
+- the motor that spins is the one named — M1 front-right, M2 rear-right,
+  M3 rear-left, M4 front-left;
+- its direction matches the diagram in `fc-config.h` — M1 and M3 counter-
+  clockwise, M2 and M4 clockwise.
+
+Getting a motor's *position* right and its *direction* wrong is the failure
+this step exists to catch, and it is invisible until the aircraft is armed with
+props on: the mixer's yaw axis becomes positive feedback and the aircraft spins
+up on the bench.
+
+Then arm and confirm the stick response the old way:
 
 - roll right → **M1, M2** slow down
 - pitch back (nose up) → **M2, M3** speed up
@@ -254,14 +305,51 @@ they read about:
   mode the aircraft holds *attitude*, not position — it will drift with wind.
 - **No barometer, so no altitude hold.** Throttle is manual.
 - **No current sensor.** Battery percentage is derived from voltage alone,
-  which under-reports under load.
+  which under-reports under load, and proper sag compensation is impossible
+  without knowing the current the pack is sagging under. The staged response in
+  §4 filters and dwells instead, which is the best available substitute.
+- **No compass**, so yaw is relative to power-up heading and drifts slowly.
 - **No blackbox logging.** The 10 Hz cloud track is the flight record; it is
   far too slow for gain tuning.
-- **No compass**, so yaw is relative to power-up heading and drifts slowly.
+- **No RPM-based notch filtering.** This one is a deliberate omission rather
+  than a missing part. The ESCs in the BOM are BLHeli_32/AM32 and *do* support
+  bidirectional DShot, and RPM-driven notches are better than anything the
+  dynamic notch below can do, because they know exactly where the peak is
+  instead of hunting for it. Implementing them means turning the RMT channel
+  around inside 30 µs of the end of each frame and decoding GCR, and getting
+  that wrong desynchronises an ESC in flight. It needs an oscilloscope and an
+  airframe. It is not here rather than here and unverified.
 
 Adding GPS and a barometer is the natural next step, and would make
 return-to-home possible. Until then this is a line-of-sight aircraft flown by a
 pilot, which is what the safety case in §1 assumes.
+
+### What was added in 2.0.0
+
+Everything below works on the airframe as it is built, with no new sensors.
+
+| | |
+| --- | --- |
+| **Staged failsafe with an ending** | Hold, bounded descent, stop. See §4. |
+| **Crash detection** | 4 g impact, or inverted for 0.4 s. Latches. |
+| **Staged low-voltage response** | Filtered, dwelled, ratcheted; caps throttle at critical. |
+| **Dynamic gyro notch** | Tracks the blade-passing peak between 120 and 540 Hz. |
+| **Gyro filter chain** | Notch then lowpass into P and I; D keeps its own filter. |
+| **Motor test** | Spins one motor at 10%, props off, disarmed, link up. |
+| **Turtle mode** | Reversed props flip a crashed aircraft back over. |
+| **ESC locator beep** | Finds an aircraft in long grass when the buzzer is dead. |
+
+The notch is worth a sentence on why it is not simply a lower lowpass. A quad's
+dominant gyro noise is a narrow peak at the propeller's blade-passing
+frequency, which moves with throttle. A lowpass wide enough to remove it adds
+phase lag *everywhere*, and phase lag in the rate loop is exactly what limits
+how much P and D the airframe accepts before it oscillates. A notch removes a
+narrow band and leaves the phase elsewhere almost untouched.
+
+`tests/drone-flight-safety.test.ts` measures the filter's actual response: it
+asserts the notch attenuates its centre frequency below 0.15, and passes 20 Hz
+and 50 Hz above 0.9 and 0.85 — a filter that quietly damped the band the
+controller flies on would pass a shape check and fail this one.
 
 ---
 

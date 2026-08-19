@@ -53,9 +53,11 @@ export const GENERATED_FIRMWARE_CATALOG: FirmwareInfo[] = [
   },
   {
     deviceType: "drone-fc",
-    latestVersion: "1.0.1",
+    latestVersion: "2.0.0",
     changelog: [
-    { version: "1.0.1", notes: ["1.0.0 initial Circuvent flight stack."] },
+    { version: "1.0.0", notes: ["initial Circuvent flight stack."] },
+    { version: "1.0.1", notes: ["mixer/diagram agreement."] },
+    { version: "2.0.0", notes: ["the failsafe now ends. It levelled and descended correctly and nothing ever stopped it, because sw() reads the last decoded SBUS channels and those persist after the link drops — so the aircraft landed and sat there at 35% throttle. Staged failsafe with a bounded descent, touchdown detection, crash detection, a latched stop the pilot has to acknowledge, staged low-voltage response, a dynamic notch and gyro filter chain, and bench tools (motor test, turtle mode, ESC locator beep)."] },
     ],
   },
   {

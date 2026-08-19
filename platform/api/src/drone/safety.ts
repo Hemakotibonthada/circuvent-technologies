@@ -40,6 +40,19 @@ export const ACTIONS = [
   "mode",
   "set",
   "state",
+  /*
+   * Bench tools, added with drone-fc 2.0.0.
+   *
+   * These move motors on an aircraft that is not flying, which is why they are
+   * commands rather than settings and why checkCommand below refuses every one
+   * of them on anything that might be airborne. The firmware refuses them too,
+   * on the core that actually knows the arm state — this is the outer of two
+   * interlocks, not the only one.
+   */
+  "beep",
+  "motorTest",
+  "turtle",
+  "benchStop",
 ] as const;
 export type DroneAction = (typeof ACTIONS)[number];
 
@@ -265,6 +278,50 @@ export function checkCommand(
       }
       return OK;
     }
+
+    /*
+     * Bench tools.
+     *
+     * Every one of these spins a motor on an aircraft nobody is flying, so the
+     * question is only ever "is it definitely on the ground and definitely not
+     * armed". `maybeAirborne` treats unknown as airborne, which is the right
+     * default here: an aircraft that is not reporting its state is not one to
+     * start a motor on.
+     *
+     * The beep is the exception and is allowed whenever the aircraft is not
+     * armed — it makes the ESCs sing without turning the motors, and it is how
+     * somebody finds an aircraft in long grass.
+     */
+    case "beep": {
+      if (s.armed === true) return deny("armed", "The aircraft is armed");
+      return OK;
+    }
+
+    case "motorTest": {
+      if (maybeAirborne) return deny("airborne", "The aircraft is not on the ground");
+      if (s.armed === true) return deny("armed", "Disarm before running a motor test");
+      if (s.link === false) return deny("no_link", "The aircraft is not reporting");
+      const m = Number(params.motor);
+      if (!Number.isInteger(m) || m < 0 || m > 7) {
+        return deny("bad_motor", "Choose which motor to test");
+      }
+      const t = params.throttle === undefined ? 0.1 : Number(params.throttle);
+      if (!Number.isFinite(t) || t <= 0 || t > 0.25) {
+        return deny("bad_throttle", "Motor test throttle must be between 0 and 25%");
+      }
+      return OK;
+    }
+
+    case "turtle": {
+      if (maybeAirborne) return deny("airborne", "The aircraft is not on the ground");
+      if (s.armed === true) return deny("armed", "Disarm before using turtle mode");
+      return OK;
+    }
+
+    case "benchStop":
+      // Always allowed, for the same reason land and brake are: it is the
+      // command somebody reaches for when something is already wrong.
+      return OK;
 
     // land, rtl, loiter, brake and state are always allowed. Every one of them
     // reduces energy or ends the flight; refusing one because some precondition

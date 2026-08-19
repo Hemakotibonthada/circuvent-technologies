@@ -224,3 +224,55 @@ test("altitude is only warned about while airborne", () => {
   assert.deepEqual(warningsFor({ ...parked, alt: 500 }, limits), []);
   assert.ok(warningsFor({ ...flying, alt: 500 }, limits).some((x) => /ceiling/i.test(x)));
 });
+
+/*
+ * Bench tools, added with drone-fc 2.0.0.
+ *
+ * They spin a motor on an aircraft nobody is flying. The firmware refuses them
+ * too, on the core that knows the arm state — these assertions cover the outer
+ * interlock, which is the one that stops the command ever being published.
+ */
+test("a motor test is refused on an aircraft that is flying", () => {
+  const v = checkCommand("motorTest", { motor: 0, throttle: 0.1 }, flying, limits);
+  assert.equal(v.ok, false);
+  assert.equal(v.code, "airborne");
+});
+
+test("a motor test is refused when the state is unknown", () => {
+  // Unknown counts as airborne: an aircraft that is not reporting is not one
+  // to start a motor on.
+  const v = checkCommand("motorTest", { motor: 0, throttle: 0.1 }, null, limits);
+  assert.equal(v.ok, false);
+});
+
+test("a motor test is refused while armed, even on the ground", () => {
+  const v = checkCommand("motorTest", { motor: 0, throttle: 0.1 }, { ...parked, armed: true }, limits);
+  assert.equal(v.ok, false);
+  assert.equal(v.code, "armed");
+});
+
+test("a motor test needs a motor and a sane throttle", () => {
+  assert.equal(checkCommand("motorTest", {}, parked, limits).ok, false);
+  assert.equal(checkCommand("motorTest", { motor: 99 }, parked, limits).ok, false);
+  // A "test" at full throttle on an unbolted bench is not a test.
+  assert.equal(checkCommand("motorTest", { motor: 0, throttle: 0.9 }, parked, limits).ok, false);
+  assert.equal(checkCommand("motorTest", { motor: 0, throttle: 0.1 }, parked, limits).ok, true);
+});
+
+test("turtle mode is refused on anything that might be airborne", () => {
+  assert.equal(checkCommand("turtle", { on: true }, flying, limits).ok, false);
+  assert.equal(checkCommand("turtle", { on: true }, null, limits).ok, false);
+  assert.equal(checkCommand("turtle", { on: true }, parked, limits).ok, true);
+});
+
+test("the locator beep is allowed on the ground but not while armed", () => {
+  assert.equal(checkCommand("beep", {}, parked, limits).ok, true);
+  assert.equal(checkCommand("beep", {}, { ...parked, armed: true }, limits).ok, false);
+});
+
+test("stopping the bench is always allowed", () => {
+  // Same reason land and brake are: it is what somebody reaches for when
+  // something is already wrong.
+  assert.equal(checkCommand("benchStop", {}, flying, limits).ok, true);
+  assert.equal(checkCommand("benchStop", {}, null, limits).ok, true);
+});

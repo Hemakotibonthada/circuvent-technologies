@@ -44,8 +44,20 @@
  * with no change.
  */
 
-/** Version history: 1.0.0 initial Circuvent flight stack. */
-#define CV_FW_VERSION "1.0.1"
+/**
+ * Version history:
+ *   1.0.0  initial Circuvent flight stack.
+ *   1.0.1  mixer/diagram agreement.
+ *   2.0.0  the failsafe now ends. It levelled and descended correctly and
+ *          nothing ever stopped it, because sw() reads the last decoded SBUS
+ *          channels and those persist after the link drops — so the aircraft
+ *          landed and sat there at 35% throttle. Staged failsafe with a
+ *          bounded descent, touchdown detection, crash detection, a latched
+ *          stop the pilot has to acknowledge, staged low-voltage response,
+ *          a dynamic notch and gyro filter chain, and bench tools (motor
+ *          test, turtle mode, ESC locator beep).
+ */
+#define CV_FW_VERSION "2.0.0"
 
 #include <CircuventDevice.h>
 #include <Preferences.h>
@@ -53,6 +65,8 @@
 #include "ahrs.h"
 #include "control.h"
 #include "dshot.h"
+#include "filters.h"
+#include "flight-safety.h"
 #include "imu.h"
 #include "rc.h"
 #include "telemetry.h"
@@ -65,6 +79,26 @@ static Ahrs   ahrs;
 static DShot  esc;
 static Sbus   rc;
 static RatePid pidRoll, pidPitch, pidYaw;
+
+// Added in 2.0.0 — see flight-safety.h and filters.h for why each exists.
+static Failsafe       failsafe;
+static CrashDetector  crash;
+static BatteryMonitor battery;
+static GyroChain      gyroRoll, gyroPitch, gyroYaw;
+
+/*
+ * Bench-mode request from the cloud, consumed by the rate loop.
+ *
+ * A plain volatile int rather than a queue: it is one word, written by core 0
+ * and read by core 1, and the loop only ever needs the latest value. It is
+ * *requested* here and *granted* by the rate loop, which is the half that
+ * knows whether the aircraft is armed — so a motor-test command arriving mid
+ * flight is ignored by the only code in a position to know it should be.
+ */
+enum BenchRequest : int { BR_NONE = 0, BR_MOTOR_TEST, BR_TURTLE, BR_STOP, BR_BEEP };
+static volatile int benchRequest = BR_NONE;
+static volatile int benchMotor = -1;      // which motor the test drives
+static volatile float benchThrottle = 0.0f;
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -142,6 +176,11 @@ static void rateTask(void *) {
   bool saturated = false;
   float motors[MOTOR_COUNT] = {0, 0, 0, 0};
   bool inAir = false;
+  /* A stop the pilot has to acknowledge by moving the switch, so a crash or a
+     failsafe landing cannot silently re-arm itself. */
+  bool armCleared = false;
+  ArmBlock armBlockReason = AB_NONE;
+  bool turtleArmed = false;   // ESC direction is currently reversed
 
   // Calibration happens here, on the core that will use the result, before the
   // loop starts. Doing it on core 0 would measure a bias with a different
@@ -170,6 +209,18 @@ static void rateTask(void *) {
                                s.ok ? s.accel : Vec3{0, 0, 1},
                                RATE_DT);
 
+    /*
+     * Magnitudes the safety logic reads. Computed once here rather than inside
+     * each detector so they cannot disagree about which sample they are
+     * describing.
+     */
+    const float accelMag = s.ok
+        ? sqrtf(s.accel.x * s.accel.x + s.accel.y * s.accel.y + s.accel.z * s.accel.z)
+        : 1.0f;
+    const float gyroMag = s.ok
+        ? sqrtf(s.gyro.x * s.gyro.x + s.gyro.y * s.gyro.y + s.gyro.z * s.gyro.z)
+        : 0.0f;
+
     const float battV = shared.battV;   // sampled by the slow task
 
     /*
@@ -188,17 +239,38 @@ static void rateTask(void *) {
 
       if (!armLatch) {
         block = sawSwitchOff ? b : AB_SWITCH_ON_AT_BOOT;
-        if (d.armSwitch && sawSwitchOff && b == AB_NONE) {
+        /*
+         * A latched crash or a completed failsafe landing has to be cleared by
+         * the pilot before the aircraft will arm again. Without the latch the
+         * state machine simply re-arms the moment the condition clears — an
+         * aircraft that has just landed itself on a dead radio would arm again
+         * on the next frame the receiver happens to decode.
+         */
+        if (armCleared) {
+          block = armBlockReason;
+        } else if (d.armSwitch && sawSwitchOff && b == AB_NONE) {
           armLatch = true;
           armedAt = millis();
           pidRoll.reset(); pidPitch.reset(); pidYaw.reset();
+          gyroRoll.reset(); gyroPitch.reset(); gyroYaw.reset();
+          failsafe.reset();
+          crash.reset();
+          battery.reset(battV);
           state = FS_ARMED;
         } else {
           state = FS_DISARMED;
         }
+        // Releasing the switch is what acknowledges a latched stop.
+        if (!d.armSwitch) { armCleared = false; armBlockReason = AB_NONE; }
       } else {
+        crash.update(Ahrs::tiltDeg(att), accelMag, LOOP_MS);
+        battery.update(battV, cells, LOOP_MS);
+
         // ---- reasons to disarm in flight -------------------------------
-        if (!d.armSwitch) {
+        if (!d.armSwitch && d.present) {
+          // Only honoured while the link is up. With the link down the switch
+          // reads the receiver's last-known value, which is exactly the stale
+          // input the failsafe exists to stop trusting.
           armLatch = false; state = FS_DISARMED; block = AB_NONE;
         } else if (!s.ok) {
           // No attitude estimate means no controller. Cutting is the only
@@ -206,16 +278,29 @@ static void rateTask(void *) {
           armLatch = false; state = FS_FAULT; block = AB_IMU_FAULT;
         } else if (Ahrs::tiltDeg(att) > TILT_CUTOFF_DEG) {
           armLatch = false; state = FS_FAULT; block = AB_TILT;
-        } else if (!d.present) {
-          /*
-           * Radio lost. The aircraft does NOT cut power — that drops it
-           * wherever it happens to be, which may be over someone. It levels
-           * and descends at a controlled rate, which is what every certified
-           * failsafe does.
-           */
-          state = FS_FAILSAFE;
+        } else if (crash.crashed()) {
+          armLatch = false; state = FS_DISARMED;
+          armCleared = true; armBlockReason = AB_CRASHED; block = AB_CRASHED;
         } else {
-          state = FS_ARMED;
+          /*
+           * Radio loss. The aircraft does NOT cut power — that drops it
+           * wherever it happens to be, which may be over someone. It levels
+           * and descends under control, and then it stops, which is the part
+           * that was missing: see flight-safety.h.
+           */
+          if (d.present) failsafe.noteThrottle(d.throttle);
+          const FailsafePhase fp =
+              failsafe.update(d.present, accelMag, gyroMag, LOOP_MS);
+
+          if (fp == FSP_DONE) {
+            armLatch = false; state = FS_DISARMED;
+            armCleared = true; armBlockReason = AB_FAILSAFE_LANDED;
+            block = AB_FAILSAFE_LANDED;
+          } else if (fp == FSP_NONE) {
+            state = FS_ARMED;
+          } else {
+            state = FS_FAILSAFE;
+          }
         }
       }
     }
@@ -227,12 +312,12 @@ static void rateTask(void *) {
       float rollRateSp, pitchRateSp;
 
       if (state == FS_FAILSAFE) {
-        // Level, no yaw, and a descent. 35% is below hover thrust for this
-        // airframe, so it comes down at roughly 1.5 m/s rather than dropping.
+        // Level, no yaw, and the phase decides the throttle: a brief hold at
+        // roughly what the pilot had, then a descent, then nothing.
         rollRateSp  = angleToRate(0.0f, att.rollDeg,  angleKp, MAX_RATE_DPS);
         pitchRateSp = angleToRate(0.0f, att.pitchDeg, angleKp, MAX_RATE_DPS);
         d.yawRate = 0.0f;
-        thr = 0.35f;
+        thr = failsafe.throttle();
       } else if (d.levelMode) {
         rollRateSp  = angleToRate(d.roll,  att.rollDeg,  angleKp, MAX_RATE_DPS);
         pitchRateSp = angleToRate(d.pitch, att.pitchDeg, angleKp, MAX_RATE_DPS);
@@ -243,9 +328,28 @@ static void rateTask(void *) {
         thr = d.throttle;
       }
 
-      mRoll  = pidRoll.update(rollRateSp,  s.gyro.x, RATE_DT, saturated);
-      mPitch = pidPitch.update(pitchRateSp, s.gyro.y, RATE_DT, saturated);
-      mYaw   = pidYaw.update(d.yawRate,     s.gyro.z, RATE_DT, saturated);
+      /*
+       * A critically low pack lands the aircraft rather than waiting for it to
+       * fall. Applied after the mode has chosen a throttle so it caps every
+       * mode, including a failsafe descent that is already under way.
+       */
+      if (battery.stage() == BATT_CRITICAL) thr = fminf(thr, FAILSAFE_THROTTLE);
+
+      /*
+       * The rate loop reads filtered gyro, not raw.
+       *
+       * Only the P and I paths change: RatePid already filters its own
+       * derivative, and feeding it a pre-filtered signal would stack two lags
+       * on the one term least able to afford it.
+       */
+      const bool dynamicNotch = (state == FS_ARMED || state == FS_FAILSAFE);
+      const float gx = gyroRoll.apply(s.gyro.x, dynamicNotch);
+      const float gy = gyroPitch.apply(s.gyro.y, dynamicNotch);
+      const float gz = gyroYaw.apply(s.gyro.z, dynamicNotch);
+
+      mRoll  = pidRoll.update(rollRateSp,  gx, RATE_DT, saturated);
+      mPitch = pidPitch.update(pitchRateSp, gy, RATE_DT, saturated);
+      mYaw   = pidYaw.update(d.yawRate,     gz, RATE_DT, saturated);
 
       const MixOutput mix = mixQuadX(thr, mRoll, mPitch, mYaw);
       saturated = mix.saturated;
@@ -257,9 +361,70 @@ static void rateTask(void *) {
       if (thr > 0.25f) inAir = true;
     } else {
       saturated = false;
-      for (int i = 0; i < MOTOR_COUNT; i++) motors[i] = 0.0f;
-      esc.stopAll();
       inAir = false;
+
+      /*
+       * Bench modes, only ever reachable from a disarmed aircraft.
+       *
+       * Both drive motors without the flight controller, which is why they are
+       * gated this hard: the request comes from the cloud, but it is granted
+       * here, on the only core that knows whether the aircraft is flying. A
+       * request that arrives mid-flight falls through to the stop below.
+       */
+      const int req = benchRequest;
+
+      if (req == BR_BEEP) {
+        // Locator. Cheap, harmless, and the one bench command that is safe
+        // with props fitted.
+        esc.beep();
+        benchRequest = BR_NONE;
+        for (int i = 0; i < MOTOR_COUNT; i++) motors[i] = 0.0f;
+        esc.stopAll();
+      } else if (req == BR_MOTOR_TEST && d.present && d.throttle <= 0.03f) {
+        /*
+         * Spins one motor at a fixed low throttle so the installer can confirm
+         * order and direction. The live radio link with the throttle down is
+         * required so there is always a physical way to stop it — pulling the
+         * transmitter's power drops the link and ends the test.
+         */
+        state = FS_MOTOR_TEST;
+        block = AB_BENCH_MODE;
+        const int m = benchMotor;
+        for (int i = 0; i < MOTOR_COUNT; i++) motors[i] = (i == m) ? benchThrottle : 0.0f;
+        esc.writeOne(m, benchThrottle);
+      } else if (req == BR_TURTLE && Ahrs::tiltDeg(att) > INVERTED_DEG && d.present) {
+        /*
+         * Turtle mode: the aircraft is upside down, so reversed props push it
+         * back over. Only offered when the attitude estimate actually says it
+         * is inverted — running this the right way up drives the airframe into
+         * the ground.
+         *
+         * The stick chooses which corner to lift; there is no stabilisation
+         * here, and there should not be, because the aircraft is not flying.
+         */
+        state = FS_TURTLE;
+        block = AB_BENCH_MODE;
+        if (!turtleArmed) { esc.setReversed(true); turtleArmed = true; }
+
+        const float rollCmd = rc.axis(0);
+        const float pitchCmd = rc.axis(1);
+        for (int i = 0; i < MOTOR_COUNT; i++) motors[i] = 0.0f;
+        if (fabsf(rollCmd) > 0.25f || fabsf(pitchCmd) > 0.25f) {
+          // M1 FR, M2 RR, M3 RL, M4 FL — pick the corner the sticks point at.
+          const int idx = (pitchCmd > 0.0f)
+              ? (rollCmd > 0.0f ? 0 : 3)
+              : (rollCmd > 0.0f ? 1 : 2);
+          motors[idx] = TURTLE_THROTTLE;
+          esc.writeOne(idx, TURTLE_THROTTLE);
+        } else {
+          esc.stopAll();
+        }
+      } else {
+        if (turtleArmed) { esc.setReversed(false); turtleArmed = false; }
+        if (req != BR_NONE) benchRequest = BR_NONE;
+        for (int i = 0; i < MOTOR_COUNT; i++) motors[i] = 0.0f;
+        esc.stopAll();
+      }
     }
 
     // ---- publish shared state ------------------------------------------
@@ -277,6 +442,10 @@ static void rateTask(void *) {
     shared.armedAtMs = armLatch ? armedAt : 0;
     shared.loopMaxUs = loopMaxUs;
     shared.inAir = inAir;
+    shared.failsafePhase = (uint8_t)failsafe.phase();
+    shared.battStage = (uint8_t)battery.stage();
+    shared.notchHz = gyroRoll.notchHz();
+    shared.crashed = crash.crashed();
     taskEXIT_CRITICAL(&stateMux);
 
     vTaskDelayUntil(&last, period);
@@ -286,12 +455,50 @@ static void rateTask(void *) {
 // ---------------------------------------------------------------------------
 // Commands from the cloud
 //
-// Tuning and configuration only. There is deliberately no arm, takeoff or
-// stick input here: the safety case for this aircraft rests on a pilot with a
-// transmitter in line of sight, and an arm command arriving over Wi-Fi from a
-// browser breaks that case completely.
+// Tuning, configuration, and the bench tools. There is deliberately no arm,
+// takeoff or stick input here: the safety case for this aircraft rests on a
+// pilot with a transmitter in line of sight, and an arm command arriving over
+// Wi-Fi from a browser breaks that case completely.
+//
+// The bench tools are the one thing here that moves a motor, and they are
+// requests rather than instructions — the rate loop grants them, because it is
+// the half that knows whether the aircraft is armed. See the bench block in
+// rateTask().
 // ---------------------------------------------------------------------------
 static void onCommand(const String &action, JsonObjectConst p) {
+  if (action == "beep") {
+    // Locator for an aircraft in long grass. Safe with props on: the ESCs make
+    // the motors sing without turning them.
+    benchRequest = BR_BEEP;
+    return;
+  }
+
+  if (action == "motorTest") {
+    /*
+     * PROPS OFF. The firmware cannot check that, which is exactly why the
+     * request is refused unless the aircraft is disarmed, on a live radio link
+     * with the throttle down — the rate loop enforces all three — and why the
+     * console asks the installer to confirm it.
+     */
+    const int m = p["motor"] | -1;
+    const float t = p["throttle"] | 0.10f;
+    if (m < 0 || m >= MOTOR_COUNT) return;
+    benchMotor = m;
+    benchThrottle = clampf(t, 0.0f, 0.25f);   // bench test, not a run-up
+    benchRequest = BR_MOTOR_TEST;
+    return;
+  }
+
+  if (action == "turtle") {
+    benchRequest = (p["on"] | false) ? BR_TURTLE : BR_STOP;
+    return;
+  }
+
+  if (action == "benchStop") {
+    benchRequest = BR_STOP;
+    return;
+  }
+
   if (action == "set") {
     bool armedNow;
     taskENTER_CRITICAL(&stateMux);
@@ -468,10 +675,27 @@ void publishFullState() {
   cv.set("link", rc.linkUp());
   cv.set("mode", s.state == FS_FAILSAFE ? "failsafe"
                : s.state == FS_FAULT ? "fault"
+               : s.state == FS_TURTLE ? "turtle"
+               : s.state == FS_MOTOR_TEST ? "motorTest"
                : armed ? "stabilise" : "disarmed");
   cv.set("ready", s.block == AB_NONE && s.state != FS_FAULT);
   cv.set("readyReason", armBlockName(s.block));
   cv.set("failsafe", s.state == FS_FAILSAFE);
+  /*
+   * Which stage of the failsafe, not just that one is running.
+   *
+   * "failsafe: true" for twelve seconds tells a reviewer nothing about whether
+   * the aircraft was still holding, already descending, or had put itself down
+   * — and that is the first question asked after any radio-loss event.
+   */
+  cv.set("failsafePhase", s.failsafePhase == FSP_HOLD ? "hold"
+                        : s.failsafePhase == FSP_DESCEND ? "descend"
+                        : s.failsafePhase == FSP_DONE ? "landed"
+                        : "none");
+  cv.set("battStage", s.battStage == BATT_CRITICAL ? "critical"
+                    : s.battStage == BATT_WARN ? "warn" : "ok");
+  cv.set("crashed", s.crashed);
+  cv.set("notchHz", s.notchHz);
   cv.set("roll", s.att.rollDeg);
   cv.set("pitch", s.att.pitchDeg);
   cv.set("yaw", s.att.yawDeg);

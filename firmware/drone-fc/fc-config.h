@@ -125,6 +125,8 @@
  */
 #define RATE_HZ    1000
 #define RATE_DT    (1.0f / (float)RATE_HZ)
+/** The same period in whole milliseconds, for the safety timers. */
+#define LOOP_MS    (1000u / RATE_HZ)
 
 /** Attitude (angle) loop. Slower on purpose -- see control.h. */
 #define ANGLE_HZ   250
@@ -162,6 +164,16 @@
 /** Idle throttle when armed, so the props spin and the aircraft is obviously live. */
 #define MOTOR_IDLE         0.055f
 #define MOTOR_MAX          1.0f
+
+/**
+ * Throttle used to flip an inverted aircraft back over.
+ *
+ * Enough to lift a 610 g airframe's corner against reversed props, which are
+ * far less efficient than the right way round. Not higher: turtle mode runs
+ * with no stabilisation at all, and a corner that leaves the ground fast
+ * becomes an aircraft skittering across it under power.
+ */
+#define TURTLE_THROTTLE    0.40f
 
 // ---------------------------------------------------------------------------
 // Types
@@ -203,6 +215,14 @@ enum FlightState : uint8_t {
   FS_ARMED,
   FS_FAILSAFE,
   FS_FAULT,
+  /*
+   * Bench states. Neither can be entered while the aircraft believes it is
+   * flying, and both exist so the things people currently do by arming the
+   * aircraft with props on — checking motor order, righting it after a crash —
+   * have a way to happen that is not "arm it and nudge the throttle".
+   */
+  FS_MOTOR_TEST,
+  FS_TURTLE,
 };
 
 /** Why the aircraft refuses to arm, or why it disarmed itself. */
@@ -217,6 +237,9 @@ enum ArmBlock : uint8_t {
   AB_LOOP_OVERRUN,
   AB_TILT,
   AB_SWITCH_ON_AT_BOOT,
+  AB_CRASHED,
+  AB_FAILSAFE_LANDED,
+  AB_BENCH_MODE,
 };
 
 static inline const char *armBlockName(ArmBlock b) {
@@ -231,6 +254,9 @@ static inline const char *armBlockName(ArmBlock b) {
     case AB_LOOP_OVERRUN:      return "control loop missed its deadline";
     case AB_TILT:              return "tilted past the recovery limit";
     case AB_SWITCH_ON_AT_BOOT: return "arm switch was already on at power-up";
+    case AB_CRASHED:           return "crash detected - disarm and check the aircraft";
+    case AB_FAILSAFE_LANDED:   return "failsafe landed the aircraft";
+    case AB_BENCH_MODE:        return "bench mode is active";
     default:                   return "not ready";
   }
 }
@@ -263,4 +289,11 @@ struct SharedState {
   uint32_t armedAtMs;
   uint32_t loopMaxUs;
   bool inAir;
+  /* Added with the staged failsafe and the filter chain, so the console and
+     the flight log can show why an aircraft came down and what the notch was
+     tracking when it did. */
+  uint8_t failsafePhase;
+  uint8_t battStage;
+  float notchHz;
+  bool crashed;
 };

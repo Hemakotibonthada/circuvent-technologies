@@ -279,7 +279,10 @@ export interface LiveAircraft {
 export interface DroneCommand {
   action:
     | "arm" | "disarm" | "takeoff" | "land" | "rtl" | "loiter"
-    | "brake" | "goto" | "mission" | "mode" | "set" | "state";
+    | "brake" | "goto" | "mission" | "mode" | "set" | "state"
+    /* Bench tools — refused by the control plane and again by the firmware on
+       anything that might be airborne. See platform/api/src/drone/safety.ts. */
+    | "beep" | "motorTest" | "turtle" | "benchStop";
   alt?: number;
   lat?: number;
   lon?: number;
@@ -294,6 +297,10 @@ export interface DroneCommand {
   minBatt?: number;
   minSats?: number;
   requireHome?: boolean;
+  /** Bench tools: which motor to spin, at what throttle, and turtle on/off. */
+  motor?: number;
+  throttle?: number;
+  on?: boolean;
 }
 
 export interface Flight {

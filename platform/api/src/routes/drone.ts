@@ -87,6 +87,15 @@ const commandSchema = z.object({
   minBatt: z.number().int().min(0).max(90).optional(),
   minSats: z.number().int().min(4).max(30).optional(),
   requireHome: z.boolean().optional(),
+  /*
+   * Bench-tool parameters. Bounded here as well as in checkCommand and again
+   * in the firmware: this one stops a malformed request reaching the safety
+   * check at all, and the 25% ceiling is what keeps a "motor test" from being
+   * a full-throttle run-up on a bench nobody bolted the aircraft to.
+   */
+  motor: z.number().int().min(0).max(7).optional(),
+  throttle: z.number().min(0).max(0.25).optional(),
+  on: z.boolean().optional(),
 });
 
 /**

@@ -46,6 +46,16 @@
 #define DSHOT_T0H 12   // 1200 ns
 #define DSHOT_T0L 21   // 2100 ns
 
+/*
+ * Gap between repeated command frames.
+ *
+ * A DShot300 frame is 16 bits at 3333 ns, so ~53 us on the wire. Waiting a
+ * little over that guarantees the RMT buffer has clocked out before the next
+ * write replaces it — without the wait, ten "repeats" become one frame plus
+ * nine overwrites, and the ESC never sees the repetition the protocol requires.
+ */
+#define DSHOT_FRAME_GAP_US 80
+
 class DShot {
  public:
   bool begin(const int pins[MOTOR_COUNT]) {
@@ -77,6 +87,80 @@ class DShot {
   void stopAll() {
     if (!_ready) return;
     for (int i = 0; i < MOTOR_COUNT; i++) sendFrame(i, 0, false);
+  }
+
+  /** One motor, for the bench motor test. Everything else is held stopped. */
+  void writeOne(int idx, float throttle) {
+    if (!_ready) return;
+    for (int i = 0; i < MOTOR_COUNT; i++) {
+      uint16_t value = 0;
+      if (i == idx && throttle > 0.0f) {
+        value = (uint16_t)(48.0f + clampf(throttle, 0.0f, 1.0f) * (2047.0f - 48.0f));
+      }
+      sendFrame(i, value, false);
+    }
+  }
+
+  /*
+   * DShot special commands.
+   *
+   * Values 0..47 are commands rather than throttle, which is the whole reason
+   * the throttle range starts at 48. They are the only way to reach the ESC
+   * without a servo tester: beep at it to find a lost aircraft, and reverse
+   * its direction to drive a crashed one back onto its feet.
+   *
+   * Two rules from the protocol, both of which produce silent no-ops if
+   * ignored: the telemetry bit must be set for a command to be acted on, and
+   * the command must be repeated — the ESC deliberately requires several
+   * identical frames so a single corrupted one cannot reprogram it.
+   */
+  enum Command : uint16_t {
+    CMD_MOTOR_STOP = 0,
+    CMD_BEEP1 = 1,
+    CMD_BEEP2 = 2,
+    CMD_BEEP3 = 3,
+    CMD_BEEP4 = 4,
+    CMD_BEEP5 = 5,
+    CMD_ESC_INFO = 6,
+    CMD_SAVE_SETTINGS = 12,
+    CMD_SPIN_NORMAL = 20,
+    CMD_SPIN_REVERSED = 21,
+  };
+
+  /** Sends one command to one motor, repeated as the protocol requires. */
+  void command(int idx, Command cmd, uint8_t repeat = 10) {
+    if (!_ready || idx < 0 || idx >= MOTOR_COUNT) return;
+    for (uint8_t r = 0; r < repeat; r++) {
+      sendFrame(idx, (uint16_t)cmd, true);
+      // The ESC samples commands at frame rate; back-to-back RMT writes on the
+      // same channel would overwrite the buffer before it has clocked out.
+      delayMicroseconds(DSHOT_FRAME_GAP_US);
+    }
+  }
+
+  void commandAll(Command cmd, uint8_t repeat = 10) {
+    for (int i = 0; i < MOTOR_COUNT; i++) command(i, cmd, repeat);
+  }
+
+  /**
+   * Audible locator.
+   *
+   * The buzzer on the board runs off the flight battery through the FC; if the
+   * aircraft has come down hard enough to break that, the ESCs and motors are
+   * usually still intact and can be made to sing instead. This is what finds a
+   * quad in long grass.
+   */
+  void beep() { commandAll(CMD_BEEP3, 3); }
+
+  /**
+   * Reverses motor direction for turtle mode, and puts it back afterwards.
+   *
+   * Deliberately not saved to ESC EEPROM: CMD_SAVE_SETTINGS would make the
+   * reversal survive a power cycle, and an aircraft that boots with two motors
+   * running backwards flips itself into the ground on the next arm.
+   */
+  void setReversed(bool reversed) {
+    commandAll(reversed ? CMD_SPIN_REVERSED : CMD_SPIN_NORMAL, 10);
   }
 
  private:

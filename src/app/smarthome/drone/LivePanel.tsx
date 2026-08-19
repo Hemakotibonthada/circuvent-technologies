@@ -372,6 +372,71 @@ export function LivePanel() {
             </p>
           </Surface>
 
+          {/*
+            Bench tools.
+            
+            Kept in their own surface, below the flight commands and only while
+            the aircraft is on the ground, because they are the opposite kind of
+            thing: they drive a motor directly with no controller behind it. The
+            control plane refuses each one on anything that might be airborne
+            and the firmware refuses them again, but the strongest signal is not
+            offering them next to "Take-off".
+          */}
+          {!bool(active.state, "inAir") && !bool(active.state, "armed") && (
+            <Surface>
+              <h3 className="text-sm font-semibold">Bench tools</h3>
+              <p className="mt-1 text-xs opacity-70">
+                For an aircraft on the bench or in a hedge — not for one that is flying.
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  busy={busy === "beep"}
+                  onClick={() => void send({ action: "beep" }, "Locator beep")}
+                >
+                  Find it (beep)
+                </Button>
+                <Button
+                  variant="ghost"
+                  busy={busy === "turtle"}
+                  onClick={() => void send({ action: "turtle", on: true }, "Turtle mode")}
+                >
+                  Flip it back over
+                </Button>
+                <Button
+                  variant="ghost"
+                  busy={busy === "benchStop"}
+                  onClick={() => void send({ action: "benchStop" }, "Bench stop")}
+                >
+                  Stop
+                </Button>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs font-medium">Motor test</p>
+                <p className="mt-0.5 text-xs opacity-70">
+                  Spins one motor at 10% so you can check order and direction.{" "}
+                  <strong>Take the propellers off first.</strong>
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[0, 1, 2, 3].map((m) => (
+                    <Button
+                      key={m}
+                      variant="ghost"
+                      busy={busy === "motorTest"}
+                      onClick={() =>
+                        void send({ action: "motorTest", motor: m, throttle: 0.1 }, `Motor ${m + 1}`)
+                      }
+                    >
+                      M{m + 1}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </Surface>
+          )}
+
           <div className="text-xs opacity-60">
             <Radio className="mr-1 inline h-3 w-3" />
             {active.deviceId}
