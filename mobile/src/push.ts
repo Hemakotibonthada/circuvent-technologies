@@ -3,7 +3,16 @@ import { Platform } from "react-native";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    /*
+     * shouldShowAlert was split in SDK 53. iOS distinguishes a banner from a
+     * Notification Centre entry, and the single old flag could not say which,
+     * so it is deprecated in favour of the two below. Both are set: a delivery
+     * alert the user misses should still be waiting in the list, because these
+     * carry device events — a door unlocking, a tank filling — that matter
+     * after the banner has gone.
+     */
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
   }),

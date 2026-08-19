@@ -67,7 +67,15 @@ export function installTextScaling(): void {
     Component.render = function patched(this: unknown, ...args: unknown[]) {
       const element = original.apply(this, args);
       if (currentScale === 1) return element;
-      const style = (element.props as { style?: unknown }).style;
+      /*
+       * React 19 retyped ReactElement.props from `any` to `unknown`, so it can
+       * no longer be spread without saying what it is. Narrowed once here
+       * rather than at each use — the cast is the same assertion the line
+       * below was already making about `style`, just stated where it is true
+       * for the whole object.
+       */
+      const props = element.props as Record<string, unknown>;
+      const style = props.style;
       const flat = StyleSheet.flatten(style as never) as { fontSize?: number } | undefined;
       const size = flat?.fontSize;
       /* No explicit size means the platform default, which the OS already
@@ -75,7 +83,7 @@ export function installTextScaling(): void {
       if (typeof size !== "number") return element;
       return {
         ...element,
-        props: { ...element.props, style: [style, { fontSize: size * currentScale }] },
+        props: { ...props, style: [style, { fontSize: size * currentScale }] },
       } as React.ReactElement;
     };
   }
