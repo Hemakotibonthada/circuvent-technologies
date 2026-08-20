@@ -2503,4 +2503,112 @@ flowchart TB
     style vm fill:#FEF3C7,stroke:#B45309
 ```
 
-<!--ATLAS-CONTINUE-->
+## 12. The test map
+
+```mermaid
+flowchart LR
+    subgraph colocated["CO-LOCATED -- 116 files, next to the code they cover"]
+        routes["route.test.ts<br/>API handlers -- largest is<br/>admin/icm/route.test.ts (443 lines)"]
+        libts["lib/*.test.ts<br/>app-insights-usage (362)<br/>app-insights-query (324)"]
+        admints["admin/*.test.tsx<br/>insights-charts.test.tsx (322)"]
+    end
+
+    subgraph dedicated["tests/** -- 120 files, cross-cutting"]
+        fwsim["firmware simulation<br/>drone-flight-safety (336)<br/>camera-fps-parity (355)<br/>firmware-avi (424)"]
+        icm2["icm.test.ts (342)<br/>incident state machine"]
+        util2["lib/extended-utils.test.ts (316)"]
+        logo["report-logo.test.ts<br/>THE ONE FAILURE TODAY"]
+    end
+
+    subgraph e2edir["e2e/ -- 8 Playwright specs"]
+        pw["never run in CI --<br/>the workflow's own comment<br/>says so; .last-run.json is an<br/>undated local cache, not proof"]
+    end
+
+    subgraph untested2["UNTESTED -- confirmed by grep"]
+        dbts["src/lib/db.ts<br/>the entire DB access layer"]
+        cspts["src/lib/csp.ts<br/>generates the CSP header"]
+    end
+
+    style logo fill:#FEE2E2,stroke:#B91C1C
+    style pw fill:#FEF3C7,stroke:#B45309
+    style untested2 fill:#FEE2E2,stroke:#B91C1C
+```
+
+```
+   236 Jest suite files (120 under tests/**, 116 co-located src/**/*.test.*  --
+   the file count reconciles exactly against the runner's own report) run
+   4,328 tests in 49.5s. One fails today: report-logo.test.ts, because the
+   embedded base64 logo bytes drifted from the PNG on disk -- a small, honest
+   failure, not a flaky one. jest.config.js has no coverageThreshold key, so
+   none of this is enforced by a number -- and the 8 e2e/ Playwright specs,
+   the only tests that exercise a real browser, have never once run in CI (§9.4).
+```
+
+---
+
+## 13. Everything, on one page
+
+```
+   ╔══════════════════════════════════════════════════════════════════════════════════╗
+   ║         THE CIRCUVENT SUITE -- EVERYTHING IN THIS WORKING TREE, ONE PAGE         ║
+   ╠══════════════════════════════════════════════════════════════════════════════════╣
+   ║                                                                                  ║
+   ║ 5 web products, 1 Next.js app -> VERCEL EDGE (proxy.ts, NO auth gate)            ║
+   ║ -> 150 routes -> Neon Postgres, HTTP driver, NO transactions, 10 tables,         ║
+   ║    schema created at runtime by initDb() on every single call (§7.2)             ║
+   ║                                                                                  ║
+   ║ website/  -- this Next.js app, all of §1-10 below:                               ║
+   ║   marketing site + e-commerce/Razorpay -- admin back office, 83 routes           ║
+   ║   -- smart-home IoT console, 60+ sections -- public developer portal             ║
+   ║   150 API routes, 108 pages, 428,355 loc, 4,328 tests (1 failing)                ║
+   ║   35 file stores: 32 memory-only, 3 durable -- 5 auth schemes, and               ║
+   ║   proxy.ts, which does not gate a single one of them                             ║
+   ║                                                                                  ║
+   ║ everything else living in this same tree, none of it part of website/:           ║
+   ║   firmware/   30 sketches, 17 retail SKUs, ESP32, MQTTS -> one Oracle VM         ║
+   ║   platform/   that Oracle VM -- Mosquitto + Express + its OWN Postgres           ║
+   ║               + Caddy, none of it Vercel, none of it Neon (§11)                  ║
+   ║   hardware/   real KiCad PCB designs and Gerbers for the 17 SKUs                 ║
+   ║   mobile/     Expo app, SHIPPED v1.13.1 to the Play Store -- talks to            ║
+   ║               BOTH platform/ (device control) and website (catalogue)            ║
+   ║   native/     Kotlin/Swift prototype, iOS half has NEVER COMPILED                ║
+   ║   a drone and an RC car -- present on disk, never sold to anyone                 ║
+   ║   circuvent-platform/  an UNRELATED HR/payroll SaaS. Its README                  ║
+   ║               PUBLISHES SEED LOGINS. It shares a name and nothing                ║
+   ║               else -- see §3 for the diagram that says so loudly                 ║
+   ║                                                                                  ║
+   ╠══════════════════════════════════════════════════════════════════════════════════╣
+   ║ THE BIGGEST DEFECTS, IN ONE PLACE                                                ║
+   ║                                                                                  ║
+   ║ 32 of 35 file stores are memory-only in production -- CMS, CRM, pricing,         ║
+   ║ currency, tax config, feature flags, telemetry, dev-portal tokens, and           ║
+   ║ PASSKEYS all vanish on the next cold start (§7.4)                                ║
+   ║ Payment webhook verifies its signature, then does nothing -- a payment           ║
+   ║ with no browser return is never reconciled (§8.1)                                ║
+   ║ OTA is TLS-pinned but never checks an image hash or signature; the               ║
+   ║ manifest endpoint DOES exist, correcting 03_INTEGRATIONS (§8.2, §8.3)            ║
+   ║ proxy.ts sets the request id, the CSP header and the host rewrite --             ║
+   ║ it does not gate one single route (§10.1)                                        ║
+   ║ CI: 14 steps, 13 hard gates, 27 of 27 observed runs = startup_failure,           ║
+   ║ never once reaching step 1 of 14 (§9.4)                                          ║
+   ║ Neon's HTTP driver makes transactions impossible everywhere, always              ║
+   ║ (§7.2) -- the co-located platform/ Postgres is a different database              ║
+   ║ and does not share this limitation (§11.2)                                       ║
+   ║                                                                                  ║
+   ╠══════════════════════════════════════════════════════════════════════════════════╣
+   ║ OWNS: five customer-facing web products, a home-grown HMAC session               ║
+   ║       scheme, 35 file stores (32 of them one redeploy from empty), and           ║
+   ║       all 150 routes and 108 pages catalogued in §5.                             ║
+   ║ OWNS NOT: a transaction, a signed firmware image, a reconciled webhook,          ║
+   ║       a green CI run, or any relationship to the payroll app three               ║
+   ║       folders up that happens to share half its name.                            ║
+   ╚══════════════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+*Back to [`README.md`](./README.md) · [`01_SYSTEM_OVERVIEW.md`](./01_SYSTEM_OVERVIEW.md) ·
+[`02_DATABASE_AND_DATA_MODELS.md`](./02_DATABASE_AND_DATA_MODELS.md) ·
+[`03_INTEGRATIONS_AND_ECOSYSTEM.md`](./03_INTEGRATIONS_AND_ECOSYSTEM.md) ·
+[`04_MAINTENANCE_AND_OPERATIONS.md`](./04_MAINTENANCE_AND_OPERATIONS.md) ·
+[`05_AREAS_OF_ENHANCEMENT.md`](./05_AREAS_OF_ENHANCEMENT.md)*

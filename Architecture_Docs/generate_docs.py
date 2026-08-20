@@ -36,6 +36,7 @@ SOURCES = [
     ("03_INTEGRATIONS_AND_ECOSYSTEM.md", "Integrations & Ecosystem"),
     ("04_MAINTENANCE_AND_OPERATIONS.md", "Maintenance & Operations"),
     ("05_AREAS_OF_ENHANCEMENT.md", "Areas of Enhancement"),
+    ("06_ARCHITECTURE_DIAGRAMS.md", "Architecture Diagram Atlas"),
 ]
 
 TITLE = "Circuvent Technologies"
@@ -86,6 +87,12 @@ GLYPHS = {
     "\U0001f310": ("*", ""),         # 🌐
     "\U0001f4e6": ("*", "[pkg]"),    # 📦
     "\ufe0f": ("", ""),              # variation selector
+    "\U0001f535": (".", "[INFO]"),  # 🔵
+    "\u2b50": ("*", "*"),           # ⭐
+    "\u2716": ("x", "x"),           # ✖
+    "\u27e8": ("<", "<"),           # ⟨
+    "\u27e9": (">", ">"),           # ⟩
+    "\u2208": ("in", "in"),         # ∈
 }
 
 # Present in Consolas but absent from Calibri: flattened in prose only.
