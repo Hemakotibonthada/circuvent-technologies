@@ -166,6 +166,18 @@ export async function initDb(): Promise<void> {
     -- Admin role flag for the control-plane admin console.
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
+    -- Tier within the admin console: 'observer' (read-only) or 'operator'
+    -- (today's full access). Additive and backwards compatible — is_admin is
+    -- still the gate for whether a row can reach /admin at all, this only
+    -- subdivides what it may do once inside.
+    --
+    -- The default is load-bearing, not incidental: every account that is
+    -- already is_admin gets 'operator' the moment this column exists, which is
+    -- byte-identical to the access it had the instant before the migration
+    -- ran. A default of 'observer' here would quietly demote every current
+    -- admin to read-only on deploy and lock people out of production.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_role TEXT NOT NULL DEFAULT 'operator';
+
     -- Profile picture, as supplied by the identity provider at SSO sign-in.
     --
     -- Stored as the IdP's URL rather than a copy of the bytes. The directory is

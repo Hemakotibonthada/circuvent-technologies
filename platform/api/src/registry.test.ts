@@ -47,8 +47,13 @@ const DEVICE = {
 /** Every query the routes make, answered by what the SQL mentions. */
 function stubQueries(handler: (sql: string, params: unknown[]) => unknown[]): void {
   (pool as unknown as { query: unknown }).query = async (sql: string, params: unknown[] = []) => {
-    // The admin guard runs before every route.
-    if (sql.includes("is_admin")) return { rows: [{ is_admin: true, email: "ops@circuvent.com" }], rowCount: 1 };
+    // The admin guard runs before every route. This registry is exercised by an
+    // operator throughout, matching every one of these tests' existing
+    // expectations of full read/write access — the observer/operator split is
+    // covered separately in admin-roles.test.ts.
+    if (sql.includes("is_admin")) {
+      return { rows: [{ is_admin: true, email: "ops@circuvent.com", admin_role: "operator" }], rowCount: 1 };
+    }
     if (sql.includes("token_epoch") && sql.includes("blocked")) {
       return { rows: [{ token_epoch: "0", blocked: false }], rowCount: 1 };
     }

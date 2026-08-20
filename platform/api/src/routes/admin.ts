@@ -26,11 +26,39 @@ const adminEmails = new Set(
   config.ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
 );
 
+/**
+ * The two tiers inside the admin console.
+ *
+ * `is_admin` still decides whether a row can reach `/admin` at all — that gate
+ * is unchanged. `admin_role` only subdivides what it may do once it is in.
+ * Only these two values exist: `observer` can read everything below, exactly
+ * like an operator; `operator` can also change anything.
+ */
+export type AdminRole = "observer" | "operator";
+
+/**
+ * Fail closed. `admin_role` is a plain TEXT column, not an enum, so a hand
+ * edit, a future typo, or a value written before this existed can put anything
+ * in it. Only the exact string "operator" is treated as full access — null,
+ * empty, "Operator", or garbage are all read-only. Getting this backwards would
+ * mean a corrupt or unrecognised value silently grants control over locks and
+ * gates instead of taking it away, which is the one direction this must never
+ * fail in.
+ */
+export function normalizeAdminRole(raw: unknown): AdminRole {
+  return raw === "operator" ? "operator" : "observer";
+}
+
+/** adminGuard attaches the caller's normalized role here, once, per request. */
+interface AdminRequest extends AuthedRequest {
+  adminRole?: AdminRole;
+}
+
 /** requireAuth first, then confirm (or bootstrap) the admin role. */
-async function adminGuard(req: AuthedRequest, res: Response, next: NextFunction): Promise<void> {
+async function adminGuard(req: AdminRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { rows } = await pool.query<{ is_admin: boolean; email: string }>(
-      `SELECT is_admin, email FROM users WHERE id = $1`,
+    const { rows } = await pool.query<{ is_admin: boolean; email: string; admin_role: string }>(
+      `SELECT is_admin, email, admin_role FROM users WHERE id = $1`,
       [req.user!.uid]
     );
     const u = rows[0];
@@ -38,10 +66,14 @@ async function adminGuard(req: AuthedRequest, res: Response, next: NextFunction)
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    if (u.is_admin) return next();
+    if (u.is_admin) {
+      req.adminRole = normalizeAdminRole(u.admin_role);
+      return next();
+    }
     // Bootstrap: promote allow-listed emails on first admin access.
     if (adminEmails.has(u.email.toLowerCase())) {
       await pool.query(`UPDATE users SET is_admin = true WHERE id = $1`, [req.user!.uid]);
+      req.adminRole = normalizeAdminRole(u.admin_role);
       return next();
     }
     res.status(403).json({ error: "Admin access required" });
@@ -53,8 +85,30 @@ async function adminGuard(req: AuthedRequest, res: Response, next: NextFunction)
 
 adminRouter.use(requireAuth, adminGuard);
 
+/**
+ * Gate for every mutating route below. adminGuard already ran and attached the
+ * caller's normalized role from the same row it read, so this is a
+ * synchronous check with no extra query — observers are never slowed down,
+ * and there is no second, possibly-stale read for it to disagree with.
+ *
+ * An observer reaches every GET in this router unchanged; this is what stops
+ * them at anything that changes state — a broadcast, a firmware push, a
+ * delete, a transfer, a key reissue. The 403 names the role required so a
+ * support engineer sees why, instead of a bare "forbidden".
+ */
+function requireOperator(req: AdminRequest, res: Response, next: NextFunction): void {
+  if (req.adminRole === "operator") {
+    next();
+    return;
+  }
+  res.status(403).json({
+    error: "This action requires the operator role. Your account has observer (read-only) access.",
+    code: "operator_role_required",
+  });
+}
+
 /** GET /admin/me — confirm admin + who am I. */
-adminRouter.get("/me", async (req: AuthedRequest, res) => {
+adminRouter.get("/me", async (req: AdminRequest, res) => {
   // Name and avatar come from the row, not the JWT: tokens outlive profile
   // edits, so reading them here means a changed photo shows up on the next
   // page load instead of waiting for the session to expire.
@@ -68,6 +122,10 @@ adminRouter.get("/me", async (req: AuthedRequest, res) => {
     email: req.user!.email,
     name: r.rows[0]?.name ?? "",
     avatarUrl: r.rows[0]?.avatar_url ?? "",
+    // Cosmetic for the console — the real check is requireOperator on each
+    // mutating route below, which does not trust this or anything else the
+    // client sends back.
+    role: req.adminRole ?? "observer",
   });
 });
 
@@ -129,7 +187,7 @@ adminRouter.get("/app-installs", async (req, res) => {
 });
 
 /** PATCH /admin/users/:id — toggle admin role. */
-adminRouter.patch("/users/:id", async (req: AuthedRequest, res) => {
+adminRouter.patch("/users/:id", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z
     .object({ is_admin: z.boolean().optional(), blocked: z.boolean().optional() })
     .refine((v) => v.is_admin !== undefined || v.blocked !== undefined, "Nothing to change")
@@ -185,7 +243,7 @@ adminRouter.patch("/users/:id", async (req: AuthedRequest, res) => {
  * disabling it. The right action when a device is lost but the account is
  * fine, so the owner can simply sign in again.
  */
-adminRouter.post("/users/:id/revoke-sessions", async (req: AuthedRequest, res) => {
+adminRouter.post("/users/:id/revoke-sessions", requireOperator, async (req: AuthedRequest, res) => {
   const targetId = Number(req.params.id);
   if (!Number.isFinite(targetId)) {
     res.status(400).json({ error: "Invalid user id" });
@@ -198,7 +256,7 @@ adminRouter.post("/users/:id/revoke-sessions", async (req: AuthedRequest, res) =
 });
 
 /** DELETE /admin/users/:id — delete a user (cascades their devices' ownership). */
-adminRouter.delete("/users/:id", async (req: AuthedRequest, res) => {
+adminRouter.delete("/users/:id", requireOperator, async (req: AuthedRequest, res) => {
   if (Number(req.params.id) === req.user!.uid) {
     res.status(400).json({ error: "You cannot delete your own account here." });
     return;
@@ -302,7 +360,7 @@ adminRouter.get("/devices/lookup", async (req, res) => {
  * the key is present and should be verified, so the audit trail can record
  * that the credential really was produced.
  */
-adminRouter.post("/devices/claim-for-user", async (req: AuthedRequest, res) => {
+adminRouter.post("/devices/claim-for-user", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z
     .object({
       device: z.string().min(2),
@@ -374,7 +432,7 @@ adminRouter.post("/devices/claim-for-user", async (req: AuthedRequest, res) => {
  * It therefore requires a reason, and both the losing and gaining accounts are
  * told.
  */
-adminRouter.post("/devices/:id/assign", async (req: AuthedRequest, res) => {
+adminRouter.post("/devices/:id/assign", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z
     .object({
       ownerEmail: z.string().email().nullable(),
@@ -448,7 +506,7 @@ adminRouter.post("/devices/:id/assign", async (req: AuthedRequest, res) => {
  * that quietly minted a replacement would let a support call take a customer's
  * device offline with nothing on the record explaining why.
  */
-adminRouter.post("/devices/:id/reissue-key", async (req: AuthedRequest, res) => {
+adminRouter.post("/devices/:id/reissue-key", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z
     .object({ note: z.string().min(3, "Give a reason — this disconnects the device.").max(300) })
     .safeParse(req.body ?? {});
@@ -517,7 +575,7 @@ adminRouter.get("/devices/:id/report", async (req, res) => {
 });
 
 /** POST /admin/devices/:id/command — force a command to any device. */
-adminRouter.post("/devices/:id/command", async (req: AuthedRequest, res) => {
+adminRouter.post("/devices/:id/command", requireOperator, async (req: AuthedRequest, res) => {
   const payload = req.body ?? {};
   if (typeof payload !== "object") {
     res.status(400).json({ error: "Command body must be a JSON object." });
@@ -528,7 +586,7 @@ adminRouter.post("/devices/:id/command", async (req: AuthedRequest, res) => {
 });
 
 /** POST /admin/devices/:id/ota — push an OTA firmware update pointer. */
-adminRouter.post("/devices/:id/ota", async (req: AuthedRequest, res) => {
+adminRouter.post("/devices/:id/ota", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z.object({ url: z.string().url(), version: z.string().max(40).optional() }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "A firmware url is required." });
@@ -539,7 +597,7 @@ adminRouter.post("/devices/:id/ota", async (req: AuthedRequest, res) => {
 });
 
 /** DELETE /admin/devices/:id — force-remove a device from the fleet. */
-adminRouter.delete("/devices/:id", async (req: AuthedRequest, res) => {
+adminRouter.delete("/devices/:id", requireOperator, async (req: AuthedRequest, res) => {
   await pool.query(`DELETE FROM devices WHERE id = $1`, [req.params.id]);
   invalidateOwnership(req.params.id);
   deprovisionBrokerClient(req.params.id);
@@ -606,7 +664,7 @@ adminRouter.get("/devices/:id/telemetry", async (req, res) => {
 });
 
 /** PATCH /admin/devices/:id — rename / re-room / reassign owner. */
-adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
+adminRouter.patch("/devices/:id", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z
     .object({
       name: z.string().max(120).optional(),
@@ -662,7 +720,7 @@ adminRouter.patch("/devices/:id", async (req: AuthedRequest, res) => {
 });
 
 /** POST /admin/devices/provision — mint a new device id+key and assign an owner. */
-adminRouter.post("/devices/provision", async (req: AuthedRequest, res) => {
+adminRouter.post("/devices/provision", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z
     .object({ type: z.string().min(1).max(40), name: z.string().max(120).optional(), owner_id: z.number().int().optional() })
     .safeParse(req.body);
@@ -697,7 +755,7 @@ adminRouter.post("/devices/provision", async (req: AuthedRequest, res) => {
 });
 
 /** POST /admin/broadcast — publish a command to every device matching a filter. */
-adminRouter.post("/broadcast", async (req: AuthedRequest, res) => {
+adminRouter.post("/broadcast", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z
     .object({ type: z.string().optional(), online: z.boolean().optional(), command: z.record(z.unknown()) })
     .safeParse(req.body);
@@ -736,7 +794,7 @@ adminRouter.post("/broadcast", async (req: AuthedRequest, res) => {
 });
 
 /** POST /admin/ota-broadcast — push an OTA pointer to every device (optionally by type). */
-adminRouter.post("/ota-broadcast", async (req: AuthedRequest, res) => {
+adminRouter.post("/ota-broadcast", requireOperator, async (req: AuthedRequest, res) => {
   const parsed = z.object({ type: z.string().optional(), url: z.string().url(), version: z.string().max(40).optional() }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "A firmware url is required." });

@@ -36,12 +36,20 @@ Listens on `config.PORT` (8080 in Docker) and logs
   strings, not human-chosen).
 - `requireAuth` populates `req.user`; `requireAdmin` additionally requires the
   `is_admin` column.
+- Inside `/admin`, `users.admin_role` (`'observer'` | `'operator'`, default
+  `'operator'`) is a second, finer-grained tier that does **not** replace
+  `is_admin` — it only subdivides what an admin may do once inside. `observer`
+  can call every `GET` route; `operator` can also call anything that mutates
+  state. The `requireOperator` middleware in `routes/admin.ts` enforces this
+  and fails closed: any value other than exactly `'operator'` (missing,
+  unrecognised, wrong case) is treated as `observer`.
 
 Send the token as `Authorization: Bearer <jwt>`.
 
 ## Endpoints
 
-`[auth]` = requires a valid user JWT. `[admin]` = requires `is_admin`.
+`[auth]` = requires a valid user JWT. `[admin]` = requires `is_admin`; mutating
+`/admin` routes additionally require `admin_role = 'operator'` (see below).
 
 ### `/health`
 
@@ -178,27 +186,30 @@ See `platform/SMART_HOME.md` for the publishing process on each platform.
 
 ### `/admin`
 
-Every route requires an admin user (`users.is_admin`).
+Every route requires an admin user (`users.is_admin`). Rows marked
+**operator** additionally require `admin_role = 'operator'` — an `observer`
+gets a `403` naming the required role. Unmarked rows (all `GET`s) are open to
+either role.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/admin/me` | Confirm admin status |
+| GET | `/admin/me` | Confirm admin status (response includes `role`) |
 | GET | `/admin/stats` | Fleet-wide counters |
 | GET | `/admin/health` | Deeper health than `/health` |
 | GET | `/admin/users` | List users |
-| PATCH | `/admin/users/:id` | Update a user (including `is_admin`) |
-| DELETE | `/admin/users/:id` | Delete a user |
+| PATCH | `/admin/users/:id` | **operator** — update a user (including `is_admin`) |
+| DELETE | `/admin/users/:id` | **operator** — delete a user |
 | GET | `/admin/devices` | Every device, any owner |
 | GET | `/admin/devices/:id` | One device |
 | GET | `/admin/devices/:id/telemetry` | Telemetry for any device |
-| PATCH | `/admin/devices/:id` | Edit any device |
-| POST | `/admin/devices/provision` | Provision on a user's behalf |
-| POST | `/admin/devices/:id/command` | Command any device |
-| POST | `/admin/devices/:id/ota` | Push a firmware update to one device |
-| DELETE | `/admin/devices/:id` | Delete any device |
+| PATCH | `/admin/devices/:id` | **operator** — edit any device |
+| POST | `/admin/devices/provision` | **operator** — provision on a user's behalf |
+| POST | `/admin/devices/:id/command` | **operator** — command any device |
+| POST | `/admin/devices/:id/ota` | **operator** — push a firmware update to one device |
+| DELETE | `/admin/devices/:id` | **operator** — delete any device |
 | GET | `/admin/events` | Global event feed |
-| POST | `/admin/broadcast` | Send a notification to all users |
-| POST | `/admin/ota-broadcast` | Push firmware to a whole device type |
+| POST | `/admin/broadcast` | **operator** — send a notification to all users |
+| POST | `/admin/ota-broadcast` | **operator** — push firmware to a whole device type |
 
 ## The WebSocket
 
