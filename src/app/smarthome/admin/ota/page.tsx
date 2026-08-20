@@ -18,9 +18,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   DownloadCloud, Package, Rocket, ServerCog, Cpu, WifiOff, Plus, Pencil, Trash2,
-  ShieldCheck, CheckCircle2, RefreshCw, TriangleAlert, HardDrive, SendHorizontal,
+  ShieldCheck, CheckCircle2, RefreshCw, TriangleAlert, HardDrive, SendHorizontal, RotateCcw,
 } from "lucide-react";
 import { controlPlane, type AdminDevice } from "@/lib/control-plane";
+import { canarySize, classifyRollback } from "@/lib/ota-rollout";
 import {
   useAdminDevices, useAdminConfig, useFleetInsights, deviceHealth, combine,
   type ConfigRecord, type ConfigResource,
@@ -52,7 +53,7 @@ interface FirmwareRow extends ConfigRecord {
 }
 
 type OtaTab = "deploy" | "field" | "catalogue";
-type TargetKind = "device" | "type" | "fleet";
+type TargetKind = "device" | "canary" | "type" | "fleet";
 
 interface PushOutcome {
   version: string;
@@ -61,6 +62,16 @@ interface PushOutcome {
   targetIds: string[];
   sent: number;
   at: number;
+  /**
+   * What each device was running immediately before this push.
+   *
+   * Captured here because it is the only moment it is knowable: once the
+   * devices check in and report the new version, the version they came from is
+   * gone. Without it "roll back" has no target to aim at.
+   */
+  priorVersions: Record<string, string>;
+  /** The type the build declared, so a rollback can find a matching build. */
+  deviceType: string;
 }
 
 export default function OtaPage() {
@@ -176,6 +187,15 @@ function DeployTab({
     if (!build) return [];
     if (kind === "device") return deviceId ? [deviceId] : [];
     if (kind === "type") return typeDevices.map((d) => d.id);
+    if (kind === "canary") {
+      /*
+       * Online devices first. A canary exists to tell you whether the build
+       * works, and an offline device tells you nothing — it will take the
+       * update whenever it reappears, long after you have decided.
+       */
+      const ordered = [...typeDevices].sort((a, b) => Number(b.online) - Number(a.online));
+      return ordered.slice(0, canarySize(typeDevices.length)).map((d) => d.id);
+    }
     return devices.map((d) => d.id);
   }, [build, kind, deviceId, typeDevices, devices]);
   const alreadyOn = useMemo(
@@ -205,6 +225,7 @@ function DeployTab({
       return d ? d.name || d.id : deviceId;
     }
     if (kind === "type") return `all ${build.deviceType} devices`;
+    if (kind === "canary") return `a canary of ${targetIds.length} ${build.deviceType} device${targetIds.length === 1 ? "" : "s"}`;
     return "the whole fleet";
   };
 
@@ -216,6 +237,16 @@ function DeployTab({
     setResult(null);
     const ids = targetIds.slice();
     const label = targetLabel();
+    /*
+     * Snapshotted before anything is dispatched. Once devices take the update
+     * and report in, what they were running is gone, and with it any way to
+     * roll back to it.
+     */
+    const priorVersions: Record<string, string> = {};
+    for (const id of ids) {
+      const d = devices.find((x) => x.id === id);
+      if (d?.fw_version) priorVersions[id] = d.fw_version;
+    }
     let ok = false;
     let sent = 0;
     let message = "";
@@ -223,6 +254,19 @@ function DeployTab({
       const r = await controlPlane.adminOta(deviceId, build.url, build.version);
       ok = r.ok; sent = 1;
       if (!ok) message = planeError(r.status, r.data);
+    } else if (kind === "canary") {
+      /*
+       * Sent per device rather than by broadcast: the broadcast endpoint takes
+       * a type or nothing, so there is no way to ask it for a subset. A canary
+       * is small by construction, so the extra calls are cheap.
+       */
+      const results = await Promise.all(ids.map((id) => controlPlane.adminOta(id, build.url, build.version)));
+      sent = results.filter((r) => r.ok).length;
+      ok = sent > 0;
+      if (sent !== ids.length) {
+        const failed = results.find((r) => !r.ok);
+        message = `${sent} of ${ids.length} accepted the update${failed ? `. ${planeError(failed.status, failed.data)}` : "."}`;
+      }
     } else if (kind === "type") {
       const r = await controlPlane.adminOtaBroadcast({ type: build.deviceType, url: build.url, version: build.version });
       ok = r.ok; sent = r.ok ? r.data.sent : 0;
@@ -235,7 +279,7 @@ function DeployTab({
     setBusy(false);
     setConfirming(false);
     if (ok) {
-      onPush({ version: build.version, url: build.url, targetLabel: label, targetIds: ids, sent, at: Date.now() });
+      onPush({ version: build.version, url: build.url, targetLabel: label, targetIds: ids, sent, at: Date.now(), priorVersions, deviceType: build.deviceType });
       setResult({ ok: true, message: `Update to ${build.version} dispatched to ${num(sent)} device${sent === 1 ? "" : "s"}. They download and reboot on their next check-in.` });
       reloadDevices();
     } else {
@@ -262,6 +306,7 @@ function DeployTab({
               onChange={(k) => { setKind(k); setResult(null); }}
               options={[
                 { value: "device", label: "One device" },
+                { value: "canary", label: "Canary" },
                 { value: "type", label: "By type" },
                 { value: "fleet", label: "Whole fleet" },
               ]}
@@ -332,7 +377,7 @@ function DeployTab({
         </div>
       </Panel>
 
-      {lastPush && <RolloutPanel devices={devices} push={lastPush} />}
+      {lastPush && <RolloutPanel devices={devices} push={lastPush} firmware={firmware} reloadDevices={reloadDevices} />}
 
       <OfflinePanel offline={offline} />
 
@@ -360,10 +405,53 @@ function DeployTab({
   );
 }
 
-function RolloutPanel({ devices, push }: { devices: AdminDevice[]; push: PushOutcome }) {
+function RolloutPanel({
+  devices,
+  push,
+  firmware,
+  reloadDevices,
+}: {
+  devices: AdminDevice[];
+  push: PushOutcome;
+  firmware: FirmwareRow[];
+  reloadDevices: () => void;
+}) {
   const targeted = useMemo(() => devices.filter((d) => push.targetIds.includes(d.id)), [devices, push.targetIds]);
   const onTarget = targeted.filter((d) => d.fw_version === push.version);
   const pending = targeted.filter((d) => d.fw_version !== push.version);
+
+  const [confirmRollback, setConfirmRollback] = useState(false);
+  const [rollingBack, setRollingBack] = useState(false);
+  const [rollbackResult, setRollbackResult] = useState<string | null>(null);
+
+  /*
+   * Which devices can actually go back, and which cannot. The rule itself
+   * lives in `ota-rollout.ts` so it can be tested without mounting the page.
+   */
+  const rollback = useMemo(
+    () =>
+      classifyRollback(
+        targeted.map((d) => ({ id: d.id, name: d.name || d.id, priorVersion: push.priorVersions[d.id] })),
+        push.deviceType,
+        firmware
+      ),
+    [targeted, push.priorVersions, push.deviceType, firmware]
+  );
+
+  async function runRollback() {
+    setRollingBack(true);
+    const results = await Promise.all(
+      rollback.can.map((r) => controlPlane.adminOta(r.id, r.url, r.to))
+    );
+    const sent = results.filter((r) => r.ok).length;
+    setRollingBack(false);
+    setConfirmRollback(false);
+    setRollbackResult(
+      `Rollback dispatched to ${num(sent)} of ${num(rollback.can.length)} device${rollback.can.length === 1 ? "" : "s"}.` +
+        (rollback.cannot.length ? ` ${num(rollback.cannot.length)} could not be rolled back.` : "")
+    );
+    reloadDevices();
+  }
   const denom = push.targetIds.length || 1;
   const progress = (onTarget.length / denom) * 100;
 
@@ -372,12 +460,72 @@ function RolloutPanel({ devices, push }: { devices: AdminDevice[]; push: PushOut
       <SectionTitle right={<span className="text-xs ad-muted">pushed {relativeTime(push.at)}</span>}>
         Rollout · {push.version} → {push.targetLabel}
       </SectionTitle>
+      {rollbackResult && (
+        <div role="status" className="mb-3 rounded-lg border border-sky-500/25 bg-sky-500/[0.08] px-3 py-2 text-sm text-sky-200">
+          {rollbackResult}
+        </div>
+      )}
       <div className="mb-1.5 flex items-center justify-between text-sm">
         <span className="text-white tabular-nums">{num(onTarget.length)}/{num(push.targetIds.length)} on target</span>
         <span className="ad-muted tabular-nums">{progress.toFixed(0)}%</span>
       </div>
       <Progress value={progress} tone={progress >= 100 ? "green" : "brand"} />
       <p className="mt-2 text-[11px] ad-muted">Recomputed live from device state as units report in — not an estimate.</p>
+
+      <div className="mt-3 flex items-center gap-2">
+        <Btn
+          variant="subtle"
+          onClick={() => setConfirmRollback(true)}
+          disabled={rollback.can.length === 0}
+          title={rollback.can.length === 0 ? "No device in this push has a previous build still in the catalogue." : undefined}
+        >
+          <RotateCcw className="h-4 w-4" /> Roll back
+        </Btn>
+        <span className="text-[11px] ad-muted">
+          {rollback.can.length > 0
+            ? `${num(rollback.can.length)} can return to their previous build`
+            : "Nothing here can be rolled back"}
+          {rollback.cannot.length > 0 && ` · ${num(rollback.cannot.length)} cannot`}
+        </span>
+      </div>
+
+      <Modal open={confirmRollback} onClose={() => { if (!rollingBack) setConfirmRollback(false); }} title="Roll back this release">
+        <div className="space-y-3">
+          <p className="text-sm ad-muted">
+            Each device is sent the build it was running before this push. That is another firmware flash, not an
+            undo — the devices download and reboot again.
+          </p>
+          <Field label={`Returning to a previous build (${num(rollback.can.length)})`}>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-2">
+              {rollback.can.map((r) => (
+                <div key={r.id} className="flex items-center justify-between text-xs text-slate-200">
+                  <span className="truncate">{r.name}</span>
+                  <span className="ad-muted tabular-nums">{push.version} → {r.to}</span>
+                </div>
+              ))}
+              {rollback.can.length === 0 && <p className="text-xs ad-muted">None.</p>}
+            </div>
+          </Field>
+          {rollback.cannot.length > 0 && (
+            <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              <p className="mb-1 font-semibold">
+                {num(rollback.cannot.length)} device{rollback.cannot.length === 1 ? "" : "s"} will stay on {push.version}:
+              </p>
+              <ul className="space-y-0.5">
+                {rollback.cannot.map((c) => (
+                  <li key={c.id} className="truncate">{c.name} — {c.why}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Btn variant="subtle" onClick={() => setConfirmRollback(false)} disabled={rollingBack}>Cancel</Btn>
+            <Btn variant="primary" onClick={runRollback} disabled={rollingBack || rollback.can.length === 0}>
+              <RotateCcw className="h-4 w-4" /> {rollingBack ? "Rolling back…" : `Roll back ${num(rollback.can.length)}`}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
 
       {pending.length > 0 && (
         <div className="mt-4">
