@@ -1,0 +1,101 @@
+▲ Next.js 16.2.11 (Turbopack)
+- Local:         http://localhost:3007
+- Network:       http://10.26.0.77:3007
+- Environments: .env.local
+✓ Ready in 14.5s
+✓ Compiled workflows in 3.7s (18 steps, 2 workflows)
+Warning: Custom Cache-Control headers detected for the following routes:
+  - /_next/static/:path*
+
+Setting a custom Cache-Control header can break Next.js development behavior.
+- Experiments (use with caution):
+  · optimizePackageImports
+
+○ Compiling /team ...
+ GET /team 200 in 7.0s (next.js: 5.3s, proxy.ts: 715ms, application-code: 1012ms)
+ GET /team 200 in 319ms (next.js: 17ms, proxy.ts: 14ms, application-code: 288ms)
+[browser] eval() is not supported in this environment. If this page was served with a `Content-Security-Policy` header, make sure that `unsafe-eval` is included. React requires eval() in development mode for various debugging features like reconstructing callstacks from a different environment.
+React will never use eval() in production mode 
+    at checkEvalAvailabilityOnceDev (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:22:25)
+    at createResponseFromOptions (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:2627:9)
+    at exports.createFromReadableStream (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:2822:24)
+    at module evaluation (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:15194:29)
+    at <unknown> (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:15324:47)
+    at <unknown> (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:194:9)
+    at loadScriptsInSequence (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:158:16)
+    at appBootstrap (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:187:5)
+    at module evaluation (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:15323:32) (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:22:25)
+[browser] Image with src "https://res.cloudinary.com/djucuoojo/image/upload/v1758719410/Chiru_iw7icr.png" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489:13)
+Error [TimeoutError]: The operation was aborted due to timeout
+    at ignore-listed frames {
+  code: 23,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+○ Compiling /api/visitors ...
+ GET /team 200 in 2.2s (next.js: 131ms, proxy.ts: 93ms, application-code: 1988ms)
+[browser] eval() is not supported in this environment. If this page was served with a `Content-Security-Policy` header, make sure that `unsafe-eval` is included. React requires eval() in development mode for various debugging features like reconstructing callstacks from a different environment.
+React will never use eval() in production mode 
+    at checkEvalAvailabilityOnceDev (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:22:25)
+    at createResponseFromOptions (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:2627:9)
+    at exports.createFromReadableStream (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:2822:24)
+    at module evaluation (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:15194:29)
+    at <unknown> (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:15324:47)
+    at <unknown> (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:194:9)
+    at loadScriptsInSequence (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:158:16)
+    at appBootstrap (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:187:5)
+    at module evaluation (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:15323:32) (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js:22:25)
+[browser] Image with src "https://res.cloudinary.com/djucuoojo/image/upload/v1786709859/Profile-Picture_tvkjlt.png" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489:13)
+ POST /api/visitors 200 in 745ms (next.js: 340ms, proxy.ts: 331ms, application-code: 75ms)
+[browser] Image with src "https://res.cloudinary.com/djucuoojo/image/upload/v1758719410/Chiru_iw7icr.png" was detected as the Largest Contentful Paint (LCP). Please add the `loading="eager"` property if this image is above the fold.
+Read more: https://nextjs.org/docs/app/api-reference/components/image#loading (file://C:/Users/v-hbonthada/WorkSpace-Pract/Office Apps/Office Apps/WebSite/.next/dev/static/chunks/node_modules_next_dist_1ybzpk2._.js:2489:13)
+✓ Compiled workflows in 23.5s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.1s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.6s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.0s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.6s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.2s (18 steps, 2 workflows)
+✓ Compiled workflows in 8.0s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.0s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.5s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.5s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.5s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.9s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.3s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.2s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.7s (18 steps, 2 workflows)
+✓ Compiled workflows in 12.5s (18 steps, 2 workflows)
+✓ Compiled workflows in 12.6s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.8s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.7s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.1s (18 steps, 2 workflows)
+✓ Compiled workflows in 10.8s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.4s (18 steps, 2 workflows)
+✓ Compiled workflows in 4.7s (18 steps, 2 workflows)
+✓ Compiled workflows in 5.1s (18 steps, 2 workflows)
+✓ Compiled workflows in 8.1s (18 steps, 2 workflows)
