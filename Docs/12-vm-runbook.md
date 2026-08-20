@@ -12,6 +12,11 @@ VPS, a mini-PC or a Raspberry Pi.
 `platform/ORACLE_SETUP.md` has the click-by-click Oracle walkthrough. This
 document is the operational view.
 
+For the machine that is running **right now** — its IP, how to SSH in, how to
+deploy to it, how migrations are applied and what to check when it misbehaves —
+see [40 — The control-plane VM: operations manual](./40-vm-operations.md). This
+document covers building a VM; that one covers running the one we have.
+
 | Requirement | Minimum | Comfortable |
 | --- | --- | --- |
 | vCPU | 1 | 2–4 |
@@ -33,6 +38,7 @@ Internet ──▶ :80/:443  caddy   ──internal──▶  api:8080  ──�
 | --- | --- | --- | --- |
 | `caddy` | `caddy:2-alpine` | 80, 443 | Automatic TLS for `api.circuvent.com` |
 | `api` | built from `platform/api` | — | Only reachable through Caddy |
+| `face` | built from `platform/face` | — | Face embeddings for door and attendance recognition; internal only |
 | `mosquitto` | `eclipse-mosquitto:2` | 8883 | TLS listener for devices; 1883 internal only |
 | `postgres` | `postgres:16-alpine` | — | Never exposed |
 
