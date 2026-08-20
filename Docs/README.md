@@ -49,6 +49,7 @@ below is reference material that assumes you can already run things.
 | **Drive a car from a phone, without the video stalling the steering** | [38 — The RC platform](./38-rc-platform.md) |
 | **Catch a device that is lying about itself** | [39 — Circuvent Witness](./39-witness.md) |
 | **Reach, deploy to, migrate or repair the VM** | [40 — The control-plane VM: operations manual](./40-vm-operations.md) |
+| **Bring attendance.circuvent.com up** | [41 — The attendance hostname](./41-attendance-domain.md) |
 
 ### Working here
 
