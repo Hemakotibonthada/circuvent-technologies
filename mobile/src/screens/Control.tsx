@@ -105,6 +105,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
         {d.type === "agri-starter" && <AgriStarter d={d} send={send} c={c} />}
         {d.type === "watertank" && <WaterTank d={d} send={send} c={c} />}
         {d.type === "rfid-gate" && <RfidGate d={d} send={send} c={c} />}
+        {d.type === "rfid-attend" && <AttendanceReader d={d} send={send} c={c} />}
       {d.type === "curtain" && <Curtain d={d} send={send} c={c} />}
       {d.type === "rccar" && <RcCar d={d} send={send} c={c} />}
       {d.type === "switchboard" && <ConfigurableBoard d={d} send={send} c={c} />}
@@ -149,7 +150,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
  * precisely how the camera shipped showing JSON on the phone, and it is why
  * adding to this array is on the checklist in Docs/07-adding-a-new-device.md.
  */
-const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "meter", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "curtain", "switchboard", "facedoor", "touchboard", "touchboard-8", "sentinel", "anpr-cam", "drone-link", "drone-x1"];
+const KNOWN = ["aquaguard", "home-hub", "smart-plug", "smart-switch", "energy-monitor", "meter", "guardian", "motion-sensor", "agri-starter", "watertank", "rfid-gate", "curtain", "switchboard", "facedoor", "touchboard", "touchboard-8", "sentinel", "anpr-cam", "drone-link", "drone-x1", "rfid-attend"];
 
 // ------------------------------------------------------------ shared bits ---
 
@@ -2656,3 +2657,203 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
   },
 });
+
+/*
+ * The attendance reader.
+ *
+ * This device had no controls at all, so the screen fell through to the raw
+ * state dump -- twenty JSON fields where the door release should be. Everything
+ * here maps to a command the firmware already accepts (`open`, `sync`, `set`);
+ * nothing is invented, and the numeric bounds are the firmware's own clamps
+ * rather than guesses, so the app cannot ask for a setting the device will
+ * silently refuse.
+ */
+function AttendanceReader({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const st = d.state || {};
+  const doorOpen = !!st.doorOpen;
+  const released = !!st.doorReleased;
+  const mode = String(st.mode ?? "both");
+  const direction = String(st.direction ?? "in");
+  const queued = Number(st.queued ?? 0);
+  const scansToday = Number(st.scansToday ?? 0);
+  const aclCount = Number(st.aclCount ?? 0);
+  const readerOk = !!st.reader;
+  const setupMode = !!st.setupMode;
+
+  const set = (patch: Record<string, unknown>) => send({ action: "set", ...patch });
+
+  return (
+    <View>
+      {/*
+        * The reader is the whole point of the device. When it is down the unit
+        * still reports online and still opens on the exit button, so nothing
+        * else on this screen would tell you that nobody's card works.
+        */}
+      {!readerOk && (
+        <Card padded style={{ marginBottom: 12, borderColor: c.red, borderWidth: 1 }}>
+          <Text style={{ color: c.red, fontWeight: "700", marginBottom: 4 }}>Card reader not responding</Text>
+          <Text style={{ color: c.textDim, fontSize: 12, lineHeight: 17 }}>
+            The unit is online but the reader is not answering, so no card will be accepted. Exit-button
+            and remote release still work.
+          </Text>
+        </Card>
+      )}
+
+      <Card padded style={{ marginBottom: 12, alignItems: "center", borderColor: doorOpen ? c.amber : c.border, borderWidth: 1 }}>
+        <Text style={{ fontSize: 22, fontWeight: "800", color: doorOpen ? c.amber : released ? c.green : c.textDim }}>
+          {doorOpen ? "DOOR OPEN" : released ? "UNLOCKED" : "SECURE"}
+        </Text>
+        <Text style={{ color: c.faint, marginTop: 6, fontSize: 13 }}>
+          {String(st.terminalName ?? "Terminal")} · {scansToday} scan{scansToday === 1 ? "" : "s"} today
+        </Text>
+      </Card>
+
+      <Pressable
+        onPress={() => Alert.alert(
+          "Release the door?",
+          "This unlocks it now and is recorded as a punch with no card, so the log has no unexplained openings in it.",
+          [{ text: "Cancel", style: "cancel" }, { text: "Release", style: "destructive", onPress: () => send({ action: "open" }) }]
+        )}
+        style={{ backgroundColor: c.accent, borderRadius: 16, paddingVertical: 16, alignItems: "center", marginBottom: 14 }}
+        accessibilityRole="button"
+        accessibilityLabel="Release the door"
+      >
+        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>Release door</Text>
+      </Pressable>
+
+      {/*
+        * Queued punches are scans taken while the unit could not reach the
+        * control plane. They are attendance records that exist only on the
+        * device, so a number here is a backlog worth clearing, not a fault.
+        */}
+      {queued > 0 && (
+        <Card padded style={{ marginBottom: 12 }}>
+          <Text style={{ color: c.amber, fontWeight: "700", marginBottom: 4 }}>{queued} punch{queued === 1 ? "" : "es"} waiting to upload</Text>
+          <Text style={{ color: c.textDim, fontSize: 12, lineHeight: 17, marginBottom: 10 }}>
+            Recorded while the reader was offline. They are stored on the device until they reach the server.
+          </Text>
+          <Pressable
+            onPress={() => send({ action: "sync" })}
+            style={{ borderColor: c.borderHi, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: "center" }}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: c.text, fontWeight: "700" }}>Upload now</Text>
+          </Pressable>
+        </Card>
+      )}
+
+      <Section c={c}>Terminal</Section>
+      <Card padded>
+        <Row label="Records" c={c} stack>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {(["attendance", "access", "both"] as const).map((m) => (
+              <Pressable
+                key={m}
+                onPress={() => set({ mode: m })}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: mode === m ? c.accent : "transparent", borderWidth: 1, borderColor: mode === m ? c.accent : c.borderHi }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: mode === m }}
+              >
+                <Text style={{ color: mode === m ? "#fff" : c.textDim, fontWeight: "700", fontSize: 12 }}>
+                  {m === "attendance" ? "Attendance" : m === "access" ? "Door only" : "Both"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Row>
+        <Row label="Counts as" c={c} stack>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {(["in", "out", "auto"] as const).map((v) => (
+              <Pressable
+                key={v}
+                onPress={() => set({ direction: v })}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: direction === v ? c.accent : "transparent", borderWidth: 1, borderColor: direction === v ? c.accent : c.borderHi }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: direction === v }}
+              >
+                <Text style={{ color: direction === v ? "#fff" : c.textDim, fontWeight: "700", fontSize: 12 }}>
+                  {v === "in" ? "Entry" : v === "out" ? "Exit" : "Auto"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Row>
+        <Row label="Beep on scan" c={c}><Sw v={!!st.buzzer} on={(b) => set({ buzzer: b })} c={c} /></Row>
+        {/*
+          * Fail-open decides what a power-cut-off-from-the-server door does.
+          * It is a fire-safety and security trade-off rather than a preference,
+          * so it says which way it falls instead of just naming itself.
+          */}
+        <Row label="If the server is unreachable" c={c} stack>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={{ color: c.textDim, fontSize: 12, flex: 1, paddingRight: 10 }}>
+              {st.offlineFailOpen ? "Let people through on any card" : "Only cards already stored on the device"}
+            </Text>
+            <Sw v={!!st.offlineFailOpen} on={(b) => set({ offlineFailOpen: b })} c={c} />
+          </View>
+        </Row>
+      </Card>
+
+      <Section c={c}>Timing</Section>
+      <Card padded>
+        <StepRow label="Unlock for" value={Number(st.relaySec ?? 5)} unit="s" min={1} max={30} step={1} onChange={(v) => set({ relaySec: v })} c={c} />
+        <StepRow label="Ignore repeat scans for" value={Number(st.dedupeSec ?? 8)} unit="s" min={1} max={120} step={1} onChange={(v) => set({ dedupeSec: v })} c={c} />
+        <StepRow label="Warn if held open" value={Number(st.heldOpenSec ?? 30)} unit="s" min={5} max={600} step={5} onChange={(v) => set({ heldOpenSec: v })} c={c} />
+      </Card>
+
+      <Section c={c}>Cards</Section>
+      <Card padded>
+        <Row label="Cards on this reader" c={c}><Text style={{ color: c.text, fontWeight: "700" }}>{aclCount}</Text></Row>
+        <Row label="List version" c={c}><Text style={{ color: c.textDim }}>{String(st.aclVersion ?? 0)}</Text></Row>
+        {setupMode && (
+          <Text style={{ color: c.amber, fontSize: 12, lineHeight: 17, marginTop: 6 }}>
+            In enrolment mode — the next card scanned is captured for assignment rather than checked.
+          </Text>
+        )}
+        <Text style={{ color: c.faint, fontSize: 12, lineHeight: 17, marginTop: 8 }}>
+          Cards are assigned to people in the attendance console. This reader holds a copy so it keeps
+          working when the network does not.
+        </Text>
+      </Card>
+    </View>
+  );
+}
+
+/**
+ * A number you change by stepping, not by typing.
+ *
+ * The bounds are the firmware's own clamps. Letting somebody enter 0 seconds
+ * for a door strike -- which the device silently rewrites to 1 -- shows a value
+ * that is not the one in force, and the screen then disagrees with the door.
+ */
+function StepRow({ label, value, unit, min, max, step, onChange, c }: {
+  label: string; value: number; unit: string; min: number; max: number; step: number;
+  onChange: (v: number) => void; c: Palette;
+}) {
+  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+  return (
+    <Row label={label} c={c}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Pressable
+          onPress={() => onChange(clamp(value - step))}
+          disabled={value <= min}
+          accessibilityRole="button"
+          accessibilityLabel={`Decrease ${label}`}
+          style={{ width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: c.borderHi, alignItems: "center", justifyContent: "center", opacity: value <= min ? 0.35 : 1 }}
+        >
+          <Text style={{ color: c.text, fontSize: 18, fontWeight: "700" }}>−</Text>
+        </Pressable>
+        <Text style={{ color: c.text, fontWeight: "700", minWidth: 52, textAlign: "center" }}>{value}{unit}</Text>
+        <Pressable
+          onPress={() => onChange(clamp(value + step))}
+          disabled={value >= max}
+          accessibilityRole="button"
+          accessibilityLabel={`Increase ${label}`}
+          style={{ width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: c.borderHi, alignItems: "center", justifyContent: "center", opacity: value >= max ? 0.35 : 1 }}
+        >
+          <Text style={{ color: c.text, fontSize: 18, fontWeight: "700" }}>+</Text>
+        </Pressable>
+      </View>
+    </Row>
+  );
+}
