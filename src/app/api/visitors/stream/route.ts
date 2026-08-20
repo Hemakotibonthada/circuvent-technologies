@@ -78,7 +78,13 @@ export async function GET(request: NextRequest) {
           release();
         }
       }, KEEPALIVE_MS);
-      keepalive.unref?.();
+      /*
+       * Node's timers can be unref'd so a pending keepalive does not hold the
+       * invocation open; the DOM's are plain numbers and cannot. Which one
+       * `setInterval` resolves to here depends on lib configuration rather
+       * than on where this runs, so the value is asked rather than asserted.
+       */
+      (keepalive as { unref?: () => void }).unref?.();
 
       // A client that navigates away aborts the request; without this the
       // stream is only released when the next broadcast happens to throw.

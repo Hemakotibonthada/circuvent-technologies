@@ -109,7 +109,7 @@ export default function Navigation() {
   const pathname = usePathname();
   const lastScrollY = useRef(0);
   const navRef = useRef<HTMLElement>(null);
-  const dropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Scroll handling with direction detection
   useEffect(() => {

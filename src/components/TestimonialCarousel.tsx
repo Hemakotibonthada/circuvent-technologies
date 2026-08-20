@@ -29,7 +29,7 @@ export default function TestimonialCarousel({
   const [direction, setDirection] = useState(1);
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { margin: "-100px" });
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const next = useCallback(() => {
     setDirection(1);

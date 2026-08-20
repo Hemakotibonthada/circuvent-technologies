@@ -150,7 +150,7 @@ export default function CodeShowcase({ className, typingSpeed = 40 }: CodeShowca
   const [isTyping, setIsTyping] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentExample = codeExamples[activeExample];
 

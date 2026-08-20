@@ -82,7 +82,7 @@ export function useTypewriter({
     if (isComplete && !loop) return;
 
     const currentWord = words[wordIndex];
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
 
     if (!isDeleting) {
       if (text.length < currentWord.length) {

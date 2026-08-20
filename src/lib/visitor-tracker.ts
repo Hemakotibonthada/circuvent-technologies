@@ -70,6 +70,21 @@ const ACTIVE_WINDOW_MS = 5 * 60_000;
 /** Guards the live map against a flood of distinct hashes. */
 const MAX_TRACKED = 5_000;
 
+/**
+ * Releases a timer's hold on the event loop, where the runtime has such a
+ * concept.
+ *
+ * Node's timers can be unref'd so a pending one does not keep a serverless
+ * invocation alive; the DOM's are plain numbers and cannot. Which of the two
+ * `setInterval` resolves to depends on the lib configuration rather than on
+ * where the code actually runs, so this asks the value itself instead of
+ * asserting a type it may not have. The call was already optional at runtime —
+ * this makes the type agree with what the runtime was doing.
+ */
+function unrefTimer(t: ReturnType<typeof setInterval> | undefined): void {
+  (t as { unref?: () => void } | undefined)?.unref?.();
+}
+
 /* ------------------------------------------------------------------ */
 /* Durable write buffer                                                */
 /* ------------------------------------------------------------------ */
@@ -106,8 +121,8 @@ class VisitorTracker {
     this.sweepTimer = setInterval(() => this.sweep(), 30_000);
     this.flushTimer = setInterval(() => void this.flush(), FLUSH_EVERY_MS);
     // Timers must not hold a serverless invocation open.
-    this.sweepTimer.unref?.();
-    this.flushTimer.unref?.();
+    unrefTimer(this.sweepTimer);
+    unrefTimer(this.flushTimer);
   }
 
   /**
