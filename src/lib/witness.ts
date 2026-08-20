@@ -276,11 +276,12 @@ export function powerBudget(primaryMilliamps: number, reportPeriodSec: number) {
 
   /*
    * One report: wake, settle the bias network, take a cycle of samples, and
-   * send one 802.15.4 frame. ~100 mA for ~20 ms at 3.3 V.
+   * send one ESP-NOW frame. ~100 mA for ~20 ms at 3.3 V.
    *
-   * 802.15.4 rather than Wi-Fi is what makes this possible at all — a Wi-Fi
-   * association costs hundreds of milliseconds of radio, which is an order of
-   * magnitude more energy than the entire budget below.
+   * A connectionless radio is what makes this possible at all. Every wake is a
+   * cold start, so an associating protocol would pay for a scan, an
+   * association and a lease before saying anything — more energy than this
+   * device has in a whole reporting interval.
    */
   const perReportMj = 0.100 * 0.020 * 3.3 * 1000;
 

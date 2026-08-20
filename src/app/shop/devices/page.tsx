@@ -24,6 +24,7 @@ import {
   Sprout,
   Waves,
   Car,
+  Eye,
   DoorOpen,
   LayoutGrid,
   Camera as CameraIcon,
@@ -73,6 +74,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   "agri-starter": Sprout,
   watertank: Waves,
   "rfid-gate": Car,
+  Eye,
   switchboard: ToggleLeft,
   facedoor: DoorOpen,
   touchboard: LayoutGrid,
@@ -86,6 +88,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   "drone-link": Plane,
   "drone-x1": Plane,
   rccar: Car,
+  witness: Eye,
 };
 
 export default function DevicesPage() {

@@ -27,6 +27,9 @@ const FIRMWARE_TOGGLE: Record<string, string | null> = {
   // car has no primary on/off — "mode" is what a screen changes, and
   // immobilised is one of its values rather than the off state of a switch.
   rccar: null,
+  // firmware/witness: it measures and reports. It has no output at all — that
+  // is the entire argument for trusting it.
+  witness: null,
   // firmware/touchboard: p["g1"] / p["g2"] / p["g3"] / p["all"]
   touchboard: "g1",
   // firmware/touchboard-8: p["g1"]..p["g8"] / p["all"] — same field shape,

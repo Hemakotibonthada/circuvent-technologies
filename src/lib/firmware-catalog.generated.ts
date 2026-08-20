@@ -253,4 +253,11 @@ export const GENERATED_FIRMWARE_CATALOG: FirmwareInfo[] = [
     { version: "1.1.0", notes: ["Holds SENSOR_EN low through deep sleep. The ESP32 releases digital outputs the moment it sleeps, so the line that switches off the ultrasonic module — the biggest idle draw on a unit that runs from a cell on a roof — floated for the whole interval. Also keeps the \"when did we last persist the sequence\" marker in RTC memory, so NVS is written every five hundred readings as intended rather than on every single wake."] },
     ],
   },
+  {
+    deviceType: "witness",
+    latestVersion: "1.0.0",
+    changelog: [
+    { version: "1.0.0", notes: ["initial firmware."] },
+    ],
+  },
 ];

@@ -69,7 +69,7 @@ optional and it is the first thing to check on any respin.
 | C1 | 0.47 F 5.5 V supercapacitor | The reason it can report while the load is off |
 | R1 | 22 Ω 0.1% | Burden |
 | U2 | TPS7A02 | 25 nA quiescent LDO |
-| U3 | ESP32-C6-MINI-1 | 802.15.4 + BLE 5 + Wi-Fi 6 |
+| U3 | ESP32-C3-MINI-1 | ESP-NOW; a C6 adds native 802.15.4 on a later revision |
 
 **Board: 25 × 25 mm, 4-layer**, fitting inside the CT clamp's own housing. Four
 layers rather than two for the ground pour under the antenna keep-out; the
@@ -85,13 +85,21 @@ re-runs.
 
 ```
 harvested   = (primary / 1000) × 3.0 V × 0.8      boost compliance and efficiency
-per report  = 100 mA × 20 ms × 3.3 V = 6.6 mJ     wake, sample, one 802.15.4 frame
+per report  = 100 mA × 20 ms × 3.3 V = 6.6 mJ     wake, sample, one ESP-NOW frame
 sleep       = 7 µA × 3.3 V = 23 µW
 ```
 
-802.15.4 rather than Wi-Fi is what makes this possible at all. A Wi-Fi
-association costs hundreds of milliseconds of radio — an order of magnitude
-more energy than the entire budget.
+**A connectionless radio is what makes this possible at all.** Every wake is a
+cold start — the chip keeps nothing but RTC memory through deep sleep — so an
+associating protocol would pay for a scan, an association and a DHCP lease
+before saying anything, which is more energy than the device has in a whole
+reporting interval. ESP-NOW has none of that: bring the radio up, send one
+frame, sleep.
+
+A C6 with native 802.15.4 would be cheaper still and would speak Zigbee and
+Thread directly. It is the obvious part for a second revision; this toolchain
+has no Arduino support for it yet, and a board that cannot be built is worse
+than a radio that is merely connectionless.
 
 | Load | Harvested | Sustainable cadence |
 | --- | --- | --- |
@@ -179,7 +187,7 @@ for trusting this sensor is precisely that it has no authority.
 | --- | --- |
 | Concept, schematic, BOM, power budget | Complete; schematic rendered and checked |
 | Disagreement engine | Complete, 20 tests |
-| Firmware | Not started |
+| Firmware | Complete, compiles at 11.8% RAM / 54.6% flash on an ESP32-C3 |
 | Console and app surfaces | Not started |
 | PCB layout, gerbers | Not started — no EDA tooling available in this environment |
 

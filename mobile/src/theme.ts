@@ -169,6 +169,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   "drone-link": "sensor",
   "drone-x1": "sensor",
   rccar: "sensor",
+  witness: "sensor",
   curtain: "entry",
   "smart-plug": "power",
   "energy-monitor": "power",
@@ -254,6 +255,7 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
    * driver, but the driving itself happens on the radio link, not on a tile.
    */
   rccar: { glyph: "🚗", icon: "vehicle", accent: C.amber, grad: GRAD.amber, label: "RC Car" },
+  witness: { glyph: "👁", icon: "shield", accent: C.green, grad: GRAD.green, label: "Witness" },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

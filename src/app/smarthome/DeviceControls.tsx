@@ -15,6 +15,7 @@ import {
   DoorOpen,
   LayoutGrid,
   Car,
+  Eye,
   Lock,
   LockOpen,
   Pencil,
@@ -159,6 +160,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   "drone-link": { label: "Drone Link", icon: Plane, accent: "#6366f1", blurb: "Flight telemetry & mission bridge" },
   "drone-x1": { label: "Drone X1", icon: Plane, accent: "#6366f1", blurb: "Circuvent flight stack" },
   "rccar": { label: "RC Car", icon: Car, accent: "#f97316", blurb: "Radio-linked vehicle with camera" },
+  "witness": { label: "Witness", icon: Eye, accent: "#10b981", blurb: "Checks what another device claims" },
 };
 
 export function deviceMeta(type: string): DeviceTypeMeta {
@@ -331,6 +333,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <Curtain d={device} send={send} st={st} />;
     case "rccar":
       return <RcCar d={device} send={send} st={st} />;
+    case "witness":
+      return <Witness d={device} send={send} st={st} />;
     case "switchboard":
       return <Switchboard d={device} send={send} st={st} />;
     case "facedoor":
@@ -2506,6 +2510,75 @@ function RfidGate({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
  * you where the car is up to, and taking it away from whoever has it. The
  * immobiliser is the whole point of this panel.
  */
+/**
+ * The Witness, from the console.
+ *
+ * It has no controls, because it has no outputs. Everything here is a readout,
+ * and the important one is not the current — it is whether the current agrees
+ * with what the device it watches is claiming about itself.
+ */
+function Witness({ d, st }: { d: Device; send: SendFn; st: StatusFn }) {
+  const ma = n(d.state.milliamps);
+  const reserveMv = n(d.state.reserveMv);
+  const verdict = typeof d.state.verdict === "string" ? d.state.verdict : "agree";
+  const detail = typeof d.state.detail === "string" ? d.state.detail : "";
+  const watching = typeof d.state.watching === "string" ? d.state.watching : null;
+
+  const watts = Math.round((ma / 1000) * 230);
+  const danger = verdict === "claims-off-but-drawing";
+  const warn = verdict === "claims-on-but-idle" || verdict === "watts-disagree";
+  const tone = danger ? "#f43f5e" : warn ? "#f59e0b" : "#10b981";
+
+  return (
+    <div>
+      <div
+        className="rounded-2xl border p-6"
+        style={{ borderColor: `${tone}55`, background: `${tone}12` }}
+      >
+        <div className="flex items-end justify-between">
+          <div className="text-5xl font-extrabold text-white">
+            {watts}
+            <span className="text-2xl text-slate-400"> W</span>
+          </div>
+          <div className="text-sm" style={{ color: tone }}>
+            {danger ? "Disagrees" : warn ? "Disagrees" : "Agrees"}
+          </div>
+        </div>
+        {!!detail && <p className="mt-3 text-sm text-slate-300">{detail}</p>}
+        {watching && (
+          <p className="mt-1 text-xs text-slate-500">
+            Clamped to {watching}. This sensor measures the circuit and has no idea what that
+            device reports — the two are compared on the server.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+        <div className="rounded-xl border border-white/10 p-4">
+          <p className="text-slate-400">Measured</p>
+          <p className="text-white">{ma.toFixed(0)} mA</p>
+        </div>
+        <div className="rounded-xl border border-white/10 p-4">
+          <p className="text-slate-400">Reserve</p>
+          <p className="text-white">{(reserveMv / 1000).toFixed(2)} V</p>
+          {/*
+            Shown because a flat sensor and an off appliance both produce
+            silence, and only one of them is worth acting on. Below 1.8 V the
+            server stops treating this sensor's readings as evidence.
+          */}
+          {reserveMv > 0 && reserveMv < 1800 && (
+            <p className="mt-1 text-xs" style={{ color: "#f59e0b" }}>
+              Running low — it recharges from the appliance it watches.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {st("verdict")}
+    </div>
+  );
+}
+
 function RcCar({ d, send, st }: { d: Device; send: SendFn; st: StatusFn }) {
   const mode = typeof d.state.mode === "string" ? d.state.mode : "immobilised";
   const speed = n(d.state.speedCms);
