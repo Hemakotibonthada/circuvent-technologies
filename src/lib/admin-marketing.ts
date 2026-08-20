@@ -53,7 +53,21 @@ interface MarketingDB {
   campaigns: Campaign[];
 }
 
-const store = createFileStore<MarketingDB>("admin-marketing.json", () => ({ segments: [], campaigns: [] }));
+const store = createFileStore<MarketingDB>(
+  "admin-marketing.json",
+  () => ({ segments: [], campaigns: [] }),
+  { durable: true }
+);
+
+/** Loads the authoritative copy before a request reads or writes. Every route awaits this first. */
+export async function revalidateMarketing(): Promise<void> {
+  await store.hydrate();
+}
+
+/** Waits for the pending database write to land — awaited before responding, not fired and forgotten. */
+export async function flushMarketing(): Promise<void> {
+  await store.flush();
+}
 
 // ------------------------------------------------------------- segments ----
 export function listSegments(): Segment[] {

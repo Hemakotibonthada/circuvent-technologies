@@ -15,12 +15,26 @@ export interface Macro {
   createdAt: string;
 }
 
-const store = createFileStore<{ macros: Macro[] }>("admin-macros.json", () => ({
-  macros: [
-    { id: shortId("macro"), title: "Order delayed", body: "Hi there, we're sorry for the delay on your order. Your package is on its way and should arrive within 2-3 business days.", category: "Shipping", usageCount: 0, createdAt: new Date().toISOString() },
-    { id: shortId("macro"), title: "Warranty claim next steps", body: "Thanks for reaching out. Please share your device ID/serial and a short description of the issue so we can start a warranty claim.", category: "Warranty", usageCount: 0, createdAt: new Date().toISOString() },
-  ],
-}));
+const store = createFileStore<{ macros: Macro[] }>(
+  "admin-macros.json",
+  () => ({
+    macros: [
+      { id: shortId("macro"), title: "Order delayed", body: "Hi there, we're sorry for the delay on your order. Your package is on its way and should arrive within 2-3 business days.", category: "Shipping", usageCount: 0, createdAt: new Date().toISOString() },
+      { id: shortId("macro"), title: "Warranty claim next steps", body: "Thanks for reaching out. Please share your device ID/serial and a short description of the issue so we can start a warranty claim.", category: "Warranty", usageCount: 0, createdAt: new Date().toISOString() },
+    ],
+  }),
+  { durable: true }
+);
+
+/** Loads the authoritative copy before a request reads or writes. Every route awaits this first. */
+export async function revalidateMacros(): Promise<void> {
+  await store.hydrate();
+}
+
+/** Waits for the pending database write to land — awaited before responding, not fired and forgotten. */
+export async function flushMacros(): Promise<void> {
+  await store.flush();
+}
 
 export function listMacros(category?: string): Macro[] {
   const rows = store.read().macros;

@@ -21,7 +21,17 @@ interface CrmDB {
   tags: Record<string, string[]>; // email -> tags
 }
 
-const store = createFileStore<CrmDB>("admin-crm.json", () => ({ notes: [], tags: {} }));
+const store = createFileStore<CrmDB>("admin-crm.json", () => ({ notes: [], tags: {} }), { durable: true });
+
+/** Loads the authoritative copy before a request reads or writes. Every route awaits this first. */
+export async function revalidateCrm(): Promise<void> {
+  await store.hydrate();
+}
+
+/** Waits for the pending database write to land — awaited before responding, not fired and forgotten. */
+export async function flushCrm(): Promise<void> {
+  await store.flush();
+}
 
 export type LtvTier = "new" | "bronze" | "silver" | "gold" | "platinum";
 

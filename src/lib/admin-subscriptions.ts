@@ -37,7 +37,17 @@ interface SubscriptionsDB {
   subscribers: Subscriber[];
 }
 
-const store = createFileStore<SubscriptionsDB>("admin-subscriptions.json", () => ({ plans: [], subscribers: [] }));
+const store = createFileStore<SubscriptionsDB>("admin-subscriptions.json", () => ({ plans: [], subscribers: [] }), { durable: true });
+
+/** Loads the authoritative copy before a request reads or writes. Every route awaits this first. */
+export async function revalidateSubscriptions(): Promise<void> {
+  await store.hydrate();
+}
+
+/** Waits for the pending database write to land — awaited before responding, not fired and forgotten. */
+export async function flushSubscriptions(): Promise<void> {
+  await store.flush();
+}
 
 export function listPlans(): Plan[] {
   return store.read().plans;

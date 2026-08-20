@@ -16,7 +16,17 @@ export interface SurveyResponse {
   at: string;
 }
 
-const store = createFileStore<{ responses: SurveyResponse[] }>("admin-surveys.json", () => ({ responses: [] }));
+const store = createFileStore<{ responses: SurveyResponse[] }>("admin-surveys.json", () => ({ responses: [] }), { durable: true });
+
+/** Loads the authoritative copy before a request reads or writes. Every route awaits this first. */
+export async function revalidateSurveys(): Promise<void> {
+  await store.hydrate();
+}
+
+/** Waits for the pending database write to land — awaited before responding, not fired and forgotten. */
+export async function flushSurveys(): Promise<void> {
+  await store.flush();
+}
 
 export function submitResponse(score: number, comment?: string, email?: string): SurveyResponse {
   return store.mutate((db) => {

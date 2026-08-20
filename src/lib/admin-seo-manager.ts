@@ -34,7 +34,17 @@ interface SeoDB {
   redirects: RedirectRule[];
 }
 
-const store = createFileStore<SeoDB>("admin-seo.json", () => ({ overrides: [], redirects: [] }));
+const store = createFileStore<SeoDB>("admin-seo.json", () => ({ overrides: [], redirects: [] }), { durable: true });
+
+/** Loads the authoritative copy before a request reads or writes. Every route awaits this first. */
+export async function revalidateSeo(): Promise<void> {
+  await store.hydrate();
+}
+
+/** Waits for the pending database write to land — awaited before responding, not fired and forgotten. */
+export async function flushSeo(): Promise<void> {
+  await store.flush();
+}
 
 export function listOverrides(): SeoOverride[] {
   return store.read().overrides;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { guard } from "@/lib/admin-auth";
 import { logAudit, listCustomers, upsertProduct } from "@/lib/store";
 import { parseCsv, validateRows, recordImport, listImports, recordExport, listExports, toCsv, type ImportKind } from "@/lib/admin-bulk";
-import { setTags } from "@/lib/admin-crm";
+import { setTags, revalidateCrm, flushCrm } from "@/lib/admin-crm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +50,10 @@ export async function POST(request: Request) {
         }
       } else {
         const knownEmails = new Set(listCustomers().map((c) => c.email.toLowerCase()));
+        // Tags are written to the CRM's own durable document, so it must be
+        // hydrated before this loop writes and flushed before the response —
+        // same as every route that calls into admin-crm.ts directly.
+        await revalidateCrm();
         for (const r of results.filter((x) => x.errors.length === 0)) {
           const email = r.data.email.toLowerCase();
           if (!knownEmails.has(email)) continue; // never create accounts from a CSV — tag existing customers only
@@ -57,6 +61,7 @@ export async function POST(request: Request) {
           if (tags.length) setTags(email, tags);
           committedCount++;
         }
+        await flushCrm();
       }
     }
 

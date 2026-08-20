@@ -46,7 +46,17 @@ interface AffiliatesDB {
   payouts: PayoutRequest[];
 }
 
-const store = createFileStore<AffiliatesDB>("admin-affiliates.json", () => ({ affiliates: [], conversions: [], payouts: [] }));
+const store = createFileStore<AffiliatesDB>("admin-affiliates.json", () => ({ affiliates: [], conversions: [], payouts: [] }), { durable: true });
+
+/** Loads the authoritative copy before a request reads or writes. Every route awaits this first. */
+export async function revalidateAffiliates(): Promise<void> {
+  await store.hydrate();
+}
+
+/** Waits for the pending database write to land — awaited before responding, not fired and forgotten. */
+export async function flushAffiliates(): Promise<void> {
+  await store.flush();
+}
 
 function genCode(name: string): string {
   return (name.replace(/[^a-zA-Z]/g, "").slice(0, 6) || "AFF").toUpperCase() + Math.floor(1000 + Math.random() * 9000);
