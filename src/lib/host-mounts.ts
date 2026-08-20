@@ -59,6 +59,23 @@ export const DEVELOPER_PAGES = [
 export const HOST_MOUNTS: HostMount[] = [
   { hosts: /^(home|iot)\.circuvent\.com$/i, prefix: "/smarthome" },
   { hosts: /^developer\.circuvent\.com$/i, prefix: "/developer", pages: DEVELOPER_PAGES },
+  /*
+   * Attendance is one page, and `pages: []` says so.
+   *
+   * The empty list is doing real work rather than being a placeholder: with it,
+   * anything other than the root on this hostname redirects to the main site.
+   * Without it, `attendance.circuvent.com/people` would rewrite to
+   * `/smarthome/attendance/people`, which cannot exist — the console keeps its
+   * sections in a `?tab=` query, not in the path. A 404 on a hostname somebody
+   * typed by hand is worse than landing them on the site that does have the
+   * page.
+   *
+   * It must also stay listed after the `home|iot` mount. `servedFromRoot`
+   * excludes every prefix, so `/smarthome/attendance` is already served
+   * unmapped on the main console — which is what keeps the existing
+   * home.circuvent.com/smarthome/attendance address working unchanged.
+   */
+  { hosts: /^attendance\.circuvent\.com$/i, prefix: "/smarthome/attendance", pages: [] },
 ];
 
 /**

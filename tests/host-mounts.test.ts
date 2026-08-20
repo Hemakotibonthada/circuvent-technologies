@@ -175,3 +175,69 @@ describe("the mount table itself", () => {
     }
   });
 });
+
+/*
+ * attendance.circuvent.com.
+ *
+ * A one-page mount, which makes the "path it does not serve" case the whole
+ * risk: the console keeps its sections in a ?tab= query rather than the path,
+ * so anything rewritten below the root can only ever be a 404.
+ */
+describe("the attendance hostname", () => {
+  const MAIN = "https://circuvent.com";
+
+  it("serves the attendance console at its root", () => {
+    expect(mountedPath("attendance.circuvent.com", "/")).toBe("/smarthome/attendance");
+    expect(mountAction("attendance.circuvent.com", "/", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/smarthome/attendance",
+    });
+  });
+
+  it("is recognised as a mounted host", () => {
+    expect(isMountedHost("attendance.circuvent.com")).toBe(true);
+    expect(mountPrefixFor("attendance.circuvent.com")).toBe("/smarthome/attendance");
+  });
+
+  it("ignores a port, so it works in development", () => {
+    expect(isMountedHost("attendance.circuvent.com:3000")).toBe(true);
+  });
+
+  /*
+   * The anchoring that stops somebody else serving our console on their
+   * origin. Without the trailing $, attendance.circuvent.com.attacker.net
+   * matches.
+   */
+  it("does not match a hostname that merely starts with it", () => {
+    expect(isMountedHost("attendance.circuvent.com.attacker.net")).toBe(false);
+    expect(isMountedHost("notattendance.circuvent.com")).toBe(false);
+  });
+
+  it("sends a path it does not have to the main site rather than a 404", () => {
+    expect(mountAction("attendance.circuvent.com", "/people", MAIN)).toEqual({
+      kind: "redirect",
+      url: "https://circuvent.com/people",
+    });
+  });
+
+  /*
+   * Shared paths must not be remapped on this hostname either. Missing /api
+   * here would send every console fetch to /smarthome/attendance/api/... and
+   * the page would render its shell and then do nothing, with no error.
+   */
+  it("leaves shared paths alone", () => {
+    expect(mountedPath("attendance.circuvent.com", "/api/attendance/live")).toBeNull();
+    expect(mountedPath("attendance.circuvent.com", "/_next/static/x.js")).toBeNull();
+    expect(mountedPath("attendance.circuvent.com", "/favicon.ico")).toBeNull();
+  });
+
+  /*
+   * The existing address has to keep working. Support notes, bookmarks and
+   * twelve files in this repo point at /smarthome/..., and a mount that broke
+   * them would be a worse outcome than not having the subdomain.
+   */
+  it("does not disturb the console's own address", () => {
+    expect(servedFromRoot("/smarthome/attendance")).toBe(true);
+    expect(mountedPath("home.circuvent.com", "/smarthome/attendance")).toBeNull();
+  });
+});
