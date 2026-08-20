@@ -701,7 +701,32 @@ void setup() {
   queueLoad();
 
   cv.onCommand(onCommand);
-  cv.setInterval(15000);
+  /*
+   * Heartbeat cadence, not publish cadence.
+   *
+   * The library already publishes the moment something changes: `set()` marks
+   * the document dirty only when a value actually differs, so a scan, a door
+   * opening or the queue draining goes out immediately. This interval is the
+   * separate "still here" publish that happens when nothing has changed at all.
+   *
+   * At 15 s that was 5,760 full state documents a day from a device whose
+   * entire job is to answer whether somebody attended — and on a reader that
+   * sees a few dozen scans, almost every one of those publishes carried the
+   * same twenty fields as the last.
+   *
+   * 30 s is the useful floor rather than a round number. The control plane
+   * marks a device offline once `last_seen` is older than DEVICE_STALE_SECONDS,
+   * which is 90 — so three heartbeats fit inside the window and two can be lost
+   * back to back before a healthy reader is reported as down. Going to 45 s
+   * would leave only two, and a single dropped publish would land exactly on
+   * the boundary; a door that reads as offline sends somebody to check
+   * hardware that is fine.
+   *
+   * Halving the idle traffic is the whole gain here. Attendance itself is not
+   * affected: punches are telemetry, published when they happen and queued to
+   * flash when the link is down.
+   */
+  cv.setInterval(30000);
   cv.setResetButton(RESET_BTN);
   cv.begin();
 

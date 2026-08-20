@@ -41,7 +41,7 @@ import {
   Zap,
 } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
-import { useRenderedPath } from "@/lib/use-mount-prefix";
+import { useMountPrefix, useRenderedPath } from "@/lib/use-mount-prefix";
 import { masterPower } from "@/lib/smarthome-command-map";
 import { useConsole } from "./ConsoleProvider";
 import { useConsoleTheme } from "./theme";
@@ -249,17 +249,31 @@ let adminCache: { uid: number; admin: boolean } | null = null;
  * the fleet. Security additionally gives up its Vehicles tab once the dedicated
  * ANPR section is showing — before that it is the only way to enrol a camera as
  * a lane and must stay, and after it there would be two doors to one room.
+ *
+ * `mountPrefix` is a question about the hostname. attendance.circuvent.com is
+ * mounted onto one section, and every other entry in this nav points at a path
+ * that hostname does not serve — following one redirects the operator off to
+ * the main site mid-task. A nav that leads out of the product is worse than a
+ * short one, so a section mount is shown only its own section. The plain
+ * `/smarthome` mount is not a section and is left whole.
  */
 export function visibleNav(
   nav: NavItem[],
-  { isAdmin, hasAnpr, hasAttendance }: { isAdmin: boolean; hasAnpr: boolean; hasAttendance?: boolean }
+  {
+    isAdmin,
+    hasAnpr,
+    hasAttendance,
+    mountPrefix,
+  }: { isAdmin: boolean; hasAnpr: boolean; hasAttendance?: boolean; mountPrefix?: string | null }
 ): NavItem[] {
+  const sectionMount = mountPrefix && mountPrefix !== "/smarthome" ? mountPrefix : null;
   return nav
     .filter(
       (n) =>
         (!n.adminOnly || isAdmin) &&
         (n.requires !== "anpr" || hasAnpr) &&
-        (n.requires !== "attendance" || Boolean(hasAttendance))
+        (n.requires !== "attendance" || Boolean(hasAttendance)) &&
+        (!sectionMount || n.href === sectionMount || n.href.startsWith(`${sectionMount}/`))
     )
     .map((n) =>
       n.href === "/smarthome/security" && hasAnpr
@@ -369,9 +383,10 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
 
   const { hasAnpr } = useAnprPresence();
   const { hasAttendance } = useAttendancePresence();
+  const mountPrefix = useMountPrefix();
   const nav = useMemo(
-    () => visibleNav(NAV, { isAdmin, hasAnpr, hasAttendance }),
-    [isAdmin, hasAnpr, hasAttendance]
+    () => visibleNav(NAV, { isAdmin, hasAnpr, hasAttendance, mountPrefix }),
+    [isAdmin, hasAnpr, hasAttendance, mountPrefix]
   );
   const current = useMemo(() => nav.find((n) => isActive(n)) ?? nav[0], [nav, isActive]);
 

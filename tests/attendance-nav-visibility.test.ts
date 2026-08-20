@@ -91,3 +91,69 @@ describe("the Attendance section", () => {
     ]);
   });
 });
+
+/**
+ * The nav on a section-mounted hostname.
+ *
+ * attendance.circuvent.com serves one section. Every other entry in this nav
+ * points at a path that hostname does not serve, and following one redirects
+ * the operator off to the main site in the middle of what they were doing --
+ * so the nav must not offer them.
+ *
+ * Both directions are silent again: too many entries is a nav that walks you
+ * out of the product, too few on the main site is a console that lost its
+ * sections.
+ */
+describe("nav on a mounted hostname", () => {
+  const all = { isAdmin: true, hasAnpr: true, hasAttendance: true };
+
+  it("shows only the attendance section on the attendance hostname", () => {
+    const nav = visibleNav(NAV, { ...all, mountPrefix: "/smarthome/attendance" });
+    expect(nav.map((n) => n.href)).toEqual(["/smarthome/attendance"]);
+  });
+
+  /*
+   * home.circuvent.com mounts the whole console, not a section. Filtering it
+   * to items under "/smarthome" would leave only the overview and strip every
+   * other section from the console people actually use daily.
+   */
+  it("leaves the whole console intact on the console hostname", () => {
+    const mounted = visibleNav(NAV, { ...all, mountPrefix: "/smarthome" });
+    const main = visibleNav(NAV, { ...all, mountPrefix: null });
+    expect(mounted).toEqual(main);
+    expect(mounted.length).toBeGreaterThan(1);
+  });
+
+  it("is unchanged on the main site", () => {
+    const withUndefined = visibleNav(NAV, all);
+    const withNull = visibleNav(NAV, { ...all, mountPrefix: null });
+    expect(withUndefined).toEqual(withNull);
+    expect(withUndefined.length).toBeGreaterThan(1);
+  });
+
+  /*
+   * The mount cannot resurrect a section the account should not see. A home
+   * with no readers reaching attendance.circuvent.com gets an empty nav, not a
+   * register it never bought.
+   */
+  it("still respects what the account has", () => {
+    const nav = visibleNav(NAV, {
+      isAdmin: true,
+      hasAnpr: false,
+      hasAttendance: false,
+      mountPrefix: "/smarthome/attendance",
+    });
+    expect(nav).toEqual([]);
+  });
+
+  it("matches a section's own sub-paths, not a sibling with the same prefix", () => {
+    const nav = visibleNav(
+      [
+        { href: "/smarthome/attendance", label: "Attendance" },
+        { href: "/smarthome/attendance-archive", label: "Archive" },
+      ] as NavItem[],
+      { ...all, mountPrefix: "/smarthome/attendance" }
+    );
+    expect(nav.map((n) => n.href)).toEqual(["/smarthome/attendance"]);
+  });
+});
