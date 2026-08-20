@@ -1,0 +1,149 @@
+src/app/                                                   108 page.tsx files
+│                                                        32 top-level groups
+├── about/page.tsx                                                    1 page
+│
+├── admin/page.tsx                                                    1 page
+│
+├── app/page.tsx                                                      1 page
+│
+├── architecture/page.tsx                                             1 page
+│
+├── blog/                                                             2 pages
+│   ├── page.tsx
+│   └── [slug]/page.tsx
+│
+├── careers/                                                          2 pages
+│   ├── page.tsx
+│   └── [id]/page.tsx
+│
+├── cart/page.tsx                                                     1 page
+│
+├── case-studies/page.tsx                                             1 page
+│
+├── checkout/page.tsx                                                 1 page
+│
+├── contact/page.tsx                                                  1 page
+│
+├── dev/                                                              1 page
+│   └── controls/page.tsx
+│
+├── developer/                                                        10 pages
+│   ├── page.tsx
+│   ├── authentication/page.tsx
+│   ├── browser/page.tsx
+│   ├── commands/page.tsx
+│   ├── endpoints/page.tsx
+│   ├── errors/page.tsx
+│   ├── limits/page.tsx
+│   ├── quickstart/page.tsx
+│   ├── scopes/page.tsx
+│   └── webhooks/page.tsx
+│
+├── docs/page.tsx                                                     1 page
+│
+├── domains/                                                          2 pages
+│   ├── page.tsx
+│   └── [slug]/page.tsx
+│
+├── faq/page.tsx                                                      1 page
+│
+├── open-source/page.tsx                                              1 page
+│
+├── page.tsx                                                          1 page
+│
+├── privacy/page.tsx                                                  1 page
+│
+├── projects/                                                         2 pages
+│   ├── page.tsx
+│   └── [id]/page.tsx
+│
+├── returns-policy/page.tsx                                           1 page
+│
+├── roadmap/page.tsx                                                  1 page
+│
+├── services/page.tsx                                                 1 page
+│
+├── shipping/page.tsx                                                 1 page
+│
+├── shop/                                                             6 pages
+│   ├── page.tsx
+│   ├── [slug]/page.tsx
+│   ├── account/page.tsx
+│   ├── c/[category]/page.tsx
+│   ├── devices/page.tsx
+│   └── invoice/[orderNo]/page.tsx
+│
+├── smart-home/page.tsx                                               1 page
+│
+├── smarthome/                                                        59 pages
+│   ├── page.tsx
+│   ├── admin/page.tsx
+│   ├── admin/access/page.tsx
+│   ├── admin/alerts/page.tsx
+│   ├── admin/dashboards/page.tsx
+│   ├── admin/fleet/page.tsx
+│   ├── admin/intelligence/page.tsx
+│   ├── admin/latency/page.tsx
+│   ├── admin/ota/page.tsx
+│   ├── admin/platform/page.tsx
+│   ├── admin/provisioning/page.tsx
+│   ├── admin/registry/page.tsx
+│   ├── admin/rules/page.tsx
+│   ├── admin/security/page.tsx
+│   ├── admin/telemetry/page.tsx
+│   ├── anpr/page.tsx
+│   ├── assistants/page.tsx
+│   ├── attendance/page.tsx
+│   ├── automation/page.tsx
+│   ├── automations/page.tsx
+│   ├── away-mode/page.tsx
+│   ├── backup/page.tsx
+│   ├── benchmark/page.tsx
+│   ├── camera/page.tsx
+│   ├── cameras/page.tsx
+│   ├── command-center/page.tsx
+│   ├── developer/page.tsx
+│   ├── device/[id]/page.tsx
+│   ├── devices/page.tsx
+│   ├── diagnostics/page.tsx
+│   ├── drone/page.tsx
+│   ├── energy/page.tsx
+│   ├── energy-budget/page.tsx
+│   ├── firmware/page.tsx
+│   ├── floorplan/page.tsx
+│   ├── groups/page.tsx
+│   ├── insights/page.tsx
+│   ├── kiosk/page.tsx
+│   ├── lifecycle/page.tsx
+│   ├── maintenance/page.tsx
+│   ├── notification-rules/page.tsx
+│   ├── notifications/page.tsx
+│   ├── presence/page.tsx
+│   ├── profile/page.tsx
+│   ├── properties/page.tsx
+│   ├── quick-actions/page.tsx
+│   ├── recipes/page.tsx
+│   ├── reports/page.tsx
+│   ├── rooms/page.tsx
+│   ├── scene-scheduler/page.tsx
+│   ├── scenes/page.tsx
+│   ├── security/page.tsx
+│   ├── settings/page.tsx
+│   ├── solar/page.tsx
+│   ├── spaces/page.tsx
+│   ├── timeline/page.tsx
+│   ├── traffic/page.tsx
+│   ├── weather/page.tsx
+│   └── widgets/page.tsx
+│
+├── stack/page.tsx                                                    1 page
+│
+├── team/page.tsx                                                     1 page
+│
+├── terms/page.tsx                                                    1 page
+│
+├── track/page.tsx                                                    1 page
+│
+├── warranty/page.tsx                                                 1 page
+│
+└── weather/page.tsx                                                  1 page
