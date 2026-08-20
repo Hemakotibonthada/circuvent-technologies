@@ -23,7 +23,7 @@ import {
 } from "../_lib/api";
 import { num, relativeTime, fmtDateTime, duration } from "../_lib/format";
 import {
-  PageHeader, Panel, StatCard, Btn, Badge, Dot, SectionTitle, StaggerGrid, StaggerItem,
+  PageHeader, Freshness, Panel, StatCard, Btn, Badge, Dot, SectionTitle, StaggerGrid, StaggerItem,
   Segmented, SearchInput, Input, EmptyState, ResourceGate, type Tone,
 } from "../_ui";
 import type { AdminDevice } from "@/lib/control-plane";
@@ -81,9 +81,12 @@ export default function TelemetryPage() {
         icon={<Activity className="h-5 w-5" />}
         subtitle="Inspect real stored telemetry frames per device — plot metrics, read the latest payload and see the observed schema. Everything here is read from the control plane."
         actions={
-          <Btn variant="subtle" onClick={() => { devicesRes.reload(); energyRes.reload(); }}>
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </Btn>
+          <>
+            <Freshness at={devicesRes.updatedAt} />
+            <Btn variant="subtle" onClick={() => { devicesRes.reload(); energyRes.reload(); }}>
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Btn>
+          </>
         }
       />
 

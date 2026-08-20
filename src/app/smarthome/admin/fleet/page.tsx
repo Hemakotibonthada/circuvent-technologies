@@ -24,7 +24,7 @@ import { useAdminDevices, useFleetInsights, deviceHealth, type DeviceHealth } fr
 import { relativeTime, num } from "../_lib/format";
 import type { AdminDevice } from "@/lib/control-plane";
 import {
-  PageHeader, Panel, StatCard, Badge, Dot, Btn, IconBtn, SearchInput, Select, Segmented,
+  PageHeader, Freshness, Panel, StatCard, Badge, Dot, Btn, IconBtn, SearchInput, Select, Segmented,
   DataTable, StaggerGrid, StaggerItem, EmptyState, ErrorState, LoadingState,
   TONE, type Column, type Tone,
 } from "../_ui";
@@ -152,6 +152,7 @@ function FleetInner() {
       subtitle="Monitor, filter and operate every device registered on the control plane. Health is derived from each device's online flag, last-seen age and reported fault flags."
       actions={
         <>
+          <Freshness at={devicesRes.updatedAt} />
           <Btn variant="ghost" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4" /> Export</Btn>
           <Link href="/smarthome/admin/ota"><Btn variant="primary"><DownloadCloud className="h-4 w-4" /> OTA campaigns</Btn></Link>
         </>

@@ -30,7 +30,7 @@ import {
 } from "@/lib/control-plane";
 import { relativeTime, fmtDate, fmtDateTime, num } from "../_lib/format";
 import {
-  PageHeader, Panel, StatCard, Badge, Dot, Btn, Tabs, SectionTitle, DataTable,
+  PageHeader, Freshness, Panel, StatCard, Badge, Dot, Btn, Tabs, SectionTitle, DataTable,
   StaggerGrid, StaggerItem, EmptyState, ResourceGate, ErrorState, LoadingState,
   Segmented, SearchInput, Modal, Field, Input, type Column, type Tone,
 } from "../_ui";
@@ -124,7 +124,12 @@ export default function SecurityPage() {
         title="Security & safety"
         icon={<ShieldAlert className="h-5 w-5" />}
         subtitle="Real device alarms, the control plane's security event log, offline/stale devices and operator-registered certificates. No CVE scanner, threat feed or compliance score — nothing here scans your fleet."
-        actions={<Btn variant="subtle" onClick={refreshAll}><RefreshCw className="h-4 w-4" /> Refresh</Btn>}
+        actions={
+          <>
+            <Freshness at={devicesRes.updatedAt} />
+            <Btn variant="subtle" onClick={refreshAll}><RefreshCw className="h-4 w-4" /> Refresh</Btn>
+          </>
+        }
       />
 
       {/*

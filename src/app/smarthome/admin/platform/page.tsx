@@ -28,7 +28,7 @@ import {
 import { num, abbrNum, uptime, relativeTime, fmtDate } from "../_lib/format";
 import { describeBrokerCert } from "../_lib/broker-cert";
 import {
-  PageHeader, Panel, StatCard, Badge, Dot, Btn, Toggle, Tabs, DataTable, SectionTitle,
+  PageHeader, Freshness, Panel, StatCard, Badge, Dot, Btn, Toggle, Tabs, DataTable, SectionTitle,
   StaggerGrid, StaggerItem, EmptyState, ResourceGate, ErrorState, LoadingState,
   Modal, Field, Input, Select, TONE, type Column, type Tone,
 } from "../_ui";
@@ -86,7 +86,12 @@ export default function PlatformPage() {
         title="Platform & operations"
         icon={<Server className="h-5 w-5" />}
         subtitle="Live system health and totals from the Circuvent control plane, the real API surface this console calls, and operator-managed integrations, webhooks and feature flags persisted server-side."
-        actions={<Btn variant="subtle" onClick={refreshAll}><RefreshCw className="h-4 w-4" /> Refresh</Btn>}
+        actions={
+          <>
+            <Freshness at={healthRes.updatedAt} />
+            <Btn variant="subtle" onClick={refreshAll}><RefreshCw className="h-4 w-4" /> Refresh</Btn>
+          </>
+        }
       />
 
       {durable === false && (

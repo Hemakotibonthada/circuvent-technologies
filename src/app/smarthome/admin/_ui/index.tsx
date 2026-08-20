@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Search, X, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Check, Copy, AlertTriangle } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { relativeTime } from "../_lib/format";
 
 // ------------------------------------------------------------------- tones ---
 
@@ -560,5 +561,29 @@ export function StaggerItem({ children, className = "" }: { children: ReactNode;
     >
       {children}
     </motion.div>
+  );
+}
+
+/**
+ * How old the numbers on screen actually are.
+ *
+ * These pages poll in the background, so a fleet snapshot can be minutes stale
+ * with nothing on screen saying so — and a device shown online that died
+ * quarter of an hour ago is a different fact from one that is online, most of
+ * all for locks and gates. The root overview already showed this; the pages
+ * that operators act from did not.
+ *
+ * Renders nothing before the first successful load rather than claiming a
+ * freshness it does not have.
+ */
+export function Freshness({ at, className = "" }: { at: number; className?: string }) {
+  if (!at) return null;
+  return (
+    <span
+      className={`text-[11px] ad-muted ${className}`}
+      title={`Data as of ${new Date(at).toLocaleString()}`}
+    >
+      updated {relativeTime(at)}
+    </span>
   );
 }

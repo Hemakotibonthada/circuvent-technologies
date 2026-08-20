@@ -27,7 +27,7 @@ import {
 } from "../_lib/api";
 import { relativeTime, num } from "../_lib/format";
 import {
-  PageHeader, Panel, StatCard, Badge, Dot, Btn, Tabs, Segmented, DataTable, Modal,
+  PageHeader, Freshness, Panel, StatCard, Badge, Dot, Btn, Tabs, Segmented, DataTable, Modal,
   Field, Input, Progress, SectionTitle, StaggerGrid, StaggerItem, EmptyState, CopyButton,
   ErrorState, LoadingState, ResourceGate, type Column,
 } from "../_ui";
@@ -96,9 +96,12 @@ export default function OtaPage() {
         icon={<DownloadCloud className="h-5 w-5" />}
         subtitle="Publish firmware builds, push them to real devices over the control plane, and watch the fleet converge on the target version."
         actions={
-          <Btn variant="subtle" onClick={page.reload} title="Refresh firmware and fleet">
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </Btn>
+          <>
+            <Freshness at={devicesRes.updatedAt} />
+            <Btn variant="subtle" onClick={page.reload} title="Refresh firmware and fleet">
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Btn>
+          </>
         }
       />
 

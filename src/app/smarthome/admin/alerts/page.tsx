@@ -36,7 +36,7 @@ import {
 import { controlPlane, type AdminEvent, type AdminDevice } from "@/lib/control-plane";
 import { relativeTime, fmtDateTime, num } from "../_lib/format";
 import {
-  Panel, PageHeader, StatCard, Badge, Dot, Btn, Tabs, DataTable, SearchInput, Select,
+  Panel, PageHeader, Freshness, StatCard, Badge, Dot, Btn, Tabs, DataTable, SearchInput, Select,
   Modal, Field, Input, Toggle, EmptyState, ResourceGate, LoadingState, ErrorState,
   SectionTitle, StaggerGrid, StaggerItem, TONE, type Column, type Tone,
 } from "../_ui";
@@ -215,6 +215,7 @@ export default function AlertsPage() {
         actions={
           <div className="flex items-center gap-2">
             <Select value={win} onChange={setWin} options={WINDOWS} />
+            <Freshness at={devicesRes.updatedAt} />
             <Btn variant="subtle" onClick={reloadAll}><RefreshCw className="h-4 w-4" /> Refresh</Btn>
             <Btn variant="primary" onClick={() => setShowBroadcast(true)}><Radio className="h-4 w-4" /> Broadcast</Btn>
           </div>
