@@ -557,10 +557,32 @@ export function getOrganizationJsonLd() {
       "@type": "QuantitativeValue",
       value: "1-10",
     },
+    /*
+     * The full postal address, matching the Google Business Profile for
+     * Circuvent Technologies in Kavadiguda, Hyderabad.
+     *
+     * It used to carry only the city and region. That matters more than it
+     * looks: Google reconciles a website with a business listing largely by
+     * matching name, address and phone, and a city-only address is a weak
+     * match. Since "Circuvent" is one character from "circumvent", the search
+     * engines treat the query as a misspelling — and a verified local entity
+     * whose address matches the site exactly is one of the stronger signals
+     * available for saying the word is a real company rather than a typo.
+     *
+     * Keep this identical to the Business Profile, character for character. A
+     * mismatched address is worse than an incomplete one, because it reads as
+     * two different organisations rather than one.
+     *
+     * `telephone` is deliberately absent: no phone number is published on the
+     * site or on the Business Profile, and inventing one would be worse than
+     * omitting it. Add it in both places at once.
+     */
     address: {
       "@type": "PostalAddress",
+      streetAddress: "Flat No 201, Street No 6, Jawahar Nagar, Kavadiguda",
       addressLocality: "Hyderabad",
       addressRegion: "Telangana",
+      postalCode: "500049",
       addressCountry: "IN",
     },
     contactPoint: [
