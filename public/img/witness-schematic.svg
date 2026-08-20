@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620">
+  <rect width="1200" height="620" fill="#0b1220"/>
+
+  <text x="28" y="34" fill="#e2e8f0" font-size="17" font-weight="700"
+        font-family="ui-sans-serif,system-ui">Circuvent Witness — signal chain</text>
+  <text x="28" y="54" fill="#64748b" font-size="12" font-family="ui-sans-serif,system-ui">
+    One split-core transformer does two jobs: it powers the board and it measures the load. Nothing here touches mains.
+  </text>
+
+  <!-- ================= the conductor under test ================= -->
+  <g>
+    <text x="28" y="100" fill="#f97316" font-size="12" font-weight="700"
+          font-family="ui-monospace,monospace">APPLIANCE FLEX (not connected to this board)</text>
+    <path d="M28 132 L1152 132" fill="none" stroke="#f97316" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+    <text x="1152" y="118" fill="#64748b" font-size="11" text-anchor="end"
+          font-family="ui-monospace,monospace">live conductor, 230 V</text>
+  </g>
+
+  <!-- clamp -->
+  <g>
+    <ellipse cx="150" cy="132" rx="34" ry="22" fill="none" stroke="#22d3ee" stroke-width="3"/>
+    <text x="150" y="178" fill="#22d3ee" font-size="12" text-anchor="middle"
+            font-family="ui-monospace,monospace">CT1  split core</text>
+    <text x="150" y="194" fill="#64748b" font-size="11" text-anchor="middle"
+            font-family="ui-monospace,monospace">1000:1, 10 A</text>
+  </g>
+  <path d="M150 154 L150 214" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- ================= protection ================= -->
+  
+  <g>
+    <rect x="70" y="214" width="160" height="92" rx="8"
+          fill="#f97316" fill-opacity="0.07" stroke="#f97316" stroke-width="1.6"/>
+    <text x="150" y="236" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">Protection</text>
+    <text x="150" y="254" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">SW1 + D1 TVS</text>
+  </g>
+  <text x="80" y="274" fill="#f97316" font-size="10" text-anchor="start"
+            font-family="ui-monospace,monospace">shorts CT when idle</text>
+  <text x="80" y="288" fill="#f97316" font-size="10" text-anchor="start"
+            font-family="ui-monospace,monospace">open secondary = kV</text>
+
+  <path d="M150 306 L150 342" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- split: harvest and measure -->
+  <path d="M150 342 L150 366 L330 366" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M150 342 L150 470 L330 470" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  <text x="158" y="358" fill="#64748b" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">harvest</text>
+  <text x="158" y="462" fill="#64748b" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">measure</text>
+
+  <!-- ================= harvest path ================= -->
+  
+  <g>
+    <rect x="330" y="330" width="170" height="74" rx="8"
+          fill="#22d3ee" fill-opacity="0.07" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="415" y="352" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">Rectifier</text>
+    <text x="415" y="370" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">D2–D5 Schottky</text>
+  </g>
+  <path d="M500 366 L560 366" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  
+  <g>
+    <rect x="560" y="322" width="200" height="90" rx="8"
+          fill="#22d3ee" fill-opacity="0.07" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="660" y="344" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">Harvester</text>
+    <text x="660" y="362" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">BQ25504 boost + MPPT</text>
+  </g>
+  <text x="570" y="396" fill="#64748b" font-size="10" text-anchor="start"
+            font-family="ui-monospace,monospace">cold start 330 mV</text>
+  <path d="M760 366 L820 366" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  
+  <g>
+    <rect x="820" y="322" width="150" height="90" rx="8"
+          fill="#22d3ee" fill-opacity="0.07" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="895" y="344" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">Storage</text>
+    <text x="895" y="362" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">C1 0.47 F 5.5 V</text>
+  </g>
+  <path d="M970 366 L1020 366" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  
+  <g>
+    <rect x="1020" y="336" width="130" height="62" rx="8"
+          fill="#22d3ee" fill-opacity="0.07" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="1085" y="358" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">LDO 3V3</text>
+    <text x="1085" y="376" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">TPS7A02</text>
+  </g>
+
+  <!-- ================= measure path ================= -->
+  
+  <g>
+    <rect x="330" y="434" width="170" height="74" rx="8"
+          fill="#22d3ee" fill-opacity="0.07" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="415" y="456" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">Burden</text>
+    <text x="415" y="474" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">R1 22 Ω 0.1%</text>
+  </g>
+  <path d="M500 470 L560 470" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  
+  <g>
+    <rect x="560" y="434" width="200" height="74" rx="8"
+          fill="#22d3ee" fill-opacity="0.07" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="660" y="456" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">Bias + filter</text>
+    <text x="660" y="474" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">½VDD, 1 kHz LPF</text>
+  </g>
+  <path d="M760 470 L820 470" fill="none" stroke="#94a3b8" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- ================= MCU ================= -->
+  
+  <g>
+    <rect x="820" y="434" width="330" height="132" rx="8"
+          fill="#22d3ee" fill-opacity="0.07" stroke="#22d3ee" stroke-width="1.6"/>
+    <text x="985" y="456" fill="#e2e8f0" font-size="14" font-weight="700"
+          text-anchor="middle" font-family="ui-sans-serif,system-ui">ESP32-C6-MINI-1</text>
+    <text x="985" y="474" fill="#64748b" font-size="11"
+                 text-anchor="middle" font-family="ui-monospace,monospace">802.15.4 + BLE 5 + Wi-Fi 6</text>
+  </g>
+  <text x="836" y="502" fill="#64748b" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">ADC1_CH4  ← burden</text>
+  <text x="836" y="520" fill="#64748b" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">GPIO      → SW1 short</text>
+  <text x="836" y="538" fill="#64748b" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">ADC1_CH0  ← C1 volts</text>
+  <text x="836" y="556" fill="#22d3ee" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">deep sleep 7 µA</text>
+
+  <!-- rail from LDO to MCU -->
+  <path d="M1085 398 L1085 420 L985 420 L985 434" fill="none" stroke="#22d3ee" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  <text x="1092" y="416" fill="#22d3ee" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">3V3</text>
+
+  <!-- antenna -->
+  <path d="M1150 470 L1166 470" fill="none" stroke="#22d3ee" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" />
+  <text x="1146" y="456" fill="#22d3ee" font-size="10" text-anchor="end"
+            font-family="ui-monospace,monospace">ant</text>
+
+  <!-- notes -->
+  <text x="28" y="596" fill="#64748b" font-size="11" text-anchor="start"
+            font-family="ui-monospace,monospace">No galvanic connection to mains. The core clamps around the outside of the flex; the board sees only the induced secondary current.</text>
+</svg>

@@ -47,6 +47,7 @@ below is reference material that assumes you can already run things.
 | **Build a switchboard to order, on site** | [36 — Configurable Switchboard](./36-switchboard.md) |
 | **Understand why the shop showed a customer no devices** | [37 — The two device registries](./37-shop-fleet.md) |
 | **Drive a car from a phone, without the video stalling the steering** | [38 — The RC platform](./38-rc-platform.md) |
+| **Catch a device that is lying about itself** | [39 — Circuvent Witness](./39-witness.md) |
 
 ### Working here
 
