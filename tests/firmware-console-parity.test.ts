@@ -54,6 +54,12 @@ const NOT_STANDALONE: Record<string, string> = {
   "watertank-sensor": "reports through watertank",
   // The flight controller inside the drone. The console talks to drone-link.
   "drone-fc": "spoken to via drone-link",
+  // The dongle on the end of the phone's OTG cable. It is an accessory of the
+  // phone rather than a device in a home — it has no state of its own worth a
+  // tile, and what it relays appears under the car.
+  "rc-link": "relays for the rc car; has no state of its own",
+  // The handset. Same reasoning: it drives the car, it is not driven.
+  "rc-remote": "drives the rc car; not itself controllable",
 };
 
 describe("firmware and console agree on what exists", () => {

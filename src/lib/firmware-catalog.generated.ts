@@ -126,6 +126,20 @@ export const GENERATED_FIRMWARE_CATALOG: FirmwareInfo[] = [
     ],
   },
   {
+    deviceType: "rc-link",
+    latestVersion: "1.0.0",
+    changelog: [
+    { version: "1.0.0", notes: ["initial dongle firmware: control link complete, USB host interface still to come (see loop())."] },
+    ],
+  },
+  {
+    deviceType: "rc-remote",
+    latestVersion: "1.0.0",
+    changelog: [
+    { version: "1.0.0", notes: ["initial handset firmware."] },
+    ],
+  },
+  {
     deviceType: "rccar",
     latestVersion: "1.0.0",
     changelog: [
