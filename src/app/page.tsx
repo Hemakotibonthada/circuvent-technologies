@@ -75,7 +75,7 @@ const officeSuiteApps = [
     tagline: "Modern HR Management Made Simple",
     description: "Streamline your entire HR workflow from hiring to retiring — manage employees, attendance, payroll, performance, and more in one lightning-fast platform.",
     gradient: "from-violet-500 to-purple-600",
-    features: ["50+ HR modules in one platform", "Automated payroll & attendance", "Performance reviews & OKRs", "Multi-tenant SaaS architecture"],
+    features: ["91 HR modules in one platform", "Automated payroll & attendance", "Performance reviews & OKRs", "Multi-tenant SaaS architecture"],
     stats: { value: "50+", label: "HR Modules" },
     href: "https://hrms.circuvent.com",
   },
@@ -95,7 +95,7 @@ const officeSuiteApps = [
     tagline: "Professional Email for Modern Teams",
     description: "Enterprise-grade email with calendar, contacts, and admin dashboard — everything you need from Gmail, Outlook, and Apple Mail in one self-hosted platform.",
     gradient: "from-pink-500 to-rose-600",
-    features: ["Full IMAP/SMTP with custom domains", "AI-powered smart inbox & categorization", "2FA, admin dashboard & 25+ analytics", "67% cheaper than Google Workspace"],
+    features: ["Full IMAP/SMTP with custom domains", "AI-powered smart inbox & categorization", "2FA, admin dashboard & 25+ analytics", "Runs on your own domain, no per-seat licence"],
     stats: { value: "22", label: "API Endpoints" },
     href: "https://mail.circuvent.com",
   },
@@ -250,11 +250,23 @@ export default function Home() {
           {/* Suite Stats Bar */}
           <ScrollReveal delay={0.1}>
             <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 my-12">
+              {/*
+                Figures a reader could check, not ones that sound impressive.
+                This bar previously claimed "50K+ Users Managed", which is a
+                statement about how many people use the product and was not
+                true of any deployment. "Features: 100+" went with it — a count
+                of nothing in particular.
+
+                What replaced them is specific: the HR module count is the size
+                of MODULE_PERMISSION_MAP in HRMS, the professional-tax figure is
+                the number of state slab tables payroll actually applies, and
+                one sign-in across the suite is what auth.circuvent.com does.
+              */}
               {[
                 { icon: Zap, value: "4", label: "Integrated Apps" },
-                { icon: Layers, value: "100+", label: "Features" },
-                { icon: Users, value: "50K+", label: "Users Managed" },
-                { icon: Network, value: "100%", label: "Cross-App Sync" },
+                { icon: Layers, value: "91", label: "HR Modules" },
+                { icon: Users, value: "1", label: "Sign-in Across the Suite" },
+                { icon: Network, value: "9", label: "States: Professional Tax" },
               ].map((stat, i) => (
                 <motion.div
                   key={stat.label}
