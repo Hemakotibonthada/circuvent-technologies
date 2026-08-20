@@ -23,6 +23,7 @@ import { products as CATALOG } from "./shop-data";
 import * as dbLayer from "./db";
 import { autoRegisterForDeliveredOrder } from "./admin-warranty";
 import type { CronRunLog, CronOutcome } from "./cron-health";
+import { businessDayKey, lastNBusinessDates } from "./business-time";
 
 // ---------------------------------------------------------------- types ----
 export interface StoredOrderItem {
@@ -2235,12 +2236,14 @@ export function lowStockProducts(threshold = 5): StoredProduct[] {
 export function salesSeries(days = 14): { date: string; orders: number; revenue: number }[] {
   const db = load();
   const out: { date: string; orders: number; revenue: number }[] = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    const dayOrders = db.orders.filter((o) => (o.placedAt || "").slice(0, 10) === key);
+  /*
+   * Bucketed in the business timezone, not the server's. Node runs in UTC and
+   * the shop sells in India, so slicing the ISO string put every order placed
+   * before 05:30 IST on the previous day — including the whole of the late
+   * evening, which is when people actually order.
+   */
+  for (const key of lastNBusinessDates(days)) {
+    const dayOrders = db.orders.filter((o) => businessDayKey(o.placedAt || "") === key);
     const revenue = dayOrders.filter((o) => o.paymentStatus === "paid").reduce((s, o) => s + (o.total || 0), 0);
     out.push({ date: key, orders: dayOrders.length, revenue });
   }

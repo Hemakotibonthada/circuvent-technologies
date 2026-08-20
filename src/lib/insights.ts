@@ -3,8 +3,9 @@
 // Analytics / Reports dashboards.
 
 import { listOrders, listProducts, listCustomers, listReturns, listTickets, analytics } from "./store";
+import { businessDayKey, businessWeekdayHour, lastNBusinessDates } from "./business-time";
 
-const dayKey = (iso: string) => (iso || "").slice(0, 10);
+const dayKey = (iso: string) => businessDayKey(iso);
 
 /**
  * Orders placed within the selected window.
@@ -36,14 +37,7 @@ export function customersInRange(days: number) {
 }
 
 export function lastNDates(days: number): string[] {
-  const out: string[] = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    out.push(d.toISOString().slice(0, 10));
-  }
-  return out;
+  return lastNBusinessDates(days);
 }
 
 export interface DailyPoint {
@@ -226,9 +220,12 @@ export function ticketsStats(days = 30) {
 export function hourlyHeatmap(days = 30) {
   const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
   for (const o of ordersInRange(days)) {
-    const d = new Date(o.placedAt);
-    if (isNaN(d.getTime())) continue;
-    grid[d.getDay()][d.getHours()]++;
+    // Bucketed in the business timezone: the server runs in UTC, so
+    // getDay()/getHours() put the evening peak in the small hours and moved
+    // late orders into the wrong weekday.
+    const at = businessWeekdayHour(o.placedAt);
+    if (!at) continue;
+    grid[at.weekday][at.hour]++;
   }
   return { grid, rows: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], cols: Array.from({ length: 24 }, (_, i) => String(i)) };
 }
