@@ -11,7 +11,7 @@ function tok(): string {
   }
 }
 
-interface PrivacyRequest { id: string; email: string; type: "export" | "delete"; status: "pending" | "processing" | "completed" | "rejected"; requestedAt: string }
+interface PrivacyRequest { id: string; email: string; type: "export" | "delete"; status: "pending" | "processing" | "completed" | "rejected"; requestedAt: string; erasureRef?: string }
 
 const card: React.CSSProperties = { background: "var(--bg-surface)", border: "1px solid var(--border-primary)" };
 const field = "w-full rounded-xl border px-3 py-2 text-sm outline-none";
@@ -46,12 +46,63 @@ export default function PrivacyPanel() {
   };
 
   const setStatus = async (id: string, status: PrivacyRequest["status"]) => {
-    await fetch("/api/admin/privacy", { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-token": tok() }, body: JSON.stringify({ id, status }) });
+    const req = requests.find((r) => r.id === id);
+    let erasureRef: string | undefined;
+
+    /*
+     * Completing a deletion asserts the customer's data is gone. Nothing in
+     * this product erases it, so the assertion has to be backed by whatever
+     * was actually done by hand — otherwise the queue records a completion
+     * date against data that is still there, and an auditor reads that as
+     * proof of erasure.
+     */
+    if (status === "completed" && req?.type === "delete" && !req.erasureRef) {
+      const raw = window.prompt(
+        `Deletion is not automated. Record how ${req.email}'s data was erased — a ticket or runbook reference — to close this request:`,
+        ""
+      );
+      if (raw === null) return;
+      erasureRef = raw.trim();
+      if (!erasureRef) {
+        alert("A reference is required to close a deletion request. Nothing has been changed.");
+        return;
+      }
+    }
+
+    const res = await fetch("/api/admin/privacy", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-token": tok() },
+      body: JSON.stringify({ id, status, erasureRef }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.message || "Could not update that request.");
+    }
     load();
   };
 
-  const downloadExport = (email: string) => {
-    window.open(`/api/admin/privacy?exportEmail=${encodeURIComponent(email)}`, "_blank");
+  /*
+   * A fetch, not window.open. The export route is behind `guard(request,
+   * "privacy")`, which reads the x-admin-token header — and window.open cannot
+   * send headers, so this always returned 403 and opened a tab showing
+   * {"error":"Forbidden"}. It also put the customer's email in a URL, where it
+   * lands in browser history and server logs.
+   */
+  const downloadExport = async (email: string) => {
+    const res = await fetch(`/api/admin/privacy?exportEmail=${encodeURIComponent(email)}`, {
+      headers: { "x-admin-token": tok() },
+    });
+    if (!res.ok) {
+      alert("Could not build that export.");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `privacy-export-${email.replace(/[^a-z0-9]+/gi, "-")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (

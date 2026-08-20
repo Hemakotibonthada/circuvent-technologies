@@ -36,9 +36,17 @@ export async function PATCH(request: Request) {
   if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   try {
     const b = await request.json();
-    const req = updateRequestStatus(b.id, b.status, b.note);
-    if (!req) return NextResponse.json({ success: false, message: "Not found." }, { status: 404 });
-    logAudit("privacy.request.status", `${req.id} -> ${req.status}`);
+    const res = updateRequestStatus(b.id, b.status, b.note, b.erasureRef);
+    if (!res.ok) {
+      return NextResponse.json({ success: false, message: res.reason }, { status: 400 });
+    }
+    const req = res.request;
+    // The actor and the erasure evidence, not just the transition. "Who
+    // closed this and on what basis" is the question asked afterwards.
+    logAudit(
+      "privacy.request.status",
+      `${me.email}: ${req.id} -> ${req.status}${req.erasureRef ? ` (erasure: ${req.erasureRef})` : ""}`
+    );
     return NextResponse.json({ success: true, request: req });
   } catch {
     return NextResponse.json({ success: false, message: "Request failed." }, { status: 500 });
