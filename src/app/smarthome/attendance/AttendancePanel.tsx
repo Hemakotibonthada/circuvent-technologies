@@ -29,6 +29,7 @@ import {
   type RegisterRow,
 } from "@/lib/control-plane";
 import { useFleet } from "../_data/hooks";
+import { isAttendanceReader } from "@/lib/attendance-readers";
 
 export type AttendanceView =
   | "live" | "register" | "people" | "cards" | "terminals" | "schedules" | "reports";
@@ -732,7 +733,7 @@ function Terminals({ site }: { site: AttendanceSite }) {
   useEffect(() => { void load(); }, [load]);
 
   const candidates = useMemo(
-    () => devices.filter((d) => d.type === "rfid-attend" && !terminals.some((t) => t.deviceId === d.id)),
+    () => devices.filter((d) => isAttendanceReader(d.type) && !terminals.some((t) => t.deviceId === d.id)),
     [devices, terminals]
   );
 

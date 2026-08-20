@@ -32,6 +32,7 @@ import { masterPower } from "@/lib/smarthome-command-map";
 import { useConsole } from "../ConsoleProvider";
 import { useResource } from "./store";
 import type { Severity } from "../_kit/primitives";
+import { isAttendanceReader } from "@/lib/attendance-readers";
 
 /* ------------------------------------------------------------------ */
 /* Fleet                                                               */
@@ -358,7 +359,7 @@ export function useAnprPresence(): { hasAnpr: boolean; ready: boolean } {
 export function useAttendancePresence(): { hasAttendance: boolean; ready: boolean } {
   const { devices, loading: fleetLoading } = useFleet();
 
-  const hasTerminal = useMemo(() => devices.some((d) => d.type === "rfid-attend"), [devices]);
+  const hasTerminal = useMemo(() => devices.some((d) => isAttendanceReader(d.type)), [devices]);
 
   // Only asked when it could change the answer: an account already holding a
   // terminal is decided.

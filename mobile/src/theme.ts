@@ -162,6 +162,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   facedoor: "entry",
   "rfid-gate": "entry",
   "rfid-attend": "entry",
+  "rfid-only": "entry",
   "anpr-cam": "entry",
   // Not "entry": a drone is not a way in or out of anywhere. Its own
   // category would be a tab with one device in it, so it sits with the
@@ -242,6 +243,7 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
    * from the lamps on somebody's dashboard.
    */
   "rfid-attend": { glyph: "🪪", icon: "rfid-gate", accent: C.violet, grad: GRAD.violet, label: "Attendance Reader" },
+  "rfid-only": { glyph: "🪪", icon: "rfid-gate", accent: C.violet, grad: GRAD.violet, label: "Card Reader" },
   // No `toggle`, for a sharper reason than the ANPR camera's: this device's
   // only boolean is `allowArm`, an aircraft's permission to fly. A tile
   // toggle would put that one tap from a lamp on the dashboard, and an

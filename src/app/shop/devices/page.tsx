@@ -85,6 +85,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   doorbell: CameraIcon,
   "anpr-cam": ScanBarcode,
   "rfid-attend": ClipboardCheck,
+  "rfid-only": ClipboardCheck,
   "drone-link": Plane,
   "drone-x1": Plane,
   rccar: Car,

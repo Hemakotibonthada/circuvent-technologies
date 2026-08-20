@@ -79,6 +79,13 @@ const FIRMWARE_TOGGLE: Record<string, string | null> = {
    * with an explicit action.
    */
   "rfid-attend": null,
+  /*
+   * firmware/rfid-only: nothing to toggle, and nothing that could be added.
+   * This model holds no roster, drives no door and takes no settings — it
+   * reads a card and reports it. A tile switch would have to invent something
+   * for the device to do.
+   */
+  "rfid-only": null,
   // Read-only or non-switchable.
   "energy-monitor": null,
   guardian: null,
