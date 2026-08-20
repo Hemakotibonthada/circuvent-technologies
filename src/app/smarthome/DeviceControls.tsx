@@ -158,6 +158,7 @@ export const DEVICE_META: Record<string, DeviceTypeMeta> = {
   "rfid-attend": { label: "Attendance Reader", icon: ClipboardCheck, accent: "#8b5cf6", blurb: "RFID attendance & door access" },
   "drone-link": { label: "Drone Link", icon: Plane, accent: "#6366f1", blurb: "Flight telemetry & mission bridge" },
   "drone-x1": { label: "Drone X1", icon: Plane, accent: "#6366f1", blurb: "Circuvent flight stack" },
+  "rccar": { label: "RC Car", icon: Car, accent: "#f97316", blurb: "Radio-linked vehicle with camera" },
 };
 
 export function deviceMeta(type: string): DeviceTypeMeta {

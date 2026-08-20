@@ -457,8 +457,35 @@ export function getCommandFields(type: string): CommandField[] {
         { key: "trackHz", label: "Position samples", kind: "number", unit: " /s", min: 1, max: 10, step: 1 },
       ];
 
-    case "curtain":
+    case "rccar":
       /*
+       * A scene can decide what a driver is allowed to do with the car and
+       * whether its lights are on. It cannot drive it.
+       *
+       * Throttle and steering live on the ESP-NOW link, which has a 120 ms
+       * failsafe and somebody watching the vehicle. An automation reaching the
+       * car through the cloud has neither, so offering a speed field here
+       * would be offering to move a vehicle on a timer.
+       *
+       * "Immobilise at bedtime" is the useful rule, and it is expressible.
+       */
+      return [
+        {
+          key: "mode",
+          label: "Driver mode",
+          kind: "select",
+          choices: [
+            { value: "immobilised", label: "Immobilised" },
+            { value: "beginner", label: "Beginner" },
+            { value: "normal", label: "Normal" },
+            { value: "sport", label: "Sport" },
+          ],
+        },
+        { key: "headlight", label: "Headlights", kind: "bool" },
+        { key: "hazard", label: "Hazards", kind: "bool" },
+      ];
+
+    case "curtain":      /*
        * A curtain has a position, not a switch.
        *
        * It reached the default below and was offered a Power toggle, which

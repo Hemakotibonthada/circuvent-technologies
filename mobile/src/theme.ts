@@ -168,6 +168,7 @@ const TYPE_CATEGORY: Record<string, CategoryKey> = {
   // other things that watch rather than switch.
   "drone-link": "sensor",
   "drone-x1": "sensor",
+  rccar: "sensor",
   curtain: "entry",
   "smart-plug": "power",
   "energy-monitor": "power",
@@ -247,6 +248,12 @@ export const DEVICE_META: Record<string, DeviceMeta> = {
   // fly — or, read the other way, look like a launch button.
   "drone-link": { glyph: "🚁", icon: "drone-link", accent: C.violet, grad: GRAD.violet, label: "Drone Link" },
   "drone-x1": { glyph: "🚁", icon: "drone-link", accent: C.violet, grad: GRAD.violet, label: "Drone X1" },
+  /*
+   * The car is a sensor here rather than a switch, for the same reason the
+   * drone is: the app shows what it is doing and can take it away from a
+   * driver, but the driving itself happens on the radio link, not on a tile.
+   */
+  rccar: { glyph: "🚗", icon: "vehicle", accent: C.amber, grad: GRAD.amber, label: "RC Car" },
 };
 
 export function deviceMeta(type: string): DeviceMeta {

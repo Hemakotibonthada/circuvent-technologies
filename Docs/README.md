@@ -46,6 +46,7 @@ below is reference material that assumes you can already run things.
 | **Drive a curtain to a position it cannot measure** | [35 — Smart Curtain](./35-curtain.md) |
 | **Build a switchboard to order, on site** | [36 — Configurable Switchboard](./36-switchboard.md) |
 | **Understand why the shop showed a customer no devices** | [37 — The two device registries](./37-shop-fleet.md) |
+| **Drive a car from a phone, without the video stalling the steering** | [38 — The RC platform](./38-rc-platform.md) |
 
 ### Working here
 

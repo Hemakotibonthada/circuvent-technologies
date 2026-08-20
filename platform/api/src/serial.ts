@@ -80,6 +80,7 @@ const PRODUCT_CODES: Record<string, string> = {
   "energy-monitor": "NRG",
   "agri-starter": "AGR",
   "curtain": "CRT",
+  "rccar": "CAR",
   "rfid-gate": "GAT",
   "anpr-cam": "ANP",
   "drone-link": "DRN",

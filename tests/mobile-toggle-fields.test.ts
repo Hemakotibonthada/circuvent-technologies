@@ -23,6 +23,10 @@ import { DEVICE_META } from "../mobile/src/theme";
  * app, so the test disagrees with the app when the app is wrong.
  */
 const FIRMWARE_TOGGLE: Record<string, string | null> = {
+  // firmware/rccar: driving happens on the ESP-NOW link, not on a tile. The
+  // car has no primary on/off — "mode" is what a screen changes, and
+  // immobilised is one of its values rather than the off state of a switch.
+  rccar: null,
   // firmware/touchboard: p["g1"] / p["g2"] / p["g3"] / p["all"]
   touchboard: "g1",
   // firmware/touchboard-8: p["g1"]..p["g8"] / p["all"] — same field shape,

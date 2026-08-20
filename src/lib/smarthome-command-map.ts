@@ -743,14 +743,32 @@ export function projectCommand(type: string, cmd: CommandPayload, state?: Record
       return patch;
     }
 
+    case "rccar": {
+      /*
+       * Mode and lights are projected because the vehicle simply adopts them.
+       * Nothing about motion is: speed comes from a wheel sensor, and the
+       * console cannot know what the car will do with a mode change while it
+       * is already moving.
+       *
+       * Immobilise is the one worth being certain of — somebody taking a car
+       * away from a driver needs the button to look like it worked, and the
+       * vehicle confirms within a second either way.
+       */
+      if (action === "set") {
+        if (isStr(cmd.mode)) patch.mode = cmd.mode;
+        if (typeof cmd.headlight === "boolean") patch.headlight = cmd.headlight;
+        if (typeof cmd.hazard === "boolean") patch.hazard = cmd.hazard;
+      }
+      return patch;
+    }
+
     case "curtain": {
       /*
        * Fully open and fully closed are projected, because the firmware treats
        * them as homing runs that always end against the mechanical stop — so
        * 0 and 100 are the two positions it is certain to reach.
        */
-      if (action === "open") patch.position = 100;
-      else if (action === "close") patch.position = 0;
+      if (action === "open") patch.position = 100;      else if (action === "close") patch.position = 0;
       else if (action === "stop") {
         /*
          * Nothing is projected for a stop.
@@ -909,6 +927,28 @@ export function buildFieldCommand(
       }
       if (field === "action" && (value === "open" || value === "close")) {
         return { action: String(value) };
+      }
+      return null;
+    }
+
+    /*
+     * The car takes its mode and its lights, and nothing that steers it.
+     *
+     * Throttle and steering belong on the ESP-NOW link, which has a 120 ms
+     * failsafe and a driver watching the vehicle. An automation rule reaching
+     * a car over the internet has neither, so there is no field here that can
+     * make it move — only ones that decide what a driver is allowed to do with
+     * it, and whether the lights are on.
+     */
+    case "rccar": {
+      if (field === "mode" && typeof value === "string") {
+        return { action: "set", mode: value };
+      }
+      if (field === "headlight" && typeof value === "boolean") {
+        return { action: "set", headlight: value };
+      }
+      if (field === "hazard" && typeof value === "boolean") {
+        return { action: "set", hazard: value };
       }
       return null;
     }

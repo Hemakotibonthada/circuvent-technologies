@@ -85,6 +85,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   "rfid-attend": ClipboardCheck,
   "drone-link": Plane,
   "drone-x1": Plane,
+  rccar: Car,
 };
 
 export default function DevicesPage() {

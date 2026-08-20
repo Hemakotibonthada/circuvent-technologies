@@ -106,6 +106,7 @@ export default function Control({ device, onBack }: { device: Device; onBack: ()
         {d.type === "watertank" && <WaterTank d={d} send={send} c={c} />}
         {d.type === "rfid-gate" && <RfidGate d={d} send={send} c={c} />}
       {d.type === "curtain" && <Curtain d={d} send={send} c={c} />}
+      {d.type === "rccar" && <RcCar d={d} send={send} c={c} />}
       {d.type === "switchboard" && <ConfigurableBoard d={d} send={send} c={c} />}
         {d.type === "facedoor" && <FaceDoor d={d} send={send} c={c} />}
         {(d.type === "touchboard" || d.type === "touchboard-8") && <TouchBoard d={d} send={send} c={c} />}
@@ -1557,6 +1558,69 @@ function RfidGate({ d, send, c }: { d: Device; send: (p: Record<string, unknown>
  * it believes — which is why those two get real buttons and the slider is for
  * everything in between.
  */
+function RcCar({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
+  const mode = typeof d.state.mode === "string" ? d.state.mode : "immobilised";
+  const speedCms = Number(d.state.speedCms ?? 0);
+  const battPct = Number(d.state.battPct ?? 0);
+  const linked = !!d.state.linked;
+  const failsafe = !!d.state.failsafe;
+  const odo = Number(d.state.odoM ?? 0);
+
+  const kmh = Math.round(Math.abs(speedCms) * 0.036 * 10) / 10;
+  const label = failsafe ? "Stopped — link lost" : linked ? "Driver connected" : "No driver";
+
+  /*
+   * No throttle and no steering here, deliberately.
+   *
+   * Driving happens over the dongle's ESP-NOW link, which has a 120 ms
+   * failsafe and a driver looking at the car. This panel reaches the vehicle
+   * through the cloud, where a command can be seconds old — a slider here
+   * would be a throttle with no failsafe behind it and nobody watching.
+   *
+   * What it does offer is the thing the phone is genuinely better at when it
+   * is not the one driving: taking the car away from whoever is.
+   */
+  return (
+    <View>
+      <Big value={String(kmh)} unit="km/h" caption={label} c={c} />
+
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
+        <Row label="Battery" c={c}>
+          <Text style={{ color: c.text, fontWeight: "600" }}>{battPct}%</Text>
+        </Row>
+        <Row label="Trip" c={c}>
+          <Text style={{ color: c.text, fontWeight: "600" }}>{odo} m</Text>
+        </Row>
+      </View>
+
+      <Text style={{ color: c.textDim, fontSize: 12, marginBottom: 8 }}>
+        What the driver is allowed to do
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {(["immobilised", "beginner", "normal", "sport"] as const).map((m) => (
+          <Pressable
+            key={m}
+            onPress={() => { tapLight(); send({ mode: m }); }}
+            style={{
+              minHeight: 48,
+              justifyContent: "center",
+              paddingHorizontal: 16,
+              borderRadius: 12,
+              backgroundColor: mode === m ? c.amber : c.card,
+              borderWidth: 1,
+              borderColor: c.border,
+            }}
+          >
+            <Text style={{ color: mode === m ? c.bg : c.text, fontWeight: "600" }}>
+              {m === "immobilised" ? "Immobilise" : m[0].toUpperCase() + m.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function Curtain({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) => void; c: Palette }) {
   const position = Number(d.state.position ?? 0);
   const moving = Number(d.state.moving ?? 0);
