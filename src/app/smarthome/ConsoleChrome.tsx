@@ -41,6 +41,7 @@ import {
   Zap,
 } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
+import { useRenderedPath } from "@/lib/use-mount-prefix";
 import { masterPower } from "@/lib/smarthome-command-map";
 import { useConsole } from "./ConsoleProvider";
 import { useConsoleTheme } from "./theme";
@@ -270,10 +271,18 @@ export function visibleNav(
 export default function ConsoleChrome({ children }: { children: React.ReactNode }) {
   const { ready, user } = useConsole();
   const pathname = usePathname();
+  /*
+   * The rendered path, not the address bar. On home.circuvent.com the proxy
+   * rewrites /admin to /smarthome/admin without changing the URL, so the test
+   * below compared against a path that only exists server-side -- and the
+   * staff control plane was served the *consumer* device login instead of
+   * being waived through to its own sign-in.
+   */
+  const renderedPath = useRenderedPath(pathname);
 
   // The enterprise admin dashboard owns the full screen with its own shell and
-  // its own auth/demo state, so it bypasses the consumer chrome entirely.
-  if (pathname?.startsWith("/smarthome/admin")) return <>{children}</>;
+  // its own single sign-on, so it bypasses the consumer chrome entirely.
+  if (renderedPath.startsWith("/smarthome/admin")) return <>{children}</>;
 
   if (!ready) {
     return (

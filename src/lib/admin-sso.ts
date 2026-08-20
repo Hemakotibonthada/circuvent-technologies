@@ -34,8 +34,16 @@ const secret = lazySecret(["ADMIN_SECRET", "ACCOUNT_SECRET"], "staff single sign
 /** How long the console has to redeem the handoff code. */
 export const HANDOFF_TTL_MS = 90_000;
 
-/** How long a sign-in may sit at the identity service before it goes stale. */
-export const FLOW_TTL_MS = 10 * 60_000;
+/**
+ * How long a sign-in may sit at the identity service before it goes stale.
+ *
+ * Thirty minutes rather than ten. The person is usually not signed in to
+ * auth.circuvent.com when they arrive, so the round trip includes a password,
+ * a second factor and — the first time — enrolling one. Ten minutes covered a
+ * sign-in already in progress and quietly failed the ordinary case, landing
+ * somebody back with `sso_error=expired` and nothing they did wrong.
+ */
+export const FLOW_TTL_MS = 30 * 60_000;
 
 export const STATE_COOKIE = "cv_admin_sso";
 

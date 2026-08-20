@@ -10,6 +10,7 @@ import {
   Sparkles, QrCode,
 } from "lucide-react";
 import { controlPlane } from "@/lib/control-plane";
+import { useRenderedPath } from "@/lib/use-mount-prefix";
 import { useConsole } from "../ConsoleProvider";
 import { useAdminDevices, useAdminStats, deviceHealth } from "./_lib/api";
 import { useFocusTrap } from "../_kit/overlays";
@@ -65,10 +66,19 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     return () => { alive = false; };
   }, []);
 
+  /*
+   * Matched against the rendered path, not the address bar. On the mounted
+   * hostname the browser sits at /admin/fleet while NAV is written in terms of
+   * /smarthome/admin/fleet, so every entry missed and the sidebar highlighted
+   * Overview no matter where you were.
+   */
+  const renderedPath = useRenderedPath(pathname);
   const active = useMemo(() => {
     const sorted = [...NAV].sort((a, b) => b.href.length - a.href.length);
-    return sorted.find((n) => pathname === n.href || pathname?.startsWith(n.href + "/")) ?? NAV[0];
-  }, [pathname]);
+    return (
+      sorted.find((n) => renderedPath === n.href || renderedPath.startsWith(n.href + "/")) ?? NAV[0]
+    );
+  }, [renderedPath]);
 
   // ⌘K / Ctrl+K command palette
   useEffect(() => {
