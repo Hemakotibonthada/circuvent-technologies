@@ -1568,6 +1568,7 @@ function RcCar({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) =
 
   const kmh = Math.round(Math.abs(speedCms) * 0.036 * 10) / 10;
   const label = failsafe ? "Stopped — link lost" : linked ? "Driver connected" : "No driver";
+  const cameraUp = !!d.state.cameraUp;
 
   /*
    * No throttle and no steering here, deliberately.
@@ -1583,6 +1584,32 @@ function RcCar({ d, send, c }: { d: Device; send: (p: Record<string, unknown>) =
   return (
     <View>
       <Big value={String(kmh)} unit="km/h" caption={label} c={c} />
+
+      {/*
+        The camera is reached on the car's own Wi-Fi, not through here.
+        Saying so is the point: somebody looking for a picture on this screen
+        needs to know it is one network away, rather than concluding the
+        camera is broken.
+      */}
+      <View
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          backgroundColor: c.card,
+          borderWidth: 1,
+          borderColor: c.border,
+          marginBottom: 14,
+        }}
+      >
+        <Text style={{ color: c.text, fontWeight: "600", marginBottom: 2 }}>
+          {cameraUp ? "Camera is running" : "No camera"}
+        </Text>
+        <Text style={{ color: c.textDim, fontSize: 12 }}>
+          {cameraUp
+            ? "Join the car's own Wi-Fi to watch it. The picture is on a separate link from the controls, so a slow video never delays steering."
+            : "This car has no camera fitted, or it did not start."}
+        </Text>
+      </View>
 
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
         <Row label="Battery" c={c}>

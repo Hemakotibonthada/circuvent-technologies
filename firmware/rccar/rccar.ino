@@ -48,12 +48,34 @@
 #include "rc-protocol.h"
 #include "rc-drive.h"
 #include "rc-lights.h"
+#include "rc-camera.h"
 
 CircuventDevice cv("rc-car");
 Preferences prefs;
 
 static RcDrive drive;
 static RcLights lights;
+static RcCamera camera;
+
+/*
+ * The camera task.
+ *
+ * Pinned to core 1 with a priority *below* the control path, and it is the
+ * only thing that touches the camera or the HTTP server. Everything it does —
+ * capture, JPEG, Wi-Fi, a client that stops reading — is allowed to block,
+ * which is exactly why it is not on the core that drives the motor.
+ */
+static void cameraTask(void *) {
+  for (;;) {
+    camera.loop();
+    /*
+     * A yield rather than a busy loop. handleClient() returns immediately when
+     * nothing is pending, so without this the task would spin at full tilt and
+     * starve everything else on the core of the little time it needs.
+     */
+    vTaskDelay(pdMS_TO_TICKS(2));
+  }
+}
 
 /* ---------------------------------------------------------------- link ---- */
 
@@ -247,6 +269,21 @@ void setup() {
 
   startLink();
 
+  /*
+   * The camera comes up last, after the link and after the drive.
+   *
+   * It is the one part that is allowed to fail without stopping anything: a
+   * car with no camera is a car somebody drives by looking at it, which is how
+   * every model car worked until recently. A car with no control link is a
+   * brick, so that goes first.
+   */
+  char camPass[33] = {0};
+  prefs.begin("rccar", true);
+  prefs.getString("camPass", camPass, sizeof(camPass));
+  prefs.end();
+  if (camera.begin(camPass)) {
+    xTaskCreatePinnedToCore(cameraTask, "rc-camera", 8192, nullptr, 3, nullptr, 1);
+  }
 
   cv.begin();
 }
@@ -336,5 +373,7 @@ void loop() {
     cv.set("rxGood", (long)framesGood);
     cv.set("rxBad", (long)framesBad);
     cv.set("paired", paired);
+    cv.set("cameraUp", camera.up());
+    cv.set("camFrames", (long)camera.frames());
   }
 }

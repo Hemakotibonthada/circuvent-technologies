@@ -641,6 +641,40 @@ export const products: Product[] = [
     badge: "Dev platform",
     rating: 0,
   },
+  {
+    id: "rccar",
+    slug: "circuvent-rc-car",
+    name: "Circuvent RC Car",
+    tagline: "Drive it from a handset or a phone, and see where it is going",
+    /*
+     * Written from firmware/rccar/ and Docs/38-rc-platform.md, not from
+     * ambition — the rule in Docs/07-adding-a-new-device.md.
+     *
+     * The separate-links point is in the description rather than the spec
+     * list, because it is the reason to buy this rather than a toy: it is what
+     * stops the video stalling the steering, and a buyer comparing it against
+     * something cheaper will not otherwise know to ask.
+     */
+    description:
+      "A model car with a camera, driven either from the bundled handset or from your phone through a small USB dongle. Controls and video travel on two separate radio links, which is the whole design: a camera feed is bulk traffic and steering is twenty bytes that have to arrive on time, so a slow picture never delays a turn. The car brakes and puts its hazards on if it loses the link, refuses to move until the throttle has passed through neutral, and holds its speed limit itself rather than trusting whatever is holding the joystick — so handing it to a child in beginner mode means 30% power and no reverse, whatever they press. Headlights, indicators, hazards, brake and reverse lights and a horn, all behaving the way a real car's do.",
+    price: 8999,
+    compareAt: 10999,
+    category: "Robotics",
+    image: "/img/product-rccar.svg",
+    accent: "#f97316",
+    icon: "🚗",
+    specs: [
+      "ESP-NOW control link, 50 Hz, separate from the video",
+      "Camera on its own Wi-Fi, QVGA MJPEG",
+      "Brakes and flags itself if the link drops",
+      "Speed limit enforced on the car, not the controller",
+      "Handset and phone dongle both included",
+      "Lights, indicators, hazards and horn",
+    ],
+    stock: 12,
+    badge: "New",
+    rating: 0,
+  },
 ];
 
 export function getProduct(slug: string): Product | undefined {

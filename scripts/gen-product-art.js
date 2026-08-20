@@ -237,8 +237,35 @@ ${plate(400, 330)}
     </g>
   </g>`,
 
+  rccar: `  <g transform="translate(400 340)">
+      <!--
+        The car seen head-on, because that is the view a driver has of it and
+        the one the headlights are on. The lamps are drawn lit: this product is
+        a car that behaves like a car — indicators that blink together as a
+        hazard, a brake light that comes on when it slows — and a picture with
+        the lamps dark would be a picture of a toy.
+      -->
+      <g fill="#f97316" opacity="0.16">
+        <rect x="-190" y="-70" width="380" height="140" rx="34"/>
+      </g>
+      <g stroke="#f97316" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.85">
+        <path d="M-190 20 h380"/>
+        <path d="M-150 -20 q40 -60 150 -60 q110 0 150 60"/>
+      </g>
+      <g fill="#f97316" opacity="0.35">
+        <circle cx="-110" cy="70" r="40"/><circle cx="110" cy="70" r="40"/>
+      </g>
+      <!-- headlamps, lit -->
+      <g fill="#fde68a">
+        <circle cx="-150" cy="-4" r="14"/><circle cx="150" cy="-4" r="14"/>
+      </g>
+      <!-- the camera, which is the reason this is not just a car -->
+      <g fill="#0f172a" opacity="0.8"><rect x="-22" y="-96" width="44" height="26" rx="8"/></g>
+      <g fill="#f97316"><circle cx="0" cy="-83" r="7"/></g>
+    </g>`,
+
   "drone-x1": `  <g transform="translate(400 340)">
-    <!--
+      <!--
       The X1 seen from above: four arms, four props, and the flight controller
       as the lit centre. The board is the product here, not the airframe, so it
       carries the accent while the frame stays dark.
@@ -467,6 +494,7 @@ const LABELS = {
   "anpr-cam": ["ANPR Camera", "#0ea5e9"],
   "drone-link": ["Drone Link", "#6366f1"],
   "drone-x1": ["Drone X1", "#6366f1"],
+  rccar: ["RC Car", "#f97316"],
   "energy-monitor": ["Energy Monitor", "#f59e0b"],
   "home-hub": ["Home Hub", "#14b8a6"],
   "smart-switch": ["Smart Switch", "#22d3ee"],
