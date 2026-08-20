@@ -697,7 +697,7 @@ adminRouter.post("/devices/provision", async (req: AuthedRequest, res) => {
 });
 
 /** POST /admin/broadcast — publish a command to every device matching a filter. */
-adminRouter.post("/broadcast", async (req, res) => {
+adminRouter.post("/broadcast", async (req: AuthedRequest, res) => {
   const parsed = z
     .object({ type: z.string().optional(), online: z.boolean().optional(), command: z.record(z.unknown()) })
     .safeParse(req.body);
@@ -713,11 +713,30 @@ adminRouter.post("/broadcast", async (req, res) => {
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const { rows } = await pool.query<{ id: string }>(`SELECT id FROM devices ${where}`, vals);
   for (const r of rows) publishCommand(r.id, parsed.data.command);
+  /*
+   * Recorded because this is the widest action in the product: one request
+   * publishes an arbitrary command to every matching device, and the fleet
+   * includes locks and gates. Nothing wrote it down, so "who unlocked
+   * everything at 02:00" was not answerable from any log — the MQTT publish
+   * leaves no trace and the command itself is not persisted.
+   *
+   * Best-effort and after the publish: an audit write that failed must not
+   * stop a command the operator already committed to, and must not make the
+   * request look like it failed when the devices already acted on it.
+   */
+  await recordEvent(
+    req.user!.uid,
+    "security",
+    `Fleet broadcast to ${rows.length} device${rows.length === 1 ? "" : "s"}`,
+    `by ${req.user!.email} · target ${parsed.data.type ?? "all types"}${
+      parsed.data.online === true ? " (online only)" : ""
+    } · ${JSON.stringify(parsed.data.command).slice(0, 300)}`
+  );
   res.json({ success: true, sent: rows.length });
 });
 
 /** POST /admin/ota-broadcast — push an OTA pointer to every device (optionally by type). */
-adminRouter.post("/ota-broadcast", async (req, res) => {
+adminRouter.post("/ota-broadcast", async (req: AuthedRequest, res) => {
   const parsed = z.object({ type: z.string().optional(), url: z.string().url(), version: z.string().max(40).optional() }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "A firmware url is required." });
@@ -727,5 +746,13 @@ adminRouter.post("/ota-broadcast", async (req, res) => {
   const vals = parsed.data.type ? [parsed.data.type] : [];
   const { rows } = await pool.query<{ id: string }>(`SELECT id FROM devices ${where}`, vals);
   for (const r of rows) publishCommand(r.id, { action: "ota", url: parsed.data.url, version: parsed.data.version ?? "" });
+  // Firmware is the least reversible thing this API does, so who pushed which
+  // build to how many devices is the first question after a bad rollout.
+  await recordEvent(
+    req.user!.uid,
+    "security",
+    `Firmware push to ${rows.length} device${rows.length === 1 ? "" : "s"}`,
+    `by ${req.user!.email} · target ${parsed.data.type ?? "whole fleet"} · ${parsed.data.version || "unversioned"} · ${parsed.data.url}`
+  );
   res.json({ success: true, sent: rows.length });
 });
