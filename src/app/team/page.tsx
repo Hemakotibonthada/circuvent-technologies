@@ -225,6 +225,18 @@ function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemb
                   src={member.image}
                   alt={member.name}
                   fill
+                  /*
+                   * Biased toward the top of the source, not centred.
+                   *
+                   * These are portrait photographs in a 320px landscape-ish
+                   * box, so `object-cover` at the default 50% 50% takes its
+                   * crop from the middle and loses an equal slice off the top
+                   * and bottom — which on a head-and-shoulders shot means the
+                   * top of everyone's head. Dropping the vertical position to
+                   * 20% keeps the horizontal centring and spends the crop on
+                   * the jacket instead of the hairline.
+                   */
+                  style={{ objectPosition: "50% 20%" }}
                   className="object-cover transition-transform duration-700 group-hover:scale-105"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />
@@ -391,7 +403,7 @@ function EnhancedTeamCard({ member, index, isAgent = false }: { member: TeamMemb
               {/* Image */}
               {member.image ? (
                 <div className="relative w-full" style={{ height: 280 }}>
-                  <Image src={member.image} alt={member.name} fill className="object-cover" sizes="500px" />
+                  <Image src={member.image} alt={member.name} fill style={{ objectPosition: "50% 20%" }} className="object-cover" sizes="500px" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                   <div className="absolute bottom-5 left-6">
                     {member.isFounder && (
