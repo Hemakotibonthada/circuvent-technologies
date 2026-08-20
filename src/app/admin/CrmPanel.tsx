@@ -45,6 +45,7 @@ export default function CrmPanel() {
   const [customers, setCustomers] = useState<CrmCustomer[]>([]);
   const [stats, setStats] = useState<{ platinum: number; gold: number; silver: number; bronze: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [active, setActive] = useState<CrmCustomer | null>(null);
   const [notes, setNotes] = useState<CustomerNote[]>([]);
@@ -53,13 +54,21 @@ export default function CrmPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/admin/crm?q=${encodeURIComponent(q)}`, { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setCustomers(d.customers || []);
-      setStats(d.stats || null);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/crm?q=${encodeURIComponent(q)}`, { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setCustomers(d.customers || []);
+        setStats(d.stats || null);
+      } else {
+        setError("Could not load CRM customers. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load CRM customers. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [q]);
 
   useEffect(() => {
@@ -125,6 +134,12 @@ export default function CrmPanel() {
         <Search className="w-4 h-4" style={{ color: "var(--text-tertiary)" }} />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email or tag…" className="bg-transparent outline-none text-sm flex-1" style={{ color: "var(--text-primary)" }} />
       </div>
+
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>

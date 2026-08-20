@@ -25,20 +25,25 @@ interface Customer {
 export default function CustomersPanel() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [q, setQ] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/admin/customers", { headers: { "x-admin-token": tok() } });
       if (res.ok) {
         const d = await res.json();
         setCustomers(d.customers || []);
+      } else {
+        setError("Could not load customers. This is a loading failure, not an empty list.");
       }
     } catch {
-      /* ignore */
+      setError("Could not load customers. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -82,11 +87,18 @@ export default function CustomersPanel() {
         </button>
       </div>
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--accent-cyan)" }} />
         </div>
-      ) : shown.length === 0 ? (
+      ) : shown.length === 0 && !error ? (
+        // Empty-state copy must stay hidden while `error` is set — otherwise a failed fetch looks identical to "no data".
         <p className="py-16 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>No customers yet.</p>
       ) : (
         <div className="space-y-2">

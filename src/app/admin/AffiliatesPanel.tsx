@@ -37,19 +37,28 @@ export default function AffiliatesPanel() {
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [stats, setStats] = useState<{ total: number; approved: number; pendingPayouts: number; totalCommission: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [form, setForm] = useState<{ name: string; email: string; commissionPct: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/affiliates", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setAffiliates(d.affiliates || []);
-      setOwed(d.owed || {});
-      setPayouts(d.payouts || []);
-      setStats(d.stats || null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/affiliates", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setAffiliates(d.affiliates || []);
+        setOwed(d.owed || {});
+        setPayouts(d.payouts || []);
+        setStats(d.stats || null);
+      } else {
+        setError("Could not load affiliates. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load affiliates. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -115,6 +124,12 @@ export default function AffiliatesPanel() {
         </div>
       )}
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -128,12 +143,12 @@ export default function AffiliatesPanel() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded-full text-xs font-semibold capitalize" style={{ background: a.status === "approved" ? "#22c55e22" : a.status === "suspended" ? "#ef444422" : "#f59e0b22", color: a.status === "approved" ? "#22c55e" : a.status === "suspended" ? "#ef4444" : "#f59e0b" }}>{a.status}</span>
-                  {a.status !== "approved" && <button onClick={() => decide(a.id, "approved")} className="p-1.5 rounded-lg text-emerald-400 hover:bg-white/10"><CheckCircle2 className="w-4 h-4" /></button>}
-                  {a.status !== "suspended" && <button onClick={() => decide(a.id, "suspended")} className="p-1.5 rounded-lg text-red-400 hover:bg-white/10"><XCircle className="w-4 h-4" /></button>}
+                  {a.status !== "approved" && <button onClick={() => decide(a.id, "approved")} aria-label={`Approve ${a.name}`} className="p-1.5 rounded-lg text-emerald-400 hover:bg-white/10"><CheckCircle2 className="w-4 h-4" /></button>}
+                  {a.status !== "suspended" && <button onClick={() => decide(a.id, "suspended")} aria-label={`Suspend ${a.name}`} className="p-1.5 rounded-lg text-red-400 hover:bg-white/10"><XCircle className="w-4 h-4" /></button>}
                 </div>
               </div>
             ))}
-            {affiliates.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No affiliates yet.</p>}
+            {affiliates.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No affiliates yet.</p>}
           </div>
 
           {payouts.length > 0 && (
@@ -145,8 +160,8 @@ export default function AffiliatesPanel() {
                     <span className="text-sm" style={{ color: "var(--text-primary)" }}>{affiliates.find((a) => a.id === p.affiliateId)?.name || p.affiliateId} — ₹{p.amount.toLocaleString("en-IN")}</span>
                     {p.status === "requested" ? (
                       <div className="flex gap-1.5">
-                        <button onClick={() => decidePayout(p.id, "paid")} className="p-1.5 rounded-lg text-emerald-400 hover:bg-white/10"><CheckCircle2 className="w-4 h-4" /></button>
-                        <button onClick={() => decidePayout(p.id, "rejected")} className="p-1.5 rounded-lg text-red-400 hover:bg-white/10"><XCircle className="w-4 h-4" /></button>
+                        <button onClick={() => decidePayout(p.id, "paid")} aria-label={`Mark payout paid for ${affiliates.find((a) => a.id === p.affiliateId)?.name || p.affiliateId}`} className="p-1.5 rounded-lg text-emerald-400 hover:bg-white/10"><CheckCircle2 className="w-4 h-4" /></button>
+                        <button onClick={() => decidePayout(p.id, "rejected")} aria-label={`Reject payout for ${affiliates.find((a) => a.id === p.affiliateId)?.name || p.affiliateId}`} className="p-1.5 rounded-lg text-red-400 hover:bg-white/10"><XCircle className="w-4 h-4" /></button>
                       </div>
                     ) : (
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: p.status === "paid" ? "#22c55e22" : "#ef444422", color: p.status === "paid" ? "#22c55e" : "#ef4444" }}>{p.status}</span>

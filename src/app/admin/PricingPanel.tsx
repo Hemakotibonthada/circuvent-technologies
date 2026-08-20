@@ -45,18 +45,27 @@ export default function PricingPanel() {
   const [history, setHistory] = useState<HistEntry[]>([]);
   const [stats, setStats] = useState<{ totalRules: number; liveNow: number; upcoming: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [form, setForm] = useState<Partial<PriceRule> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/pricing", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setRules(d.rules || []);
-      setHistory(d.history || []);
-      setStats(d.stats || null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/pricing", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setRules(d.rules || []);
+        setHistory(d.history || []);
+        setStats(d.stats || null);
+      } else {
+        setError("Could not load pricing rules. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load pricing rules. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -127,6 +136,12 @@ export default function PricingPanel() {
         </div>
       )}
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -148,13 +163,13 @@ export default function PricingPanel() {
                 <button onClick={() => toggle(r)} className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ background: r.active ? "#22c55e22" : "#94a3b822", color: r.active ? "#22c55e" : "#94a3b8" }}>
                   {r.active ? "Enabled" : "Disabled"}
                 </button>
-                <button onClick={() => remove(r)} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400">
+                <button onClick={() => remove(r)} aria-label={`Delete ${r.name}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
           ))}
-          {rules.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No pricing rules yet.</p>}
+          {rules.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No pricing rules yet.</p>}
         </div>
       )}
 

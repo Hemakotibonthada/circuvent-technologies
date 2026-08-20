@@ -53,10 +53,12 @@ export default function OrdersPanel() {
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [openNo, setOpenNo] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError("");
     const params = new URLSearchParams();
     if (status !== "all") params.set("status", status);
     if (q.trim()) params.set("q", q.trim());
@@ -68,11 +70,14 @@ export default function OrdersPanel() {
         setCounts(d.counts || {});
         setRevenue(d.revenue || 0);
         setTotal(d.total || 0);
+      } else {
+        setError("Could not load orders. This is a loading failure, not an empty list.");
       }
     } catch {
-      /* ignore */
+      setError("Could not load orders. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [status, q]);
 
   useEffect(() => {
@@ -153,12 +158,19 @@ export default function OrdersPanel() {
         </button>
       </div>
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {/* List */}
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--accent-cyan)" }} />
         </div>
-      ) : orders.length === 0 ? (
+      ) : orders.length === 0 && !error ? (
+        // Empty-state copy must stay hidden while `error` is set — otherwise a failed fetch looks identical to "no data".
         <p className="py-16 text-center text-sm" style={{ color: "var(--text-tertiary)" }}>
           No orders found.
         </p>

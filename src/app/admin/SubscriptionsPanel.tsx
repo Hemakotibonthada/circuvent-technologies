@@ -37,19 +37,28 @@ export default function SubscriptionsPanel() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [stats, setStats] = useState<{ plans: number; activeSubscribers: number; mrr: number; churned: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [form, setForm] = useState<Partial<Plan> | null>(null);
   const [subForm, setSubForm] = useState<{ email: string; planId: string; billingCycle: "monthly" | "yearly" } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/subscriptions", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setPlans(d.plans || []);
-      setSubscribers(d.subscribers || []);
-      setStats(d.stats || null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/subscriptions", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setPlans(d.plans || []);
+        setSubscribers(d.subscribers || []);
+        setStats(d.stats || null);
+      } else {
+        setError("Could not load subscriptions. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load subscriptions. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -85,6 +94,8 @@ export default function SubscriptionsPanel() {
   };
 
   const cancel = async (id: string) => {
+    const s = subscribers.find((x) => x.id === id);
+    if (!confirm(`Cancel the subscription for ${s?.email ?? "this customer"}? This immediately ends their paid access.`)) return;
     await fetch("/api/admin/subscriptions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json", "x-admin-token": tok() },
@@ -128,6 +139,12 @@ export default function SubscriptionsPanel() {
         </div>
       )}
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -146,7 +163,7 @@ export default function SubscriptionsPanel() {
                 </ul>
               </div>
             ))}
-            {plans.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No plans yet.</p>}
+            {plans.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No plans yet.</p>}
           </div>
 
           <div className="rounded-xl overflow-hidden" style={card}>
@@ -173,7 +190,7 @@ export default function SubscriptionsPanel() {
                     </td>
                   </tr>
                 ))}
-                {subscribers.length === 0 && (
+                {subscribers.length === 0 && !error && (
                   <tr><td colSpan={6} className="px-4 py-8 text-center" style={{ color: "var(--text-tertiary)" }}>No subscribers yet.</td></tr>
                 )}
               </tbody>

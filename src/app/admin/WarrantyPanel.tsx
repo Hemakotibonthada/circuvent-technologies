@@ -39,20 +39,29 @@ export default function WarrantyPanel() {
   const [rmas, setRmas] = useState<RmaCase[]>([]);
   const [stats, setStats] = useState<{ registrations: number; openCases: number; closedCases: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [form, setForm] = useState<Partial<WarrantyRegistration> | null>(null);
   const [rmaFor, setRmaFor] = useState<WarrantyRegistration | null>(null);
   const [issue, setIssue] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/warranty", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setRegistrations(d.registrations || []);
-      setRmas(d.rmas || []);
-      setStats(d.stats || null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/warranty", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setRegistrations(d.registrations || []);
+        setRmas(d.rmas || []);
+        setStats(d.stats || null);
+      } else {
+        setError("Could not load warranty registrations. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load warranty registrations. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -117,6 +126,12 @@ export default function WarrantyPanel() {
         </div>
       )}
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -136,7 +151,7 @@ export default function WarrantyPanel() {
                 </div>
               </div>
             ))}
-            {registrations.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No warranty registrations yet.</p>}
+            {registrations.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No warranty registrations yet.</p>}
           </div>
 
           {rmas.length > 0 && (

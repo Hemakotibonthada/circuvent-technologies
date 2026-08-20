@@ -22,18 +22,27 @@ export default function SeoManagerPanel() {
   const [overrides, setOverrides] = useState<SeoOverride[]>([]);
   const [redirects, setRedirects] = useState<RedirectRule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [overrideForm, setOverrideForm] = useState<Partial<SeoOverride> | null>(null);
   const [redirectForm, setRedirectForm] = useState<{ from: string; to: string; statusCode: 301 | 302 } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/seo", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setOverrides(d.overrides || []);
-      setRedirects(d.redirects || []);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/seo", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setOverrides(d.overrides || []);
+        setRedirects(d.redirects || []);
+      } else {
+        setError("Could not load SEO settings. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load SEO settings. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -55,10 +64,14 @@ export default function SeoManagerPanel() {
   };
 
   const removeOverride = async (id: string) => {
+    const o = overrides.find((x) => x.id === id);
+    if (!confirm(`Remove the SEO override for "${o?.path ?? "this page"}"? It will revert to the default title and description.`)) return;
     await fetch(`/api/admin/seo?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: { "x-admin-token": tok() } });
     load();
   };
   const removeRedirect = async (id: string) => {
+    const r = redirects.find((x) => x.id === id);
+    if (!confirm(`Delete the redirect from "${r?.from ?? "this path"}"? Visitors will stop being redirected to ${r?.to ?? "its target"}.`)) return;
     await fetch(`/api/admin/seo?kind=redirect&id=${encodeURIComponent(id)}`, { method: "DELETE", headers: { "x-admin-token": tok() } });
     load();
   };
@@ -69,6 +82,12 @@ export default function SeoManagerPanel() {
         <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}><Globe2 className="w-5 h-5" /> SEO & Redirects Manager</h2>
         <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Per-page meta overrides and a 301/302 redirect table.</p>
       </div>
+
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
@@ -86,10 +105,10 @@ export default function SeoManagerPanel() {
                     <div className="text-sm font-mono" style={{ color: "var(--text-primary)" }}>{o.path}</div>
                     <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>{o.title || "no title override"} {o.noindex ? "· noindex" : ""}</div>
                   </div>
-                  <button onClick={() => removeOverride(o.id)} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeOverride(o.id)} aria-label={`Delete override for ${o.path}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
-              {overrides.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No overrides yet.</p>}
+              {overrides.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No overrides yet.</p>}
             </div>
           </div>
 
@@ -102,10 +121,10 @@ export default function SeoManagerPanel() {
               {redirects.map((r) => (
                 <div key={r.id} className="rounded-xl p-3 flex items-center justify-between" style={card}>
                   <span className="text-sm font-mono" style={{ color: "var(--text-primary)" }}>{r.from} → {r.to} ({r.statusCode}) · {r.hits} hits</span>
-                  <button onClick={() => removeRedirect(r.id)} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeRedirect(r.id)} aria-label={`Delete redirect ${r.from} to ${r.to}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
-              {redirects.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No redirects yet.</p>}
+              {redirects.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No redirects yet.</p>}
             </div>
           </div>
         </>

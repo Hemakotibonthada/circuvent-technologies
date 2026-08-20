@@ -55,19 +55,28 @@ export default function VendorPortalPanel() {
   const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
   const [stats, setStats] = useState<{ total: number; active: number; pendingQuotes: number; avgScore: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [form, setForm] = useState<Partial<VendorAccount> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/vendor-portal", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setVendors(d.vendors || []);
-      setScorecards(d.scorecards || {});
-      setQuotes(d.quotes || []);
-      setStats(d.stats || null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/vendor-portal", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setVendors(d.vendors || []);
+        setScorecards(d.scorecards || {});
+        setQuotes(d.quotes || []);
+        setStats(d.stats || null);
+      } else {
+        setError("Could not load vendors. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load vendors. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -141,6 +150,12 @@ export default function VendorPortalPanel() {
         </div>
       )}
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -161,7 +176,7 @@ export default function VendorPortalPanel() {
                         <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{sc.onTimePct}% on-time · {sc.qualityIssues} issues</div>
                       </div>
                     )}
-                    <button onClick={() => remove(v)} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => remove(v)} aria-label={`Remove ${v.companyName}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-3">
@@ -172,7 +187,7 @@ export default function VendorPortalPanel() {
               </div>
             );
           })}
-          {vendors.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No vendors yet.</p>}
+          {vendors.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No vendors yet.</p>}
         </div>
       )}
 
@@ -190,8 +205,8 @@ export default function VendorPortalPanel() {
                 </div>
                 {q.status === "pending" ? (
                   <div className="flex gap-1.5 shrink-0">
-                    <button onClick={() => decide(q.id, true)} className="p-1.5 rounded-lg text-emerald-400 hover:bg-white/10"><CheckCircle2 className="w-4 h-4" /></button>
-                    <button onClick={() => decide(q.id, false)} className="p-1.5 rounded-lg text-red-400 hover:bg-white/10"><XCircle className="w-4 h-4" /></button>
+                    <button onClick={() => decide(q.id, true)} aria-label={`Approve quote: ${q.title}`} className="p-1.5 rounded-lg text-emerald-400 hover:bg-white/10"><CheckCircle2 className="w-4 h-4" /></button>
+                    <button onClick={() => decide(q.id, false)} aria-label={`Reject quote: ${q.title}`} className="p-1.5 rounded-lg text-red-400 hover:bg-white/10"><XCircle className="w-4 h-4" /></button>
                   </div>
                 ) : (
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: q.status === "approved" ? "#22c55e22" : "#ef444422", color: q.status === "approved" ? "#22c55e" : "#ef4444" }}>

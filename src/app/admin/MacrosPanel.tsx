@@ -20,13 +20,24 @@ const inputStyle = { background: "var(--bg-glass)", borderColor: "var(--border-p
 export default function MacrosPanel() {
   const [macros, setMacros] = useState<Macro[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [form, setForm] = useState<Partial<Macro> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/macros", { headers: { "x-admin-token": tok() } });
-    if (res.ok) setMacros((await res.json()).macros || []);
-    setLoading(false);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/macros", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        setMacros((await res.json()).macros || []);
+      } else {
+        setError("Could not load macros. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load macros. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -41,6 +52,8 @@ export default function MacrosPanel() {
   };
 
   const remove = async (id: string) => {
+    const m = macros.find((x) => x.id === id);
+    if (!confirm(`Delete the "${m?.title ?? "this"}" macro? Support agents will no longer be able to use this canned reply.`)) return;
     await fetch(`/api/admin/macros?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: { "x-admin-token": tok() } });
     load();
   };
@@ -61,6 +74,12 @@ export default function MacrosPanel() {
         <button onClick={() => setForm({ category: "General" })} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)" }}><Plus className="w-4 h-4" /> New macro</button>
       </div>
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -74,12 +93,12 @@ export default function MacrosPanel() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => copyUse(m)} className="p-1.5 rounded-lg hover:bg-white/10 text-cyan-400" title="Copy & record use"><Copy className="w-4 h-4" /></button>
-                  <button onClick={() => remove(m.id)} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => remove(m.id)} aria-label={`Delete ${m.title}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
           ))}
-          {macros.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No macros yet.</p>}
+          {macros.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No macros yet.</p>}
         </div>
       )}
 

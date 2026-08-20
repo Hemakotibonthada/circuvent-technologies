@@ -20,16 +20,25 @@ export default function SurveysPanel() {
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
   const [nps, setNps] = useState<NpsBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/surveys", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setResponses(d.responses || []);
-      setNps(d.nps || null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/surveys", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setResponses(d.responses || []);
+        setNps(d.nps || null);
+      } else {
+        setError("Could not load survey responses. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load survey responses. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -42,6 +51,12 @@ export default function SurveysPanel() {
         <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}><Smile className="w-5 h-5" /> Customer Feedback (NPS)</h2>
         <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Net Promoter Score computed from 0-10 satisfaction responses.</p>
       </div>
+
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
@@ -68,7 +83,7 @@ export default function SurveysPanel() {
                   {r.comment && <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>{r.comment}</p>}
                 </div>
               ))}
-              {responses.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No responses yet.</p>}
+              {responses.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No responses yet.</p>}
             </div>
           </div>
         </>

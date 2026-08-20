@@ -30,18 +30,27 @@ const inputStyle = { background: "var(--bg-glass)", borderColor: "var(--border-p
 export default function BundlesPanel() {
   const [bundles, setBundles] = useState<BundleWithSavings[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [durable, setDurable] = useState(true);
   const [form, setForm] = useState<{ name: string; productIds: string; bundlePrice: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/bundles", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setBundles(d.bundles || []);
-      setDurable(d.durable !== false);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/bundles", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setBundles(d.bundles || []);
+        setDurable(d.durable !== false);
+      } else {
+        setError("Could not load bundles. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load bundles. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -60,6 +69,8 @@ export default function BundlesPanel() {
   };
 
   const remove = async (id: string) => {
+    const b = bundles.find((x) => x.id === id);
+    if (!confirm(`Delete the "${b?.name ?? "this"}" bundle? This removes a live discount customers can currently redeem at checkout.`)) return;
     await fetch(`/api/admin/bundles?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: { "x-admin-token": tok() } });
     load();
   };
@@ -84,6 +95,12 @@ export default function BundlesPanel() {
         </p>
       )}
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -95,10 +112,10 @@ export default function BundlesPanel() {
                 <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>{b.productNames.join(" + ") || b.productIds.join(", ")}</div>
                 <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>₹{b.bundlePrice} (catalog ₹{b.catalogTotal}) · save ₹{b.savings} ({b.savingsPct}%)</div>
               </div>
-              <button onClick={() => remove(b.id)} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => remove(b.id)} aria-label={`Delete ${b.name}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
-          {bundles.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No bundles yet.</p>}
+          {bundles.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No bundles yet.</p>}
         </div>
       )}
 

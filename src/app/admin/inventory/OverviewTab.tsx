@@ -13,17 +13,38 @@ interface Dash {
 export default function OverviewTab({ onGoto }: { onGoto: (t: string) => void }) {
   const [d, setD] = useState<Dash | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = await invGet<{ dashboard: Dash }>("/reports?report=dashboard");
-    if (r?.dashboard) setD(r.dashboard);
-    setLoading(false);
+    setError("");
+    try {
+      const r = await invGet<{ dashboard: Dash }>("/reports?report=dashboard");
+      if (r?.dashboard) {
+        setD(r.dashboard);
+      } else {
+        setError("Could not load the inventory overview. This is a loading failure, not an empty result.");
+      }
+    } catch {
+      setError("Could not load the inventory overview. This is a loading failure, not an empty result.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   if (loading && !d) return <Spinner />;
-  if (!d) return null;
+  if (!d) {
+    // A failed/blocked fetch leaves `d` null — show an error + retry instead of silently rendering a blank tab.
+    return (
+      <div>
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error || "Could not load the inventory overview. This is a loading failure, not an empty result."}
+        </div>
+        <Btn variant="ghost" onClick={load}><RefreshCw className="h-4 w-4" /> Retry</Btn>
+      </div>
+    );
+  }
 
   const kpis: { label: string; value: string; color?: string }[] = [
     { label: "SKUs", value: String(d.skuCount) },

@@ -20,13 +20,24 @@ const inputStyle = { background: "var(--bg-glass)", borderColor: "var(--border-p
 export default function ShippingPanel() {
   const [zones, setZones] = useState<ShippingZone[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [form, setForm] = useState<Partial<ShippingZone> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/shipping", { headers: { "x-admin-token": tok() } });
-    if (res.ok) setZones((await res.json()).zones || []);
-    setLoading(false);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/shipping", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        setZones((await res.json()).zones || []);
+      } else {
+        setError("Could not load shipping zones. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load shipping zones. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -45,6 +56,8 @@ export default function ShippingPanel() {
   };
 
   const remove = async (id: string) => {
+    const z = zones.find((x) => x.id === id);
+    if (!confirm(`Delete the "${z?.name ?? "this"}" shipping zone? Checkout shipping costs for that area will change immediately.`)) return;
     await fetch(`/api/admin/shipping?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: { "x-admin-token": tok() } });
     load();
   };
@@ -59,6 +72,12 @@ export default function ShippingPanel() {
         <button onClick={() => setForm({ ratePerOrder: 60, freeShippingThreshold: 999, etaDays: 5, active: true })} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: "linear-gradient(135deg, #06b6d4, #8b5cf6)" }}><Plus className="w-4 h-4" /> New zone</button>
       </div>
 
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
       ) : (
@@ -72,10 +91,10 @@ export default function ShippingPanel() {
                   <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>Prefixes: {z.pincodePrefixes.join(", ")} · ₹{z.ratePerOrder} · free over ₹{z.freeShippingThreshold} · {z.etaDays}d ETA</div>
                 </div>
               </div>
-              <button onClick={() => remove(z.id)} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => remove(z.id)} aria-label={`Delete ${z.name}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
-          {zones.length === 0 && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No shipping zones yet — default flat rate applies.</p>}
+          {zones.length === 0 && !error && <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>No shipping zones yet — default flat rate applies.</p>}
         </div>
       )}
 

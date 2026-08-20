@@ -28,12 +28,23 @@ const URGENCY_COLOR: Record<ForecastRow["urgency"], string> = { critical: "#ef44
 export default function ForecastingPanel() {
   const [rows, setRows] = useState<ForecastRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/forecasting", { headers: { "x-admin-token": tok() } });
-    if (res.ok) setRows((await res.json()).forecast || []);
-    setLoading(false);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/forecasting", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        setRows((await res.json()).forecast || []);
+      } else {
+        setError("Could not load forecasting data. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load forecasting data. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -48,6 +59,12 @@ export default function ForecastingPanel() {
         <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}><TrendingUp className="w-5 h-5" /> Inventory Forecasting</h2>
         <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Reorder suggestions from real 30-day sales velocity vs current stock.</p>
       </div>
+
+      {error && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       {critical > 0 && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-center gap-2 text-red-300 text-sm">
@@ -79,7 +96,7 @@ export default function ForecastingPanel() {
                   <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: `${URGENCY_COLOR[r.urgency]}22`, color: URGENCY_COLOR[r.urgency] }}>{r.urgency}</span></td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: "var(--text-tertiary)" }}>No products yet.</td></tr>}
+              {rows.length === 0 && !error && <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: "var(--text-tertiary)" }}>No products yet.</td></tr>}
             </tbody>
           </table>
         </div>
