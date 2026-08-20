@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { guard } from "@/lib/admin-auth";
+import { logAudit } from "@/lib/store";
 import {
   listPosts,
   getPost,
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
     if (!b?.title || !b?.type) {
       return NextResponse.json({ success: false, message: "Title and type are required." }, { status: 400 });
     }
+    const isNew = !b.id;
     const post = upsertPost(
       {
         id: b.id,
@@ -63,6 +65,7 @@ export async function POST(request: Request) {
       },
       me.name
     );
+    logAudit(isNew ? "cms.create" : "cms.update", `${me.email} ${isNew ? "created" : "updated"} "${post.title}" (${post.id}, ${post.type}, status=${post.status})`);
     return NextResponse.json({ success: true, post });
   } catch {
     return NextResponse.json({ success: false, message: "Could not save content." }, { status: 500 });
@@ -80,11 +83,21 @@ export async function PATCH(request: Request) {
     if (b.restoreRevisionId) {
       const post = restoreRevision(b.id, b.restoreRevisionId, me.name);
       if (!post) return NextResponse.json({ success: false, message: "Not found." }, { status: 404 });
+      logAudit("cms.restore", `${me.email} restored "${post.title}" (${post.id}) to revision ${b.restoreRevisionId}`);
       return NextResponse.json({ success: true, post });
     }
     if (b.status) {
+      const before = getPost(b.id);
       const post = setStatus(b.id, b.status);
       if (!post) return NextResponse.json({ success: false, message: "Not found." }, { status: 404 });
+      // Publicly-visible content: name the transition, not just "updated", so
+      // "who published this" and "who took it down" are both answerable.
+      const action =
+        post.status === "published" ? "cms.publish" :
+        post.status === "archived" ? "cms.archive" :
+        before?.status === "published" ? "cms.unpublish" :
+        "cms.status";
+      logAudit(action, `${me.email} changed "${post.title}" (${post.id}) status from ${before?.status ?? "unknown"} to ${post.status}`);
       return NextResponse.json({ success: true, post });
     }
     return NextResponse.json({ success: false, message: "Nothing to update." }, { status: 400 });
@@ -98,6 +111,8 @@ export async function DELETE(request: Request) {
   if (!me) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id") || "";
+  const post = getPost(id);
   const ok = deletePost(id);
+  if (ok) logAudit("cms.delete", `${me.email} deleted "${post?.title ?? id}" (${id})`);
   return NextResponse.json({ success: ok });
 }

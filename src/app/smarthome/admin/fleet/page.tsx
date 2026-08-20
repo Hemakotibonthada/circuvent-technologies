@@ -222,9 +222,9 @@ function FleetInner() {
           <Segmented<"table" | "grid" | "sites">
             value={view} onChange={setView}
             options={[
-              { value: "table", label: <Table2 className="h-4 w-4" /> },
-              { value: "grid", label: <Grid3x3 className="h-4 w-4" /> },
-              { value: "sites", label: <Building2 className="h-4 w-4" /> },
+              { value: "table", label: <Table2 className="h-4 w-4" />, title: "Table view" },
+              { value: "grid", label: <Grid3x3 className="h-4 w-4" />, title: "Grid view" },
+              { value: "sites", label: <Building2 className="h-4 w-4" />, title: "Sites view" },
             ]}
           />
         </div>

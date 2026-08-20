@@ -25,7 +25,7 @@ import {
 import { relativeTime, fmtDateTime, num } from "../_lib/format";
 import {
   Drawer, Tabs, Badge, Btn, Dot, Field, Input, Select, Skeleton,
-  ErrorState, EmptyState, type Tone,
+  ErrorState, EmptyState, Modal, type Tone,
 } from "../_ui";
 
 type Tab = "state" | "telemetry" | "actions";
@@ -245,6 +245,8 @@ function ActionsTab({
   const [otaUrl, setOtaUrl] = useState("");
   const [otaVersion, setOtaVersion] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmCommand, setConfirmCommand] = useState(false);
+  const [confirmOta, setConfirmOta] = useState(false);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ action: string; ok: boolean; msg: string } | null>(null);
@@ -316,7 +318,7 @@ function ActionsTab({
         <div className="mt-2">
           <Btn
             variant="subtle" size="sm" disabled={!parsedCommand.value || busy === "command"}
-            onClick={() => parsedCommand.value && run("command", () => controlPlane.adminCommand(device.id, parsedCommand.value as Record<string, unknown>), "Command published.", onChanged)}
+            onClick={() => setConfirmCommand(true)}
           >
             {busy === "command" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
           </Btn>
@@ -334,7 +336,7 @@ function ActionsTab({
         <div className="mt-3">
           <Btn
             variant="subtle" size="sm" disabled={!otaUrl.trim() || busy === "ota"}
-            onClick={() => run("ota", () => controlPlane.adminOta(device.id, otaUrl.trim(), otaVersion.trim() || undefined), "OTA update dispatched.", onChanged)}
+            onClick={() => setConfirmOta(true)}
           >
             {busy === "ota" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />} Push OTA
           </Btn>
@@ -360,6 +362,59 @@ function ActionsTab({
         )}
         {status("delete")}
       </section>
+
+      <Modal open={confirmCommand} onClose={() => { if (busy !== "command") setConfirmCommand(false); }} title="Confirm send command">
+        <div className="space-y-3 text-sm">
+          <p className="ad-muted">This publishes the command below directly to the device over MQTT. It takes effect immediately — there is no undo.</p>
+          <div className="space-y-1.5 rounded-xl border border-white/5 bg-black/20 p-4">
+            <KV k="Device" v={device.name || "—"} />
+            <KV k="Device ID" v={<span className="font-mono">{device.id}</span>} />
+            <div className="flex items-start justify-between gap-3 py-2 text-sm">
+              <span className="ad-muted shrink-0">Command</span>
+              <span className="min-w-0 break-all text-right font-mono text-[11px] text-white">{command}</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="subtle" className="flex-1" onClick={() => setConfirmCommand(false)} disabled={busy === "command"}>Cancel</Btn>
+            <Btn
+              variant="primary" className="flex-1" disabled={busy === "command"}
+              onClick={() => {
+                setConfirmCommand(false);
+                if (parsedCommand.value) run("command", () => controlPlane.adminCommand(device.id, parsedCommand.value as Record<string, unknown>), "Command published.", onChanged);
+              }}
+            >
+              {busy === "command" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Confirm send
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={confirmOta} onClose={() => { if (busy !== "ota") setConfirmOta(false); }} title="Confirm firmware push">
+        <div className="space-y-3 text-sm">
+          <p className="ad-muted">This flashes the device with the binary below. A wrong or bad image can brick the device — unlike delete, this cannot be undone by re-provisioning.</p>
+          <div className="space-y-1.5 rounded-xl border border-white/5 bg-black/20 p-4">
+            <KV k="Device" v={device.name || "—"} />
+            <KV k="Device ID" v={<span className="font-mono">{device.id}</span>} />
+            <KV k="Version" v={otaVersion.trim() || "—"} />
+            <div className="flex items-start justify-between gap-3 py-2 text-sm">
+              <span className="ad-muted shrink-0">Image URL</span>
+              <span className="min-w-0 break-all text-right font-mono text-[11px] text-white">{otaUrl.trim()}</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Btn variant="subtle" className="flex-1" onClick={() => setConfirmOta(false)} disabled={busy === "ota"}>Cancel</Btn>
+            <Btn
+              variant="primary" className="flex-1" disabled={busy === "ota"}
+              onClick={() => {
+                setConfirmOta(false);
+                run("ota", () => controlPlane.adminOta(device.id, otaUrl.trim(), otaVersion.trim() || undefined), "OTA update dispatched.", onChanged);
+              }}
+            >
+              {busy === "ota" ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />} Confirm push
+            </Btn>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

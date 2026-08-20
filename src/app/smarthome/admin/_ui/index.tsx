@@ -208,13 +208,20 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`ad-input ${props.className ?? ""}`} />;
 }
 
-export function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[] }) {
+export function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode; title?: string }[] }) {
   return (
     <div className="inline-flex rounded-lg border border-white/10 bg-black/20 p-1">
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <button key={o.value} onClick={() => onChange(o.value)} className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`} style={active ? { background: "var(--cv-gradient)" } : undefined}>
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            title={o.title}
+            aria-label={o.title}
+            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${active ? "text-white" : "text-slate-400 hover:text-slate-200"}`}
+            style={active ? { background: "var(--cv-gradient)" } : undefined}
+          >
             {o.label}
           </button>
         );

@@ -321,7 +321,10 @@ function IntegrationsTab() {
                 {it.endpoint && <div className="mt-3 truncate font-mono text-[11px] ad-muted">{it.endpoint}</div>}
                 <div className="mt-3 flex items-center justify-between">
                   <Badge tone={it.enabled ? "green" : "slate"}><Dot tone={it.enabled ? "green" : "slate"} /> {it.enabled ? "enabled" : "disabled"}</Badge>
-                  <button onClick={() => cfg.remove(it.id)} disabled={cfg.saving} className="text-slate-500 transition hover:text-red-300" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                  <button
+                    onClick={() => { if (confirm(`Delete integration "${it.name}"? This disconnects it immediately and cannot be undone.`)) cfg.remove(it.id); }}
+                    disabled={cfg.saving} className="text-slate-500 transition hover:text-red-300" title="Delete"
+                  ><Trash2 className="h-4 w-4" /></button>
                 </div>
               </Panel>
             </StaggerItem>
@@ -402,7 +405,7 @@ function WebhooksTab() {
     { key: "secret", header: "Secret", render: (w) => <span className="text-xs ad-muted">{w.secret ? "set" : "—"}</span> },
     { key: "created", header: "Added", align: "right", render: (w) => <span className="text-xs ad-muted">{relativeTime(w.createdAt)}</span> },
     { key: "enabled", header: "Enabled", align: "right", render: (w) => <Toggle checked={w.enabled} onChange={(v) => cfg.update(w.id, { enabled: v })} /> },
-    { key: "act", header: "", align: "right", render: (w) => <button onClick={() => cfg.remove(w.id)} disabled={cfg.saving} className="text-slate-500 transition hover:text-red-300" title="Delete"><Trash2 className="h-4 w-4" /></button> },
+    { key: "act", header: "", align: "right", render: (w) => <button onClick={() => { if (confirm(`Delete webhook ${w.url}? Deliveries to it will stop immediately and cannot be undone.`)) cfg.remove(w.id); }} disabled={cfg.saving} className="text-slate-500 transition hover:text-red-300" title="Delete"><Trash2 className="h-4 w-4" /></button> },
   ];
 
   return (
@@ -533,7 +536,10 @@ function FlagsTab() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Toggle checked={f.enabled} onChange={(v) => cfg.update(f.id, { enabled: v })} />
-                  <button onClick={() => cfg.remove(f.id)} disabled={cfg.saving} className="text-slate-500 transition hover:text-red-300" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                  <button
+                    onClick={() => { if (confirm(`Delete flag "${f.key}"? It gates live device behaviour for anything that reads it — deleting removes the toggle immediately and cannot be undone.`)) cfg.remove(f.id); }}
+                    disabled={cfg.saving} className="text-slate-500 transition hover:text-red-300" title="Delete"
+                  ><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
             ))}

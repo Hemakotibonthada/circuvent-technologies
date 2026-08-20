@@ -25,9 +25,9 @@ interface VendorAccount {
 interface Scorecard {
   vendorId: string;
   deliveries: number;
-  onTimePct: number;
+  onTimePct: number | null;
   qualityIssues: number;
-  score: number;
+  score: number | null;
 }
 interface QuoteRequest {
   id: string;
@@ -43,7 +43,10 @@ const card: React.CSSProperties = { background: "var(--bg-surface)", border: "1p
 const field = "w-full rounded-xl border px-3 py-2 text-sm outline-none";
 const inputStyle = { background: "var(--bg-glass)", borderColor: "var(--border-primary)", color: "var(--text-primary)" };
 
-function scoreColor(score: number): string {
+function scoreColor(score: number | null): string {
+  // No deliveries logged yet is not the same as a perfect record — keep it a
+  // neutral colour rather than the green used for genuinely good scores.
+  if (score === null) return "var(--text-tertiary)";
   if (score >= 80) return "#22c55e";
   if (score >= 50) return "#f59e0b";
   return "#ef4444";
@@ -53,7 +56,7 @@ export default function VendorPortalPanel() {
   const [vendors, setVendors] = useState<VendorAccount[]>([]);
   const [scorecards, setScorecards] = useState<Record<string, Scorecard>>({});
   const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
-  const [stats, setStats] = useState<{ total: number; active: number; pendingQuotes: number; avgScore: number } | null>(null);
+  const [stats, setStats] = useState<{ total: number; active: number; pendingQuotes: number; avgScore: number | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState<Partial<VendorAccount> | null>(null);
@@ -140,7 +143,7 @@ export default function VendorPortalPanel() {
             { label: "Vendors", value: stats.total },
             { label: "Active", value: stats.active, color: "#22c55e" },
             { label: "Pending quotes", value: stats.pendingQuotes, color: "#f59e0b" },
-            { label: "Avg. score", value: stats.avgScore, color: scoreColor(stats.avgScore) },
+            { label: "Avg. score", value: stats.avgScore === null ? "—" : stats.avgScore, color: scoreColor(stats.avgScore) },
           ].map((s) => (
             <div key={s.label} className="rounded-xl p-3" style={card}>
               <div className="text-2xl font-extrabold" style={{ color: s.color || "var(--text-primary)" }}>{s.value}</div>
@@ -172,8 +175,8 @@ export default function VendorPortalPanel() {
                   <div className="flex items-center gap-3">
                     {sc && (
                       <div className="text-right">
-                        <div className="font-extrabold" style={{ color: scoreColor(sc.score) }}>{sc.score}</div>
-                        <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{sc.onTimePct}% on-time · {sc.qualityIssues} issues</div>
+                        <div className="font-extrabold" style={{ color: scoreColor(sc.score) }}>{sc.score === null ? "No data yet" : sc.score}</div>
+                        <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{sc.onTimePct === null ? `${sc.qualityIssues} issues` : `${sc.onTimePct}% on-time · ${sc.qualityIssues} issues`}</div>
                       </div>
                     )}
                     <button onClick={() => remove(v)} aria-label={`Remove ${v.companyName}`} className="p-1.5 rounded-lg hover:bg-white/10 text-red-400"><Trash2 className="w-4 h-4" /></button>

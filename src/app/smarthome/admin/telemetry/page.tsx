@@ -395,7 +395,10 @@ function RetentionPolicies() {
               <span className="font-mono text-sm text-white">{r.metric}</span>
               <span className="text-xs ad-muted tabular-nums">{num(r.days)} day{r.days === 1 ? "" : "s"}</span>
               <span className="ml-auto text-[11px] ad-muted">saved {relativeTime(r.createdAt)}</span>
-              <button onClick={() => cfg.remove(r.id)} className="text-slate-500 transition hover:text-red-300" title="Delete" disabled={cfg.saving}>
+              <button
+                onClick={() => { if (confirm(`Delete the retention policy for "${r.metric}" (${r.days} day${r.days === 1 ? "" : "s"})? This cannot be undone.`)) cfg.remove(r.id); }}
+                className="text-slate-500 transition hover:text-red-300" title="Delete" disabled={cfg.saving}
+              >
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

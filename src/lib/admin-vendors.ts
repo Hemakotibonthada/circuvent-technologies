@@ -110,9 +110,13 @@ export function listPerformanceEvents(vendorId: string): PerformanceEvent[] {
 export interface VendorScorecard {
   vendorId: string;
   deliveries: number;
-  onTimePct: number;
+  // null (not 100) when there is no delivery history yet — an unmeasured
+  // vendor is not a perfect one, and defaulting to 100 made a vendor that had
+  // never shipped anything indistinguishable from, and averaged in with, one
+  // with a genuinely perfect record.
+  onTimePct: number | null;
   qualityIssues: number;
-  score: number; // 0-100
+  score: number | null; // 0-100, null when unmeasured
 }
 
 export function vendorScorecard(vendorId: string): VendorScorecard {
@@ -120,7 +124,10 @@ export function vendorScorecard(vendorId: string): VendorScorecard {
   const deliveries = events.filter((e) => e.type === "on_time" || e.type === "late").length;
   const onTime = events.filter((e) => e.type === "on_time").length;
   const issues = events.filter((e) => e.type === "quality_issue").length;
-  const onTimePct = deliveries ? Math.round((onTime / deliveries) * 100) : 100;
+  if (deliveries === 0) {
+    return { vendorId, deliveries, onTimePct: null, qualityIssues: issues, score: null };
+  }
+  const onTimePct = Math.round((onTime / deliveries) * 100);
   const score = Math.max(0, Math.min(100, onTimePct - issues * 5));
   return { vendorId, deliveries, onTimePct, qualityIssues: issues, score };
 }
@@ -157,13 +164,16 @@ export function decideQuoteRequest(id: string, approved: boolean, reviewerNote?:
   });
 }
 
-export function vendorStats(): { total: number; active: number; pendingQuotes: number; avgScore: number } {
+export function vendorStats(): { total: number; active: number; pendingQuotes: number; avgScore: number | null } {
   const vendors = store.read().vendors;
-  const scores = vendors.map((v) => vendorScorecard(v.id).score);
+  // Vendors with no delivery history are excluded rather than counted as 100 —
+  // otherwise every brand-new vendor pulled the fleet-wide average up instead
+  // of leaving it honestly unmeasured.
+  const scores = vendors.map((v) => vendorScorecard(v.id).score).filter((s): s is number => s !== null);
   return {
     total: vendors.length,
     active: vendors.filter((v) => v.status === "active").length,
     pendingQuotes: store.read().quotes.filter((q) => q.status === "pending").length,
-    avgScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+    avgScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
   };
 }
