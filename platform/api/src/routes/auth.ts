@@ -8,7 +8,7 @@ import { issueRefreshToken, rotateRefreshToken, revokeAllRefreshTokens } from ".
 import { sendOtpEmail, sendPasswordResetEmail } from "../mail";
 import { config } from "../config";
 import { logger } from "../logger";
-import { ssoEnabled, verifyIdToken } from "../sso";
+import { ssoEnabled, verifyIdToken, nextAvatarUrl } from "../sso";
 import {
   checkLockout,
   clearFailures,
@@ -34,13 +34,22 @@ function genOtp(): string {
  *
  * Centralised so a new sign-in path cannot forget the refresh token and
  * silently leave that client unable to rotate.
+ *
+ * The avatar is read here rather than passed in for the same reason: every
+ * sign-in path already knows the uid, none of them reliably selected the
+ * column, and a signed-in person with no picture on one route and a picture on
+ * another is the kind of inconsistency nobody reports as a bug.
  */
 async function sessionResponse(uid: number, email: string, name: string) {
-  const [token, refresh] = await Promise.all([
+  const [token, refresh, avatar] = await Promise.all([
     signUserToken({ uid, email }),
     issueRefreshToken(uid),
+    pool
+      .query<{ avatar_url: string }>(`SELECT avatar_url FROM users WHERE id = $1`, [uid])
+      .then((r) => r.rows[0]?.avatar_url ?? "")
+      .catch(() => ""),
   ]);
-  return { token, refreshToken: refresh.token, user: { id: uid, email, name } };
+  return { token, refreshToken: refresh.token, user: { id: uid, email, name, avatarUrl: avatar } };
 }
 
 /**
@@ -359,8 +368,8 @@ authRouter.post("/sso", async (req, res) => {
   }
 
   try {
-    const found = await pool.query<{ id: number; name: string }>(
-      `SELECT id, name FROM users WHERE email = $1`,
+    const found = await pool.query<{ id: number; name: string; avatar_url: string }>(
+      `SELECT id, name, avatar_url FROM users WHERE email = $1`,
       [claims.email]
     );
     let user = found.rows[0];
@@ -372,14 +381,25 @@ authRouter.post("/sso", async (req, res) => {
        * way in: nothing can present a password that hashes to random bytes.
        */
       const unusable = await hashPassword(crypto.randomBytes(32).toString("hex"));
-      const created = await pool.query<{ id: number; name: string }>(
-        `INSERT INTO users (email, name, password) VALUES ($1, $2, $3)
+      const created = await pool.query<{ id: number; name: string; avatar_url: string }>(
+        `INSERT INTO users (email, name, password, avatar_url) VALUES ($1, $2, $3, $4)
          ON CONFLICT (email) DO UPDATE SET name = COALESCE(NULLIF(users.name, ''), EXCLUDED.name)
-         RETURNING id, name`,
-        [claims.email, claims.name ?? "", unusable]
+         RETURNING id, name, avatar_url`,
+        [claims.email, claims.name ?? "", unusable, nextAvatarUrl("", claims.picture) ?? ""]
       );
       user = created.rows[0];
       logger.info({ email: claims.email }, "sso created a console account");
+    } else {
+      /*
+       * Refresh on the way in, because the directory owns what a federated
+       * person looks like and they may have changed their photo since last
+       * time. `nextAvatarUrl` decides whether there is anything worth writing.
+       */
+      const next = nextAvatarUrl(user.avatar_url ?? "", claims.picture);
+      if (next) {
+        await pool.query(`UPDATE users SET avatar_url = $2 WHERE id = $1`, [user.id, next]);
+        user.avatar_url = next;
+      }
     }
 
     res.json(await sessionResponse(Number(user.id), claims.email, user.name));

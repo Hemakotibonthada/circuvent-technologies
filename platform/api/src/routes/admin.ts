@@ -55,7 +55,20 @@ adminRouter.use(requireAuth, adminGuard);
 
 /** GET /admin/me — confirm admin + who am I. */
 adminRouter.get("/me", async (req: AuthedRequest, res) => {
-  res.json({ admin: true, uid: req.user!.uid, email: req.user!.email });
+  // Name and avatar come from the row, not the JWT: tokens outlive profile
+  // edits, so reading them here means a changed photo shows up on the next
+  // page load instead of waiting for the session to expire.
+  const r = await pool.query<{ name: string; avatar_url: string }>(
+    `SELECT name, avatar_url FROM users WHERE id = $1`,
+    [req.user!.uid]
+  );
+  res.json({
+    admin: true,
+    uid: req.user!.uid,
+    email: req.user!.email,
+    name: r.rows[0]?.name ?? "",
+    avatarUrl: r.rows[0]?.avatar_url ?? "",
+  });
 });
 
 /** GET /admin/stats — fleet-wide counters. */

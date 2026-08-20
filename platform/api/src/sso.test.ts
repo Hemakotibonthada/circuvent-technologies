@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 
 import { config } from "./config";
-import { resetSsoCaches, ssoEnabled, verifyIdToken } from "./sso";
+import { resetSsoCaches, ssoEnabled, verifyIdToken, nextAvatarUrl } from "./sso";
 
 /**
  * These are the assertions that decide whether single sign-on is authentication
@@ -148,5 +148,37 @@ describe("single sign-on token verification", () => {
   test("is disabled when no client id is configured", () => {
     (config as { SSO_CLIENT_ID: string }).SSO_CLIENT_ID = "";
     assert.equal(ssoEnabled(), false);
+  });
+});
+
+describe("profile picture from the directory", () => {
+  test("stores a picture the token asserts", () => {
+    assert.equal(nextAvatarUrl("", "https://auth.circuvent.com/u/42.jpg"), "https://auth.circuvent.com/u/42.jpg");
+  });
+
+  test("follows the directory when the photo changes upstream", () => {
+    assert.equal(nextAvatarUrl("https://auth.circuvent.com/old.jpg", "https://auth.circuvent.com/new.jpg"), "https://auth.circuvent.com/new.jpg");
+  });
+
+  /*
+   * The regression this exists for: a lean token has no `picture`, which means
+   * "not asserted", not "photo deleted". Blanking here made avatars disappear
+   * on an ordinary sign-in with nothing the user could do about it.
+   */
+  test("keeps the stored picture when the token asserts none", () => {
+    assert.equal(nextAvatarUrl("https://auth.circuvent.com/u/42.jpg", undefined), null);
+    assert.equal(nextAvatarUrl("https://auth.circuvent.com/u/42.jpg", ""), null);
+  });
+
+  test("writes nothing when the picture is unchanged", () => {
+    assert.equal(nextAvatarUrl("https://auth.circuvent.com/u/42.jpg", "https://auth.circuvent.com/u/42.jpg"), null);
+  });
+
+  // This value reaches an <img src> on the admin console, so a scripting
+  // scheme in a claim must not survive the trip.
+  test("refuses a non-http scheme", () => {
+    assert.equal(nextAvatarUrl("", "javascript:alert(1)"), null);
+    assert.equal(nextAvatarUrl("", "data:image/svg+xml,<svg onload=alert(1)>"), null);
+    assert.equal(nextAvatarUrl("https://auth.circuvent.com/u/42.jpg", "javascript:alert(1)"), null);
   });
 });

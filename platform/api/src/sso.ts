@@ -135,6 +135,29 @@ export async function verifyIdToken(idToken: string): Promise<SsoClaims> {
   };
 }
 
+/**
+ * What a user's stored avatar should become after a sign-in.
+ *
+ * The rule that is easy to get wrong: a token without a `picture` claim means
+ * "the directory did not assert one", not "this person deleted their photo".
+ * Treating the two the same blanks a perfectly good avatar every time an IdP
+ * issues a lean token, and the user sees their picture vanish for no reason
+ * they can act on. So an absent claim keeps what is already stored.
+ *
+ * Only http(s) URLs are accepted. A `picture` claim is attacker-influenced in
+ * the sense that it ends up in an `<img src>` on an admin page, and letting a
+ * `javascript:` or `data:` URL through there would be a scripting hazard.
+ *
+ * Returns null when nothing needs writing, so callers can skip the UPDATE.
+ */
+export function nextAvatarUrl(current: string, claim: string | undefined): string | null {
+  if (!claim) return null;
+  const trimmed = claim.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  if (trimmed === current) return null;
+  return trimmed;
+}
+
 /** Clears the cached discovery and keys. Exposed for tests. */
 export function resetSsoCaches(): void {
   discovery = null;

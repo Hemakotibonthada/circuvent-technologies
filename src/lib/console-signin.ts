@@ -24,6 +24,8 @@ export interface ConsoleUser {
   id: number;
   email: string;
   name: string;
+  /** Profile picture from the identity provider. Empty when none was asserted. */
+  avatarUrl?: string;
 }
 
 export interface ConsoleSignInResult {

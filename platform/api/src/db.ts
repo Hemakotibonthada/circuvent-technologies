@@ -166,6 +166,14 @@ export async function initDb(): Promise<void> {
     -- Admin role flag for the control-plane admin console.
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
+    -- Profile picture, as supplied by the identity provider at SSO sign-in.
+    --
+    -- Stored as the IdP's URL rather than a copy of the bytes. The directory is
+    -- the owner of what a federated person looks like, so re-fetching on every
+    -- sign-in keeps this correct when they change their photo upstream, and a
+    -- stale copy here can never outlive the account it belongs to.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT '';
+
     -- Session revocation.
     --
     -- JWTs are stateless, so until these existed there was no way to end a

@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     email: staff.email,
     name: staff.name,
     role: staff.role,
+    avatarUrl: staff.avatarUrl ?? "",
     /*
      * Never true for an SSO sign-in, and deliberately so: the password that
      * expired is the console's own, and this person did not use it. Forcing a

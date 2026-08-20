@@ -19,6 +19,7 @@ import {
   signHandoff,
   verifyHandoff,
   newNonce,
+  safeAvatarUrl,
   FLOW_TTL_MS,
   HANDOFF_TTL_MS,
 } from "@/lib/admin-sso";
@@ -147,5 +148,35 @@ describe("the handoff code", () => {
     for (const bad of [undefined, null, "", "x", "...."]) {
       expect(verifyHandoff(bad as string | undefined, nonce)).toBeNull();
     }
+  });
+});
+
+/**
+ * The profile picture from userinfo.
+ *
+ * This one is not a credential, but it is the only field here that gets
+ * written straight into an `<img src>` on a page where the viewer is an
+ * administrator, so the scheme has to be pinned to http(s).
+ */
+describe("staff profile picture", () => {
+  it("accepts an ordinary directory photo", () => {
+    expect(safeAvatarUrl("https://auth.circuvent.com/u/42.jpg")).toBe("https://auth.circuvent.com/u/42.jpg");
+    expect(safeAvatarUrl("  https://auth.circuvent.com/u/42.jpg  ")).toBe("https://auth.circuvent.com/u/42.jpg");
+  });
+
+  it("refuses a scripting scheme", () => {
+    expect(safeAvatarUrl("javascript:alert(1)")).toBe("");
+    expect(safeAvatarUrl("data:image/svg+xml,<svg onload=alert(1)>")).toBe("");
+    expect(safeAvatarUrl("vbscript:msgbox(1)")).toBe("");
+  });
+
+  it("refuses anything that is not a usable string", () => {
+    for (const bad of [undefined, null, "", "   ", 42, {}, []]) {
+      expect(safeAvatarUrl(bad)).toBe("");
+    }
+  });
+
+  it("refuses an absurdly long value rather than persisting it", () => {
+    expect(safeAvatarUrl("https://auth.circuvent.com/" + "a".repeat(4000))).toBe("");
   });
 });

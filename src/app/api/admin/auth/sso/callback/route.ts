@@ -6,6 +6,7 @@ import {
   HANDOFF_TTL_MS,
   newNonce,
   signHandoff,
+  safeAvatarUrl,
   unpackFlow,
 } from "@/lib/admin-sso";
 import { ensureSeeded } from "@/lib/admin-auth";
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
 
   let email: string;
   let displayName = "";
+  let avatarUrl = "";
   let grantedRole: ReturnType<typeof consoleRoleFromSso> = null;
   try {
     const tokenRes = await fetch(`${ISSUER}/api/oauth/token`, {
@@ -104,6 +106,7 @@ export async function GET(request: NextRequest) {
       email?: string;
       email_verified?: boolean;
       name?: string;
+      picture?: string;
     };
     /*
      * An unverified address must not be honoured. Matching staff by email is
@@ -114,6 +117,7 @@ export async function GET(request: NextRequest) {
     if (!info.email || info.email_verified === false) return fail(origin, "unverified");
     email = info.email.trim().toLowerCase();
     displayName = typeof info.name === "string" ? info.name.trim() : "";
+    avatarUrl = safeAvatarUrl(info.picture);
   } catch {
     return fail(origin, "exchange");
   }
@@ -132,7 +136,7 @@ export async function GET(request: NextRequest) {
 
   if (!staff) {
     if (!grantedRole) return fail(origin, "not-staff");
-    upsertAdminUser(ssoStaffUser(email, displayName, grantedRole));
+    upsertAdminUser({ ...ssoStaffUser(email, displayName, grantedRole), avatarUrl });
     /*
      * Awaited, not left to the background flush. The console redirects to
      * /admin, which then calls the exchange endpoint — a separate invocation
@@ -143,10 +147,19 @@ export async function GET(request: NextRequest) {
     await flushNow();
   } else {
     const role = strongerConsoleRole(staff.role, grantedRole);
-    // Only write when the grant changes something, so an ordinary sign-in by
+    /*
+     * The photo is refreshed here too, because the identity service owns it and
+     * staff change it there. An empty `avatarUrl` means userinfo asserted no
+     * usable picture this time, which is not the same as "the picture was
+     * removed" — treating it as such would blank a good avatar on any sign-in
+     * where the claim happened to be absent.
+     */
+    const nextAvatar = avatarUrl || staff.avatarUrl || "";
+    const roleChanged = Boolean(role && role !== staff.role);
+    // Only write when something actually changed, so an ordinary sign-in by
     // somebody already on the list stays a read.
-    if (role && role !== staff.role) {
-      upsertAdminUser({ ...staff, role });
+    if (roleChanged || nextAvatar !== (staff.avatarUrl ?? "")) {
+      upsertAdminUser({ ...staff, role: role ?? staff.role, avatarUrl: nextAvatar });
       await flushNow();
     }
   }

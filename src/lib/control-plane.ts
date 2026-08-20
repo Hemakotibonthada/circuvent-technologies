@@ -29,6 +29,12 @@ export interface ControlUser {
   id: number;
   email: string;
   name: string;
+  /**
+   * Profile picture asserted by the identity provider at sign-in. Optional
+   * because password accounts and older stored sessions have none, and the
+   * console must render an identity either way.
+   */
+  avatarUrl?: string;
 }
 
 export interface Device {
@@ -2073,7 +2079,8 @@ export const controlPlane = {
     req<EnergySeries>("/devices/" + encodeURIComponent(id) + "/energy?hours=" + hours + "&metric=" + metric),
 
   // ---- admin (control-plane, requires is_admin) --------------------------
-  adminMe: () => req<{ admin: boolean; uid: number; email: string }>("/admin/me"),
+  adminMe: () =>
+    req<{ admin: boolean; uid: number; email: string; name?: string; avatarUrl?: string }>("/admin/me"),
   adminStats: () => req<AdminStats>("/admin/stats"),
   adminUsers: () => req<{ users: AdminUser[] }>("/admin/users"),
   /**

@@ -13,6 +13,7 @@ import { controlPlane } from "@/lib/control-plane";
 import { useRenderedPath } from "@/lib/use-mount-prefix";
 import { useConsole } from "../ConsoleProvider";
 import { useAdminDevices, useAdminStats, deviceHealth } from "./_lib/api";
+import StaffAvatar from "./StaffAvatar";
 import { useFocusTrap } from "../_kit/overlays";
 
 interface NavItem { href: string; label: string; icon: typeof Cpu; group: string; desc: string; }
@@ -44,6 +45,8 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mode, setMode] = useState<AdminMode>("checking");
+  const [me, setMe] = useState<{ name?: string; avatarUrl?: string } | null>(null);
+  const [staff, setStaff] = useState<{ name?: string; avatarUrl?: string } | null>(null);
 
   // Real fleet signals drive the sidebar/topbar badges — no seeded incidents.
   const devicesRes = useAdminDevices(60000);
@@ -59,10 +62,41 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     let alive = true;
     controlPlane.adminMe().then((r) => {
       if (!alive) return;
-      if (r.ok && r.data?.admin) setMode("live");
+      if (r.ok && r.data?.admin) {
+        setMode("live");
+        // Read the profile from the row the control plane just looked up, so a
+        // photo changed at the identity provider appears on the next load
+        // rather than whenever the stored session happens to be replaced.
+        setMe({ name: r.data.name, avatarUrl: r.data.avatarUrl });
+      }
       else if (r.status === 0) setMode("offline");
       else setMode("denied");
     }).catch(() => alive && setMode("offline"));
+    return () => { alive = false; };
+  }, []);
+
+  /*
+   * The staff profile, from the identity service rather than the control plane.
+   *
+   * `/smarthome/admin` is gated by SsoGate against auth.circuvent.com, and that
+   * is where a member of staff actually sets their photo. The control-plane
+   * account is a different record that may have been created with a password
+   * and carry no picture at all, so asking it alone is why this showed initials
+   * for people who plainly had one.
+   */
+  useEffect(() => {
+    const token = typeof window === "undefined" ? null : sessionStorage.getItem("admin-token");
+    if (!token) return;
+    let alive = true;
+    fetch("/api/admin/auth", { headers: { "x-admin-token": token } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { name?: string; avatarUrl?: string } | null) => {
+        if (alive && d) setStaff({ name: d.name, avatarUrl: d.avatarUrl });
+      })
+      .catch(() => {
+        // Cosmetic only. Failing to load a photo must never disturb the
+        // console, which has already authenticated by this point.
+      });
     return () => { alive = false; };
   }, []);
 
@@ -210,7 +244,12 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 {attentionCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{attentionCount}</span>}
               </Link>
               <a href="mailto:support@circuvent.com" aria-label="Email support" className="hidden h-[44px] w-[44px] place-items-center rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.06] sm:grid"><LifeBuoy className="h-[18px] w-[18px]" /></a>
-              <UserMenu email={user?.email ?? "admin@circuvent.com"} name={user?.name ?? "Platform Admin"} onLogout={logout} />
+              <UserMenu
+            email={user?.email ?? "admin@circuvent.com"}
+                name={staff?.name || me?.name || user?.name || "Platform Admin"}
+                photo={staff?.avatarUrl || me?.avatarUrl || user?.avatarUrl || ""}
+            onLogout={logout}
+          />
             </div>
           </header>
 
@@ -255,7 +294,7 @@ function ModeBadge({ mode }: { mode: AdminMode }) {
   );
 }
 
-function UserMenu({ email, name, onLogout }: { email: string; name: string; onLogout: () => void }) {
+function UserMenu({ email, name, photo, onLogout }: { email: string; name: string; photo?: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -263,11 +302,10 @@ function UserMenu({ email, name, onLogout }: { email: string; name: string; onLo
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-  const initials = name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="grid h-[44px] w-[44px] place-items-center rounded-lg text-sm font-bold text-white cursor-pointer" style={{ background: "var(--cv-gradient)" }}>
-        {initials}
+      <button onClick={() => setOpen((o) => !o)} aria-label={`Account menu for ${name}`} className="cursor-pointer">
+        <StaffAvatar name={name} email={email} photo={photo} />
       </button>
       {open && (
         <div className="ad-card absolute right-0 top-11 z-50 w-56 rounded-xl p-1.5">

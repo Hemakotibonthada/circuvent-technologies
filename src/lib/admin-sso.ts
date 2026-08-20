@@ -136,6 +136,23 @@ export function newNonce(): string {
   return b64url(crypto.randomBytes(16));
 }
 
+/**
+ * The profile picture from the identity provider, or "" if there isn't a
+ * usable one.
+ *
+ * This value is written straight into an `<img src>` on the staff console, so
+ * the scheme is constrained to http(s): a `javascript:` or `data:` URL in a
+ * userinfo response would otherwise become script execution on an admin page.
+ * Length is capped because this is persisted per staff member and an unbounded
+ * string from an upstream service has no business growing the record.
+ */
+export function safeAvatarUrl(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const url = raw.trim();
+  if (!url || url.length > 2048) return "";
+  return /^https?:\/\//i.test(url) ? url : "";
+}
+
 /*
  * Fields are carried as JSON rather than joined with a separator.
  *

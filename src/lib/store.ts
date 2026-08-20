@@ -313,6 +313,14 @@ export interface AdminUser {
   mustChangePassword?: boolean;
   /** Created by a group grant over SSO rather than added here by hand. */
   ssoProvisioned?: boolean;
+  /**
+   * Profile picture URL from the identity provider's userinfo endpoint.
+   *
+   * Refreshed on each SSO sign-in because auth.circuvent.com owns what a
+   * member of staff looks like. Absent for accounts added here by hand, which
+   * is why every render still needs an initials fallback.
+   */
+  avatarUrl?: string;
 }
 
 export interface OrderNote {
