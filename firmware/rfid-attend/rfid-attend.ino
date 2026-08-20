@@ -42,7 +42,7 @@
  * Version history
  *   1.0.0  initial
  */
-#define CV_FW_VERSION "1.0.0"
+#define CV_FW_VERSION "1.1.0"
 #include <CircuventDevice.h>
 #include <Preferences.h>
 #include <SPI.h>

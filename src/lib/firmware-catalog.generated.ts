@@ -148,7 +148,7 @@ export const GENERATED_FIRMWARE_CATALOG: FirmwareInfo[] = [
   },
   {
     deviceType: "rfid-attend",
-    latestVersion: "1.0.0",
+    latestVersion: "1.1.0",
     changelog: [
     { version: "1.0.0", notes: ["initial"] },
     ],
@@ -162,6 +162,13 @@ export const GENERATED_FIRMWARE_CATALOG: FirmwareInfo[] = [
     { version: "1.2.0", notes: ["A close command no longer opens the barrier. The force-close called openGate() to fix a stale flag, and on a closed gate that pulses the OPEN relay — then left it open if a vehicle was on the loop detector."] },
     { version: "1.3.0", notes: ["The manual button no longer fights the reset gesture. BTN_PIN is GPIO0, the pin setResetButton(0) also watches, and the test was level-triggered — so holding BOOT to factory reset commanded open/close about thirteen times in a row, reversing a barrier motor under load every 600 ms."] },
     { version: "2.0.0", notes: ["The relays are driven correctly. They were bare GPIO writes with HIGH meaning \"on\", on boards where LOW energises the coil: both the OPEN and CLOSE relays were held on from power-up, and every pulse was inverted. Now cvRelayInit/cvRelayWrite, which also means the barrier is not commanded during the first moments of boot. Wiegand frames are validated. 26-bit parity is checked and 34-bit is decoded properly; anything else is counted and discarded instead of being masked into a plausible-looking card number. The same tag is not re-read every few milliseconds. A car sitting in range used to generate a telemetry row per read and hold the barrier open indefinitely. The open limit switch is read, so `barrier` reports what the gate is actually doing — including refusing to move, which nothing could previously detect."] },
+    ],
+  },
+  {
+    deviceType: "rfid-only",
+    latestVersion: "1.0.0",
+    changelog: [
+
     ],
   },
   {

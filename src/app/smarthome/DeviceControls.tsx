@@ -352,6 +352,8 @@ export function DeviceControls({ device, send, st }: { device: Device; send: Sen
       return <AnprCamera d={device} send={send} st={st} />;
     case "rfid-attend":
       return <AttendanceReader d={device} send={send} st={st} />;
+    case "rfid-only":
+      return <RfidReader d={device} />;
     case "drone-link":
     case "drone-x1":
       return <DroneLink d={device} send={send} st={st} />;
@@ -5219,6 +5221,58 @@ function RawState({ d }: { d: Device }) {
       <pre className="rounded-xl border border-white/10 bg-black/30 p-4 text-slate-300 text-sm overflow-auto">
         {JSON.stringify(d.state, null, 2)}
       </pre>
+    </div>
+  );
+}
+
+/**
+ * The reader-only model.
+ *
+ * There are no controls, and that is the device rather than an omission: it
+ * holds no roster, opens no door and takes no settings. Everything worth
+ * showing is a status, so this reports rather than offers buttons — a panel of
+ * switches that did nothing would imply the opposite.
+ */
+function RfidReader({ d }: { d: Device }) {
+  const state = (d.state ?? {}) as Record<string, unknown>;
+  const readerOk = state.reader !== false;
+  const lastCard = Number(state.lastCard ?? 0);
+
+  return (
+    <div className="space-y-3">
+      {/*
+        * The one failure this device can have that looks like health: it stays
+        * connected, reports online, and silently accepts no card at all.
+        */}
+      {!readerOk && (
+        <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-200">
+          <p className="font-semibold">Card reader not responding</p>
+          <p className="mt-1 text-xs text-red-300/90">
+            The unit is online but the reader is not answering its self-test, so no card will be read.
+            Usually the reader&apos;s own supply or its wiring rather than the board.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <div className="text-[11px] uppercase tracking-wide text-slate-500">Reader</div>
+          <div className={`mt-1 text-sm font-semibold ${readerOk ? "text-emerald-300" : "text-red-300"}`}>
+            {readerOk ? "Ready" : "Not responding"}
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+          <div className="text-[11px] uppercase tracking-wide text-slate-500">Last card</div>
+          <div className="mt-1 text-sm font-semibold text-slate-200">
+            {lastCard > 0 ? lastCard : "None yet"}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-500">
+        This model reads cards and reports them. Who a card belongs to, and whether it opens anything,
+        is decided in Attendance — the reader itself holds no list.
+      </p>
     </div>
   );
 }
