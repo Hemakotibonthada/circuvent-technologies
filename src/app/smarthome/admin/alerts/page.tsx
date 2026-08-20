@@ -743,52 +743,139 @@ function ChannelModal({
 
 function BroadcastModal({ open, onClose, devices }: { open: boolean; onClose: () => void; devices: AdminDevice[] }) {
   const types = useMemo(() => countBy(devices, (d) => d.type).map((b) => b.name), [devices]);
-  const [type, setType] = useState("all");
+  const [type, setType] = useState("");
   const [onlineOnly, setOnlineOnly] = useState(true);
   const [json, setJson] = useState('{ "action": "set", "power": false }');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<number | null>(null);
+  /*
+   * A second step before anything is published.
+   *
+   * This dialog publishes an arbitrary MQTT command to every matching device.
+   * The fleet includes locks, gates and garage doors, so a single click on a
+   * command like {"lock": false} opens all of them — and it used to be a
+   * single click, with the target defaulting to every device type and the
+   * affected count relegated to a hint under the textarea.
+   *
+   * The count is what matters, so the confirmation is typing it. Re-reading
+   * "412" and typing it is a different act from clicking a button that happens
+   * to sit under the number.
+   */
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
 
   useEffect(() => {
     if (!open) return;
-    setType("all");
+    setType("");
     setOnlineOnly(true);
     setJson('{ "action": "set", "power": false }');
     setErr(null);
     setBusy(false);
     setResult(null);
+    setConfirming(false);
+    setTyped("");
   }, [open]);
 
   const targetCount = useMemo(
-    () => devices.filter((d) => (type === "all" || d.type === type) && (!onlineOnly || d.online)).length,
+    () => (type ? devices.filter((d) => (type === "all" || d.type === type) && (!onlineOnly || d.online)).length : 0),
     [devices, type, onlineOnly]
   );
 
-  const typeOptions = useMemo(() => [{ value: "all", label: "All device types" }, ...types.map((t) => ({ value: t, label: t }))], [types]);
+  const typeOptions = useMemo(
+    () => [
+      { value: "", label: "Select a target…" },
+      { value: "all", label: `All device types (${devices.length})` },
+      ...types.map((t) => ({ value: t, label: t })),
+    ],
+    [types, devices.length]
+  );
 
-  const send = useCallback(async () => {
-    let command: Record<string, unknown>;
+  /** Parsed here so the confirm step can show exactly what will be published. */
+  const parsed = useMemo(() => {
     try {
-      const parsed: unknown = JSON.parse(json);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
-      command = parsed as Record<string, unknown>;
+      const p: unknown = JSON.parse(json);
+      if (!p || typeof p !== "object" || Array.isArray(p)) return null;
+      return p as Record<string, unknown>;
     } catch {
+      return null;
+    }
+  }, [json]);
+
+  const review = useCallback(() => {
+    if (!parsed) {
       setErr('Enter a valid JSON command object, e.g. { "action": "set", "power": false }.');
       return;
     }
+    if (!type) {
+      setErr("Choose which devices this goes to.");
+      return;
+    }
+    if (targetCount === 0) {
+      setErr("Nothing matches that target right now, so there is nothing to send.");
+      return;
+    }
+    setErr(null);
+    setTyped("");
+    setConfirming(true);
+  }, [parsed, type, targetCount]);
+
+  const send = useCallback(async () => {
+    if (!parsed) return;
     setBusy(true);
     setErr(null);
     setResult(null);
     const res = await controlPlane.adminBroadcast({
       type: type === "all" ? undefined : type,
       online: onlineOnly ? true : undefined,
-      command,
+      command: parsed,
     });
     setBusy(false);
+    setConfirming(false);
     if (res.ok) setResult(res.data.sent);
     else setErr(apiError(res));
-  }, [json, type, onlineOnly]);
+  }, [parsed, type, onlineOnly]);
+
+  if (confirming) {
+    return (
+      <Modal open={open} onClose={() => { if (!busy) setConfirming(false); }} title="Confirm this broadcast">
+        <div className="space-y-3">
+          <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100">
+            This publishes to <strong>{num(targetCount)}</strong> device{targetCount === 1 ? "" : "s"} at once. If any of
+            them are locks, gates or shutters, they will act on it immediately. There is no recall.
+          </div>
+          <Field label="Target">
+            <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-slate-200">
+              {type === "all" ? "Every device type" : type}
+              {onlineOnly ? " · online only" : " · online and offline"}
+            </div>
+          </Field>
+          <Field label="Command, exactly as it will be sent">
+            <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-xs text-slate-200">
+              {JSON.stringify(parsed, null, 2)}
+            </pre>
+          </Field>
+          <Field label={`Type ${targetCount} to confirm`}>
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              inputMode="numeric"
+              autoFocus
+              aria-label={`Type ${targetCount} to confirm the broadcast`}
+              className="ad-input font-mono"
+            />
+          </Field>
+          {err && <ErrorBanner message={err} />}
+          <div className="flex justify-end gap-2">
+            <Btn variant="subtle" onClick={() => setConfirming(false)} disabled={busy}>Back</Btn>
+            <Btn variant="primary" onClick={send} disabled={busy || typed.trim() !== String(targetCount)}>
+              <Radio className="h-4 w-4" /> {busy ? "Broadcasting…" : `Broadcast to ${num(targetCount)}`}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal open={open} onClose={() => { if (!busy) onClose(); }} title="Broadcast a command">
@@ -801,7 +888,7 @@ function BroadcastModal({ open, onClose, devices }: { open: boolean; onClose: ()
           <span className="text-sm text-slate-200">Only devices that are online</span>
           <Toggle checked={onlineOnly} onChange={setOnlineOnly} />
         </label>
-        <Field label="Command (JSON)" hint={`Matches ${num(targetCount)} device${targetCount === 1 ? "" : "s"} right now.`}>
+        <Field label="Command (JSON)" hint={type ? `Matches ${num(targetCount)} device${targetCount === 1 ? "" : "s"} right now.` : "Choose a target to see how many devices match."}>
           <textarea value={json} onChange={(e) => setJson(e.target.value)} rows={3} spellCheck={false} className="ad-input resize-none font-mono text-xs" />
         </Field>
         {result !== null && (
@@ -812,7 +899,7 @@ function BroadcastModal({ open, onClose, devices }: { open: boolean; onClose: ()
         {err && <ErrorBanner message={err} />}
         <div className="flex justify-end gap-2">
           <Btn variant="subtle" onClick={onClose} disabled={busy}>{result !== null ? "Close" : "Cancel"}</Btn>
-          <Btn variant="primary" onClick={send} disabled={busy}><Radio className="h-4 w-4" /> {busy ? "Broadcasting…" : "Broadcast"}</Btn>
+          <Btn variant="primary" onClick={review} disabled={busy}><Radio className="h-4 w-4" /> Review…</Btn>
         </div>
       </div>
     </Modal>

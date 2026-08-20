@@ -268,11 +268,36 @@ function DeployTab({
 
         {build && kind === "device" && (
           <div className="mt-4">
-            <Field label={`Device (${build.deviceType})`}>
-              <select className="ad-input" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-                <option value="">Select a device…</option>
-                {(typeDevices.length ? typeDevices : devices).map((d) => (
-                  <option key={d.id} value={d.id}>{d.name || d.id} · {d.fw_version || "?"} · {d.online ? "online" : "offline"}</option>
+            <Field
+              label={`Device (${build.deviceType})`}
+              hint={
+                typeDevices.length
+                  ? undefined
+                  : `No ${build.deviceType} devices are registered, so there is nothing this build can safely go to.`
+              }
+            >
+              {/*
+                * Only devices of the build's own type, with no fallback.
+                *
+                * This used to read `(typeDevices.length ? typeDevices : devices)`
+                * — so whenever the filter matched nothing (a typo in the
+                * catalogue's free-text deviceType, a type with no units yet) the
+                * picker quietly listed the entire fleet instead: locks, cameras,
+                * drones, meters. The option labels carry no type either, and the
+                * confirmation below shows the *build's* declared type rather than
+                * the chosen device's, so a mismatch stayed invisible right up to
+                * dispatch. Flashing a binary built for other hardware is the one
+                * mistake here that cannot be undone from this console.
+                */}
+              <select
+                className="ad-input"
+                value={deviceId}
+                onChange={(e) => setDeviceId(e.target.value)}
+                disabled={!typeDevices.length}
+              >
+                <option value="">{typeDevices.length ? "Select a device…" : "No matching devices"}</option>
+                {typeDevices.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name || d.id} · {d.type} · {d.fw_version || "?"} · {d.online ? "online" : "offline"}</option>
                 ))}
               </select>
             </Field>

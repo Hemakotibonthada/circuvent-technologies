@@ -145,6 +145,18 @@ export default function SsoGate({ children }: { children: ReactNode }) {
 
   if (phase === "in") return <>{children}</>;
 
+  /*
+   * Colours are stated explicitly, not inherited.
+   *
+   * This card hardcodes a dark surface (#0b1020) because the sign-in screen is
+   * dark whatever the console theme is. Text colour, though, was left to
+   * cascade — and the app's theme follows the operating system, so on a
+   * machine in light mode `body` resolves to `--text-primary: #0c1222`. That
+   * is near-black on near-black: the heading disappeared into the card.
+   *
+   * A component that fixes its own background has to fix its own foreground.
+   * Anything less depends on ambient state it has already opted out of.
+   */
   return (
     <div className="flex min-h-dvh items-center justify-center bg-[#0b1020] px-6 py-12 text-slate-100">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl">
@@ -153,19 +165,19 @@ export default function SsoGate({ children }: { children: ReactNode }) {
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-lg font-semibold">IoT Control Plane</h1>
-            <p className="text-xs text-slate-400">Circuvent staff access</p>
+            <h1 className="text-lg font-semibold text-slate-50">IoT Control Plane</h1>
+            <p className="text-xs text-slate-300">Circuvent staff access</p>
           </div>
         </div>
 
         {phase === "checking" ? (
-          <p className="mt-6 flex items-center gap-2 text-sm text-slate-300">
+          <p className="mt-6 flex items-center gap-2 text-sm text-slate-200">
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Checking your access…
           </p>
         ) : (
           <>
-            <p className="mt-6 text-sm text-slate-300">
+            <p className="mt-6 text-sm text-slate-200">
               This console manages device provisioning, firmware rollouts and
               fleet security. Sign in with your Circuvent account to continue.
             </p>
@@ -193,7 +205,7 @@ export default function SsoGate({ children }: { children: ReactNode }) {
             </a>
 
             {who && (
-              <p className="mt-3 text-center text-xs text-slate-500">
+              <p className="mt-3 text-center text-xs text-slate-400">
                 Last signed in as {who}
               </p>
             )}

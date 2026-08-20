@@ -127,15 +127,32 @@ export default function SecurityPage() {
         actions={<Btn variant="subtle" onClick={refreshAll}><RefreshCw className="h-4 w-4" /> Refresh</Btn>}
       />
 
+      {/*
+        * A failed fetch must not read as a clean bill of health.
+        *
+        * These cards only ever checked `.loading`. When the devices request
+        * failed after its first attempt — control plane down, 401, network —
+        * `devicesRes.data` went null, `alarms` and `offline` computed to 0, and
+        * the band rendered green: "0 active alarms · no faults". On the one
+        * page whose job is fault visibility for locks and gates, the outage
+        * looked like calm. The error is now stated, and the two cards that
+        * derive from that request stop claiming a number they do not have.
+        */}
+      {devicesRes.error && (
+        <div role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-200">
+          Could not load the fleet, so alarm and offline counts are unknown — not zero. {devicesRes.error}
+        </div>
+      )}
+
       <StaggerGrid className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StaggerItem>
-          <StatCard label="Active alarms" value={devicesRes.loading ? "—" : num(alarms)} icon={<Siren className="h-4 w-4" />} tone={alarms ? "red" : "green"} sub={alarms ? "devices in fault" : "no faults"} />
+          <StatCard label="Active alarms" value={devicesRes.loading ? "—" : devicesRes.error ? "?" : num(alarms)} icon={<Siren className="h-4 w-4" />} tone={devicesRes.error ? "amber" : alarms ? "red" : "green"} sub={devicesRes.error ? "fleet unreachable" : alarms ? "devices in fault" : "no faults"} />
         </StaggerItem>
         <StaggerItem>
-          <StatCard label="Security events · 24h" value={eventsRes.loading ? "—" : num(events24h)} icon={<Activity className="h-4 w-4" />} tone={events24h ? "amber" : "slate"} sub="logged by control plane" />
+          <StatCard label="Security events · 24h" value={eventsRes.loading ? "—" : eventsRes.error ? "?" : num(events24h)} icon={<Activity className="h-4 w-4" />} tone={eventsRes.error ? "amber" : events24h ? "amber" : "slate"} sub={eventsRes.error ? "log unreachable" : "logged by control plane"} />
         </StaggerItem>
         <StaggerItem>
-          <StatCard label="Offline devices" value={devicesRes.loading ? "—" : num(offline)} icon={<WifiOff className="h-4 w-4" />} tone={offline ? "amber" : "green"} sub={fleet.total ? `of ${num(fleet.total)}` : "no devices"} />
+          <StatCard label="Offline devices" value={devicesRes.loading ? "—" : devicesRes.error ? "?" : num(offline)} icon={<WifiOff className="h-4 w-4" />} tone={devicesRes.error ? "amber" : offline ? "amber" : "green"} sub={devicesRes.error ? "fleet unreachable" : fleet.total ? `of ${num(fleet.total)}` : "no devices"} />
         </StaggerItem>
         <StaggerItem>
           <StatCard label="Certs expiring" value={certsCfg.loading ? "—" : num(expiringCerts)} icon={<FileBadge className="h-4 w-4" />} tone={expiringCerts ? "amber" : "green"} sub="< 30 days or expired" />

@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Search, X, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Check, Copy, AlertTriangle } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 // ------------------------------------------------------------------- tones ---
 
@@ -389,10 +389,31 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {sorted.map((row) => (
+              /*
+               * A clickable row has to be reachable by keyboard.
+               *
+               * These rows are the only way into the device drawer — live
+               * state, faults, commands, OTA, delete — and a bare onClick on a
+               * <tr> gives a keyboard or screen-reader operator no route to any
+               * of it. Enter and Space are handled so the row behaves like the
+               * button it already is.
+               */
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-b border-white/[0.06] last:border-0 transition ${onRowClick ? "cursor-pointer hover:bg-white/[0.03]" : ""}`}
+                onKeyDown={
+                  onRowClick
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onRowClick(row);
+                        }
+                      }
+                    : undefined
+                }
+                role={onRowClick ? "button" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                className={`border-b border-white/[0.06] last:border-0 transition ${onRowClick ? "cursor-pointer hover:bg-white/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70" : ""}`}
               >
                 {columns.map((c) => (
                   <td key={c.key} className={`px-4 ${dense ? "py-2" : "py-3"} ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : ""} ${c.className ?? ""}`}>
@@ -410,18 +431,80 @@ export function DataTable<T>({
 
 // ---------------------------------------------------------- modal / drawer ---
 
+/**
+ * The confirmation dialog used by every destructive action in this console.
+ *
+ * It had none of the semantics a dialog needs: no role, no focus trap, no
+ * Escape. That is not a cosmetic gap here — these dialogs are the last step
+ * before flashing firmware, reissuing a device key or broadcasting to a fleet
+ * of locks. Background content stayed tabbable underneath, so it was possible
+ * to tab out of a "Confirm firmware push" straight into the table behind it,
+ * and a screen reader was never told a dialog had opened at all.
+ *
+ * Fixed once, here, rather than in each of the dozen call sites.
+ */
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+
+    // Focus moves into the dialog so the next Tab stays inside it, and so a
+    // screen reader starts reading the dialog rather than the page behind it.
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const focusables = () =>
+      Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+    (focusables()[0] ?? panelRef.current)?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = focusables();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      // Wrap at the ends, which is what makes it a trap rather than a hint.
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      previouslyFocused?.focus?.();
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <motion.div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }}
         className={`relative ad-card rounded-2xl p-6 w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto`}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white cursor-pointer"><X className="h-5 w-5" /></button>
+          <h2 id={titleId} className="text-lg font-bold text-white">{title}</h2>
+          <button onClick={onClose} aria-label="Close dialog" className="text-slate-400 hover:text-white cursor-pointer"><X className="h-5 w-5" /></button>
         </div>
         {children}
       </motion.div>
