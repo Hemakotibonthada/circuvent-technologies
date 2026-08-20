@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Circuvent Attendance Desk — a native Windows front desk for the RFID
+    attendance system.
+
+    WPF rather than WinUI 3: WinUI needs the Windows App SDK workload installed
+    on every machine that builds it, and this has to be buildable from a clean
+    checkout on a reception PC. WPF ships with the .NET SDK.
+
+    No third-party packages. System.Text.Json and HttpClient cover the API, and
+    a reception terminal that pulls a dependency tree is one more thing to
+    break on a machine nobody administers.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>CircuventAttendanceDesk</AssemblyName>
+    <RootNamespace>Circuvent.AttendanceDesk</RootNamespace>
+    <Version>1.0.0</Version>
+    <Company>Circuvent Technologies</Company>
+    <Product>Circuvent Attendance Desk</Product>
+    <!-- Warnings as errors on nullability: this app writes attendance records,
+         and a null slipping into a punch is a person marked absent. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>CS1591</WarningsNotAsErrors>
+  </PropertyGroup>
+
+</Project>

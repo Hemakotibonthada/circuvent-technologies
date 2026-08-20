@@ -1,0 +1,208 @@
+<Window x:Class="Circuvent.AttendanceDesk.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Circuvent Attendance Desk"
+        Height="820" Width="1180"
+        MinHeight="620" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Bg}">
+
+  <Grid>
+    <!-- ══════════════════ Sign in ══════════════════ -->
+    <Border x:Name="SignInPane" Background="{StaticResource Bg}" Panel.ZIndex="10">
+      <Border Width="420" VerticalAlignment="Center" HorizontalAlignment="Center"
+              Background="{StaticResource Surface}" CornerRadius="16" Padding="28"
+              BorderBrush="{StaticResource Border}" BorderThickness="1">
+        <StackPanel>
+          <TextBlock Text="Circuvent Attendance Desk" FontSize="21" FontWeight="Bold" />
+          <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,20"
+                     Text="Front desk for the RFID attendance system" />
+
+          <TextBlock Style="{StaticResource Caption}" Text="Email" Margin="0,0,0,4" />
+          <TextBox x:Name="EmailBox" Margin="0,0,0,12" />
+
+          <TextBlock Style="{StaticResource Caption}" Text="Password" Margin="0,0,0,4" />
+          <PasswordBox x:Name="PasswordBox" Margin="0,0,0,12" />
+
+          <TextBlock Style="{StaticResource Caption}" Text="Control plane" Margin="0,0,0,4" />
+          <TextBox x:Name="BaseUrlBox" Margin="0,0,0,16" />
+
+          <TextBlock x:Name="SignInError" Foreground="{StaticResource Red}" FontSize="12"
+                     TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,12" />
+
+          <Button x:Name="SignInButton" Content="Sign in" Click="SignIn_Click" />
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- ══════════════════ Desk ══════════════════ -->
+    <DockPanel x:Name="DeskPane" Visibility="Collapsed">
+
+      <!-- Header -->
+      <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" Padding="18,14"
+              BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+        <Grid>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="Attendance Desk" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+            <ComboBox x:Name="SiteBox" Width="220" Margin="18,0,0,0" VerticalAlignment="Center"
+                      SelectionChanged="Site_Changed" />
+            <TextBlock x:Name="ClockText" Style="{StaticResource Caption}" Margin="18,0,0,0" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <TextBlock x:Name="WhoText" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,14,0" />
+            <Button Content="Sign out" Style="{StaticResource Subtle}" Padding="12,7" Click="SignOut_Click" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Status strip -->
+      <Border DockPanel.Dock="Bottom" Background="{StaticResource Surface}" Padding="18,10"
+              BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0">
+        <Grid>
+          <TextBlock x:Name="StatusText" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+          <TextBlock x:Name="ReaderHint" Style="{StaticResource Caption}" HorizontalAlignment="Right"
+                     VerticalAlignment="Center" Foreground="{StaticResource Faint}" />
+        </Grid>
+      </Border>
+
+      <Grid Margin="18">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="380" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: scan + on site -->
+        <DockPanel Grid.Column="0" Margin="0,0,14,0">
+
+          <!-- Scan panel -->
+          <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" CornerRadius="14" Padding="22"
+                  BorderBrush="{StaticResource Border}" BorderThickness="1" Margin="0,0,0,14">
+            <StackPanel>
+              <Grid>
+                <TextBlock Text="Scan a card" Style="{StaticResource Heading}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                  <RadioButton x:Name="ModeClock" Content="Clock in / out" IsChecked="True"
+                               Foreground="{StaticResource TextDim}" Margin="0,0,16,0"
+                               Checked="Mode_Changed" />
+                  <RadioButton x:Name="ModeEnrol" Content="Assign to a person"
+                               Foreground="{StaticResource TextDim}" Checked="Mode_Changed" />
+                </StackPanel>
+              </Grid>
+
+              <Border Background="{StaticResource SurfaceAlt}" CornerRadius="10" Padding="20" Margin="0,6,0,0">
+                <StackPanel>
+                  <TextBlock x:Name="ScanBig" FontSize="30" FontWeight="Bold"
+                             Text="Ready" HorizontalAlignment="Center" />
+                  <TextBlock x:Name="ScanSub" Style="{StaticResource Caption}" HorizontalAlignment="Center"
+                             Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center"
+                             Text="Hold a card on the reader." />
+                </StackPanel>
+              </Border>
+
+              <!-- Enrolment target -->
+              <StackPanel x:Name="EnrolPanel" Visibility="Collapsed" Margin="0,14,0,0">
+                <TextBlock Style="{StaticResource Caption}" Text="Give the next card to" Margin="0,0,0,4" />
+                <ComboBox x:Name="PersonBox" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
+                           Text="The card is issued to this person and takes effect once the readers have it. Push the card list afterwards so the door knows about it too." />
+              </StackPanel>
+
+              <!-- Direction, only in clocking mode -->
+              <StackPanel x:Name="DirectionPanel" Orientation="Horizontal" Margin="0,14,0,0">
+                <TextBlock Style="{StaticResource Caption}" Text="Record as" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <RadioButton x:Name="DirIn" Content="Entry" IsChecked="True" Foreground="{StaticResource TextDim}" Margin="0,0,14,0" />
+                <RadioButton x:Name="DirOut" Content="Exit" Foreground="{StaticResource TextDim}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- On site -->
+          <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="18"
+                  BorderBrush="{StaticResource Border}" BorderThickness="1">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" x:Name="OnSiteHeading" Text="On site" Style="{StaticResource Heading}" />
+              <ListView x:Name="OnSiteList" Background="Transparent" BorderThickness="0"
+                        Foreground="{StaticResource Text}">
+                <ListView.View>
+                  <GridView>
+                    <GridViewColumn Header="Name" Width="260" DisplayMemberBinding="{Binding Name}" />
+                    <GridViewColumn Header="Code" Width="110" DisplayMemberBinding="{Binding Code}" />
+                    <GridViewColumn Header="Since" Width="140" DisplayMemberBinding="{Binding Since}" />
+                  </GridView>
+                </ListView.View>
+              </ListView>
+            </DockPanel>
+          </Border>
+        </DockPanel>
+
+        <!-- Right: terminals, recent, HRMS -->
+        <DockPanel Grid.Column="1">
+
+          <Border DockPanel.Dock="Top" Background="{StaticResource Surface}" CornerRadius="14" Padding="18"
+                  BorderBrush="{StaticResource Border}" BorderThickness="1" Margin="0,0,0,14">
+            <StackPanel>
+              <TextBlock Text="Readers" Style="{StaticResource Heading}" />
+              <ItemsControl x:Name="TerminalList">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{StaticResource SurfaceAlt}" CornerRadius="9" Padding="12" Margin="0,0,0,8">
+                      <StackPanel>
+                        <Grid>
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding StatusLabel}" HorizontalAlignment="Right"
+                                     Foreground="{Binding StatusBrush}" FontSize="12" FontWeight="SemiBold" />
+                        </Grid>
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}" Margin="0,4,0,0"
+                                   TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button x:Name="PushCardsButton" Content="Push card list to readers"
+                      Style="{StaticResource Subtle}" Margin="0,4,0,0" Click="PushCards_Click" />
+            </StackPanel>
+          </Border>
+
+          <Border DockPanel.Dock="Bottom" Background="{StaticResource Surface}" CornerRadius="14" Padding="18"
+                  BorderBrush="{StaticResource Border}" BorderThickness="1" Margin="0,14,0,0">
+            <StackPanel>
+              <TextBlock Text="HRMS" Style="{StaticResource Heading}" />
+              <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,10"
+                         Text="HRMS pulls today's register and applies its own grace and half-day rules. This asks it to run that now." />
+              <TextBlock Style="{StaticResource Caption}" Text="HRMS address" Margin="0,0,0,4" />
+              <TextBox x:Name="HrmsUrlBox" Margin="0,0,0,8" />
+              <TextBlock Style="{StaticResource Caption}" Text="HRMS API token" Margin="0,0,0,4" />
+              <PasswordBox x:Name="HrmsTokenBox" Margin="0,0,0,10" />
+              <Button x:Name="HrmsSyncButton" Content="Sync today into HRMS" Click="HrmsSync_Click" />
+              <TextBlock x:Name="HrmsResult" Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="18"
+                  BorderBrush="{StaticResource Border}" BorderThickness="1">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="Recent scans" Style="{StaticResource Heading}" />
+              <ItemsControl x:Name="RecentList">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Padding="0,7" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                      <Grid>
+                        <StackPanel>
+                          <TextBlock Text="{Binding Who}" FontSize="13" />
+                          <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Verdict}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Foreground="{Binding VerdictBrush}" FontSize="12" FontWeight="SemiBold" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </DockPanel>
+          </Border>
+        </DockPanel>
+      </Grid>
+    </DockPanel>
+  </Grid>
+</Window>

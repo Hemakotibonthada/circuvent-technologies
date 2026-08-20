@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Stops NuGet's upward search for central package management.
+
+    Without this, MSBuild walks past the repository into the user's profile and
+    finds C:\Users\<user>\Directory.Packages.props, which is a zero-byte file
+    and fails the build with "Root element is missing" before any project code
+    is read. That file is outside this repository and not ours to delete, and a
+    build that depends on the state of somebody's home directory is not a build
+    anybody can reproduce.
+
+    Declaring the boundary here makes the answer the same on every machine.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>
