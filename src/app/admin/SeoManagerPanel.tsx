@@ -79,8 +79,26 @@ export default function SeoManagerPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}><Globe2 className="w-5 h-5" /> SEO & Redirects Manager</h2>
+        <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)" }}><Globe2 className="w-5 h-5" /> SEO &amp; Redirects Manager</h2>
         <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Per-page meta overrides and a 301/302 redirect table.</p>
+      </div>
+
+      {/*
+        * Said out loud because the panel otherwise reads as a live control
+        * surface: rules save, appear in the table, and show a hits counter.
+        * Nothing consults them on a real request — the counter is pinned at
+        * zero because the only thing that would increment it is never called.
+        *
+        * The reason is structural, not an oversight. These rules live in a
+        * node:fs-backed store, and Next middleware runs on the Edge runtime,
+        * which cannot reach it. Applying them needs either Node-runtime
+        * middleware or a lookup at the 404 boundary, and that is a deployment
+        * decision rather than a patch.
+        */}
+      <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">
+        <strong>Not yet applied to live traffic.</strong> Rules saved here are stored and listed, but nothing on the
+        site consults them yet, so no redirect fires and the hit counts stay at zero. Treat this as a staging list
+        rather than a live routing table.
       </div>
 
       {error && (
