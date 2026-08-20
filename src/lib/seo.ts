@@ -558,31 +558,32 @@ export function getOrganizationJsonLd() {
       value: "1-10",
     },
     /*
-     * The full postal address, matching the Google Business Profile for
-     * Circuvent Technologies in Kavadiguda, Hyderabad.
+     * The registered office address.
      *
-     * It used to carry only the city and region. That matters more than it
-     * looks: Google reconciles a website with a business listing largely by
-     * matching name, address and phone, and a city-only address is a weak
-     * match. Since "Circuvent" is one character from "circumvent", the search
-     * engines treat the query as a misspelling — and a verified local entity
-     * whose address matches the site exactly is one of the stronger signals
-     * available for saying the word is a real company rather than a typo.
+     * This has to match the Google Business Profile character for character.
+     * At the time of writing it does NOT: the profile still shows an address
+     * in Kavadiguda, Hyderabad, Telangana. That has to be corrected on the
+     * profile, because a site and a listing giving different addresses read as
+     * two organisations rather than one.
      *
-     * Keep this identical to the Business Profile, character for character. A
-     * mismatched address is worse than an incomplete one, because it reads as
-     * two different organisations rather than one.
+     * Why it matters more here than for most companies: "Circuvent" is one
+     * character from "circumvent", so search engines treat the query as a
+     * misspelling. A verified local entity whose name, address and phone match
+     * the website exactly is one of the stronger signals available for
+     * establishing that the word is a company rather than a typo.
      *
-     * `telephone` is deliberately absent: no phone number is published on the
-     * site or on the Business Profile, and inventing one would be worse than
-     * omitting it. Add it in both places at once.
+     * The postcode is 535463 — the Parvathipuram postal division in
+     * Parvathipuram Manyam district, which is the one covering Ravupalli. It
+     * is deliberately not 500049; that belongs to Miyapur in Telangana, some
+     * 700km away, and pairing it with an Andhra Pradesh town would invalidate
+     * the address it was meant to support.
      */
     address: {
       "@type": "PostalAddress",
-      streetAddress: "Flat No 201, Street No 6, Jawahar Nagar, Kavadiguda",
-      addressLocality: "Hyderabad",
-      addressRegion: "Telangana",
-      postalCode: "500049",
+      streetAddress: "3-34, Bonthada Street, Ravupalli",
+      addressLocality: "Parvathipuram",
+      addressRegion: "Andhra Pradesh",
+      postalCode: "535463",
       addressCountry: "IN",
     },
     contactPoint: [
@@ -590,10 +591,19 @@ export function getOrganizationJsonLd() {
         "@type": "ContactPoint",
         contactType: "customer support",
         email: siteConfig.contact.email,
+        // The number published on the Business Profile and the site. Both have
+        // to carry the same one: a phone that differs between the two is the
+        // same reconciliation problem as a mismatched address.
+        telephone: "+91 99661 23105",
         areaServed: "Worldwide",
         availableLanguage: ["en"],
       },
     ],
+    // Repeated at the top level as well as on the contact point, because
+    // Google reads Organization.telephone directly when matching a site to a
+    // business listing.
+    telephone: "+91 99661 23105",
+    email: "contact@circuvent.com",
     areaServed: "Worldwide",
     knowsAbout: [
       "Artificial Intelligence",
