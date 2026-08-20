@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Clock, Loader2, Play, Plus, Server, ToggleLeft, ToggleRight, Trash2, X } from "lucide-react";
+import { isSafeJobEndpoint } from "@/lib/job-endpoint";
 
 function tok(): string {
   try {
@@ -59,6 +60,19 @@ export default function JobsPanel() {
   }, [load]);
 
   const runNow = async (job: JobDefinition) => {
+    /*
+     * Checked again here, not only where the job was saved. Jobs stored before
+     * the endpoint was validated are still in the file, and this request is the
+     * one that carries the admin's session token — so the last line of defence
+     * belongs at the point the credential would leave the browser.
+     */
+    if (!isSafeJobEndpoint(job.endpoint)) {
+      alert(
+        `"${job.name}" points at ${job.endpoint}, which is not a first-party /api/ path. ` +
+          `Running it would send your admin session token there, so it has been blocked.`
+      );
+      return;
+    }
     setRunning(job.id);
     const started = Date.now();
     let ok = false;

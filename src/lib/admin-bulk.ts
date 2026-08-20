@@ -143,7 +143,22 @@ export function toCsv(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return "";
   const headers = Object.keys(rows[0]);
   const escape = (v: unknown) => {
-    const s = String(v ?? "");
+    let s = String(v ?? "");
+    /*
+     * Formula injection, not a spreadsheet nicety.
+     *
+     * Cells here include values the customer chose — their own account name is
+     * exported verbatim — and Excel and Sheets treat a cell beginning `=`, `+`,
+     * `-`, `@`, tab or CR as a formula rather than text. A customer who names
+     * themselves `=HYPERLINK("http://evil/","x")` gets that formula executed on
+     * the machine of whichever admin opens the export. No admin credentials are
+     * needed to plant it, and nothing about the CSV looks unusual beforehand.
+     *
+     * A leading apostrophe is the standard neutraliser: spreadsheets read the
+     * rest of the cell as literal text, and the original value is preserved for
+     * anything parsing the file as plain CSV.
+     */
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");

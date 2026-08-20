@@ -42,6 +42,7 @@ import {
   LINK_KINDS,
   DEFAULT_VIEWS,
 } from "@/lib/icm";
+import IcmRangePicker, { DEFAULT_RANGE, type IcmRange } from "./IcmRangePicker";
 
 /** Built-ins cannot be deleted; the button is hidden rather than left to fail. */
 const DEFAULT_VIEW_IDS = new Set(DEFAULT_VIEWS.map((v) => v.id));
@@ -185,6 +186,7 @@ export default function IcmPanel() {
   const [sev, setSev] = useState<string>("");
   const [slaFilter, setSlaFilter] = useState<string>("");
   const [q, setQ] = useState("");
+  const [range, setRange] = useState<IcmRange>(DEFAULT_RANGE);
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -217,6 +219,8 @@ export default function IcmPanel() {
       if (sev) params.set("severity", sev);
       if (slaFilter) params.set("sla", slaFilter);
       if (hideDuplicates) params.set("hideDuplicates", "1");
+      if (range.from) params.set("from", range.from);
+      if (range.to) params.set("to", range.to);
       const r = await fetch(`/api/admin/icm?${params}`, { headers: { "x-admin-token": tok() } });
       const b = await r.json();
       if (!r.ok || !b.success) {
@@ -236,7 +240,7 @@ export default function IcmPanel() {
       setError("Could not reach the incident service.");
     }
     setLoading(false);
-  }, [status, sev, slaFilter, q, hideDuplicates]);
+  }, [status, sev, slaFilter, q, hideDuplicates, range.from, range.to]);
 
   useEffect(() => {
     void load();
@@ -630,6 +634,8 @@ export default function IcmPanel() {
           <option value="at-risk">At risk</option>
           <option value="on-track">On track</option>
         </select>
+
+        <IcmRangePicker value={range} onChange={setRange} />
 
         <input
           value={q}

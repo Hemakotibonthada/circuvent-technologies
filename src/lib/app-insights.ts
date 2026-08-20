@@ -831,7 +831,35 @@ export function normaliseEvent(raw: unknown, ctx: { now: string; session: string
   const status = Math.max(0, Math.min(599, Math.round(Number(r.status) || 0)));
   const durationMs = Math.max(0, Math.min(600_000, Math.round(Number(r.durationMs) || 0)));
 
-  const ok = kind === "exception" ? false : status === 0 ? r.ok !== false : status < 400;
+  /*
+   * Who is allowed to say a non-2xx response was fine.
+   *
+   * `status < 400` is the right default and must stay the default, because
+   * /api/telemetry is a public unauthenticated beacon: if a browser's own `ok`
+   * were believed, any page could report its 500s as successes and quietly
+   * flatten the failure rate.
+   *
+   * Synthetic probes are the exception, and they run server-side behind the
+   * admin availability route. Some of them are *designed* to expect a refusal
+   * — the storefront↔console SSO check passes on 400, because a 400 is the
+   * federation endpoint rejecting an empty body, while a 404 would mean the
+   * feature is switched off. Recomputing `ok` from the status threw that
+   * verdict away, so a passing check was stored as a failure: red rows in
+   * Recent events, an "HTTP 400" exception on the drawer, and a permanently
+   * depressed availability figure for a dependency that was healthy the whole
+   * time. A monitor that shows red for a healthy system is one people learn to
+   * ignore, which is the failure this whole panel exists to prevent.
+   */
+  const declaredOk = typeof r.ok === "boolean" ? r.ok : null;
+  const trusted = ctx.source === "probe";
+  const ok =
+    kind === "exception"
+      ? false
+      : status === 0
+        ? r.ok !== false
+        : trusted && declaredOk !== null
+          ? declaredOk
+          : status < 400;
 
   return {
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,

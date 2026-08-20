@@ -96,7 +96,24 @@ export function verifyApiKey(plaintext: string): ApiKeyRecord | null {
   return key;
 }
 
-export function listWebhooks(): WebhookSub[] {
+/**
+ * Webhook subscriptions, with the signing secret withheld.
+ *
+ * The secret is the HMAC key behind `X-Circuvent-Signature`: anyone holding it
+ * can forge a delivery that authenticates as coming from Circuvent. It was
+ * being returned in full on every GET, so it sat in the network tab and in any
+ * logged response body — and the panel never displayed it, which is how it went
+ * unnoticed. API keys in this same module already get this right: the plaintext
+ * is shown once at creation and only a hash is kept.
+ *
+ * `hasSecret` is retained so the UI can still say whether one is configured.
+ */
+export function listWebhooks(): (Omit<WebhookSub, "secret"> & { hasSecret: boolean })[] {
+  return store.read().webhooks.map(({ secret, ...rest }) => ({ ...rest, hasSecret: Boolean(secret) }));
+}
+
+/** The full record, secret included. For signing a delivery — never for a response. */
+export function listWebhooksWithSecrets(): WebhookSub[] {
   return store.read().webhooks;
 }
 

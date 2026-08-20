@@ -1040,6 +1040,40 @@ export interface Filters {
   slaState?: SlaState | null;
   /** Fold duplicates into the incident they duplicate. */
   hideDuplicates?: boolean;
+  /**
+   * Inclusive window over `createdAt`, as ISO instants.
+   *
+   * Filing time rather than resolution time, because the question this answers
+   * is "what happened during the incident on the 12th", and an incident filed
+   * that night but resolved days later belongs to the 12th.
+   */
+  from?: string;
+  to?: string;
+}
+
+/**
+ * Whether an incident falls inside the selected window.
+ *
+ * Shared by the queue and the summary tiles on purpose. They were computed
+ * separately — the tiles over every incident ever filed, the table over the
+ * filtered set — so any narrowing left a header reading "4 breached" above a
+ * table showing one. Two numbers that disagree on the same screen means the
+ * operator has to work out which one is lying, during an incident, which is
+ * the worst possible time to be doing arithmetic.
+ */
+export function withinRange(inc: Incident, from?: string, to?: string): boolean {
+  if (!from && !to) return true;
+  const at = Date.parse(inc.createdAt);
+  if (!Number.isFinite(at)) return true;
+  if (from) {
+    const lo = Date.parse(from);
+    if (Number.isFinite(lo) && at < lo) return false;
+  }
+  if (to) {
+    const hi = Date.parse(to);
+    if (Number.isFinite(hi) && at > hi) return false;
+  }
+  return true;
 }
 
 export interface SavedView {
@@ -1092,6 +1126,7 @@ export function queue(all: Incident[], f: Filters, now: string): Incident[] {
   const source = f.hideDuplicates ? dedupe(all) : all;
 
   const filtered = source.filter((inc) => {
+    if (!withinRange(inc, f.from, f.to)) return false;
     if (f.status === "open" && !isOpen(inc)) return false;
     if (f.status && f.status !== "open" && f.status !== "all" && inc.status !== f.status) return false;
     if (f.severity != null && inc.severity !== f.severity) return false;
@@ -1138,7 +1173,8 @@ const median = (xs: number[]): number | null => {
   return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
 };
 
-export function stats(all: Incident[], now: string): IcmStats {
+export function stats(all: Incident[], now: string, range?: { from?: string; to?: string }): IcmStats {
+  const scoped = range?.from || range?.to ? all.filter((i) => withinRange(i, range.from, range.to)) : all;
   const bySeverity = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 } as Record<Severity, number>;
   let active = 0, acknowledged = 0, mitigated = 0, resolved = 0, breached = 0, atRisk = 0;
   const ttas: number[] = [];
@@ -1151,7 +1187,7 @@ export function stats(all: Incident[], now: string): IcmStats {
   let judged = 0;
   let met = 0;
 
-  for (const inc of all) {
+  for (const inc of scoped) {
     bySeverity[inc.severity]++;
     if (inc.status === "active") active++;
     else if (inc.status === "acknowledged") acknowledged++;

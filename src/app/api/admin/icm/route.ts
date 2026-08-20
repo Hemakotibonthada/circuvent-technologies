@@ -170,6 +170,8 @@ export async function GET(request: Request) {
     search: url.searchParams.get("q") || "",
     slaState: (url.searchParams.get("sla") as SlaState) || null,
     hideDuplicates: url.searchParams.get("hideDuplicates") === "1",
+    from: url.searchParams.get("from") || undefined,
+    to: url.searchParams.get("to") || undefined,
   };
 
   return NextResponse.json({ success: true, ...icmView(filters, new Date().toISOString(), actorOf(request)) });

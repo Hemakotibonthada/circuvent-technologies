@@ -52,22 +52,62 @@ export default function ReturnsPanel() {
     load();
   }, [load]);
 
+  const [acting, setActing] = useState("");
+
   const act = async (id: string, action: string) => {
     let amount: number | undefined;
     let note: string | undefined;
+
     if (action === "refund") {
+      /*
+       * `window.prompt` returns null for Cancel and "" for an empty OK, and
+       * the two were treated the same. Cancel therefore fell through to the
+       * request below and refunded the full order total — the button offered
+       * no way to change your mind about moving real money. Null is now an
+       * abort, and only an empty string still means "refund everything".
+       */
       const raw = window.prompt("Refund amount to wallet (₹). Leave blank to refund the full order total:", "");
-      if (raw && raw.trim()) amount = Math.round(Number(raw));
+      if (raw === null) return;
+      const trimmed = raw.trim();
+      if (trimmed) {
+        const parsed = Math.round(Number(trimmed));
+        // A non-numeric entry used to become NaN and be sent as a missing
+        // amount, which the server reads as "refund the lot".
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          alert(`"${trimmed}" is not a valid amount. Nothing has been refunded.`);
+          return;
+        }
+        amount = parsed;
+      }
+      const sum = amount ? `₹${amount}` : "the full order total";
+      if (!confirm(`Refund ${sum} to the customer's wallet? This moves money and cannot be undone here.`)) return;
     }
+
     if (action === "reject") {
-      note = window.prompt("Reason for rejection (optional):", "") || undefined;
+      const raw = window.prompt("Reason for rejection (optional):", "");
+      if (raw === null) return;
+      note = raw.trim() || undefined;
     }
-    await fetch("/api/admin/returns", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-admin-token": tok() },
-      body: JSON.stringify({ id, action, amount, note }),
-    });
-    load();
+
+    // Guards against a double-click issuing a second refund before the list
+    // has reloaded and the button has gone.
+    if (acting) return;
+    setActing(id);
+    try {
+      const res = await fetch("/api/admin/returns", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-token": tok() },
+        body: JSON.stringify({ id, action, amount, note }),
+      });
+      if (!res.ok) {
+        alert("That did not go through. The return is unchanged — please try again.");
+      }
+    } catch {
+      alert("Could not reach the returns service. The return is unchanged.");
+    } finally {
+      setActing("");
+      load();
+    }
   };
 
   return (

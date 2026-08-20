@@ -21,6 +21,15 @@ export async function POST(request: Request) {
     }
     if (!b.name || !b.endpoint) return NextResponse.json({ success: false, message: "name and endpoint required." }, { status: 400 });
     const job = addCustomJob({ name: b.name, endpoint: b.endpoint, method: b.method === "GET" ? "GET" : "POST", scheduleDescription: b.scheduleDescription || "Manual trigger only" });
+    if (!job) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "The endpoint must be a first-party path beginning /api/ — running a job sends your admin session token to it.",
+        },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ success: true, job });
   } catch {
     return NextResponse.json({ success: false, message: "Request failed." }, { status: 500 });

@@ -10,6 +10,7 @@
 // SERVER ONLY.
 
 import { createFileStore, shortId } from "./data-file";
+import { isSafeJobEndpoint } from "./job-endpoint";
 
 export interface JobDefinition {
   id: string;
@@ -72,9 +73,15 @@ export function listJobs(): JobDefinition[] {
   return store.read().jobs;
 }
 
-export function addCustomJob(input: { name: string; endpoint: string; method: "GET" | "POST"; scheduleDescription: string }): JobDefinition {
+/**
+ * The only shape of endpoint a job may have. The rule itself lives in
+ * `job-endpoint.ts` so the browser panel enforces the identical check without
+ * importing this module's filesystem dependencies.
+ */
+export function addCustomJob(input: { name: string; endpoint: string; method: "GET" | "POST"; scheduleDescription: string }): JobDefinition | null {
+  if (!isSafeJobEndpoint(input.endpoint)) return null;
   return store.mutate((db) => {
-    const job: JobDefinition = { id: shortId("job"), ...input, managedByVercelCron: false, enabled: true, createdAt: new Date().toISOString() };
+    const job: JobDefinition = { id: shortId("job"), ...input, endpoint: input.endpoint.trim(), managedByVercelCron: false, enabled: true, createdAt: new Date().toISOString() };
     db.jobs.push(job);
     return job;
   });

@@ -310,3 +310,58 @@ describe("the summary", () => {
     expect([...times].sort((a, b) => a - b)).toEqual(times);
   });
 });
+
+/**
+ * Who is allowed to declare a non-2xx response healthy.
+ *
+ * This is the pair of rules that broke the availability board: a synthetic
+ * check designed to pass on HTTP 400 was being stored as a failure, because
+ * `ok` was recomputed from the status and the probe's own verdict discarded.
+ */
+describe("normaliseEvent — trusting a declared outcome", () => {
+  const probeCtx = { now: NOW, session: "probe:synthetic", source: "probe" };
+  const beaconCtx = { now: NOW, session: "sess", source: "web" };
+
+  /*
+   * The storefront<->console SSO check expects 400: that is the federation
+   * endpoint rejecting an empty body, and so proof the feature is switched on.
+   * A 404 would be the alarm. Storing this as a failure produced red rows and
+   * a depressed availability figure for a dependency that was healthy.
+   */
+  it("believes a probe that says a 400 was the expected answer", () => {
+    const e = normaliseEvent(
+      { kind: "dependency", path: "/auth/federated", method: "POST", status: 400, ok: true },
+      probeCtx
+    )!;
+    expect(e.ok).toBe(true);
+    expect(e.status).toBe(400);
+  });
+
+  it("still believes a probe that reports a genuine failure", () => {
+    const e = normaliseEvent(
+      { kind: "dependency", path: "/auth/federated", status: 500, ok: false },
+      probeCtx
+    )!;
+    expect(e.ok).toBe(false);
+  });
+
+  /*
+   * The defence that must not regress. /api/telemetry is unauthenticated, so
+   * if a browser's own `ok` were believed, any page could report its 500s as
+   * successes and flatten the failure rate to nothing.
+   */
+  it("does not let an unauthenticated beacon call its own 500 a success", () => {
+    const e = normaliseEvent({ kind: "request", path: "/checkout", status: 500, ok: true }, beaconCtx)!;
+    expect(e.ok).toBe(false);
+  });
+
+  it("keeps deriving from status when a probe declares nothing", () => {
+    expect(normaliseEvent({ kind: "dependency", path: "/x", status: 503 }, probeCtx)!.ok).toBe(false);
+    expect(normaliseEvent({ kind: "dependency", path: "/x", status: 204 }, probeCtx)!.ok).toBe(true);
+  });
+
+  it("never calls an exception healthy, whoever reports it", () => {
+    const e = normaliseEvent({ kind: "exception", path: "/x", status: 200, ok: true }, probeCtx)!;
+    expect(e.ok).toBe(false);
+  });
+});

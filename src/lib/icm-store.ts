@@ -444,7 +444,7 @@ export function icmView(filters: Filters, now = new Date().toISOString(), who = 
   const rotations = listRotations();
   return {
     incidents: queue(all, filters, now),
-    stats: stats(all, now),
+    stats: stats(all, now, { from: filters.from, to: filters.to }),
     teams: listTeams(),
     /* So the console can show which teams actually reach somebody. An incident
        routed to a team with no address is a page that goes nowhere. */

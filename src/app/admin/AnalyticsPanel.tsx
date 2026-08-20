@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Download, TrendingUp } from "lucide-react";
-import { LineChart, BarChart, DonutChart, HBar, Heatmap, KpiCard, Legend, PALETTE, GroupedBar, RadarChart, ScatterChart, ComboChart, BulletChart, FunnelChart, WaterfallChart, RadialBars, CalendarHeatmap, Treemap } from "./charts";
+import { LineChart, BarChart, DonutChart, HBar, Heatmap, KpiCard, Legend, PALETTE, GroupedBar, RadarChart, ScatterChart, ComboChart, BulletChart, FunnelChart, WaterfallChart, CalendarHeatmap, Treemap } from "./charts";
 
 function tok() { try { return sessionStorage.getItem("admin-token") || ""; } catch { return ""; } }
 const money = (n: number) => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
@@ -241,18 +241,41 @@ export default function AnalyticsPanel() {
           {d.funnel?.length ? <FunnelChart stages={d.funnel.map((f: any) => ({ name: f.stage, value: f.count }))} /> : <Empty />}
         </Panel>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Panel title="KPI attainment (radial)">
-          <RadialBars items={[
-            { name: "Revenue", value: kv(d.kpis.revenue.value), max: kv(d.kpis.revenue.value) * 1.3 || 1 },
-            { name: "Orders", value: kv(d.kpis.orders.value), max: kv(d.kpis.orders.value) * 1.3 || 1 },
-            { name: "Customers", value: kv(d.kpis.newCustomers.value), max: kv(d.kpis.newCustomers.value) * 1.3 || 1 },
-          ]} />
-        </Panel>
-        <Panel title="Targets (bullet)">
-          <BulletChart label="Revenue" value={kv(d.kpis.revenue.value)} target={Math.round(kv(d.kpis.revenue.value) * 1.15)} color={PALETTE[0]} />
-          <BulletChart label="Orders" value={kv(d.kpis.orders.value)} target={Math.round(kv(d.kpis.orders.value) * 1.15)} color={PALETTE[1]} />
-          <BulletChart label="New customers" value={kv(d.kpis.newCustomers.value)} target={Math.round(kv(d.kpis.newCustomers.value) * 1.15)} color={PALETTE[4]} />
+      {/*
+        * These two panels used to be "KPI attainment (radial)" and "Targets
+        * (bullet)", and both were arithmetic dressed as measurement: the
+        * ceiling was derived from the same number being plotted (`max = value
+        * * 1.3`, `target = value * 1.15`), so the radial always read 1/1.3 =
+        * 77% and the bullet always sat at the same fraction of its marker —
+        * for every KPI, every range, whether revenue had doubled or collapsed.
+        * No target was ever fetched, because none exists in the data model.
+        *
+        * There is a real benchmark available, so it is used instead: `delta` is
+        * the measured change against the previous period of equal length. The
+        * previous value is recovered from it, and the marker is that value —
+        * a line the business actually crossed or missed.
+        */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title={`This period vs the previous ${range} days`}>
+          {(
+            [
+              ["Revenue", d.kpis.revenue, PALETTE[0]],
+              ["Orders", d.kpis.orders, PALETTE[1]],
+              ["New customers", d.kpis.newCustomers, PALETTE[4]],
+            ] as const
+          ).map(([label, k, color]) => {
+            const value = kv(k.value);
+            const delta = kv(k.delta);
+            /*
+             * delta is a percentage change from the previous period, so the
+             * previous value is recoverable. At -100% the previous period was
+             * the whole of it and the divisor would be zero, so the marker is
+             * dropped rather than rendered as infinity.
+             */
+            const factor = 1 + delta / 100;
+            const previous = factor > 0 ? Math.round(value / factor) : 0;
+            return <BulletChart key={label} label={label} value={value} target={previous} color={color} />;
+          })}
         </Panel>
         <Panel title="Category profile (radar)">
           {cats.length ? <RadarChart axes={cats.map((c: any) => c.name)} series={[{ name: "Revenue", data: cats.map((c: any) => c.revenue), color: PALETTE[2] }]} /> : <Empty />}
