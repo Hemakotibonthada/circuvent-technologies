@@ -594,7 +594,7 @@ export function getOrganizationJsonLd() {
         // The number published on the Business Profile and the site. Both have
         // to carry the same one: a phone that differs between the two is the
         // same reconciliation problem as a mismatched address.
-        telephone: "+91 99661 23105",
+        telephone: "+91 76599 93331",
         areaServed: "Worldwide",
         availableLanguage: ["en"],
       },
@@ -602,7 +602,13 @@ export function getOrganizationJsonLd() {
     // Repeated at the top level as well as on the contact point, because
     // Google reads Organization.telephone directly when matching a site to a
     // business listing.
-    telephone: "+91 99661 23105",
+    //
+    // NOTE: src/app/contact/page.tsx and src/app/team/page.tsx still link
+    // WhatsApp at 9966123105. Those were left pointing at the old number
+    // deliberately — swapping them would break a working contact route if
+    // 76599 93331 is not registered on WhatsApp yet. Once it is, change both
+    // so the site gives one number everywhere.
+    telephone: "+91 76599 93331",
     email: "contact@circuvent.com",
     areaServed: "Worldwide",
     knowsAbout: [
