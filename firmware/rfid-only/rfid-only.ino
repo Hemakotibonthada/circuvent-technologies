@@ -62,7 +62,7 @@
  * update endlessly, reboots each time, and reports no progress. It looks like
  * the update never arrived when in fact it landed perfectly.
  */
-#define CV_FW_VERSION "1.1.1"
+#define CV_FW_VERSION "1.2.0"
 
 #include <Arduino.h>
 #include <SPI.h>
@@ -302,7 +302,33 @@ static void publishEnrol(uint32_t uid) {
  * belongs in the register, not on the door.
  */
 static void onCommand(const String &action, JsonObjectConst p) {
+  /*
+   * Enrolment: hold the reader open for one card so the console can bind it to
+   * a person. The duration is clamped rather than trusted — a caller asking for
+   * an hour would leave the door binding cards to somebody long after whoever
+   * started it had walked away.
+   */
+  if (action == "enrol") {
+    uint32_t secs = p["seconds"] | (ENROL_WINDOW_MS / 1000);
+    if (secs < 5) secs = 5;
+    if (secs > 60) secs = 60;
+    enrolBegin(secs * 1000);
+    return;
+  }
+
+  if (action == "enrolCancel") {
+    enrolEnd();
+    return;
+  }
+
   if (action != "greet") return;
+
+  /*
+   * A greet that lands while enrolling is the server confirming the card was
+   * registered, not a door decision. Ending the mode first keeps the reader
+   * from sitting open after the thing it was opened for has happened.
+   */
+  if (enrolUntil) enrolEnd();
 
   const char *status = p["status"] | "";
   if (strcmp(status, "granted") == 0 || strcmp(status, "late") == 0) {
@@ -355,6 +381,7 @@ void setup() {
   cv.set("reader", hasReader);
   cv.set("lastCard", 0L);
   cv.set("model", "rfid-only");
+  cv.set("enrolling", false);
   cv.publishStateNow();
 
   if (!hasReader) showDenied();
@@ -364,6 +391,16 @@ void loop() {
   cv.loop();
 
   const uint32_t now = millis();
+
+  /*
+   * The enrolment window closing is checked before anything else reads a card,
+   * so a card presented a moment after it expired is treated as an arrival
+   * rather than quietly rebinding somebody's credential.
+   */
+  if (enrolUntil) {
+    if ((int32_t)(now - enrolUntil) >= 0) enrolEnd();
+    else enrolPulse(now);
+  }
 
   if (feedbackTil && (int32_t)(now - feedbackTil) >= 0) {
     feedbackClear();
@@ -393,6 +430,19 @@ void loop() {
      * believing they clocked in.
      */
     showDenied();
+    if (enrolUntil) enrolEnd();
+    return;
+  }
+
+  /*
+   * One card per enrolment. The mode ends on the read rather than on the
+   * server's reply, so a second badge presented while the confirmation is in
+   * flight cannot overwrite the first.
+   */
+  if (enrolUntil) {
+    publishEnrol(uid);
+    enrolEnd();
+    showReading();
     return;
   }
 

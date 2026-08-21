@@ -1357,6 +1357,15 @@ export interface AttendanceAccessRequest {
   personName: string | null;
   personCode: string | null;
   status: "pending" | "approved" | "rejected" | "revoked";
+  /**
+   * What is being asked for.
+   *
+   * A replacement shares this table with an access request because they share
+   * their whole machinery, but they answer different questions and must never
+   * be counted together — an approved replacement is not permission to enter a
+   * building, it is permission to be issued another badge.
+   */
+  kind: "office-access" | "card-replacement";
   decidedBy: string;
   reason: string;
   /** Null means open-ended; a date pair is how a visitor gets one day only. */
@@ -1364,6 +1373,24 @@ export interface AttendanceAccessRequest {
   validTo: string | null;
   requestedAt: string;
   decidedAt: string | null;
+}
+
+/**
+ * A reader held open for one card, so it can be bound to a person.
+ *
+ * `expiresAt` is on the row rather than counted down in the browser: a tab left
+ * open, a laptop that slept, or a clock that drifted would each otherwise show
+ * a window that had long since closed as though it were still live.
+ */
+export interface AttendanceEnrolment {
+  id: number;
+  siteId: number;
+  personId: number;
+  deviceId: string;
+  state: "waiting" | "done" | "expired" | "cancelled" | "failed";
+  cardNumber: number | null;
+  message: string;
+  expiresAt: string;
 }
 
 export interface RegisterRow {
@@ -1994,18 +2021,28 @@ export const controlPlane = {
   deleteAttendanceLeave: (id: number) =>
     req<{ success: boolean }>("/attendance/leaves/" + id, { method: "DELETE" }),
 
-  attendanceAccessRequests: (siteId: number, status?: string) =>
+  attendanceAccessRequests: (siteId: number, status?: string, kind?: string) =>
     req<{ requests: AttendanceAccessRequest[]; pending: number }>(
-      "/attendance/access-requests?siteId=" + siteId + (status ? "&status=" + status : "")
+      "/attendance/access-requests?siteId=" + siteId +
+      (status ? "&status=" + status : "") + (kind ? "&kind=" + kind : "")
     ),
   createAttendanceAccessRequest: (body: Record<string, unknown>) =>
     req<{ request: AttendanceAccessRequest; existing?: boolean }>(
       "/attendance/access-requests", { method: "POST", body: JSON.stringify(body) }
     ),
   decideAttendanceAccessRequest: (id: number, body: Record<string, unknown>) =>
-    req<{ request: AttendanceAccessRequest }>(
+    req<{ request: AttendanceAccessRequest; revokedCards?: number }>(
       "/attendance/access-requests/" + id, { method: "PATCH", body: JSON.stringify(body) }
     ),
+
+  startCardEnrolment: (body: { siteId: number; personId: number; deviceId: string }) =>
+    req<{ enrolment: AttendanceEnrolment }>(
+      "/attendance/enrolments", { method: "POST", body: JSON.stringify(body) }
+    ),
+  cardEnrolment: (id: number) =>
+    req<{ enrolment: AttendanceEnrolment }>("/attendance/enrolments/" + id),
+  cancelCardEnrolment: (id: number) =>
+    req<{ success: boolean }>("/attendance/enrolments/" + id, { method: "DELETE" }),
 
   attendanceRegister: (siteId: number, day?: string, groupId?: number) =>
     req<{ day: string; timezone: string; people: RegisterRow[]; totals: Record<string, number> }>(

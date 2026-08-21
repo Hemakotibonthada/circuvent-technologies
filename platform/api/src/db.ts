@@ -1409,6 +1409,46 @@ export async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_attend_access_site ON attend_access_requests(site_id, status, requested_at DESC);
 
     /*
+     * What is being asked for.
+     *
+     * 'office-access' is the original meaning and stays the default, so every
+     * existing row keeps saying what it already said. 'card-replacement' is a
+     * different question entirely -- it asks for a lost badge to be reissued,
+     * and approving it revokes the old one.
+     *
+     * They share a table because they share their whole machinery: raise,
+     * approve, reject, record who decided. They must not share a query, which
+     * is why every existing read filters on this column -- a replacement
+     * request answering "may this person come in?" would let somebody through
+     * a door on the strength of having lost their card.
+     */
+    ALTER TABLE attend_access_requests ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'office-access';
+
+    /*
+     * Binding a card to a person by presenting it at a reader.
+     *
+     * A row is an open invitation for the next card to become somebody's
+     * credential, which is why it carries an expiry rather than a flag. Left
+     * open, the next person through the door loses their card to the record
+     * being enrolled, and nothing about that looks like a failure to either of
+     * them.
+     */
+    CREATE TABLE IF NOT EXISTS attend_enrolments (
+      id           BIGSERIAL PRIMARY KEY,
+      site_id      BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      person_id    BIGINT NOT NULL REFERENCES attend_people(id) ON DELETE CASCADE,
+      device_id    TEXT NOT NULL,
+      -- waiting | done | expired | cancelled | failed
+      state        TEXT NOT NULL DEFAULT 'waiting',
+      card_number  BIGINT,
+      message      TEXT NOT NULL DEFAULT '',
+      started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at   TIMESTAMPTZ NOT NULL,
+      decided_at   TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_enrol_device ON attend_enrolments(device_id, state, expires_at DESC);
+
+    /*
      * Whether this site requires an approved request before a card opens a door.
      *
      * Default false, and that default is load-bearing. Turning this on for

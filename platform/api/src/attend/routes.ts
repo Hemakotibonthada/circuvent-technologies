@@ -42,6 +42,7 @@ import { requireCapability } from "../home/enforce";
 import { onlineColumn } from "../device-online";
 import { syncSite, syncTerminal } from "./acl";
 import { autoDecide } from "./access-requests";
+import { canEnrol, cancelEnrol, enrolById, startEnrol } from "./enrol";
 import { ingestPunch } from "./ingest";
 import {
   getSite,
@@ -1102,6 +1103,7 @@ const accessRequestSchema = z.object({
   siteId: z.union([z.number(), z.string()]),
   personId: z.union([z.number(), z.string()]),
   reason: z.string().trim().max(200).optional(),
+  kind: z.enum(["office-access", "card-replacement"]).optional(),
   validFrom: z.string().trim().length(10).nullable().optional(),
   validTo: z.string().trim().length(10).nullable().optional(),
 });
@@ -1114,6 +1116,7 @@ function accessRequestRow(r: Record<string, unknown>) {
     personName: r.person_name ?? null,
     personCode: r.person_code ?? null,
     status: r.status,
+    kind: r.kind ?? "office-access",
     decidedBy: r.decided_by,
     reason: r.reason,
     validFrom: r.valid_from ?? null,
@@ -1124,7 +1127,7 @@ function accessRequestRow(r: Record<string, unknown>) {
 }
 
 const ACCESS_REQUEST_SELECT = `
-  SELECT r.id, r.person_id, r.status, r.decided_by, r.reason,
+  SELECT r.id, r.person_id, r.status, r.decided_by, r.reason, r.kind,
          to_char(r.valid_from,'YYYY-MM-DD') AS valid_from,
          to_char(r.valid_to,'YYYY-MM-DD')   AS valid_to,
          r.requested_at, r.decided_at,
@@ -1132,15 +1135,16 @@ const ACCESS_REQUEST_SELECT = `
     FROM attend_access_requests r
     JOIN attend_people p ON p.id = r.person_id`;
 
-/** GET /attendance/access-requests?siteId=&status= — who has asked, and the answers. */
+/** GET /attendance/access-requests?siteId=&status=&kind= — who has asked, and the answers. */
 attendanceRouter.get("/access-requests", requireAuth, async (req: AuthedRequest, res) => {
   const wanted = typeof req.query.status === "string" ? req.query.status.trim() : "";
+  const kind = typeof req.query.kind === "string" ? req.query.kind.trim() : "";
   const out = await scoped(req, req.query.siteId, async (site) => {
     const { rows } = await pool.query(
       `${ACCESS_REQUEST_SELECT}
-        WHERE r.site_id = $1 AND ($2 = '' OR r.status = $2)
+        WHERE r.site_id = $1 AND ($2 = '' OR r.status = $2) AND ($3 = '' OR r.kind = $3)
         ORDER BY r.requested_at DESC LIMIT 500`,
-      [site.id, wanted]
+      [site.id, wanted, kind]
     );
     return rows.map(accessRequestRow);
   });
@@ -1153,8 +1157,8 @@ attendanceRouter.get("/access-requests", requireAuth, async (req: AuthedRequest,
   const site = await ownsSite(req.query.siteId, req.user!.uid);
   const { rows: pend } = await pool.query(
     `SELECT count(*)::int AS n FROM attend_access_requests
-      WHERE site_id = $1 AND status = 'pending'`,
-    [site!.id]
+      WHERE site_id = $1 AND status = 'pending' AND ($2 = '' OR kind = $2)`,
+    [site!.id, kind]
   );
   res.json({ requests: out, pending: pend[0].n });
 });
@@ -1181,28 +1185,49 @@ attendanceRouter.post("/access-requests", requireAuth, async (req: AuthedRequest
   }
 
   const day = siteToday(site);
-  const verdict = autoDecide(
-    {
-      id: Number(people[0].id),
-      active: people[0].active,
-      role: people[0].role ?? "",
-      validFrom: people[0].valid_from,
-      validTo: people[0].valid_to,
-    },
-    day
-  );
+
+  /*
+   * A replacement is never auto-approved, whoever asks.
+   *
+   * The rule that waves an employee through is about whether they belong in the
+   * building, which a lost badge does not change. Approving this one revokes a
+   * card that is presumably still lying somewhere, and that is a decision worth
+   * a person — the whole point of reporting a card lost is that somebody knows.
+   */
+  const isReplacement = d.kind === "card-replacement";
+  const verdict = isReplacement
+    ? {
+        status: "pending" as const,
+        decidedBy: "",
+        reason: "A lost card needs somebody to approve reissuing it.",
+      }
+    : autoDecide(
+        {
+          id: Number(people[0].id),
+          active: people[0].active,
+          role: people[0].role ?? "",
+          validFrom: people[0].valid_from,
+          validTo: people[0].valid_to,
+        },
+        day
+      );
 
   /*
    * A person with a live request does not need a second one. Without this, a
    * button pressed twice leaves two pending rows and an approver who answers
    * one of them and wonders why the other is still there.
+   *
+   * Scoped to the kind: somebody who has office access and has now lost their
+   * card is asking a different question, and matching the existing row would
+   * silently swallow the new request.
    */
   const { rows: existing } = await pool.query(
     `SELECT id FROM attend_access_requests
-      WHERE site_id = $1 AND person_id = $2 AND status IN ('pending','approved')
+      WHERE site_id = $1 AND person_id = $2 AND kind = $4
+        AND status IN ('pending','approved')
         AND (valid_to IS NULL OR valid_to >= $3::date)
       LIMIT 1`,
-    [site.id, Number(d.personId), day]
+    [site.id, Number(d.personId), day, d.kind ?? "office-access"]
   );
   if (existing[0]) {
     const { rows } = await pool.query(`${ACCESS_REQUEST_SELECT} WHERE r.id = $1`, [existing[0].id]);
@@ -1212,20 +1237,23 @@ attendanceRouter.post("/access-requests", requireAuth, async (req: AuthedRequest
 
   const { rows } = await pool.query(
     `INSERT INTO attend_access_requests
-       (site_id, person_id, status, decided_by, reason, valid_from, valid_to, decided_at)
-     VALUES ($1,$2,$3,$4,$5,$6::date,$7::date, CASE WHEN $3 = 'pending' THEN NULL ELSE now() END)
+       (site_id, person_id, status, decided_by, reason, valid_from, valid_to, kind, decided_at)
+     VALUES ($1,$2,$3,$4,$5,$6::date,$7::date,$8, CASE WHEN $3 = 'pending' THEN NULL ELSE now() END)
      RETURNING id`,
     [
       site.id, Number(d.personId), verdict.status, verdict.decidedBy,
       d.reason?.trim() || verdict.reason, d.validFrom ?? null, d.validTo ?? null,
+      d.kind ?? "office-access",
     ]
   );
   await recordEvent(
     req.user!.uid,
     "attendance",
-    verdict.status === "approved"
-      ? `Office access approved for ${people[0].name ?? `person ${d.personId}`} by ${verdict.decidedBy}`
-      : `Office access requested for ${people[0].name ?? `person ${d.personId}`} — awaiting a decision`,
+    isReplacement
+      ? `${people[0].name ?? `Person ${d.personId}`} reported a lost card — awaiting approval to reissue`
+      : verdict.status === "approved"
+        ? `Office access approved for ${people[0].name ?? `person ${d.personId}`} by ${verdict.decidedBy}`
+        : `Office access requested for ${people[0].name ?? `person ${d.personId}`} — awaiting a decision`,
     "",
     null
   );
@@ -1264,19 +1292,128 @@ attendanceRouter.patch("/access-requests/:id", requireAuth, async (req: AuthedRe
             valid_to = COALESCE($7::date, r.valid_to)
        FROM attend_sites s
       WHERE r.id = $1 AND s.id = r.site_id AND s.owner_id = $2
-      RETURNING r.id`,
+      RETURNING r.id, r.kind, r.person_id, r.site_id`,
     [rid, req.user!.uid, d.status, who, d.reason ?? null, d.validFrom ?? null, d.validTo ?? null]
   );
   if (!rows[0]) { res.status(404).json(notFound); return; }
+
+  /*
+   * Approving a replacement revokes the card it replaces, in the same act.
+   *
+   * Leaving that to a second click is how a lost badge stays working: somebody
+   * approves the reissue, the person walks away happy, and the card in a taxi
+   * somewhere still opens the front door. The revocation is the substance of
+   * the approval, not an administrative tidy-up afterwards.
+   */
+  let revoked = 0;
+  if (rows[0].kind === "card-replacement" && d.status === "approved") {
+    const { rowCount } = await pool.query(
+      `UPDATE attend_credentials
+          SET active = false, revoked_at = now(), revoked_reason = 'Reported lost; replacement approved'
+        WHERE person_id = $1 AND active`,
+      [Number(rows[0].person_id)]
+    );
+    revoked = rowCount ?? 0;
+    /*
+     * The readers hold their own copy of the card list, so a revocation that
+     * only reached the database would leave every door still opening for it.
+     */
+    void syncSite(Number(rows[0].site_id)).catch(() => {});
+  }
+
   await recordEvent(
     req.user!.uid,
     "attendance",
-    `Office access request #${rid} ${d.status} by ${who}`,
+    rows[0].kind === "card-replacement"
+      ? `Card replacement request #${rid} ${d.status} by ${who}` +
+        (revoked ? ` — ${revoked} card${revoked === 1 ? "" : "s"} revoked` : "")
+      : `Office access request #${rid} ${d.status} by ${who}`,
     "",
     null
   );
   const { rows: full } = await pool.query(`${ACCESS_REQUEST_SELECT} WHERE r.id = $1`, [rid]);
-  res.json({ request: accessRequestRow(full[0]) });
+  res.json({ request: accessRequestRow(full[0]), revokedCards: revoked });
+});
+
+/* ------------------------------------------------------------------ *
+ * Enrolling a card at the reader
+ * ------------------------------------------------------------------ */
+
+/** POST /attendance/enrolments — open a reader for one card. */
+attendanceRouter.post("/enrolments", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = z
+    .object({
+      siteId: z.union([z.number(), z.string()]),
+      personId: z.union([z.number(), z.string()]),
+      deviceId: z.string().trim().min(1).max(64),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid enrolment" }); return; }
+  const site = await ownsSite(parsed.data.siteId, req.user!.uid);
+  if (!site) { res.status(404).json(notFound); return; }
+  const personId = Number(parsed.data.personId);
+
+  const { rows: person } = await pool.query(
+    `SELECT id FROM attend_people WHERE id = $1 AND site_id = $2`,
+    [personId, site.id]
+  );
+  if (!person[0]) { res.status(404).json(notFound); return; }
+
+  const { rows: term } = await pool.query(
+    `SELECT device_id FROM attend_terminals WHERE device_id = $1 AND site_id = $2`,
+    [parsed.data.deviceId, site.id]
+  );
+  if (!term[0]) { res.status(404).json({ error: "That reader is not registered to this site" }); return; }
+
+  /*
+   * Refused here as well as hidden in the console. A UI that only hides the
+   * button still has an endpoint, and one card per person is the property that
+   * keeps the register able to say which of two badges walked through a door.
+   */
+  const allowed = await canEnrol(personId);
+  if (!allowed.ok) { res.status(409).json({ error: allowed.reason }); return; }
+
+  /*
+   * A reader that is offline, or whose card reader is not answering, cannot
+   * enrol anything. Saying so now is the difference between a clear refusal and
+   * thirty seconds of watching a countdown that was never going to finish.
+   */
+  const { rows: dev } = await pool.query(
+    `SELECT ${onlineColumn()}, state FROM devices WHERE id = $1`,
+    [parsed.data.deviceId]
+  );
+  if (!dev[0]?.online) {
+    res.status(409).json({ error: "That reader is offline. Bring it online and try again." });
+    return;
+  }
+  if (dev[0].state && (dev[0].state as Record<string, unknown>).reader === false) {
+    res.status(409).json({
+      error: "That reader's card module is not responding, so it cannot read a card.",
+    });
+    return;
+  }
+
+  const session = await startEnrol(site.id, personId, parsed.data.deviceId);
+  res.status(201).json({ enrolment: session });
+});
+
+/** GET /attendance/enrolments/:id — what happened, for a console that is waiting. */
+attendanceRouter.get("/enrolments/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const eid = id(req.params.id);
+  if (!eid) { res.status(404).json(notFound); return; }
+  const session = await enrolById(eid, req.user!.uid);
+  if (!session) { res.status(404).json(notFound); return; }
+  res.json({ enrolment: session });
+});
+
+/** DELETE /attendance/enrolments/:id — stop waiting, and tell the reader. */
+attendanceRouter.delete("/enrolments/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const eid = id(req.params.id);
+  if (!eid) { res.status(404).json(notFound); return; }
+  const session = await enrolById(eid, req.user!.uid);
+  if (!session) { res.status(404).json(notFound); return; }
+  await cancelEnrol(eid, session.deviceId);
+  res.json({ success: true });
 });
 
 /* ------------------------------------------------------------------ *

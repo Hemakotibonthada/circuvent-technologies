@@ -36,6 +36,7 @@ import {
   type PunchReason,
 } from "./decide";
 import { ancestryOf, syncTerminal } from "./acl";
+import { completeEnrol } from "./enrol";
 import { dayForPunch, localMoment } from "./schedule";
 import {
   getSite,
@@ -476,6 +477,34 @@ async function onTelemetry(u: DeviceUpdate): Promise<void> {
     return;
   }
 
+  /*
+   * A card presented while the reader was enrolling. Handled before punches
+   * would ever see it and answered with the same `greet` a door decision uses,
+   * so the person standing at the reader gets the usual green or red rather
+   * than a reader that goes dark and leaves them wondering whether it worked.
+   */
+  if (p.type === "enrol") {
+    const card = Number(p.card ?? 0);
+    if (!card) return;
+    const done = await completeEnrol(u.deviceId, card);
+    if (!done) {
+      /*
+       * Nothing was waiting — the window closed between the tap and the
+       * message arriving. Treated as an ordinary presentation rather than
+       * dropped, because the person did present a card at a door and the
+       * register should say so.
+       */
+      await ingestPunch(u.deviceId, p as unknown as PunchPayload);
+      return;
+    }
+    publishCommand(u.deviceId, {
+      action: "greet",
+      status: done.state === "done" ? "granted" : "denied",
+      message: done.message,
+    });
+    return;
+  }
+
   if (p.type === "acl" && p.state === "failed") {
     /*
      * The terminal refused a partial list and kept its old one. Pushing again
@@ -550,6 +579,12 @@ async function hasApprovedAccess(personId: number, day: string): Promise<boolean
        FROM attend_access_requests
       WHERE person_id = $1
         AND status = 'approved'
+        /*
+         * The kind matters as much as the status. A card-replacement request
+         * lives in this table too, and counting one here would open a door for
+         * somebody on the strength of having lost their badge.
+         */
+        AND kind = 'office-access'
         AND (valid_from IS NULL OR valid_from <= $2::date)
         AND (valid_to   IS NULL OR valid_to   >= $2::date)
       LIMIT 1`,

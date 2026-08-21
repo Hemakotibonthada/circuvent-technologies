@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ClipboardCheck, Loader2, RefreshCw, Download, Plus, Trash2, DoorOpen,
-  Radio, Search, Upload, AlertTriangle, CheckCircle2, Clock, UserX,
+  Radio, Search, Upload, AlertTriangle, CheckCircle2, Clock, UserX, CreditCard,
 } from "lucide-react";
 import {
   controlPlane,
@@ -26,6 +26,7 @@ import {
   type AttendanceSite,
   type AttendanceSummaryRow,
   type AttendanceAccessRequest,
+  type AttendanceEnrolment,
   type AttendanceTerminal,
   type RegisterRow,
 } from "@/lib/control-plane";
@@ -447,6 +448,9 @@ function People({ site }: { site: AttendanceSite }) {
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState("");
   const [form, setForm] = useState({ code: "", name: "", groupId: "" });
+  const [enrolFor, setEnrolFor] = useState<AttendancePerson | null>(null);
+  const [lostBusy, setLostBusy] = useState(0);
+  const [lostNote, setLostNote] = useState("");
 
   const load = useCallback(async () => {
     const [p, g] = await Promise.all([
@@ -609,10 +613,48 @@ function People({ site }: { site: AttendanceSite }) {
                   {p.active ? <span className="text-xs text-green-400">active</span>
                             : <span className="text-xs text-slate-500">inactive</span>}
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right whitespace-nowrap">
+                  {p.cards === 0 ? (
+                    <button
+                      onClick={() => setEnrolFor(p)}
+                      className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/20"
+                    >
+                      Enrol card
+                    </button>
+                  ) : (
+                    /*
+                     * No enrol button once somebody holds a card. Two live
+                     * credentials mean two badges open the door as the same
+                     * person, and the register cannot say which of them
+                     * actually walked in. Replacing one goes through a request
+                     * so the old card is revoked as part of the same act.
+                     */
+                    <button
+                      disabled={lostBusy === p.id}
+                      onClick={async () => {
+                        setLostBusy(p.id);
+                        setLostNote("");
+                        const r = await controlPlane.createAttendanceAccessRequest({
+                          siteId: site.id, personId: p.id, kind: "card-replacement",
+                          reason: "Card reported lost",
+                        });
+                        setLostBusy(0);
+                        setLostNote(
+                          r.ok
+                            ? (r.data as { existing?: boolean }).existing
+                              ? `${p.name} already has a replacement request waiting under Office access.`
+                              : `Reported. Approve it under Office access — that revokes the old card and lets you enrol a new one.`
+                            : "Could not report that card lost."
+                        );
+                      }}
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/20 disabled:opacity-40"
+                    >
+                      {lostBusy === p.id ? "Reporting…" : "Report lost"}
+                    </button>
+                  )}
                   <button
                     onClick={async () => { await controlPlane.updateAttendancePerson(p.id, { active: !p.active }); await load(); }}
-                    className="rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-300 hover:bg-white/10"
+                    className="ml-2 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-300 hover:bg-white/10"
                   >
                     {p.active ? "Deactivate" : "Reactivate"}
                   </button>
@@ -626,6 +668,190 @@ function People({ site }: { site: AttendanceSite }) {
         Deactivating stops the card working and keeps the history. The record is never deleted
         by it — an attendance history is the part that has to survive.
       </p>
+
+      {lostNote && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          {lostNote}
+        </div>
+      )}
+
+      {enrolFor && (
+        <EnrolDialog
+          site={site}
+          person={enrolFor}
+          onClose={() => { setEnrolFor(null); void load(); }}
+          onDone={() => { void load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Hold a reader open and wait for a card.
+ *
+ * Polled rather than pushed. The card arrives at the server over MQTT, and
+ * wiring a second live channel into a dialog somebody has open for twenty
+ * seconds buys nothing a one-second poll does not already give.
+ *
+ * The countdown comes from the server's `expiresAt`, not from a timer started
+ * in the browser. A tab that was backgrounded, a laptop that slept, or a clock
+ * that drifted would each otherwise show a window still running after the
+ * reader had already closed it — and the person would keep presenting a card at
+ * a device that had stopped listening.
+ */
+function EnrolDialog({
+  site, person, onClose, onDone,
+}: {
+  site: AttendanceSite;
+  person: AttendancePerson;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [readers, setReaders] = useState<AttendanceTerminal[]>([]);
+  const [deviceId, setDeviceId] = useState("");
+  const [session, setSession] = useState<AttendanceEnrolment | null>(null);
+  const [error, setError] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    void (async () => {
+      const r = await controlPlane.attendanceTerminals(site.id);
+      if (!r.ok) { setError("Could not list the readers."); return; }
+      const list = r.data.terminals ?? [];
+      setReaders(list);
+      setDeviceId((cur) => cur || list.find((t) => t.online)?.deviceId || list[0]?.deviceId || "");
+    })();
+  }, [site.id]);
+
+  // Poll while a session is live, and stop the moment it is not.
+  useEffect(() => {
+    if (!session || session.state !== "waiting") return;
+    const tick = setInterval(async () => {
+      const r = await controlPlane.cardEnrolment(session.id);
+      if (r.ok) {
+        setSession(r.data.enrolment);
+        if (r.data.enrolment.state === "done") onDone();
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [session, onDone]);
+
+  useEffect(() => {
+    if (!session || session.state !== "waiting") { setSecondsLeft(0); return; }
+    const tick = setInterval(() => {
+      const left = Math.max(0, Math.ceil((new Date(session.expiresAt).getTime() - Date.now()) / 1000));
+      setSecondsLeft(left);
+    }, 250);
+    return () => clearInterval(tick);
+  }, [session]);
+
+  const waiting = session?.state === "waiting";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+         role="dialog" aria-modal="true">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c1222] p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
+          <div>
+            <h3 className="text-base font-bold text-slate-100">Enrol a card for {person.name}</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              The reader is held open for a few seconds. The first card presented becomes this
+              person&apos;s badge.
+            </p>
+          </div>
+        </div>
+
+        {!waiting && (
+          <div className="mt-4 space-y-2">
+            <label className="block text-xs uppercase tracking-wide text-slate-500">Reader</label>
+            <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
+                    className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-slate-100">
+              {readers.length === 0 && <option value="">No readers registered</option>}
+              {readers.map((t) => (
+                <option key={t.deviceId} value={t.deviceId}>
+                  {t.name || t.deviceId}{t.online ? "" : " — offline"}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {waiting && (
+          <div className="mt-4 rounded-xl border border-violet-500/30 bg-violet-500/10 p-4 text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-violet-300" />
+            <p className="mt-2 text-sm font-semibold text-violet-100">Present the card now</p>
+            <p className="mt-1 text-xs text-violet-300/80">
+              The reader is pulsing both lights. {secondsLeft}s left.
+            </p>
+          </div>
+        )}
+
+        {session && session.state === "done" && (
+          <div className="mt-4 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+            <p className="text-sm font-semibold text-green-200">
+              Card {session.cardNumber} registered to {person.name}.
+            </p>
+            <p className="mt-1 text-xs text-green-300/80">
+              It has been pushed to the readers, so it works at the door now.
+            </p>
+          </div>
+        )}
+
+        {session && (session.state === "expired" || session.state === "failed" || session.state === "cancelled") && (
+          <div role="alert" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <p className="text-sm text-amber-200">{session.message || "That enrolment did not finish."}</p>
+          </div>
+        )}
+
+        {error && (
+          <div role="alert" className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-5 flex gap-2">
+          {waiting ? (
+            <button
+              onClick={async () => {
+                if (session) await controlPlane.cancelCardEnrolment(session.id);
+                setSession(null);
+              }}
+              className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 text-sm font-semibold text-slate-300 hover:bg-white/5"
+            >
+              Stop waiting
+            </button>
+          ) : (
+            <button
+              disabled={!deviceId || starting}
+              onClick={async () => {
+                setStarting(true);
+                setError("");
+                const r = await controlPlane.startCardEnrolment({
+                  siteId: site.id, personId: person.id, deviceId,
+                });
+                setStarting(false);
+                if (!r.ok) {
+                  setError((r.data as { error?: string })?.error ?? "Could not start enrolment.");
+                  return;
+                }
+                setSession(r.data.enrolment);
+              }}
+              className="min-h-[44px] flex-1 rounded-xl border border-violet-500/40 bg-violet-500/10 text-sm font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40"
+            >
+              {starting ? "Opening the reader…" : session ? "Try again" : "Start"}
+            </button>
+          )}
+          <button onClick={onClose}
+                  className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-300 hover:bg-white/5">
+            {session?.state === "done" ? "Done" : "Close"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
