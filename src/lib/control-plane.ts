@@ -2038,8 +2038,63 @@ export const controlPlane = {
     ),
   attendanceLive: (siteId: number) =>
     req<AttendanceLive>("/attendance/live?siteId=" + siteId),
-  attendanceExportUrl: (siteId: number, what: string, from: string, to: string) =>
-    `${CONTROL_PLANE_URL}/attendance/export?siteId=${siteId}&what=${what}&from=${from}&to=${to}`,
+  /**
+   * Download an attendance export.
+   *
+   * Not a URL, because a URL cannot carry a bearer token. The previous version
+   * handed one to an `<a href>`, the browser navigated there with no
+   * Authorization header, and the API answered `{"error":"Unauthorized"}` in a
+   * blank tab — which reads as broken permissions rather than a missing header,
+   * and sends whoever hit it looking in the wrong place entirely.
+   *
+   * So the file is fetched with credentials like every other call, turned into
+   * a blob and saved from memory. The object URL is revoked afterwards; without
+   * that, every export leaks its own bytes for the life of the tab, which on a
+   * year of punches is not a rounding error.
+   */
+  downloadAttendanceExport: async (
+    siteId: number,
+    what: string,
+    from: string,
+    to: string
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const token = getToken();
+    if (!token) return { ok: false, error: "You are signed out. Sign in and try again." };
+    const home = getActiveHome();
+    try {
+      const res = await fetch(
+        `${CONTROL_PLANE_URL}/attendance/export?siteId=${siteId}&what=${encodeURIComponent(what)}` +
+          `&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        {
+          headers: {
+            Authorization: "Bearer " + token,
+            ...(home ? { "x-circuvent-home": String(home) } : {}),
+          },
+        }
+      );
+      if (!res.ok) {
+        return {
+          ok: false,
+          error:
+            res.status === 401
+              ? "Your session has expired. Sign in again."
+              : `The export failed (${res.status}).`,
+        };
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${what}-${from}-to-${to}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Could not reach the server for that export." };
+    }
+  },
 
   gatePasses: (deviceId?: string) =>
     req<{ passes: GatePass[] }>("/gate/passes" + (deviceId ? "?deviceId=" + encodeURIComponent(deviceId) : "")),  createGatePass: (body: { deviceId: string; label?: string; validToMinutes?: number; maxUses?: number }) =>

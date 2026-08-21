@@ -310,6 +310,8 @@ function Register({ site }: { site: AttendanceSite }) {
   const [groupId, setGroupId] = useState<number | undefined>(undefined);
   const [tz, setTz] = useState(site.timezone);
   const [busy, setBusy] = useState(false);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvError, setCsvError] = useState("");
 
   const load = useCallback(async () => {
     const [r, g] = await Promise.all([
@@ -337,10 +339,18 @@ function Register({ site }: { site: AttendanceSite }) {
                 className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2">
           <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} /> Recompute
         </button>
-        <a href={controlPlane.attendanceExportUrl(site.id, "register", day, day)}
-           className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 transition flex items-center gap-2">
-          <Download className="h-4 w-4" /> CSV
-        </a>
+        <button
+           onClick={async () => {
+             setCsvError("");
+             setCsvBusy(true);
+             const r = await controlPlane.downloadAttendanceExport(site.id, "register", day, day);
+             setCsvBusy(false);
+             if (!r.ok) setCsvError(r.error);
+           }}
+           disabled={csvBusy}
+           className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2">
+          {csvBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} CSV
+        </button>
         <div className="ml-auto flex flex-wrap gap-2 text-xs">
           {Object.entries(totals).map(([k, n]) => (
             <span key={k} className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-slate-300">
@@ -349,6 +359,11 @@ function Register({ site }: { site: AttendanceSite }) {
           ))}
         </div>
       </div>
+      {csvError && (
+        <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {csvError}
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
         <table className="w-full text-sm">
@@ -1229,6 +1244,8 @@ function Reports({ site }: { site: AttendanceSite }) {
   const [to, setTo] = useState(today());
   const [rows, setRows] = useState<AttendanceSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState("");
+  const [downloadError, setDownloadError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1248,12 +1265,26 @@ function Reports({ site }: { site: AttendanceSite }) {
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
                className="min-h-[44px] rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100" />
         {(["summary", "register", "punches"] as const).map((w) => (
-          <a key={w} href={controlPlane.attendanceExportUrl(site.id, w, from, to)}
-             className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold capitalize text-slate-200 hover:bg-white/10 transition flex items-center gap-2">
-            <Download className="h-4 w-4" /> {w}
-          </a>
+          <button key={w} disabled={downloading !== ""}
+             onClick={async () => {
+               setDownloadError("");
+               setDownloading(w);
+               const r = await controlPlane.downloadAttendanceExport(site.id, w, from, to);
+               setDownloading("");
+               if (!r.ok) setDownloadError(r.error);
+             }}
+             className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold capitalize text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2">
+            {downloading === w
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Download className="h-4 w-4" />} {w}
+          </button>
         ))}
       </div>
+      {downloadError && (
+        <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {downloadError}
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
         <table className="w-full text-sm">

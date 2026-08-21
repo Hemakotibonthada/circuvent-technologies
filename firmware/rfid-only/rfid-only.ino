@@ -116,6 +116,17 @@ static const uint32_t VERDICT_MS = 1500;
  */
 static const uint32_t VERDICT_TIMEOUT_MS = 2000;
 
+/**
+ * How long the reader stays in enrolment mode with nobody presenting a card.
+ *
+ * Bounded, and the bound is the security property rather than a convenience.
+ * A reader left enrolling for ever would bind the *next* card presented to
+ * whoever the enrolment was opened for — so the following person through the
+ * door silently loses their card to somebody else's record, and both of them
+ * carry on believing the system works. The window closes on its own.
+ */
+static const uint32_t ENROL_WINDOW_MS = 30000;
+
 static bool     hasReader   = false;
 static uint32_t lastCard    = 0;
 static uint32_t lastCardAt  = 0;
@@ -123,6 +134,9 @@ static uint32_t feedbackTil = 0;
 static uint32_t punchSeq    = 0;
 static bool     awaitingVerdict = false;
 static uint32_t verdictDueBy = 0;
+/** Deadline for enrolment mode, or 0 when the reader is doing its normal job. */
+static uint32_t enrolUntil  = 0;
+static uint32_t enrolBlink  = 0;
 static Preferences store;
 
 /* ------------------------------------------------------------------ */
@@ -176,6 +190,47 @@ static void feedbackClear() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Enrolment                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Open the reader for one card, for a bounded time.
+ *
+ * Both LEDs together, which is a pattern the reader shows in no other state:
+ * green alone means admitted, red alone means refused, and neither is what is
+ * happening here. Somebody walking up to a door needs to be able to tell that
+ * it is not asking them to come in.
+ */
+static void enrolBegin(uint32_t ms) {
+  enrolUntil = millis() + ms;
+  enrolBlink = 0;
+  awaitingVerdict = false;
+  feedbackTil = 0;
+  tone(BUZZER, 1200, 60);
+  cv.set("enrolling", true);
+  cv.publishStateNow();
+}
+
+/** Leave enrolment mode, whether it was used, cancelled or simply ran out. */
+static void enrolEnd() {
+  if (!enrolUntil) return;
+  enrolUntil = 0;
+  digitalWrite(LED_OK, LOW);
+  digitalWrite(LED_NO, LOW);
+  cv.set("enrolling", false);
+  cv.publishStateNow();
+}
+
+/** Both LEDs, pulsed, so an enrolling reader is obvious from across a room. */
+static void enrolPulse(uint32_t now) {
+  if ((int32_t)(now - enrolBlink) < 0) return;
+  enrolBlink = now + 400;
+  const bool on = !digitalRead(LED_OK);
+  digitalWrite(LED_OK, on);
+  digitalWrite(LED_NO, on);
+}
+
+/* ------------------------------------------------------------------ */
 /* Reading                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -213,6 +268,23 @@ static void publishCard(uint32_t uid) {
   d["ts"] = (long)time(nullptr);
   cv.publishTelemetry(d.as<JsonObjectConst>());
   store.putULong("seq", punchSeq);
+}
+
+/**
+ * Sends one card, as an enrolment rather than an arrival.
+ *
+ * A separate telemetry type, not a flag on a punch. The server must never be
+ * able to mistake "this card is being registered to somebody" for "this person
+ * arrived" — one writes a credential, the other writes attendance, and a
+ * misread field would put a phantom arrival in the register every time
+ * somebody was issued a card.
+ */
+static void publishEnrol(uint32_t uid) {
+  JsonDocument d;
+  d["type"]   = "enrol";
+  d["card"]   = (long)uid;
+  d["ts"]     = (long)time(nullptr);
+  cv.publishTelemetry(d.as<JsonObjectConst>());
 }
 
 /* ------------------------------------------------------------------ */
