@@ -151,3 +151,8 @@ pdf-verify.pdf
 # Roughly 35 MB a set and reproducible from a build, so they are published to R2
 # rather than committed — the same reasoning that keeps the OTA images out.
 .factory-images/
+
+# A failed npm install can leave a renamed copy of the tree behind. It is build
+# output under a different name, and on Windows it may hold locked files that
+# resist deletion, so it must never be a candidate for committing.
+node_modules_*/
