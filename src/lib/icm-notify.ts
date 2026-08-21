@@ -109,6 +109,7 @@ const UPDATE_LABEL: Record<string, string> = {
   linked: "Linked",
   release: "Possible cause",
   sla: "SLA",
+  attachment: "Attachment",
 };
 
 export interface NotifyState {

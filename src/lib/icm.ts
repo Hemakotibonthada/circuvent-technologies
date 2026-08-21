@@ -51,11 +51,32 @@ export interface TimelineEntry {
     | "postmortem"
     | "linked"
     | "release"
-    | "sla";
+    | "sla"
+    | "attachment";
   /** Human-readable, already past tense: "raised severity to Sev1". */
   text: string;
   /** Free-form detail for comments. */
   body?: string;
+}
+
+/**
+ * The fixed set of actors that are not a person.
+ *
+ * `"unknown"` is deliberately excluded: it is the guard's own fallback for a
+ * request it could not attribute, and treating it as "automated" would hide
+ * the one case that should look most suspicious in an audit — a change nobody
+ * can be shown to have made.
+ *
+ * A closed set rather than a heuristic like "does not contain @": on-call
+ * shifts and team contacts are also plain strings here, and guessing risks
+ * marking a real person's action as a bot's. Every literal below is a value
+ * this file itself writes as `entry(...)`'s actor.
+ */
+const AUTOMATED_ACTORS = new Set(["monitor", "icm-release", "icm-escalation", "icm-oncall"]);
+
+/** True for the handful of actors that are code, not a person, running. */
+export function isAutomatedActor(actor: string): boolean {
+  return AUTOMATED_ACTORS.has(actor);
 }
 
 export interface Incident {
@@ -146,6 +167,31 @@ export interface Incident {
    * symptom.
    */
   links?: IncidentLink[];
+
+  /** Files attached to this incident. See `addAttachment`. */
+  attachments?: Attachment[];
+}
+
+/**
+ * A file attached to an incident: a screenshot, a log dump, a graph.
+ *
+ * `key` and `name` are deliberately two different fields. `key` is where the
+ * bytes live in the bucket, derived server-side from the incident id and a
+ * random suffix; `name` is whatever the uploader's browser called the file.
+ * Storing only one would mean either addressing objects by attacker-controlled
+ * text, or losing the filename a person actually recognises the attachment
+ * by — see icm-attachments.ts for why the key can never be the client's name.
+ */
+export interface Attachment {
+  id: string;
+  /** Object store key. Never derived from, or containing, `name`. */
+  key: string;
+  /** The filename as uploaded, for display only. */
+  name: string;
+  size: number;
+  contentType: string;
+  uploadedBy: string;
+  uploadedAt: string;
 }
 
 export type LinkKind = "duplicate-of" | "related-to" | "caused-by" | "causes";
@@ -550,6 +596,85 @@ export function comment(inc: Incident, actor: string, body: string, now: string)
   return {
     error: "",
     incident: { ...inc, timeline: [...inc.timeline, entry(now, actor, "comment", "commented", text)] },
+  };
+}
+
+export interface NewAttachment {
+  /** Object store key. Already derived and already written; see icm-attachments.ts. */
+  key: string;
+  /** The uploader's filename, kept for display only — never the storage key. */
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+/**
+ * Records a file that has already been written to the object store.
+ *
+ * Takes the key rather than any bytes because uploading is an object-store
+ * concern that happens first, outside this pure module (icm-attachments.ts
+ * validates the file and derives the key; the route writes it to R2). This
+ * function's only job is the one every mutator here has: add the fact to the
+ * record and to the timeline in the same step, so the two can never disagree
+ * about whether — or when, or by whom — it happened.
+ *
+ * The timeline entry is given the attachment's own id rather than one from
+ * `entry()`. That is what lets the timeline row for "attached x.pdf" offer a
+ * download for exactly that attachment — a lookup by id into
+ * `incident.attachments`, not a parse of the human-readable text back into a
+ * file. A removal keeps its own id: nothing should be downloadable from a row
+ * that says a file is gone.
+ */
+export function addAttachment(inc: Incident, actor: string, att: NewAttachment, now: string): ActionResult {
+  if (!att.key.trim()) return { incident: inc, error: "An attachment needs a stored file." };
+  const name = att.name.trim() || "attachment";
+  const attachment: Attachment = {
+    id: `att-${new Date(now).getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    key: att.key,
+    name,
+    size: Math.max(0, Math.round(att.size) || 0),
+    contentType: att.contentType || "application/octet-stream",
+    uploadedBy: actor,
+    uploadedAt: now,
+  };
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      attachments: [...(inc.attachments ?? []), attachment],
+      timeline: [
+        ...inc.timeline,
+        {
+          id: attachment.id,
+          at: now,
+          actor,
+          kind: "attachment",
+          text: `attached ${name} (${formatBytes(attachment.size)})`,
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * Removes an attachment's record.
+ *
+ * Does not touch the object store — the route deletes the underlying object
+ * only after this succeeds (the same order the avatar route writes in: never
+ * clear the pointer before the bytes it points to are confirmed gone, and
+ * never delete bytes a still-failing save might need to keep). This function
+ * cannot know whether that delete will succeed, so it does not attempt it.
+ */
+export function removeAttachment(inc: Incident, actor: string, attachmentId: string, now: string): ActionResult {
+  const att = (inc.attachments ?? []).find((a) => a.id === attachmentId);
+  if (!att) return { incident: inc, error: "No such attachment." };
+  return {
+    error: "",
+    incident: {
+      ...inc,
+      attachments: (inc.attachments ?? []).filter((a) => a.id !== attachmentId),
+      timeline: [...inc.timeline, entry(now, actor, "attachment", `removed attachment ${att.name}`)],
+    },
   };
 }
 
@@ -1259,6 +1384,20 @@ export function formatWhen(iso: string | null | undefined): string {
   } catch {
     return "—";
   }
+}
+
+/** "480 B", "12.3 KB", "2.1 MB" — an attachment's size, for a timeline entry or a list row. */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let n = bytes / 1024;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
 }
 
 

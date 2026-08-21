@@ -216,6 +216,63 @@ export async function getObject(key: string): Promise<{ body: Buffer; contentTyp
   };
 }
 
+/**
+ * A time-limited URL for one object.
+ *
+ * Query-string SigV4 rather than header SigV4, because the point is to hand
+ * the URL to something that cannot attach this app's own Authorization header
+ * — a plain browser navigation, or an `<a download>` click. That is also why
+ * this exists at all: a download endpoint that requires the header and is
+ * reached by a plain `<a href>` returns `{"error":"Unauthorized"}` in a blank
+ * tab (see PrivacyPanel's GDPR export and the attendance CSV buttons, both hit
+ * by exactly this). A presigned URL is self-authenticating for the one GET it
+ * is good for, so the *page* still has to prove who it is before it gets one,
+ * but the resulting link needs no header at all.
+ *
+ * `expiresSec` is clamped to a day, mirroring the control plane's presigner:
+ * a link to somebody's attachment that still works next week is a link that
+ * ends up pasted into a chat.
+ *
+ * `responseContentDisposition`/`responseContentType` are S3/R2's standard
+ * response-header-override query params. The storage key is deliberately
+ * never the display name (see icm-attachments.ts), so this is how a download
+ * gets the human filename back without the object itself having to carry it.
+ */
+export function presignGet(
+  key: string,
+  expiresSec = 300,
+  opts: { responseContentDisposition?: string; responseContentType?: string } = {},
+): string | null {
+  const s = objectStore();
+  if (!s || !isSafeObjectKey(key)) return null;
+
+  const { url, path } = requestTarget(s, key);
+  const { amz, stamp } = amzDate(new Date());
+  const scope = `${stamp}/${s.region}/s3/aws4_request`;
+  const expires = Math.min(Math.max(Math.floor(expiresSec), 1), 86400);
+
+  const query: Record<string, string> = {
+    "X-Amz-Algorithm": ALGORITHM,
+    "X-Amz-Credential": `${s.accessKeyId}/${scope}`,
+    "X-Amz-Date": amz,
+    "X-Amz-Expires": String(expires),
+    "X-Amz-SignedHeaders": "host",
+  };
+  if (opts.responseContentDisposition) query["response-content-disposition"] = opts.responseContentDisposition;
+  if (opts.responseContentType) query["response-content-type"] = opts.responseContentType;
+
+  const canonicalQuery = Object.keys(query)
+    .sort()
+    .map((k) => `${uriEncode(k)}=${uriEncode(query[k])}`)
+    .join("&");
+
+  const canonicalRequest = ["GET", path, canonicalQuery, `host:${url.host}\n`, "host", "UNSIGNED-PAYLOAD"].join("\n");
+  const stringToSign = [ALGORITHM, amz, scope, sha256(canonicalRequest)].join("\n");
+  const signature = createHmac("sha256", signingKey(s, stamp)).update(stringToSign).digest("hex");
+
+  return `${url.origin}${path}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
 /** Deletes one object. True when it is gone, including when it never existed. */
 export async function deleteObject(key: string): Promise<boolean> {
   const s = objectStore();

@@ -5,15 +5,20 @@ import {
   AlertOctagon,
   AlertTriangle,
   ArrowLeft,
+  Bot,
   CheckCircle2,
   Clock,
+  Download,
   Loader2,
   MessageSquare,
+  Paperclip,
   Plus,
   RefreshCw,
   ShieldCheck,
   Siren,
   Timer,
+  Trash2,
+  UploadCloud,
   UserPlus,
   FileText,
   Link2,
@@ -28,9 +33,12 @@ import {
   SLA,
   SEVERITIES,
   ackClock,
+  formatBytes,
   formatMins,
   formatWhen,
+  isAutomatedActor,
   mitigateClock,
+  type Attachment,
   type Incident,
   type Severity,
   type SlaState,
@@ -309,6 +317,19 @@ export default function IcmPanel() {
     [load]
   );
 
+  /*
+   * Attachment upload/download/delete are their own requests, not `onAct`'s
+   * JSON PATCH — but they hand back the same updated incident shape on
+   * success, so the queue behind the detail view is kept current the same
+   * way: replace it in place. No extra `load()` here — unlike `act`, the
+   * response already *is* the fresh incident, and refetching the whole queue
+   * for a file attached to one incident would be a round trip bought for
+   * nothing.
+   */
+  const updateIncidentLocal = useCallback((incident: Incident) => {
+    setIncidents((prev) => prev.map((i) => (i.id === incident.id ? incident : i)));
+  }, []);
+
   const open = useMemo(() => incidents.find((i) => i.id === openId) ?? null, [incidents, openId]);
 
   /**
@@ -466,6 +487,7 @@ export default function IcmPanel() {
         busy={busy}
         error={error}
         onAct={act}
+        onIncidentUpdated={updateIncidentLocal}
         onBack={() => setOpenId(null)}
       />
     );
@@ -1074,6 +1096,7 @@ export function IncidentDetail({
   busy,
   error,
   onAct,
+  onIncidentUpdated,
   onBack,
 }: {
   incident: Incident;
@@ -1082,6 +1105,8 @@ export function IncidentDetail({
   busy: boolean;
   error: string;
   onAct: (body: Record<string, unknown>) => void;
+  /** Called with the server's updated incident after an attachment upload/delete — see icm/attachments/route.ts. */
+  onIncidentUpdated: (incident: Incident) => void;
   onBack: () => void;
 }) {
   const [note, setNote] = useState("");
@@ -1089,6 +1114,107 @@ export function IncidentDetail({
   const [team, setTeam] = useState(inc.owningTeam);
   const [tab, setTab] = useState<DetailTab>("summary");
   const c = clocksFor(inc, now);
+
+  /*
+   * All three attachment states below are kept separate from the `error` prop
+   * above on purpose. That shared banner already speaks for acknowledge,
+   * mitigate, resolve and every other `onAct` call; folding an upload failure
+   * into it would mean only one of two simultaneous problems can ever be
+   * shown, and — worse — a stale success banner from the last action would
+   * keep displaying while a fresh upload silently failed underneath it.
+   */
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [attBusyId, setAttBusyId] = useState<string | null>(null);
+  const [attRowError, setAttRowError] = useState<{ id: string; message: string } | null>(null);
+  const [timelineFilter, setTimelineFilter] = useState<"all" | "human" | "automated">("all");
+
+  const uploadAttachment = async (file: File) => {
+    setUploading(true);
+    setUploadError("");
+    try {
+      const fd = new FormData();
+      fd.set("incidentId", inc.id);
+      fd.set("file", file);
+      const r = await fetch("/api/admin/icm/attachments", {
+        method: "POST",
+        headers: { "x-admin-token": tok() },
+        body: fd,
+      });
+      const b = await r.json();
+      if (!r.ok || !b.success) setUploadError(b.message || "Could not upload that file.");
+      else onIncidentUpdated(b.incident);
+    } catch {
+      setUploadError("Could not reach the incident service.");
+    }
+    setUploading(false);
+  };
+
+  const downloadAttachment = async (att: Attachment) => {
+    setAttBusyId(att.id);
+    setAttRowError(null);
+    try {
+      const r = await fetch(
+        `/api/admin/icm/attachments?id=${encodeURIComponent(inc.id)}&attachmentId=${encodeURIComponent(att.id)}`,
+        { headers: { "x-admin-token": tok() } },
+      );
+      const b = await r.json();
+      if (!r.ok || !b.success) {
+        setAttRowError({ id: att.id, message: b.message || "Could not fetch that file." });
+      } else {
+        /*
+         * The one plain navigation this panel allows. It is safe here in a way
+         * a bare `<a href>` to the API route would not be: everything that
+         * needed the admin's Authorization header — this fetch, above — has
+         * already happened, and what is opened is a presigned URL, good for a
+         * few minutes and self-contained. That split (authenticated request
+         * for a link, then a plain open of the link) is the fix for the exact
+         * bug that shipped twice already: PrivacyPanel's GDPR export and the
+         * attendance CSV buttons both linked straight to an authenticated
+         * route and got `{"error":"Unauthorized"}` in a blank tab, because a
+         * browser navigation carries no Authorization header.
+         */
+        window.open(b.url, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      setAttRowError({ id: att.id, message: "Could not reach the incident service." });
+    }
+    setAttBusyId(null);
+  };
+
+  const deleteAttachment = async (att: Attachment) => {
+    if (!confirm(`Remove ${att.name}? This can't be undone.`)) return;
+    setAttBusyId(att.id);
+    setAttRowError(null);
+    try {
+      const r = await fetch(
+        `/api/admin/icm/attachments?id=${encodeURIComponent(inc.id)}&attachmentId=${encodeURIComponent(att.id)}`,
+        { method: "DELETE", headers: { "x-admin-token": tok() } },
+      );
+      const b = await r.json();
+      if (!r.ok || !b.success) {
+        setAttRowError({ id: att.id, message: b.message || "Could not remove that file." });
+      } else {
+        onIncidentUpdated(b.incident);
+      }
+    } catch {
+      setAttRowError({ id: att.id, message: "Could not reach the incident service." });
+    }
+    setAttBusyId(null);
+  };
+
+  /*
+   * Filtering, not re-fetching: the timeline is already all on the client, and
+   * "what did the platform do to itself" vs "what did a person decide" is the
+   * one distinction this view could not make before — every entry read the
+   * same regardless of whether `monitor` or an on-call engineer wrote it.
+   */
+  const filteredTimeline = useMemo(() => {
+    if (timelineFilter === "all") return inc.timeline;
+    return inc.timeline.filter((t) =>
+      timelineFilter === "automated" ? isAutomatedActor(t.actor) : !isAutomatedActor(t.actor)
+    );
+  }, [inc.timeline, timelineFilter]);
 
   /*
    * Counts sit on the tabs that have something waiting in them, so the shape
@@ -1263,10 +1389,65 @@ export function IncidentDetail({
       {tab === "summary" && (
         <div className="space-y-4">
           <IncidentSummaryCard incident={inc} now={now} />
+
+          <AttachmentsPanel
+            attachments={inc.attachments ?? []}
+            uploading={uploading}
+            uploadError={uploadError}
+            busyId={attBusyId}
+            rowError={attRowError}
+            onUpload={(f) => void uploadAttachment(f)}
+            onDownload={(a) => void downloadAttachment(a)}
+            onRemove={(a) => void deleteAttachment(a)}
+          />
+
           <div className="space-y-3">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
-              <MessageSquare className="h-4 w-4" aria-hidden /> Discussion
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide cv-text-muted">
+                <MessageSquare className="h-4 w-4" aria-hidden /> Discussion
+              </h3>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Who decided, versus what the platform noticed on its own —
+                    the same question a review asks after the fact. */}
+                <div
+                  role="group"
+                  aria-label="Filter timeline by actor"
+                  className="flex items-center gap-0.5 rounded-lg border cv-border p-0.5"
+                >
+                  {(
+                    [
+                      ["all", "All"],
+                      ["human", "People"],
+                      ["automated", "Automated"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setTimelineFilter(id)}
+                      aria-pressed={timelineFilter === id}
+                      className="h-[26px] rounded-md border px-2 text-[11px] font-semibold transition-colors"
+                      style={{
+                        borderColor: timelineFilter === id ? "var(--accent-cyan)" : "transparent",
+                        color: timelineFilter === id ? "var(--accent-cyan-text)" : "var(--text-secondary)",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  disabled={filteredTimeline.length === 0}
+                  onClick={() => downloadTimelineCsv(inc.id, filteredTimeline)}
+                  className="inline-flex h-[26px] items-center gap-1 rounded-md border cv-border px-2 text-[11px] font-semibold cv-text-secondary disabled:opacity-40 hover:cv-surface-alt"
+                  title="Export the timeline shown below as CSV"
+                >
+                  <FileText className="h-3 w-3" aria-hidden /> Export CSV
+                </button>
+              </div>
+            </div>
 
             <div className="rounded-xl border cv-border cv-surface p-3">
               <textarea
@@ -1286,12 +1467,26 @@ export function IncidentDetail({
               </button>
             </div>
 
-            {/* Newest first: an incident is read from what just happened. */}
-            <ol className="space-y-2">
-              {[...inc.timeline].reverse().map((t) => (
-                <TimelineRow key={t.id} entry={t} />
-              ))}
-            </ol>
+            {filteredTimeline.length === 0 ? (
+              /* A filter with nothing behind it must say so — an empty list
+                 here must not read the same as an incident with no history. */
+              <p className="rounded-lg border cv-border px-3 py-6 text-center text-[13px] cv-text-muted">
+                {timelineFilter === "all" ? "Nothing recorded yet." : `No ${timelineFilter} entries.`}
+              </p>
+            ) : (
+              /* Newest first: an incident is read from what just happened. */
+              <ol className="space-y-2">
+                {[...filteredTimeline].reverse().map((t) => (
+                  <TimelineRow
+                    key={t.id}
+                    entry={t}
+                    attachment={t.kind === "attachment" ? inc.attachments?.find((a) => a.id === t.id) : undefined}
+                    busy={attBusyId === t.id}
+                    onDownload={(a) => void downloadAttachment(a)}
+                  />
+                ))}
+              </ol>
+            )}
           </div>
         </div>
       )}
@@ -1673,22 +1868,233 @@ const KIND_ICON: Record<TimelineEntry["kind"], typeof Clock> = {
   linked: Link2,
   release: Rocket,
   sla: Timer,
+  attachment: Paperclip,
 };
 
-function TimelineRow({ entry }: { entry: TimelineEntry }) {
+/**
+ * The kinds that are a change of state rather than talk about one — the spine
+ * of an incident, as distinct from the comments, links and files attached to
+ * it. Rows for these get a small accent so the sequence of actual decisions
+ * (raised to Sev1, mitigated, resolved) reads at a glance instead of sitting
+ * at the same visual weight as every remark alongside them.
+ */
+const STATE_KINDS = new Set<TimelineEntry["kind"]>([
+  "created",
+  "acknowledged",
+  "mitigated",
+  "resolved",
+  "reactivated",
+  "severity",
+]);
+
+function TimelineRow({
+  entry,
+  attachment,
+  busy,
+  onDownload,
+}: {
+  entry: TimelineEntry;
+  /** The live attachment for an "attached x" row — absent for a removal, so nothing offers to download a file that is gone. */
+  attachment?: Attachment;
+  busy?: boolean;
+  onDownload?: (a: Attachment) => void;
+}) {
   const Icon = KIND_ICON[entry.kind] ?? MessageSquare;
+  const automated = isAutomatedActor(entry.actor);
   return (
-    <li className="flex gap-3 rounded-lg border cv-border cv-surface p-3">
+    <li
+      className="flex gap-3 rounded-lg border cv-border cv-surface p-3"
+      style={STATE_KINDS.has(entry.kind) ? { borderLeftColor: "var(--accent-cyan)", borderLeftWidth: 3 } : undefined}
+    >
       <Icon className="mt-0.5 h-4 w-4 shrink-0 cv-text-muted" aria-hidden />
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] cv-text-secondary">
-          <span className="font-semibold cv-text-primary">{entry.actor}</span> {entry.text}
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[13px] cv-text-secondary">
+          <span className="font-semibold cv-text-primary">{entry.actor}</span>
+          {automated && (
+            /* A bot's routine sweep and a person's decision must not read
+               identically — that distinction is the whole point of
+               isAutomatedActor(). */
+            <span
+              className="inline-flex items-center gap-1 rounded-full border cv-border px-1.5 py-0 text-[10px] font-normal cv-text-muted"
+              title="Automated actor"
+            >
+              <Bot className="h-2.5 w-2.5" aria-hidden /> auto
+            </span>
+          )}
+          <span>{entry.text}</span>
         </div>
         {entry.body && <div className="mt-1 whitespace-pre-wrap text-[13px] cv-text-muted">{entry.body}</div>}
+        {attachment && onDownload && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDownload(attachment)}
+            className="mt-1.5 inline-flex h-[26px] items-center gap-1 rounded-md border cv-border px-2 text-[11px] font-semibold cv-text-secondary disabled:opacity-40 hover:cv-surface-alt"
+          >
+            <Download className="h-3 w-3" aria-hidden /> Download
+          </button>
+        )}
       </div>
       <time className="shrink-0 text-[11px] cv-text-muted">{fmtTime(entry.at)}</time>
     </li>
   );
+}
+
+/* -------------------------------------------------------------- attachments -- */
+
+/**
+ * The files on an incident, and the control to add one.
+ *
+ * Upload, download and delete are each their own request rather than
+ * `onAct`'s JSON body — a file is bytes, not a PATCH payload — so this keeps
+ * its own busy/error state instead of borrowing IncidentDetail's. That
+ * matters here specifically: an empty attachment list and a list that just
+ * failed to upload to must never look the same, which is why an upload
+ * failure gets its own banner rather than silently leaving the list as it was
+ * (see the module doc on ../api/admin/icm/attachments/route.ts for the
+ * download side of the same rule).
+ */
+function AttachmentsPanel({
+  attachments,
+  uploading,
+  uploadError,
+  busyId,
+  rowError,
+  onUpload,
+  onDownload,
+  onRemove,
+}: {
+  attachments: Attachment[];
+  uploading: boolean;
+  uploadError: string;
+  busyId: string | null;
+  rowError: { id: string; message: string } | null;
+  onUpload: (file: File) => void;
+  onDownload: (a: Attachment) => void;
+  onRemove: (a: Attachment) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-xl border cv-border cv-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide cv-text-muted">
+          <Paperclip className="h-3.5 w-3.5" aria-hidden /> Attachments
+        </h4>
+        <label className="inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-lg border cv-border px-2.5 text-[12px] font-semibold cv-text-secondary hover:cv-surface-alt">
+          {uploading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <UploadCloud className="h-3.5 w-3.5" aria-hidden />
+          )}
+          {uploading ? "Uploading…" : "Attach a file"}
+          <input
+            type="file"
+            className="sr-only"
+            disabled={uploading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              /* Cleared unconditionally: without this, re-choosing the same
+                 file after an error fires no change event, which would look
+                 exactly like a second attempt that quietly did nothing. */
+              e.target.value = "";
+              if (f) onUpload(f);
+            }}
+          />
+        </label>
+      </div>
+
+      {uploadError && (
+        <div className="rounded-lg border border-red-800 bg-red-950/50 px-3 py-2 text-[12px] text-red-300">
+          {uploadError}
+        </div>
+      )}
+
+      {attachments.length === 0 ? (
+        <p className="text-[12px] cv-text-muted">No files attached yet.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {attachments.map((a) => (
+            <li
+              key={a.id}
+              className="flex flex-wrap items-center gap-2 rounded-lg border cv-border cv-surface-alt px-2.5 py-1.5 text-[12px]"
+            >
+              <Paperclip className="h-3.5 w-3.5 shrink-0 cv-text-muted" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium cv-text-primary">{a.name}</div>
+                <div className="cv-text-muted">
+                  {formatBytes(a.size)} · {a.uploadedBy} · {fmtTime(a.uploadedAt)}
+                </div>
+                {rowError?.id === a.id && <div className="mt-0.5 text-red-300">{rowError.message}</div>}
+              </div>
+              <button
+                type="button"
+                disabled={busyId === a.id}
+                onClick={() => onDownload(a)}
+                className="inline-flex h-[28px] items-center gap-1 rounded-md border cv-border px-2 text-[11px] font-semibold cv-text-secondary disabled:opacity-40 hover:cv-surface"
+                title={`Download ${a.name}`}
+              >
+                <Download className="h-3 w-3" aria-hidden /> Download
+              </button>
+              <button
+                type="button"
+                disabled={busyId === a.id}
+                onClick={() => onRemove(a)}
+                className="inline-flex h-[28px] items-center rounded-md border border-red-800 px-2 text-[11px] font-semibold text-red-300 disabled:opacity-40 hover:bg-red-950/40"
+                title={`Remove ${a.name}`}
+                aria-label={`Remove ${a.name}`}
+              >
+                <Trash2 className="h-3 w-3" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ csv util -- */
+
+/**
+ * Same escaping as admin-bulk.ts's toCsv, repeated rather than imported: that
+ * module is server-only (it pulls in the file-backed store) and this runs in
+ * the browser. A timeline cell can be a comment somebody typed, and
+ * `=HYPERLINK(...)` typed into a comment box is exactly as live a threat here
+ * as in the customer exports that rule was written for — the CSV opens in the
+ * same spreadsheet either way.
+ *
+ * Exported for tests, same as IncidentDetail above: this is pure and
+ * deterministic, so it is asserted on directly rather than through a button
+ * click and a mocked Blob/URL.createObjectURL.
+ */
+export function csvCell(v: string): string {
+  let s = v;
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export function timelineToCsv(entries: TimelineEntry[]): string {
+  const header = ["time", "actor", "automated", "kind", "text", "detail"];
+  const lines = [header.map(csvCell).join(",")];
+  for (const t of entries) {
+    lines.push(
+      [t.at, t.actor, isAutomatedActor(t.actor) ? "yes" : "no", t.kind, t.text, t.body || ""]
+        .map(csvCell)
+        .join(",")
+    );
+  }
+  return lines.join("\n");
+}
+
+/** Exports whatever is currently filtered in, so the file matches what was on screen when it was pulled. */
+function downloadTimelineCsv(incidentId: string, entries: TimelineEntry[]): void {
+  if (typeof window === "undefined" || entries.length === 0) return;
+  const blob = new Blob([timelineToCsv(entries)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${incidentId}-timeline-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ------------------------------------------------------------- declaration -- */
