@@ -126,7 +126,88 @@ Mind the site's `dedupeSeconds` (60 by default) when repeating a swipe — a
 second scan inside the window returns `duplicate` and tells you nothing about
 the access decision.
 
-## Known limitation
+## Enrolling a card
+
+Present the card. That is the whole flow, and it exists because the alternative
+was indefensible: a blank fob has no number printed on it, and the value the
+reader derives is the UID interpreted a particular way — not whatever is etched
+on the plastic. Before this, issuing a card meant presenting it at a door,
+finding the refusal in the live feed, copying the number out of an error message
+and pasting it into a form. People guessed instead.
+
+**Attendance → People → Enrol card** opens the reader for 30 seconds. It pulses
+both lights, a pattern it shows in no other state — green alone means admitted,
+red alone means refused, and somebody walking up to a door needs to be able to
+tell it is not asking them to come in.
+
+### The window is the security property
+
+An open enrolment is an invitation for the next card presented to become
+somebody's credential. Left open, the next person through the door loses their
+card to the record being enrolled — and nothing about that looks like a failure
+to either of them.
+
+So the window is short, belongs to exactly one person, and is consumed by the
+first card that arrives. The firmware keeps its own copy of the deadline: a
+window only the server tracked would leave a reader blinking and open if the
+server forgot about it.
+
+The countdown shown in the console comes from the server's `expiresAt`, not a
+timer started in the browser — a backgrounded tab, a slept laptop or a drifted
+clock would each show a window still running after the reader had closed it.
+
+### One card per person
+
+The **Enrol card** button disappears once somebody holds a card, and the
+endpoint refuses as well. Hiding a button still leaves an endpoint, and two live
+credentials mean two badges open the door as the same person with the register
+unable to say which of them walked in.
+
+To replace a lost card, **Report lost** raises a `card-replacement` request.
+Approving it revokes the old card *in the same act* — leaving that to a second
+click is how a lost badge stays working: somebody approves the reissue, the
+person walks away happy, and the card in a taxi somewhere still opens the front
+door. The revocation is pushed to the readers, because they hold their own copy
+of the list.
+
+Replacements are never auto-approved, whoever asks. The rule that waves an
+employee through is about whether they belong in the building, which losing a
+badge does not change.
+
+### Two kinds, one table, never one query
+
+`office-access` and `card-replacement` share `attend_access_requests` because
+they share their whole machinery — raise, approve, reject, record who decided.
+They must never share a query: a replacement answering "may this person come
+in?" would open a door on the strength of somebody having lost their card. Every
+existing read filters on `kind`.
+
+### Enrolment is its own telemetry type
+
+The reader publishes `type: "enrol"`, not a punch with a flag. The server must
+never be able to mistake "this card is being registered" for "this person
+arrived" — one writes a credential, the other writes attendance, and a misread
+field would put a phantom arrival in the register every time somebody was issued
+a badge.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/attendance/enrolments` | Refuses if the person already holds a card, if the reader is offline, or if its card module is not answering |
+| `GET` | `/attendance/enrolments/:id` | For polling. Reports `expired` from the clock rather than waiting for a sweeper |
+| `DELETE` | `/attendance/enrolments/:id` | Stops waiting and tells the reader to stop too |
+
+## Exports need a header, not a link
+
+The export buttons were plain links to the API. A browser navigating to a link
+sends no `Authorization` header, so every one of them opened a blank tab reading
+`{"error":"Unauthorized"}` — which looks like a permissions problem and sends
+whoever hit it to check their account, their role and their session before
+anybody thinks to look at the anchor tag.
+
+They now fetch with credentials and save the resulting blob. If you add another
+export, do the same: there is no way to put a bearer token on a navigation.
+
+
 
 The reader on `rfid-attend-7bcc` currently reports `reader: false` — the MFRC522
 fails its self-test, so no card can be read at all. The unit is online and looks
@@ -134,3 +215,7 @@ healthy in every other respect, which is why the console renders an explicit red
 "Card reader not responding" panel rather than letting an empty last-card field
 imply nobody has swiped. Usually the reader's own supply or its wiring rather
 than the board.
+
+Enrolment refuses up front on such a reader rather than opening a window that
+could never be filled — thirty seconds of watching a countdown tells you nothing
+you did not already know, and a clear refusal names the thing to go and fix.
