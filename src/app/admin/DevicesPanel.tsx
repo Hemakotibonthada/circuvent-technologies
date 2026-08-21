@@ -10,6 +10,7 @@ import {
   type AdminStats, type AdminDevice, type AdminUser, type AdminEvent, type AdminHealth,
 } from "@/lib/control-plane";
 import { buildFieldCommand } from "@/lib/smarthome-command-map";
+import { ScrollableChart } from "@/components/ui/scrollable-chart";
 
 type Phase = "loading" | "login" | "denied" | "ready";
 type Sub = "devices" | "users" | "activity";
@@ -489,5 +490,12 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 function Spark({ data }: { data: number[] }) {
   const w = 260, h = 44, max = Math.max(...data, 1), min = Math.min(...data, 0), r = max - min || 1;
   const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / r) * (h - 4) - 2}`).join(" ");
-  return <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"><polyline points={pts} fill="none" stroke="#06b6d4" strokeWidth={2} /></svg>;
+  // Up to 60 telemetry samples get fetched for this drawer; at the default
+  // fixed viewBox width that many points blur into noise, so it scrolls like
+  // every other dense chart instead of being the one exception.
+  return (
+    <ScrollableChart pointCount={data.length} minPxPerPoint={6}>
+      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"><polyline points={pts} fill="none" stroke="#06b6d4" strokeWidth={2} /></svg>
+    </ScrollableChart>
+  );
 }

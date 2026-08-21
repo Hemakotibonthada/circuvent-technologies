@@ -174,7 +174,9 @@
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
-*::-webkit-scrollbar { width: 6px; }
+/* height, not just width, so horizontal scrollers (charts) get the same
+   thin thumb as vertical ones instead of the fat native default. */
+*::-webkit-scrollbar { width: 6px; height: 6px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
@@ -182,6 +184,25 @@
 }
 *::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
+}
+
+/*
+ * Shared horizontal-scroll container for every hand-rolled chart (admin
+ * analytics, App Insights, the smart-home console). Charts set their own
+ * min-width from data density; this is just the viewport + affordance.
+ *
+ * overflow-y is pinned to hidden so a chart can never grow a vertical
+ * scrollbar by accident -- only ever the horizontal one the task asks for.
+ * The edge fade itself is a per-element mask-image set in JS (see
+ * ScrollableChart), because it has to react to scroll position; the
+ * transition here just smooths that mask change instead of a hard cut, and
+ * -- like every transition in this file -- is neutralised by the
+ * prefers-reduced-motion rule below without any extra guarding.
+ */
+.cv-scroll-chart {
+  overflow-x: auto;
+  overflow-y: hidden;
+  transition: mask-image 0.15s ease, -webkit-mask-image 0.15s ease;
 }
 
 /* ===== BASE ===== */

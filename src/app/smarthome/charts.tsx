@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ScrollableChart } from "@/components/ui/scrollable-chart";
 
 function niceMax(v: number) {
   if (v <= 0) return 1;
@@ -34,19 +35,21 @@ export function LineChart({ data, color = "var(--cv-accent)", height = 180 }: { 
   const line = data.map((v, i) => `${i * stepX},${y(v)}`).join(" ");
   const area = `0,${H - padB} ${line} ${W},${H - padB}`;
   return (
-    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="energy history">
-      <defs>
-        <linearGradient id="cv-area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={color} stopOpacity=".35" />
-          <stop offset="1" stopColor={color} stopOpacity=".02" />
-        </linearGradient>
-      </defs>
-      {[0, 0.5, 1].map((f) => (
-        <line key={f} x1="0" x2={W} y1={padT + f * (H - padT - padB)} y2={padT + f * (H - padT - padB)} stroke="var(--cv-border)" />
-      ))}
-      <polygon points={area} fill="url(#cv-area)" />
-      <polyline points={line} fill="none" stroke={color} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <ScrollableChart pointCount={data.length} minPxPerPoint={16}>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="energy history">
+        <defs>
+          <linearGradient id="cv-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={color} stopOpacity=".35" />
+            <stop offset="1" stopColor={color} stopOpacity=".02" />
+          </linearGradient>
+        </defs>
+        {[0, 0.5, 1].map((f) => (
+          <line key={f} x1="0" x2={W} y1={padT + f * (H - padT - padB)} y2={padT + f * (H - padT - padB)} stroke="var(--cv-border)" />
+        ))}
+        <polygon points={area} fill="url(#cv-area)" />
+        <polyline points={line} fill="none" stroke={color} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </ScrollableChart>
   );
 }
 
@@ -147,6 +150,7 @@ export function MultiLineChart({ labels, series, height = 220, area = false, yFm
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
   return (
     <div className="w-full">
+      <ScrollableChart pointCount={n} minPxPerPoint={22}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)}>
         <defs>{series.map((s, si) => (
           <linearGradient key={si} id={`cvml${si}`} x1="0" y1="0" x2="0" y2="1">
@@ -176,6 +180,7 @@ export function MultiLineChart({ labels, series, height = 220, area = false, yFm
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke={CV_AXIS} strokeDasharray="3 3" opacity={0.5} />}
         {labels.map((_, i) => (<rect key={i} x={x(i) - (W / n) / 2} y={padT} width={W / n} height={H - padT - padB} fill="transparent" onMouseEnter={() => setHover(i)} />))}
       </svg>
+      </ScrollableChart>
       {hover !== null && (
         <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-300">
           <span className="text-slate-500">{labels[hover]}:</span>
@@ -200,6 +205,7 @@ export function BarChart({ labels, data, color = PALETTE[0], height = 220, unit 
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
   return (
     <div className="w-full">
+      <ScrollableChart pointCount={n} minPxPerPoint={20}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)}>
         {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
           <g key={i}>
@@ -214,6 +220,7 @@ export function BarChart({ labels, data, color = PALETTE[0], height = 220, unit 
           </g>
         ))}
       </svg>
+      </ScrollableChart>
       {hover !== null && <div className="mt-1 text-xs text-slate-300">{labels[hover]}: <b className="text-white">{data[hover].toLocaleString("en-IN")}{unit}</b></div>}
     </div>
   );
@@ -228,6 +235,7 @@ export function GroupedBar({ labels, series, height = 220 }: { labels: string[];
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
   return (
     <div className="w-full">
+      <ScrollableChart pointCount={n} minPxPerPoint={Math.max(24, series.length * 14)}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
         {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
           <g key={i}>
@@ -242,6 +250,7 @@ export function GroupedBar({ labels, series, height = 220 }: { labels: string[];
           </g>
         ))}
       </svg>
+      </ScrollableChart>
       <div className="mt-2"><Legend items={series.map((s, si) => ({ name: s.name, color: s.color || PALETTE[si % PALETTE.length] }))} /></div>
     </div>
   );
@@ -256,6 +265,7 @@ export function StackedBar({ labels, series, height = 220 }: { labels: string[];
   const h = (v: number) => (H - padT - padB) * (v / max);
   return (
     <div className="w-full">
+      <ScrollableChart pointCount={n} minPxPerPoint={24}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
         {labels.map((l, i) => { let acc = 0; return (
           <g key={i}>
@@ -264,6 +274,7 @@ export function StackedBar({ labels, series, height = 220 }: { labels: string[];
           </g>
         ); })}
       </svg>
+      </ScrollableChart>
       <div className="mt-2"><Legend items={series.map((s, si) => ({ name: s.name, color: s.color || PALETTE[si % PALETTE.length] }))} /></div>
     </div>
   );

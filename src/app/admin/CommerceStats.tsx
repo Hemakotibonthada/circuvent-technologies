@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
+import { ScrollableChart } from "@/components/ui/scrollable-chart";
 
 function tok(): string {
   try {
@@ -135,24 +136,26 @@ function SalesChart({ sales }: { sales: { date: string; orders: number; revenue:
       <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
         {formatINR(total)} across {sales.reduce((s, d) => s + d.orders, 0)} orders
       </p>
-      <div className="mt-4 flex h-32 items-end gap-1">
-        {sales.map((d) => (
-          <div key={d.date} className="group relative flex flex-1 flex-col items-center justify-end">
-            <div
-              className="w-full rounded-t"
-              style={{
-                height: `${Math.max(2, (d.revenue / max) * 100)}%`,
-                background: "linear-gradient(180deg,#06b6d4,#8b5cf6)",
-                minHeight: 2,
-              }}
-              title={`${d.date}: ${formatINR(d.revenue)} · ${d.orders} orders`}
-            />
-            <span className="mt-1 text-[9px]" style={{ color: "var(--text-muted)" }}>
-              {d.date.slice(8, 10)}
-            </span>
-          </div>
-        ))}
-      </div>
+      <ScrollableChart pointCount={sales.length} minPxPerPoint={24}>
+        <div className="mt-4 flex h-32 items-end gap-1">
+          {sales.map((d) => (
+            <div key={d.date} className="group relative flex flex-1 flex-col items-center justify-end">
+              <div
+                className="w-full rounded-t"
+                style={{
+                  height: `${Math.max(2, (d.revenue / max) * 100)}%`,
+                  background: "linear-gradient(180deg,#06b6d4,#8b5cf6)",
+                  minHeight: 2,
+                }}
+                title={`${d.date}: ${formatINR(d.revenue)} · ${d.orders} orders`}
+              />
+              <span className="mt-1 text-[9px]" style={{ color: "var(--text-muted)" }}>
+                {d.date.slice(8, 10)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </ScrollableChart>
     </>
   );
 }

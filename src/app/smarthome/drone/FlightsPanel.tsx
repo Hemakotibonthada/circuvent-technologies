@@ -26,6 +26,7 @@ import {
 } from "../_kit/primitives";
 import { describeFailure, isUnsupported } from "./errors";
 import { NeedsDeploy } from "./NeedsDeploy";
+import { ScrollableChart } from "@/components/ui/scrollable-chart";
 
 function duration(sec: number | null): string {
   if (sec === null) return "—";
@@ -280,10 +281,16 @@ function AltitudeProfile({ points }: { points: TrackPoint[] }) {
     <div>
       <SectionTitle>Altitude</SectionTitle>
       <div className="mt-2 rounded-xl p-2" style={{ background: "var(--cv-surface-2)" }}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-24 w-full" preserveAspectRatio="none">
-          <path d={`${d} L${W},${H} L0,${H} Z`} fill="var(--cv-accent-dim)" />
-          <path d={d} fill="none" stroke="var(--cv-accent-hi)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-        </svg>
+        {/* Up to 600 track points can come back for one flight; at a fixed
+            width that is a flat smear with all the climb/descent detail in a
+            handful of pixels, so it gets the same scrolling room as every
+            other dense series. */}
+        <ScrollableChart pointCount={points.length} minPxPerPoint={5}>
+          <svg viewBox={`0 0 ${W} ${H}`} className="h-24 w-full" preserveAspectRatio="none">
+            <path d={`${d} L${W},${H} L0,${H} Z`} fill="var(--cv-accent-dim)" />
+            <path d={d} fill="none" stroke="var(--cv-accent-hi)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          </svg>
+        </ScrollableChart>
         <div className="flex justify-between px-1 text-[10px] opacity-60">
           <span>0 m</span>
           <span>peak {maxAlt.toFixed(0)} m</span>

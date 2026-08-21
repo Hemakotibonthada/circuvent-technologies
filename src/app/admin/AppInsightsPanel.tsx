@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { toCsv, downloadCsv } from "../smarthome/_kit/primitives";
+import { ScrollableChart } from "@/components/ui/scrollable-chart";
 import { METRICS, SPLITS, type MetricId, type SplitBy, type MetricSeries } from "@/lib/app-insights";
 import {
   BusiestPaths,
@@ -485,61 +486,79 @@ export function Series({ series, hours }: { series: InsightsSummary["series"]; h
         </div>
       </div>
 
-      <div className="mt-2 flex items-stretch gap-2">
-        {/* The scale. One event and a million draw the same bars without it. */}
-        <div className="flex w-10 shrink-0 flex-col justify-between py-[1px] text-right text-[10px] cv-text-muted">
+      <div className="mt-2 flex items-start gap-2">
+        {/* The scale. One event and a million draw the same bars without it.
+            Given its own h-24 (matching the bars row) rather than inheriting
+            height from the flex row, so "0" still lines up with the bars'
+            baseline once the bars + footer scroll together below and make the
+            row itself taller than the gutter's own two lines of text. */}
+        <div className="flex h-24 w-10 shrink-0 flex-col justify-between py-[1px] text-right text-[10px] cv-text-muted">
           <span>{max.toLocaleString()}</span>
           <span>0</span>
         </div>
 
-        <div
-          className="flex h-24 flex-1 items-end gap-[2px] border-b border-l pb-[1px] pl-[1px]"
-          style={{ borderColor: "var(--border-primary)" }}
-          role="img"
-          aria-label={`Events over the last ${hours} hours: ${total} events, ${failed} failed, peak ${max} in a ${bucketMins} minute bucket.`}
-        >
-          {series.map((b, i) => {
-            const h = (b.count / max) * 100;
-            const failPct = b.count ? (b.failures / b.count) * 100 : 0;
-            const label = `${fmtTime(b.at)} · ${b.count} events, ${b.failures} failed`;
+        {/*
+         * Bars and their time-range footer share one scroll container so they
+         * move together — at 15-minute buckets (the App Insights default) 96
+         * bars is nearly always more than the panel is wide, and the old
+         * layout just crushed every bar into a couple of px each with no way
+         * to see individual buckets. The footer used to be a sibling row
+         * lined up underneath via a hardcoded pl-12; nesting it inside the
+         * same scrollable element keeps it exactly aligned instead of
+         * approximately aligned.
+         */}
+        <ScrollableChart pointCount={series.length} minPxPerPoint={10} className="flex-1">
+          <div>
+            <div
+              className="flex h-24 items-end gap-[2px] border-b border-l pb-[1px] pl-[1px]"
+              style={{ borderColor: "var(--border-primary)" }}
+              role="img"
+              aria-label={`Events over the last ${hours} hours: ${total} events, ${failed} failed, peak ${max} in a ${bucketMins} minute bucket.`}
+            >
+              {series.map((b, i) => {
+                const h = (b.count / max) * 100;
+                const failPct = b.count ? (b.failures / b.count) * 100 : 0;
+                const label = `${fmtTime(b.at)} · ${b.count} events, ${b.failures} failed`;
 
-            /*
-             * An empty bucket is drawn as a hairline on the baseline, not as a
-             * short bar in the data colour. The old version made zero look like
-             * a small non-zero reading.
-             */
-            if (!b.count) {
-              return (
-                <div key={i} className="flex-1 self-end" title={label}>
-                  <div className="h-[1px] w-full" style={{ background: "var(--border-primary)" }} />
-                </div>
-              );
-            }
+                /*
+                 * An empty bucket is drawn as a hairline on the baseline, not as a
+                 * short bar in the data colour. The old version made zero look like
+                 * a small non-zero reading.
+                 */
+                if (!b.count) {
+                  return (
+                    <div key={i} className="flex-1 self-end" title={label}>
+                      <div className="h-[1px] w-full" style={{ background: "var(--border-primary)" }} />
+                    </div>
+                  );
+                }
 
-            return (
-              <div
-                key={i}
-                className="relative flex-1 rounded-sm"
-                style={{ height: `${Math.max(3, h)}%`, background: "var(--accent-cyan)" }}
-                title={label}
-              >
-                {b.failures > 0 && (
+                return (
                   <div
-                    className="absolute bottom-0 left-0 right-0 rounded-sm bg-red-500"
-                    style={{ height: `${failPct}%` }}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                    key={i}
+                    className="relative flex-1 rounded-sm"
+                    style={{ height: `${Math.max(3, h)}%`, background: "var(--accent-cyan)" }}
+                    title={label}
+                  >
+                    {b.failures > 0 && (
+                      <div
+                        className="absolute bottom-0 left-0 right-0 rounded-sm bg-red-500"
+                        style={{ height: `${failPct}%` }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-      {/* Where the window starts and ends, so "the right edge" means something. */}
-      <div className="mt-1 flex justify-between pl-12 text-[10px] cv-text-muted">
-        <span>{fmtTime(series[0].at)}</span>
-        <span>each bar {bucketMins}m</span>
-        <span>now</span>
+            {/* Where the window starts and ends, so "the right edge" means something. */}
+            <div className="mt-1 flex justify-between text-[10px] cv-text-muted">
+              <span>{fmtTime(series[0].at)}</span>
+              <span>each bar {bucketMins}m</span>
+              <span>now</span>
+            </div>
+          </div>
+        </ScrollableChart>
       </div>
     </div>
   );
@@ -571,6 +590,7 @@ function MetricChart({
 
   return (
     <div className="rounded-xl border cv-border cv-surface p-3">
+      <ScrollableChart pointCount={len} minPxPerPoint={16}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Metric over time">
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
@@ -640,6 +660,7 @@ function MetricChart({
           });
         })()}
       </svg>
+      </ScrollableChart>
       <div className="flex flex-wrap gap-3 px-2 pt-1">
         {series.map((s, si) => (
           <span key={s.key} className="inline-flex items-center gap-1.5 text-[11px] cv-text-muted">
@@ -699,6 +720,7 @@ function AvailabilityChart({
 
   return (
     <div className="rounded-xl border cv-border cv-surface p-3">
+      <ScrollableChart pointCount={len} minPxPerPoint={16}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Availability over time">
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
@@ -739,6 +761,7 @@ function AvailabilityChart({
           )
         )}
       </svg>
+      </ScrollableChart>
       <div className="px-2 pt-1 text-[11px] cv-text-muted">
         {measured.length === 0
           ? "No probe has run in this window. The gaps are not outages — nothing was measured."

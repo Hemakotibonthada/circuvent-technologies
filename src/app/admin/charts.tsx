@@ -1,6 +1,7 @@
 "use client";
 // Dependency-free, themeable SVG chart primitives for the admin analytics suite.
 import React, { useState } from "react";
+import { ScrollableChart } from "@/components/ui/scrollable-chart";
 
 const AXIS = "var(--text-muted)";
 const GRID = "var(--border-primary)";
@@ -47,7 +48,8 @@ export function LineChart({ labels, series, height = 220, area = false, yFmt = a
   const ticks = 4;
 
   return (
-    <div className="w-full overflow-hidden">
+    <div className="w-full">
+      <ScrollableChart pointCount={n} minPxPerPoint={22}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} onMouseLeave={() => setHover(null)}>
         {Array.from({ length: ticks + 1 }).map((_, i) => {
           const v = (max / ticks) * i;
@@ -83,6 +85,7 @@ export function LineChart({ labels, series, height = 220, area = false, yFmt = a
           <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke={AXIS} strokeDasharray="3 3" opacity={0.5} />
         )}
       </svg>
+      </ScrollableChart>
       {hover !== null ? (
         <div className="mt-1 flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-secondary)" }}>
           <span style={{ color: "var(--text-muted)" }}>{labels[hover]}:</span>
@@ -125,20 +128,22 @@ export function BarChart({ labels, data, color = PALETTE[0], height = 220, curre
   const bw = (W - padL - padR) / n;
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
-      {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
-        <g key={i}>
-          <line x1={padL} x2={W - padR} y1={y(max * f)} y2={y(max * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
-          <text x={padL - 6} y={y(max * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{currency ? "₹" + abbr(max * f) : abbr(max * f)}</text>
-        </g>
-      ))}
-      {data.map((v, i) => (
-        <g key={i}>
-          <rect x={padL + i * bw + bw * 0.15} y={y(v)} width={bw * 0.7} height={Math.max(0, y(0) - y(v))} rx={3} fill={color} opacity={0.85} />
-          {(i % Math.ceil(n / 10) === 0 || i === n - 1) && <text x={padL + i * bw + bw / 2} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{labels[i]}</text>}
-        </g>
-      ))}
-    </svg>
+    <ScrollableChart pointCount={n} minPxPerPoint={20}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+          <g key={i}>
+            <line x1={padL} x2={W - padR} y1={y(max * f)} y2={y(max * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
+            <text x={padL - 6} y={y(max * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{currency ? "₹" + abbr(max * f) : abbr(max * f)}</text>
+          </g>
+        ))}
+        {data.map((v, i) => (
+          <g key={i}>
+            <rect x={padL + i * bw + bw * 0.15} y={y(v)} width={bw * 0.7} height={Math.max(0, y(0) - y(v))} rx={3} fill={color} opacity={0.85} />
+            {(i % Math.ceil(n / 10) === 0 || i === n - 1) && <text x={padL + i * bw + bw / 2} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{labels[i]}</text>}
+          </g>
+        ))}
+      </svg>
+    </ScrollableChart>
   );
 }
 
@@ -151,22 +156,24 @@ export function StackedBar({ labels, series, height = 220 }: { labels: string[];
   const bw = (W - padL - padR) / n;
   const h = (v: number) => (H - padT - padB) * (v / max);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
-      {labels.map((l, i) => {
-        let acc = 0;
-        return (
-          <g key={i}>
-            {series.map((s, si) => {
-              const val = s.data[i] || 0;
-              const yTop = padT + (H - padT - padB) - h(acc) - h(val);
-              acc += val;
-              return <rect key={si} x={padL + i * bw + bw * 0.15} y={yTop} width={bw * 0.7} height={h(val)} fill={s.color || PALETTE[si % PALETTE.length]} opacity={0.9} />;
-            })}
-            {(i % Math.ceil(n / 10) === 0 || i === n - 1) && <text x={padL + i * bw + bw / 2} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{l}</text>}
-          </g>
-        );
-      })}
-    </svg>
+    <ScrollableChart pointCount={n} minPxPerPoint={24}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+        {labels.map((l, i) => {
+          let acc = 0;
+          return (
+            <g key={i}>
+              {series.map((s, si) => {
+                const val = s.data[i] || 0;
+                const yTop = padT + (H - padT - padB) - h(acc) - h(val);
+                acc += val;
+                return <rect key={si} x={padL + i * bw + bw * 0.15} y={yTop} width={bw * 0.7} height={h(val)} fill={s.color || PALETTE[si % PALETTE.length]} opacity={0.9} />;
+              })}
+              {(i % Math.ceil(n / 10) === 0 || i === n - 1) && <text x={padL + i * bw + bw / 2} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{l}</text>}
+            </g>
+          );
+        })}
+      </svg>
+    </ScrollableChart>
   );
 }
 
@@ -369,20 +376,24 @@ export function GroupedBar({ labels, series, height = 220 }: { labels: string[];
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
-        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
-          <g key={i}>
+      {/* Each group needs room for series.length bars, not just one — the
+          per-point minimum scales with how many bars share a group. */}
+      <ScrollableChart pointCount={n} minPxPerPoint={Math.max(24, series.length * 14)}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+          {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+            <g key={i}>
             <line x1={padL} x2={W - padR} y1={y(max * f)} y2={y(max * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
             <text x={padL - 6} y={y(max * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(max * f)}</text>
-          </g>
-        ))}
-        {labels.map((l, gi) => (
-          <g key={gi}>
+            </g>
+          ))}
+          {labels.map((l, gi) => (
+            <g key={gi}>
             {series.map((s, si) => { const v = s.data[gi] || 0; const gx = padL + gi * groupW + groupW * 0.15 + si * bw; return <rect key={si} x={gx} y={y(v)} width={bw * 0.9} height={Math.max(0, y(0) - y(v))} rx={2} fill={s.color || PALETTE[si % PALETTE.length]} />; })}
             <text x={padL + gi * groupW + groupW / 2} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{l}</text>
-          </g>
-        ))}
-      </svg>
+            </g>
+          ))}
+        </svg>
+      </ScrollableChart>
       <div className="mt-2"><Legend items={series.map((s, si) => ({ name: s.name, color: s.color || PALETTE[si % PALETTE.length] }))} /></div>
     </div>
   );
@@ -446,19 +457,21 @@ export function ComboChart({ labels, bars, line, height = 220, barColor = PALETT
   const x = (i: number) => padL + i * bw + bw / 2;
   const linePts = line.map((v, i) => `${x(i)},${yL(v)}`).join(" ");
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
-      {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
-        <g key={i}>
-          <line x1={padL} x2={W - padR} y1={yB(maxB * f)} y2={yB(maxB * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
-          <text x={padL - 6} y={yB(maxB * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(maxB * f)}</text>
-          <text x={W - padR + 6} y={yL(maxL * f) + 3} textAnchor="start" fontSize={9} fill={lineColor}>{abbr(maxL * f)}</text>
-        </g>
-      ))}
-      {bars.map((v, i) => <rect key={i} x={padL + i * bw + bw * 0.2} y={yB(v)} width={bw * 0.6} height={Math.max(0, yB(0) - yB(v))} rx={3} fill={barColor} opacity={0.8} />)}
-      {labels.map((l, i) => ((i % Math.ceil(n / 10) === 0 || i === n - 1) && <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{l}</text>))}
-      <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth={2.4} strokeLinejoin="round" />
-      {line.map((v, i) => <circle key={i} cx={x(i)} cy={yL(v)} r={2.5} fill={lineColor} />)}
-    </svg>
+    <ScrollableChart pointCount={n} minPxPerPoint={26}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+          <g key={i}>
+            <line x1={padL} x2={W - padR} y1={yB(maxB * f)} y2={yB(maxB * f)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
+            <text x={padL - 6} y={yB(maxB * f) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(maxB * f)}</text>
+            <text x={W - padR + 6} y={yL(maxL * f) + 3} textAnchor="start" fontSize={9} fill={lineColor}>{abbr(maxL * f)}</text>
+          </g>
+        ))}
+        {bars.map((v, i) => <rect key={i} x={padL + i * bw + bw * 0.2} y={yB(v)} width={bw * 0.6} height={Math.max(0, yB(0) - yB(v))} rx={3} fill={barColor} opacity={0.8} />)}
+        {labels.map((l, i) => ((i % Math.ceil(n / 10) === 0 || i === n - 1) && <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{l}</text>))}
+        <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth={2.4} strokeLinejoin="round" />
+        {line.map((v, i) => <circle key={i} cx={x(i)} cy={yL(v)} r={2.5} fill={lineColor} />)}
+      </svg>
+    </ScrollableChart>
   );
 }
 
@@ -508,22 +521,25 @@ export function WaterfallChart({ labels, deltas, height = 220 }: { labels: strin
   const bw = (W - padL - padR) / (n + 1);
   const y = (v: number) => padT + (H - padT - padB) * (1 - (v - minV) / range);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
-      {[0, 0.25, 0.5, 0.75, 1].map((f, i) => { const v = minV + range * f; return (
-        <g key={i}>
-          <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
-          <text x={padL - 6} y={y(v) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(v)}</text>
-        </g>
-      ); })}
-      {deltas.map((d, i) => { const base = cum[i]; const top = base + d; const yTop = y(Math.max(base, top)); const hgt = Math.abs(y(base) - y(top)); return (
-        <g key={i}>
-          <rect x={padL + i * bw + bw * 0.2} y={yTop} width={bw * 0.6} height={Math.max(1, hgt)} rx={2} fill={d >= 0 ? "#10b981" : "#ef4444"} opacity={0.85} />
-          <text x={padL + i * bw + bw * 0.5} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{labels[i]}</text>
-        </g>
-      ); })}
-      <rect x={padL + n * bw + bw * 0.2} y={y(Math.max(0, total))} width={bw * 0.6} height={Math.max(1, Math.abs(y(0) - y(total)))} rx={2} fill={PALETTE[0]} />
-      <text x={padL + n * bw + bw * 0.5} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>Total</text>
-    </svg>
+    // +1 point: the trailing "Total" bar needs its own share of width too.
+    <ScrollableChart pointCount={n + 1} minPxPerPoint={26}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => { const v = minV + range * f; return (
+          <g key={i}>
+            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke={GRID} strokeWidth={0.5} opacity={0.5} />
+            <text x={padL - 6} y={y(v) + 3} textAnchor="end" fontSize={9} fill={AXIS}>{abbr(v)}</text>
+          </g>
+        ); })}
+        {deltas.map((d, i) => { const base = cum[i]; const top = base + d; const yTop = y(Math.max(base, top)); const hgt = Math.abs(y(base) - y(top)); return (
+          <g key={i}>
+            <rect x={padL + i * bw + bw * 0.2} y={yTop} width={bw * 0.6} height={Math.max(1, hgt)} rx={2} fill={d >= 0 ? "#10b981" : "#ef4444"} opacity={0.85} />
+            <text x={padL + i * bw + bw * 0.5} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>{labels[i]}</text>
+          </g>
+        ); })}
+        <rect x={padL + n * bw + bw * 0.2} y={y(Math.max(0, total))} width={bw * 0.6} height={Math.max(1, Math.abs(y(0) - y(total)))} rx={2} fill={PALETTE[0]} />
+        <text x={padL + n * bw + bw * 0.5} y={H - 8} textAnchor="middle" fontSize={9} fill={AXIS}>Total</text>
+      </svg>
+    </ScrollableChart>
   );
 }
 
@@ -556,14 +572,20 @@ export function RadialBars({ items, size = 200 }: { items: { name: string; value
 export function CalendarHeatmap({ days, color = "#06b6d4" }: { days: { date: string; value: number }[]; color?: string }) {
   const max = Math.max(1, ...days.map((d) => d.value));
   const cell = 13, gap = 3, cols = Math.ceil(days.length / 7);
+  // A year of days (cols ~53) previously just shrank to fit — width:100%
+  // with only a maxWidth cap, no floor — squeezing every cell below legibility
+  // on anything narrower than the natural size. minPxPerPoint matches the
+  // chart's own cell+gap so the scrollable width equals its natural size.
   return (
-    <svg viewBox={`0 0 ${cols * (cell + gap)} ${7 * (cell + gap)}`} style={{ width: "100%", maxWidth: cols * (cell + gap) }}>
-      {days.map((d, i) => (
-        <rect key={i} x={Math.floor(i / 7) * (cell + gap)} y={(i % 7) * (cell + gap)} width={cell} height={cell} rx={3} fill={color} opacity={d.value <= 0 ? 0.08 : 0.15 + 0.85 * (d.value / max)}>
-          <title>{`${d.date}: ${d.value}`}</title>
-        </rect>
-      ))}
-    </svg>
+    <ScrollableChart pointCount={cols} minPxPerPoint={cell + gap}>
+      <svg viewBox={`0 0 ${cols * (cell + gap)} ${7 * (cell + gap)}`} style={{ width: "100%" }}>
+        {days.map((d, i) => (
+          <rect key={i} x={Math.floor(i / 7) * (cell + gap)} y={(i % 7) * (cell + gap)} width={cell} height={cell} rx={3} fill={color} opacity={d.value <= 0 ? 0.08 : 0.15 + 0.85 * (d.value / max)}>
+            <title>{`${d.date}: ${d.value}`}</title>
+          </rect>
+        ))}
+      </svg>
+    </ScrollableChart>
   );
 }
 

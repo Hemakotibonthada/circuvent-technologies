@@ -14,6 +14,7 @@
 
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { ScrollableChart } from "@/components/ui/scrollable-chart";
 
 export interface Point {
   /** Epoch milliseconds. */
@@ -284,8 +285,14 @@ export function LineChart({
     return { x: model.x(readings[0].point.t), t: readings[0].point.t, readings };
   }, [model, hoverX]);
 
+  // Time-based, not index-based, but the number of samples plotted is still
+  // what determines how cramped the line gets — a 5-min rollup over a week
+  // is as dense as any bucketed bar chart.
+  const pointCount = Math.max(1, ...live.map((s) => s.points.length), 1);
+
   return (
     <ChartFrame title={title} right={right} height={height} empty={empty} footer={footer}>
+      <ScrollableChart pointCount={pointCount} minPxPerPoint={18}>
       <div className="relative">
         <svg
           ref={svgRef}
@@ -365,6 +372,7 @@ export function LineChart({
           </div>
         )}
       </div>
+      </ScrollableChart>
       {live.length > 1 && (
         <div className="mt-3">
           <Legend items={live.map((s) => ({ name: s.name, color: s.color }))} />
@@ -434,6 +442,7 @@ export function BarChart({
 
   return (
     <ChartFrame title={title} right={right} height={height} empty={empty}>
+      <ScrollableChart pointCount={data.length} minPxPerPoint={32}>
       <div className="flex items-end gap-1.5" style={{ height }}>
         {data.map((d) => (
           <button
@@ -460,6 +469,7 @@ export function BarChart({
           </button>
         ))}
       </div>
+      </ScrollableChart>
     </ChartFrame>
   );
 }
@@ -484,6 +494,7 @@ export function StackedBars({
   const max = niceCeil(Math.max(0, ...totals));
   return (
     <ChartFrame title={title} right={right} height={height} empty={categories.length === 0}>
+      <ScrollableChart pointCount={categories.length} minPxPerPoint={32}>
       <div className="flex items-end gap-2" style={{ height }}>
         {categories.map((c, ci) => (
           <div key={c.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5" style={{ height: "100%" }}>
@@ -506,6 +517,7 @@ export function StackedBars({
           </div>
         ))}
       </div>
+      </ScrollableChart>
       <div className="mt-3">
         <Legend items={keys.map((k) => ({ name: k.name, color: k.color }))} />
       </div>

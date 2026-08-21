@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, FileSpreadsheet, Loader2, Plus, Receipt, Trash2, X } from "lucide-react";
+import { AlertTriangle, Copy, FileSpreadsheet, Loader2, Plus, Receipt, RefreshCw, Trash2, X } from "lucide-react";
 
 function tok(): string {
   try {
@@ -48,21 +48,30 @@ export default function TaxCenterPanel() {
   const [sequence, setSequence] = useState<SequenceState | null>(null);
   const [stats, setStats] = useState<{ mappings: number; ytdCollected: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [period, setPeriod] = useState(currentPeriod());
   const [form, setForm] = useState<Partial<HsnMapping> | null>(null);
   const [reservedNumber, setReservedNumber] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/tax", { headers: { "x-admin-token": tok() } });
-    if (res.ok) {
-      const d = await res.json();
-      setMappings(d.mappings || []);
-      setReturns(d.returns || []);
-      setSequence(d.sequence || null);
-      setStats(d.stats || null);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/tax", { headers: { "x-admin-token": tok() } });
+      if (res.ok) {
+        const d = await res.json();
+        setMappings(d.mappings || []);
+        setReturns(d.returns || []);
+        setSequence(d.sequence || null);
+        setStats(d.stats || null);
+      } else {
+        setError("Could not load tax & GST data. This is a loading failure, not an empty list.");
+      }
+    } catch {
+      setError("Could not load tax & GST data. This is a loading failure, not an empty list.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -131,6 +140,15 @@ export default function TaxCenterPanel() {
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-cyan)" }} /></div>
+      ) : error ? (
+        <div>
+          <div role="alert" className="mb-3 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+          </div>
+          <button onClick={load} className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--border-primary)", color: "var(--text-secondary)" }}>
+            <RefreshCw className="h-4 w-4" /> Try again
+          </button>
+        </div>
       ) : (
         <>
           <div className="rounded-xl p-4" style={card}>
