@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Star, Loader2, MessageSquare, BadgeCheck, ThumbsUp, ImagePlus, X } from "lucide-react";
+import { AlertCircle, Star, Loader2, MessageSquare, BadgeCheck, ThumbsUp, ImagePlus, RotateCcw, X } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 
 interface Review {
@@ -59,6 +59,10 @@ export default function ProductReviews({ productId }: { productId: string }) {
   const [msg, setMsg] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [filter, setFilter] = useState<0 | 1 | 2 | 3 | 4 | 5>(0);
+  // Load failure must render distinctly from "zero reviews" — an outage is
+  // not a fact about the product, and silently showing "be the first to
+  // review" during a fetch failure is misleading to shoppers and sellers alike.
+  const [loadError, setLoadError] = useState(false);
 
   // Downscale a picked image to a small JPEG data-URL (keeps the store light).
   const downscale = (file: File, max = 900, quality = 0.7): Promise<string> =>
@@ -102,6 +106,7 @@ export default function ProductReviews({ productId }: { productId: string }) {
   };
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const r = await fetch(`/api/shop/reviews?product=${encodeURIComponent(productId)}`, {
         headers: { ...authHeaders() },
@@ -111,9 +116,11 @@ export default function ProductReviews({ productId }: { productId: string }) {
         setReviews(d.reviews || []);
         setSummary(d.summary || { count: 0, average: 0 });
         if (d.histogram) setHistogram(d.histogram);
+      } else {
+        setLoadError(true);
       }
     } catch {
-      /* ignore */
+      setLoadError(true);
     }
     setLoading(false);
   }, [productId, authHeaders]);
@@ -308,6 +315,24 @@ export default function ProductReviews({ productId }: { productId: string }) {
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
+          </div>
+        ) : loadError ? (
+          <div className="rounded-2xl border p-6 text-center" style={card}>
+            <AlertCircle className="mx-auto h-6 w-6" aria-hidden="true" style={{ color: "var(--status-warning-text)" }} />
+            <p className="mt-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              We couldn&apos;t load reviews for this product
+            </p>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Check your connection and try again — nothing has been lost.
+            </p>
+            <button
+              type="button"
+              onClick={load}
+              className="mt-3 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-colors"
+              style={{ borderColor: "var(--border-accent)", color: "var(--accent-cyan-text)" }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Retry
+            </button>
           </div>
         ) : shown.length === 0 ? (
           <p className="py-6 text-sm" style={{ color: "var(--text-muted)" }}>

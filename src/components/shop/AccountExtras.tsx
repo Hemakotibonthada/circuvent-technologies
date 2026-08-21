@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Loader2, Gift, User, MapPin, Plus, Trash2, Save, Star, Share2, Copy, Check, Ticket, Bell, CheckCheck, KeyRound, Building2 } from "lucide-react";
+import { AlertCircle, Loader2, Gift, User, MapPin, Plus, Trash2, Save, Star, Share2, Copy, Check, Ticket, Bell, CheckCheck, KeyRound, Building2, RotateCcw } from "lucide-react";
 import { formatINR } from "@/lib/shop-data";
 import { PasskeyManager } from "@/components/PasskeyManager";
 
@@ -23,6 +23,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       </span>
       {children}
     </label>
+  );
+}
+
+// A failed load must never render as "you have none of this" — these cards
+// otherwise reuse the same reassuring copy ("all caught up", "no addresses")
+// for a genuine empty state, which is indistinguishable from an outage.
+function LoadErrorNote({ text, onRetry }: { text: string; onRetry: () => void }) {
+  return (
+    <div
+      className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm"
+      style={{ borderColor: "var(--border-primary)", color: "var(--status-warning-text)" }}
+    >
+      <span className="flex items-center gap-1.5">
+        <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {text}
+      </span>
+      <button type="button" onClick={onRetry} className="flex shrink-0 items-center gap-1 font-semibold underline underline-offset-2">
+        <RotateCcw className="h-3 w-3" aria-hidden="true" /> Retry
+      </button>
+    </div>
   );
 }
 
@@ -96,6 +115,8 @@ interface ProfileData {
 
 const ProfileContext = createContext<{
   profile: ProfileData | null;
+  profileError: boolean;
+  reload: () => void;
   save: (patch: Partial<ProfileData>) => Promise<boolean>;
 } | null>(null);
 
@@ -115,13 +136,19 @@ function ProfileProvider({
   children: React.ReactNode;
 }) {
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  // Three cards below key off `!profile` to decide loading-vs-ready. Without
+  // this, a failed load left them spinning forever — indistinguishable from
+  // "still loading" — with no way for the customer to know or retry.
+  const [profileError, setProfileError] = useState(false);
 
   const load = useCallback(async () => {
+    setProfileError(false);
     try {
       const r = await fetch("/api/account/profile", { headers: authHeaders() });
       if (r.ok) setProfile((await r.json()).account || null);
+      else setProfileError(true);
     } catch {
-      /* ignore */
+      setProfileError(true);
     }
   }, [authHeaders]);
   useEffect(() => {
@@ -150,12 +177,12 @@ function ProfileProvider({
     [authHeaders, onProfileChange]
   );
 
-  return <ProfileContext.Provider value={{ profile, save }}>{children}</ProfileContext.Provider>;
+  return <ProfileContext.Provider value={{ profile, profileError, reload: load, save }}>{children}</ProfileContext.Provider>;
 }
 
 // --------------------------------------------------------- personal info ----
 function PersonalInfoCard() {
-  const { profile, save } = useProfile();
+  const { profile, profileError, reload, save } = useProfile();
   const [form, setForm] = useState({ name: "", phone: "", gender: "", dob: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -181,9 +208,13 @@ function PersonalInfoCard() {
         Your name and contact details.
       </p>
       {!profile ? (
-        <div className="mt-4">
-          <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
-        </div>
+        profileError ? (
+          <LoadErrorNote text="Couldn't load your profile." onRetry={reload} />
+        ) : (
+          <div className="mt-4">
+            <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
+          </div>
+        )
       ) : (
         <>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -218,7 +249,7 @@ function PersonalInfoCard() {
 
 // ----------------------------------------------------------- business/gst ----
 function BusinessCard() {
-  const { profile, save } = useProfile();
+  const { profile, profileError, reload, save } = useProfile();
   const [form, setForm] = useState({ businessName: "", gstin: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -244,9 +275,13 @@ function BusinessCard() {
         Add these to get GST invoices on your orders.
       </p>
       {!profile ? (
-        <div className="mt-4">
-          <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
-        </div>
+        profileError ? (
+          <LoadErrorNote text="Couldn't load your profile." onRetry={reload} />
+        ) : (
+          <div className="mt-4">
+            <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
+          </div>
+        )
       ) : (
         <>
           <div className="mt-4 grid gap-3">
@@ -276,7 +311,7 @@ function BusinessCard() {
 // ------------------------------------------------- notification preferences ----
 type Prefs = { orderUpdates: boolean; promotions: boolean; whatsapp: boolean };
 function NotificationPrefsCard() {
-  const { profile, save } = useProfile();
+  const { profile, profileError, reload, save } = useProfile();
   const [prefs, setPrefs] = useState<Prefs>({ orderUpdates: false, promotions: false, whatsapp: false });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -305,9 +340,13 @@ function NotificationPrefsCard() {
         Choose how we keep you posted.
       </p>
       {!profile ? (
-        <div className="mt-4">
-          <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
-        </div>
+        profileError ? (
+          <LoadErrorNote text="Couldn't load your profile." onRetry={reload} />
+        ) : (
+          <div className="mt-4">
+            <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--accent-cyan)" }} />
+          </div>
+        )
       ) : (
         <>
           <div className="mt-4 space-y-2.5">
@@ -418,13 +457,18 @@ function LoyaltyCard({ authHeaders, onWalletChange }: { authHeaders: Headers; on
   const [redeem, setRedeem] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  // A stale-on-failure "0 points" reads as a wiped-out reward balance, not a
+  // network hiccup — this is store currency, so it must never guess.
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const r = await fetch("/api/loyalty", { headers: authHeaders() });
       if (r.ok) setPoints((await r.json()).points || 0);
+      else setLoadError(true);
     } catch {
-      /* ignore */
+      setLoadError(true);
     }
   }, [authHeaders]);
 
@@ -459,9 +503,13 @@ function LoyaltyCard({ authHeaders, onWalletChange }: { authHeaders: Headers; on
       <h3 className="flex items-center gap-2 font-semibold" style={headingStyle}>
         <Gift className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Circuvent Rewards
       </h3>
-      <p className="mt-2 flex items-baseline gap-1 text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
-        {points.toLocaleString("en-IN")} <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>points</span>
-      </p>
+      {loadError ? (
+        <LoadErrorNote text="Couldn't load your points balance." onRetry={load} />
+      ) : (
+        <p className="mt-2 flex items-baseline gap-1 text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
+          {points.toLocaleString("en-IN")} <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>points</span>
+        </p>
+      )}
       <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
         Earn 2% back as points on every paid order · 1 point = ₹1.
       </p>
@@ -487,20 +535,26 @@ function LoyaltyCard({ authHeaders, onWalletChange }: { authHeaders: Headers; on
 function ReferralCard({ authHeaders }: { authHeaders: Headers }) {
   const [data, setData] = useState<{ code: string; link: string; referredCount: number; reward: number } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoadError(false);
+    try {
+      const r = await fetch("/api/referral", { headers: authHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        setData({ code: d.code, link: d.link, referredCount: d.referredCount, reward: d.reward });
+      } else {
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true);
+    }
+  }, [authHeaders]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch("/api/referral", { headers: authHeaders() });
-        if (r.ok) {
-          const d = await r.json();
-          setData({ code: d.code, link: d.link, referredCount: d.referredCount, reward: d.reward });
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, [authHeaders]);
+    load();
+  }, [load]);
 
   const copy = () => {
     if (!data) return;
@@ -514,21 +568,27 @@ function ReferralCard({ authHeaders }: { authHeaders: Headers }) {
       <h3 className="flex items-center gap-2 font-semibold" style={headingStyle}>
         <Share2 className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} /> Refer &amp; earn
       </h3>
-      <p className="mt-2 text-2xl font-bold tracking-widest" style={{ color: "var(--text-primary)" }}>
-        {data?.code || "—"}
-      </p>
-      <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-        Give {data ? formatINR(data.reward) : "₹200"}, get {data ? formatINR(data.reward) : "₹200"} — credited when your friend&rsquo;s first order is paid.
-      </p>
-      <div className="mt-4 flex gap-2">
-        <input readOnly value={data?.link || ""} className={field} style={inputStyle} />
-        <button onClick={copy} className={`${primaryBtn} shrink-0`} style={accentBg}>
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-        </button>
-      </div>
-      <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
-        {data ? `${data.referredCount} friend${data.referredCount === 1 ? "" : "s"} joined with your link.` : "Loading…"}
-      </p>
+      {loadError ? (
+        <LoadErrorNote text="Couldn't load your referral link." onRetry={load} />
+      ) : (
+        <>
+          <p className="mt-2 text-2xl font-bold tracking-widest" style={{ color: "var(--text-primary)" }}>
+            {data?.code || "—"}
+          </p>
+          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            Give {data ? formatINR(data.reward) : "₹200"}, get {data ? formatINR(data.reward) : "₹200"} — credited when your friend&rsquo;s first order is paid.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <input readOnly value={data?.link || ""} className={field} style={inputStyle} />
+            <button onClick={copy} className={`${primaryBtn} shrink-0`} style={accentBg}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+            {data ? `${data.referredCount} friend${data.referredCount === 1 ? "" : "s"} joined with your link.` : "Loading…"}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -605,17 +665,21 @@ interface Notif {
 function NotificationsCard({ authHeaders }: { authHeaders: Headers }) {
   const [items, setItems] = useState<Notif[]>([]);
   const [unread, setUnread] = useState(0);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const r = await fetch("/api/account/notifications", { headers: authHeaders() });
       if (r.ok) {
         const d = await r.json();
         setItems(d.notifications || []);
         setUnread(d.unread || 0);
+      } else {
+        setLoadError(true);
       }
     } catch {
-      /* ignore */
+      setLoadError(true);
     }
   }, [authHeaders]);
   useEffect(() => {
@@ -653,7 +717,9 @@ function NotificationsCard({ authHeaders }: { authHeaders: Headers }) {
           </div>
         )}
       </div>
-      {items.length === 0 ? (
+      {loadError ? (
+        <LoadErrorNote text="Couldn't load your notifications." onRetry={load} />
+      ) : items.length === 0 ? (
         <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
           You&rsquo;re all caught up.
         </p>
@@ -703,13 +769,16 @@ function AddressBook({ authHeaders }: { authHeaders: Headers }) {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ label: "Home", name: "", phone: "", line1: "", line2: "", city: "", state: "", pincode: "" });
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const r = await fetch("/api/account/addresses", { headers: authHeaders() });
       if (r.ok) setList((await r.json()).addresses || []);
+      else setLoadError(true);
     } catch {
-      /* ignore */
+      setLoadError(true);
     }
   }, [authHeaders]);
   useEffect(() => {
@@ -769,7 +838,9 @@ function AddressBook({ authHeaders }: { authHeaders: Headers }) {
         </div>
       )}
 
-      {list.length === 0 ? (
+      {loadError ? (
+        <LoadErrorNote text="Couldn't load your saved addresses." onRetry={load} />
+      ) : list.length === 0 ? (
         <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
           No saved addresses yet.
         </p>

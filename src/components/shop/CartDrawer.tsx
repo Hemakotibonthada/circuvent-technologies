@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X, Minus, Plus, Trash2, ArrowRight, Truck, ShoppingBag } from "lucide-react";
 import { useCart } from "./CartProvider";
 import ProductMedia from "./ProductMedia";
@@ -10,6 +10,7 @@ import { formatINR } from "@/lib/shop-data";
 export default function CartDrawer() {
   const { items, isOpen, close, setQty, remove, subtotal, shipping, total, freeShipOver, count } =
     useCart();
+  const reduceMotion = useReducedMotion();
   const remaining = Math.max(0, freeShipOver - subtotal);
   const pct = freeShipOver > 0 ? Math.min(100, Math.round((subtotal / freeShipOver) * 100)) : 100;
 
@@ -28,9 +29,9 @@ export default function CartDrawer() {
           <motion.aside
             className="fixed right-0 top-0 z-[101] flex h-full w-full max-w-md flex-col"
             style={{ background: "var(--bg-elevated)", borderLeft: "1px solid var(--border-primary)" }}
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            initial={reduceMotion ? { opacity: 0 } : { x: "100%" }}
+            animate={reduceMotion ? { opacity: 1 } : { x: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { x: "100%" }}
             transition={{ type: "tween", duration: 0.3, ease: "easeInOut" }}
           >
             {/* Header */}
@@ -91,9 +92,9 @@ export default function CartDrawer() {
                   >
                     <motion.div
                       className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500"
-                      initial={{ width: 0 }}
+                      initial={reduceMotion ? false : { width: 0 }}
                       animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.4 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.4 }}
                     />
                   </div>
                 </div>

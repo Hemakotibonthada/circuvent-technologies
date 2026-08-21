@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  AlertCircle,
   Loader2,
   Plus,
   Power,
@@ -11,6 +12,7 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  RotateCcw,
   Home,
   Plug,
   Lightbulb,
@@ -122,6 +124,10 @@ export default function DevicesPage() {
 function DevicePanel({ authHeaders }: { authHeaders: () => Record<string, string> }) {
   const [devices, setDevices] = useState<DeviceView[]>([]);
   const [loading, setLoading] = useState(true);
+  // Tracks the *last* poll's outcome, independent of whether we have stale
+  // data on screen — a live-polled list must never let a transient network
+  // blip silently masquerade as "you have no devices."
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -129,9 +135,12 @@ function DevicePanel({ authHeaders }: { authHeaders: () => Record<string, string
       if (res.ok) {
         const d = await res.json();
         setDevices(d.devices || []);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
       }
     } catch {
-      /* ignore */
+      setLoadError(true);
     }
     setLoading(false);
   }, [authHeaders]);
@@ -163,6 +172,27 @@ function DevicePanel({ authHeaders }: { authHeaders: () => Record<string, string
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--accent-cyan)" }} />
         </div>
+      ) : devices.length === 0 && loadError ? (
+        <div
+          className="mt-4 rounded-2xl border p-10 text-center"
+          style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+        >
+          <AlertCircle className="mx-auto h-8 w-8" style={{ color: "var(--status-warning-text)" }} />
+          <p className="mt-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            We couldn&apos;t load your devices
+          </p>
+          <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
+            Check your connection and try again — nothing has been lost.
+          </p>
+          <button
+            type="button"
+            onClick={load}
+            className="mt-4 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-colors"
+            style={{ borderColor: "var(--border-accent)", color: "var(--accent-cyan-text)" }}
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Retry
+          </button>
+        </div>
       ) : devices.length === 0 ? (
         <div
           className="mt-4 rounded-2xl border p-10 text-center"
@@ -174,11 +204,21 @@ function DevicePanel({ authHeaders }: { authHeaders: () => Record<string, string
           </p>
         </div>
       ) : (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {devices.map((d) => (
-            <DeviceCard key={d.id} device={d} onCommand={sendCommand} />
-          ))}
-        </div>
+        <>
+          {loadError && (
+            // A later poll failed but we still have the last-known-good list on
+            // screen — say so quietly instead of blanking the grid or the big
+            // error card, which would read as "you just lost all your devices."
+            <p className="mt-3 flex items-center gap-1.5 text-xs" style={{ color: "var(--status-warning-text)" }}>
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" /> Live updates paused — retrying…
+            </p>
+          )}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {devices.map((d) => (
+              <DeviceCard key={d.id} device={d} onCommand={sendCommand} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

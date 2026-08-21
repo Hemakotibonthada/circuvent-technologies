@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageCircleQuestion, ThumbsUp, Send, CheckCircle2, ShieldCheck } from "lucide-react";
+import { AlertCircle, MessageCircleQuestion, RotateCcw, ThumbsUp, Send, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 
 interface QA {
@@ -26,13 +26,21 @@ export default function ProductQA({ productId }: { productId: string }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  // Distinct from `error` above (the ask-form's validation message): this one
+  // means the list itself failed to load, and must never render as "nobody
+  // has asked yet" — that reads as a fact about the product, not the network.
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await fetch(`/api/shop/questions?productId=${encodeURIComponent(productId)}`);
+      if (!res.ok) throw new Error(`status ${res.status}`);
       const d = await res.json();
       setItems(d.questions || []);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -164,6 +172,27 @@ export default function ProductQA({ productId }: { productId: string }) {
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Loading questions…
           </p>
+        ) : loadError ? (
+          <div
+            className="rounded-2xl border p-6 text-center"
+            style={{ background: "var(--bg-surface)", borderColor: "var(--border-primary)" }}
+          >
+            <AlertCircle className="mx-auto h-6 w-6" aria-hidden="true" style={{ color: "var(--status-warning-text)" }} />
+            <p className="mt-2 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              We couldn&apos;t load questions for this product
+            </p>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Check your connection and try again — nothing has been lost.
+            </p>
+            <button
+              type="button"
+              onClick={load}
+              className="mt-3 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-colors"
+              style={{ borderColor: "var(--border-accent)", color: "var(--accent-cyan-text)" }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Retry
+            </button>
+          </div>
         ) : items.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             No questions yet — be the first to ask!
