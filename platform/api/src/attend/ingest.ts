@@ -262,6 +262,9 @@ export async function ingestPunch(
       groupAncestry: ancestryOf(person.groupId, parents),
       at: effectiveAt,
       timeZone: site.timeZone,
+      accessApproved: site.requireAccessRequest
+        ? await hasApprovedAccess(person.id, localMoment(effectiveAt, site.timeZone).day)
+        : undefined,
     });
   }
 
@@ -532,4 +535,25 @@ export function startAttendance(): void {
 export function __resetAttendanceForTests(): void {
   bus.off("device:update", handler);
   started = false;
+}
+
+/**
+ * Whether an approved office-access request covers this person today.
+ *
+ * The dates are checked in SQL rather than the status alone, because an
+ * approved request for last Tuesday stays approved for ever — reading only the
+ * status would let a contractor in a month after their day.
+ */
+async function hasApprovedAccess(personId: number, day: string): Promise<boolean> {
+  const { rows } = await pool.query<{ ok: boolean }>(
+    `SELECT true AS ok
+       FROM attend_access_requests
+      WHERE person_id = $1
+        AND status = 'approved'
+        AND (valid_from IS NULL OR valid_from <= $2::date)
+        AND (valid_to   IS NULL OR valid_to   >= $2::date)
+      LIMIT 1`,
+    [personId, day]
+  );
+  return rows.length > 0;
 }

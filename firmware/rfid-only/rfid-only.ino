@@ -54,7 +54,7 @@
 #include <ArduinoJson.h>
 #include <CircuventDevice.h>
 
-#define CV_FW_VERSION "1.0.0"
+#define CV_FW_VERSION "1.1.0"
 
 /* ------------------------------------------------------------------ */
 /* Pins — kept identical to rfid-attend where the function is the same, */
@@ -88,14 +88,27 @@ static const uint32_t HEARTBEAT_MS = 60000;
  */
 static const uint32_t SAME_CARD_MS = 3000;
 
-/** How long the LED and buzzer acknowledge a read. */
-static const uint32_t FEEDBACK_MS = 600;
+/** How long a verdict stays lit. */
+static const uint32_t VERDICT_MS = 1500;
+
+/**
+ * How long to wait for the server's answer before refusing.
+ *
+ * A door has to fail closed. If the verdict does not arrive — the link dropped,
+ * the control plane is down, the card is unknown and nothing replied — the
+ * reader shows red rather than leaving the light off and the person guessing.
+ * Two seconds is longer than the round trip has ever taken and short enough
+ * that nobody stands there wondering.
+ */
+static const uint32_t VERDICT_TIMEOUT_MS = 2000;
 
 static bool     hasReader   = false;
 static uint32_t lastCard    = 0;
 static uint32_t lastCardAt  = 0;
 static uint32_t feedbackTil = 0;
 static uint32_t punchSeq    = 0;
+static bool     awaitingVerdict = false;
+static uint32_t verdictDueBy = 0;
 static Preferences store;
 
 /* ------------------------------------------------------------------ */
@@ -103,26 +116,43 @@ static Preferences store;
 /* ------------------------------------------------------------------ */
 
 /**
- * Green plus a short chirp: the card was read and sent.
+ * Green plus a short chirp: the server allowed this card.
  *
- * Note what this does *not* claim. This model does not know whether the card is
- * allowed — nothing here holds a roster. Green means "read and reported", and
- * the server decides what it meant. Lighting green for "granted" would be a
- * reader telling somebody they may enter when it has no idea.
+ * Only ever set from a `greet` the server sent. This device holds no roster
+ * and cannot know on its own — a reader that lit green because it had *read* a
+ * card would be telling somebody they may enter on the strength of the card
+ * existing, which is not access control.
  */
-static void feedbackRead() {
+static void showGranted() {
   digitalWrite(LED_OK, HIGH);
   digitalWrite(LED_NO, LOW);
   tone(BUZZER, 2400, 90);
-  feedbackTil = millis() + FEEDBACK_MS;
+  feedbackTil = millis() + VERDICT_MS;
+  awaitingVerdict = false;
 }
 
-/** Red plus a lower double chirp: the read could not be sent. */
-static void feedbackFailed() {
+/** Red plus a low double chirp: refused, or nothing came back. */
+static void showDenied() {
   digitalWrite(LED_NO, HIGH);
   digitalWrite(LED_OK, LOW);
-  tone(BUZZER, 700, 140);
-  feedbackTil = millis() + FEEDBACK_MS;
+  tone(BUZZER, 700, 160);
+  feedbackTil = millis() + VERDICT_MS;
+  awaitingVerdict = false;
+}
+
+/**
+ * The card was read and sent, and the answer has not arrived yet.
+ *
+ * Deliberately not green. The gap between reading a card and hearing back is
+ * where somebody decides whether to push the door, and a green light during it
+ * would be a guess shown as a decision.
+ */
+static void showReading() {
+  digitalWrite(LED_OK, LOW);
+  digitalWrite(LED_NO, LOW);
+  tone(BUZZER, 1600, 40);
+  awaitingVerdict = true;
+  verdictDueBy = millis() + VERDICT_TIMEOUT_MS;
 }
 
 static void feedbackClear() {
@@ -172,6 +202,31 @@ static void publishCard(uint32_t uid) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Commands                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The server's verdict on the card just read.
+ *
+ * `greet` is the existing platform command — the same one the attendance
+ * console and the full reader already speak — so the door decision reuses a
+ * protocol rather than inventing one. Status is granted | denied | late.
+ *
+ * "late" is a grant. Somebody arriving late is still coming in; the lateness
+ * belongs in the register, not on the door.
+ */
+static void onCommand(const String &action, JsonObjectConst p) {
+  if (action != "greet") return;
+
+  const char *status = p["status"] | "";
+  if (strcmp(status, "granted") == 0 || strcmp(status, "late") == 0) {
+    showGranted();
+  } else {
+    showDenied();
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Lifecycle                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -197,6 +252,7 @@ void setup() {
   hasReader = rc522.PCD_PerformSelfTest();
   rc522.PCD_Init();
 
+  cv.onCommand(onCommand);
   cv.setInterval(HEARTBEAT_MS);
   cv.setResetButton(RESET_BTN);
   cv.begin();
@@ -215,7 +271,7 @@ void setup() {
   cv.set("model", "rfid-only");
   cv.publishStateNow();
 
-  if (!hasReader) feedbackFailed();
+  if (!hasReader) showDenied();
 }
 
 void loop() {
@@ -250,11 +306,11 @@ void loop() {
      * on the spot, so the person presents again rather than walking away
      * believing they clocked in.
      */
-    feedbackFailed();
+    showDenied();
     return;
   }
 
   publishCard(uid);
   cv.set("lastCard", (long)uid);
-  feedbackRead();
+  showReading();
 }

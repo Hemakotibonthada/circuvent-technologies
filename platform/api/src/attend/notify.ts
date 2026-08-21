@@ -204,7 +204,7 @@ export async function notifyAll(now = new Date()): Promise<void> {
     for (const row of rows) {
       const site: SiteSettings = {
         id: Number(row.id), ownerId: Number(row.owner_id), name: row.name, kind: row.kind,
-        timeZone: row.timezone, graceMinutes: row.grace_minutes,
+        timeZone: row.timezone, graceMinutes: row.grace_minutes, requireAccessRequest: row.require_access_request === true,
         halfDayAfterMinutes: row.half_day_after_minutes,
         absentAfterMinutes: row.absent_after_minutes, autoOut: row.auto_out,
         dedupeSeconds: row.dedupe_seconds, notifyGuardians: row.notify_guardians,

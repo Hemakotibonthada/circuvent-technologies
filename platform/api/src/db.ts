@@ -1371,6 +1371,54 @@ export async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_attend_leaves_site ON attend_leaves(site_id, from_day, to_day);
     CREATE INDEX IF NOT EXISTS idx_attend_leaves_person ON attend_leaves(person_id, from_day);
 
+    /*
+     * Office access requests.
+     *
+     * "Can this person come into the building" asked as a request that is
+     * recorded and decided, rather than inferred from having been given a card.
+     * A card says somebody was issued a credential; it does not say anybody
+     * agreed they should be in the office today, and after the fact those are
+     * different questions — the second is the one asked in an incident review.
+     *
+     * Auto-approval is the normal path and is deliberately not the same thing
+     * as no approval: an employee who is active and inside their validity dates
+     * is approved on the spot, by the rule rather than by a person, and the row
+     * records that it was 'auto'. A request that cannot be auto-approved stays
+     * pending for somebody to decide, which is exactly the case worth a human.
+     */
+    CREATE TABLE IF NOT EXISTS attend_access_requests (
+      id            BIGSERIAL PRIMARY KEY,
+      site_id       BIGINT NOT NULL REFERENCES attend_sites(id) ON DELETE CASCADE,
+      person_id     BIGINT NOT NULL REFERENCES attend_people(id) ON DELETE CASCADE,
+      -- pending | approved | rejected | revoked
+      status        TEXT NOT NULL DEFAULT 'pending',
+      -- auto | the email of whoever decided it
+      decided_by    TEXT NOT NULL DEFAULT '',
+      reason        TEXT NOT NULL DEFAULT '',
+      /*
+       * Null means open-ended. A request for a specific day is how a visitor or
+       * a contractor is handled without giving them a standing right to the
+       * building.
+       */
+      valid_from    DATE,
+      valid_to      DATE,
+      requested_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      decided_at    TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_attend_access_person ON attend_access_requests(person_id, status);
+    CREATE INDEX IF NOT EXISTS idx_attend_access_site ON attend_access_requests(site_id, status, requested_at DESC);
+
+    /*
+     * Whether this site requires an approved request before a card opens a door.
+     *
+     * Default false, and that default is load-bearing. Turning this on for
+     * every existing site would mean every card in every building stops working
+     * the moment this deploys, which is the failure mode the empty-rule-table
+     * comment in decide.ts already warns about. A site opts in when somebody
+     * has decided to run it that way and has approved their people.
+     */
+    ALTER TABLE attend_sites ADD COLUMN IF NOT EXISTS require_access_request BOOLEAN NOT NULL DEFAULT false;
+
 
     /*
      * =========================== GUARDIAN ================================

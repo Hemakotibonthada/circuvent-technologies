@@ -61,6 +61,7 @@ const site: SiteSettings = {
   dedupeSeconds: 60,
   notifyGuardians: false,
   notifyAbsence: false,
+  requireAccessRequest: false,
 };
 
 const siteDbRow = {

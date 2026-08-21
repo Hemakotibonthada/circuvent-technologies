@@ -30,6 +30,7 @@ export type PunchReason =
   | "expired"
   | "not-yet-valid"
   | "not-allowed"
+  | "no-access-request"
   | "out-of-hours"
   | "duplicate"
   | "offline";
@@ -75,6 +76,13 @@ export interface DecideInput {
   groupAncestry: number[];
   at: Date;
   timeZone: string;
+  /**
+   * Whether an approved office-access request covers today.
+   *
+   * Undefined on sites that do not require one, and undefined must never read
+   * as a refusal — see the check in `decideAccess`.
+   */
+  accessApproved?: boolean;
 }
 
 export interface Decision {
@@ -159,6 +167,22 @@ export function decideAccess(input: DecideInput): Decision {
   if (input.person.validTo && day > input.person.validTo) {
     // A leaver whose card still works because the terminal's list is stale.
     return { granted: false, reason: "expired", ruleId: null };
+  }
+
+  /*
+   * Sites that require an approved office-access request.
+   *
+   * Checked after the roster and before the rules, because it answers a
+   * different question from either: the roster says this person exists, the
+   * rules say where and when a card works, and this says somebody agreed they
+   * should be in the building at all.
+   *
+   * `accessApproved` is undefined on sites that have not opted in, and
+   * undefined is deliberately not a refusal — a site that never turned this on
+   * has to behave exactly as it did before the feature existed.
+   */
+  if (input.accessApproved === false) {
+    return { granted: false, reason: "no-access-request", ruleId: null };
   }
 
   const candidates = input.rules

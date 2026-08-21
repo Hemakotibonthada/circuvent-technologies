@@ -51,11 +51,13 @@ export interface SiteSettings {
   dedupeSeconds: number;
   notifyGuardians: boolean;
   notifyAbsence: boolean;
+  /** When true, a card only opens a door if an approved access request covers today. */
+  requireAccessRequest: boolean;
 }
 
 const SITE_COLUMNS = `id, owner_id, name, kind, timezone, grace_minutes,
                       half_day_after_minutes, absent_after_minutes, auto_out,
-                      dedupe_seconds, notify_guardians, notify_absence`;
+                      dedupe_seconds, notify_guardians, notify_absence, require_access_request`;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function siteShape(r: any): SiteSettings {
@@ -72,6 +74,10 @@ export function siteShape(r: any): SiteSettings {
     dedupeSeconds: r.dedupe_seconds,
     notifyGuardians: r.notify_guardians,
     notifyAbsence: r.notify_absence,
+    // Coerced rather than passed through: a site row read before the column
+    // existed returns undefined, and undefined here would make the ingest ask
+    // for an approval nobody could have granted.
+    requireAccessRequest: r.require_access_request === true,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

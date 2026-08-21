@@ -32,6 +32,7 @@ function site(over: Partial<SiteSettings> = {}): SiteSettings {
     id: 1, ownerId: 8, name: "Test School", kind: "school", timeZone: "Asia/Kolkata",
     graceMinutes: 10, halfDayAfterMinutes: 180, absentAfterMinutes: 120,
     autoOut: true, dedupeSeconds: 60, notifyGuardians: true, notifyAbsence: true,
+    requireAccessRequest: false,
     ...over,
   };
 }
