@@ -337,13 +337,15 @@ Admin 2FA is TOTP or email code, gated by a `TOTP_PENDING` sentinel proving the 
 
 ```ts
 const securityHeaders = [
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload" },
   { key: "Content-Security-Policy", value: CSP },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-DNS-Prefetch-Control", value: "on" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), browsing-topics=()" },
+  { key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(self), browsing-topics=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
 ];
 ```
@@ -382,8 +384,10 @@ sequenceDiagram
 ```
    THE WEBHOOK IS A STUB.
 
-     const expected = crypto.createHmac("sha256", secret).update(raw).digest("hex");
-     const valid = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
+     const expected = crypto.createHmac("sha256", secret)
+       .update(raw).digest("hex");
+     const valid = sigBuf.length === expBuf.length
+       && crypto.timingSafeEqual(sigBuf, expBuf);
 
    The signature check is correct and constant-time. Then the handler
    logs the event and returns. Its own comment admits it:

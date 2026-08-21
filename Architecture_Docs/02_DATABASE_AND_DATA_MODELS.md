@@ -329,9 +329,16 @@ Nothing in `db.ts` schema-qualifies any table — no `hrms.`, no `identity.`. Ev
 // CV-365 Firestore contact bridge — Firebase is imported lazily (dynamic
 // import inside the submit path) so the heavy SDK is NOT in the initial page
 // bundle; it only loads when a visitor actually submits the contact form.
-const [{ initializeApp, getApps, getApp }, { getFirestore, collection, addDoc, Timestamp }] =
-  await Promise.all([import("firebase/app"), import("firebase/firestore")]);
-return addDoc(collection(db, "contactMessages"), { ...data, status: "new", createdAt: Timestamp.now() });
+const [
+  { initializeApp, getApps, getApp },
+  { getFirestore, collection, addDoc, Timestamp },
+] = await Promise.all([
+  import("firebase/app"), import("firebase/firestore"),
+]);
+
+return addDoc(collection(db, "contactMessages"), {
+  ...data, status: "new", createdAt: Timestamp.now(),
+});
 ```
 
 It writes contact-form submissions into a **separate Firebase project** so that `work.circuvent.com/admin/messages` can see them. It is entirely decoupled from Postgres. The 18 other files matching "firebase" are marketing pages listing a tech stack.
