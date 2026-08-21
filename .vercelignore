@@ -7,14 +7,32 @@
 # serverless function to 932 MB against a 250 MB limit and failed the deploy.
 # Git-triggered deploys never hit this because those directories' dependencies
 # are not committed.
+#
+# THE LEADING SLASH IS LOAD-BEARING.
+#
+# These patterns are gitignore syntax, so an unanchored `platform/` matches a
+# directory of that name at ANY depth — including `src/app/.../admin/platform`.
+# Three real routes were silently missing from production because of it:
+#
+#   src/app/smarthome/admin/platform   the platform admin page  (404)
+#   src/app/smarthome/firmware         the firmware console     (404)
+#   src/app/api/devices/firmware       the OTA manifest         (404)
+#
+# The last one is the one that hurt. It is the endpoint `checkOTA()` calls, so
+# every device asking "is there a newer build for me?" got a 404 and concluded
+# there was not. OTA appeared to work only because we had been pushing updates
+# by hand over MQTT, which takes a different path entirely.
+#
+# Nothing reports this. The build succeeds, the deploy succeeds, and the routes
+# simply are not there — so anchor every one of these to the repository root.
 
 **/node_modules
 
-circuvent-platform/
-mobile/
-firmware/
-hardware/
-platform/
+/circuvent-platform/
+/mobile/
+/firmware/
+/hardware/
+/platform/
 
 # Local build output of the sibling projects.
 **/dist
