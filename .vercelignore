@@ -28,6 +28,15 @@
 
 **/node_modules
 
+/*
+ * A failed install can leave a renamed copy behind — `node_modules_stale_…`
+ * does not match `**​/node_modules`, so it was uploaded, and one file inside it
+ * was locked hard enough to fail the deploy with EPERM. Nothing here is ever
+ * wanted in a deployment whatever it is called.
+ */
+**/node_modules_*
+**/.protobufjs-*
+
 /circuvent-platform/
 /mobile/
 /firmware/
