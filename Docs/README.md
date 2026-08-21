@@ -51,6 +51,7 @@ below is reference material that assumes you can already run things.
 | **Reach, deploy to, migrate or repair the VM** | [40 — The control-plane VM: operations manual](./40-vm-operations.md) |
 | **Bring attendance.circuvent.com up** | [41 — The attendance hostname](./41-attendance-domain.md) |
 | **Decide who may come into the office, and why a door said no** | [42 — Office access requests](./42-office-access.md) |
+| **Revive a bricked or erased device** | [43 — Factory images](./43-factory-images.md) |
 
 ### Working here
 

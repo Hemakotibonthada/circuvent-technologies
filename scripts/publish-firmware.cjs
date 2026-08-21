@@ -237,7 +237,40 @@ function collect() {
   await put("fw/manifest.json", manifestBody, "application/json", "public, max-age=300");
   console.log(`  ok   fw/manifest.json`);
 
-  console.log(`\nuploaded ${done}/${builds.length} images + manifest`);
+  /*
+   * Factory images, if any have been built.
+   *
+   * Kept optional rather than required, because they take a full rebuild of
+   * every project to produce and a release should not be blocked on that. But
+   * when they exist they are uploaded alongside, because the OTA image alone
+   * cannot revive a device whose flash has been erased — there is no bootloader
+   * left to receive it. That gap is invisible until the one moment it matters.
+   */
+  const factoryDir = path.join(__dirname, "..", ".factory-images");
+  let factoryDone = 0;
+  if (fs.existsSync(factoryDir)) {
+    const images = fs.readdirSync(factoryDir).filter((f) => f.endsWith("-factory.bin"));
+    for (const f of images) {
+      const key = `fw/${f}`;
+      try {
+        await put(key, fs.readFileSync(path.join(factoryDir, f)),
+                  "application/octet-stream", "public, max-age=31536000, immutable");
+        factoryDone++;
+        console.log(`  ok   ${key}`);
+      } catch (err) {
+        console.error(`  FAIL ${key}: ${err.message}`);
+        process.exitCode = 1;
+      }
+    }
+    const idx = path.join(factoryDir, "index.json");
+    if (fs.existsSync(idx)) {
+      await put("fw/factory-index.json", fs.readFileSync(idx), "application/json", "public, max-age=300");
+      console.log(`  ok   fw/factory-index.json`);
+    }
+  }
+
+  console.log(`\nuploaded ${done}/${builds.length} images + manifest` +
+              (factoryDone ? ` + ${factoryDone} factory images` : ""));
   console.log("\nOTA env for the manifest endpoint:");
   for (const [type, m] of Object.entries(manifest.builds)) {
     console.log(`  OTA_${type.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}="${m.version}|${m.url}"`);

@@ -146,3 +146,8 @@ native/ios/DerivedData/
 
 # Written by src/lib/pdf-verify2.test.ts on every run; output, not a fixture.
 pdf-verify.pdf
+
+# Merged bootloader+partitions+app images, produced by scripts/build-factory-images.cjs.
+# Roughly 35 MB a set and reproducible from a build, so they are published to R2
+# rather than committed — the same reasoning that keeps the OTA images out.
+.factory-images/
