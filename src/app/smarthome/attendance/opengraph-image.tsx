@@ -1,4 +1,5 @@
 import { ogImageResponse, OG_SIZE, OG_CONTENT_TYPE } from "@/lib/og";
+import { OG_CARD } from "@/lib/attendance-seo";
 
 export const alt =
   "Circuvent Attendance — register, roll, cards, door readers and reports";
@@ -22,12 +23,5 @@ export const contentType = OG_CONTENT_TYPE;
  * fetch from the main site where this route really lives.
  */
 export default function OpengraphImage() {
-  return ogImageResponse({
-    product: "Attendance",
-    domain: "attendance.circuvent.com",
-    headline: "Every arrival, on the record",
-    description:
-      "Register, roll, cards, door readers and reports — from the terminals on your own site.",
-    accent: "#04303a",
-  });
+  return ogImageResponse(OG_CARD);
 }
