@@ -247,7 +247,7 @@ public partial class MainWindow : Window
         try
         {
             var res = await _plane.PunchAsync(CurrentSite.Id, card, direction);
-            if (res.Stored)
+            if (res.Admitted)
             {
                 var who = _people.FirstOrDefault(p => p.Id == res.PersonId)?.Name;
                 ShowScan(who ?? "Recorded", direction == "out" ? "Clocked out" : "Clocked in",
@@ -402,6 +402,14 @@ public partial class MainWindow : Window
         "inactive" => "That person's record is not active.",
         "expired" => "That card is outside its valid dates.",
         "no-site" => "That card belongs to a different site.",
+        /*
+         * Worth spelling out, because it is the one refusal the person at the
+         * desk can actually resolve. The others need a new card or a changed
+         * record; this one needs somebody to approve a request that already
+         * exists, which takes seconds if you know that is what is being asked.
+         */
+        "no-access-request" => "No approved office access for today. Approve their request under Office access, then scan again.",
+        "no-rule" or "not-allowed" => "That person is not allowed through this door at this time.",
         _ => string.IsNullOrWhiteSpace(reason) ? $"Card {card} was refused." : reason,
     };
 

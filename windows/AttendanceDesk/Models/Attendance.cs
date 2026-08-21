@@ -101,9 +101,25 @@ public sealed class LoginUser
 /// <summary>Result of storing a punch. `stored:false` is a refusal, not an error.</summary>
 public sealed class PunchResult
 {
+    /*
+     * `Stored` is not the verdict.
+     *
+     * It means a row was written to the log, and a refusal is written too --
+     * deliberately, because a record of who was turned away is worth more than
+     * a record of who got in. The verdict lives in `Reason`, where "ok" is the
+     * only value that means the person was let through.
+     *
+     * Reading `Stored` as the answer showed a refused visitor a green
+     * "Clocked in" at the desk while the door stayed shut, which is the exact
+     * failure this system exists to prevent: a screen reporting success for
+     * something that did not happen.
+     */
     public bool Stored { get; set; }
     public string Reason { get; set; } = "";
     public int? PersonId { get; set; }
+
+    /// <summary>Whether the person was actually let in.</summary>
+    public bool Admitted => Stored && Reason == "ok";
 }
 
 public sealed class CredentialResult

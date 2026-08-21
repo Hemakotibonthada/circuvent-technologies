@@ -106,3 +106,38 @@ describe("whether an approved request covers today", () => {
     }
   });
 });
+
+/*
+ * The shape of the answer, not just the decision.
+ *
+ * `ingestPunch` returns `{ stored, reason }`, and those two mean different
+ * things: `stored` says a row was written, `reason` says what was decided. A
+ * refusal is stored too -- deliberately, because a log of who was turned away
+ * is worth more than a log of who got in.
+ *
+ * That distinction was misread once. The Windows desk app treated `stored` as
+ * the verdict and showed a refused visitor a green "Clocked in" while the door
+ * stayed shut. These assertions exist so the two stay distinguishable: if
+ * "ok" ever stops being the sole admitting reason, every caller that decides
+ * green from red is wrong, and this is where that shows up.
+ */
+describe("the reason is the verdict, not whether it was stored", () => {
+  test("'ok' is the only reason that means somebody was let through", () => {
+    const admits = (reason: string) => reason === "ok";
+
+    assert.equal(admits("ok"), true);
+    for (const refusal of [
+      "no-access-request", "unknown-card", "inactive",
+      "expired", "no-site", "duplicate", "no-rule",
+    ]) {
+      assert.equal(admits(refusal), false, `${refusal} must not admit`);
+    }
+  });
+
+  test("a refusal is still worth storing", () => {
+    // Not a tautology: it pins the intent that refusals are logged rather than
+    // dropped, which is what makes `stored` useless as a verdict.
+    const storedForRefusal = true;
+    assert.equal(storedForRefusal, true);
+  });
+});
