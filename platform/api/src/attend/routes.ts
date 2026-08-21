@@ -16,6 +16,7 @@
  *   /attendance/terminals      readers on walls
  *   /attendance/schedules      when people are expected
  *   /attendance/rules          who may pass which door, when
+ *   /attendance/access-requests asking to come into the building, and answers
  *   /attendance/leaves         authorised absence and closures
  *   /attendance/punches        the raw scans
  *   /attendance/register       the day's register
@@ -40,6 +41,7 @@ import { logger } from "../logger";
 import { requireCapability } from "../home/enforce";
 import { onlineColumn } from "../device-online";
 import { syncSite, syncTerminal } from "./acl";
+import { autoDecide } from "./access-requests";
 import { ingestPunch } from "./ingest";
 import {
   getSite,
@@ -109,6 +111,7 @@ const siteSchema = z.object({
   dedupeSeconds: z.number().int().min(0).max(3600).optional(),
   notifyGuardians: z.boolean().optional(),
   notifyAbsence: z.boolean().optional(),
+  requireAccessRequest: z.boolean().optional(),
 });
 
 attendanceRouter.get("/sites", requireAuth, async (req: AuthedRequest, res) => {
@@ -136,6 +139,7 @@ function siteOut(r: any) {
     dedupeSeconds: r.dedupe_seconds,
     notifyGuardians: r.notify_guardians,
     notifyAbsence: r.notify_absence,
+    requireAccessRequest: r.require_access_request ?? false,
     people: r.people ?? 0,
     terminals: r.terminals ?? 0,
   };
@@ -183,12 +187,14 @@ attendanceRouter.patch("/sites/:id", requireAuth, async (req: AuthedRequest, res
        auto_out = COALESCE($8, auto_out), dedupe_seconds = COALESCE($9, dedupe_seconds),
        notify_guardians = COALESCE($10, notify_guardians),
        notify_absence = COALESCE($11, notify_absence),
+       require_access_request = COALESCE($12, require_access_request),
        updated_at = now()
      WHERE id = $1 RETURNING *`,
     [
       site.id, d.name ?? null, d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
       d.halfDayAfterMinutes ?? null, d.absentAfterMinutes ?? null, d.autoOut ?? null,
       d.dedupeSeconds ?? null, d.notifyGuardians ?? null, d.notifyAbsence ?? null,
+      d.requireAccessRequest ?? null,
     ]
   );
   /*
@@ -1082,6 +1088,195 @@ attendanceRouter.delete("/leaves/:id", requireAuth, async (req: AuthedRequest, r
   if (!rows[0]) { res.status(404).json(notFound); return; }
   void recomputeRange(Number(rows[0].site_id), rows[0].f, rows[0].t).catch(() => {});
   res.json({ success: true });
+});
+
+/* ------------------------------------------------------------------ *
+ * Office access requests
+ *
+ * Asking to come into the building, and the answer. Most answers are given by
+ * the rule in access-requests.ts the moment the request is raised; the ones
+ * left pending are the ones worth a person's attention.
+ * ------------------------------------------------------------------ */
+
+const accessRequestSchema = z.object({
+  siteId: z.union([z.number(), z.string()]),
+  personId: z.union([z.number(), z.string()]),
+  reason: z.string().trim().max(200).optional(),
+  validFrom: z.string().trim().length(10).nullable().optional(),
+  validTo: z.string().trim().length(10).nullable().optional(),
+});
+
+/** Rows out of the table, in the shape the console and the app read. */
+function accessRequestRow(r: Record<string, unknown>) {
+  return {
+    id: Number(r.id),
+    personId: Number(r.person_id),
+    personName: r.person_name ?? null,
+    personCode: r.person_code ?? null,
+    status: r.status,
+    decidedBy: r.decided_by,
+    reason: r.reason,
+    validFrom: r.valid_from ?? null,
+    validTo: r.valid_to ?? null,
+    requestedAt: r.requested_at,
+    decidedAt: r.decided_at ?? null,
+  };
+}
+
+const ACCESS_REQUEST_SELECT = `
+  SELECT r.id, r.person_id, r.status, r.decided_by, r.reason,
+         to_char(r.valid_from,'YYYY-MM-DD') AS valid_from,
+         to_char(r.valid_to,'YYYY-MM-DD')   AS valid_to,
+         r.requested_at, r.decided_at,
+         p.name AS person_name, p.code AS person_code
+    FROM attend_access_requests r
+    JOIN attend_people p ON p.id = r.person_id`;
+
+/** GET /attendance/access-requests?siteId=&status= — who has asked, and the answers. */
+attendanceRouter.get("/access-requests", requireAuth, async (req: AuthedRequest, res) => {
+  const wanted = typeof req.query.status === "string" ? req.query.status.trim() : "";
+  const out = await scoped(req, req.query.siteId, async (site) => {
+    const { rows } = await pool.query(
+      `${ACCESS_REQUEST_SELECT}
+        WHERE r.site_id = $1 AND ($2 = '' OR r.status = $2)
+        ORDER BY r.requested_at DESC LIMIT 500`,
+      [site.id, wanted]
+    );
+    return rows.map(accessRequestRow);
+  });
+  if (!out) { res.status(404).json(notFound); return; }
+  /*
+   * The count of pending requests is what a console badge needs, and deriving
+   * it from a filtered list would give the wrong number whenever a filter is
+   * applied — the one case where somebody is most likely to be looking at it.
+   */
+  const site = await ownsSite(req.query.siteId, req.user!.uid);
+  const { rows: pend } = await pool.query(
+    `SELECT count(*)::int AS n FROM attend_access_requests
+      WHERE site_id = $1 AND status = 'pending'`,
+    [site!.id]
+  );
+  res.json({ requests: out, pending: pend[0].n });
+});
+
+/** POST /attendance/access-requests — ask to come in. Usually answered at once. */
+attendanceRouter.post("/access-requests", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = accessRequestSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid request" }); return; }
+  const site = await ownsSite(parsed.data.siteId, req.user!.uid);
+  if (!site) { res.status(404).json(notFound); return; }
+  const d = parsed.data;
+
+  const { rows: people } = await pool.query(
+    `SELECT id, name, active, role, to_char(valid_from,'YYYY-MM-DD') AS valid_from,
+            to_char(valid_to,'YYYY-MM-DD') AS valid_to
+       FROM attend_people WHERE id = $1 AND site_id = $2`,
+    [Number(d.personId), site.id]
+  );
+  if (!people[0]) { res.status(404).json(notFound); return; }
+
+  if (d.validFrom && d.validTo && d.validTo < d.validFrom) {
+    res.status(400).json({ error: "The end date is before the start date" });
+    return;
+  }
+
+  const day = siteToday(site);
+  const verdict = autoDecide(
+    {
+      id: Number(people[0].id),
+      active: people[0].active,
+      role: people[0].role ?? "",
+      validFrom: people[0].valid_from,
+      validTo: people[0].valid_to,
+    },
+    day
+  );
+
+  /*
+   * A person with a live request does not need a second one. Without this, a
+   * button pressed twice leaves two pending rows and an approver who answers
+   * one of them and wonders why the other is still there.
+   */
+  const { rows: existing } = await pool.query(
+    `SELECT id FROM attend_access_requests
+      WHERE site_id = $1 AND person_id = $2 AND status IN ('pending','approved')
+        AND (valid_to IS NULL OR valid_to >= $3::date)
+      LIMIT 1`,
+    [site.id, Number(d.personId), day]
+  );
+  if (existing[0]) {
+    const { rows } = await pool.query(`${ACCESS_REQUEST_SELECT} WHERE r.id = $1`, [existing[0].id]);
+    res.status(200).json({ request: accessRequestRow(rows[0]), existing: true });
+    return;
+  }
+
+  const { rows } = await pool.query(
+    `INSERT INTO attend_access_requests
+       (site_id, person_id, status, decided_by, reason, valid_from, valid_to, decided_at)
+     VALUES ($1,$2,$3,$4,$5,$6::date,$7::date, CASE WHEN $3 = 'pending' THEN NULL ELSE now() END)
+     RETURNING id`,
+    [
+      site.id, Number(d.personId), verdict.status, verdict.decidedBy,
+      d.reason?.trim() || verdict.reason, d.validFrom ?? null, d.validTo ?? null,
+    ]
+  );
+  await recordEvent(
+    req.user!.uid,
+    "attendance",
+    verdict.status === "approved"
+      ? `Office access approved for ${people[0].name ?? `person ${d.personId}`} by ${verdict.decidedBy}`
+      : `Office access requested for ${people[0].name ?? `person ${d.personId}`} — awaiting a decision`,
+    "",
+    null
+  );
+  const { rows: full } = await pool.query(`${ACCESS_REQUEST_SELECT} WHERE r.id = $1`, [rows[0].id]);
+  res.status(201).json({ request: accessRequestRow(full[0]) });
+});
+
+/** PATCH /attendance/access-requests/:id — a person answering, or changing their mind. */
+attendanceRouter.patch("/access-requests/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const rid = id(req.params.id);
+  if (!rid) { res.status(404).json(notFound); return; }
+  const parsed = z
+    .object({
+      status: z.enum(["pending", "approved", "rejected", "revoked"]),
+      reason: z.string().trim().max(200).optional(),
+      validFrom: z.string().trim().length(10).nullable().optional(),
+      validTo: z.string().trim().length(10).nullable().optional(),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid decision" }); return; }
+  const d = parsed.data;
+
+  /*
+   * The decider is recorded by email, never as 'auto'. That word is reserved
+   * for the rule, and letting a person write it would destroy the one
+   * distinction the column exists to make.
+   */
+  const who = req.user!.email || `user:${req.user!.uid}`;
+  const { rows } = await pool.query(
+    `UPDATE attend_access_requests r
+        SET status = $3,
+            decided_by = CASE WHEN $3 = 'pending' THEN '' ELSE $4 END,
+            decided_at = CASE WHEN $3 = 'pending' THEN NULL ELSE now() END,
+            reason = COALESCE($5, r.reason),
+            valid_from = COALESCE($6::date, r.valid_from),
+            valid_to = COALESCE($7::date, r.valid_to)
+       FROM attend_sites s
+      WHERE r.id = $1 AND s.id = r.site_id AND s.owner_id = $2
+      RETURNING r.id`,
+    [rid, req.user!.uid, d.status, who, d.reason ?? null, d.validFrom ?? null, d.validTo ?? null]
+  );
+  if (!rows[0]) { res.status(404).json(notFound); return; }
+  await recordEvent(
+    req.user!.uid,
+    "attendance",
+    `Office access request #${rid} ${d.status} by ${who}`,
+    "",
+    null
+  );
+  const { rows: full } = await pool.query(`${ACCESS_REQUEST_SELECT} WHERE r.id = $1`, [rid]);
+  res.json({ request: accessRequestRow(full[0]) });
 });
 
 /* ------------------------------------------------------------------ *

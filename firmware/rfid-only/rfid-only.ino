@@ -48,13 +48,27 @@
  * only traffic that carries information.
  */
 
+/*
+ * The version must be defined before the library header, not after it.
+ *
+ * CircuventDevice.h guards its own default with `#ifndef CV_FW_VERSION`, so a
+ * define that comes afterwards is simply too late: the library has already
+ * settled on 1.0.0, and every version it reports — the heartbeat, the status
+ * payload, the OTA guard — uses that. The sketch compiles, the device runs, and
+ * it lies about its version for ever.
+ *
+ * That is a nasty failure because it hides the thing it breaks. The OTA guard
+ * is `newVer == CV_FW_VERSION`, so a device stuck at 1.0.0 accepts the same
+ * update endlessly, reboots each time, and reports no progress. It looks like
+ * the update never arrived when in fact it landed perfectly.
+ */
+#define CV_FW_VERSION "1.1.1"
+
 #include <Arduino.h>
 #include <SPI.h>
 #include <MFRC522.h>
 #include <ArduinoJson.h>
 #include <CircuventDevice.h>
-
-#define CV_FW_VERSION "1.1.0"
 
 /* ------------------------------------------------------------------ */
 /* Pins — kept identical to rfid-attend where the function is the same, */

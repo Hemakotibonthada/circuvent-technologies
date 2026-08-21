@@ -25,6 +25,7 @@ import {
   type AttendanceSchedule,
   type AttendanceSite,
   type AttendanceSummaryRow,
+  type AttendanceAccessRequest,
   type AttendanceTerminal,
   type RegisterRow,
 } from "@/lib/control-plane";
@@ -32,7 +33,7 @@ import { useFleet } from "../_data/hooks";
 import { isAttendanceReader } from "@/lib/attendance-readers";
 
 export type AttendanceView =
-  | "live" | "register" | "people" | "cards" | "terminals" | "schedules" | "reports";
+  | "live" | "register" | "people" | "cards" | "terminals" | "schedules" | "reports" | "access";
 
 /** The words a site uses for its people. A school does not have "employees". */
 function vocab(kind: string) {
@@ -125,6 +126,7 @@ export function AttendancePanel({ view }: { view: AttendanceView }) {
       {view === "people" && <People site={site} />}
       {view === "cards" && <Cards site={site} />}
       {view === "terminals" && <Terminals site={site} />}
+      {view === "access" && <OfficeAccess site={site} />}
       {view === "schedules" && <Schedules site={site} />}
       {view === "reports" && <Reports site={site} />}
     </div>
@@ -715,6 +717,270 @@ function Cards({ site }: { site: AttendanceSite }) {
         sync — a lost card is the one case where that minute is the whole point.
       </p>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Office access: who has asked to come in, and what was decided.
+ *
+ * The table distinguishes a rule from a person in the "Decided by" column, and
+ * it matters more than it looks. "auto" means an employee matched the rule and
+ * nobody was asked; an email means somebody took responsibility. Collapsing the
+ * two into a tick would make the audit trail useless in the only situation it
+ * exists for.
+ *
+ * A failed load is not an empty list. An empty table here reads as "nobody has
+ * asked", which is a reassuring thing to see and exactly the wrong conclusion
+ * when the truth is that the request could not be fetched.
+ */
+function OfficeAccess({ site }: { site: AttendanceSite }) {
+  const [requests, setRequests] = useState<AttendanceAccessRequest[]>([]);
+  const [pending, setPending] = useState(0);
+  const [people, setPeople] = useState<AttendancePerson[]>([]);
+  const [filter, setFilter] = useState("");
+  const [personId, setPersonId] = useState("");
+  const [reason, setReason] = useState("");
+  const [validTo, setValidTo] = useState("");
+  const [err, setErr] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(0);
+  const words = vocab(site.kind);
+
+  const load = useCallback(async () => {
+    const [r, p] = await Promise.all([
+      controlPlane.attendanceAccessRequests(site.id, filter || undefined),
+      controlPlane.attendancePeople(site.id),
+    ]);
+    if (r.ok) {
+      setRequests(r.data.requests ?? []);
+      setPending(r.data.pending ?? 0);
+      setLoadError("");
+    } else {
+      setLoadError((r.data as { error?: string })?.error ?? "Could not load access requests.");
+    }
+    if (p.ok) setPeople(p.data.people ?? []);
+    setLoading(false);
+  }, [site.id, filter]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const decide = async (id: number, status: string) => {
+    setBusy(id);
+    const r = await controlPlane.decideAttendanceAccessRequest(id, { status });
+    setBusy(0);
+    if (!r.ok) setErr((r.data as { error?: string })?.error ?? "Could not record that decision.");
+    else { setErr(""); await load(); }
+  };
+
+  return (
+    <div className="space-y-4">
+      {!site.requireAccessRequest && (
+        <div className="flex items-start gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
+          <div className="text-xs text-slate-300">
+            <strong className="text-sky-200">Access requests are not enforced at this site.</strong>{" "}
+            Requests are recorded here, but a card that passes the door rules opens the door whether
+            or not a request exists. Turn on <em>Require an access request</em> under Readers to
+            make an approval a condition of entry.
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={site.requireAccessRequest}
+            onChange={async (e) => {
+              const want = e.target.checked;
+              setErr("");
+              const r = await controlPlane.updateAttendanceSite(site.id, { requireAccessRequest: want });
+              if (!r.ok) setErr((r.data as { error?: string })?.error ?? "Could not change that setting.");
+              else window.location.reload();
+            }}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-violet-500"
+          />
+          <span className="text-xs text-slate-300">
+            <strong className="text-slate-200">Require an access request to open the door.</strong>{" "}
+            With this on, a valid card is not enough on its own — the person also needs an approved
+            request covering today. Employees are approved automatically, so in practice this stops
+            visitors and lapsed cards rather than staff.
+          </span>
+        </label>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="text-sm font-semibold text-slate-200">Raise a request to come in</div>
+        <p className="mt-1 text-xs text-slate-500">
+          An active {words.person} inside their valid dates is approved immediately and the
+          approval is recorded as <span className="font-mono">auto</span>. Anybody else — a
+          visitor, a contractor, somebody inactive or expired — is left pending for a person to
+          answer.
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-4">
+          <select value={personId} onChange={(e) => setPersonId(e.target.value)}
+                  className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100">
+            <option value="">Choose a {words.person}…</option>
+            {people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.code})</option>)}
+          </select>
+          <input value={reason} onChange={(e) => setReason(e.target.value)}
+                 placeholder="Reason (optional)"
+                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
+          <input type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)}
+                 title="Last day this covers. Leave blank for open-ended."
+                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
+          <button
+            disabled={!personId || busy === -1}
+            onClick={async () => {
+              setBusy(-1);
+              setErr(""); setNote("");
+              const r = await controlPlane.createAttendanceAccessRequest({
+                siteId: site.id, personId: Number(personId),
+                reason: reason.trim() || undefined,
+                validFrom: validTo ? today() : undefined,
+                validTo: validTo || undefined,
+              });
+              setBusy(0);
+              if (!r.ok) { setErr((r.data as { error?: string })?.error ?? "Could not raise that request."); return; }
+              if (r.data.existing) setNote("That person already has a live request — showing the existing one.");
+              else if (r.data.request.status === "approved") setNote("Approved automatically.");
+              else setNote("Raised, and waiting for somebody to decide.");
+              setPersonId(""); setReason(""); setValidTo("");
+              await load();
+            }}
+            className="min-h-[44px] rounded-lg border border-violet-500/40 bg-violet-500/10 font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40 transition"
+          >
+            {busy === -1 ? "Raising…" : "Raise request"}
+          </button>
+        </div>
+        {err && <div className="mt-2 text-sm text-red-400">{err}</div>}
+        {note && <div className="mt-2 text-sm text-sky-300">{note}</div>}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {([["", "All"], ["pending", "Pending"], ["approved", "Approved"],
+           ["rejected", "Rejected"], ["revoked", "Revoked"]] as const).map(([id, label]) => (
+          <button key={id || "all"} onClick={() => setFilter(id)}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+              filter === id ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
+                            : "border-white/15 bg-black/20 text-slate-400 hover:bg-white/5"}`}>
+            {label}
+            {id === "pending" && pending > 0 && (
+              <span className="ml-1.5 rounded bg-amber-500/20 px-1.5 text-amber-300">{pending}</span>
+            )}
+          </button>
+        ))}
+        <button onClick={() => void load()} title="Reload"
+                className="ml-auto rounded-lg border border-white/15 bg-black/20 p-2 text-slate-400 hover:bg-white/5">
+          <RefreshCw className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs uppercase text-slate-500">
+            <tr className="border-b border-white/10">
+              <th className="p-3">Person</th><th className="p-3">Status</th>
+              <th className="p-3">Decided by</th><th className="p-3">Covers</th>
+              <th className="p-3">Reason</th><th className="p-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={6} className="p-6 text-center text-slate-500">Loading…</td></tr>
+            )}
+            {!loading && loadError && (
+              <tr><td colSpan={6} className="p-6 text-center">
+                <div className="text-red-400">{loadError}</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  This is a failure to load, not an empty list — there may well be requests waiting.
+                </div>
+                <button onClick={() => void load()}
+                        className="mt-3 rounded-lg border border-white/15 bg-black/20 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">
+                  Try again
+                </button>
+              </td></tr>
+            )}
+            {!loading && !loadError && requests.length === 0 && (
+              <tr><td colSpan={6} className="p-6 text-center text-slate-500">
+                Nobody has asked for office access{filter ? ` with status “${filter}”` : ""} yet.
+              </td></tr>
+            )}
+            {!loadError && requests.map((r) => (
+              <tr key={r.id} className="border-b border-white/5 hover:bg-white/5">
+                <td className="p-3">
+                  <div className="text-slate-200">{r.personName ?? `Person ${r.personId}`}</div>
+                  <div className="text-xs text-slate-500">{r.personCode}</div>
+                </td>
+                <td className="p-3"><AccessPill status={r.status} /></td>
+                <td className="p-3 text-xs">
+                  {r.decidedBy === "auto" ? (
+                    <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-slate-400">
+                      auto
+                    </span>
+                  ) : r.decidedBy ? (
+                    <span className="text-slate-300">{r.decidedBy}</span>
+                  ) : (
+                    <span className="text-slate-600">not yet decided</span>
+                  )}
+                </td>
+                <td className="p-3 text-xs text-slate-500">
+                  {r.validFrom || r.validTo
+                    ? `${r.validFrom ?? "any"} → ${r.validTo ?? "open"}`
+                    : "open-ended"}
+                </td>
+                <td className="p-3 text-xs text-slate-500">{r.reason || "—"}</td>
+                <td className="p-3 text-right whitespace-nowrap">
+                  {r.status === "pending" && (
+                    <>
+                      <button disabled={busy === r.id} onClick={() => void decide(r.id, "approved")}
+                              className="rounded-lg border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs text-green-300 hover:bg-green-500/20 disabled:opacity-40">
+                        Approve
+                      </button>
+                      <button disabled={busy === r.id} onClick={() => void decide(r.id, "rejected")}
+                              className="ml-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20 disabled:opacity-40">
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  {r.status === "approved" && (
+                    <button disabled={busy === r.id} onClick={() => void decide(r.id, "revoked")}
+                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20 disabled:opacity-40">
+                      Revoke
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-slate-600">
+        An approval is checked against its dates at the door, not only its status. A contractor
+        approved for one day keeps an approved row for ever, and reading the status alone would let
+        them back in a month later.
+      </p>
+    </div>
+  );
+}
+
+const ACCESS_STYLE: Record<string, string> = {
+  pending: "text-amber-300 border-amber-500/40 bg-amber-500/10",
+  approved: "text-green-300 border-green-500/40 bg-green-500/10",
+  rejected: "text-red-300 border-red-500/40 bg-red-500/10",
+  revoked: "text-slate-400 border-white/10 bg-white/5",
+};
+
+function AccessPill({ status }: { status: string }) {
+  return (
+    <span className={`rounded-lg border px-2 py-0.5 text-xs font-semibold capitalize ${
+      ACCESS_STYLE[status] ?? ACCESS_STYLE.revoked}`}>
+      {status}
+    </span>
   );
 }
 

@@ -166,7 +166,7 @@ export const GENERATED_FIRMWARE_CATALOG: FirmwareInfo[] = [
   },
   {
     deviceType: "rfid-only",
-    latestVersion: "1.0.0",
+    latestVersion: "1.1.0",
     changelog: [
 
     ],

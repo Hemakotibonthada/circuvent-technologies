@@ -1216,6 +1216,14 @@ export interface AttendanceSite {
   dedupeSeconds: number;
   notifyGuardians: boolean;
   notifyAbsence: boolean;
+  /**
+   * Whether an approved access request is a condition of the door opening.
+   *
+   * Defaults to false so that turning the feature on is a deliberate act. A
+   * default of true would have stopped every card at every existing site the
+   * moment it shipped.
+   */
+  requireAccessRequest: boolean;
   people: number;
   terminals: number;
 }
@@ -1333,6 +1341,29 @@ export interface AttendanceLeave {
   countsAsPresent: boolean;
   note: string;
   approvedBy: string;
+}
+
+/**
+ * Somebody asking to come into the building, and the answer.
+ *
+ * `decidedBy` is either "auto" — the rule agreed on the spot — or the email of
+ * whoever answered. Keeping the two apart is the whole point of recording it:
+ * after an incident, "a rule let them in" and "a person let them in" are very
+ * different answers.
+ */
+export interface AttendanceAccessRequest {
+  id: number;
+  personId: number;
+  personName: string | null;
+  personCode: string | null;
+  status: "pending" | "approved" | "rejected" | "revoked";
+  decidedBy: string;
+  reason: string;
+  /** Null means open-ended; a date pair is how a visitor gets one day only. */
+  validFrom: string | null;
+  validTo: string | null;
+  requestedAt: string;
+  decidedAt: string | null;
 }
 
 export interface RegisterRow {
@@ -1958,11 +1989,23 @@ export const controlPlane = {
     req<{ success: boolean }>("/attendance/rules/" + id, { method: "DELETE" }),
 
   attendanceLeaves: (siteId: number) =>
-    req<{ leaves: AttendanceLeave[] }>("/attendance/leaves?siteId=" + siteId),
-  createAttendanceLeave: (body: Record<string, unknown>) =>
+    req<{ leaves: AttendanceLeave[] }>("/attendance/leaves?siteId=" + siteId),  createAttendanceLeave: (body: Record<string, unknown>) =>
     req<{ leave: { id: number } }>("/attendance/leaves", { method: "POST", body: JSON.stringify(body) }),
   deleteAttendanceLeave: (id: number) =>
     req<{ success: boolean }>("/attendance/leaves/" + id, { method: "DELETE" }),
+
+  attendanceAccessRequests: (siteId: number, status?: string) =>
+    req<{ requests: AttendanceAccessRequest[]; pending: number }>(
+      "/attendance/access-requests?siteId=" + siteId + (status ? "&status=" + status : "")
+    ),
+  createAttendanceAccessRequest: (body: Record<string, unknown>) =>
+    req<{ request: AttendanceAccessRequest; existing?: boolean }>(
+      "/attendance/access-requests", { method: "POST", body: JSON.stringify(body) }
+    ),
+  decideAttendanceAccessRequest: (id: number, body: Record<string, unknown>) =>
+    req<{ request: AttendanceAccessRequest }>(
+      "/attendance/access-requests/" + id, { method: "PATCH", body: JSON.stringify(body) }
+    ),
 
   attendanceRegister: (siteId: number, day?: string, groupId?: number) =>
     req<{ day: string; timezone: string; people: RegisterRow[]; totals: Record<string, number> }>(

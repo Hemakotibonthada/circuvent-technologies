@@ -25,7 +25,7 @@
  * The route stays reachable either way — a bookmark that dead-ends is worse
  * than a page that explains itself.
  */
-import { ClipboardCheck, CalendarCheck, Users, CreditCard, Radio, Clock, BarChart3 } from "lucide-react";
+import { ClipboardCheck, CalendarCheck, Users, CreditCard, Radio, Clock, BarChart3, DoorOpen } from "lucide-react";
 import { SectionShell } from "../_kit/section";
 import { ToastHost } from "../_kit/overlays";
 import { Callout, LoadingState } from "../_kit/primitives";
@@ -38,6 +38,7 @@ const TABS = [
   { id: "people", label: "People", icon: Users },
   { id: "cards", label: "Cards", icon: CreditCard },
   { id: "terminals", label: "Readers", icon: Radio },
+  { id: "access", label: "Office access", icon: DoorOpen },
   { id: "schedules", label: "Schedules", icon: Clock },
   { id: "reports", label: "Reports", icon: BarChart3 },
 ] as const;
@@ -63,6 +64,7 @@ export default function AttendancePage() {
             people: () => <AttendancePanel key="people" view="people" />,
             cards: () => <AttendancePanel key="cards" view="cards" />,
             terminals: () => <AttendancePanel key="terminals" view="terminals" />,
+            access: () => <AttendancePanel key="access" view="access" />,
             schedules: () => <AttendancePanel key="schedules" view="schedules" />,
             reports: () => <AttendancePanel key="reports" view="reports" />,
           }}
