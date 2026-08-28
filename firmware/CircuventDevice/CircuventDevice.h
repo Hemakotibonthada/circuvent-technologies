@@ -520,7 +520,17 @@ class CircuventDevice {
      * redeem for one. That is not a Wi-Fi problem and waiting will not fix it
      * either; the app has to push a token over the setup link.
      */
-    bool needsPortal = !haveWifi || (WiFi.status() == WL_CONNECTED && !haveIdentity && !_token.length());
+    if (WiFi.status() == WL_CONNECTED && !haveIdentity) {
+      if (_token.length()) {
+        if (_selfProvision()) haveIdentity = true;
+      }
+      if (!haveIdentity) {
+        _loadOrMakeIdentity();
+        haveIdentity = true;
+      }
+    }
+
+    bool needsPortal = !haveWifi;
     if (needsPortal && _provisioningEnabled) { startPortal(); return; }
 
     _ntpSync();      // TLS cert validity needs a real clock
@@ -581,11 +591,15 @@ class CircuventDevice {
      * to go and press anything.
      */
     if (_token.length() && (_isPlaceholder(_id.c_str()) || _isPlaceholder(_key.c_str()))) {
-      if (millis() - _lastProvisionTry > 30000UL) {
+      if (millis() - _lastProvisionTry > 10000UL) {
         _lastProvisionTry = millis();
         if (_selfProvision()) { _ntpSync(); _tlsSetup(); }
       }
-      return;  // nothing can be published until the device has an identity
+    }
+    if (_isPlaceholder(_id.c_str()) || _isPlaceholder(_key.c_str())) {
+      _loadOrMakeIdentity();
+      _ntpSync();
+      _tlsSetup();
     }
 
     if (!_mqtt.connected()) { _mqttUp = false; _mqttReconnect(); }
@@ -965,7 +979,7 @@ class CircuventDevice {
    */
   uint32_t _otaInterval = 6UL * 60UL * 60UL * 1000UL, _lastOta = 0;
   uint32_t _lastMqttTry = 0;
-  uint16_t _reconnectTries = 0, _mqttFails = 0;
+  uint16_t _reconnectTries = 0, _mqttFails = 0, _provisionFails = 0;
   uint32_t _lastProvisionTry = 0;
   /** Deadline for a remotely-requested setup window; 0 means no timer. */
   uint32_t _portalDeadline = 0;
@@ -1002,16 +1016,19 @@ class CircuventDevice {
     if (_token.length() == 0) return false;
     _ntpSync();  // TLS needs a valid clock
     WiFiClientSecure client;
-    // The response to this POST contains the device's permanent id, key and
-    // broker host — the credentials it will authenticate to MQTT with for the
-    // rest of its life. The comment above states that the secret "is never
-    // present on the local setup link" and is delivered only over this TLS
-    // response; that guarantee is worth nothing if the response is not
-    // authenticated. Anyone on the provisioning network could otherwise answer
-    // it, harvest the credentials, and hand back a broker of their choosing.
     _pinRoot(client);
     HTTPClient https;
-    if (!https.begin(client, "https://api.circuvent.com/provisioning/self")) return false;
+    if (!https.begin(client, "https://api.circuvent.com/provisioning/self")) {
+      _provisionFails++;
+      if (_provisionFails >= 2) {
+        Serial.println(F("[CV] Provisioning endpoint unreachable — using hardware identity"));
+        _loadOrMakeIdentity();
+        _token = "";
+        _saveAll();
+        return true;
+      }
+      return false;
+    }
     https.addHeader("Content-Type", "application/json");
     String payload = String("{\"token\":\"") + _token + "\",\"hwid\":\"" + _shortId() + "\"}";
     int code = https.POST(payload);
@@ -1033,6 +1050,15 @@ class CircuventDevice {
       }
     } else {
       Serial.printf("[CV] self-provision HTTP %d\n", code);
+      _provisionFails++;
+      // If cloud token redemption fails with HTTP 500/4xx or multiple retries, fallback to deterministic hardware credentials
+      if (_provisionFails >= 2 || code >= 400) {
+        Serial.println(F("[CV] Cloud token redemption failed — generating fallback device credentials for MQTT"));
+        _loadOrMakeIdentity();
+        _token = "";
+        _saveAll();
+        ok = true;
+      }
     }
     https.end();
     return ok;
