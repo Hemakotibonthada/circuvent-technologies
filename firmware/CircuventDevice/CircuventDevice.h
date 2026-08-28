@@ -1202,8 +1202,18 @@ class CircuventDevice {
 #endif
   }
   void _loadOrMakeIdentity() {
-    if (_isPlaceholder(_id.c_str())) _id = String("CV-") + String(_type) + "-" + _shortId();
-    if (_isPlaceholder(_key.c_str())) _key = "K-" + _shortId() + _shortId();
+    if (_isPlaceholder(_id.c_str())) {
+      String t = String(_type);
+      t.toLowerCase();
+      String hw = _shortId();
+      hw.toLowerCase();
+      _id = t + "-" + hw;
+    }
+    if (_isPlaceholder(_key.c_str())) {
+      String hw = _shortId();
+      hw.toLowerCase();
+      _key = "K-" + hw + hw;
+    }
 #if defined(ESP32)
     _prefs.putString("id", _id);
     _prefs.putString("key", _key);

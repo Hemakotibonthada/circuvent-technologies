@@ -144,9 +144,10 @@ function bootstrapDynsec(): void {
   ]);
 }
 
-/** Create a broker client for a freshly-provisioned device (username=id, password=key). */
+/** Create or update a broker client for a freshly-provisioned device (username=id, password=key). */
 export function provisionBrokerClient(id: string, key: string): void {
   dynsec([
+    { command: "deleteClient", username: id },
     { command: "createClient", username: id, password: key },
     { command: "addClientRole", username: id, rolename: "device" },
   ]);
