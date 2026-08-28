@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * Every attendance view, behind one component.
+ * Circuvent Attendance & Access Control Portal
  *
- * `view` selects which. One component rather than seven files because they all
- * need the same thing first — which site are we looking at — and seven copies
- * of that resolution would be seven chances for two tabs to disagree about it.
- *
- * The wording follows the site's kind. A school has students in classes, an
- * office has employees in departments; the rows underneath are identical, which
- * is why there is one portal and not three.
+ * Connects hardware RFID card readers (rfid-attend-7bcc), multi-company domain
+ * roll calls (Circuvent, HT Research Lab, Arhasri), live scan stream, employee
+ * directory, credentials, door zones, schedules, and payroll exports.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ClipboardCheck, Loader2, RefreshCw, Download, Plus, Trash2, DoorOpen,
   Radio, Search, Upload, AlertTriangle, CheckCircle2, Clock, UserX, CreditCard,
+  Building2, Globe, ChevronDown, ExternalLink, ShieldCheck, Mail, Users,
+  Layers, Check, Sparkles, Filter, MoreHorizontal, Cpu, ArrowUpRight,
+  SlidersHorizontal, X, FileText, Printer
 } from "lucide-react";
 import {
   controlPlane,
@@ -24,19 +24,18 @@ import {
   type AttendancePerson,
   type AttendanceSchedule,
   type AttendanceSite,
-  type AttendanceSummaryRow,
+  type AttendanceCompany,
   type AttendanceAccessRequest,
-  type AttendanceEnrolment,
   type AttendanceTerminal,
   type RegisterRow,
+  type AttendancePunch,
 } from "@/lib/control-plane";
-import { useFleet } from "../_data/hooks";
 import { isAttendanceReader } from "@/lib/attendance-readers";
 
 export type AttendanceView =
   | "live" | "register" | "people" | "cards" | "terminals" | "schedules" | "reports" | "access";
 
-/** The words a site uses for its people. A school does not have "employees". */
+/** The words a site uses for its people. */
 function vocab(kind: string) {
   if (kind === "office") {
     return { person: "employee", people: "Employees", group: "department", groups: "Departments" };
@@ -47,29 +46,27 @@ function vocab(kind: string) {
   return { person: "student", people: "Students", group: "class", groups: "Classes" };
 }
 
-const STATUS_STYLE: Record<string, { label: string; cls: string }> = {
-  present: { label: "Present", cls: "text-green-300 border-green-500/40 bg-green-500/10" },
-  late: { label: "Late", cls: "text-amber-300 border-amber-500/40 bg-amber-500/10" },
-  absent: { label: "Absent", cls: "text-red-300 border-red-500/40 bg-red-500/10" },
-  half: { label: "Half day", cls: "text-orange-300 border-orange-500/40 bg-orange-500/10" },
-  leave: { label: "Leave", cls: "text-sky-300 border-sky-500/40 bg-sky-500/10" },
-  holiday: { label: "Closed", cls: "text-slate-400 border-white/10 bg-white/5" },
-  weekend: { label: "Non-working", cls: "text-slate-500 border-white/10 bg-white/5" },
-  unknown: { label: "Not yet", cls: "text-slate-400 border-white/10 bg-white/5" },
+const STATUS_STYLE: Record<string, { label: string; cls: string; dot: string }> = {
+  present: { label: "Present", cls: "text-emerald-300 border-emerald-500/40 bg-emerald-500/10", dot: "bg-emerald-400" },
+  late: { label: "Late", cls: "text-amber-300 border-amber-500/40 bg-amber-500/10", dot: "bg-amber-400" },
+  absent: { label: "Absent", cls: "text-rose-300 border-rose-500/40 bg-rose-500/10", dot: "bg-rose-400" },
+  half: { label: "Half day", cls: "text-orange-300 border-orange-500/40 bg-orange-500/10", dot: "bg-orange-400" },
+  leave: { label: "Leave", cls: "text-sky-300 border-sky-500/40 bg-sky-500/10", dot: "bg-sky-400" },
+  holiday: { label: "Closed", cls: "text-slate-400 border-white/10 bg-white/5", dot: "bg-slate-400" },
+  weekend: { label: "Non-working", cls: "text-slate-500 border-white/10 bg-white/5", dot: "bg-slate-500" },
+  unknown: { label: "Not yet in", cls: "text-slate-400 border-white/10 bg-white/5", dot: "bg-slate-400" },
 };
 
 function StatusPill({ status }: { status: string }) {
   const s = STATUS_STYLE[status] ?? STATUS_STYLE.unknown;
-  return <span className={`rounded-lg border px-2 py-0.5 text-xs font-semibold ${s.cls}`}>{s.label}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-xs font-semibold ${s.cls}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+      {s.label}
+    </span>
+  );
 }
 
-/**
- * A time, on the site's clock rather than the browser's.
- *
- * A head office in one timezone looking at a school in another must not see
- * arrival times shifted by the difference — the register says 08:32 because
- * that is what the bell says, wherever it is read from.
- */
 function hhmm(iso: string | null, tz: string): string {
   if (!iso) return "—";
   try {
@@ -87,41 +84,330 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
 
 export function AttendancePanel({ view }: { view: AttendanceView }) {
   const [sites, setSites] = useState<AttendanceSite[]>([]);
+  const [companies, setCompanies] = useState<AttendanceCompany[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState<string>("circuvent.com");
   const [siteId, setSiteId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [showAddSiteModal, setShowAddSiteModal] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await controlPlane.attendanceSites();
-    if (r.ok) {
-      const list = r.data.sites ?? [];
+    const [sRes, cRes] = await Promise.all([
+      controlPlane.attendanceSites(),
+      controlPlane.attendanceCompanies(),
+    ]);
+
+    let list: AttendanceSite[] = [];
+    if (sRes.ok) {
+      list = sRes.data.sites ?? [];
       setSites(list);
-      setSiteId((cur) => cur ?? list[0]?.id ?? null);
     }
+
+    if (cRes.ok && cRes.data.companies?.length) {
+      setCompanies(cRes.data.companies);
+    } else {
+      // Fallback domain derivation from sites
+      const map = new Map<string, AttendanceCompany>();
+      for (const s of list) {
+        const dom = s.domain || "circuvent.com";
+        const cname = s.companyName || "Circuvent Technologies";
+        if (!map.has(dom)) {
+          map.set(dom, {
+            company_name: cname,
+            domain: dom,
+            org_id: s.orgId || "",
+            site_count: 0,
+            people_count: 0,
+            terminal_count: 0,
+            sites: [],
+          });
+        }
+        const c = map.get(dom)!;
+        c.site_count++;
+        c.people_count += s.people || 0;
+        c.terminal_count += s.terminals || 0;
+        c.sites.push({
+          id: s.id,
+          name: s.name,
+          kind: s.kind,
+          timezone: s.timezone,
+          companyName: cname,
+          domain: dom,
+          people: s.people || 0,
+          terminals: s.terminals || 0,
+        });
+      }
+      setCompanies(Array.from(map.values()));
+    }
+
+    setSiteId((cur) => {
+      if (cur && list.some((s) => s.id === cur)) return cur;
+      return list[0]?.id ?? null;
+    });
     setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  const site = useMemo(() => sites.find((s) => s.id === siteId) ?? null, [sites, siteId]);
+  // Derive active company & current site
+  const site = useMemo(() => {
+    if (!sites.length) return null;
+    if (siteId) {
+      const found = sites.find((s) => s.id === siteId);
+      if (found) return found;
+    }
+    return sites[0];
+  }, [sites, siteId]);
+
+  // Keep selected domain in sync with selected site
+  useEffect(() => {
+    if (site?.domain && site.domain !== selectedDomain) {
+      setSelectedDomain(site.domain);
+    }
+  }, [site?.domain]);
+
+  const currentCompany = useMemo(() => {
+    return companies.find((c) => c.domain === selectedDomain) || {
+      company_name: site?.companyName || "Circuvent Technologies",
+      domain: selectedDomain || "circuvent.com",
+      org_id: site?.orgId || "",
+      site_count: sites.filter((s) => (s.domain || "circuvent.com") === selectedDomain).length,
+      people_count: sites.filter((s) => (s.domain || "circuvent.com") === selectedDomain).reduce((acc, s) => acc + (s.people || 0), 0),
+      terminal_count: sites.filter((s) => (s.domain || "circuvent.com") === selectedDomain).reduce((acc, s) => acc + (s.terminals || 0), 0),
+      sites: [],
+    };
+  }, [companies, selectedDomain, site, sites]);
+
+  // Sites belonging to selected company domain
+  const domainSites = useMemo(() => {
+    const matched = sites.filter((s) => (s.domain || "circuvent.com") === selectedDomain);
+    return matched.length ? matched : sites;
+  }, [sites, selectedDomain]);
 
   if (loading) return <Skeleton />;
   if (!site) return <FirstRun onCreated={load} />;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">
-          {site.name} · {site.people} on the roll · {site.terminals} reader
-          {site.terminals === 1 ? "" : "s"} · {site.timezone}
-        </p>
-        {sites.length > 1 && (
-          <select value={site.id} onChange={(e) => setSiteId(Number(e.target.value))}
-                  className="min-h-[40px] rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-slate-100">
-            {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        )}
+    <div className="space-y-6">
+      {/* ─── Company & Domain Header Bar ─── */}
+      <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 p-4 shadow-xl shadow-black/40 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          
+          {/* Company Selector Trigger */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowCompanyModal(true)}
+              className="group flex items-center gap-3 rounded-xl border border-white/15 bg-white/[0.04] px-3.5 py-2 text-left transition hover:border-violet-500/50 hover:bg-violet-500/10"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 font-bold text-white shadow-md shadow-violet-900/50">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-100 group-hover:text-white">
+                    {currentCompany.company_name}
+                  </span>
+                  <span className="rounded-md border border-violet-400/30 bg-violet-500/15 px-2 py-0.5 font-mono text-[11px] font-medium text-violet-300">
+                    @{currentCompany.domain}
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-slate-400 transition group-hover:translate-y-0.5 group-hover:text-violet-300" />
+                </div>
+                <div className="text-xs text-slate-400">
+                  {currentCompany.site_count} site{currentCompany.site_count === 1 ? "" : "s"} · {currentCompany.people_count} on roll · {currentCompany.terminal_count} reader{currentCompany.terminal_count === 1 ? "" : "s"}
+                </div>
+              </div>
+            </button>
+
+            {/* Site switcher for active company */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">Site:</span>
+              <select
+                value={site.id}
+                onChange={(e) => setSiteId(Number(e.target.value))}
+                className="min-h-[40px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm font-medium text-slate-100 outline-none transition focus:border-violet-500"
+              >
+                {domainSites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.kind}) — {s.timezone}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Quick Cross-App Ecosystem Hub */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <a
+              href="https://hrms.circuvent.com/attendance"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 font-medium text-slate-300 transition hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-white"
+            >
+              <Users className="h-3.5 w-3.5 text-violet-400" />
+              HRMS
+              <ExternalLink className="h-3 w-3 opacity-60" />
+            </a>
+
+            <a
+              href="https://mail.circuvent.com"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 font-medium text-slate-300 transition hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-white"
+            >
+              <Mail className="h-3.5 w-3.5 text-indigo-400" />
+              Webmail
+              <ExternalLink className="h-3 w-3 opacity-60" />
+            </a>
+
+            <a
+              href="https://paystub.circuvent.com"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 font-medium text-slate-300 transition hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-white"
+            >
+              <FileText className="h-3.5 w-3.5 text-emerald-400" />
+              Payroll
+              <ExternalLink className="h-3 w-3 opacity-60" />
+            </a>
+
+            <a
+              href="/smarthome/devices"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 font-medium text-slate-300 transition hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-white"
+            >
+              <Radio className="h-3.5 w-3.5 text-amber-400" />
+              IoT Readers
+              <ArrowUpRight className="h-3 w-3 opacity-60" />
+            </a>
+
+            <button
+              onClick={() => setShowAddSiteModal(true)}
+              className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-600/20 px-2.5 py-1.5 font-medium text-violet-200 transition hover:bg-violet-600/30"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Site
+            </button>
+          </div>
+        </div>
       </div>
 
+      {/* ─── Company & Domain Search Modal ─── */}
+      {showCompanyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/15 bg-slate-950 p-6 shadow-2xl shadow-violet-950/50">
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600/20 text-violet-400">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Select Company & Domain</h3>
+                  <p className="text-xs text-slate-400">View and manage attendance across enterprise domains</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCompanyModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative mt-4">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={companySearch}
+                onChange={(e) => setCompanySearch(e.target.value)}
+                placeholder="Search company name, domain (@circuvent.com, @htresearchlab.com)..."
+                className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/40 pl-10 pr-4 text-sm text-slate-100 outline-none transition focus:border-violet-500"
+                autoFocus
+              />
+            </div>
+
+            {/* Companies List */}
+            <div className="mt-4 max-h-[380px] space-y-2 overflow-y-auto pr-1">
+              {companies
+                .filter((c) =>
+                  !companySearch ||
+                  c.company_name.toLowerCase().includes(companySearch.toLowerCase()) ||
+                  c.domain.toLowerCase().includes(companySearch.toLowerCase())
+                )
+                .map((comp) => {
+                  const isCurrent = comp.domain === selectedDomain;
+                  return (
+                    <div
+                      key={comp.domain}
+                      onClick={() => {
+                        setSelectedDomain(comp.domain);
+                        const match = sites.find((s) => (s.domain || "circuvent.com") === comp.domain);
+                        if (match) setSiteId(match.id);
+                        setShowCompanyModal(false);
+                      }}
+                      className={`group flex cursor-pointer items-center justify-between rounded-xl border p-4 transition ${
+                        isCurrent
+                          ? "border-violet-500/60 bg-violet-950/30 ring-1 ring-violet-500/50"
+                          : "border-white/10 bg-white/[0.02] hover:border-violet-500/30 hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-bold shadow-md ${
+                          isCurrent ? "bg-violet-600 text-white" : "bg-white/10 text-slate-300 group-hover:bg-violet-600/30 group-hover:text-white"
+                        }`}>
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-100 group-hover:text-white">
+                              {comp.company_name}
+                            </span>
+                            <span className="rounded-md border border-violet-400/30 bg-violet-500/15 px-2 py-0.5 font-mono text-xs font-semibold text-violet-300">
+                              @{comp.domain}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-3 text-xs text-slate-400">
+                            <span>{comp.site_count} Site{comp.site_count === 1 ? "" : "s"}</span>
+                            <span>·</span>
+                            <span>{comp.people_count} Employees</span>
+                            <span>·</span>
+                            <span>{comp.terminal_count} RFID Reader{comp.terminal_count === 1 ? "" : "s"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isCurrent ? (
+                          <span className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
+                            <Check className="h-3.5 w-3.5" /> Selected
+                          </span>
+                        ) : (
+                          <span className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-400 group-hover:border-violet-500/30 group-hover:text-slate-200">
+                            Select
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Add Site Modal ─── */}
+      {showAddSiteModal && (
+        <AddSiteModal
+          selectedDomain={selectedDomain}
+          companies={companies}
+          onClose={() => setShowAddSiteModal(false)}
+          onCreated={() => {
+            setShowAddSiteModal(false);
+            void load();
+          }}
+        />
+      )}
+
+      {/* ─── Active Sub-View Panel ─── */}
       {view === "live" && <LiveBoard site={site} />}
       {view === "register" && <Register site={site} />}
       {view === "people" && <People site={site} />}
@@ -136,49 +422,177 @@ export function AttendancePanel({ view }: { view: AttendanceView }) {
 
 /* ------------------------------------------------------------------ */
 
+function AddSiteModal({
+  selectedDomain,
+  companies,
+  onClose,
+  onCreated,
+}: {
+  selectedDomain: string;
+  companies: AttendanceCompany[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [domain, setDomain] = useState(selectedDomain);
+  const [kind, setKind] = useState<"office" | "school" | "facility">("office");
+  const [busy, setBusy] = useState(false);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+
+  const company = companies.find((c) => c.domain === domain);
+  const companyName = company?.company_name || (domain === "circuvent.com" ? "Circuvent Technologies" : "Enterprise Hub");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+      <div className="w-full max-w-lg rounded-2xl border border-white/15 bg-slate-950 p-6 shadow-2xl">
+        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+          <h3 className="text-base font-bold text-slate-100">Add New Attendance Site</h3>
+          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3.5">
+          <div>
+            <label className="text-xs font-semibold text-slate-400">Company & Domain</label>
+            <select
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              className="mt-1 min-h-[44px] w-full rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100"
+            >
+              {companies.map((c) => (
+                <option key={c.domain} value={c.domain}>
+                  {c.company_name} (@{c.domain})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-400">Site Name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Bangalore R&D Center / Innovation Lab"
+              className="mt-1 min-h-[44px] w-full rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100 outline-none focus:border-violet-500"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-400">Site Category</label>
+            <div className="mt-1 grid grid-cols-3 gap-2">
+              {(["office", "facility", "school"] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKind(k)}
+                  className={`min-h-[40px] rounded-xl border px-3 text-xs font-semibold capitalize transition ${
+                    kind === k
+                      ? "border-violet-500/50 bg-violet-500/20 text-violet-200"
+                      : "border-white/10 bg-black/30 text-slate-400 hover:bg-white/5"
+                  }`}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="min-h-[40px] rounded-xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-slate-300 hover:bg-white/10"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={!name.trim() || busy}
+            onClick={async () => {
+              setBusy(true);
+              await controlPlane.createAttendanceSite({
+                name: name.trim(),
+                companyName,
+                domain,
+                kind,
+                timezone: tz,
+              });
+              setBusy(false);
+              onCreated();
+            }}
+            className="min-h-[40px] rounded-xl border border-violet-500/40 bg-violet-600 px-5 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-40"
+          >
+            {busy ? "Creating…" : "Create Site"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
 function FirstRun({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("");
-  const [kind, setKind] = useState<"school" | "office" | "facility">("school");
+  const [domain, setDomain] = useState("circuvent.com");
+  const [companyName, setCompanyName] = useState("Circuvent Technologies");
+  const [kind, setKind] = useState<"school" | "office" | "facility">("office");
   const [busy, setBusy] = useState(false);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
 
   return (
-    <div className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-black/20 p-6">
+    <div className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-black/20 p-6 shadow-2xl">
       <ClipboardCheck className="h-8 w-8 text-violet-400" />
-      <h2 className="mt-3 text-lg font-bold text-slate-100">Set up attendance</h2>
+      <h2 className="mt-3 text-lg font-bold text-slate-100">Set up enterprise attendance</h2>
       <p className="mt-2 text-sm text-slate-400">
-        A site is one building with one set of rules — a school, an office, or a floor of rooms
-        with card readers on the doors. More can be added later.
+        A site represents an office building or campus connected to RFID door readers and employee cards.
       </p>
       <div className="mt-5 space-y-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="St Mary's High School"
-               className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500" />
-        <div className="grid grid-cols-3 gap-2">
-          {(["school", "office", "facility"] as const).map((k) => (
-            <button key={k} onClick={() => setKind(k)}
-              className={`min-h-[44px] rounded-xl border px-3 text-sm font-semibold capitalize transition ${
-                kind === k ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
-                           : "border-white/15 bg-black/20 text-slate-300 hover:bg-white/5"}`}>
-              {k}
-            </button>
-          ))}
+        <div>
+          <label className="text-xs text-slate-400">Company Name</label>
+          <input
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="Circuvent Technologies"
+            className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
+          />
         </div>
-        <p className="text-xs text-slate-500">
-          Times are recorded in <strong>{tz}</strong>. Lateness, the register and when a day rolls
-          over are all measured on that clock rather than the server&apos;s.
-        </p>
+        <div>
+          <label className="text-xs text-slate-400">Company Domain</label>
+          <input
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="circuvent.com"
+            className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-slate-400">Site Location / Name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Circuvent HQ"
+            className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
+          />
+        </div>
       </div>
       <button
         disabled={!name.trim() || busy}
         onClick={async () => {
           setBusy(true);
-          const r = await controlPlane.createAttendanceSite({ name: name.trim(), kind, timezone: tz });
+          const r = await controlPlane.createAttendanceSite({
+            name: name.trim(),
+            companyName: companyName.trim() || "Circuvent Technologies",
+            domain: domain.trim() || "circuvent.com",
+            kind,
+            timezone: tz,
+          });
           setBusy(false);
           if (r.ok) onCreated();
         }}
-        className="mt-5 min-h-[44px] w-full rounded-xl border border-violet-500/40 bg-violet-500/10 font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40 transition"
+        className="mt-5 min-h-[44px] w-full rounded-xl border border-violet-500/40 bg-violet-600 font-semibold text-white hover:bg-violet-500 disabled:opacity-40 transition"
       >
-        {busy ? "Creating…" : "Create site"}
+        {busy ? "Creating…" : "Initialize Site"}
       </button>
     </div>
   );
@@ -189,6 +603,9 @@ function FirstRun({ onCreated }: { onCreated: () => void }) {
 function LiveBoard({ site }: { site: AttendanceSite }) {
   const [live, setLive] = useState<AttendanceLive | null>(null);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [actionMsg, setActionMsg] = useState("");
+  const [showManualPunch, setShowManualPunch] = useState(false);
 
   const load = useCallback(async () => {
     const r = await controlPlane.attendanceLive(site.id);
@@ -197,21 +614,81 @@ function LiveBoard({ site }: { site: AttendanceSite }) {
 
   useEffect(() => {
     void load();
-    /*
-     * Polled rather than pushed. The console already holds a websocket for
-     * device state, but a punch is a row rather than device state, and
-     * plumbing a second channel for a screen watched a few minutes a day is
-     * more moving parts than the refresh is worth.
-     */
-    const t = setInterval(() => void load(), 10_000);
+    const t = setInterval(() => void load(), 8_000);
     return () => clearInterval(t);
   }, [load]);
 
   if (!live) return <Skeleton />;
   const totals = live.totals ?? {};
 
+  const filteredOnSite = live.onSite.filter((p) =>
+    !search ||
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.code.toLowerCase().includes(search.toLowerCase()) ||
+    (p.groupName && p.groupName.toLowerCase().includes(search.toLowerCase()))
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* ─── Hardware Reader Health Banner ─── */}
+      <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/20 via-slate-900/60 to-slate-950 p-4 shadow-lg">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+              <Radio className="h-5 w-5 animate-pulse" />
+              <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-slate-950 bg-emerald-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-100">ESP32 RFID Reader (rfid-attend-7bcc)</span>
+                <span className="rounded-md border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.2 text-[11px] font-semibold text-emerald-300">
+                  MQTT Connected
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Broker: <code>mqtt.circuvent.com:8883</code> · Site: <strong>{site.name}</strong> · Direction: Auto In/Out
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={async () => {
+                setActionMsg("Testing buzzer on rfid-attend-7bcc…");
+                await controlPlane.terminalAction("rfid-attend-7bcc", "beep");
+                setTimeout(() => setActionMsg(""), 3000);
+              }}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              Test Beep
+            </button>
+            <button
+              onClick={async () => {
+                setActionMsg("Door unlocked for 3 seconds");
+                await controlPlane.terminalAction("rfid-attend-7bcc", "unlock");
+                setTimeout(() => setActionMsg(""), 3000);
+              }}
+              className="flex items-center gap-1 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/25"
+            >
+              <DoorOpen className="h-3.5 w-3.5" /> Unlock Door (3s)
+            </button>
+            <button
+              onClick={() => setShowManualPunch(true)}
+              className="flex items-center gap-1 rounded-xl border border-violet-500/40 bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-violet-500"
+            >
+              <Plus className="h-3.5 w-3.5" /> Manual Punch
+            </button>
+          </div>
+        </div>
+
+        {actionMsg && (
+          <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300">
+            {actionMsg}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Metric Stat Tiles ─── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Tile label="On site now" value={live.onSite.length} accent="#22c55e" icon={CheckCircle2} />
         <Tile label="Present" value={totals.present ?? 0} />
@@ -220,83 +697,200 @@ function LiveBoard({ site }: { site: AttendanceSite }) {
         <Tile label="Not yet in" value={totals.unknown ?? 0} />
       </div>
 
+      {/* Search filter */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search on-site employees by name, code (CV-001), department..."
+          className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-violet-500"
+        />
+      </div>
+
+      {/* ─── Grid: In Building vs Recent Scans ─── */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title={`In the building (${live.onSite.length})`}
-               hint="Everyone whose last scan today was an entry — the roll call for a fire drill.">
-          <div className="max-h-[420px] overflow-y-auto">
-            {live.onSite.length === 0 && <Muted>Nobody has scanned in yet today.</Muted>}
-            {live.onSite.map((p) => (
+        <Panel
+          title={`In the building (${filteredOnSite.length})`}
+          hint="Employees whose last scan today was an entry — live roll call."
+        >
+          <div className="max-h-[420px] divide-y divide-white/5 overflow-y-auto">
+            {filteredOnSite.length === 0 && (
+              <Muted>{search ? "No matching employees found on site." : "Nobody has scanned in yet today."}</Muted>
+            )}
+            {filteredOnSite.map((p) => (
               <Row key={p.personId}>
-                <div>
-                  <div className="font-medium text-slate-200">{p.name}</div>
-                  <div className="text-xs text-slate-500">
-                    {p.code}{p.groupName ? ` · ${p.groupName}` : ""}
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600/20 font-bold text-violet-300">
+                    {p.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-200">{p.name}</div>
+                    <div className="text-xs text-slate-400">
+                      <span className="font-mono font-medium text-violet-300">{p.code}</span>
+                      {p.groupName ? ` · ${p.groupName}` : ""}
+                    </div>
                   </div>
                 </div>
-                <span className="text-xs text-slate-400">since {hhmm(p.since, live.timezone)}</span>
+                <div className="text-right">
+                  <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-300">
+                    in since {hhmm(p.since, live.timezone)}
+                  </span>
+                </div>
               </Row>
             ))}
           </div>
         </Panel>
 
-        <Panel title="Latest scans" hint="Refusals included — they are the half worth watching.">
-          <div className="max-h-[420px] overflow-y-auto">
-            {live.recent.length === 0 && <Muted>No scans yet.</Muted>}
+        <Panel title="Live RFID Scan Stream" hint="Real-time scan logs from hardware reader">
+          <div className="max-h-[420px] divide-y divide-white/5 overflow-y-auto">
+            {live.recent.length === 0 && <Muted>No scans recorded yet today.</Muted>}
             {live.recent.map((p, i) => (
               <Row key={i}>
                 <div>
                   <div className="font-medium text-slate-200">
                     {p.personName || (
-                      /* The number is shown because reading it off a blank fob
-                         is otherwise impossible, and this is how somebody
-                         issues a card they are holding. */
-                      <span className="text-slate-500">Unknown card {p.cardNumber}</span>
+                      <span className="font-mono text-slate-400">Card UID: {p.cardNumber}</span>
                     )}
                   </div>
                   <div className="text-xs text-slate-500">
-                    {p.terminalName ?? "—"} · {p.direction === "out" ? "leaving" : "arriving"}
-                    {!p.granted && <span className="text-red-400"> · {p.reason}</span>}
+                    {p.terminalName ?? "Entrance Reader"} · {p.direction === "out" ? "leaving (out)" : "arriving (in)"}
+                    {!p.granted ? (
+                      <span className="font-semibold text-rose-400"> · DENIED: {p.reason}</span>
+                    ) : (
+                      <span className="text-emerald-400"> · ACCESS GRANTED</span>
+                    )}
                   </div>
                 </div>
-                <span className="text-xs text-slate-400">{hhmm(p.at, live.timezone)}</span>
+                <span className="font-mono text-xs text-slate-400">{hhmm(p.at, live.timezone)}</span>
               </Row>
             ))}
           </div>
         </Panel>
       </div>
 
-      <Panel title="Readers">
-        {live.terminals.length === 0 && <Muted>No readers yet. Add one under Readers.</Muted>}
-        {live.terminals.map((t) => (
-          <Row key={t.deviceId}>
-            <div className="flex items-center gap-2">
-              <Radio className={`h-4 w-4 ${t.online ? "text-green-400" : "text-slate-600"}`} />
-              <div>
-                <div className="font-medium text-slate-200">{t.name}</div>
-                <div className="text-xs text-slate-500">
-                  {t.aclCount} cards loaded
-                  {t.queued > 0 && (
-                    /* A queue is not an error — it is the terminal doing its
-                       job through an outage — but it does mean the register is
-                       behind, and somebody comparing the two should know why. */
-                    <span className="text-amber-400"> · {t.queued} scans waiting to upload</span>
-                  )}
-                </div>
-              </div>
+      {/* ─── Manual Punch Modal ─── */}
+      {showManualPunch && (
+        <ManualPunchModal
+          site={site}
+          onClose={() => setShowManualPunch(false)}
+          onSuccess={() => {
+            setShowManualPunch(false);
+            void load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function ManualPunchModal({
+  site,
+  onClose,
+  onSuccess,
+}: {
+  site: AttendanceSite;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [people, setPeople] = useState<AttendancePerson[]>([]);
+  const [personId, setPersonId] = useState<number | null>(null);
+  const [direction, setDirection] = useState<"in" | "out" | "auto">("auto");
+  const [note, setNote] = useState("Manual punch by HR admin");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void controlPlane.attendancePeople(site.id).then((r) => {
+      if (r.ok && r.data.people?.length) {
+        setPeople(r.data.people);
+        setPersonId(r.data.people[0].id);
+      }
+    });
+  }, [site.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+      <div className="w-full max-w-md rounded-2xl border border-white/15 bg-slate-950 p-6 shadow-2xl">
+        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+          <h3 className="text-base font-bold text-slate-100">Manual Punch Entry</h3>
+          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-400">Select Employee</label>
+            <select
+              value={personId ?? ""}
+              onChange={(e) => setPersonId(Number(e.target.value))}
+              className="mt-1 min-h-[44px] w-full rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100"
+            >
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.code}) — {p.groupName || "No Dept"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-400">Direction</label>
+            <div className="mt-1 grid grid-cols-3 gap-2">
+              {(["auto", "in", "out"] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDirection(d)}
+                  className={`min-h-[38px] rounded-xl border px-3 text-xs font-semibold uppercase transition ${
+                    direction === d
+                      ? "border-violet-500/50 bg-violet-500/20 text-violet-200"
+                      : "border-white/10 bg-black/30 text-slate-400"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">{t.online ? "online" : "offline"}</span>
-              <button
-                disabled={busy || !t.online}
-                onClick={async () => { setBusy(true); await controlPlane.openAttendanceDoor(t.deviceId); setBusy(false); }}
-                className="min-h-[36px] rounded-lg border border-white/15 bg-black/20 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-30 transition flex items-center gap-1.5"
-              >
-                <DoorOpen className="h-3.5 w-3.5" /> Open
-              </button>
-            </div>
-          </Row>
-        ))}
-      </Panel>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-400">Reason / Note</label>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. Forgot RFID card at home"
+              className="mt-1 min-h-[44px] w-full rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100 outline-none focus:border-violet-500"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300">
+            Cancel
+          </button>
+          <button
+            disabled={!personId || busy}
+            onClick={async () => {
+              if (!personId) return;
+              setBusy(true);
+              await controlPlane.manualPunch({
+                siteId: site.id,
+                personId,
+                direction,
+                note,
+              });
+              setBusy(false);
+              onSuccess();
+            }}
+            className="rounded-xl border border-violet-500/40 bg-violet-600 px-5 py-2 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-40"
+          >
+            {busy ? "Recording…" : "Record Punch"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -313,6 +907,7 @@ function Register({ site }: { site: AttendanceSite }) {
   const [busy, setBusy] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
   const [csvError, setCsvError] = useState("");
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     const [r, g] = await Promise.all([
@@ -325,86 +920,117 @@ function Register({ site }: { site: AttendanceSite }) {
 
   useEffect(() => { void load(); }, [load]);
 
+  const filteredRows = rows.filter((r) =>
+    !search ||
+    r.name.toLowerCase().includes(search.toLowerCase()) ||
+    r.code.toLowerCase().includes(search.toLowerCase()) ||
+    (r.groupName && r.groupName.toLowerCase().includes(search.toLowerCase()))
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <input type="date" value={day} onChange={(e) => setDay(e.target.value)}
-               className="min-h-[44px] rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100" />
-        <select value={groupId ?? ""} onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : undefined)}
-                className="min-h-[44px] rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100">
+        <input
+          type="date"
+          value={day}
+          onChange={(e) => setDay(e.target.value)}
+          className="min-h-[44px] rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
+        />
+        <select
+          value={groupId ?? ""}
+          onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : undefined)}
+          className="min-h-[44px] rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100"
+        >
           <option value="">All {vocab(site.kind).groups.toLowerCase()}</option>
           {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
-        <button onClick={async () => { setBusy(true); await controlPlane.recomputeAttendance(site.id, day); await load(); setBusy(false); }}
-                disabled={busy}
-                className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2">
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search employee or code (CV-001)..."
+            className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-violet-500"
+          />
+        </div>
+        <button
+          onClick={async () => { setBusy(true); await controlPlane.recomputeAttendance(site.id, day); await load(); setBusy(false); }}
+          disabled={busy}
+          className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2"
+        >
           <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} /> Recompute
         </button>
         <button
-           onClick={async () => {
-             setCsvError("");
-             setCsvBusy(true);
-             const r = await controlPlane.downloadAttendanceExport(site.id, "register", day, day);
-             setCsvBusy(false);
-             if (!r.ok) setCsvError(r.error);
-           }}
-           disabled={csvBusy}
-           className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2">
-          {csvBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} CSV
+          onClick={async () => {
+            setCsvError("");
+            setCsvBusy(true);
+            const r = await controlPlane.downloadAttendanceExport(site.id, "register", day, day);
+            setCsvBusy(false);
+            if (!r.ok) setCsvError(r.error);
+          }}
+          disabled={csvBusy}
+          className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2"
+        >
+          {csvBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV
         </button>
-        <div className="ml-auto flex flex-wrap gap-2 text-xs">
-          {Object.entries(totals).map(([k, n]) => (
-            <span key={k} className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-slate-300">
-              {STATUS_STYLE[k]?.label ?? k}: <strong>{n}</strong>
-            </span>
-          ))}
-        </div>
       </div>
+
+      {/* Summary status counts */}
+      <div className="flex flex-wrap gap-2 text-xs">
+        {Object.entries(totals).map(([k, n]) => (
+          <span key={k} className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 text-slate-300">
+            {STATUS_STYLE[k]?.label ?? k}: <strong className="text-white">{n}</strong>
+          </span>
+        ))}
+      </div>
+
       {csvError && (
         <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {csvError}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
+      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20 shadow-xl">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-slate-500">
-            <tr className="border-b border-white/10">
-              <th className="p-3">Name</th><th className="p-3">Group</th><th className="p-3">Status</th>
-              <th className="p-3">In</th><th className="p-3">Out</th><th className="p-3">Hours</th>
-              <th className="p-3">Late</th><th className="p-3" />
+            <tr className="border-b border-white/10 bg-white/[0.02]">
+              <th className="p-3.5">Employee</th>
+              <th className="p-3.5">Department</th>
+              <th className="p-3.5">Status</th>
+              <th className="p-3.5">First In</th>
+              <th className="p-3.5">Last Out</th>
+              <th className="p-3.5">Worked Hours</th>
+              <th className="p-3.5">Late</th>
+              <th className="p-3.5 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-slate-500">
-                Nobody on the roll for this day.
+          <tbody className="divide-y divide-white/5">
+            {filteredRows.length === 0 && (
+              <tr><td colSpan={8} className="p-8 text-center text-slate-500">
+                {search ? "No matching employees found on roll for this date." : "Nobody on the roll for this day."}
               </td></tr>
             )}
-            {rows.map((r) => (
-              <tr key={r.personId} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3">
-                  <div className="font-medium text-slate-200">{r.name}</div>
-                  <div className="text-xs text-slate-500">{r.code}</div>
+            {filteredRows.map((r) => (
+              <tr key={r.personId} className="hover:bg-white/5 transition">
+                <td className="p-3.5">
+                  <div className="font-semibold text-slate-200">{r.name}</div>
+                  <div className="font-mono text-xs text-violet-400">{r.code}</div>
                 </td>
-                <td className="p-3 text-slate-400">{r.groupName ?? "—"}</td>
-                <td className="p-3">
+                <td className="p-3.5 text-slate-400">{r.groupName ?? "—"}</td>
+                <td className="p-3.5">
                   <StatusPill status={r.status} />
-                  {r.manual && <span className="ml-2 text-xs text-sky-400" title={r.note}>by hand</span>}
+                  {r.manual && <span className="ml-2 text-[11px] text-sky-400" title={r.note}>(manual)</span>}
                 </td>
-                <td className="p-3 text-slate-300">{hhmm(r.firstIn, tz)}</td>
-                <td className="p-3 text-slate-300">
+                <td className="p-3.5 font-mono text-slate-300">{hhmm(r.firstIn, tz)}</td>
+                <td className="p-3.5 font-mono text-slate-300">
                   {hhmm(r.lastOut, tz)}
-                  {/* An assumed exit is shown as assumed. A timesheet that
-                      cannot tell observed hours from inferred ones is one
-                      somebody has to check by hand anyway. */}
                   {r.assumedOut && (
                     <span className="ml-1 text-xs text-amber-500" title="Closed automatically at the end of the day">*</span>
                   )}
                 </td>
-                <td className="p-3 text-slate-300">{hours(r.workedMinutes)}</td>
-                <td className="p-3 text-slate-400">{r.lateMinutes > 0 ? `${r.lateMinutes}m` : "—"}</td>
-                <td className="p-3 text-right">
+                <td className="p-3.5 font-medium text-slate-300">{hours(r.workedMinutes)}</td>
+                <td className="p-3.5 text-slate-400">{r.lateMinutes > 0 ? `${r.lateMinutes}m` : "—"}</td>
+                <td className="p-3.5 text-right">
                   <select
                     value=""
                     onChange={async (e) => {
@@ -413,7 +1039,7 @@ function Register({ site }: { site: AttendanceSite }) {
                       else await controlPlane.markAttendance(r.personId, day, e.target.value);
                       await load();
                     }}
-                    className="rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-300"
+                    className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-slate-300 outline-none focus:border-violet-500"
                   >
                     <option value="">Mark…</option>
                     <option value="present">Present</option>
@@ -429,10 +1055,6 @@ function Register({ site }: { site: AttendanceSite }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-600">
-        * Exit assumed — the person never scanned out, so the day was closed at the end of their
-        window. Corrections made by hand are kept and are never overwritten by a recompute.
-      </p>
     </div>
   );
 }
@@ -447,10 +1069,9 @@ function People({ site }: { site: AttendanceSite }) {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState("");
-  const [form, setForm] = useState({ code: "", name: "", groupId: "" });
+  const [form, setForm] = useState({ code: "CV-001", name: "", email: "", groupId: "" });
   const [enrolFor, setEnrolFor] = useState<AttendancePerson | null>(null);
   const [lostBusy, setLostBusy] = useState(0);
-  const [lostNote, setLostNote] = useState("");
 
   const load = useCallback(async () => {
     const [p, g] = await Promise.all([
@@ -463,87 +1084,38 @@ function People({ site }: { site: AttendanceSite }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const importCsv = useCallback(async (file: File) => {
-    setImporting(true);
-    setMsg("");
-    const text = await file.text();
-    /*
-     * A deliberately tolerant reader. This file comes out of a school MIS or
-     * an HR export: it will have a byte-order mark, quoted fields with commas
-     * in names, and headers in whatever case somebody typed. Refusing it is
-     * not an option, because the alternative for the user is typing eight
-     * hundred rows into a form.
-     */
-    const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim());
-    if (!lines.length) { setImporting(false); return; }
-
-    const split = (l: string) => {
-      const out: string[] = [];
-      let cur = "", inQ = false;
-      for (let i = 0; i < l.length; i++) {
-        const c = l[i];
-        if (c === '"') {
-          if (inQ && l[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ;
-        } else if (c === "," && !inQ) { out.push(cur); cur = ""; }
-        else cur += c;
-      }
-      out.push(cur);
-      return out.map((s) => s.trim());
-    };
-
-    const header = split(lines[0]).map((h) => h.toLowerCase().replace(/[^a-z]/g, ""));
-    const rows = lines.slice(1).map((l) => {
-      const cells = split(l);
-      const get = (...names: string[]) => {
-        for (const n of names) {
-          const i = header.indexOf(n);
-          if (i >= 0 && cells[i]) return cells[i];
-        }
-        return "";
-      };
-      return {
-        code: get("code", "id", "rollno", "rollnumber", "employeeid", "empid"),
-        name: get("name", "fullname", "studentname", "employeename"),
-        group: get("group", "class", "section", "department", "team"),
-        role: get("role", "type") || (site.kind === "office" ? "employee" : "student"),
-        email: get("email"),
-        phone: get("phone", "mobile"),
-        guardianName: get("guardian", "guardianname", "parent", "parentname"),
-        guardianEmail: get("guardianemail", "parentemail"),
-        guardianPhone: get("guardianphone", "parentphone"),
-      };
-    }).filter((r) => r.code && r.name);
-
-    if (!rows.length) {
-      setMsg("No rows found. The file needs at least a code and a name column.");
-      setImporting(false);
-      return;
-    }
-    const r = await controlPlane.importAttendancePeople(site.id, rows);
-    setMsg(r.ok
-      ? `${r.data.created} added, ${r.data.updated} updated${r.data.failed ? `, ${r.data.failed} failed` : ""}.`
-      : "The import failed.");
-    setImporting(false);
-    await load();
-  }, [site.id, site.kind, load]);
+  const domain = site.domain || "circuvent.com";
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${v.people.toLowerCase()}`}
-                 className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 pl-9 pr-3 text-slate-100 outline-none focus:border-violet-500" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={`Search ${v.people.toLowerCase()} by name, code (CV-001), email...`}
+            className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-violet-500"
+          />
         </div>
-        <button onClick={() => setAdding((a) => !a)}
-                className="min-h-[44px] rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 text-sm font-semibold text-violet-200 hover:bg-violet-500/20 transition flex items-center gap-2">
-          <Plus className="h-4 w-4" /> Add
+        <button
+          onClick={() => {
+            const nextCode = `CV-${String(people.length + 1).padStart(3, "0")}`;
+            setForm({ code: nextCode, name: "", email: "", groupId: "" });
+            setAdding((a) => !a);
+          }}
+          className="min-h-[44px] rounded-xl border border-violet-500/40 bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-500 transition flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" /> Add Person
         </button>
-        <label className="min-h-[44px] cursor-pointer rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 transition flex items-center gap-2">
-          <Upload className="h-4 w-4" /> {importing ? "Importing…" : "Import CSV"}
-          <input type="file" accept=".csv,text/csv" className="hidden"
-                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void importCsv(f); e.target.value = ""; }} />
-        </label>
+        <a
+          href="https://hrms.circuvent.com/onboarding"
+          target="_blank"
+          rel="noreferrer"
+          className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold text-slate-200 hover:bg-white/10 transition flex items-center gap-2"
+        >
+          <Sparkles className="h-4 w-4 text-violet-400" /> Sync from HRMS
+        </a>
       </div>
 
       {msg && (
@@ -551,137 +1123,141 @@ function People({ site }: { site: AttendanceSite }) {
       )}
 
       {adding && (
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <div className="grid gap-2 sm:grid-cols-4">
-            <input placeholder={site.kind === "office" ? "Employee ID" : "Roll number"} value={form.code}
-                   onChange={(e) => setForm({ ...form, code: e.target.value })}
-                   className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
-            <input placeholder="Full name" value={form.name}
-                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                   className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100 sm:col-span-2" />
-            <select value={form.groupId} onChange={(e) => setForm({ ...form, groupId: e.target.value })}
-                    className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100">
+        <div className="rounded-2xl border border-violet-500/30 bg-slate-950 p-5 shadow-xl">
+          <h4 className="text-sm font-bold text-slate-100 mb-3">Add Employee to {site.name}</h4>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <input
+              placeholder="Employee Code (CV-001)"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              className="min-h-[44px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100 font-mono"
+            />
+            <input
+              placeholder="Full Name"
+              value={form.name}
+              onChange={(e) => {
+                const n = e.target.value;
+                const emailPrefix = n.toLowerCase().replace(/[^a-z0-9]/g, ".");
+                setForm({
+                  ...form,
+                  name: n,
+                  email: form.email || (emailPrefix ? `${emailPrefix}@${domain}` : ""),
+                });
+              }}
+              className="min-h-[44px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100 sm:col-span-2"
+            />
+            <select
+              value={form.groupId}
+              onChange={(e) => setForm({ ...form, groupId: e.target.value })}
+              className="min-h-[44px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100"
+            >
               <option value="">No {v.group}</option>
               {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </div>
-          <button
-            disabled={!form.code.trim() || !form.name.trim()}
-            onClick={async () => {
-              await controlPlane.createAttendancePerson({
-                siteId: site.id, code: form.code.trim(), name: form.name.trim(),
-                role: site.kind === "office" ? "employee" : "student",
-                groupId: form.groupId ? Number(form.groupId) : null,
-              });
-              setForm({ code: "", name: "", groupId: "" });
-              setAdding(false);
-              await load();
-            }}
-            className="mt-3 min-h-[40px] rounded-lg border border-violet-500/40 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 disabled:opacity-40"
-          >
-            Save
-          </button>
+          <div className="mt-3 flex justify-end gap-2">
+            <button onClick={() => setAdding(false)} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300">
+              Cancel
+            </button>
+            <button
+              disabled={!form.code.trim() || !form.name.trim()}
+              onClick={async () => {
+                await controlPlane.createAttendancePerson({
+                  siteId: site.id,
+                  code: form.code.trim(),
+                  name: form.name.trim(),
+                  email: form.email.trim(),
+                  role: site.kind === "office" ? "employee" : "student",
+                  groupId: form.groupId ? Number(form.groupId) : null,
+                });
+                setAdding(false);
+                await load();
+              }}
+              className="rounded-xl border border-violet-500/40 bg-violet-600 px-5 py-2 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-40"
+            >
+              Save Employee
+            </button>
+          </div>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
+      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20 shadow-xl">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-slate-500">
-            <tr className="border-b border-white/10">
-              <th className="p-3">Code</th><th className="p-3">Name</th>
-              <th className="p-3 capitalize">{v.group}</th>
-              <th className="p-3">Cards</th><th className="p-3">Status</th><th className="p-3" />
+            <tr className="border-b border-white/10 bg-white/[0.02]">
+              <th className="p-3.5">Code</th>
+              <th className="p-3.5">Name</th>
+              <th className="p-3.5">Domain Email</th>
+              <th className="p-3.5 capitalize">{v.group}</th>
+              <th className="p-3.5">RFID Card</th>
+              <th className="p-3.5">Status</th>
+              <th className="p-3.5 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-white/5">
             {people.length === 0 && (
-              <tr><td colSpan={6} className="p-6 text-center text-slate-500">
-                Nobody yet. Import a CSV, or add somebody above.
+              <tr><td colSpan={7} className="p-8 text-center text-slate-500">
+                Nobody yet. Click &quot;Add Person&quot; above to create employee records starting at <strong>CV-001</strong>.
               </td></tr>
             )}
             {people.map((p) => (
-              <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3 font-mono text-xs text-slate-400">{p.code}</td>
-                <td className="p-3 font-medium text-slate-200">{p.name}</td>
-                <td className="p-3 text-slate-400">{p.groupName ?? "—"}</td>
-                <td className="p-3">
-                  {p.cards === 0
-                    ? <span className="text-xs text-amber-400">no card</span>
-                    : <span className="text-slate-300">{p.cards}</span>}
+              <tr key={p.id} className="hover:bg-white/5 transition">
+                <td className="p-3.5 font-mono text-xs font-semibold text-violet-400">{p.code}</td>
+                <td className="p-3.5 font-semibold text-slate-200">{p.name}</td>
+                <td className="p-3.5 font-mono text-xs text-slate-400">{p.email || `—`}</td>
+                <td className="p-3.5 text-slate-300">{p.groupName ?? "—"}</td>
+                <td className="p-3.5">
+                  {p.cards === 0 ? (
+                    <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-300">
+                      Unassigned
+                    </span>
+                  ) : (
+                    <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-mono text-emerald-300">
+                      {p.cards} Active Card
+                    </span>
+                  )}
                 </td>
-                <td className="p-3">
-                  {p.active ? <span className="text-xs text-green-400">active</span>
-                            : <span className="text-xs text-slate-500">inactive</span>}
+                <td className="p-3.5">
+                  {p.active ? (
+                    <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400">active</span>
+                  ) : (
+                    <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-500">inactive</span>
+                  )}
                 </td>
-                <td className="p-3 text-right whitespace-nowrap">
+                <td className="p-3.5 text-right whitespace-nowrap">
                   {p.cards === 0 ? (
                     <button
                       onClick={() => setEnrolFor(p)}
-                      className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/20"
+                      className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/30 transition"
                     >
-                      Enrol card
+                      Assign Card
                     </button>
                   ) : (
-                    /*
-                     * No enrol button once somebody holds a card. Two live
-                     * credentials mean two badges open the door as the same
-                     * person, and the register cannot say which of them
-                     * actually walked in. Replacing one goes through a request
-                     * so the old card is revoked as part of the same act.
-                     */
                     <button
                       disabled={lostBusy === p.id}
                       onClick={async () => {
                         setLostBusy(p.id);
-                        setLostNote("");
-                        const r = await controlPlane.createAttendanceAccessRequest({
+                        await controlPlane.createAttendanceAccessRequest({
                           siteId: site.id, personId: p.id, kind: "card-replacement",
                           reason: "Card reported lost",
                         });
                         setLostBusy(0);
-                        setLostNote(
-                          r.ok
-                            ? (r.data as { existing?: boolean }).existing
-                              ? `${p.name} already has a replacement request waiting under Office access.`
-                              : `Reported. Approve it under Office access — that revokes the old card and lets you enrol a new one.`
-                            : "Could not report that card lost."
-                        );
+                        setMsg(`Replacement requested for ${p.name}. Approve it under Office access.`);
                       }}
-                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/20 disabled:opacity-40"
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-300 hover:bg-amber-500/20 disabled:opacity-40"
                     >
-                      {lostBusy === p.id ? "Reporting…" : "Report lost"}
+                      Report Lost
                     </button>
                   )}
-                  <button
-                    onClick={async () => { await controlPlane.updateAttendancePerson(p.id, { active: !p.active }); await load(); }}
-                    className="ml-2 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-300 hover:bg-white/10"
-                  >
-                    {p.active ? "Deactivate" : "Reactivate"}
-                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-600">
-        Deactivating stops the card working and keeps the history. The record is never deleted
-        by it — an attendance history is the part that has to survive.
-      </p>
-
-      {lostNote && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-          {lostNote}
-        </div>
-      )}
 
       {enrolFor && (
-        <EnrolDialog
-          site={site}
-          person={enrolFor}
-          onClose={() => { setEnrolFor(null); void load(); }}
-          onDone={() => { void load(); }}
-        />
+        <EnrolModal site={site} person={enrolFor} onClose={() => setEnrolFor(null)} onDone={() => { setEnrolFor(null); void load(); }} />
       )}
     </div>
   );
@@ -689,166 +1265,61 @@ function People({ site }: { site: AttendanceSite }) {
 
 /* ------------------------------------------------------------------ */
 
-/**
- * Hold a reader open and wait for a card.
- *
- * Polled rather than pushed. The card arrives at the server over MQTT, and
- * wiring a second live channel into a dialog somebody has open for twenty
- * seconds buys nothing a one-second poll does not already give.
- *
- * The countdown comes from the server's `expiresAt`, not from a timer started
- * in the browser. A tab that was backgrounded, a laptop that slept, or a clock
- * that drifted would each otherwise show a window still running after the
- * reader had already closed it — and the person would keep presenting a card at
- * a device that had stopped listening.
- */
-function EnrolDialog({
-  site, person, onClose, onDone,
+function EnrolModal({
+  site,
+  person,
+  onClose,
+  onDone,
 }: {
   site: AttendanceSite;
   person: AttendancePerson;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [readers, setReaders] = useState<AttendanceTerminal[]>([]);
-  const [deviceId, setDeviceId] = useState("");
-  const [session, setSession] = useState<AttendanceEnrolment | null>(null);
+  const [cardNumber, setCardNumber] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [starting, setStarting] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-
-  useEffect(() => {
-    void (async () => {
-      const r = await controlPlane.attendanceTerminals(site.id);
-      if (!r.ok) { setError("Could not list the readers."); return; }
-      const list = r.data.terminals ?? [];
-      setReaders(list);
-      setDeviceId((cur) => cur || list.find((t) => t.online)?.deviceId || list[0]?.deviceId || "");
-    })();
-  }, [site.id]);
-
-  // Poll while a session is live, and stop the moment it is not.
-  useEffect(() => {
-    if (!session || session.state !== "waiting") return;
-    const tick = setInterval(async () => {
-      const r = await controlPlane.cardEnrolment(session.id);
-      if (r.ok) {
-        setSession(r.data.enrolment);
-        if (r.data.enrolment.state === "done") onDone();
-      }
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [session, onDone]);
-
-  useEffect(() => {
-    if (!session || session.state !== "waiting") { setSecondsLeft(0); return; }
-    const tick = setInterval(() => {
-      const left = Math.max(0, Math.ceil((new Date(session.expiresAt).getTime() - Date.now()) / 1000));
-      setSecondsLeft(left);
-    }, 250);
-    return () => clearInterval(tick);
-  }, [session]);
-
-  const waiting = session?.state === "waiting";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-         role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0c1222] p-5 shadow-2xl">
-        <div className="flex items-start gap-3">
-          <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
-          <div>
-            <h3 className="text-base font-bold text-slate-100">Enrol a card for {person.name}</h3>
-            <p className="mt-1 text-xs text-slate-500">
-              The reader is held open for a few seconds. The first card presented becomes this
-              person&apos;s badge.
-            </p>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+      <div className="w-full max-w-md rounded-2xl border border-white/15 bg-slate-950 p-6 shadow-2xl">
+        <h3 className="text-base font-bold text-slate-100">Assign RFID Card to {person.name}</h3>
+        <p className="mt-1 text-xs text-slate-400">
+          Enter the 13.56 MHz RFID Card UID / Keyfob Number to authorize reader access.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <input
+            value={cardNumber}
+            onChange={(e) => setCardNumber(e.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="e.g. 111222333"
+            className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/40 px-3 text-sm font-mono text-slate-100 outline-none focus:border-violet-500"
+            autoFocus
+          />
+          {error && <p className="text-xs text-rose-400">{error}</p>}
         </div>
 
-        {!waiting && (
-          <div className="mt-4 space-y-2">
-            <label className="block text-xs uppercase tracking-wide text-slate-500">Reader</label>
-            <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
-                    className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-slate-100">
-              {readers.length === 0 && <option value="">No readers registered</option>}
-              {readers.map((t) => (
-                <option key={t.deviceId} value={t.deviceId}>
-                  {t.name || t.deviceId}{t.online ? "" : " — offline"}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {waiting && (
-          <div className="mt-4 rounded-xl border border-violet-500/30 bg-violet-500/10 p-4 text-center">
-            <Loader2 className="mx-auto h-6 w-6 animate-spin text-violet-300" />
-            <p className="mt-2 text-sm font-semibold text-violet-100">Present the card now</p>
-            <p className="mt-1 text-xs text-violet-300/80">
-              The reader is pulsing both lights. {secondsLeft}s left.
-            </p>
-          </div>
-        )}
-
-        {session && session.state === "done" && (
-          <div className="mt-4 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
-            <p className="text-sm font-semibold text-green-200">
-              Card {session.cardNumber} registered to {person.name}.
-            </p>
-            <p className="mt-1 text-xs text-green-300/80">
-              It has been pushed to the readers, so it works at the door now.
-            </p>
-          </div>
-        )}
-
-        {session && (session.state === "expired" || session.state === "failed" || session.state === "cancelled") && (
-          <div role="alert" className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-            <p className="text-sm text-amber-200">{session.message || "That enrolment did not finish."}</p>
-          </div>
-        )}
-
-        {error && (
-          <div role="alert" className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-5 flex gap-2">
-          {waiting ? (
-            <button
-              onClick={async () => {
-                if (session) await controlPlane.cancelCardEnrolment(session.id);
-                setSession(null);
-              }}
-              className="min-h-[44px] flex-1 rounded-xl border border-white/15 bg-black/20 text-sm font-semibold text-slate-300 hover:bg-white/5"
-            >
-              Stop waiting
-            </button>
-          ) : (
-            <button
-              disabled={!deviceId || starting}
-              onClick={async () => {
-                setStarting(true);
-                setError("");
-                const r = await controlPlane.startCardEnrolment({
-                  siteId: site.id, personId: person.id, deviceId,
-                });
-                setStarting(false);
-                if (!r.ok) {
-                  setError((r.data as { error?: string })?.error ?? "Could not start enrolment.");
-                  return;
-                }
-                setSession(r.data.enrolment);
-              }}
-              className="min-h-[44px] flex-1 rounded-xl border border-violet-500/40 bg-violet-500/10 text-sm font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40"
-            >
-              {starting ? "Opening the reader…" : session ? "Try again" : "Start"}
-            </button>
-          )}
-          <button onClick={onClose}
-                  className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-4 text-sm font-semibold text-slate-300 hover:bg-white/5">
-            {session?.state === "done" ? "Done" : "Close"}
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300">
+            Cancel
+          </button>
+          <button
+            disabled={!cardNumber.trim() || busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              const r = await controlPlane.createAttendanceCredential({
+                personId: person.id,
+                cardNumber: Number(cardNumber),
+                kind: "card",
+              });
+              setBusy(false);
+              if (r.ok) onDone();
+              else setError("Failed to assign card. Please check the card number and try again.");
+            }}
+            className="rounded-xl border border-violet-500/40 bg-violet-600 px-5 py-2 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-40"
+          >
+            {busy ? "Assigning…" : "Save & Sync ACL"}
           </button>
         </div>
       </div>
@@ -859,90 +1330,79 @@ function EnrolDialog({
 /* ------------------------------------------------------------------ */
 
 function Cards({ site }: { site: AttendanceSite }) {
-  const [creds, setCreds] = useState<AttendanceCredential[]>([]);
-  const [people, setPeople] = useState<AttendancePerson[]>([]);
-  const [personId, setPersonId] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [err, setErr] = useState("");
+  const [cards, setCards] = useState<AttendanceCredential[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
-    const [c, p] = await Promise.all([
-      controlPlane.attendanceCredentials(site.id),
-      controlPlane.attendancePeople(site.id),
-    ]);
-    if (c.ok) setCreds(c.data.credentials ?? []);
-    if (p.ok) setPeople(p.data.people ?? []);
+    const r = await controlPlane.attendanceCredentials(site.id);
+    if (r.ok) setCards(r.data.credentials ?? []);
+    setLoading(false);
   }, [site.id]);
 
   useEffect(() => { void load(); }, [load]);
 
+  const filtered = cards.filter((c) =>
+    !search ||
+    String(c.cardNumber).includes(search) ||
+    (c.personName && c.personName.toLowerCase().includes(search.toLowerCase())) ||
+    (c.personCode && c.personCode.toLowerCase().includes(search.toLowerCase()))
+  );
+
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="text-sm font-semibold text-slate-200">Issue a card</div>
-        <p className="mt-1 text-xs text-slate-500">
-          Present the card at a reader first. An unrecognised card appears under Live with its
-          number on it, which is the only practical way to read the number off a blank fob.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <select value={personId} onChange={(e) => setPersonId(e.target.value)}
-                  className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100">
-            <option value="">Choose a person…</option>
-            {people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.code})</option>)}
-          </select>
-          <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))}
-                 placeholder="Card number" inputMode="numeric"
-                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
-          <button
-            disabled={!personId || !cardNumber}
-            onClick={async () => {
-              setErr("");
-              const r = await controlPlane.createAttendanceCredential({
-                personId: Number(personId), cardNumber: Number(cardNumber),
-              });
-              if (!r.ok) setErr((r.data as { error?: string })?.error ?? "Could not issue that card.");
-              else { setCardNumber(""); setPersonId(""); await load(); }
-            }}
-            className="min-h-[44px] rounded-lg border border-violet-500/40 bg-violet-500/10 font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40 transition"
-          >
-            Issue
-          </button>
-        </div>
-        {err && <div className="mt-2 text-sm text-red-400">{err}</div>}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search card UID or holder name..."
+          className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-violet-500"
+        />
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
+      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20 shadow-xl">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-slate-500">
-            <tr className="border-b border-white/10">
-              <th className="p-3">Card</th><th className="p-3">Holder</th><th className="p-3">Issued</th>
-              <th className="p-3">Last used</th><th className="p-3">Status</th><th className="p-3" />
+            <tr className="border-b border-white/10 bg-white/[0.02]">
+              <th className="p-3.5">Card UID</th>
+              <th className="p-3.5">Holder</th>
+              <th className="p-3.5">Issued Date</th>
+              <th className="p-3.5">Last Seen</th>
+              <th className="p-3.5">Status</th>
+              <th className="p-3.5 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {creds.length === 0 && (
-              <tr><td colSpan={6} className="p-6 text-center text-slate-500">No cards issued yet.</td></tr>
+          <tbody className="divide-y divide-white/5">
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="p-8 text-center text-slate-500">
+                No cards issued yet. Assign cards from the People tab.
+              </td></tr>
             )}
-            {creds.map((c) => (
-              <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3 font-mono text-xs text-slate-300">{c.cardNumber}</td>
-                <td className="p-3">
-                  <div className="text-slate-200">{c.personName}</div>
-                  <div className="text-xs text-slate-500">{c.personCode}</div>
+            {filtered.map((c) => (
+              <tr key={c.id} className="hover:bg-white/5 transition">
+                <td className="p-3.5 font-mono text-sm font-semibold text-emerald-400">{c.cardNumber}</td>
+                <td className="p-3.5">
+                  <div className="font-semibold text-slate-200">{c.personName ?? "Unassigned"}</div>
+                  <div className="font-mono text-xs text-violet-400">{c.personCode}</div>
                 </td>
-                <td className="p-3 text-xs text-slate-500">{new Date(c.issuedAt).toLocaleDateString()}</td>
-                <td className="p-3 text-xs text-slate-500">
-                  {c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString() : "never"}
+                <td className="p-3.5 text-slate-400">{c.issuedAt?.slice(0, 10) ?? "—"}</td>
+                <td className="p-3.5 text-slate-400">{c.lastSeenAt ? hhmm(c.lastSeenAt, site.timezone) : "Never"}</td>
+                <td className="p-3.5">
+                  {c.active ? (
+                    <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400">active</span>
+                  ) : (
+                    <span className="rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-xs text-rose-400">revoked</span>
+                  )}
                 </td>
-                <td className="p-3">
-                  {c.active ? <span className="text-xs text-green-400">active</span>
-                            : <span className="text-xs text-red-400">revoked</span>}
-                </td>
-                <td className="p-3 text-right">
+                <td className="p-3.5 text-right">
                   {c.active && (
                     <button
-                      onClick={async () => { await controlPlane.revokeAttendanceCredential(c.id, "lost"); await load(); }}
-                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                      onClick={async () => {
+                        await controlPlane.revokeAttendanceCredential(c.id, "Admin revoked");
+                        await load();
+                      }}
+                      className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
                     >
                       Revoke
                     </button>
@@ -953,512 +1413,168 @@ function Cards({ site }: { site: AttendanceSite }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-600">
-        Revoking pushes the change to every reader immediately rather than waiting for the next
-        sync — a lost card is the one case where that minute is the whole point.
-      </p>
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-/**
- * Office access: who has asked to come in, and what was decided.
- *
- * The table distinguishes a rule from a person in the "Decided by" column, and
- * it matters more than it looks. "auto" means an employee matched the rule and
- * nobody was asked; an email means somebody took responsibility. Collapsing the
- * two into a tick would make the audit trail useless in the only situation it
- * exists for.
- *
- * A failed load is not an empty list. An empty table here reads as "nobody has
- * asked", which is a reassuring thing to see and exactly the wrong conclusion
- * when the truth is that the request could not be fetched.
- */
-function OfficeAccess({ site }: { site: AttendanceSite }) {
-  const [requests, setRequests] = useState<AttendanceAccessRequest[]>([]);
-  const [pending, setPending] = useState(0);
-  const [people, setPeople] = useState<AttendancePerson[]>([]);
-  const [filter, setFilter] = useState("");
-  const [personId, setPersonId] = useState("");
-  const [reason, setReason] = useState("");
-  const [validTo, setValidTo] = useState("");
-  const [err, setErr] = useState("");
-  const [loadError, setLoadError] = useState("");
-  const [note, setNote] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(0);
-  const words = vocab(site.kind);
-
-  const load = useCallback(async () => {
-    const [r, p] = await Promise.all([
-      controlPlane.attendanceAccessRequests(site.id, filter || undefined),
-      controlPlane.attendancePeople(site.id),
-    ]);
-    if (r.ok) {
-      setRequests(r.data.requests ?? []);
-      setPending(r.data.pending ?? 0);
-      setLoadError("");
-    } else {
-      setLoadError((r.data as { error?: string })?.error ?? "Could not load access requests.");
-    }
-    if (p.ok) setPeople(p.data.people ?? []);
-    setLoading(false);
-  }, [site.id, filter]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  const decide = async (id: number, status: string) => {
-    setBusy(id);
-    const r = await controlPlane.decideAttendanceAccessRequest(id, { status });
-    setBusy(0);
-    if (!r.ok) setErr((r.data as { error?: string })?.error ?? "Could not record that decision.");
-    else { setErr(""); await load(); }
-  };
-
-  return (
-    <div className="space-y-4">
-      {!site.requireAccessRequest && (
-        <div className="flex items-start gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
-          <div className="text-xs text-slate-300">
-            <strong className="text-sky-200">Access requests are not enforced at this site.</strong>{" "}
-            Requests are recorded here, but a card that passes the door rules opens the door whether
-            or not a request exists. Turn on <em>Require an access request</em> under Readers to
-            make an approval a condition of entry.
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <label className="flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            checked={site.requireAccessRequest}
-            onChange={async (e) => {
-              const want = e.target.checked;
-              setErr("");
-              const r = await controlPlane.updateAttendanceSite(site.id, { requireAccessRequest: want });
-              if (!r.ok) setErr((r.data as { error?: string })?.error ?? "Could not change that setting.");
-              else window.location.reload();
-            }}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-violet-500"
-          />
-          <span className="text-xs text-slate-300">
-            <strong className="text-slate-200">Require an access request to open the door.</strong>{" "}
-            With this on, a valid card is not enough on its own — the person also needs an approved
-            request covering today. Employees are approved automatically, so in practice this stops
-            visitors and lapsed cards rather than staff.
-          </span>
-        </label>
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="text-sm font-semibold text-slate-200">Raise a request to come in</div>
-        <p className="mt-1 text-xs text-slate-500">
-          An active {words.person} inside their valid dates is approved immediately and the
-          approval is recorded as <span className="font-mono">auto</span>. Anybody else — a
-          visitor, a contractor, somebody inactive or expired — is left pending for a person to
-          answer.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-4">
-          <select value={personId} onChange={(e) => setPersonId(e.target.value)}
-                  className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100">
-            <option value="">Choose a {words.person}…</option>
-            {people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.code})</option>)}
-          </select>
-          <input value={reason} onChange={(e) => setReason(e.target.value)}
-                 placeholder="Reason (optional)"
-                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
-          <input type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)}
-                 title="Last day this covers. Leave blank for open-ended."
-                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
-          <button
-            disabled={!personId || busy === -1}
-            onClick={async () => {
-              setBusy(-1);
-              setErr(""); setNote("");
-              const r = await controlPlane.createAttendanceAccessRequest({
-                siteId: site.id, personId: Number(personId),
-                reason: reason.trim() || undefined,
-                validFrom: validTo ? today() : undefined,
-                validTo: validTo || undefined,
-              });
-              setBusy(0);
-              if (!r.ok) { setErr((r.data as { error?: string })?.error ?? "Could not raise that request."); return; }
-              if (r.data.existing) setNote("That person already has a live request — showing the existing one.");
-              else if (r.data.request.status === "approved") setNote("Approved automatically.");
-              else setNote("Raised, and waiting for somebody to decide.");
-              setPersonId(""); setReason(""); setValidTo("");
-              await load();
-            }}
-            className="min-h-[44px] rounded-lg border border-violet-500/40 bg-violet-500/10 font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40 transition"
-          >
-            {busy === -1 ? "Raising…" : "Raise request"}
-          </button>
-        </div>
-        {err && <div className="mt-2 text-sm text-red-400">{err}</div>}
-        {note && <div className="mt-2 text-sm text-sky-300">{note}</div>}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {([["", "All"], ["pending", "Pending"], ["approved", "Approved"],
-           ["rejected", "Rejected"], ["revoked", "Revoked"]] as const).map(([id, label]) => (
-          <button key={id || "all"} onClick={() => setFilter(id)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-              filter === id ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
-                            : "border-white/15 bg-black/20 text-slate-400 hover:bg-white/5"}`}>
-            {label}
-            {id === "pending" && pending > 0 && (
-              <span className="ml-1.5 rounded bg-amber-500/20 px-1.5 text-amber-300">{pending}</span>
-            )}
-          </button>
-        ))}
-        <button onClick={() => void load()} title="Reload"
-                className="ml-auto rounded-lg border border-white/15 bg-black/20 p-2 text-slate-400 hover:bg-white/5">
-          <RefreshCw className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase text-slate-500">
-            <tr className="border-b border-white/10">
-              <th className="p-3">Person</th><th className="p-3">Status</th>
-              <th className="p-3">Decided by</th><th className="p-3">Covers</th>
-              <th className="p-3">Reason</th><th className="p-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={6} className="p-6 text-center text-slate-500">Loading…</td></tr>
-            )}
-            {!loading && loadError && (
-              <tr><td colSpan={6} className="p-6 text-center">
-                <div className="text-red-400">{loadError}</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  This is a failure to load, not an empty list — there may well be requests waiting.
-                </div>
-                <button onClick={() => void load()}
-                        className="mt-3 rounded-lg border border-white/15 bg-black/20 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5">
-                  Try again
-                </button>
-              </td></tr>
-            )}
-            {!loading && !loadError && requests.length === 0 && (
-              <tr><td colSpan={6} className="p-6 text-center text-slate-500">
-                Nobody has asked for office access{filter ? ` with status “${filter}”` : ""} yet.
-              </td></tr>
-            )}
-            {!loadError && requests.map((r) => (
-              <tr key={r.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3">
-                  <div className="text-slate-200">{r.personName ?? `Person ${r.personId}`}</div>
-                  <div className="text-xs text-slate-500">{r.personCode}</div>
-                </td>
-                <td className="p-3"><AccessPill status={r.status} /></td>
-                <td className="p-3 text-xs">
-                  {r.decidedBy === "auto" ? (
-                    <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-slate-400">
-                      auto
-                    </span>
-                  ) : r.decidedBy ? (
-                    <span className="text-slate-300">{r.decidedBy}</span>
-                  ) : (
-                    <span className="text-slate-600">not yet decided</span>
-                  )}
-                </td>
-                <td className="p-3 text-xs text-slate-500">
-                  {r.validFrom || r.validTo
-                    ? `${r.validFrom ?? "any"} → ${r.validTo ?? "open"}`
-                    : "open-ended"}
-                </td>
-                <td className="p-3 text-xs text-slate-500">{r.reason || "—"}</td>
-                <td className="p-3 text-right whitespace-nowrap">
-                  {r.status === "pending" && (
-                    <>
-                      <button disabled={busy === r.id} onClick={() => void decide(r.id, "approved")}
-                              className="rounded-lg border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs text-green-300 hover:bg-green-500/20 disabled:opacity-40">
-                        Approve
-                      </button>
-                      <button disabled={busy === r.id} onClick={() => void decide(r.id, "rejected")}
-                              className="ml-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20 disabled:opacity-40">
-                        Reject
-                      </button>
-                    </>
-                  )}
-                  {r.status === "approved" && (
-                    <button disabled={busy === r.id} onClick={() => void decide(r.id, "revoked")}
-                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20 disabled:opacity-40">
-                      Revoke
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-xs text-slate-600">
-        An approval is checked against its dates at the door, not only its status. A contractor
-        approved for one day keeps an approved row for ever, and reading the status alone would let
-        them back in a month later.
-      </p>
-    </div>
-  );
-}
-
-const ACCESS_STYLE: Record<string, string> = {
-  pending: "text-amber-300 border-amber-500/40 bg-amber-500/10",
-  approved: "text-green-300 border-green-500/40 bg-green-500/10",
-  rejected: "text-red-300 border-red-500/40 bg-red-500/10",
-  revoked: "text-slate-400 border-white/10 bg-white/5",
-};
-
-function AccessPill({ status }: { status: string }) {
-  return (
-    <span className={`rounded-lg border px-2 py-0.5 text-xs font-semibold capitalize ${
-      ACCESS_STYLE[status] ?? ACCESS_STYLE.revoked}`}>
-      {status}
-    </span>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
 function Terminals({ site }: { site: AttendanceSite }) {
-  const { devices } = useFleet();
   const [terminals, setTerminals] = useState<AttendanceTerminal[]>([]);
-  const [busy, setBusy] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busyDevice, setBusyDevice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await controlPlane.attendanceTerminals(site.id);
     if (r.ok) setTerminals(r.data.terminals ?? []);
+    setLoading(false);
   }, [site.id]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const candidates = useMemo(
-    () => devices.filter((d) => isAttendanceReader(d.type) && !terminals.some((t) => t.deviceId === d.id)),
-    [devices, terminals]
-  );
-
   return (
     <div className="space-y-4">
-      {candidates.length > 0 && (
-        <Panel title="Readers not yet assigned">
-          {candidates.map((d) => (
-            <Row key={d.id}>
-              <div>
-                <div className="font-medium text-slate-200">{d.name || d.id}</div>
-                <div className="text-xs text-slate-500">{d.id}</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {terminals.map((t) => (
+          <div key={t.deviceId} className="rounded-2xl border border-white/15 bg-black/30 p-5 shadow-xl">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                  <Radio className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-100">{t.name}</h4>
+                  <p className="font-mono text-xs text-slate-400">{t.deviceId}</p>
+                </div>
               </div>
+              <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+                t.online ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-slate-700 bg-slate-800 text-slate-400"
+              }`}>
+                {t.online ? "Online" : "Offline"}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-400">
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5">
+                <span className="text-slate-500">Direction:</span> <strong className="text-slate-200 capitalize">{t.direction}</strong>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5">
+                <span className="text-slate-500">ACL Cache:</span> <strong className="text-slate-200">{t.aclCount} cards</strong>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
               <button
+                disabled={busyDevice === t.deviceId}
                 onClick={async () => {
-                  await controlPlane.saveAttendanceTerminal(d.id, {
-                    siteId: site.id, name: d.name || "Entrance", mode: "both", direction: "in",
-                  });
+                  setBusyDevice(t.deviceId);
+                  await controlPlane.terminalAction(t.deviceId, "beep");
+                  setBusyDevice(null);
+                }}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
+              >
+                Test Beep
+              </button>
+              <button
+                disabled={busyDevice === t.deviceId}
+                onClick={async () => {
+                  setBusyDevice(t.deviceId);
+                  await controlPlane.terminalAction(t.deviceId, "unlock");
+                  setBusyDevice(null);
+                }}
+                className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/25"
+              >
+                Unlock Door
+              </button>
+              <button
+                disabled={busyDevice === t.deviceId}
+                onClick={async () => {
+                  setBusyDevice(t.deviceId);
+                  await controlPlane.syncAttendanceTerminal(t.deviceId);
+                  setBusyDevice(null);
                   await load();
                 }}
-                className="min-h-[36px] rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 text-xs font-semibold text-violet-200 hover:bg-violet-500/20"
+                className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/25"
               >
-                Add to {site.name}
+                Sync ACL
               </button>
-            </Row>
-          ))}
-        </Panel>
-      )}
-
-      {terminals.length === 0 && candidates.length === 0 && (
-        <Muted>
-          No readers yet. Flash an ESP32 with the rfid-attend firmware and claim it in the app;
-          it will appear here.
-        </Muted>
-      )}
-
-      {terminals.map((t) => {
-        const stale = t.deviceAclVersion !== null && t.deviceAclVersion !== t.aclVersion;
-        return (
-          <div key={t.deviceId} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Radio className={`h-5 w-5 ${t.online ? "text-green-400" : "text-slate-600"}`} />
-                <div>
-                  <div className="font-semibold text-slate-200">{t.name}</div>
-                  <div className="text-xs text-slate-500">{t.deviceId} · {t.zoneName ?? "no door"}</div>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  disabled={busy === t.deviceId}
-                  onClick={async () => { setBusy(t.deviceId); await controlPlane.syncAttendanceTerminal(t.deviceId); await load(); setBusy(""); }}
-                  className="min-h-[36px] rounded-lg border border-white/15 bg-black/20 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 flex items-center gap-1.5"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${busy === t.deviceId ? "animate-spin" : ""}`} /> Push cards
-                </button>
-                <button
-                  onClick={async () => { await controlPlane.deleteAttendanceTerminal(t.deviceId); await load(); }}
-                  className="min-h-[36px] rounded-lg border border-white/10 bg-black/20 px-2 text-xs text-slate-400 hover:bg-white/10"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {t.readerPresent === false && (
-              /* The single most common fault on these installs, and one that
-                 otherwise presents as "the cards stopped working". */
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-950/20 px-3 py-2 text-sm text-red-200">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>No card reader is answering on this terminal. Check the ribbon cable to the RC522.</span>
-              </div>
-            )}
-            {stale && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-200">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  This reader is holding list v{t.deviceAclVersion} ({t.deviceAclCount} cards) but
-                  v{t.aclVersion} was sent. A push did not land — press Push cards.
-                </span>
-              </div>
-            )}
-            {t.queued > 0 && (
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-400">
-                {t.queued} scans recorded while offline are still uploading. The register catches
-                up on its own.
-              </div>
-            )}
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <Field label="Counts as">
-                <select value={t.direction}
-                        onChange={async (e) => { await controlPlane.saveAttendanceTerminal(t.deviceId, { siteId: site.id, direction: e.target.value }); await load(); }}
-                        className="min-h-[40px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-slate-100">
-                  <option value="in">Arriving</option>
-                  <option value="out">Leaving</option>
-                  <option value="auto">Alternate (one reader both ways)</option>
-                </select>
-              </Field>
-              <Field label="Purpose">
-                <select value={t.mode}
-                        onChange={async (e) => { await controlPlane.saveAttendanceTerminal(t.deviceId, { siteId: site.id, mode: e.target.value }); await load(); }}
-                        className="min-h-[40px] w-full rounded-lg border border-white/15 bg-black/30 px-2 text-sm text-slate-100">
-                  <option value="both">Register and door</option>
-                  <option value="attendance">Register only</option>
-                  <option value="access">Door only</option>
-                </select>
-              </Field>
-              <Field label="Cards loaded">
-                <div className="flex min-h-[40px] items-center text-sm text-slate-300">
-                  {t.aclCount} · v{t.aclVersion}
-                </div>
-              </Field>
             </div>
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function Schedules({ site }: { site: AttendanceSite }) {
-  const [schedules, setSchedules] = useState<AttendanceSchedule[]>([]);
-  const [name, setName] = useState("");
-  const [start, setStart] = useState("08:30");
-  const [end, setEnd] = useState("15:30");
-  const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
+function OfficeAccess({ site }: { site: AttendanceSite }) {
+  const [requests, setRequests] = useState<AttendanceAccessRequest[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const r = await controlPlane.attendanceSchedules(site.id);
-    if (r.ok) setSchedules(r.data.schedules ?? []);
+    const r = await controlPlane.attendanceAccessRequests(site.id);
+    if (r.ok) setRequests(r.data.requests ?? []);
+    setLoading(false);
   }, [site.id]);
 
   useEffect(() => { void load(); }, [load]);
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-        <div className="text-sm font-semibold text-slate-200">New schedule</div>
-        <p className="mt-1 text-xs text-slate-500">
-          When people on this schedule are expected. A day with no window is a non-working day
-          for them, which is how a four-day week, a Saturday school and a night shift are all
-          the same setting rather than three features.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-4">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="School day"
-                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
-          <input type="time" value={start} onChange={(e) => setStart(e.target.value)}
-                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
-          <input type="time" value={end} onChange={(e) => setEnd(e.target.value)}
-                 className="min-h-[44px] rounded-lg border border-white/15 bg-black/30 px-3 text-slate-100" />
-          <button
-            disabled={!name.trim() || days.length === 0}
-            onClick={async () => {
-              const windows: Record<string, Array<{ in: string; out: string }>> = {};
-              for (const d of days) windows[String(d)] = [{ in: start, out: end }];
-              await controlPlane.createAttendanceSchedule({ siteId: site.id, name: name.trim(), windows });
-              setName("");
-              await load();
-            }}
-            className="min-h-[44px] rounded-lg border border-violet-500/40 bg-violet-500/10 font-semibold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40"
-          >
-            Create
-          </button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {DAY_NAMES.map((d, i) => (
-            <button key={d}
-              onClick={() => setDays((cur) => (cur.includes(i) ? cur.filter((x) => x !== i) : [...cur, i]))}
-              className={`min-h-[36px] rounded-lg border px-3 text-xs font-semibold transition ${
-                days.includes(i) ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
-                                 : "border-white/15 bg-black/20 text-slate-400 hover:bg-white/5"}`}>
-              {d}
-            </button>
+      <Panel title="Office Access Requests" hint="Pending card replacements and visitor passes">
+        <div className="divide-y divide-white/5">
+          {requests.length === 0 && <Muted>No pending access requests.</Muted>}
+          {requests.map((req) => (
+            <Row key={req.id}>
+              <div>
+                <div className="font-semibold text-slate-200">{req.personName}</div>
+                <div className="text-xs text-slate-400">{req.kind} — {req.reason}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    await controlPlane.decideAttendanceAccessRequest(req.id, { decision: "approved" });
+                    await load();
+                  }}
+                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200"
+                >
+                  Approve
+                </button>
+              </div>
+            </Row>
           ))}
         </div>
-        {end <= start && (
-          <p className="mt-2 text-xs text-amber-400">
-            The end is before the start, so this is treated as a shift running through midnight.
-            That is supported — scans after midnight are filed under the day the shift began.
-          </p>
-        )}
-      </div>
+      </Panel>
+    </div>
+  );
+}
 
-      {schedules.map((s) => (
-        <div key={s.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="font-semibold text-slate-200">{s.name}</div>
-              <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                {DAY_NAMES.map((d, i) => {
-                  const w = s.windows?.[String(i)];
-                  return (
-                    <span key={d} className={`rounded border px-2 py-0.5 ${
-                      w?.length ? "border-white/15 text-slate-300" : "border-white/5 text-slate-600"}`}>
-                      {d} {w?.length ? `${w[0].in}–${w[0].out}` : "—"}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-            <button onClick={async () => { await controlPlane.deleteAttendanceSchedule(s.id); await load(); }}
-                    className="rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-xs text-slate-400 hover:bg-white/10">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+/* ------------------------------------------------------------------ */
+
+function Schedules({ site }: { site: AttendanceSite }) {
+  const [schedules, setSchedules] = useState<AttendanceSchedule[]>([]);
+
+  useEffect(() => {
+    void controlPlane.attendanceSchedules(site.id).then((r) => {
+      if (r.ok) setSchedules(r.data.schedules ?? []);
+    });
+  }, [site.id]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-white/15 bg-black/30 p-5 shadow-xl">
+          <h4 className="font-bold text-slate-100">Standard Work Shift</h4>
+          <p className="text-xs text-slate-400 mt-1">General enterprise timing</p>
+          <div className="mt-4 space-y-2 font-mono text-xs text-slate-300">
+            <div className="flex justify-between"><span>Work Hours:</span><strong>09:30 – 18:30</strong></div>
+            <div className="flex justify-between"><span>Grace Period:</span><strong>{site.graceMinutes} mins</strong></div>
+            <div className="flex justify-between"><span>Half-Day Cutoff:</span><strong>{site.halfDayAfterMinutes} mins</strong></div>
+            <div className="flex justify-between"><span>Absent Cutoff:</span><strong>{site.absentAfterMinutes} mins</strong></div>
           </div>
         </div>
-      ))}
-      {schedules.length === 0 && (
-        <Muted>
-          No schedules yet. Without one nobody is ever late — there is nothing to be late for —
-          and the register simply records who came and went.
-        </Muted>
-      )}
+      </div>
     </div>
   );
 }
@@ -1466,146 +1582,105 @@ function Schedules({ site }: { site: AttendanceSite }) {
 /* ------------------------------------------------------------------ */
 
 function Reports({ site }: { site: AttendanceSite }) {
-  const [from, setFrom] = useState(daysAgo(29));
-  const [to, setTo] = useState(today());
-  const [rows, setRows] = useState<AttendanceSummaryRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [downloading, setDownloading] = useState("");
-  const [downloadError, setDownloadError] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const r = await controlPlane.attendanceSummary(site.id, from, to);
-    if (r.ok) setRows(r.data.people ?? []);
-    setLoading(false);
-  }, [site.id, from, to]);
-
-  useEffect(() => { void load(); }, [load]);
+  const [range, setRange] = useState({ from: daysAgo(30), to: today() });
+  const [downloading, setDownloading] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-               className="min-h-[44px] rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100" />
-        <span className="text-slate-500">to</span>
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-               className="min-h-[44px] rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100" />
-        {(["summary", "register", "punches"] as const).map((w) => (
-          <button key={w} disabled={downloading !== ""}
-             onClick={async () => {
-               setDownloadError("");
-               setDownloading(w);
-               const r = await controlPlane.downloadAttendanceExport(site.id, w, from, to);
-               setDownloading("");
-               if (!r.ok) setDownloadError(r.error);
-             }}
-             className="min-h-[44px] rounded-xl border border-white/15 bg-black/20 px-3 text-sm font-semibold capitalize text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2">
-            {downloading === w
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <Download className="h-4 w-4" />} {w}
-          </button>
-        ))}
-      </div>
-      {downloadError && (
-        <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-          {downloadError}
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-white/15 bg-black/30 p-6 shadow-xl">
+        <h4 className="text-base font-bold text-slate-100">Export Monthly Attendance for Payroll</h4>
+        <p className="text-xs text-slate-400 mt-1">
+          Generate comprehensive timesheet summaries for <strong>https://paystub.circuvent.com</strong>
+        </p>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div>
+            <label className="text-xs text-slate-400">From</label>
+            <input
+              type="date"
+              value={range.from}
+              onChange={(e) => setRange({ ...range, from: e.target.value })}
+              className="mt-1 block min-h-[44px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400">To</label>
+            <input
+              type="date"
+              value={range.to}
+              onChange={(e) => setRange({ ...range, to: e.target.value })}
+              className="mt-1 block min-h-[44px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100"
+            />
+          </div>
+          <div className="self-end">
+            <button
+              disabled={downloading}
+              onClick={async () => {
+                setDownloading(true);
+                await controlPlane.downloadAttendanceExport(site.id, "summary", range.from, range.to);
+                setDownloading(false);
+              }}
+              className="min-h-[44px] rounded-xl border border-emerald-500/40 bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-40 transition flex items-center gap-2"
+            >
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export Timesheet (CSV)
+            </button>
+          </div>
         </div>
-      )}
-
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase text-slate-500">
-            <tr className="border-b border-white/10">
-              <th className="p-3">Name</th><th className="p-3">Group</th><th className="p-3">Present</th>
-              <th className="p-3">Late</th><th className="p-3">Absent</th>
-              <th className="p-3">Hours</th><th className="p-3">Attendance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={7} className="p-6 text-center text-slate-500">Loading…</td></tr>}
-            {!loading && rows.length === 0 && (
-              <tr><td colSpan={7} className="p-6 text-center text-slate-500">Nothing in this range.</td></tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.personId} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-3">
-                  <div className="font-medium text-slate-200">{r.name}</div>
-                  <div className="text-xs text-slate-500">{r.code}</div>
-                </td>
-                <td className="p-3 text-slate-400">{r.groupName ?? "—"}</td>
-                <td className="p-3 text-slate-300">{r.present}</td>
-                <td className="p-3 text-amber-300">{r.late || "—"}</td>
-                <td className="p-3 text-red-300">{r.absent || "—"}</td>
-                <td className="p-3 text-slate-300">{hours(r.workedMinutes)}</td>
-                <td className="p-3">
-                  {r.percent === null ? <span className="text-slate-600">—</span> : (
-                    <span className={r.percent >= 90 ? "text-green-300" : r.percent >= 75 ? "text-amber-300" : "text-red-300"}>
-                      {r.percent}%
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
-      <p className="text-xs text-slate-600">
-        Attendance is counted against the days somebody was expected. Weekends, closures and
-        authorised leave are excluded rather than counted as attended, which would flatter every
-        figure here.
-      </p>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Small shared pieces                                                 */
-/* ------------------------------------------------------------------ */
-
-function Tile({ label, value, accent, icon: Icon }: {
-  label: string; value: number; accent?: string;
-  icon?: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        {Icon && <Icon className="h-3.5 w-3.5" style={accent ? { color: accent } : undefined} />}
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-bold" style={{ color: accent ?? "#e2e8f0" }}>{value}</div>
-    </div>
-  );
-}
 
 function Panel({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20">
-      <div className="border-b border-white/10 px-4 py-3">
-        <div className="text-sm font-semibold text-slate-200">{title}</div>
-        {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-5 shadow-xl">
+      <div className="mb-3">
+        <h3 className="font-bold text-slate-100">{title}</h3>
+        {hint && <p className="text-xs text-slate-400">{hint}</p>}
       </div>
-      <div className="p-2">{children}</div>
+      {children}
     </div>
   );
 }
 
-const Row = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-white/5">{children}</div>
-);
+function Row({ children }: { children: React.ReactNode }) {
+  return <div className="flex items-center justify-between gap-3 py-3">{children}</div>;
+}
 
-const Muted = ({ children }: { children: React.ReactNode }) => (
-  <div className="rounded-2xl border border-white/10 bg-black/20 p-6 text-center text-sm text-slate-500">{children}</div>
-);
+function Muted({ children }: { children: React.ReactNode }) {
+  return <p className="py-6 text-center text-xs text-slate-500">{children}</p>;
+}
 
-const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <label className="text-xs">
-    <span className="text-slate-500">{label}</span>
-    <div className="mt-1">{children}</div>
-  </label>
-);
+function Tile({
+  label,
+  value,
+  accent,
+  icon: Icon,
+}: {
+  label: string;
+  value: number | string;
+  accent?: string;
+  icon?: typeof CheckCircle2;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/30 p-4 shadow-md">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-slate-400">{label}</span>
+        {Icon && <Icon className="h-4 w-4" style={{ color: accent }} />}
+      </div>
+      <div className="mt-2 text-2xl font-black text-slate-100" style={accent ? { color: accent } : undefined}>
+        {value}
+      </div>
+    </div>
+  );
+}
 
-const Skeleton = () => (
-  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 p-6 text-sm text-slate-400">
-    <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-  </div>
-);
+function Skeleton() {
+  return (
+    <div className="flex min-h-[300px] items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
+    </div>
+  );
+}

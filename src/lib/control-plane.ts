@@ -1204,9 +1204,31 @@ export interface FaceDoorCamera {
 /* Attendance                                                          */
 /* ------------------------------------------------------------------ */
 
+export interface AttendanceCompany {
+  company_name: string;
+  domain: string;
+  org_id: string;
+  site_count: number;
+  people_count: number;
+  terminal_count: number;
+  sites: Array<{
+    id: number;
+    name: string;
+    kind: "school" | "office" | "facility";
+    timezone: string;
+    companyName: string;
+    domain: string;
+    people: number;
+    terminals: number;
+  }>;
+}
+
 export interface AttendanceSite {
   id: number;
   name: string;
+  companyName?: string;
+  domain?: string;
+  orgId?: string | null;
   kind: "school" | "office" | "facility";
   timezone: string;
   graceMinutes: number;
@@ -1917,13 +1939,21 @@ export const controlPlane = {
    * Attendance and RFID access control
    * ---------------------------------------------------------------- */
 
+  attendanceCompanies: () => req<{ companies: AttendanceCompany[] }>("/attendance/companies"),
   attendanceSites: () => req<{ sites: AttendanceSite[] }>("/attendance/sites"),
-  createAttendanceSite: (body: { name: string; kind?: string; timezone?: string }) =>
+  createAttendanceSite: (body: { name: string; companyName?: string; domain?: string; orgId?: string; kind?: string; timezone?: string }) =>
     req<{ site: AttendanceSite }>("/attendance/sites", { method: "POST", body: JSON.stringify(body) }),
   updateAttendanceSite: (id: number, body: Record<string, unknown>) =>
     req<{ site: AttendanceSite }>("/attendance/sites/" + id, { method: "PATCH", body: JSON.stringify(body) }),
   deleteAttendanceSite: (id: number) =>
     req<{ success: boolean }>("/attendance/sites/" + id, { method: "DELETE" }),
+  manualPunch: (body: { siteId: number; personId: number; direction?: "in" | "out" | "auto"; timestamp?: string; note?: string }) =>
+    req<{ punch: Record<string, unknown> }>("/attendance/punch/manual", { method: "POST", body: JSON.stringify(body) }),
+  terminalAction: (deviceId: string, action: "unlock" | "beep" | "reboot" | "sync") =>
+    req<{ ok: boolean; deviceId: string; action: string }>(
+      "/attendance/terminals/" + encodeURIComponent(deviceId) + "/action",
+      { method: "POST", body: JSON.stringify({ action }) }
+    ),
 
   attendanceGroups: (siteId: number) =>
     req<{ groups: AttendanceGroup[] }>("/attendance/groups?siteId=" + siteId),

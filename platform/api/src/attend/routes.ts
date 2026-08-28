@@ -103,6 +103,9 @@ const notFound = { error: "Not found" };
 
 const siteSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  companyName: z.string().trim().max(120).optional(),
+  domain: z.string().trim().max(120).optional(),
+  orgId: z.string().trim().max(120).optional(),
   kind: z.enum(["school", "office", "facility"]).optional(),
   timezone: z.string().trim().min(1).max(64).optional(),
   graceMinutes: z.number().int().min(0).max(240).optional(),
@@ -115,12 +118,40 @@ const siteSchema = z.object({
   requireAccessRequest: z.boolean().optional(),
 });
 
+attendanceRouter.get("/companies", requireAuth, async (req: AuthedRequest, res) => {
+  const { rows } = await pool.query(
+    `SELECT 
+        COALESCE(s.company_name, 'Circuvent Technologies') as company_name,
+        COALESCE(s.domain, 'circuvent.com') as domain,
+        COALESCE(s.org_id, '') as org_id,
+        count(s.id)::int as site_count,
+        COALESCE(sum((SELECT count(*) FROM attend_people p WHERE p.site_id = s.id AND p.active)), 0)::int as people_count,
+        COALESCE(sum((SELECT count(*) FROM attend_terminals t WHERE t.site_id = s.id)), 0)::int as terminal_count,
+        json_agg(json_build_object(
+          'id', s.id,
+          'name', s.name,
+          'kind', s.kind,
+          'timezone', s.timezone,
+          'companyName', COALESCE(s.company_name, 'Circuvent Technologies'),
+          'domain', COALESCE(s.domain, 'circuvent.com'),
+          'people', (SELECT count(*) FROM attend_people p WHERE p.site_id = s.id AND p.active)::int,
+          'terminals', (SELECT count(*) FROM attend_terminals t WHERE t.site_id = s.id)::int
+        )) as sites
+     FROM attend_sites s
+     WHERE s.owner_id = $1
+     GROUP BY s.company_name, s.domain, s.org_id
+     ORDER BY s.company_name`,
+    [req.user!.uid]
+  );
+  res.json({ companies: rows });
+});
+
 attendanceRouter.get("/sites", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
     `SELECT s.*,
             (SELECT count(*) FROM attend_people p WHERE p.site_id = s.id AND p.active)::int AS people,
             (SELECT count(*) FROM attend_terminals t WHERE t.site_id = s.id)::int AS terminals
-       FROM attend_sites s WHERE s.owner_id = $1 ORDER BY s.name`,
+       FROM attend_sites s WHERE s.owner_id = $1 ORDER BY s.company_name, s.name`,
     [req.user!.uid]
   );
   res.json({ sites: rows.map(siteOut) });
@@ -131,6 +162,9 @@ function siteOut(r: any) {
   return {
     id: Number(r.id),
     name: r.name,
+    companyName: r.company_name ?? "Circuvent Technologies",
+    domain: r.domain ?? "circuvent.com",
+    orgId: r.org_id ?? null,
     kind: r.kind,
     timezone: r.timezone,
     graceMinutes: r.grace_minutes,
@@ -155,15 +189,16 @@ attendanceRouter.post("/sites", requireAuth, async (req: AuthedRequest, res) => 
   }
   const d = parsed.data;
   const { rows } = await pool.query(
-    `INSERT INTO attend_sites (owner_id, name, kind, timezone, grace_minutes,
+    `INSERT INTO attend_sites (owner_id, name, company_name, domain, org_id, kind, timezone, grace_minutes,
                                half_day_after_minutes, absent_after_minutes, auto_out,
                                dedupe_seconds, notify_guardians, notify_absence)
-     VALUES ($1,$2,COALESCE($3,'school'),COALESCE($4,'Asia/Kolkata'),COALESCE($5,10),
-             COALESCE($6,180),COALESCE($7,120),COALESCE($8,true),COALESCE($9,60),
-             COALESCE($10,false),COALESCE($11,false))
+     VALUES ($1,$2,COALESCE($3,'Circuvent Technologies'),COALESCE($4,'circuvent.com'),$5,COALESCE($6,'office'),COALESCE($7,'Asia/Kolkata'),COALESCE($8,10),
+             COALESCE($9,180),COALESCE($10,120),COALESCE($11,true),COALESCE($12,60),
+             COALESCE($13,false),COALESCE($14,false))
      RETURNING *`,
     [
-      req.user!.uid, d.name, d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
+      req.user!.uid, d.name, d.companyName ?? null, d.domain ?? null, d.orgId ?? null,
+      d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
       d.halfDayAfterMinutes ?? null, d.absentAfterMinutes ?? null, d.autoOut ?? null,
       d.dedupeSeconds ?? null, d.notifyGuardians ?? null, d.notifyAbsence ?? null,
     ]
@@ -181,18 +216,25 @@ attendanceRouter.patch("/sites/:id", requireAuth, async (req: AuthedRequest, res
 
   const { rows } = await pool.query(
     `UPDATE attend_sites SET
-       name = COALESCE($2, name), kind = COALESCE($3, kind), timezone = COALESCE($4, timezone),
-       grace_minutes = COALESCE($5, grace_minutes),
-       half_day_after_minutes = COALESCE($6, half_day_after_minutes),
-       absent_after_minutes = COALESCE($7, absent_after_minutes),
-       auto_out = COALESCE($8, auto_out), dedupe_seconds = COALESCE($9, dedupe_seconds),
-       notify_guardians = COALESCE($10, notify_guardians),
-       notify_absence = COALESCE($11, notify_absence),
-       require_access_request = COALESCE($12, require_access_request),
+       name = COALESCE($2, name),
+       company_name = COALESCE($3, company_name),
+       domain = COALESCE($4, domain),
+       org_id = COALESCE($5, org_id),
+       kind = COALESCE($6, kind),
+       timezone = COALESCE($7, timezone),
+       grace_minutes = COALESCE($8, grace_minutes),
+       half_day_after_minutes = COALESCE($9, half_day_after_minutes),
+       absent_after_minutes = COALESCE($10, absent_after_minutes),
+       auto_out = COALESCE($11, auto_out),
+       dedupe_seconds = COALESCE($12, dedupe_seconds),
+       notify_guardians = COALESCE($13, notify_guardians),
+       notify_absence = COALESCE($14, notify_absence),
+       require_access_request = COALESCE($15, require_access_request),
        updated_at = now()
      WHERE id = $1 RETURNING *`,
     [
-      site.id, d.name ?? null, d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
+      site.id, d.name ?? null, d.companyName ?? null, d.domain ?? null, d.orgId ?? null,
+      d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
       d.halfDayAfterMinutes ?? null, d.absentAfterMinutes ?? null, d.autoOut ?? null,
       d.dedupeSeconds ?? null, d.notifyGuardians ?? null, d.notifyAbsence ?? null,
       d.requireAccessRequest ?? null,
