@@ -18,7 +18,7 @@ import crypto from "crypto";
 import { lazySecret } from "./secrets";
 
 /** Where the identity service lives. Overridable for staging. */
-export const ISSUER = (process.env.ADMIN_SSO_ISSUER || "https://auth.circuvent.com").replace(/\/$/, "");
+export const ISSUER = (process.env.ADMIN_SSO_ISSUER || "https://myaccount.circuvent.com").replace(/\/$/, "");
 
 /**
  * The relying-party identity.

@@ -74,7 +74,7 @@ const schema = z.object({
    * talked into minting a session, which is the behaviour to have when the
    * setting is missing rather than merely unset.
    */
-  AUTH_ISSUER: z.string().default("https://auth.circuvent.com"),
+  AUTH_ISSUER: z.string().default("https://myaccount.circuvent.com"),
   SSO_CLIENT_ID: z.string().default(""),
   /*
    * ANPR plate recognition.
