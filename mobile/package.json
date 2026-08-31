@@ -13,7 +13,7 @@
     "version:check": "node scripts/version-check.js",
     "navtargets:check": "node scripts/check-nav-targets.mjs",
     "typecheck": "node scripts/check-nav-targets.mjs && node scripts/version-check.js && node scripts/check-device-types.js && node scripts/check-command-map.js && node scripts/check-contrast.js && node scripts/check-screen-theming.js && node scripts/check-avi-sync.js && node scripts/check-dialogs.js && node scripts/audit-mobile.js && node scripts/audit-swallowed.js && node scripts/check-permissions.js && tsc --noEmit",
-    "postinstall": "node scripts/patch-expo-sdk35.js && node scripts/patch-expo-android-publishing.js",
+    "postinstall": "node scripts/patch-expo-sdk35.js && node scripts/patch-expo-android-publishing.js && node scripts/patch-hermes-path-spaces.js && node scripts/patch-rn-path-spaces.js",
     "build:ios": "bash scripts/build-ios.sh",
     "build:android": "node scripts/build-android.mjs",
     "build:android:bash": "bash scripts/build-android.sh",
