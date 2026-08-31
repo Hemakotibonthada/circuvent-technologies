@@ -232,6 +232,6 @@ struct LevelControl: View {
             .disabled(!enabled)
         }
         .onAppear { local = Double(value) }
-        .onChange(of: value) { _, new in local = Double(new) }
+        .onChange(of: value) { new in local = Double(new) }
     }
 }

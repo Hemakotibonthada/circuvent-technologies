@@ -24,6 +24,7 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEVELOPMENT_TEAM: "Z6RVDK7K4K"
 
 targets:
   Circuvent:
@@ -34,7 +35,7 @@ targets:
     info:
       path: Circuvent/Info.plist
       properties:
-        CFBundleDisplayName: Circuvent
+        CFBundleDisplayName: Circuvent Home
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -46,8 +47,11 @@ targets:
         # A different bundle id from the Expo build, for the same reason the
         # Android package differs: both have to be installable side by side
         # while one replaces the other.
-        PRODUCT_BUNDLE_IDENTIFIER: com.circuvent.app.nativeclient
+        PRODUCT_BUNDLE_IDENTIFIER: com.vema.dev.nativeclient
         TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: "Z6RVDK7K4K"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
 
   CircuventTests:
     type: bundle.unit-test
