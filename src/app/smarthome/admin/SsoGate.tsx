@@ -77,6 +77,7 @@ export default function SsoGate({ children }: { children: ReactNode }) {
       fetch("/api/admin/auth/sso/exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ code: handoff }),
       })
         .then(async (res) => {

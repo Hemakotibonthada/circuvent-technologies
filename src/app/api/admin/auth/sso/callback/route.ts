@@ -16,6 +16,7 @@ import {
   ssoStaffUser,
   strongerConsoleRole,
 } from "@/lib/admin-sso-provision";
+import { ssoLandingPath } from "@/lib/host-mounts";
 import { getAdminUser } from "@/lib/store";
 import { flushNow, revalidate, upsertAdminUser } from "@/lib/store";
 
@@ -24,9 +25,18 @@ export const dynamic = "force-dynamic";
 
 const NONCE_COOKIE = "cv_admin_handoff";
 
-/** Back to the console with something it can show a person. */
-function fail(origin: string, reason: string) {
-  const url = new URL("/admin", origin);
+function requestHost(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-host");
+  const raw =
+    forwarded?.split(",")[0]?.trim() ||
+    request.headers.get("host") ||
+    new URL(request.url).host;
+  return raw.split(":")[0];
+}
+
+/** Back to the console that started the handshake, not always /admin. */
+function fail(origin: string, host: string, reason: string) {
+  const url = new URL(ssoLandingPath(host), origin);
   url.searchParams.set("sso_error", reason);
   return NextResponse.redirect(url.toString());
 }
@@ -55,10 +65,11 @@ function fail(origin: string, reason: string) {
  */
 export async function GET(request: NextRequest) {
   const origin = new URL(request.url).origin;
+  const host = requestHost(request);
   const params = new URL(request.url).searchParams;
 
   const error = params.get("error");
-  if (error) return fail(origin, error === "access_denied" ? "cancelled" : "provider");
+  if (error) return fail(origin, host, error === "access_denied" ? "cancelled" : "provider");
 
   const code = params.get("code");
   const state = params.get("state");
@@ -66,8 +77,8 @@ export async function GET(request: NextRequest) {
 
   // A missing or stale flow cookie is the ordinary case for a link somebody
   // has revisited or bookmarked, not an attack; it just cannot be completed.
-  if (!code || !state || !flow) return fail(origin, "expired");
-  if (state !== flow.state) return fail(origin, "state");
+  if (!code || !state || !flow) return fail(origin, host, "expired");
+  if (state !== flow.state) return fail(origin, host, "state");
 
   let email: string;
   let displayName = "";
@@ -86,10 +97,10 @@ export async function GET(request: NextRequest) {
       }),
       cache: "no-store",
     });
-    if (!tokenRes.ok) return fail(origin, "exchange");
+    if (!tokenRes.ok) return fail(origin, host, "exchange");
 
     const tokens = (await tokenRes.json()) as { access_token?: string; id_token?: string };
-    if (!tokens.access_token) return fail(origin, "exchange");
+    if (!tokens.access_token) return fail(origin, host, "exchange");
 
     // The role the identity service resolved for *this* console, which is where
     // a group grant surfaces. Absent or unrecognised means no grant, never a
@@ -100,7 +111,7 @@ export async function GET(request: NextRequest) {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
       cache: "no-store",
     });
-    if (!infoRes.ok) return fail(origin, "userinfo");
+    if (!infoRes.ok) return fail(origin, host, "userinfo");
 
     const info = (await infoRes.json()) as {
       email?: string;
@@ -114,12 +125,12 @@ export async function GET(request: NextRequest) {
      * without that, anybody who can register an account claiming
      * admin@circuvent.com would inherit that person's console role.
      */
-    if (!info.email || info.email_verified === false) return fail(origin, "unverified");
+    if (!info.email || info.email_verified === false) return fail(origin, host, "unverified");
     email = info.email.trim().toLowerCase();
     displayName = typeof info.name === "string" ? info.name.trim() : "";
     avatarUrl = safeAvatarUrl(info.picture);
   } catch {
-    return fail(origin, "exchange");
+    return fail(origin, host, "exchange");
   }
 
   ensureSeeded();
@@ -132,14 +143,15 @@ export async function GET(request: NextRequest) {
    * precedence the identity service applies, where a revocation outranks
    * anything a group hands out.
    */
-  if (staff && !staff.active) return fail(origin, "not-staff");
+  if (staff && !staff.active) return fail(origin, host, "not-staff");
 
   if (!staff) {
-    if (!grantedRole) return fail(origin, "not-staff");
+    if (!grantedRole) return fail(origin, host, "not-staff");
     upsertAdminUser({ ...ssoStaffUser(email, displayName, grantedRole), avatarUrl });
     /*
      * Awaited, not left to the background flush. The console redirects to
-     * /admin, which then calls the exchange endpoint — a separate invocation
+     * the product that started the handshake, which then calls the exchange
+     * endpoint — a separate invocation
      * that re-reads this row from the database. A scheduled write would be
      * racing a browser round trip, and losing that race looks exactly like the
      * bug being fixed here.
@@ -167,7 +179,7 @@ export async function GET(request: NextRequest) {
   const nonce = newNonce();
   const handoff = signHandoff(email, nonce);
 
-  const url = new URL("/admin", origin);
+  const url = new URL(ssoLandingPath(host), origin);
   url.searchParams.set("sso", handoff);
   const res = NextResponse.redirect(url.toString());
 

@@ -117,6 +117,7 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   );
 });
 
+self.addEventListener("fetch", (event) => {
   // Skip non-GET requests and API calls
   if (event.request.method !== "GET") return;
   if (event.request.url.includes("/api/")) return;
