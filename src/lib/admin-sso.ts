@@ -18,7 +18,17 @@ import crypto from "crypto";
 import { lazySecret } from "./secrets";
 
 /** Where the identity service lives. Overridable for staging. */
-export const ISSUER = (process.env.ADMIN_SSO_ISSUER || "https://myaccount.circuvent.com").replace(/\/$/, "");
+function canonicalIssuer(raw: string | undefined): string {
+  const trimmed = (raw ?? "https://myaccount.circuvent.com").trim().replace(/\/+$/, "");
+  // auth.circuvent.com still redirects /authorize, but /api/oauth/token answers
+  // 308 with an empty body — the staff callback's exchange then fails closed.
+  if (trimmed === "https://auth.circuvent.com") {
+    return "https://myaccount.circuvent.com";
+  }
+  return trimmed;
+}
+
+export const ISSUER = canonicalIssuer(process.env.ADMIN_SSO_ISSUER);
 
 /**
  * The relying-party identity.

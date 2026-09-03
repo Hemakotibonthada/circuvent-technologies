@@ -152,6 +152,16 @@ export function mountAction(host: string, pathname: string, mainSite: string): M
   if (!mount) return null;
   if (servedFromRoot(pathname)) return null;
 
+  /*
+   * Staff SSO always used to land on `/admin`. On the shop that is the
+   * console. On icm.circuvent.com `/admin` is not a page of this product —
+   * `pages: []` would send it to circuvent.com/admin, which is how signing
+   * into ICM opened Orders & Inventory. Treat that path as the product root.
+   */
+  if (pathname === "/admin" && isAdminProductMount(mount)) {
+    return { kind: "rewrite", path: mount.prefix };
+  }
+
   if (mount.pages) {
     const slug = pathname === "/" ? "" : pathname.replace(/^\/+/, "").replace(/\/+$/, "");
     if (slug && !mount.pages.includes(slug)) {
@@ -174,4 +184,21 @@ export function mountPrefixFor(host: string | null | undefined): string | null {
   if (!host) return null;
   const name = host.split(":")[0];
   return HOST_MOUNTS.find((m) => m.hosts.test(name))?.prefix ?? null;
+}
+
+function isAdminProductMount(mount: HostMount): boolean {
+  return Array.isArray(mount.pages) && mount.prefix.startsWith("/admin/");
+}
+
+/**
+ * Where staff SSO should send the browser after the handshake.
+ *
+ * Product hosts serve their console at `/`. Sending them to `/admin` used to
+ * bounce through to circuvent.com/admin because that path is not in `pages`.
+ */
+export function ssoLandingPath(host: string | null | undefined): string {
+  const name = (host ?? "").split(":")[0];
+  const mount = HOST_MOUNTS.find((m) => m.hosts.test(name));
+  if (mount && isAdminProductMount(mount)) return "/";
+  return "/admin";
 }

@@ -54,8 +54,8 @@ describe("the authorize URL", () => {
     expect(parsed.searchParams.get("scope")).toContain("email");
   });
 
-  it("carries a state parameter", () => {
-    expect(parsed.searchParams.get("state")).toBeTruthy();
+  it("targets the account portal, not the legacy auth host", () => {
+    expect(parsed.origin).toBe("https://myaccount.circuvent.com");
   });
 });
 

@@ -14,6 +14,7 @@ import {
   mountPrefixFor,
   mountedPath,
   servedFromRoot,
+  ssoLandingPath,
 } from "@/lib/host-mounts";
 
 describe("the developer portal's hostname", () => {
@@ -138,6 +139,11 @@ describe("a path the portal does not serve", () => {
 
   it("does nothing at all on the main site", () => {
     expect(mountAction("circuvent.com", "/domains", MAIN)).toBeNull();
+  });
+
+  it("still sends shop and home-console SSO to /admin", () => {
+    expect(ssoLandingPath("circuvent.com")).toBe("/admin");
+    expect(ssoLandingPath("home.circuvent.com")).toBe("/admin");
   });
 });
 
@@ -288,6 +294,14 @@ describe("the incident-management hostname", () => {
     expect(servedFromRoot("/admin/icm")).toBe(true);
     expect(mountedPath("circuvent.com", "/admin/icm")).toBeNull();
   });
+
+  it("keeps a post-SSO /admin landing on ICM instead of the shop console", () => {
+    expect(ssoLandingPath("icm.circuvent.com")).toBe("/");
+    expect(mountAction("icm.circuvent.com", "/admin", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/admin/icm",
+    });
+  });
 });
 
 describe("the application-insights hostname", () => {
@@ -324,5 +338,13 @@ describe("the application-insights hostname", () => {
   it("does not disturb circuvent.com/admin/insights", () => {
     expect(servedFromRoot("/admin/insights")).toBe(true);
     expect(mountedPath("circuvent.com", "/admin/insights")).toBeNull();
+  });
+
+  it("keeps a post-SSO /admin landing on Insights instead of the shop console", () => {
+    expect(ssoLandingPath("insights.circuvent.com")).toBe("/");
+    expect(mountAction("insights.circuvent.com", "/admin", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/admin/insights",
+    });
   });
 });
