@@ -12,6 +12,13 @@ import { categorySlug } from "@/lib/shop-categories";
 import { mountAction } from "@/lib/host-mounts";
 import { SITE_URL } from "@/lib/config";
 
+/** Prefer the public hostname; Vercel sometimes puts it only on x-forwarded-host. */
+function requestHost(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-host");
+  const raw = forwarded?.split(",")[0]?.trim() || request.headers.get("host") || "";
+  return raw.split(":")[0];
+}
+
 export function proxy(request: NextRequest) {
   /*
    * Subtrees mounted at the root of their own hostname — the smart home
@@ -33,7 +40,7 @@ export function proxy(request: NextRequest) {
    * with a client-side hop instead.
    */
   const action = mountAction(
-    request.headers.get("host") ?? "",
+    requestHost(request),
     request.nextUrl.pathname,
     SITE_URL
   );
