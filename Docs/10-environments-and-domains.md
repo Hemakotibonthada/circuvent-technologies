@@ -6,6 +6,9 @@
 | --- | --- | --- |
 | `circuvent.com` | Vercel | Production website, shop, console |
 | `dev.circuvent.com` | Vercel (`develop` branch) | Pre-production |
+| `icm.circuvent.com` | Vercel (`circuvent-technologies`) | Incident Management console |
+| `insights.circuvent.com` | Vercel (`circuvent-technologies`) | Application Insights console |
+| `attendance.circuvent.com` | Vercel (`circuvent-technologies`) | Attendance console |
 | `api.circuvent.com` | The VM, via Caddy | Control-plane REST + WebSocket |
 | `mqtt.circuvent.com` | The VM, port 8883 | Device MQTT over TLS |
 
@@ -18,6 +21,9 @@ them.
 | Type | Name | Value |
 | --- | --- | --- |
 | CNAME | `dev` | `68f3091de329bf50.vercel-dns-017.com` |
+| CNAME | `icm` | `cname.vercel-dns.com` |
+| CNAME | `insights` | `cname.vercel-dns.com` |
+| CNAME | `attendance` | `cname.vercel-dns.com` |
 | A | `api` | the VM's public IP |
 | A | `mqtt` | the VM's public IP |
 

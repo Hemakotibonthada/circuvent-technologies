@@ -170,6 +170,9 @@ describe("the mount table itself", () => {
       "home.circuvent.com",
       "iot.circuvent.com",
       "developer.circuvent.com",
+      "attendance.circuvent.com",
+      "icm.circuvent.com",
+      "insights.circuvent.com",
     ]) {
       expect(HOST_MOUNTS.filter((m) => m.hosts.test(host))).toHaveLength(1);
     }
@@ -239,5 +242,87 @@ describe("the attendance hostname", () => {
   it("does not disturb the console's own address", () => {
     expect(servedFromRoot("/smarthome/attendance")).toBe(true);
     expect(mountedPath("home.circuvent.com", "/smarthome/attendance")).toBeNull();
+  });
+});
+
+/*
+ * icm.circuvent.com and insights.circuvent.com.
+ *
+ * Same one-page contract as attendance: Reliability products that used to live
+ * only as tabs under /admin now have their own hostnames, still served from
+ * this app so auth and the API stay one copy.
+ */
+describe("the incident-management hostname", () => {
+  const MAIN = "https://circuvent.com";
+
+  it("serves ICM at its root", () => {
+    expect(mountedPath("icm.circuvent.com", "/")).toBe("/admin/icm");
+    expect(mountAction("icm.circuvent.com", "/", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/admin/icm",
+    });
+  });
+
+  it("is recognised as a mounted host", () => {
+    expect(isMountedHost("icm.circuvent.com")).toBe(true);
+    expect(mountPrefixFor("icm.circuvent.com")).toBe("/admin/icm");
+  });
+
+  it("does not match a hostname that merely starts with it", () => {
+    expect(isMountedHost("icm.circuvent.com.attacker.net")).toBe(false);
+  });
+
+  it("sends a path it does not have to the main site rather than a 404", () => {
+    expect(mountAction("icm.circuvent.com", "/people", MAIN)).toEqual({
+      kind: "redirect",
+      url: "https://circuvent.com/people",
+    });
+  });
+
+  it("leaves shared paths alone", () => {
+    expect(mountedPath("icm.circuvent.com", "/api/admin/icm")).toBeNull();
+    expect(mountedPath("icm.circuvent.com", "/_next/static/x.js")).toBeNull();
+  });
+
+  it("does not disturb circuvent.com/admin/icm", () => {
+    expect(servedFromRoot("/admin/icm")).toBe(true);
+    expect(mountedPath("circuvent.com", "/admin/icm")).toBeNull();
+  });
+});
+
+describe("the application-insights hostname", () => {
+  const MAIN = "https://circuvent.com";
+
+  it("serves App Insights at its root", () => {
+    expect(mountedPath("insights.circuvent.com", "/")).toBe("/admin/insights");
+    expect(mountAction("insights.circuvent.com", "/", MAIN)).toEqual({
+      kind: "rewrite",
+      path: "/admin/insights",
+    });
+  });
+
+  it("is recognised as a mounted host", () => {
+    expect(isMountedHost("insights.circuvent.com")).toBe(true);
+    expect(mountPrefixFor("insights.circuvent.com")).toBe("/admin/insights");
+  });
+
+  it("does not match a hostname that merely starts with it", () => {
+    expect(isMountedHost("insights.circuvent.com.attacker.net")).toBe(false);
+  });
+
+  it("sends a path it does not have to the main site rather than a 404", () => {
+    expect(mountAction("insights.circuvent.com", "/orders", MAIN)).toEqual({
+      kind: "redirect",
+      url: "https://circuvent.com/orders",
+    });
+  });
+
+  it("leaves shared paths alone", () => {
+    expect(mountedPath("insights.circuvent.com", "/api/admin/insights")).toBeNull();
+  });
+
+  it("does not disturb circuvent.com/admin/insights", () => {
+    expect(servedFromRoot("/admin/insights")).toBe(true);
+    expect(mountedPath("circuvent.com", "/admin/insights")).toBeNull();
   });
 });
