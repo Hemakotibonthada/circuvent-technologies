@@ -76,6 +76,16 @@ export const HOST_MOUNTS: HostMount[] = [
    * home.circuvent.com/smarthome/attendance address working unchanged.
    */
   { hosts: /^attendance\.circuvent\.com$/i, prefix: "/smarthome/attendance", pages: [] },
+  /*
+   * Incident Management and Application Insights — one page each.
+   *
+   * Same `pages: []` contract as attendance: anything below the root on these
+   * hostnames redirects to circuvent.com rather than rewriting into a 404.
+   * circuvent.com/admin/icm and /admin/insights keep working unchanged because
+   * every mount prefix is excluded from remapping.
+   */
+  { hosts: /^icm\.circuvent\.com$/i, prefix: "/admin/icm", pages: [] },
+  { hosts: /^insights\.circuvent\.com$/i, prefix: "/admin/insights", pages: [] },
 ];
 
 /**

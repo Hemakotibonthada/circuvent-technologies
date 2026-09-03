@@ -311,6 +311,23 @@ export default function AdminDashboard() {
     if (cat) setActiveCategory((prev) => (prev === cat ? prev : cat));
   }, [tab]);
 
+  // Keep ?tab= in the address bar so Reliability deep links and shares work
+  // (icm.circuvent.com / insights.circuvent.com remain the dedicated hosts).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get("tab");
+    if (tab === "overview") {
+      if (!current) return;
+      url.searchParams.delete("tab");
+    } else if (current === tab) {
+      return;
+    } else {
+      url.searchParams.set("tab", tab);
+    }
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }, [tab]);
+
   const visibleTabIds = Object.keys(TAB_META).filter((id) => canSee(id));
 
   const selectCategory = (categoryId: string) => {
@@ -333,6 +350,7 @@ export default function AdminDashboard() {
     const url = new URL(window.location.href);
     const handoff = url.searchParams.get("sso");
     const ssoError = url.searchParams.get("sso_error");
+    const tabParam = url.searchParams.get("tab");
 
     const scrub = () => {
       url.searchParams.delete("sso");
@@ -345,10 +363,16 @@ export default function AdminDashboard() {
       scrub();
     }
 
+    if (tabParam && TAB_META[tabParam]) {
+      setTab(tabParam as typeof tab);
+      if (TAB_META[tabParam].category) setActiveCategory(TAB_META[tabParam].category);
+    }
+
     if (handoff) {
       fetch("/api/admin/auth/sso/exchange", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ code: handoff }),
       })
         .then(async (res) => {
