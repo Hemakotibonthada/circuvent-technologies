@@ -1,4 +1,4 @@
-const CACHE_NAME = "circuvent-v1";
+const CACHE_NAME = "circuvent-v2";
 const STATIC_ASSETS = [
   "/",
   "/projects",
@@ -8,11 +8,27 @@ const STATIC_ASSETS = [
   "/contact",
 ];
 
+function isMarketingHost(hostname) {
+  return (
+    hostname === "circuvent.com" ||
+    hostname === "www.circuvent.com" ||
+    hostname === "localhost" ||
+    hostname.endsWith(".vercel.app")
+  );
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // Product hosts (icm, insights, home, …) share this script for push, but
+      // must not precache marketing URLs — those paths redirect off-host and
+      // CSP blocks the follow as a connect-src violation.
+      if (!isMarketingHost(self.location.hostname)) return;
+      await Promise.all(
+        STATIC_ASSETS.map((url) => cache.add(url).catch(() => undefined))
+      );
+    })()
   );
   self.skipWaiting();
 });
