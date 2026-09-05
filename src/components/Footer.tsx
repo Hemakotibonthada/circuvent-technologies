@@ -21,6 +21,9 @@ const footerLinks = {
     { label: "Blog", href: "/blog" },
     { label: "Docs", href: "/docs" },
     { label: "Developer API", href: "/developer" },
+    { label: "SaaS products", href: "/products" },
+    { label: "Pricing", href: "/pricing" },
+    { label: "Customer portal", href: "/portal" },
   ],
   company: [
     { label: "About", href: "/about" },

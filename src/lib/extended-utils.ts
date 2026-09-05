@@ -695,7 +695,7 @@ export function generateOGMeta(params: {
   type?: string;
   image?: string;
 }) {
-  const baseUrl = "https://circuvent.com";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://app.circuvent.com";
   return {
     title: `${params.title} | Circuvent Technologies`,
     description: params.description,
@@ -738,7 +738,7 @@ export function generateBlogPostJsonLd(params: {
     publisher: {
       "@type": "Organization",
       name: "Circuvent Technologies",
-      url: "https://circuvent.com",
+      url: process.env.NEXT_PUBLIC_SITE_URL || "https://app.circuvent.com",
     },
     url: params.url,
   };

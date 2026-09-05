@@ -5,6 +5,7 @@
 | Hostname | Points at | Purpose |
 | --- | --- | --- |
 | `circuvent.com` | Vercel | Production website, shop, console |
+| `app.circuvent.com` | Vercel | Circuvent SaaS portal (products, pricing, checkout, customer portal) |
 | `dev.circuvent.com` | Vercel (`develop` branch) | Pre-production |
 | `icm.circuvent.com` | Vercel (`circuvent-technologies`) | Incident Management console |
 | `insights.circuvent.com` | Vercel (`circuvent-technologies`) | Application Insights console |
@@ -27,7 +28,8 @@ them.
 | A | `api` | the VM's public IP |
 | A | `mqtt` | the VM's public IP |
 
-The apex `circuvent.com` is configured in Vercel for the production project.
+The apex `circuvent.com` is configured in Vercel for the production project.  
+`app.circuvent.com` is the SaaS portal (products, pricing, checkout, customer portal) — set the same Vercel project as a custom domain, or use a CNAME to `cname.vercel-dns.com` if the apex project stays on `circuvent.com`.
 
 ## Environments
 
@@ -51,7 +53,7 @@ real database, working checkout, real flows — on its **own** infrastructure.
 | `ACCOUNT_SECRET`, `JWT_SECRET`, `SESSION_SECRET` | separate values | separate values |
 | Payment keys | live | test-mode (to be configured) |
 | Email / SMS | live | must not reach real customers |
-| `FRONTEND_URL`, `GOOGLE_CALLBACK_URL`, `NEXT_PUBLIC_SITE_URL` | circuvent.com | dev.circuvent.com |
+| `FRONTEND_URL`, `GOOGLE_CALLBACK_URL`, `NEXT_PUBLIC_SITE_URL` | app.circuvent.com (SaaS) / circuvent.com (apex) | dev.circuvent.com |
 
 Only non-sensitive tuning knobs are shared: rate limits, ports, log level,
 upload paths, SMTP host/port (useless without credentials).

@@ -382,6 +382,49 @@ export default function Home() {
             ))}
           </div>
 
+          {/* SaaS portal banner */}
+          <ScrollReveal delay={0.15}>
+            <div className="relative overflow-hidden rounded-2xl p-8 sm:p-10 mb-8" style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-violet-500/5" />
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--accent-cyan)" }}>
+                    Circuvent SaaS
+                  </p>
+                  <h3 className="mt-2 text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+                    One site to discover, buy and launch every product.
+                  </h3>
+                  <p className="mt-2 max-w-xl text-sm" style={{ color: "var(--text-tertiary)" }}>
+                    Mail, workspace, CRM, people ops, admin, assets and insights — discover,
+                    compare plans, subscribe and manage invoices from{" "}
+                    <a
+                      href="https://app.circuvent.com"
+                      style={{ color: "var(--accent-cyan)" }}
+                    >
+                      app.circuvent.com
+                    </a>
+                    .
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href="/products"
+                    className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                  >
+                    Browse products
+                  </Link>
+                  <Link
+                    href="/portal"
+                    className="rounded-full border border-border bg-background px-4 py-2 text-sm font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Customer portal
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+
           {/* Ecosystem Integration Section */}
           <ScrollReveal delay={0.2}>
             <div className="relative overflow-hidden rounded-2xl p-8 sm:p-10" style={{ background: "var(--bg-glass-strong)", border: "1px solid var(--border-primary)" }}>

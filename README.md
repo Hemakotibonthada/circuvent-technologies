@@ -88,7 +88,7 @@ npm run start    # Start production server
 
 | Branch    | URL                 | Vercel env   |
 | --------- | ------------------- | ------------ |
-| `main`    | circuvent.com       | `production` |
+| `main`    | circuvent.com (apex) + app.circuvent.com (SaaS) | `production` |
 | `develop` | dev.circuvent.com   | `preview`    |
 | any other | generated `.vercel.app` preview URL | `preview` |
 
@@ -96,8 +96,8 @@ Work lands on `develop` first, gets checked on dev.circuvent.com, then
 merges to `main` to go live. Both deploy automatically on push.
 
 `dev.circuvent.com` is bound to the `develop` branch in the project's domain
-settings, and `NEXT_PUBLIC_SITE_URL` is overridden for that branch so the dev
-site refers to itself rather than to production.
+settings, and `NEXT_PUBLIC_SITE_URL` is overridden for that branch so the
+SaaS portal (default `https://app.circuvent.com`) stays on the right host.
 
 ### Dev is a pre-production environment, not a copy of production
 
