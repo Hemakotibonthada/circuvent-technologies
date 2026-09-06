@@ -153,7 +153,7 @@ export default function PortalClient({ domainIcons }: PortalProps) {
                       )}
                     >
                       <div className="flex items-start gap-2">
-                        <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: s.product?.accent }} />
+                        <span className="mt-0.5 shrink-0" style={{ color: s.product?.accent }}><Icon className="h-4 w-4" /></span>
                         <div>
                           <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                             {s.product?.name || s.planName}
@@ -236,7 +236,7 @@ export default function PortalClient({ domainIcons }: PortalProps) {
                       rel="noreferrer"
                       className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm hover:border-primary/40"
                     >
-                      <Icon className="h-4 w-4" style={{ color: p.accent }} />
+                      <span style={{ color: p.accent }}><Icon className="h-4 w-4" /></span>
                       <span style={{ color: "var(--text-primary)" }}>{p.name}</span>
                       <ExternalLink className="ml-auto h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
                     </a>

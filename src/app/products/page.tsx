@@ -60,7 +60,7 @@ export default function ProductsPage() {
                 className="rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/40"
               >
                 <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
+                  <span style={{ color: "var(--accent-cyan)" }}><Icon className="h-4 w-4" /></span>
                   <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                     {g.label}
                   </span>
