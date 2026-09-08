@@ -103,6 +103,9 @@ const notFound = { error: "Not found" };
 
 const siteSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  companyName: z.string().trim().max(120).optional(),
+  domain: z.string().trim().max(120).optional(),
+  orgId: z.string().trim().max(120).optional(),
   kind: z.enum(["school", "office", "facility"]).optional(),
   timezone: z.string().trim().min(1).max(64).optional(),
   graceMinutes: z.number().int().min(0).max(240).optional(),
@@ -115,12 +118,40 @@ const siteSchema = z.object({
   requireAccessRequest: z.boolean().optional(),
 });
 
+attendanceRouter.get("/companies", requireAuth, async (req: AuthedRequest, res) => {
+  const { rows } = await pool.query(
+    `SELECT 
+        COALESCE(s.company_name, 'Circuvent Technologies') as company_name,
+        COALESCE(s.domain, 'circuvent.com') as domain,
+        COALESCE(s.org_id, '') as org_id,
+        count(s.id)::int as site_count,
+        COALESCE(sum((SELECT count(*) FROM attend_people p WHERE p.site_id = s.id AND p.active)), 0)::int as people_count,
+        COALESCE(sum((SELECT count(*) FROM attend_terminals t WHERE t.site_id = s.id)), 0)::int as terminal_count,
+        json_agg(json_build_object(
+          'id', s.id,
+          'name', s.name,
+          'kind', s.kind,
+          'timezone', s.timezone,
+          'companyName', COALESCE(s.company_name, 'Circuvent Technologies'),
+          'domain', COALESCE(s.domain, 'circuvent.com'),
+          'people', (SELECT count(*) FROM attend_people p WHERE p.site_id = s.id AND p.active)::int,
+          'terminals', (SELECT count(*) FROM attend_terminals t WHERE t.site_id = s.id)::int
+        )) as sites
+     FROM attend_sites s
+     WHERE s.owner_id = $1
+     GROUP BY s.company_name, s.domain, s.org_id
+     ORDER BY s.company_name`,
+    [req.user!.uid]
+  );
+  res.json({ companies: rows });
+});
+
 attendanceRouter.get("/sites", requireAuth, async (req: AuthedRequest, res) => {
   const { rows } = await pool.query(
     `SELECT s.*,
             (SELECT count(*) FROM attend_people p WHERE p.site_id = s.id AND p.active)::int AS people,
             (SELECT count(*) FROM attend_terminals t WHERE t.site_id = s.id)::int AS terminals
-       FROM attend_sites s WHERE s.owner_id = $1 ORDER BY s.name`,
+       FROM attend_sites s WHERE s.owner_id = $1 ORDER BY s.company_name, s.name`,
     [req.user!.uid]
   );
   res.json({ sites: rows.map(siteOut) });
@@ -131,6 +162,9 @@ function siteOut(r: any) {
   return {
     id: Number(r.id),
     name: r.name,
+    companyName: r.company_name ?? "Circuvent Technologies",
+    domain: r.domain ?? "circuvent.com",
+    orgId: r.org_id ?? null,
     kind: r.kind,
     timezone: r.timezone,
     graceMinutes: r.grace_minutes,
@@ -155,15 +189,16 @@ attendanceRouter.post("/sites", requireAuth, async (req: AuthedRequest, res) => 
   }
   const d = parsed.data;
   const { rows } = await pool.query(
-    `INSERT INTO attend_sites (owner_id, name, kind, timezone, grace_minutes,
+    `INSERT INTO attend_sites (owner_id, name, company_name, domain, org_id, kind, timezone, grace_minutes,
                                half_day_after_minutes, absent_after_minutes, auto_out,
                                dedupe_seconds, notify_guardians, notify_absence)
-     VALUES ($1,$2,COALESCE($3,'school'),COALESCE($4,'Asia/Kolkata'),COALESCE($5,10),
-             COALESCE($6,180),COALESCE($7,120),COALESCE($8,true),COALESCE($9,60),
-             COALESCE($10,false),COALESCE($11,false))
+     VALUES ($1,$2,COALESCE($3,'Circuvent Technologies'),COALESCE($4,'circuvent.com'),$5,COALESCE($6,'office'),COALESCE($7,'Asia/Kolkata'),COALESCE($8,10),
+             COALESCE($9,180),COALESCE($10,120),COALESCE($11,true),COALESCE($12,60),
+             COALESCE($13,false),COALESCE($14,false))
      RETURNING *`,
     [
-      req.user!.uid, d.name, d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
+      req.user!.uid, d.name, d.companyName ?? null, d.domain ?? null, d.orgId ?? null,
+      d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
       d.halfDayAfterMinutes ?? null, d.absentAfterMinutes ?? null, d.autoOut ?? null,
       d.dedupeSeconds ?? null, d.notifyGuardians ?? null, d.notifyAbsence ?? null,
     ]
@@ -181,18 +216,25 @@ attendanceRouter.patch("/sites/:id", requireAuth, async (req: AuthedRequest, res
 
   const { rows } = await pool.query(
     `UPDATE attend_sites SET
-       name = COALESCE($2, name), kind = COALESCE($3, kind), timezone = COALESCE($4, timezone),
-       grace_minutes = COALESCE($5, grace_minutes),
-       half_day_after_minutes = COALESCE($6, half_day_after_minutes),
-       absent_after_minutes = COALESCE($7, absent_after_minutes),
-       auto_out = COALESCE($8, auto_out), dedupe_seconds = COALESCE($9, dedupe_seconds),
-       notify_guardians = COALESCE($10, notify_guardians),
-       notify_absence = COALESCE($11, notify_absence),
-       require_access_request = COALESCE($12, require_access_request),
+       name = COALESCE($2, name),
+       company_name = COALESCE($3, company_name),
+       domain = COALESCE($4, domain),
+       org_id = COALESCE($5, org_id),
+       kind = COALESCE($6, kind),
+       timezone = COALESCE($7, timezone),
+       grace_minutes = COALESCE($8, grace_minutes),
+       half_day_after_minutes = COALESCE($9, half_day_after_minutes),
+       absent_after_minutes = COALESCE($10, absent_after_minutes),
+       auto_out = COALESCE($11, auto_out),
+       dedupe_seconds = COALESCE($12, dedupe_seconds),
+       notify_guardians = COALESCE($13, notify_guardians),
+       notify_absence = COALESCE($14, notify_absence),
+       require_access_request = COALESCE($15, require_access_request),
        updated_at = now()
      WHERE id = $1 RETURNING *`,
     [
-      site.id, d.name ?? null, d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
+      site.id, d.name ?? null, d.companyName ?? null, d.domain ?? null, d.orgId ?? null,
+      d.kind ?? null, d.timezone ?? null, d.graceMinutes ?? null,
       d.halfDayAfterMinutes ?? null, d.absentAfterMinutes ?? null, d.autoOut ?? null,
       d.dedupeSeconds ?? null, d.notifyGuardians ?? null, d.notifyAbsence ?? null,
       d.requireAccessRequest ?? null,
@@ -362,11 +404,45 @@ function personOut(r: any) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+attendanceRouter.post("/people/sync-hrms", requireAuth, async (req: AuthedRequest, res) => {
+  const site = await ownsSite(req.body?.siteId, req.user!.uid);
+  if (!site) { res.status(404).json(notFound); return; }
+  const token = process.env.ATTENDANCE_ROSTER_TOKEN;
+  const base = process.env.HRMS_ATTENDANCE_URL;
+  if (!token || !base) { res.status(503).json({ error: "HRMS employee sync is not configured. Ask your administrator to connect this attendance site to its HRMS organization." }); return; }
+  try {
+    const response = await fetch(`${base.replace(/\/$/, "")}/api/integrations/attendance/people?siteId=${site.id}`, {
+      headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000), redirect: "error",
+    });
+    if (!response.ok) { res.status(502).json({ error: "HRMS could not provide this site's roster. Check the organization mapping and integration credentials." }); return; }
+    const payload = z.object({ siteId: z.literal(site.id), people: z.array(z.object({ code: z.string().trim().min(1).max(100), name: z.string().min(1).max(200), email: z.string().max(320), active: z.boolean() })) }).parse(await response.json());
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      for (const person of payload.people) {
+        await client.query(`INSERT INTO attend_people (site_id, code, name, email, role, active)
+          VALUES ($1,$2,$3,$4,'employee',$5)
+          ON CONFLICT (site_id, lower(code)) DO UPDATE SET name=EXCLUDED.name, email=EXCLUDED.email, active=EXCLUDED.active, updated_at=now()`,
+          [site.id, person.code, person.name, person.email, person.active]);
+      }
+      await client.query("COMMIT");
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+    await recordEvent(req.user!.uid, "attendance", `HRMS roster synced: ${payload.people.length} employees`, "", null);
+    void syncSite(site.id);
+    res.json({ count: payload.people.length });
+  } catch (error) {
+    logger.warn({ err: error }, "HRMS roster sync failed");
+    res.status(502).json({ error: "Employee sync failed. Existing attendance records and cards have been preserved." });
+  }
+});
+
 attendanceRouter.get("/people", requireAuth, async (req: AuthedRequest, res) => {
   const out = await scoped(req, req.query.siteId, async (site) => {
     const groupId = id(req.query.groupId);
     const q = String(req.query.q ?? "").trim();
     const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 500));
+    const offset = Math.max(0, Math.floor(Number(req.query.offset) || 0));
     const { rows } = await pool.query(
       `SELECT p.*, g.name AS group_name,
               to_char(p.valid_from,'YYYY-MM-DD') AS valid_from,
@@ -378,8 +454,8 @@ attendanceRouter.get("/people", requireAuth, async (req: AuthedRequest, res) => 
         WHERE p.site_id = $1
           AND ($2::bigint IS NULL OR p.group_id = $2)
           AND ($3 = '' OR p.name ILIKE '%' || $3 || '%' OR p.code ILIKE '%' || $3 || '%')
-        ORDER BY p.name LIMIT $4`,
-      [site.id, groupId, q, limit]
+        ORDER BY p.name, p.id LIMIT $4 OFFSET $5`,
+      [site.id, groupId, q, limit, offset]
     );
     return rows.map(personOut);
   });
@@ -753,11 +829,15 @@ attendanceRouter.put("/terminals/:deviceId", requireAuth, async (req: AuthedRequ
   const deviceId = String(req.params.deviceId);
 
   const { rows: dev } = await pool.query(
-    `SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2`, [deviceId, req.user!.uid]
+    `SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2 AND type IN ('rfid-attend', 'rfid-only')`, [deviceId, req.user!.uid]
   );
   if (!dev[0]) { res.status(404).json({ error: "Device not found" }); return; }
 
   const d = parsed.data;
+  if (d.zoneId != null) {
+    const zone = await pool.query(`SELECT 1 FROM attend_zones WHERE id = $1 AND site_id = $2`, [d.zoneId, site.id]);
+    if (!zone.rows[0]) { res.status(400).json({ error: "Zone does not belong to this site" }); return; }
+  }
   await pool.query(
     `INSERT INTO attend_terminals (device_id, site_id, zone_id, owner_id, name, mode, direction, enabled)
      VALUES ($1,$2,$3,$4,COALESCE($5,'Entrance'),COALESCE($6,'both'),COALESCE($7,'in'),COALESCE($8,true))

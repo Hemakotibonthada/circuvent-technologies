@@ -56,15 +56,46 @@ provisioningRouter.post("/self", async (req, res) => {
   const hwid = (p.data.hwid || Math.random().toString(16).slice(2, 10)).replace(/[^a-zA-Z0-9]/g, "").slice(0, 24) || "dev";
   try {
     let id = `${claims.type}-${hwid}`.toLowerCase();
-    const exists = await pool.query(`SELECT 1 FROM devices WHERE id = $1`, [id]);
-    if (exists.rowCount) id = `${id}-${Math.random().toString(16).slice(2, 6)}`;
     const key = generateDeviceKey();
     const keyHash = await hashDeviceKey(key);
     const serial = generateSerial(claims.type, hwid);
-    await pool.query(
-      `INSERT INTO devices (id, key_hash, owner_id, name, type, serial, hwid) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, keyHash, claims.uid, claims.name || claims.type, claims.type, serial, hwid]
+
+    // Upsert device by serial or id or hwid
+    const existing = await pool.query<{ id: string }>(
+      `SELECT id FROM devices WHERE serial = $1 OR id = $2 OR (hwid = $3 AND type = $4) LIMIT 1`,
+      [serial, id, hwid, claims.type]
     );
+
+    if (existing.rowCount && existing.rows[0]?.id) {
+      id = existing.rows[0].id;
+      await pool.query(
+        `UPDATE devices
+            SET key_hash = $2,
+                owner_id = $3,
+                name = COALESCE(NULLIF($4, ''), name),
+                type = $5,
+                hwid = $6,
+                serial = $7,
+                online = true,
+                last_seen = NOW()
+          WHERE id = $1`,
+        [id, keyHash, claims.uid, claims.name || claims.type, claims.type, hwid, serial]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO devices (id, key_hash, owner_id, name, type, serial, hwid)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO UPDATE
+         SET key_hash = EXCLUDED.key_hash,
+             owner_id = EXCLUDED.owner_id,
+             name = EXCLUDED.name,
+             type = EXCLUDED.type,
+             serial = EXCLUDED.serial,
+             hwid = EXCLUDED.hwid`,
+        [id, keyHash, claims.uid, claims.name || claims.type, claims.type, serial, hwid]
+      );
+    }
+
     provisionBrokerClient(id, key);
     logger.info({ id, serial, uid: claims.uid, type: claims.type }, "device self-provisioned");
     res.json({ id, key, serial, broker: "mqtt.circuvent.com" });

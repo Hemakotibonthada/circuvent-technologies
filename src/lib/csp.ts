@@ -53,8 +53,14 @@ const CSP_DIRECTIVES: Record<string, string[]> = {
   "frame-ancestors": ["'none'"],
 };
 
-export const CSP: string = (() => {
-  const parts = Object.entries(CSP_DIRECTIVES).map(([k, v]) => `${k} ${v.join(" ")}`);
-  parts.push("upgrade-insecure-requests");
+export function buildCsp(development = false): string {
+  const parts = Object.entries(CSP_DIRECTIVES).map(([k, v]) => {
+    // React/Turbopack reconstructs development call stacks with eval().
+    const values = development && k === "script-src" ? [...v, "'unsafe-eval'"] : v;
+    return `${k} ${values.join(" ")}`;
+  });
+  if (!development) parts.push("upgrade-insecure-requests");
   return parts.join("; ");
-})();
+}
+
+export const CSP = buildCsp(process.env.NODE_ENV === "development");

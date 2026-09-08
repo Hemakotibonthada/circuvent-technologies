@@ -76,6 +76,10 @@ const schema = z.object({
    */
   AUTH_ISSUER: z.string().default("https://auth.circuvent.com"),
   SSO_CLIENT_ID: z.string().default(""),
+  // Optional additional audience for the attendance web console. Kept empty
+  // until explicitly registered with the identity provider.
+  ATTENDANCE_SSO_CLIENT_ID: z.string().default(""),
+  ATTENDANCE_SSO_ISSUER: z.string().default("https://myaccount.circuvent.com"),
   /*
    * ANPR plate recognition.
    *

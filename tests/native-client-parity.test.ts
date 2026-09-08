@@ -336,6 +336,6 @@ describe("the Expo app is untouched and still the shipping client", () => {
     expect(gradle).toContain('applicationId = "com.circuvent.app.nativeclient"');
 
     const project = read("native", "ios", "project.yml");
-    expect(project).toContain("com.circuvent.app.nativeclient");
+    expect(project).toContain("com.vema.dev.nativeclient");
   });
 });

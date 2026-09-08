@@ -109,7 +109,7 @@ test.describe("SEO", () => {
   // Derived from the same source as the app (src/lib/config.ts) rather than a
   // hardcoded literal. This assertion previously expected "circuvent.tech",
   // which is not the configured origin, so the test failed on every run.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://app.circuvent.com";
   const siteHost = new URL(siteUrl).hostname;
 
   test("sitemap.xml is accessible", async ({ page }) => {

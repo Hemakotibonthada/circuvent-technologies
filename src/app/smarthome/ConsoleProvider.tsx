@@ -23,9 +23,11 @@ import {
 } from "@/lib/control-plane";
 import { useControlLive, type DeviceUpdate, type LiveStatus } from "@/lib/control-plane-live";
 import { signInToConsole, storedShopToken } from "@/lib/console-signin";
+import { completeAttendanceSignIn } from "@/lib/attendance-signin";
 import { issuedAtFromJwt, msUntilExpiry, sessionExpired, sessionStartedAt } from "@/lib/session-expiry";
 
 interface ConsoleContextValue {
+  ssoError: string | null;
   user: ControlUser | null;
   ready: boolean;
   liveStatus: LiveStatus;
@@ -57,6 +59,8 @@ interface Flags {
 export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<ControlUser | null>(null);
   const [ready, setReady] = useState(false);
+  const [ssoError, setSsoError] = useState<string | null>(null);
+  const ssoAttempt = useRef<ReturnType<typeof completeAttendanceSignIn> | null>(null);
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | "unsupported">("default");
 
   const subscribers = useRef(new Set<(u: DeviceUpdate) => void>());
@@ -77,6 +81,25 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     void (async () => {
+      // Cache the one-time handoff promise across React's effect replay so a
+      // second mount cannot consume the cookie before the first finishes.
+      const sso = await (ssoAttempt.current ??= completeAttendanceSignIn());
+      if (cancelled) return;
+      if (sso.handled) {
+        endSession();
+        if (sso.session) {
+          setToken(sso.session.token);
+          setRefreshToken(sso.session.refreshToken ?? null);
+          setStoredUser(sso.session.user);
+          markSignedInNow();
+          setUser(sso.session.user);
+        } else {
+          setSsoError(sso.error || "Single sign-on did not complete.");
+        }
+        setNotifyPermission(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
+        setReady(true);
+        return;
+      }
       /*
        * A session that has run its 24 hours is over before anything is restored
        * from it. Done first so an expired session never appears signed in, not
@@ -367,8 +390,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<ConsoleContextValue>(
-    () => ({ user, ready, liveStatus, notifyPermission, login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications }),
-    [user, ready, liveStatus, notifyPermission, login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications]
+    () => ({ user, ready, ssoError, liveStatus, notifyPermission, login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications }),
+    [user, ready, ssoError, liveStatus, notifyPermission, login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword, logout, subscribe, enableNotifications]
   );
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;

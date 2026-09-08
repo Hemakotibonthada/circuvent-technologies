@@ -47,6 +47,7 @@ import { useConsole } from "./ConsoleProvider";
 import { useConsoleTheme } from "./theme";
 import ProfileAvatar from "./ProfileAvatar";
 import Login from "./Login";
+import { AttendanceShell } from "./attendance/AttendanceShell";
 import VisitingBanner from "./VisitingBanner";
 import CommandRefusalHost from "./CommandRefusalHost";
 import { CommandPalette, ToastHost, useCommandPaletteHotkey, useEscape, useFocusTrap, useScrollLock, type Command as PaletteCommand } from "./_kit/overlays";
@@ -305,7 +306,10 @@ export default function ConsoleChrome({ children }: { children: React.ReactNode 
       </div>
     );
   }
-  if (!user) return <Login />;
+  if (!user) return <Login attendance={renderedPath.startsWith("/smarthome/attendance")} />;
+  if (renderedPath === "/smarthome/attendance" || renderedPath.startsWith("/smarthome/attendance/")) {
+    return <AttendanceShell>{children}</AttendanceShell>;
+  }
 
   return (
     <ToastHost>

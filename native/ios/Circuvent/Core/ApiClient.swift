@@ -7,7 +7,7 @@ import Foundation
 /// container, readable from a backup, and it is where this sort of thing ends
 /// up when nobody makes the decision deliberately.
 final class Session {
-    private let service = "com.circuvent.app.nativeclient"
+    private let service = "com.vema.dev.nativeclient"
 
     var token: String? {
         get { read("token") }

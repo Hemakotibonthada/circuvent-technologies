@@ -75,6 +75,16 @@ const navItems: NavItem[] = [
     },
   },
   { label: "Shop", href: "/shop", newTab: true },
+  {
+    label: "SaaS",
+    href: "/products",
+    children: [
+      { label: "All products", href: "/products", description: "Discover every Circuvent product", icon: <Layers className="w-4 h-4" /> },
+      { label: "Pricing", href: "/pricing", description: "Plans for mail, workspace, CRM, people", icon: <Sparkles className="w-4 h-4" /> },
+      { label: "Compare", href: "/compare", description: "Feature matrix across products", icon: <Layers className="w-4 h-4" /> },
+      { label: "Customer portal", href: "/portal", description: "Manage subscriptions and launch apps", icon: <CommandIcon className="w-4 h-4" /> },
+    ],
+  },
   { label: "Services", href: "/services" },
   {
     label: "We",

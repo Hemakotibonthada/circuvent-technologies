@@ -90,6 +90,26 @@ export async function POST(request: Request) {
       console.error("contact persist error:", e);
     }
 
+    // Automatically file inquiry as managed incident in icm.circuvent.com
+    try {
+      const { fileIncident, flushIcm, revalidateIcm } = await import("@/lib/icm-store");
+      await revalidateIcm();
+      fileIncident({
+        title: `[Web Inquiry] ${name}${company ? ` (${company})` : ""}: ${service || "General Inquiry"}`,
+        description: `Name: ${name}\nEmail: ${email}\nCompany: ${company || "N/A"}\nService: ${service || "General"}\nBudget: ${budget || "N/A"}\n\nMessage:\n${message}`,
+        severity: 3,
+        owningTeam: "Support",
+        createdBy: email,
+        source: "customer",
+        affectedServices: ["circuvent.com", service || "general"],
+        customersImpacted: 1,
+        tags: ["website-inquiry", "contact-form", (service || "general").toLowerCase().replace(/[^a-z0-9_-]/g, "")],
+      });
+      await flushIcm();
+    } catch (icmErr) {
+      console.warn("Could not log web inquiry to ICM:", icmErr);
+    }
+
     // Email is best-effort: the message is already captured (visible in the
     // admin Messages panel), so a delivery failure must not fail the request.
     const successResponse = NextResponse.json({

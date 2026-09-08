@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { withWorkflow } from "workflow/next";
 import { CSP } from "./src/lib/csp";
 
 // Static security headers applied to every response. These follow OWASP
@@ -118,13 +117,8 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [...securityHeaders, ...robotsHeaders],
       },
-      {
-        // Long-lived immutable cache for build assets.
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
+      // Next owns static asset caching: immutable hashed production assets,
+      // but revalidated development chunks so edits do not stay stale.
       {
         // API responses must never be cached by shared caches.
         source: "/api/:path*",
@@ -136,12 +130,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-/*
- * withWorkflow enables the "use workflow" and "use step" directives, and
- * generates the SDK's internal route handlers under src/app/.well-known/workflow/
- * at build time.
- *
- * It wraps the config rather than replacing anything in it: every header, image
- * pattern and distDir rule above still applies.
- */
-export default withWorkflow(nextConfig);
+export default nextConfig;

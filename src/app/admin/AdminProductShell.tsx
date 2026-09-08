@@ -376,7 +376,11 @@ export default function AdminProductShell({
                 }}
               >
                 <ShieldCheck className="w-4 h-4" />
+<<<<<<< HEAD
                 Sign in with Circuvent
+=======
+                Continue with SSO
+>>>>>>> develop
               </a>
             </form>
           )}

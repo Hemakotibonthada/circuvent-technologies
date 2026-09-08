@@ -4,7 +4,7 @@ import SwiftUI
 struct CircuventApp: App {
     @StateObject private var model = HomeModel()
 
-    var body: some Scene {
+    var body: some SwiftUI.Scene {
         WindowGroup {
             RootView()
                 .environmentObject(model)
@@ -141,6 +141,7 @@ struct SignInView: View {
             .padding(.top, 6)
         }
         .padding(24)
+        .padding(.top, 8)
     }
 }
 

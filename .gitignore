@@ -156,3 +156,5 @@ pdf-verify.pdf
 # output under a different name, and on Windows it may hold locked files that
 # resist deletion, so it must never be a candidate for committing.
 node_modules_*/
+
+.vscode/

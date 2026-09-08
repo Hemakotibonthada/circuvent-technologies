@@ -26,6 +26,7 @@ const USER_KEY = "cv-console-user";
 const SIGNED_IN_AT_KEY = "cv-console-signed-in-at";
 
 export interface ControlUser {
+  organization?: { id: string; name: string; domain: string | null };
   id: number;
   email: string;
   name: string;
@@ -1204,9 +1205,31 @@ export interface FaceDoorCamera {
 /* Attendance                                                          */
 /* ------------------------------------------------------------------ */
 
+export interface AttendanceCompany {
+  company_name: string;
+  domain: string;
+  org_id: string;
+  site_count: number;
+  people_count: number;
+  terminal_count: number;
+  sites: Array<{
+    id: number;
+    name: string;
+    kind: "school" | "office" | "facility";
+    timezone: string;
+    companyName: string;
+    domain: string;
+    people: number;
+    terminals: number;
+  }>;
+}
+
 export interface AttendanceSite {
   id: number;
   name: string;
+  companyName?: string;
+  domain?: string;
+  orgId?: string | null;
   kind: "school" | "office" | "facility";
   timezone: string;
   graceMinutes: number;
@@ -1917,13 +1940,21 @@ export const controlPlane = {
    * Attendance and RFID access control
    * ---------------------------------------------------------------- */
 
+  attendanceCompanies: () => req<{ companies: AttendanceCompany[] }>("/attendance/companies"),
   attendanceSites: () => req<{ sites: AttendanceSite[] }>("/attendance/sites"),
-  createAttendanceSite: (body: { name: string; kind?: string; timezone?: string }) =>
+  createAttendanceSite: (body: { name: string; companyName?: string; domain?: string; orgId?: string; kind?: string; timezone?: string }) =>
     req<{ site: AttendanceSite }>("/attendance/sites", { method: "POST", body: JSON.stringify(body) }),
   updateAttendanceSite: (id: number, body: Record<string, unknown>) =>
     req<{ site: AttendanceSite }>("/attendance/sites/" + id, { method: "PATCH", body: JSON.stringify(body) }),
   deleteAttendanceSite: (id: number) =>
     req<{ success: boolean }>("/attendance/sites/" + id, { method: "DELETE" }),
+  manualPunch: (body: { siteId: number; personId: number; direction?: "in" | "out" | "auto"; timestamp?: string; note?: string }) =>
+    req<{ punch: Record<string, unknown> }>("/attendance/punch/manual", { method: "POST", body: JSON.stringify(body) }),
+  terminalAction: (deviceId: string, action: "unlock" | "beep" | "reboot" | "sync") =>
+    req<{ ok: boolean; deviceId: string; action: string }>(
+      "/attendance/terminals/" + encodeURIComponent(deviceId) + "/action",
+      { method: "POST", body: JSON.stringify({ action }) }
+    ),
 
   attendanceGroups: (siteId: number) =>
     req<{ groups: AttendanceGroup[] }>("/attendance/groups?siteId=" + siteId),
@@ -1934,12 +1965,23 @@ export const controlPlane = {
   deleteAttendanceGroup: (id: number) =>
     req<{ success: boolean }>("/attendance/groups/" + id, { method: "DELETE" }),
 
-  attendancePeople: (siteId: number, opts: { groupId?: number; q?: string } = {}) =>
-    req<{ people: AttendancePerson[] }>(
-      "/attendance/people?siteId=" + siteId +
+  attendancePeople: async (siteId: number, opts: { groupId?: number; q?: string } = {}) => {
+    const people: AttendancePerson[] = [];
+    const path = "/attendance/people?siteId=" + siteId + "&limit=1000" +
       (opts.groupId ? "&groupId=" + opts.groupId : "") +
-      (opts.q ? "&q=" + encodeURIComponent(opts.q) : "")
-    ),
+      (opts.q ? "&q=" + encodeURIComponent(opts.q) : "");
+    for (let offset = 0; ; offset += 1000) {
+      const result = await req<{ people: AttendancePerson[] }>(path + "&offset=" + offset);
+      if (!result.ok) return result;
+      const page = result.data.people ?? [];
+      // Prevent an older API (which ignores offset) from repeating the first page forever.
+      if (offset && page.length && people.some(person => person.id === page[0].id)) {
+        return { ...result, ok: false, status: 409 };
+      }
+      people.push(...page);
+      if (page.length < 1000) return { ...result, data: { people } };
+    }
+  },
   createAttendancePerson: (body: Record<string, unknown>) =>
     req<{ person: AttendancePerson }>("/attendance/people", { method: "POST", body: JSON.stringify(body) }),
   updateAttendancePerson: (id: number, body: Record<string, unknown>) =>
@@ -1983,6 +2025,8 @@ export const controlPlane = {
 
   attendanceTerminals: (siteId: number) =>
     req<{ terminals: AttendanceTerminal[] }>("/attendance/terminals?siteId=" + siteId),
+  syncAttendanceEmployees: (siteId: number) =>
+    req<{ count: number; error?: string }>("/attendance/people/sync-hrms", { method: "POST", body: JSON.stringify({ siteId }) }),
   saveAttendanceTerminal: (deviceId: string, body: Record<string, unknown>) =>
     req<{ success: boolean; cards: number }>(
       "/attendance/terminals/" + encodeURIComponent(deviceId),

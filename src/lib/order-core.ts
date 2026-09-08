@@ -9,7 +9,7 @@ import { productAvailability, type AvailabilityInput } from "./product-availabil
 import { BRAND } from "./brand";
 import { recordEmail } from "./email-log";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://app.circuvent.com";
 
 /** Absolute logo URL for emails (relative paths don't resolve in mail clients). */
 const LOGO_URL = `${SITE_URL}/logo-mark.png`;

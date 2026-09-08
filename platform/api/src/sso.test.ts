@@ -63,6 +63,8 @@ describe("single sign-on token verification", () => {
   beforeEach(() => {
     (config as { AUTH_ISSUER: string }).AUTH_ISSUER = ISSUER;
     (config as { SSO_CLIENT_ID: string }).SSO_CLIENT_ID = AUDIENCE;
+    config.ATTENDANCE_SSO_CLIENT_ID = "";
+    config.ATTENDANCE_SSO_ISSUER = ISSUER;
     resetSsoCaches();
     stubProvider();
   });
@@ -77,9 +79,29 @@ describe("single sign-on token verification", () => {
     assert.equal(claims.name, "A Person");
   });
 
+  test("accepts the explicitly configured attendance audience only with a verified ID token", async () => {
+    config.ATTENDANCE_SSO_CLIENT_ID = "attendance";
+    const attendanceToken = (claims: Record<string, unknown>) => sign(claims, good.privateKey, { audience: "attendance" });
+    assert.equal((await verifyIdToken(attendanceToken({ email_verified: true }))).email, "person@circuvent.com");
+    for (const claims of [{}, { email_verified: false }, { email_verified: true, sub: "" },
+      { email_verified: true, scope: "openid email" }]) {
+      await assert.rejects(() => verifyIdToken(attendanceToken(claims)));
+    }
+    await assert.rejects(() => verifyIdToken(sign({ email_verified: true }, good.privateKey, { audience: "hrms" })));
+  });
+
   test("lower-cases the address, so one person is not two accounts", async () => {
     const claims = await verifyIdToken(sign({ email: "Person@Circuvent.com" }));
     assert.equal(claims.email, "person@circuvent.com");
+  });
+
+  test("keeps legacy and attendance issuer/audience pairs isolated", async () => {
+    config.ATTENDANCE_SSO_CLIENT_ID = "attendance";
+    config.ATTENDANCE_SSO_ISSUER = "https://myaccount.example.test";
+    await verifyIdToken(sign({}));
+    await verifyIdToken(sign({ email_verified: true }, good.privateKey, { audience: "attendance", issuer: config.ATTENDANCE_SSO_ISSUER }));
+    await assert.rejects(() => verifyIdToken(sign({ email_verified: true }, good.privateKey, { audience: "attendance" })));
+    await assert.rejects(() => verifyIdToken(sign({}, good.privateKey, { issuer: config.ATTENDANCE_SSO_ISSUER })));
   });
 
   test("rejects a token signed by somebody else's key", async () => {

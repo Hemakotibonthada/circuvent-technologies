@@ -29,14 +29,11 @@
     "next-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
-    "tests/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "next.config.ts",
     "eslint.config.mjs",
-    "jest.config.js",
-    "playwright.config.ts",
     "postcss.config.mjs"
   ],
-  "exclude": ["node_modules", "jest.setup.tsx", "e2e", "circuvent-platform", "scripts"]
+  "exclude": ["node_modules", "mobile", "platform", "firmware", "jest.setup.tsx", "tests", "e2e", "circuvent-platform", "scripts"]
 }

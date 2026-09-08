@@ -25,7 +25,8 @@
     "docs:business:verify": "python scripts/verify_business_docs.py",
     "docs:kt": "python scripts/build_kt_docs.py",
     "docs:kt:verify": "python scripts/verify_kt_docs.py",
-    "docs:business:data": "tsx scripts/export-business-data.ts"
+    "docs:business:data": "tsx scripts/export-business-data.ts",
+    "vercel-build": "next build"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
