@@ -26,6 +26,7 @@ const USER_KEY = "cv-console-user";
 const SIGNED_IN_AT_KEY = "cv-console-signed-in-at";
 
 export interface ControlUser {
+  organization?: { id: string; name: string; domain: string | null };
   id: number;
   email: string;
   name: string;
@@ -1964,12 +1965,23 @@ export const controlPlane = {
   deleteAttendanceGroup: (id: number) =>
     req<{ success: boolean }>("/attendance/groups/" + id, { method: "DELETE" }),
 
-  attendancePeople: (siteId: number, opts: { groupId?: number; q?: string } = {}) =>
-    req<{ people: AttendancePerson[] }>(
-      "/attendance/people?siteId=" + siteId +
+  attendancePeople: async (siteId: number, opts: { groupId?: number; q?: string } = {}) => {
+    const people: AttendancePerson[] = [];
+    const path = "/attendance/people?siteId=" + siteId + "&limit=1000" +
       (opts.groupId ? "&groupId=" + opts.groupId : "") +
-      (opts.q ? "&q=" + encodeURIComponent(opts.q) : "")
-    ),
+      (opts.q ? "&q=" + encodeURIComponent(opts.q) : "");
+    for (let offset = 0; ; offset += 1000) {
+      const result = await req<{ people: AttendancePerson[] }>(path + "&offset=" + offset);
+      if (!result.ok) return result;
+      const page = result.data.people ?? [];
+      // Prevent an older API (which ignores offset) from repeating the first page forever.
+      if (offset && page.length && people.some(person => person.id === page[0].id)) {
+        return { ...result, ok: false, status: 409 };
+      }
+      people.push(...page);
+      if (page.length < 1000) return { ...result, data: { people } };
+    }
+  },
   createAttendancePerson: (body: Record<string, unknown>) =>
     req<{ person: AttendancePerson }>("/attendance/people", { method: "POST", body: JSON.stringify(body) }),
   updateAttendancePerson: (id: number, body: Record<string, unknown>) =>
@@ -2013,6 +2025,8 @@ export const controlPlane = {
 
   attendanceTerminals: (siteId: number) =>
     req<{ terminals: AttendanceTerminal[] }>("/attendance/terminals?siteId=" + siteId),
+  syncAttendanceEmployees: (siteId: number) =>
+    req<{ count: number; error?: string }>("/attendance/people/sync-hrms", { method: "POST", body: JSON.stringify({ siteId }) }),
   saveAttendanceTerminal: (deviceId: string, body: Record<string, unknown>) =>
     req<{ success: boolean; cards: number }>(
       "/attendance/terminals/" + encodeURIComponent(deviceId),

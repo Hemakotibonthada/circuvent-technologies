@@ -1,0 +1,32 @@
+/* These views were authored dark-first. Keep surfaces and foregrounds on the
+   same console scheme so its light remapping never lands on a fixed dark page. */
+.cv-theme .attendance-workspace :is(h1,h2,h3,h4,strong,label),
+.cv-theme .attendance-workspace :is(.text-white,.text-slate-100,.text-slate-200,.text-slate-300) { color: var(--cv-text); }
+.cv-theme .attendance-workspace :is(.text-slate-400,.text-slate-500,.text-slate-600) { color: var(--cv-muted); }
+.cv-theme .attendance-workspace aside,
+.cv-theme .attendance-workspace [class~="bg-slate-900"],
+.cv-theme .attendance-workspace [class~="bg-slate-900/80"],
+.cv-theme .attendance-workspace [class~="bg-black/20"],
+.cv-theme .attendance-workspace [class~="bg-black/30"],
+.cv-theme .attendance-workspace [class~="bg-slate-950"] { background: var(--cv-card); }
+.cv-theme .attendance-workspace :is(input,select,textarea) {
+  background: var(--cv-input-bg) !important; color: var(--cv-text) !important;
+  border: 1px solid var(--cv-border) !important; box-shadow: none !important;
+  color-scheme: inherit;
+}
+.cv-theme .attendance-workspace input::placeholder { color: var(--cv-muted); opacity: .85; }
+.cv-theme .attendance-workspace input:read-only { cursor: default; opacity: .85; }
+.cv-theme .attendance-workspace :is(input,select,textarea):focus-visible { outline: 2px solid var(--cv-accent); outline-offset: 2px; }
+.cv-theme .attendance-workspace [class*="border-slate-"],
+.cv-theme .attendance-workspace [class*="border-white/"] { border-color: var(--cv-border); }
+.cv-theme .attendance-workspace button[class*="bg-violet-"],
+.cv-theme .attendance-workspace button[class*="bg-emerald-"],
+.cv-theme .attendance-workspace button[class*="bg-cyan-"] { background: #0e7490; color: #fff; }
+.cv-theme .attendance-workspace button:disabled { opacity: .6; cursor: not-allowed; }
+.cv-theme.cv-dark .attendance-workspace { --cv-text: #f1f5f9; --cv-muted: #b8c4d8; --cv-border: #475569; color-scheme: dark; }
+.cv-theme.cv-light .attendance-workspace { color-scheme: light; }
+.cv-theme.cv-light .attendance-workspace [class*="text-cyan-"] { color: #0e7490; }
+.cv-theme.cv-light .attendance-workspace [class*="text-rose-"] { color: #be123c; }
+.cv-theme.cv-light .attendance-workspace [class*="text-amber-"] { color: #92400e; }
+.cv-theme.cv-light .attendance-workspace [class*="text-violet-"] { color: #6d28d9; }
+.cv-theme.cv-light .attendance-workspace [class*="bg-gradient-to-"] { background: var(--cv-card); }

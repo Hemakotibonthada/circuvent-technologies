@@ -118,13 +118,8 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [...securityHeaders, ...robotsHeaders],
       },
-      {
-        // Long-lived immutable cache for build assets.
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
+      // Next owns static asset caching: immutable hashed production assets,
+      // but revalidated development chunks so edits do not stay stale.
       {
         // API responses must never be cached by shared caches.
         source: "/api/:path*",

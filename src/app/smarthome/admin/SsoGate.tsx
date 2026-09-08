@@ -202,7 +202,7 @@ export default function SsoGate({ children }: { children: ReactNode }) {
               href="/api/admin/auth/sso/start"
               className="mt-6 flex w-full items-center justify-center rounded-lg bg-[#2585C6] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1e6da3]"
             >
-              Sign in with Circuvent
+              Continue with SSO
             </a>
 
             {who && (

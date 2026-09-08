@@ -31,6 +31,8 @@ import {
   type AttendancePunch,
 } from "@/lib/control-plane";
 import { isAttendanceReader } from "@/lib/attendance-readers";
+import { Schedules } from "./Schedules";
+import { useConsole } from "../ConsoleProvider";
 
 export type AttendanceView =
   | "live" | "register" | "people" | "cards" | "terminals" | "schedules" | "reports" | "access";
@@ -88,15 +90,23 @@ export function AttendancePanel({ view }: { view: AttendanceView }) {
   const [selectedDomain, setSelectedDomain] = useState<string>("circuvent.com");
   const [siteId, setSiteId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [rosterStatus, setRosterStatus] = useState("");
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
   const [showAddSiteModal, setShowAddSiteModal] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadError("");
     const [sRes, cRes] = await Promise.all([
       controlPlane.attendanceSites(),
       controlPlane.attendanceCompanies(),
     ]);
+    if (!sRes.ok) {
+      setLoadError("Could not load your attendance sites. Please retry; your existing data has not changed.");
+      setLoading(false);
+      return;
+    }
 
     let list: AttendanceSite[] = [];
     if (sRes.ok) {
@@ -143,6 +153,10 @@ export function AttendancePanel({ view }: { view: AttendanceView }) {
 
     setSiteId((cur) => {
       if (cur && list.some((s) => s.id === cur)) return cur;
+      try {
+        const saved = Number(sessionStorage.getItem("attendance:selected-site"));
+        if (list.some(s => s.id === saved)) return saved;
+      } catch { /* Storage may be unavailable in private browsing. */ }
       return list[0]?.id ?? null;
     });
     setLoading(false);
@@ -160,12 +174,29 @@ export function AttendancePanel({ view }: { view: AttendanceView }) {
     return sites[0];
   }, [sites, siteId]);
 
+  useEffect(() => {
+    if (!site || site.kind !== "office") return;
+    let cancelled = false;
+    void controlPlane.syncAttendanceEmployees(site.id).then(async result => {
+      if (cancelled) return;
+      setRosterStatus(result.ok ? `Employee directory synced (${result.data.count}).` : result.data?.error ?? "Employee sync unavailable. Existing records are unchanged.");
+      if (result.ok) {
+        const updated = await controlPlane.attendanceCompanies();
+        if (!cancelled && updated.ok) setCompanies(updated.data.companies);
+      }
+    }).catch(() => { if (!cancelled) setRosterStatus("Employee sync failed. Retry from People."); });
+    return () => { cancelled = true; };
+  }, [site?.id, site?.kind]);
+
   // Keep selected domain in sync with selected site
   useEffect(() => {
+    if (site?.id) {
+      try { sessionStorage.setItem("attendance:selected-site", String(site.id)); } catch { /* Optional preference. */ }
+    }
     if (site?.domain && site.domain !== selectedDomain) {
       setSelectedDomain(site.domain);
     }
-  }, [site?.domain]);
+  }, [site?.domain, site?.id]);
 
   const currentCompany = useMemo(() => {
     return companies.find((c) => c.domain === selectedDomain) || {
@@ -186,10 +217,12 @@ export function AttendancePanel({ view }: { view: AttendanceView }) {
   }, [sites, selectedDomain]);
 
   if (loading) return <Skeleton />;
+  if (loadError) return <div role="alert" className="rounded-xl border border-rose-500/30 p-5 text-rose-200">{loadError}<button onClick={() => void load()} className="ml-3 underline">Retry</button></div>;
   if (!site) return <FirstRun onCreated={load} />;
 
   return (
     <div className="space-y-6">
+      {rosterStatus && <p role="status" className="text-sm">{rosterStatus}</p>}
       {/* ─── Company & Domain Header Bar ─── */}
       <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 p-4 shadow-xl shadow-black/40 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -410,9 +443,9 @@ export function AttendancePanel({ view }: { view: AttendanceView }) {
       {/* ─── Active Sub-View Panel ─── */}
       {view === "live" && <LiveBoard site={site} />}
       {view === "register" && <Register site={site} />}
-      {view === "people" && <People site={site} />}
+      {view === "people" && <People key={site.id} site={site} />}
       {view === "cards" && <Cards site={site} />}
-      {view === "terminals" && <Terminals site={site} />}
+      {view === "terminals" && <Terminals key={site.id} site={site} />}
       {view === "access" && <OfficeAccess site={site} />}
       {view === "schedules" && <Schedules site={site} />}
       {view === "reports" && <Reports site={site} />}
@@ -532,13 +565,20 @@ function AddSiteModal({
 
 /* ------------------------------------------------------------------ */
 
-function FirstRun({ onCreated }: { onCreated: () => void }) {
+export function FirstRun({ onCreated }: { onCreated: () => void }) {
+  const { user } = useConsole();
+  const organization = user?.organization;
   const [name, setName] = useState("");
-  const [domain, setDomain] = useState("circuvent.com");
-  const [companyName, setCompanyName] = useState("Circuvent Technologies");
+  const [editedDomain, setEditedDomain] = useState<string | null>(null);
+  const [editedCompanyName, setEditedCompanyName] = useState<string | null>(null);
+  const emailDomain = user?.email?.split("@")[1]?.toLowerCase() ?? "";
+  const domain = editedDomain ?? (organization?.domain?.trim() || emailDomain);
+  const companyName = editedCompanyName ?? organization?.name ?? "";
+  const validDomain = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i.test(domain.trim());
   const [kind, setKind] = useState<"school" | "office" | "facility">("office");
   const [busy, setBusy] = useState(false);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+  const [error, setError] = useState("");
 
   return (
     <div className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-black/20 p-6 shadow-2xl">
@@ -549,51 +589,68 @@ function FirstRun({ onCreated }: { onCreated: () => void }) {
       </p>
       <div className="mt-5 space-y-3">
         <div>
-          <label className="text-xs text-slate-400">Company Name</label>
+          <label htmlFor="attendance-company-name" className="text-xs text-slate-400">Company Name</label>
           <input
+            id="attendance-company-name"
             value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder="Circuvent Technologies"
+            onChange={(e) => setEditedCompanyName(e.target.value)}
+            maxLength={120}
+            placeholder="Your organization"
             className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
           />
         </div>
         <div>
-          <label className="text-xs text-slate-400">Company Domain</label>
+          <label htmlFor="attendance-company-domain" className="text-xs text-slate-400">Company Domain</label>
           <input
+            id="attendance-company-domain"
             value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            placeholder="circuvent.com"
+            onChange={(e) => setEditedDomain(e.target.value)}
+            maxLength={253}
+            autoCapitalize="none"
+            placeholder="example.com"
             className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
           />
         </div>
         <div>
-          <label className="text-xs text-slate-400">Site Location / Name</label>
+          <label htmlFor="attendance-site-name" className="text-xs text-slate-400">Site Location / Name</label>
           <input
+            id="attendance-site-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Circuvent HQ"
+            placeholder="Head office"
             className="min-h-[44px] w-full rounded-xl border border-white/15 bg-black/30 px-3 text-slate-100 outline-none focus:border-violet-500"
           />
         </div>
       </div>
+      <p className="mt-3 text-sm text-slate-400">Company details are suggested from your SSO account when available. You can edit them for this attendance site; this does not change your SSO organization or verify domain ownership.</p>
+      {domain.trim() && !validDomain && <p role="status" className="mt-2 text-sm text-amber-300">Enter a domain such as example.com, without https:// or an email address.</p>}
       <button
-        disabled={!name.trim() || busy}
+        disabled={!name.trim() || !companyName.trim() || !validDomain || busy}
         onClick={async () => {
           setBusy(true);
-          const r = await controlPlane.createAttendanceSite({
-            name: name.trim(),
-            companyName: companyName.trim() || "Circuvent Technologies",
-            domain: domain.trim() || "circuvent.com",
-            kind,
-            timezone: tz,
-          });
-          setBusy(false);
-          if (r.ok) onCreated();
+          setError("");
+          try {
+            const r = await controlPlane.createAttendanceSite({
+              name: name.trim(),
+              companyName: companyName.trim(),
+              domain: domain.trim().toLowerCase(),
+              orgId: organization?.id,
+              kind,
+              timezone: tz,
+            });
+            if (r.ok) onCreated();
+            else setError("Could not create the site. Check your organization details and permissions, then retry.");
+          } catch {
+            setError("Could not reach the attendance service. Please try again.");
+          } finally {
+            setBusy(false);
+          }
         }}
         className="mt-5 min-h-[44px] w-full rounded-xl border border-violet-500/40 bg-violet-600 font-semibold text-white hover:bg-violet-500 disabled:opacity-40 transition"
       >
-        {busy ? "Creating…" : "Initialize Site"}
+        {busy ? "Creating…" : "Create attendance site"}
       </button>
+      {error && <p role="alert" className="mt-3 text-sm text-rose-300">{error}</p>}
     </div>
   );
 }
@@ -1062,6 +1119,7 @@ function Register({ site }: { site: AttendanceSite }) {
 /* ------------------------------------------------------------------ */
 
 function People({ site }: { site: AttendanceSite }) {
+  const [syncing, setSyncing] = useState(false);
   const v = vocab(site.kind);
   const [people, setPeople] = useState<AttendancePerson[]>([]);
   const [groups, setGroups] = useState<AttendanceGroup[]>([]);
@@ -1086,8 +1144,23 @@ function People({ site }: { site: AttendanceSite }) {
 
   const domain = site.domain || "circuvent.com";
 
+  const syncEmployees = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const result = await controlPlane.syncAttendanceEmployees(site.id);
+      setMsg(result.ok ? `Synced ${result.data.count} HRMS employees. Cards and attendance history are preserved.` : result.data?.error ?? "Employee sync failed. Please retry.");
+      if (result.ok) {
+        const roster = await controlPlane.attendancePeople(site.id);
+        if (roster.ok) setPeople(roster.data.people ?? []);
+      }
+    } finally { setSyncing(false); }
+  }, [site.id]);
+
+  useEffect(() => { if (site.kind === "office") void syncEmployees(); }, [site.kind, syncEmployees]);
+
   return (
     <div className="space-y-4">
+      {site.kind === "office" && <button disabled={syncing} onClick={() => void syncEmployees()} className="rounded-lg bg-violet-600 px-4 py-2 text-white">{syncing ? "Syncing employees…" : "Sync employees from HRMS"}</button>}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -1419,13 +1492,37 @@ function Cards({ site }: { site: AttendanceSite }) {
 
 /* ------------------------------------------------------------------ */
 
-function Terminals({ site }: { site: AttendanceSite }) {
+export function Terminals({ site }: { site: AttendanceSite }) {
+  const [devices, setDevices] = useState<import("@/lib/control-plane").Device[]>([]);
+  const [deviceId, setDeviceId] = useState("");
+  const [pairingKey, setPairingKey] = useState("");
+  const [readerName, setReaderName] = useState("Entrance");
+  const [direction, setDirection] = useState("auto");
+  const [message, setMessage] = useState("");
   const [terminals, setTerminals] = useState<AttendanceTerminal[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyDevice, setBusyDevice] = useState<string | null>(null);
 
+  const act = async (id: string, action: "beep" | "unlock" | "sync" | "remove") => {
+    if (action === "unlock" && !window.confirm("Release this door now?")) return;
+    if (action === "remove" && !window.confirm("Unregister this reader? Disconnect or reset hardware first: cached door permissions can remain on the device. Device ownership is retained.")) return;
+    setBusyDevice(id); setMessage("");
+    try {
+      const result = action === "sync" ? await controlPlane.syncAttendanceTerminal(id)
+        : action === "remove" ? await controlPlane.deleteAttendanceTerminal(id)
+        : action === "unlock" ? await controlPlane.openAttendanceDoor(id)
+        : await controlPlane.terminalAction(id, "beep");
+      if (!result.ok) throw new Error("Reader action failed. Check its connection and your permissions.");
+      setMessage(action === "remove" ? "Reader unregistered. Reset disconnected hardware to clear cached permissions." : "Reader command accepted. Verify the device response.");
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Reader action failed."); }
+    finally { setBusyDevice(null); }
+  };
+
   const load = useCallback(async () => {
     const r = await controlPlane.attendanceTerminals(site.id);
+    const d = await controlPlane.devices();
+    if (d.ok) setDevices(d.data.devices);
     if (r.ok) setTerminals(r.data.terminals ?? []);
     setLoading(false);
   }, [site.id]);
@@ -1434,6 +1531,35 @@ function Terminals({ site }: { site: AttendanceSite }) {
 
   return (
     <div className="space-y-4">
+      <form className="rounded-2xl border border-white/15 bg-black/30 p-5 space-y-3" onSubmit={async e => {
+        e.preventDefault();
+        setBusyDevice(deviceId); setMessage("");
+        try {
+          const owned = devices.find(d => d.id === deviceId);
+          if (!owned) {
+            if (!pairingKey.trim()) throw new Error("Enter the pairing key printed on the reader.");
+            const claim = await controlPlane.claim(deviceId.trim(), pairingKey.trim(), readerName);
+            if (!claim.ok) throw new Error("Could not claim this reader. Check its ID, pairing key and ownership.");
+          } else if (!isAttendanceReader(owned.type)) throw new Error("Choose an attendance reader.");
+          const existing = terminals.find(t => t.deviceId === deviceId.trim());
+          const result = await controlPlane.saveAttendanceTerminal(deviceId.trim(), { siteId: site.id, name: readerName.trim(), direction, ...(existing ? { zoneId: existing.zoneId } : { mode: "attendance", enabled: true }) });
+          if (!result.ok) throw new Error("Could not register this reader. Check device ownership and retry.");
+          setPairingKey(""); setDeviceId(""); setMessage("Reader registered. Connect it to the network, then sync its card list.");
+          await load();
+        } catch (error) { setMessage(error instanceof Error ? error.message : "Reader setup failed."); }
+        finally { setBusyDevice(null); }
+      }}>
+        <h3 className="font-semibold text-slate-100">Add attendance reader</h3>
+        <p className="text-sm text-slate-400">Select an owned reader or enter a new reader ID and its pairing key.</p>
+        <label className="block text-sm">Device ID<input required list="attendance-owned-readers" value={deviceId} onChange={e => setDeviceId(e.target.value)} className="block w-full rounded-lg border bg-transparent p-2" /></label>
+        <datalist id="attendance-owned-readers">{devices.filter(d => isAttendanceReader(d.type)).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</datalist>
+        {!devices.some(d => d.id === deviceId) && <label className="block text-sm">Pairing key<input type="password" autoComplete="off" value={pairingKey} onChange={e => setPairingKey(e.target.value)} className="block w-full rounded-lg border bg-transparent p-2" /></label>}
+        <label className="block text-sm">Reader name<input required maxLength={60} value={readerName} onChange={e => setReaderName(e.target.value)} className="block w-full rounded-lg border bg-transparent p-2" /></label>
+        <label className="block text-sm">Punch direction<select value={direction} onChange={e => setDirection(e.target.value)} className="block w-full rounded-lg border bg-transparent p-2"><option value="auto">Automatic in / out</option><option value="in">Entry only</option><option value="out">Exit only</option></select></label>
+        <button disabled={busyDevice !== null} className="rounded-lg bg-violet-600 px-4 py-2 text-white">{busyDevice ? "Saving…" : terminals.some(t => t.deviceId === deviceId.trim()) ? "Save reader" : "Add reader"}</button>
+      </form>
+      {message && <p role="status" className="text-sm">{message}</p>}
+      {!loading && terminals.length === 0 && <p className="text-sm text-slate-400">No readers registered for this site yet.</p>}
       <div className="grid gap-4 md:grid-cols-2">
         {terminals.map((t) => (
           <div key={t.deviceId} className="rounded-2xl border border-white/15 bg-black/30 p-5 shadow-xl">
@@ -1466,38 +1592,27 @@ function Terminals({ site }: { site: AttendanceSite }) {
             <div className="mt-4 flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
               <button
                 disabled={busyDevice === t.deviceId}
-                onClick={async () => {
-                  setBusyDevice(t.deviceId);
-                  await controlPlane.terminalAction(t.deviceId, "beep");
-                  setBusyDevice(null);
-                }}
+                onClick={() => void act(t.deviceId, "beep")}
                 className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
               >
                 Test Beep
               </button>
               <button
                 disabled={busyDevice === t.deviceId}
-                onClick={async () => {
-                  setBusyDevice(t.deviceId);
-                  await controlPlane.terminalAction(t.deviceId, "unlock");
-                  setBusyDevice(null);
-                }}
+                onClick={() => void act(t.deviceId, "unlock")}
                 className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/25"
               >
                 Unlock Door
               </button>
               <button
                 disabled={busyDevice === t.deviceId}
-                onClick={async () => {
-                  setBusyDevice(t.deviceId);
-                  await controlPlane.syncAttendanceTerminal(t.deviceId);
-                  setBusyDevice(null);
-                  await load();
-                }}
+                onClick={() => void act(t.deviceId, "sync")}
                 className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/25"
               >
                 Sync ACL
               </button>
+              <button disabled={busyDevice !== null} onClick={() => { setDeviceId(t.deviceId); setReaderName(t.name); setDirection(t.direction); }} className="rounded-lg border px-3 py-1.5 text-xs">Edit reader</button>
+              <button disabled={busyDevice !== null} onClick={() => void act(t.deviceId, "remove")} className="rounded-lg border px-3 py-1.5 text-xs text-rose-300">Unregister</button>
             </div>
           </div>
         ))}
@@ -1552,38 +1667,10 @@ function OfficeAccess({ site }: { site: AttendanceSite }) {
 
 /* ------------------------------------------------------------------ */
 
-function Schedules({ site }: { site: AttendanceSite }) {
-  const [schedules, setSchedules] = useState<AttendanceSchedule[]>([]);
-
-  useEffect(() => {
-    void controlPlane.attendanceSchedules(site.id).then((r) => {
-      if (r.ok) setSchedules(r.data.schedules ?? []);
-    });
-  }, [site.id]);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-white/15 bg-black/30 p-5 shadow-xl">
-          <h4 className="font-bold text-slate-100">Standard Work Shift</h4>
-          <p className="text-xs text-slate-400 mt-1">General enterprise timing</p>
-          <div className="mt-4 space-y-2 font-mono text-xs text-slate-300">
-            <div className="flex justify-between"><span>Work Hours:</span><strong>09:30 – 18:30</strong></div>
-            <div className="flex justify-between"><span>Grace Period:</span><strong>{site.graceMinutes} mins</strong></div>
-            <div className="flex justify-between"><span>Half-Day Cutoff:</span><strong>{site.halfDayAfterMinutes} mins</strong></div>
-            <div className="flex justify-between"><span>Absent Cutoff:</span><strong>{site.absentAfterMinutes} mins</strong></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
 function Reports({ site }: { site: AttendanceSite }) {
   const [range, setRange] = useState({ from: daysAgo(30), to: today() });
   const [downloading, setDownloading] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   return (
     <div className="space-y-5">
@@ -1614,16 +1701,20 @@ function Reports({ site }: { site: AttendanceSite }) {
           </div>
           <div className="self-end">
             <button
-              disabled={downloading}
+              disabled={downloading || !range.from || !range.to || range.from > range.to}
               onClick={async () => {
                 setDownloading(true);
-                await controlPlane.downloadAttendanceExport(site.id, "summary", range.from, range.to);
+                setExportError("");
+                const result = await controlPlane.downloadAttendanceExport(site.id, "summary", range.from, range.to);
+                if (!result.ok) setExportError(result.error);
                 setDownloading(false);
               }}
               className="min-h-[44px] rounded-xl border border-emerald-500/40 bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-40 transition flex items-center gap-2"
             >
               {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export Timesheet (CSV)
             </button>
+            {exportError && <p role="alert" className="mt-2 text-sm text-rose-300">{exportError}</p>}
+            {range.from > range.to && <p role="alert" className="mt-2 text-sm text-rose-300">End date must be on or after the start date.</p>}
           </div>
         </div>
       </div>

@@ -104,6 +104,8 @@ services:
       # /auth/sso answer 404 rather than fail loudly.
       AUTH_ISSUER: ${AUTH_ISSUER:-https://auth.circuvent.com}
       SSO_CLIENT_ID: ${SSO_CLIENT_ID:-}
+      ATTENDANCE_SSO_CLIENT_ID: ${ATTENDANCE_SSO_CLIENT_ID:-attendance}
+      ATTENDANCE_SSO_ISSUER: ${ATTENDANCE_SSO_ISSUER:-https://myaccount.circuvent.com}
       # ANPR. These MUST be listed here, not only in .env.example: compose
       # passes through exactly what is named below, which is how
       # FEDERATION_SECRET stayed silently unset and SSO kept returning 501.

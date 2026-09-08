@@ -6,8 +6,8 @@ import { Cpu, Loader2, Mail, Lock, User as UserIcon, ShieldCheck, Zap, Radio, Ar
 import { useConsole } from "./ConsoleProvider";
 import { usePasskey, usePasskeySupport } from "@/lib/usePasskey";
 
-export default function Login() {
-  const { login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword } = useConsole();
+export default function Login({ attendance = false }: { attendance?: boolean }) {
+  const { login, loginWithPasskey, register, verifyOtp, resendOtp, forgotPassword, resetPassword, ssoError } = useConsole();
   const passkeySupported = usePasskeySupport();
   const passkey = usePasskey("/api/account/passkey");
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
@@ -131,7 +131,7 @@ export default function Login() {
       : step === "otp"
         ? `Enter the 6-digit code sent to ${email}.`
         : mode === "login"
-          ? "Access and control your Circuvent devices."
+          ? attendance ? "Sign in to your attendance workspace." : "Access and control your Circuvent devices."
           : mode === "forgot"
             ? "We'll email you a code to set a new password."
             : "One account controls every Circuvent device you own.";
@@ -246,6 +246,25 @@ export default function Login() {
                   <p className="text-slate-400 text-sm mb-6">{subtitle}</p>
                 </motion.div>
               </AnimatePresence>
+
+              {attendance && mode === "login" && step === "form" && (
+                <div className="mb-6">
+                  {ssoError && <div role="alert" className="mb-3 text-sm text-red-300">{ssoError}</div>}
+                  <a href="/api/attendance/auth/sso/start" onClick={(event) => {
+                    const tab = new URL(window.location.href).searchParams.get("tab");
+                    if (tab) {
+                      event.preventDefault();
+                      window.location.assign(`/api/attendance/auth/sso/start?tab=${encodeURIComponent(tab)}`);
+                    }
+                  }} className="group flex w-full items-center gap-3 rounded-2xl border border-white/20 bg-white px-4 py-4 text-slate-950 shadow-lg shadow-cyan-950/20 transition hover:bg-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4 focus-visible:ring-offset-slate-950">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-cyan-300"><ShieldCheck size={21} aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1 text-left"><span className="block text-sm font-semibold">Continue with SSO</span><span className="mt-0.5 block text-xs text-slate-500">Single sign-on · My Account</span></span>
+                    <ArrowRight size={18} aria-hidden="true" className="shrink-0 text-slate-500 transition-transform group-hover:translate-x-1" />
+                  </a>
+                  <p className="mt-2 text-center text-xs text-slate-400">Use your organization’s account to securely access your workspace.</p>
+                  <div className="mt-5 text-center text-xs text-slate-500">or sign in with your attendance account</div>
+                </div>
+              )}
 
               {info && (
                 <motion.div

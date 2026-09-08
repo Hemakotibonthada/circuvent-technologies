@@ -404,11 +404,45 @@ function personOut(r: any) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+attendanceRouter.post("/people/sync-hrms", requireAuth, async (req: AuthedRequest, res) => {
+  const site = await ownsSite(req.body?.siteId, req.user!.uid);
+  if (!site) { res.status(404).json(notFound); return; }
+  const token = process.env.ATTENDANCE_ROSTER_TOKEN;
+  const base = process.env.HRMS_ATTENDANCE_URL;
+  if (!token || !base) { res.status(503).json({ error: "HRMS employee sync is not configured. Ask your administrator to connect this attendance site to its HRMS organization." }); return; }
+  try {
+    const response = await fetch(`${base.replace(/\/$/, "")}/api/integrations/attendance/people?siteId=${site.id}`, {
+      headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000), redirect: "error",
+    });
+    if (!response.ok) { res.status(502).json({ error: "HRMS could not provide this site's roster. Check the organization mapping and integration credentials." }); return; }
+    const payload = z.object({ siteId: z.literal(site.id), people: z.array(z.object({ code: z.string().trim().min(1).max(100), name: z.string().min(1).max(200), email: z.string().max(320), active: z.boolean() })) }).parse(await response.json());
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      for (const person of payload.people) {
+        await client.query(`INSERT INTO attend_people (site_id, code, name, email, role, active)
+          VALUES ($1,$2,$3,$4,'employee',$5)
+          ON CONFLICT (site_id, lower(code)) DO UPDATE SET name=EXCLUDED.name, email=EXCLUDED.email, active=EXCLUDED.active, updated_at=now()`,
+          [site.id, person.code, person.name, person.email, person.active]);
+      }
+      await client.query("COMMIT");
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+    await recordEvent(req.user!.uid, "attendance", `HRMS roster synced: ${payload.people.length} employees`, "", null);
+    void syncSite(site.id);
+    res.json({ count: payload.people.length });
+  } catch (error) {
+    logger.warn({ err: error }, "HRMS roster sync failed");
+    res.status(502).json({ error: "Employee sync failed. Existing attendance records and cards have been preserved." });
+  }
+});
+
 attendanceRouter.get("/people", requireAuth, async (req: AuthedRequest, res) => {
   const out = await scoped(req, req.query.siteId, async (site) => {
     const groupId = id(req.query.groupId);
     const q = String(req.query.q ?? "").trim();
     const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 500));
+    const offset = Math.max(0, Math.floor(Number(req.query.offset) || 0));
     const { rows } = await pool.query(
       `SELECT p.*, g.name AS group_name,
               to_char(p.valid_from,'YYYY-MM-DD') AS valid_from,
@@ -420,8 +454,8 @@ attendanceRouter.get("/people", requireAuth, async (req: AuthedRequest, res) => 
         WHERE p.site_id = $1
           AND ($2::bigint IS NULL OR p.group_id = $2)
           AND ($3 = '' OR p.name ILIKE '%' || $3 || '%' OR p.code ILIKE '%' || $3 || '%')
-        ORDER BY p.name LIMIT $4`,
-      [site.id, groupId, q, limit]
+        ORDER BY p.name, p.id LIMIT $4 OFFSET $5`,
+      [site.id, groupId, q, limit, offset]
     );
     return rows.map(personOut);
   });
@@ -795,11 +829,15 @@ attendanceRouter.put("/terminals/:deviceId", requireAuth, async (req: AuthedRequ
   const deviceId = String(req.params.deviceId);
 
   const { rows: dev } = await pool.query(
-    `SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2`, [deviceId, req.user!.uid]
+    `SELECT 1 FROM devices WHERE id = $1 AND owner_id = $2 AND type IN ('rfid-attend', 'rfid-only')`, [deviceId, req.user!.uid]
   );
   if (!dev[0]) { res.status(404).json({ error: "Device not found" }); return; }
 
   const d = parsed.data;
+  if (d.zoneId != null) {
+    const zone = await pool.query(`SELECT 1 FROM attend_zones WHERE id = $1 AND site_id = $2`, [d.zoneId, site.id]);
+    if (!zone.rows[0]) { res.status(400).json({ error: "Zone does not belong to this site" }); return; }
+  }
   await pool.query(
     `INSERT INTO attend_terminals (device_id, site_id, zone_id, owner_id, name, mode, direction, enabled)
      VALUES ($1,$2,$3,$4,COALESCE($5,'Entrance'),COALESCE($6,'both'),COALESCE($7,'in'),COALESCE($8,true))

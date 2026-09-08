@@ -39,14 +39,14 @@ export interface SsoClaims {
 
 /** Whether a deployment is wired to the identity provider at all. */
 export function ssoEnabled(): boolean {
-  return Boolean(config.AUTH_ISSUER && config.SSO_CLIENT_ID);
+  return Boolean(config.AUTH_ISSUER && (config.SSO_CLIENT_ID || config.ATTENDANCE_SSO_CLIENT_ID));
 }
 
 const DISCOVERY_TTL_MS = 60 * 60 * 1000;
 const JWKS_TTL_MS = 60 * 60 * 1000;
 
-let discovery: { jwksUri: string; fetchedAt: number } | null = null;
-let jwks: { keys: Jwk[]; fetchedAt: number } | null = null;
+const discoveryCache = new Map<string, { jwksUri: string; fetchedAt: number }>();
+const jwksCache = new Map<string, { keys: Jwk[]; fetchedAt: number }>();
 
 async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -54,15 +54,16 @@ async function getJson(url: string): Promise<unknown> {
   return res.json();
 }
 
-async function jwksUri(): Promise<string> {
+async function jwksUri(issuer: string): Promise<string> {
+  const discovery = discoveryCache.get(issuer);
   if (discovery && Date.now() - discovery.fetchedAt < DISCOVERY_TTL_MS) {
     return discovery.jwksUri;
   }
   const doc = (await getJson(
-    `${config.AUTH_ISSUER.replace(/\/+$/, "")}/.well-known/openid-configuration`
+    `${issuer}/.well-known/openid-configuration`
   )) as { jwks_uri?: string };
   if (!doc.jwks_uri) throw new Error("The identity provider published no jwks_uri");
-  discovery = { jwksUri: doc.jwks_uri, fetchedAt: Date.now() };
+  discoveryCache.set(issuer, { jwksUri: doc.jwks_uri, fetchedAt: Date.now() });
   return doc.jwks_uri;
 }
 
@@ -74,19 +75,21 @@ async function jwksUri(): Promise<string> {
  * it, every sign-in would fail for as long as the cache lived — a rotation
  * would read as "single sign-on is broken" for an hour.
  */
-async function signingKeys(force = false): Promise<Jwk[]> {
+async function signingKeys(issuer: string, force = false): Promise<Jwk[]> {
+  const jwks = jwksCache.get(issuer);
   if (!force && jwks && Date.now() - jwks.fetchedAt < JWKS_TTL_MS) return jwks.keys;
-  const doc = (await getJson(await jwksUri())) as { keys?: Jwk[] };
-  jwks = { keys: doc.keys ?? [], fetchedAt: Date.now() };
-  return jwks.keys;
+  const doc = (await getJson(await jwksUri(issuer))) as { keys?: Jwk[] };
+  const keys = doc.keys ?? [];
+  jwksCache.set(issuer, { keys, fetchedAt: Date.now() });
+  return keys;
 }
 
-async function keyFor(kid: string | undefined): Promise<crypto.KeyObject> {
-  let keys = await signingKeys();
+async function keyFor(kid: string | undefined, issuer: string): Promise<crypto.KeyObject> {
+  let keys = await signingKeys(issuer);
   let jwk = keys.find((k) => !kid || k.kid === kid);
 
   if (!jwk) {
-    keys = await signingKeys(true);
+    keys = await signingKeys(issuer, true);
     jwk = keys.find((k) => !kid || k.kid === kid);
   }
   if (!jwk) throw new Error(`No signing key published for kid ${kid ?? "(none)"}`);
@@ -113,17 +116,30 @@ export async function verifyIdToken(idToken: string): Promise<SsoClaims> {
     throw new Error(`Unsupported signing algorithm ${alg}`);
   }
 
-  const key = await keyFor(decoded.header.kid);
+  // Unverified audience selects an allowlisted configuration only. The token
+  // must then pass signature, issuer and audience checks for that exact pair.
+  const audience = typeof decoded.payload === "object" ? decoded.payload.aud : undefined;
+  const attendance = Boolean(config.ATTENDANCE_SSO_CLIENT_ID && audience === config.ATTENDANCE_SSO_CLIENT_ID);
+  if (!attendance && (!config.SSO_CLIENT_ID || audience !== config.SSO_CLIENT_ID)) throw new Error("Unknown SSO audience");
+  const issuer = (attendance ? config.ATTENDANCE_SSO_ISSUER : config.AUTH_ISSUER).replace(/\/+$/, "");
+  const key = await keyFor(decoded.header.kid, issuer);
   const claims = jwt.verify(idToken, key, {
     algorithms: ["RS256"],
-    issuer: config.AUTH_ISSUER.replace(/\/+$/, ""),
-    audience: config.SSO_CLIENT_ID,
+    issuer,
+    audience: attendance ? config.ATTENDANCE_SSO_CLIENT_ID : config.SSO_CLIENT_ID,
   }) as jwt.JwtPayload;
 
   const email = typeof claims.email === "string" ? claims.email.trim().toLowerCase() : "";
   if (!email) throw new Error("The token carries no email address");
   if (claims.email_verified === false) {
     throw new Error("The address on that token is not verified");
+  }
+  const attendanceAudience = config.ATTENDANCE_SSO_CLIENT_ID &&
+    (Array.isArray(claims.aud) ? claims.aud.includes(config.ATTENDANCE_SSO_CLIENT_ID) : claims.aud === config.ATTENDANCE_SSO_CLIENT_ID);
+  if (attendanceAudience &&
+      (claims.email_verified !== true || typeof claims.sub !== "string" || !claims.sub ||
+       !Number.isFinite(claims.exp) || typeof claims.scope === "string")) {
+    throw new Error("Attendance requires a verified user ID token");
   }
 
   return {
@@ -160,7 +176,7 @@ export function nextAvatarUrl(current: string, claim: string | undefined): strin
 
 /** Clears the cached discovery and keys. Exposed for tests. */
 export function resetSsoCaches(): void {
-  discovery = null;
-  jwks = null;
+  discoveryCache.clear();
+  jwksCache.clear();
   logger.debug("sso caches cleared");
 }

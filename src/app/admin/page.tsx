@@ -731,7 +731,7 @@ export default function AdminDashboard() {
               }}
             >
               <ShieldCheck className="w-4 h-4" />
-              Sign in with Circuvent
+              Continue with SSO
             </a>
             <p className="text-center text-[11px]" style={{ color: "var(--text-tertiary)" }}>
               Uses your Circuvent account and its two-step verification. You
@@ -1311,4 +1311,3 @@ function formatUptime(raw: string): string {
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
 }
-

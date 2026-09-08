@@ -376,7 +376,7 @@ export default function AdminProductShell({
                 }}
               >
                 <ShieldCheck className="w-4 h-4" />
-                Sign in with Circuvent
+                Continue with SSO
               </a>
             </form>
           )}
