@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   Mail, Layers, Building2, Users, Shield, Cpu, BarChart3,
 } from "lucide-react";
@@ -92,12 +91,8 @@ export default function ProductsPage() {
                   .map((id) => getProductBySlug(id))
                   .filter(Boolean)
                   .map((product, i) => (
-                    <motion.div
+                    <div
                       key={product!.slug}
-                      initial={{ opacity: 0, y: 12 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: i * 0.04 }}
                     >
                       <Link
                         href={`/products/${product!.slug}`}
@@ -132,7 +127,7 @@ export default function ProductsPage() {
                           </span>
                         </div>
                       </Link>
-                    </motion.div>
+                    </div>
                   ))}
               </div>
             </section>

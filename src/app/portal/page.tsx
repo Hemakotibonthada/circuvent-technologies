@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/config";
 import { generatePageMetadata } from "@/lib/seo";
