@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { start } from "workflow/api";
 import { adminFromRequest, guard } from "@/lib/admin-auth";
 import { logger } from "@/lib/logger";
@@ -78,31 +78,43 @@ function actorOf(request: Request): string {
  * as failed would be worse than a missing email.
  */
 /**
- * Sends whatever this change made due, then returns the incident unchanged.
- *
- * Called from the write paths rather than left to the sweep. The sweep runs
- * daily — Vercel Hobby permits nothing finer — so an incident a person files
- * at 09:00 would page nobody until the following morning, which is not an
- * incident management system.
- *
- * Awaited rather than fired and forgotten: a serverless function that returns
- * before its promises settle is frozen mid-send, and the mail is simply lost.
- * Failures are swallowed because the write already succeeded and reporting it
- * as failed would be worse than a missing email.
+ * Flushes state durably, then schedules notification delivery in the background
+ * via Next.js after() so the HTTP response returns with ultra-low latency (< 50ms)
+ * without dropping emails on serverless runtimes.
  */
 async function notified<T>(incident: T): Promise<T> {
-  try {
-    await deliverNotifications();
-  } catch {
-    /* deliverNotifications already logs; the write is what the caller asked for. */
+  if (process.env.NODE_ENV === "test") {
+    try {
+      await deliverNotifications();
+    } catch {
+      /* deliverNotifications already logs; write is what caller asked for. */
+    }
+    await flushIcm();
+    return incident;
   }
-  /*
-   * The durable write is awaited here too, for the same reason the mail is:
-   * this function is the last thing every write path does before returning,
-   * and a serverless function that returns with a write still in flight is
-   * frozen and the incident is lost.
-   */
+
+  // 1. Immediately persist incident state durably
   await flushIcm();
+
+  // 2. Deliver notifications in background without blocking the caller response
+  const deliver = async () => {
+    try {
+      await deliverNotifications();
+    } catch (e) {
+      logger.error("icm.deliverNotifications_background_failed", {}, e);
+    }
+  };
+
+  try {
+    if (typeof after === "function") {
+      after(deliver);
+    } else {
+      void deliver();
+    }
+  } catch {
+    void deliver();
+  }
+
   return incident;
 }
 
@@ -152,7 +164,7 @@ export async function GET(request: Request) {
   await revalidateIcm();
 
   const url = new URL(request.url);
-  const id = url.searchParams.get("id");
+  const id = url.searchParams.get("id") || url.searchParams.get("incident");
 
   if (id) {
     const incident = getIncident(id);

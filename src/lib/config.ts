@@ -8,9 +8,9 @@
 // deployment, with sensible production defaults so the app never crashes on a
 // missing optional var.
 
-/** Canonical public origin for the SaaS portal (app.circuvent.com). */
+/** Canonical public origin for the customer space portal (myspace.circuvent.com). */
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://app.circuvent.com"
+  process.env.NEXT_PUBLIC_SITE_URL || "https://myspace.circuvent.com"
 ).replace(/\/$/, "");
 
 /**
@@ -49,7 +49,7 @@ export const siteConfig = {
   shortName: "Circuvent",
   url: SITE_URL,
   description:
-    "Engineering intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering. 53+ projects. 200K+ lines of code. Zero limits. SaaS portal at app.circuvent.com.",
+    "Engineering intelligent systems at the intersection of AI, IoT, and Full-Stack Engineering. 53+ projects. 200K+ lines of code. Zero limits. Customer space at myspace.circuvent.com.",
   logo: "/logo-mark.png",
   ogImage: "/og-image.png",
   /**

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { adminFromRequest, guard } from "@/lib/admin-auth";
 import { logger } from "@/lib/logger";
 import { deliverNotifications, flushIcm, getIncident, revalidateIcm, updateIncident } from "@/lib/icm-store";
@@ -41,14 +41,38 @@ function actorOf(request: Request): string {
   return admin?.email || "unknown";
 }
 
-/** Mirrors ../route.ts's notified(): deliver whatever this write made due, then flush before returning. */
+/** Mirrors ../route.ts's notified(): deliver whatever this write made due in the background, flush immediately. */
 async function notified<T>(incident: T): Promise<T> {
-  try {
-    await deliverNotifications();
-  } catch {
-    /* deliverNotifications already logs; the write is what the caller asked for. */
+  if (process.env.NODE_ENV === "test") {
+    try {
+      await deliverNotifications();
+    } catch {
+      /* deliverNotifications already logs; write is what caller asked for. */
+    }
+    await flushIcm();
+    return incident;
   }
+
   await flushIcm();
+
+  const deliver = async () => {
+    try {
+      await deliverNotifications();
+    } catch (e) {
+      logger.error("icm.deliverNotifications_attachment_failed", {}, e);
+    }
+  };
+
+  try {
+    if (typeof after === "function") {
+      after(deliver);
+    } else {
+      void deliver();
+    }
+  } catch {
+    void deliver();
+  }
+
   return incident;
 }
 

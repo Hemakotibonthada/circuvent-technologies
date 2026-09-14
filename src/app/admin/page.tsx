@@ -363,9 +363,13 @@ export default function AdminDashboard() {
       scrub();
     }
 
+    const incParam = url.searchParams.get("incident") || url.searchParams.get("id");
     if (tabParam && TAB_META[tabParam]) {
       setTab(tabParam as typeof tab);
       if (TAB_META[tabParam].category) setActiveCategory(TAB_META[tabParam].category);
+    } else if (!tabParam && incParam) {
+      setTab("icm");
+      setActiveCategory("reliability");
     }
 
     if (handoff) {

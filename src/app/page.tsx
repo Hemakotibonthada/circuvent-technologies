@@ -398,10 +398,10 @@ export default function Home() {
                     Mail, workspace, CRM, people ops, admin, assets and insights — discover,
                     compare plans, subscribe and manage invoices from{" "}
                     <a
-                      href="https://app.circuvent.com"
+                      href="https://myspace.circuvent.com"
                       style={{ color: "var(--accent-cyan)" }}
                     >
-                      app.circuvent.com
+                      myspace.circuvent.com
                     </a>
                     .
                   </p>

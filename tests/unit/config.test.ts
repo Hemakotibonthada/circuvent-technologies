@@ -6,9 +6,9 @@ describe("config", () => {
     expect(SITE_URL.endsWith("/")).toBe(false);
   });
 
-  it("uses app.circuvent.com as the default domain", () => {
+  it("uses myspace.circuvent.com as the default domain", () => {
     // NEXT_PUBLIC_SITE_URL is unset in the test env.
-    expect(SITE_URL).toBe("https://app.circuvent.com");
+    expect(SITE_URL).toBe("https://myspace.circuvent.com");
   });
 
   it("brands with the /logo-mark.png asset", () => {

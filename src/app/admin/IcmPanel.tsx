@@ -1,19 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertOctagon,
   AlertTriangle,
   ArrowLeft,
   Bot,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   Download,
   Loader2,
   MessageSquare,
   Paperclip,
   Plus,
   RefreshCw,
+  Share2,
   ShieldCheck,
   Siren,
   Timer,
@@ -25,6 +28,7 @@ import {
   Rocket,
   X,
   BarChart3,
+  Image as ImageIcon,
 } from "lucide-react";
 import { IcmAnalytics } from "./IcmAnalytics";
 import { ICM_PRODUCTS, productLabels, productTeams, teamForProducts } from "@/lib/icm-products";
@@ -178,6 +182,66 @@ function StatCard({ label, value, tone, hint }: { label: string; value: string |
   );
 }
 
+/**
+ * Resilient clipboard copy helper with legacy textarea fallback.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fallback to execCommand below */
+  }
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    textArea.setAttribute("readonly", "");
+    document.body.appendChild(textArea);
+    textArea.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textArea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Generates canonical permalink URL for an incident.
+ * Handles icm.circuvent.com host, /admin/icm route, and local dev environments.
+ */
+export function getIncidentShareUrl(id: string): string {
+  if (typeof window === "undefined") {
+    return `https://icm.circuvent.com/?incident=${encodeURIComponent(id)}`;
+  }
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("incident", id);
+    url.searchParams.delete("id");
+    return url.toString();
+  } catch {
+    return `https://icm.circuvent.com/?incident=${encodeURIComponent(id)}`;
+  }
+}
+
+/**
+ * Formats an incident into a crisp summary with link, optimized for Slack, Teams, email, or chat.
+ */
+export function formatIncidentShareSummary(inc: Incident, shareUrl: string): string {
+  const sevLabel = SLA[inc.severity]?.label ?? `Sev${inc.severity}`;
+  const status = STATUS_LABEL[inc.status] || inc.status;
+  const services = inc.affectedServices && inc.affectedServices.length > 0
+    ? ` | Services: ${inc.affectedServices.join(", ")}`
+    : "";
+  return `[${inc.id}] (${sevLabel}) ${inc.title}\nStatus: ${status} | Team: ${inc.owningTeam}${services}\nLink: ${shareUrl}`;
+}
+
 /* --------------------------------------------------------------- the page -- */
 
 export default function IcmPanel() {
@@ -234,7 +298,14 @@ export default function IcmPanel() {
       if (!r.ok || !b.success) {
         setError(b.message || "Could not load the incident queue.");
       } else {
-        setIncidents(b.incidents || []);
+        setIncidents((prev) => {
+          const fetched: Incident[] = b.incidents || [];
+          if (openId && !fetched.some((i) => i.id === openId)) {
+            const currentOpen = prev.find((i) => i.id === openId);
+            if (currentOpen) return [currentOpen, ...fetched];
+          }
+          return fetched;
+        });
         setStats(b.stats || null);
         setTeams(b.teams || []);
         setViews(b.views || []);
@@ -248,11 +319,91 @@ export default function IcmPanel() {
       setError("Could not reach the incident service.");
     }
     setLoading(false);
-  }, [status, sev, slaFilter, q, hideDuplicates, range.from, range.to]);
+  }, [status, sev, slaFilter, q, hideDuplicates, range.from, range.to, openId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Deep-link initial load: read ?incident=INC-xxx or ?id=INC-xxx on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const initialId = params.get("incident") || params.get("id");
+    if (initialId) {
+      setOpenId(initialId);
+    }
+  }, []);
+
+  // Browser history sync: update browser URL whenever openId changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      const current = url.searchParams.get("incident") || url.searchParams.get("id");
+      if (openId && current !== openId) {
+        url.searchParams.set("incident", openId);
+        url.searchParams.delete("id");
+        window.history.pushState({ incidentId: openId }, "", url.pathname + url.search + url.hash);
+      } else if (!openId && current) {
+        url.searchParams.delete("incident");
+        url.searchParams.delete("id");
+        window.history.pushState({}, "", url.pathname + url.search + url.hash);
+      }
+    } catch {
+      /* ignore in environments without history API */
+    }
+  }, [openId]);
+
+  // Support browser back/forward buttons (popstate)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const incId = params.get("incident") || params.get("id");
+        setOpenId(incId || null);
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Fetch specific incident if deep-linked or shared but filtered out from default queue
+  useEffect(() => {
+    if (!openId) return;
+    if (incidents.some((i) => i.id === openId)) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch(`/api/admin/icm?id=${encodeURIComponent(openId)}`, {
+          headers: { "x-admin-token": tok() },
+        });
+        const b = await r.json();
+        if (cancelled) return;
+        if (r.ok && b.success && b.incident) {
+          setIncidents((prev) => {
+            if (prev.some((i) => i.id === b.incident.id)) return prev;
+            return [b.incident, ...prev];
+          });
+          if (b.now) setNow(b.now);
+        } else if (!r.ok || !b.success) {
+          setError(b.message || `Incident ${openId} not found.`);
+        }
+      } catch {
+        if (!cancelled) {
+          setError(`Could not load incident ${openId}.`);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [openId, incidents]);
 
   /*
    * Whether any of this can actually reach anybody.
@@ -928,9 +1079,20 @@ function IncidentRow({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
   const c = clocksFor(inc, now);
   const age = Math.round((new Date(now).getTime() - new Date(inc.createdAt).getTime()) / 60_000);
   const bad = c.ack.state === "breached" || c.mitigate.state === "breached";
+
+  const handleCopyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = getIncidentShareUrl(inc.id);
+    const ok = await copyText(url);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   /*
    * The left edge carries severity, always — that is what makes a queue
@@ -965,7 +1127,28 @@ function IncidentRow({
       </td>
       <td className="px-3 py-2.5">
         <div className="font-semibold cv-text-primary">{inc.title}</div>
-        <div className="text-[12px] cv-text-muted">{inc.id}</div>
+        <div className="flex items-center gap-2 text-[12px] cv-text-muted mt-0.5">
+          <span className="font-mono">{inc.id}</span>
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium cv-text-muted transition hover:cv-surface-alt hover:cv-text-primary"
+            title="Copy direct link to this incident"
+            aria-label={`Copy link for ${inc.id}`}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="h-3 w-3" aria-hidden />
+                <span>Copy Link</span>
+              </>
+            )}
+          </button>
+        </div>
       </td>
       <td className="px-3 py-2.5 text-[12px] cv-text-secondary">
         {inc.affectedServices.length > 0 ? inc.affectedServices.join(", ") : <span className="cv-text-muted">—</span>}
@@ -1129,6 +1312,169 @@ export function IncidentDetail({
   const [attRowError, setAttRowError] = useState<{ id: string; message: string } | null>(null);
   const [timelineFilter, setTimelineFilter] = useState<"all" | "human" | "automated">("all");
 
+  const [mitigateModalOpen, setMitigateModalOpen] = useState(false);
+  const [mitigateNote, setMitigateNote] = useState("");
+  const [resolveModalOpen, setResolveModalOpen] = useState(false);
+  const [resolveNote, setResolveNote] = useState("");
+
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [commentUploading, setCommentUploading] = useState(false);
+  const [commentError, setCommentError] = useState("");
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedChat, setCopiedChat] = useState(false);
+  const [canNativeShare, setCanNativeShare] = useState(false);
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      setCanNativeShare(true);
+    }
+  }, []);
+
+  const handleCopyLink = async () => {
+    const url = getIncidentShareUrl(inc.id);
+    const ok = await copyText(url);
+    if (ok) {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
+
+  const handleShareChat = async () => {
+    const url = getIncidentShareUrl(inc.id);
+    const text = formatIncidentShareSummary(inc, url);
+    const ok = await copyText(text);
+    if (ok) {
+      setCopiedChat(true);
+      setTimeout(() => setCopiedChat(false), 2500);
+    }
+  };
+
+  const handleNativeShare = async () => {
+    const url = getIncidentShareUrl(inc.id);
+    const text = formatIncidentShareSummary(inc, url);
+    try {
+      await navigator.share({
+        title: `[${inc.id}] ${inc.title}`,
+        text,
+        url,
+      });
+    } catch {
+      await handleCopyLink();
+    }
+  };
+
+  const ackEntry = useMemo(
+    () => inc.timeline?.find((t) => t.kind === "acknowledged" || t.text?.toLowerCase().includes("acknowledged")),
+    [inc.timeline]
+  );
+  const ackBy = ackEntry?.actor || (inc.acknowledgedAt ? "responder" : "");
+
+  const mitEntry = useMemo(
+    () => inc.timeline?.find((t) => t.kind === "mitigated" || t.text?.toLowerCase().includes("mitigated")),
+    [inc.timeline]
+  );
+  const mitBy = mitEntry?.actor || (inc.mitigatedAt ? "responder" : "");
+
+  const resEntry = useMemo(
+    () => inc.timeline?.find((t) => t.kind === "resolved" || t.text?.toLowerCase().includes("resolved")),
+    [inc.timeline]
+  );
+  const resBy = resEntry?.actor || (inc.resolvedAt ? "responder" : "");
+
+  const handleFilesSelected = (files: FileList | File[]) => {
+    const incoming = Array.from(files);
+    const valid = incoming.filter((f) => f.size <= 4 * 1024 * 1024);
+    if (valid.length < incoming.length) {
+      setCommentError("Some files exceed the 4 MB limit.");
+    } else {
+      setCommentError("");
+    }
+    setCommentFiles((prev) => [...prev, ...valid]);
+  };
+
+  const onCommentFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      handleFilesSelected(e.target.files);
+    }
+    e.target.value = "";
+  };
+
+  const handleCommentPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const pasted: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.kind === "file") {
+        const file = it.getAsFile();
+        if (file) {
+          const named =
+            file.name === "image.png"
+              ? new File([file], `screenshot-${Date.now().toString(36)}.png`, { type: file.type })
+              : file;
+          pasted.push(named);
+        }
+      }
+    }
+    if (pasted.length > 0) {
+      handleFilesSelected(pasted);
+    }
+  };
+
+  const handleCommentDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    if (e.dataTransfer?.files?.length) {
+      handleFilesSelected(e.dataTransfer.files);
+    }
+  };
+
+  const removeCommentFile = (index: number) => {
+    setCommentFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCommentSubmit = async () => {
+    if (busy || commentUploading) return;
+    const text = note.trim();
+    if (!text && commentFiles.length === 0) return;
+
+    setCommentUploading(true);
+    setCommentError("");
+
+    try {
+      for (const file of commentFiles) {
+        const fd = new FormData();
+        fd.set("incidentId", inc.id);
+        fd.set("file", file);
+        const r = await fetch("/api/admin/icm/attachments", {
+          method: "POST",
+          headers: { "x-admin-token": tok() },
+          body: fd,
+        });
+        const b = await r.json();
+        if (!r.ok || !b.success) {
+          setCommentError(b.message || `Failed to upload ${file.name}`);
+        } else if (b.incident) {
+          onIncidentUpdated(b.incident);
+        }
+      }
+
+      if (text) {
+        send({ action: "comment", body: text });
+      }
+
+      setCommentFiles([]);
+      setNote("");
+    } catch {
+      setCommentError("Could not post comment.");
+    } finally {
+      setCommentUploading(false);
+    }
+  };
+
   const uploadAttachment = async (file: File) => {
     setUploading(true);
     setUploadError("");
@@ -1236,20 +1582,102 @@ export function IncidentDetail({
 
   return (
     <div className="space-y-4">
-      <button
-        onClick={onBack}
-        className="inline-flex h-[44px] items-center gap-2 text-sm font-semibold cv-text-secondary hover:text-white"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        Back to queue
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex h-[40px] items-center gap-2 rounded-lg px-2 text-sm font-semibold cv-text-secondary hover:cv-text-primary transition"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Back to queue
+        </button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Direct Link Copy */}
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            aria-label="Copy incident link"
+            className="inline-flex h-[38px] items-center gap-2 rounded-lg border cv-border cv-surface px-3 text-xs font-semibold cv-text-secondary transition hover:cv-surface-alt hover:cv-text-primary"
+            title="Copy direct URL link to this incident"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Link copied!</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="h-3.5 w-3.5" aria-hidden />
+                <span>Copy Link</span>
+              </>
+            )}
+          </button>
+
+          {/* Share for Chat (Slack/Teams) */}
+          <button
+            type="button"
+            onClick={handleShareChat}
+            aria-label="Share incident for chat"
+            className="inline-flex h-[38px] items-center gap-2 rounded-lg border cv-border cv-surface px-3 text-xs font-semibold cv-text-secondary transition hover:cv-surface-alt hover:cv-text-primary"
+            title="Copy summary & link formatted for Slack or Teams"
+          >
+            {copiedChat ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Chat summary copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+                <span>Share for Chat</span>
+              </>
+            )}
+          </button>
+
+          {/* System Share (Mobile / Tablet) */}
+          {canNativeShare && (
+            <button
+              type="button"
+              onClick={handleNativeShare}
+              aria-label="Share incident via system menu"
+              className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border cv-border cv-surface px-3 text-xs font-semibold cv-text-secondary transition hover:cv-surface-alt hover:cv-text-primary"
+              title="Share via system share menu"
+            >
+              <Share2 className="h-3.5 w-3.5" aria-hidden />
+              <span>Share</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="rounded-xl border cv-border cv-surface p-4">
         <div className="flex flex-wrap items-start gap-3">
           <SevChip sev={inc.severity} size="lg" />
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold cv-text-primary">{inc.title}</h2>
-            <div className="text-[13px] cv-text-muted">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-lg font-bold cv-text-primary">{inc.title}</h2>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="inline-flex items-center gap-1 rounded border cv-border px-2 py-0.5 text-[11px] font-medium cv-text-muted transition hover:cv-surface-alt hover:cv-text-primary"
+                title="Copy incident permalink"
+                aria-label={`Copy link for ${inc.id}`}
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                    <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="h-3 w-3" aria-hidden />
+                    <span>Copy Link</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="text-[13px] cv-text-muted mt-1">
               {inc.id} · {STATUS_LABEL[inc.status]} · {inc.owningTeam}
               {inc.assignedTo && ` · ${inc.assignedTo}`} · filed by {inc.createdBy}
             </div>
@@ -1296,56 +1724,292 @@ export function IncidentDetail({
         <div className="rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">{error}</div>
       )}
 
-      {/* Actions. Ordered as the lifecycle runs, so the next thing to do is
-          always the leftmost enabled button. */}
-      <div className="flex flex-wrap gap-2 rounded-xl border cv-border cv-surface p-3">
-        <button
-          disabled={busy || !!inc.acknowledgedAt}
-          onClick={() => send({ action: "acknowledge" })}
-          className="inline-flex h-[44px] items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-40 hover:bg-blue-500"
-        >
-          <CheckCircle2 className="h-4 w-4" aria-hidden /> Acknowledge
-        </button>
-        <button
-          disabled={busy || !!inc.mitigatedAt || inc.status === "resolved"}
-          onClick={() => send({ action: "mitigate", note })}
-          className="inline-flex h-[44px] items-center gap-2 rounded-lg bg-amber-600 px-4 text-sm font-semibold text-white disabled:opacity-40 hover:bg-amber-500"
-        >
-          <ShieldCheck className="h-4 w-4" aria-hidden /> Mitigate
-        </button>
-        <button
-          disabled={busy || inc.status === "resolved"}
-          onClick={() => send({ action: "resolve", note })}
-          className="inline-flex h-[44px] items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-40 hover:bg-emerald-500"
-        >
-          <CheckCircle2 className="h-4 w-4" aria-hidden /> Resolve
-        </button>
-        {inc.status === "resolved" && (
-          <button
-            disabled={busy}
-            onClick={() => send({ action: "reactivate", note })}
-            className="inline-flex h-[44px] items-center gap-2 rounded-lg border border-red-700 px-4 text-sm font-semibold text-red-300 disabled:opacity-40 hover:bg-red-950/40"
-          >
-            <AlertOctagon className="h-4 w-4" aria-hidden /> Reactivate
-          </button>
-        )}
+      {/* Incident Lifecycle & SLA Flow Controls: 1. Acknowledge -> 2. Mitigate -> 3. Resolve */}
+      <div className="rounded-2xl border cv-border cv-surface p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800/60 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+            <h3 className="text-xs font-bold uppercase tracking-wider cv-text-muted">Incident Lifecycle & SLA Flow</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium cv-text-muted">Severity:</span>
+            <select
+              value={inc.severity}
+              onChange={(e) => send({ action: "severity", severity: Number(e.target.value), note })}
+              disabled={busy}
+              className="h-[36px] rounded-lg border cv-border cv-surface-alt px-3 text-xs font-semibold cv-text-primary"
+              aria-label="Change severity"
+            >
+              {SEVERITIES.map((s) => (
+                <option key={s} value={s}>
+                  {SLA[s].label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          <select
-            value={inc.severity}
-            onChange={(e) => send({ action: "severity", severity: Number(e.target.value), note })}
-            disabled={busy}
-            className="h-[44px] rounded-lg border cv-border cv-surface-alt px-3 text-sm cv-text-primary"
-            aria-label="Change severity"
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {/* Step 1: Acknowledge */}
+          <div
+            className={`flex flex-col justify-between rounded-xl border p-3 transition-colors ${
+              inc.acknowledgedAt
+                ? "border-blue-500/30 bg-blue-950/20"
+                : "border-blue-500/60 bg-blue-950/40 ring-1 ring-blue-500/30"
+            }`}
           >
-            {SEVERITIES.map((s) => (
-              <option key={s} value={s}>
-                {SLA[s].label}
-              </option>
-            ))}
-          </select>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-blue-400">1. Acknowledge</span>
+              {inc.acknowledgedAt && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-semibold text-blue-300">
+                  <CheckCircle2 className="h-3 w-3 text-blue-400" /> Done
+                </span>
+              )}
+            </div>
+
+            <div className="my-2 min-h-[38px]">
+              {inc.acknowledgedAt ? (
+                <div className="text-xs text-blue-200/90">
+                  <div className="font-semibold text-blue-100">
+                    Acknowledged {ackBy ? `by ${ackBy}` : ""}
+                  </div>
+                  <div className="text-[11px] text-blue-300/70">{fmtTime(inc.acknowledgedAt)}</div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-blue-200/70">
+                  Target: {formatMins(inc.slaAckMins)}. Stops SLA acknowledge clock.
+                </p>
+              )}
+            </div>
+
+            <button
+              disabled={busy || !!inc.acknowledgedAt}
+              onClick={() => send({ action: "acknowledge" })}
+              className={`inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all ${
+                inc.acknowledgedAt
+                  ? "border border-blue-500/30 bg-blue-950/20 text-blue-300 cursor-default"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 hover:brightness-110 active:scale-[0.98]"
+              }`}
+              aria-label="Acknowledge"
+            >
+              {busy && !inc.acknowledgedAt ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
+              {inc.acknowledgedAt ? "Acknowledged" : "Acknowledge"}
+            </button>
+          </div>
+
+          {/* Step 2: Mitigate */}
+          <div
+            className={`flex flex-col justify-between rounded-xl border p-3 transition-colors ${
+              inc.mitigatedAt
+                ? "border-amber-500/30 bg-amber-950/20"
+                : inc.acknowledgedAt
+                ? "border-amber-500/60 bg-amber-950/40 ring-1 ring-amber-500/30"
+                : "border-gray-800 cv-surface-alt opacity-75"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-amber-400">2. Mitigate</span>
+              {inc.mitigatedAt && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                  <ShieldCheck className="h-3 w-3 text-amber-400" /> Mitigated
+                </span>
+              )}
+            </div>
+
+            <div className="my-2 min-h-[38px]">
+              {inc.mitigatedAt ? (
+                <div className="text-xs text-amber-200/90">
+                  <div className="font-semibold text-amber-100">
+                    Mitigated {mitBy ? `by ${mitBy}` : ""}
+                  </div>
+                  <div className="text-[11px] text-amber-300/70">{fmtTime(inc.mitigatedAt)}</div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-amber-200/70">
+                  Lessen customer impact via traffic reroute, scale, or rollback.
+                </p>
+              )}
+            </div>
+
+            <button
+              disabled={busy || !!inc.mitigatedAt || inc.status === "resolved"}
+              onClick={() => setMitigateModalOpen(true)}
+              className={`inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all ${
+                inc.mitigatedAt || inc.status === "resolved"
+                  ? "border border-amber-500/30 bg-amber-950/20 text-amber-300 cursor-default"
+                  : "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-600/30 hover:brightness-110 active:scale-[0.98]"
+              }`}
+              aria-label="Mitigate"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {inc.mitigatedAt ? "Mitigated" : "Mitigate"}
+            </button>
+          </div>
+
+          {/* Step 3: Resolve */}
+          <div
+            className={`flex flex-col justify-between rounded-xl border p-3 transition-colors ${
+              inc.status === "resolved"
+                ? "border-emerald-500/30 bg-emerald-950/20"
+                : inc.mitigatedAt
+                ? "border-emerald-500/60 bg-emerald-950/40 ring-1 ring-emerald-500/30"
+                : "border-gray-800 cv-surface-alt opacity-75"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-400">3. Resolve</span>
+              {inc.status === "resolved" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-400" /> Resolved
+                </span>
+              )}
+            </div>
+
+            <div className="my-2 min-h-[38px]">
+              {inc.status === "resolved" ? (
+                <div className="text-xs text-emerald-200/90">
+                  <div className="font-semibold text-emerald-100">
+                    Resolved {resBy ? `by ${resBy}` : ""}
+                  </div>
+                  <div className="text-[11px] text-emerald-300/70">
+                    {inc.resolvedAt ? fmtTime(inc.resolvedAt) : "Completed"}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-emerald-200/70">
+                  Permanent fix deployed. Stops SLA clock & closes incident.
+                </p>
+              )}
+            </div>
+
+            {inc.status === "resolved" ? (
+              <button
+                disabled={busy}
+                onClick={() => send({ action: "reactivate", note })}
+                className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-red-700/60 bg-red-950/40 text-xs font-bold text-red-300 transition-all hover:bg-red-900/50"
+                aria-label="Reactivate"
+              >
+                <AlertOctagon className="h-3.5 w-3.5" /> Reactivate
+              </button>
+            ) : (
+              <button
+                disabled={busy}
+                onClick={() => setResolveModalOpen(true)}
+                className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-xs font-bold text-white shadow-md shadow-emerald-600/30 hover:brightness-110 active:scale-[0.98] disabled:opacity-40"
+                aria-label="Resolve"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Mitigate Modal */}
+      {mitigateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl border cv-border cv-surface p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b cv-border pb-3">
+              <h3 className="flex items-center gap-2 text-base font-bold cv-text-primary">
+                <ShieldCheck className="h-5 w-5 text-amber-500" /> Mitigate Incident {inc.id}
+              </h3>
+              <button
+                onClick={() => setMitigateModalOpen(false)}
+                className="rounded-lg p-1 cv-text-muted hover:cv-text-primary"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs cv-text-secondary">
+              Record the mitigation actions taken to restore service or isolate customer impact.
+            </p>
+            <textarea
+              value={mitigateNote}
+              onChange={(e) => setMitigateNote(e.target.value)}
+              rows={4}
+              placeholder="e.g. Diverted traffic away from region, rolled back commit 4f2a, scaled pool..."
+              className="mt-3 w-full rounded-xl border cv-border cv-surface-alt p-3 text-sm cv-text-primary placeholder:cv-text-muted"
+              autoFocus
+            />
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMitigateModalOpen(false)}
+                className="rounded-lg border cv-border px-4 py-2 text-xs font-semibold cv-text-secondary hover:cv-surface-alt"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  send({ action: "mitigate", note: mitigateNote.trim() });
+                  setMitigateModalOpen(false);
+                  setMitigateNote("");
+                }}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-amber-500"
+              >
+                {busy ? "Saving…" : "Confirm Mitigation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resolve Modal */}
+      {resolveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl border cv-border cv-surface p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b cv-border pb-3">
+              <h3 className="flex items-center gap-2 text-base font-bold cv-text-primary">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Resolve Incident {inc.id}
+              </h3>
+              <button
+                onClick={() => setResolveModalOpen(false)}
+                className="rounded-lg p-1 cv-text-muted hover:cv-text-primary"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs cv-text-secondary">
+              Record the root cause and permanent fix applied before closing this incident.
+            </p>
+            <textarea
+              value={resolveNote}
+              onChange={(e) => setResolveNote(e.target.value)}
+              rows={4}
+              placeholder="e.g. Memory leak in worker patched, certificate renewed, hotfix deployed..."
+              className="mt-3 w-full rounded-xl border cv-border cv-surface-alt p-3 text-sm cv-text-primary placeholder:cv-text-muted"
+              autoFocus
+            />
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setResolveModalOpen(false)}
+                className="rounded-lg border cv-border px-4 py-2 text-xs font-semibold cv-text-secondary hover:cv-surface-alt"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  send({ action: "resolve", note: resolveNote.trim() });
+                  setResolveModalOpen(false);
+                  setResolveNote("");
+                }}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-500"
+              >
+                {busy ? "Resolving…" : "Confirm Resolution"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/*
        * Tabs, the way IcM lays an incident out.
@@ -1449,22 +2113,115 @@ export function IncidentDetail({
               </div>
             </div>
 
-            <div className="rounded-xl border cv-border cv-surface p-3">
+            {/* Rich Discussion Composer with Document & Image Attachments */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingOver(true);
+              }}
+              onDragLeave={() => setIsDraggingOver(false)}
+              onDrop={handleCommentDrop}
+              className={`rounded-2xl border cv-border cv-surface p-4 transition-all ${
+                isDraggingOver ? "border-cyan-500/70 bg-cyan-950/20 ring-2 ring-cyan-500/30" : ""
+              }`}
+            >
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
+                onPaste={handleCommentPaste}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    void handleCommentSubmit();
+                  }
+                }}
                 rows={3}
-                placeholder="Add a comment, or a note to attach to the next action…"
-                className="w-full rounded-lg border cv-border cv-surface-alt px-3 py-2 text-sm cv-text-primary placeholder:cv-text-muted"
+                placeholder="Add a comment, investigation finding, or mitigation notes… (Paste screenshots with ⌘V or drop files here)"
+                className="w-full rounded-xl border cv-border cv-surface-alt px-3.5 py-2.5 text-sm cv-text-primary placeholder:cv-text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
                 aria-label="Comment"
               />
-              <button
-                disabled={busy || !note.trim()}
-                onClick={() => send({ action: "comment", body: note })}
-                className="mt-2 inline-flex h-[44px] items-center gap-2 rounded-lg border cv-border px-4 text-sm font-semibold cv-text-primary disabled:opacity-40 hover:cv-surface-alt"
-              >
-                Comment
-              </button>
+
+              {/* Selected Attached Files Previews */}
+              {commentFiles.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {commentFiles.map((file, idx) => {
+                    const isImg = file.type.startsWith("image/");
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 rounded-lg border border-cyan-700/50 bg-cyan-950/40 px-2.5 py-1.5 text-xs text-cyan-200"
+                      >
+                        {isImg ? (
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={file.name}
+                            className="h-6 w-6 rounded object-cover"
+                          />
+                        ) : (
+                          <FileText className="h-4 w-4 text-cyan-400" />
+                        )}
+                        <span className="max-w-[160px] truncate font-medium">{file.name}</span>
+                        <span className="text-[10px] text-cyan-400/80">({formatBytes(file.size)})</span>
+                        <button
+                          type="button"
+                          onClick={() => removeCommentFile(idx)}
+                          className="rounded p-0.5 text-cyan-400 transition-colors hover:bg-cyan-900/60 hover:text-white"
+                          title={`Remove ${file.name}`}
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {commentError && (
+                <div className="mt-2 text-xs font-semibold text-red-400">{commentError}</div>
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-800/60 pt-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || commentUploading}
+                    onClick={() => commentFileInputRef.current?.click()}
+                    className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border cv-border px-3 text-xs font-semibold cv-text-secondary transition-colors hover:cv-surface-alt hover:text-white disabled:opacity-40"
+                    title="Attach images, documents, PDFs, logs, or spreadsheets"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                    Attach files
+                  </button>
+
+                  <span className="hidden text-[11px] cv-text-muted sm:inline">
+                    Images, PDFs, Docs, Logs (max 4 MB) · ⌘V to paste screenshots
+                  </span>
+
+                  <input
+                    type="file"
+                    multiple
+                    ref={commentFileInputRef}
+                    onChange={onCommentFileInputChange}
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.log,.json,.zip"
+                  />
+                </div>
+
+                <button
+                  disabled={busy || commentUploading || (!note.trim() && commentFiles.length === 0)}
+                  onClick={() => void handleCommentSubmit()}
+                  className="inline-flex h-[36px] items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-500 active:scale-[0.98] disabled:opacity-40"
+                >
+                  {commentUploading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading & Posting…
+                    </>
+                  ) : (
+                    "Comment"
+                  )}
+                </button>
+              </div>
             </div>
 
             {filteredTimeline.length === 0 ? (

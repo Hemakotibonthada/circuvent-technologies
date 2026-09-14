@@ -11,14 +11,13 @@
  * same panels with less chrome, so a 3am incident page does not open under
  * Orders & Inventory.
  */
-
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { KeyRound, LogIn, LogOut, ShieldCheck } from "lucide-react";
-import { usePasskey, usePasskeySupport } from "@/lib/usePasskey";
 import AdminPassword, { ForcePasswordChange } from "./AdminPassword";
 import Admin2fa from "./Admin2fa";
 import AdminPasskeys from "./AdminPasskeys";
+import { usePasskey, usePasskeySupport } from "@/lib/usePasskey";
 
 const SSO_ERRORS: Record<string, string> = {
   access_denied: "Sign-in was cancelled.",
@@ -376,11 +375,7 @@ export default function AdminProductShell({
                 }}
               >
                 <ShieldCheck className="w-4 h-4" />
-<<<<<<< HEAD
-                Sign in with Circuvent
-=======
                 Continue with SSO
->>>>>>> develop
               </a>
             </form>
           )}
