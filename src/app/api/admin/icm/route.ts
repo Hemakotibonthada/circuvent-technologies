@@ -163,6 +163,19 @@ export async function GET(request: Request) {
      is whatever the instance that happened to serve the request remembers. */
   await revalidateIcm();
 
+  let members: Array<{ email: string; name?: string; role?: string }> = [];
+  try {
+    const store = await import("@/lib/store");
+    if (typeof store.listAdminUsers === "function") {
+      const users = await store.listAdminUsers();
+      members = (users || [])
+        .filter((u) => u.active !== false)
+        .map((u) => ({ email: u.email, name: u.name || undefined, role: u.role || undefined }));
+    }
+  } catch {
+    /* fallback if store is unavailable in test environment */
+  }
+
   const url = new URL(request.url);
   const id = url.searchParams.get("id") || url.searchParams.get("incident");
 
@@ -170,7 +183,7 @@ export async function GET(request: Request) {
     const incident = getIncident(id);
     if (!incident) return NextResponse.json({ success: false, message: "No such incident." }, { status: 404 });
     const now = new Date().toISOString();
-    return NextResponse.json({ success: true, incident, sla: slaSnapshot(incident, now), now });
+    return NextResponse.json({ success: true, incident, sla: slaSnapshot(incident, now), now, members });
   }
 
   const sev = url.searchParams.get("severity");
@@ -186,7 +199,7 @@ export async function GET(request: Request) {
     to: url.searchParams.get("to") || undefined,
   };
 
-  return NextResponse.json({ success: true, ...icmView(filters, new Date().toISOString(), actorOf(request)) });
+  return NextResponse.json({ success: true, ...icmView(filters, new Date().toISOString(), actorOf(request)), members });
 }
 
 /** POST /api/admin/icm — file a new incident, or sync from monitor alerts. */

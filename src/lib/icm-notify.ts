@@ -179,6 +179,16 @@ export function recipientsFor(
 const sevLabel = (inc: Incident) => SLA[inc.severity].label;
 
 /**
+ * Extracts @email mentions from text (e.g. "@alice@circuvent.com" -> ["alice@circuvent.com"]).
+ */
+export function extractMentions(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g);
+  if (!matches) return [];
+  return [...new Set(matches.map((m) => m.slice(1).toLowerCase()))];
+}
+
+/**
  * What should be sent right now.
  *
  * Deliberately conservative about repeats. Every rule here exists because the
@@ -197,13 +207,27 @@ export function planNotifications(
   const nowMs = Date.parse(now);
   const out: Notification[] = [];
 
-  const push = (inc: Incident, reason: NotifyReason, k: string, subject: string, lines: string[]) => {
+  const push = (
+    inc: Incident,
+    reason: NotifyReason,
+    k: string,
+    subject: string,
+    lines: string[],
+    extraRecipients: string[] = []
+  ) => {
     if (state.sent[k]) return;
+    const base = recipientsFor(inc, rotations, now, opts.fallback, contacts);
+    const combined = [...base];
+    for (const r of extraRecipients) {
+      if (r && !combined.some((x) => x.toLowerCase() === r.toLowerCase())) {
+        combined.push(r);
+      }
+    }
     out.push({
       key: k,
       incidentId: inc.id,
       reason,
-      to: recipientsFor(inc, rotations, now, opts.fallback, contacts),
+      to: combined,
       subject,
       lines,
       severity: inc.severity,
@@ -356,11 +380,19 @@ export function planNotifications(
       if (!Number.isFinite(ageMins) || ageMins > UPDATE_MAX_AGE_MINS) continue;
 
       const label = UPDATE_LABEL[t.kind] ?? "Updated";
-      push(inc, "update", key(inc, "update", t.id), `${label}: ${head}`, [
-        `${t.actor} ${t.text}.`,
-        t.body || "",
-        state_,
-      ]);
+      const mentions = extractMentions(t.body || "");
+      push(
+        inc,
+        "update",
+        key(inc, "update", t.id),
+        `${label}: ${head}`,
+        [
+          `${t.actor} ${t.text}.`,
+          t.body || "",
+          state_,
+        ],
+        mentions
+      );
     }
   }
 

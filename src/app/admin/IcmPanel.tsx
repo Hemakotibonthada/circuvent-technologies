@@ -29,6 +29,7 @@ import {
   X,
   BarChart3,
   Image as ImageIcon,
+  AtSign,
 } from "lucide-react";
 import { IcmAnalytics } from "./IcmAnalytics";
 import { ICM_PRODUCTS, productLabels, productTeams, teamForProducts } from "@/lib/icm-products";
@@ -275,6 +276,7 @@ export default function IcmPanel() {
   const [activeView, setActiveView] = useState("");
   const [postmortemsDue, setPostmortemsDue] = useState<{ id: string; title: string }[]>([]);
   const [actions, setActions] = useState<OpenAction[]>([]);
+  const [members, setMembers] = useState<Array<{ email: string; name?: string; role?: string }>>([]);
   /*
    * Selection for bulk work. A queue fills up in bursts — one rollout files
    * eleven incidents against the same service — and acknowledging eleven
@@ -313,6 +315,7 @@ export default function IcmPanel() {
         setTeamContacts(b.teamContacts || {});
         setPostmortemsDue(b.postmortemsDue || []);
         setActions(b.actionsOutstanding || []);
+        if (b.members) setMembers(b.members);
         setNow(b.now || new Date().toISOString());
       }
     } catch {
@@ -389,6 +392,7 @@ export default function IcmPanel() {
             if (prev.some((i) => i.id === b.incident.id)) return prev;
             return [b.incident, ...prev];
           });
+          if (b.members) setMembers(b.members);
           if (b.now) setNow(b.now);
         } else if (!r.ok || !b.success) {
           setError(b.message || `Incident ${openId} not found.`);
@@ -635,6 +639,9 @@ export default function IcmPanel() {
         incident={open}
         now={now}
         teams={teams}
+        members={members}
+        teamContacts={teamContacts}
+        onCall={onCall}
         busy={busy}
         error={error}
         onAct={act}
@@ -1271,11 +1278,21 @@ function TeamMailEditor({
 /** The sections of an incident, in the order somebody works through one. */
 type DetailTab = "summary" | "routing" | "links" | "retro";
 
+export interface MentionCandidate {
+  email: string;
+  name?: string;
+  role?: string;
+  source?: string;
+}
+
 /** Exported for tests: the detail is the half of this panel worth rendering. */
 export function IncidentDetail({
   incident: inc,
   now,
   teams,
+  members = [],
+  teamContacts = {},
+  onCall = {},
   busy,
   error,
   onAct,
@@ -1285,6 +1302,9 @@ export function IncidentDetail({
   incident: Incident;
   now: string;
   teams: string[];
+  members?: Array<{ email: string; name?: string; role?: string }>;
+  teamContacts?: Record<string, string[] | string>;
+  onCall?: Record<string, string>;
   busy: boolean;
   error: string;
   onAct: (body: Record<string, unknown>) => void;
@@ -1322,6 +1342,149 @@ export function IncidentDetail({
   const [commentError, setCommentError] = useState("");
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const commentFileInputRef = useRef<HTMLInputElement>(null);
+
+  /* Mentions (@tag) in Incident comments */
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(-1);
+  const [showMentions, setShowMentions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+  const mentionCandidates = useMemo<MentionCandidate[]>(() => {
+    const map = new Map<string, MentionCandidate>();
+
+    const add = (email: string, name?: string, role?: string, source?: string) => {
+      if (!email || !email.includes("@")) return;
+      const key = email.trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          email: email.trim(),
+          name: name?.trim() || undefined,
+          role: role?.trim() || undefined,
+          source: source?.trim() || undefined,
+        });
+      } else {
+        const existing = map.get(key)!;
+        if (!existing.name && name) existing.name = name.trim();
+        if (!existing.role && role) existing.role = role.trim();
+        if (!existing.source && source) existing.source = source.trim();
+      }
+    };
+
+    if (members && members.length > 0) {
+      for (const m of members) {
+        add(m.email, m.name, m.role, "Staff");
+      }
+    }
+
+    if (inc.assignedTo) {
+      add(inc.assignedTo, undefined, "Assignee", "Incident Lead");
+    }
+    if (inc.createdBy) {
+      add(inc.createdBy, undefined, "Reporter", "Incident Reporter");
+    }
+
+    if (onCall) {
+      for (const [t, who] of Object.entries(onCall)) {
+        if (who) add(who, undefined, `On-Call (${t})`, "On-Call");
+      }
+    }
+
+    if (teamContacts) {
+      for (const [t, contacts] of Object.entries(teamContacts)) {
+        if (Array.isArray(contacts)) {
+          for (const c of contacts) {
+            if (c) add(c, undefined, `Team (${t})`, `Team ${t}`);
+          }
+        } else if (typeof contacts === "string" && contacts) {
+          add(contacts, undefined, `Team (${t})`, `Team ${t}`);
+        }
+      }
+    }
+
+    if (inc.timeline && inc.timeline.length > 0) {
+      for (const entry of inc.timeline) {
+        if (entry.actor && !isAutomatedActor(entry.actor) && entry.actor.includes("@")) {
+          add(entry.actor, undefined, "Participant", "Timeline");
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  }, [members, inc.assignedTo, inc.createdBy, inc.timeline, onCall, teamContacts]);
+
+  const updateMentionState = (text: string, cursorPos: number) => {
+    const textBeforeCursor = text.slice(0, cursorPos);
+    const match = textBeforeCursor.match(/@([a-zA-Z0-9._%+-]*)$/);
+    if (match && match.index !== undefined) {
+      setMentionIndex(match.index);
+      setMentionQuery(match[1]);
+      setShowMentions(true);
+      setHighlightedIndex(0);
+    } else {
+      setShowMentions(false);
+      setMentionIndex(-1);
+      setMentionQuery("");
+    }
+  };
+
+  const filteredCandidates = useMemo(() => {
+    if (!showMentions) return [];
+    const q = mentionQuery.toLowerCase().trim();
+    if (!q) return mentionCandidates.slice(0, 8);
+    return mentionCandidates
+      .filter((c) =>
+        c.email.toLowerCase().includes(q) ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.role && c.role.toLowerCase().includes(q)) ||
+        (c.source && c.source.toLowerCase().includes(q))
+      )
+      .slice(0, 8);
+  }, [showMentions, mentionQuery, mentionCandidates]);
+
+  const insertMention = (candidate: MentionCandidate) => {
+    if (mentionIndex < 0) return;
+    const textarea = commentTextareaRef.current;
+    const currentText = note;
+    const cursorPos = textarea ? textarea.selectionStart : currentText.length;
+
+    const before = currentText.slice(0, mentionIndex);
+    const after = currentText.slice(cursorPos);
+    const mentionText = `@${candidate.email} `;
+    const nextText = `${before}${mentionText}${after}`;
+
+    setNote(nextText);
+    setShowMentions(false);
+    setMentionIndex(-1);
+    setMentionQuery("");
+
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const newPos = before.length + mentionText.length;
+        textarea.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  };
+
+  const handleMentionButtonClick = () => {
+    const textarea = commentTextareaRef.current;
+    const current = note;
+    const start = textarea ? textarea.selectionStart : current.length;
+    const end = textarea ? textarea.selectionEnd : current.length;
+
+    const next = current.slice(0, start) + "@" + current.slice(end);
+    setNote(next);
+
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const newPos = start + 1;
+        textarea.setSelectionRange(newPos, newPos);
+        updateMentionState(next, newPos);
+      }
+    }, 0);
+  };
 
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedChat, setCopiedChat] = useState(false);
@@ -1468,6 +1631,9 @@ export function IncidentDetail({
 
       setCommentFiles([]);
       setNote("");
+      setShowMentions(false);
+      setMentionIndex(-1);
+      setMentionQuery("");
     } catch {
       setCommentError("Could not post comment.");
     } finally {
@@ -2113,7 +2279,7 @@ export function IncidentDetail({
               </div>
             </div>
 
-            {/* Rich Discussion Composer with Document & Image Attachments */}
+            {/* Rich Discussion Composer with Document & Image Attachments + @Mentions */}
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -2125,21 +2291,131 @@ export function IncidentDetail({
                 isDraggingOver ? "border-cyan-500/70 bg-cyan-950/20 ring-2 ring-cyan-500/30" : ""
               }`}
             >
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                onPaste={handleCommentPaste}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    void handleCommentSubmit();
-                  }
-                }}
-                rows={3}
-                placeholder="Add a comment, investigation finding, or mitigation notes… (Paste screenshots with ⌘V or drop files here)"
-                className="w-full rounded-xl border cv-border cv-surface-alt px-3.5 py-2.5 text-sm cv-text-primary placeholder:cv-text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                aria-label="Comment"
-              />
+              <div className="relative">
+                <textarea
+                  ref={commentTextareaRef}
+                  value={note}
+                  onChange={(e) => {
+                    setNote(e.target.value);
+                    updateMentionState(e.target.value, e.target.selectionStart);
+                  }}
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    updateMentionState(target.value, target.selectionStart);
+                  }}
+                  onKeyUp={(e) => {
+                    if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+                      const target = e.currentTarget;
+                      updateMentionState(target.value, target.selectionStart);
+                    }
+                  }}
+                  onPaste={handleCommentPaste}
+                  onKeyDown={(e) => {
+                    if (showMentions && filteredCandidates.length > 0) {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setHighlightedIndex((prev) => (prev + 1) % filteredCandidates.length);
+                        return;
+                      }
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setHighlightedIndex((prev) => (prev - 1 + filteredCandidates.length) % filteredCandidates.length);
+                        return;
+                      }
+                      if (e.key === "Enter" || e.key === "Tab") {
+                        e.preventDefault();
+                        insertMention(filteredCandidates[highlightedIndex]);
+                        return;
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        setShowMentions(false);
+                        return;
+                      }
+                    }
+
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                      e.preventDefault();
+                      void handleCommentSubmit();
+                    }
+                  }}
+                  rows={3}
+                  placeholder="Add a comment, investigation finding, or mitigation notes… (Type @ to mention team members, paste screenshots with ⌘V)"
+                  className="w-full rounded-xl border cv-border cv-surface-alt px-3.5 py-2.5 text-sm cv-text-primary placeholder:cv-text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  aria-label="Comment"
+                />
+
+                {/* Mention Suggestion Dropdown Popover */}
+                {showMentions && (
+                  <div
+                    role="listbox"
+                    aria-label="Mention candidates"
+                    className="absolute bottom-full left-0 mb-2 w-full max-w-md max-h-64 overflow-y-auto rounded-xl border cv-border cv-surface shadow-2xl z-30 p-1.5 backdrop-blur-md"
+                  >
+                    <div className="px-2.5 py-1 text-[11px] font-semibold cv-text-muted flex items-center justify-between border-b cv-border pb-1 mb-1">
+                      <span className="flex items-center gap-1.5">
+                        <AtSign className="h-3 w-3 text-cyan-400" /> Mention person
+                      </span>
+                      <span className="text-[10px] cv-text-muted">↑↓ Navigate · ↵ Select · Esc Dismiss</span>
+                    </div>
+                    {filteredCandidates.length === 0 ? (
+                      <div className="px-3 py-3 text-xs cv-text-muted text-center">
+                        No members matching &ldquo;@{mentionQuery}&rdquo;
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {filteredCandidates.map((candidate, idx) => {
+                          const isSelected = idx === highlightedIndex;
+                          const initials = (candidate.name || candidate.email)
+                            .split(/[\s@._]+/)
+                            .filter(Boolean)
+                            .map((p) => p[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase();
+                          return (
+                            <button
+                              key={candidate.email}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onMouseEnter={() => setHighlightedIndex(idx)}
+                              onClick={() => insertMention(candidate)}
+                              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                                isSelected
+                                  ? "bg-cyan-950/40 text-cyan-200 ring-1 ring-cyan-500/50"
+                                  : "hover:cv-surface-alt cv-text-secondary"
+                              }`}
+                            >
+                              <div className="h-7 w-7 rounded-full bg-cyan-900/60 border border-cyan-500/30 flex items-center justify-center shrink-0 text-[11px] font-bold text-cyan-300">
+                                {initials || "@"}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-semibold cv-text-primary truncate">
+                                    {candidate.name || candidate.email.split("@")[0]}
+                                  </span>
+                                  {candidate.role && (
+                                    <span className="rounded border border-cyan-700/40 bg-cyan-950/50 px-1 py-0.2 text-[9px] font-medium text-cyan-300">
+                                      {candidate.role}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] cv-text-muted truncate">{candidate.email}</div>
+                              </div>
+                              {candidate.source && (
+                                <span className="shrink-0 text-[10px] cv-text-muted font-normal">
+                                  {candidate.source}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Selected Attached Files Previews */}
               {commentFiles.length > 0 && (
@@ -2181,8 +2457,19 @@ export function IncidentDetail({
                 <div className="mt-2 text-xs font-semibold text-red-400">{commentError}</div>
               )}
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-800/60 pt-3">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t cv-border pt-3">
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || commentUploading}
+                    onClick={handleMentionButtonClick}
+                    className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border cv-border px-3 text-xs font-semibold cv-text-secondary transition-colors hover:cv-surface-alt hover:text-white disabled:opacity-40"
+                    title="Mention a team member (@)"
+                  >
+                    <AtSign className="h-3.5 w-3.5 text-cyan-400" />
+                    Mention
+                  </button>
+
                   <button
                     type="button"
                     disabled={busy || commentUploading}
@@ -2195,7 +2482,7 @@ export function IncidentDetail({
                   </button>
 
                   <span className="hidden text-[11px] cv-text-muted sm:inline">
-                    Images, PDFs, Docs, Logs (max 4 MB) · ⌘V to paste screenshots
+                    Type @ to mention teammates · Images, PDFs, Docs (max 4 MB) · ⌘V to paste screenshots
                   </span>
 
                   <input
@@ -2644,6 +2931,34 @@ const STATE_KINDS = new Set<TimelineEntry["kind"]>([
   "severity",
 ]);
 
+/**
+ * Formats comment body text with highlighted @mentions badges.
+ * Exported for testing.
+ */
+export function renderCommentWithMentions(text: string) {
+  if (!text) return null;
+  // Match @user@domain.com or @username
+  const mentionRegex = /(@[a-zA-Z0-9._%+-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g;
+  const parts = text.split(mentionRegex);
+
+  return parts.map((part, idx) => {
+    if (part.startsWith("@") && part.length > 1) {
+      return (
+        <span
+          key={idx}
+          data-testid="mention-badge"
+          className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium text-cyan-300 bg-cyan-950/50 border border-cyan-600/40 text-[12px] align-baseline transition-colors hover:border-cyan-400/60"
+          title={`Mentioned: ${part.slice(1)}`}
+        >
+          <AtSign className="h-3 w-3 inline text-cyan-400 shrink-0" aria-hidden />
+          <span>{part.slice(1)}</span>
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
 function TimelineRow({
   entry,
   attachment,
@@ -2680,7 +2995,11 @@ function TimelineRow({
           )}
           <span>{entry.text}</span>
         </div>
-        {entry.body && <div className="mt-1 whitespace-pre-wrap text-[13px] cv-text-muted">{entry.body}</div>}
+        {entry.body && (
+          <div className="mt-1 whitespace-pre-wrap text-[13px] cv-text-muted leading-relaxed">
+            {renderCommentWithMentions(entry.body)}
+          </div>
+        )}
         {attachment && onDownload && (
           <button
             type="button"
