@@ -1,5 +1,6 @@
 "use client";
 
+import { SsoCard } from "@/components/sso-card";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Cpu, Loader2, Mail, Lock, User as UserIcon, ShieldCheck, Zap, Radio, ArrowRight, KeyRound } from "lucide-react";
@@ -250,17 +251,13 @@ export default function Login({ attendance = false }: { attendance?: boolean }) 
               {attendance && mode === "login" && step === "form" && (
                 <div className="mb-6">
                   {ssoError && <div role="alert" className="mb-3 text-sm text-red-300">{ssoError}</div>}
-                  <a href="/api/attendance/auth/sso/start" onClick={(event) => {
+                  <SsoCard href="/api/attendance/auth/sso/start" onClick={(event) => {
                     const tab = new URL(window.location.href).searchParams.get("tab");
                     if (tab) {
                       event.preventDefault();
                       window.location.assign(`/api/attendance/auth/sso/start?tab=${encodeURIComponent(tab)}`);
                     }
-                  }} className="group flex w-full items-center gap-3 rounded-2xl border border-white/20 bg-white px-4 py-4 text-slate-950 shadow-lg shadow-cyan-950/20 transition hover:bg-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-4 focus-visible:ring-offset-slate-950">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-cyan-300"><ShieldCheck size={21} aria-hidden="true" /></span>
-                    <span className="min-w-0 flex-1 text-left"><span className="block text-sm font-semibold">Continue with SSO</span><span className="mt-0.5 block text-xs text-slate-500">Single sign-on · My Account</span></span>
-                    <ArrowRight size={18} aria-hidden="true" className="shrink-0 text-slate-500 transition-transform group-hover:translate-x-1" />
-                  </a>
+                  }} />
                   <p className="mt-2 text-center text-xs text-slate-400">Use your organization’s account to securely access your workspace.</p>
                   <div className="mt-5 text-center text-xs text-slate-500">or sign in with your attendance account</div>
                 </div>

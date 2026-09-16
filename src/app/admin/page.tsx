@@ -1,5 +1,6 @@
 "use client";
 
+import { SsoCard } from "@/components/sso-card";
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -29,7 +30,6 @@ import {
   LifeBuoy,
   UserCog,
   LogOut,
-  ShieldCheck,
 } from "lucide-react";
 import OrdersPanel from "./OrdersPanel";
 import InventoryPanel from "./InventoryPanel";
@@ -725,18 +725,7 @@ export default function AdminDashboard() {
                 <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
               </div>
             )}
-            <a
-              href="/api/admin/auth/sso/start"
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all"
-              style={{
-                background: "var(--bg-glass)",
-                border: "1px solid var(--border-primary)",
-                color: "var(--text-primary)",
-              }}
-            >
-              <ShieldCheck className="w-4 h-4" />
-              Continue with SSO
-            </a>
+            <SsoCard href="/api/admin/auth/sso/start" />
             <p className="text-center text-[11px]" style={{ color: "var(--text-tertiary)" }}>
               Uses your Circuvent account and its two-step verification. You
               still need a staff role here.

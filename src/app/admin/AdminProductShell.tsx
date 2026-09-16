@@ -11,9 +11,10 @@
  * same panels with less chrome, so a 3am incident page does not open under
  * Orders & Inventory.
  */
+import { SsoCard } from "@/components/sso-card";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { KeyRound, LogIn, LogOut, ShieldCheck } from "lucide-react";
+import { KeyRound, LogIn, LogOut } from "lucide-react";
 import AdminPassword, { ForcePasswordChange } from "./AdminPassword";
 import Admin2fa from "./Admin2fa";
 import AdminPasskeys from "./AdminPasskeys";
@@ -365,18 +366,7 @@ export default function AdminProductShell({
                   <span className="h-px flex-1" style={{ background: "var(--border-primary)" }} />
                 </div>
               )}
-              <a
-                href="/api/admin/auth/sso/start"
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  background: "var(--bg-glass)",
-                  border: "1px solid var(--border-primary)",
-                  color: "var(--text-primary)",
-                }}
-              >
-                <ShieldCheck className="w-4 h-4" />
-                Continue with SSO
-              </a>
+              <SsoCard href="/api/admin/auth/sso/start" />
             </form>
           )}
         </motion.div>

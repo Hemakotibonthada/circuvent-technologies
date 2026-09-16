@@ -1,5 +1,6 @@
 "use client";
 
+import { SsoCard } from "@/components/sso-card";
 import { useEffect, useState, type ReactNode } from "react";
 import { ShieldCheck, LoaderCircle, AlertTriangle } from "lucide-react";
 
@@ -198,12 +199,7 @@ export default function SsoGate({ children }: { children: ReactNode }) {
               another origin; starting it with fetch would be blocked and would
               leave somebody looking at a button that does nothing.
             */}
-            <a
-              href="/api/admin/auth/sso/start"
-              className="mt-6 flex w-full items-center justify-center rounded-lg bg-[#2585C6] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1e6da3]"
-            >
-              Continue with SSO
-            </a>
+            <SsoCard href="/api/admin/auth/sso/start" className="mt-6" />
 
             {who && (
               <p className="mt-3 text-center text-xs text-slate-400">
