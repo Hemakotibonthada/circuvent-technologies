@@ -1334,8 +1334,22 @@ export function IncidentDetail({
 
   const [mitigateModalOpen, setMitigateModalOpen] = useState(false);
   const [mitigateNote, setMitigateNote] = useState("");
+  const [mitigateStrategy, setMitigateStrategy] = useState<
+    "reroute" | "rollback" | "scale" | "circuit-breaker" | "config" | "hotfix"
+  >("reroute");
+  const [mitigateImpactIsolated, setMitigateImpactIsolated] = useState(true);
+  const [mitigateServicesVerified, setMitigateServicesVerified] = useState(true);
+
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
+  const [resolveRootCauseCategory, setResolveRootCauseCategory] = useState<
+    "code" | "infra" | "config" | "capacity" | "dependency" | "process"
+  >("code");
+
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferTeam, setTransferTeam] = useState(inc.owningTeam);
+  const [transferAssignee, setTransferAssignee] = useState(inc.assignedTo || "");
+  const [transferNote, setTransferNote] = useState("");
 
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
   const [commentUploading, setCommentUploading] = useState(false);
@@ -1884,293 +1898,515 @@ export function IncidentDetail({
             </div>
           </div>
         </div>
-      </div>
 
-      {error && (
-        <div className="rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">{error}</div>
-      )}
-
-      {/* Incident Lifecycle & SLA Flow Controls: 1. Acknowledge -> 2. Mitigate -> 3. Resolve */}
-      <div className="rounded-2xl border cv-border cv-surface p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800/60 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-            <h3 className="text-xs font-bold uppercase tracking-wider cv-text-muted">Incident Lifecycle & SLA Flow</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium cv-text-muted">Severity:</span>
-            <select
-              value={inc.severity}
-              onChange={(e) => send({ action: "severity", severity: Number(e.target.value), note })}
-              disabled={busy}
-              className="h-[36px] rounded-lg border cv-border cv-surface-alt px-3 text-xs font-semibold cv-text-primary"
-              aria-label="Change severity"
-            >
-              {SEVERITIES.map((s) => (
-                <option key={s} value={s}>
-                  {SLA[s].label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          {/* Step 1: Acknowledge */}
-          <div
-            className={`flex flex-col justify-between rounded-xl border p-3 transition-colors ${
-              inc.acknowledgedAt
-                ? "border-blue-500/30 bg-blue-950/20"
-                : "border-blue-500/60 bg-blue-950/40 ring-1 ring-blue-500/30"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-blue-400">1. Acknowledge</span>
-              {inc.acknowledgedAt && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-semibold text-blue-300">
-                  <CheckCircle2 className="h-3 w-3 text-blue-400" /> Done
+        {/* Minimized Incident Lifecycle & Stage Action Bar */}
+        <div className="mt-4 pt-3.5 border-t cv-border flex flex-wrap items-center justify-between gap-3">
+          {/* Left: Active Stage Status & Responsible Person */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {!inc.acknowledgedAt ? (
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-xs font-semibold text-blue-400">Needs Acknowledgment</span>
+                <span className="text-xs cv-text-muted">· Target {formatMins(inc.slaAckMins)}</span>
+              </div>
+            ) : !inc.mitigatedAt && inc.status !== "resolved" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 border border-blue-500/30 px-2.5 py-0.5 text-xs font-semibold text-blue-300">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />
+                  Acknowledged by <span className="underline decoration-blue-500/40 underline-offset-2">{ackBy || "responder"}</span>
                 </span>
-              )}
-            </div>
-
-            <div className="my-2 min-h-[38px]">
-              {inc.acknowledgedAt ? (
-                <div className="text-xs text-blue-200/90">
-                  <div className="font-semibold text-blue-100">
-                    Acknowledged {ackBy ? `by ${ackBy}` : ""}
-                  </div>
-                  <div className="text-[11px] text-blue-300/70">{fmtTime(inc.acknowledgedAt)}</div>
-                </div>
-              ) : (
-                <p className="text-[11px] text-blue-200/70">
-                  Target: {formatMins(inc.slaAckMins)}. Stops SLA acknowledge clock.
-                </p>
-              )}
-            </div>
-
-            <button
-              disabled={busy || !!inc.acknowledgedAt}
-              onClick={() => send({ action: "acknowledge" })}
-              className={`inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all ${
-                inc.acknowledgedAt
-                  ? "border border-blue-500/30 bg-blue-950/20 text-blue-300 cursor-default"
-                  : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 hover:brightness-110 active:scale-[0.98]"
-              }`}
-              aria-label="Acknowledge"
-            >
-              {busy && !inc.acknowledgedAt ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              )}
-              {inc.acknowledgedAt ? "Acknowledged" : "Acknowledge"}
-            </button>
+                <span className="text-xs cv-text-muted">{fmtTime(inc.acknowledgedAt)}</span>
+                <span className="text-xs text-amber-400/90 font-medium">· Ready for mitigation</span>
+              </div>
+            ) : inc.status !== "resolved" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/30 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                  <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
+                  Mitigated by <span className="underline decoration-amber-500/40 underline-offset-2">{mitBy || "responder"}</span>
+                </span>
+                <span className="text-xs cv-text-muted">{inc.mitigatedAt ? fmtTime(inc.mitigatedAt) : ""}</span>
+                <span className="text-xs text-emerald-400/90 font-medium">· Ready for resolution</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  Resolved by <span className="underline decoration-emerald-500/40 underline-offset-2">{resBy || "responder"}</span>
+                </span>
+                <span className="text-xs cv-text-muted">{inc.resolvedAt ? fmtTime(inc.resolvedAt) : "Completed"}</span>
+              </div>
+            )}
           </div>
 
-          {/* Step 2: Mitigate */}
-          <div
-            className={`flex flex-col justify-between rounded-xl border p-3 transition-colors ${
-              inc.mitigatedAt
-                ? "border-amber-500/30 bg-amber-950/20"
-                : inc.acknowledgedAt
-                ? "border-amber-500/60 bg-amber-950/40 ring-1 ring-amber-500/30"
-                : "border-gray-800 cv-surface-alt opacity-75"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-amber-400">2. Mitigate</span>
-              {inc.mitigatedAt && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
-                  <ShieldCheck className="h-3 w-3 text-amber-400" /> Mitigated
-                </span>
-              )}
+          {/* Right: Severity Selector & Sequential Lifecycle Actions */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5 mr-1">
+              <span className="text-[11px] font-medium cv-text-muted">Severity:</span>
+              <select
+                value={inc.severity}
+                onChange={(e) => send({ action: "severity", severity: Number(e.target.value), note })}
+                disabled={busy}
+                className="h-[32px] rounded-lg border cv-border cv-surface-alt px-2.5 text-xs font-semibold cv-text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                aria-label="Change severity"
+              >
+                {SEVERITIES.map((s) => (
+                  <option key={s} value={s}>
+                    {SLA[s].label}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="my-2 min-h-[38px]">
-              {inc.mitigatedAt ? (
-                <div className="text-xs text-amber-200/90">
-                  <div className="font-semibold text-amber-100">
-                    Mitigated {mitBy ? `by ${mitBy}` : ""}
-                  </div>
-                  <div className="text-[11px] text-amber-300/70">{fmtTime(inc.mitigatedAt)}</div>
-                </div>
-              ) : (
-                <p className="text-[11px] text-amber-200/70">
-                  Lessen customer impact via traffic reroute, scale, or rollback.
-                </p>
-              )}
-            </div>
+            {/* Stage 1: If unacknowledged -> Show ONLY Acknowledge */}
+            {!inc.acknowledgedAt && (
+              <button
+                disabled={busy}
+                onClick={() => send({ action: "acknowledge" })}
+                className="inline-flex h-[34px] items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 text-xs font-bold text-white shadow-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-40 transition"
+                aria-label="Acknowledge"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Acknowledge
+              </button>
+            )}
 
-            <button
-              disabled={busy || !!inc.mitigatedAt || inc.status === "resolved"}
-              onClick={() => setMitigateModalOpen(true)}
-              className={`inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all ${
-                inc.mitigatedAt || inc.status === "resolved"
-                  ? "border border-amber-500/30 bg-amber-950/20 text-amber-300 cursor-default"
-                  : "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-600/30 hover:brightness-110 active:scale-[0.98]"
-              }`}
-              aria-label="Mitigate"
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {inc.mitigatedAt ? "Mitigated" : "Mitigate"}
-            </button>
-          </div>
+            {/* Stage 2: If acknowledged but not yet mitigated -> Show Transfer Incident + ONLY Mitigate */}
+            {inc.acknowledgedAt && !inc.mitigatedAt && inc.status !== "resolved" && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setTransferTeam(inc.owningTeam);
+                    setTransferAssignee(inc.assignedTo || "");
+                    setTransferNote("");
+                    setTransferModalOpen(true);
+                  }}
+                  className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border cv-border px-3 text-xs font-semibold cv-text-secondary hover:cv-surface-alt hover:text-white transition disabled:opacity-40"
+                  title="Transfer incident to another team or engineer"
+                  aria-label="Transfer Incident"
+                >
+                  <UserPlus className="h-3.5 w-3.5 text-cyan-400" />
+                  Transfer Incident
+                </button>
 
-          {/* Step 3: Resolve */}
-          <div
-            className={`flex flex-col justify-between rounded-xl border p-3 transition-colors ${
-              inc.status === "resolved"
-                ? "border-emerald-500/30 bg-emerald-950/20"
-                : inc.mitigatedAt
-                ? "border-emerald-500/60 bg-emerald-950/40 ring-1 ring-emerald-500/30"
-                : "border-gray-800 cv-surface-alt opacity-75"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-400">3. Resolve</span>
-              {inc.status === "resolved" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-400" /> Resolved
-                </span>
-              )}
-            </div>
+                <button
+                  disabled={busy}
+                  onClick={() => setMitigateModalOpen(true)}
+                  className="inline-flex h-[34px] items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 px-3.5 text-xs font-bold text-white shadow-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-40 transition"
+                  aria-label="Mitigate"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Mitigate
+                </button>
+              </>
+            )}
 
-            <div className="my-2 min-h-[38px]">
-              {inc.status === "resolved" ? (
-                <div className="text-xs text-emerald-200/90">
-                  <div className="font-semibold text-emerald-100">
-                    Resolved {resBy ? `by ${resBy}` : ""}
-                  </div>
-                  <div className="text-[11px] text-emerald-300/70">
-                    {inc.resolvedAt ? fmtTime(inc.resolvedAt) : "Completed"}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[11px] text-emerald-200/70">
-                  Permanent fix deployed. Stops SLA clock & closes incident.
-                </p>
-              )}
-            </div>
+            {/* Stage 3: If mitigated and not yet resolved -> Show Transfer + ONLY Resolve */}
+            {inc.mitigatedAt && inc.status !== "resolved" && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setTransferTeam(inc.owningTeam);
+                    setTransferAssignee(inc.assignedTo || "");
+                    setTransferNote("");
+                    setTransferModalOpen(true);
+                  }}
+                  className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border cv-border px-3 text-xs font-semibold cv-text-secondary hover:cv-surface-alt hover:text-white transition disabled:opacity-40"
+                  title="Transfer incident"
+                  aria-label="Transfer Incident"
+                >
+                  <UserPlus className="h-3.5 w-3.5 text-cyan-400" />
+                  Transfer Incident
+                </button>
 
-            {inc.status === "resolved" ? (
+                <button
+                  disabled={busy}
+                  onClick={() => setResolveModalOpen(true)}
+                  className="inline-flex h-[34px] items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 text-xs font-bold text-white shadow-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-40 transition"
+                  aria-label="Resolve"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Resolve
+                </button>
+              </>
+            )}
+
+            {/* Stage 4: If resolved -> Show Reactivate */}
+            {inc.status === "resolved" && (
               <button
                 disabled={busy}
                 onClick={() => send({ action: "reactivate", note })}
-                className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-red-700/60 bg-red-950/40 text-xs font-bold text-red-300 transition-all hover:bg-red-900/50"
+                className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border border-red-700/60 bg-red-950/40 px-3 text-xs font-bold text-red-300 transition hover:bg-red-900/50 disabled:opacity-40"
                 aria-label="Reactivate"
               >
-                <AlertOctagon className="h-3.5 w-3.5" /> Reactivate
-              </button>
-            ) : (
-              <button
-                disabled={busy}
-                onClick={() => setResolveModalOpen(true)}
-                className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-xs font-bold text-white shadow-md shadow-emerald-600/30 hover:brightness-110 active:scale-[0.98] disabled:opacity-40"
-                aria-label="Resolve"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+                <AlertOctagon className="h-3.5 w-3.5" />
+                Reactivate
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Mitigate Modal */}
+      {error && (
+        <div className="rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">{error}</div>
+      )}
+
+      {/* Enhanced Mitigate Modal with Justification and Mitigation Options/Features */}
       {mitigateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl border cv-border cv-surface p-6 shadow-2xl">
+          <div className="w-full max-w-xl rounded-2xl border cv-border cv-surface p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b cv-border pb-3">
-              <h3 className="flex items-center gap-2 text-base font-bold cv-text-primary">
-                <ShieldCheck className="h-5 w-5 text-amber-500" /> Mitigate Incident {inc.id}
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-lg bg-amber-500/20 p-1.5 border border-amber-500/40">
+                  <ShieldCheck className="h-5 w-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold cv-text-primary">
+                    Mitigate Incident {inc.id}
+                  </h3>
+                  <p className="text-xs cv-text-muted">
+                    Lessen customer impact and stop the active TTM SLA clock
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setMitigateModalOpen(false)}
-                className="rounded-lg p-1 cv-text-muted hover:cv-text-primary"
+                className="rounded-lg p-1 cv-text-muted hover:cv-text-primary hover:cv-surface-alt transition"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mt-2 text-xs cv-text-secondary">
-              Record the mitigation actions taken to restore service or isolate customer impact.
-            </p>
-            <textarea
-              value={mitigateNote}
-              onChange={(e) => setMitigateNote(e.target.value)}
-              rows={4}
-              placeholder="e.g. Diverted traffic away from region, rolled back commit 4f2a, scaled pool..."
-              className="mt-3 w-full rounded-xl border cv-border cv-surface-alt p-3 text-sm cv-text-primary placeholder:cv-text-muted"
-              autoFocus
-            />
-            <div className="mt-4 flex items-center justify-end gap-2">
+
+            <div className="mt-4 space-y-4">
+              {/* Mitigation Strategy Selection */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider cv-text-muted mb-1.5">
+                  Mitigation Strategy / Feature Applied
+                </label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 text-xs">
+                  {[
+                    { id: "reroute", label: "Traffic Reroute", desc: "DNS / geo failover" },
+                    { id: "rollback", label: "Rollback Deploy", desc: "Revert to prior build" },
+                    { id: "scale", label: "Scale Compute", desc: "Boost pods / CPU / RAM" },
+                    { id: "circuit-breaker", label: "Circuit Breaker", desc: "Shed load / fallback" },
+                    { id: "config", label: "Config / Flags", desc: "Toggle offending feature" },
+                    { id: "hotfix", label: "Hotfix / Patch", desc: "Emergency code fix" },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setMitigateStrategy(s.id as any)}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        mitigateStrategy === s.id
+                          ? "border-amber-500 bg-amber-950/40 text-amber-200 ring-1 ring-amber-500/40"
+                          : "cv-border cv-surface-alt cv-text-secondary hover:cv-border-primary"
+                      }`}
+                    >
+                      <div className="font-semibold">{s.label}</div>
+                      <div className="text-[10px] cv-text-muted mt-0.5">{s.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Justification Textarea */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider cv-text-muted mb-1.5">
+                  Technical Justification & Actions Taken <span className="text-amber-400">*</span>
+                </label>
+                <textarea
+                  value={mitigateNote}
+                  onChange={(e) => setMitigateNote(e.target.value)}
+                  rows={4}
+                  placeholder="Explain the technical justification, steps executed to stop customer impact, and verification results..."
+                  className="w-full rounded-xl border cv-border cv-surface-alt p-3 text-sm cv-text-primary placeholder:cv-text-muted focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Verification Checklist Features */}
+              <div className="rounded-xl border cv-border cv-surface-alt p-3 space-y-2">
+                <label className="flex items-center gap-2 text-xs font-medium cv-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mitigateImpactIsolated}
+                    onChange={(e) => setMitigateImpactIsolated(e.target.checked)}
+                    className="rounded border-amber-600 text-amber-500 focus:ring-amber-500/40 h-4 w-4"
+                  />
+                  <span>Customer-facing impact has been isolated or halted</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs font-medium cv-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mitigateServicesVerified}
+                    onChange={(e) => setMitigateServicesVerified(e.target.checked)}
+                    className="rounded border-amber-600 text-amber-500 focus:ring-amber-500/40 h-4 w-4"
+                  />
+                  <span>Health metrics and error rates returned to baseline thresholds</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5 border-t cv-border pt-4">
               <button
                 type="button"
                 onClick={() => setMitigateModalOpen(false)}
-                className="rounded-lg border cv-border px-4 py-2 text-xs font-semibold cv-text-secondary hover:cv-surface-alt"
+                className="rounded-lg border cv-border px-4 py-2 text-xs font-semibold cv-text-secondary hover:cv-surface-alt transition"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || !mitigateNote.trim()}
                 onClick={() => {
-                  send({ action: "mitigate", note: mitigateNote.trim() });
+                  const strategyLabels: Record<string, string> = {
+                    reroute: "Traffic Reroute",
+                    rollback: "Rollback Deploy",
+                    scale: "Scale Compute",
+                    "circuit-breaker": "Circuit Breaker",
+                    config: "Config / Flags",
+                    hotfix: "Hotfix / Patch",
+                  };
+                  const compiled = [
+                    `[Strategy: ${strategyLabels[mitigateStrategy] || mitigateStrategy}]`,
+                    mitigateNote.trim(),
+                    mitigateImpactIsolated ? "• Customer impact verified isolated" : "",
+                    mitigateServicesVerified ? "• Service health metrics verified" : "",
+                  ]
+                    .filter(Boolean)
+                    .join("\n");
+
+                  send({ action: "mitigate", note: compiled });
                   setMitigateModalOpen(false);
                   setMitigateNote("");
                 }}
-                className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-amber-500"
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-amber-500 transition disabled:opacity-40"
               >
-                {busy ? "Saving…" : "Confirm Mitigation"}
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                Confirm Mitigation
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Resolve Modal */}
-      {resolveModalOpen && (
+      {/* Transfer Incident Modal */}
+      {transferModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
           <div className="w-full max-w-lg rounded-2xl border cv-border cv-surface p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b cv-border pb-3">
-              <h3 className="flex items-center gap-2 text-base font-bold cv-text-primary">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Resolve Incident {inc.id}
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-lg bg-cyan-500/20 p-1.5 border border-cyan-500/40">
+                  <UserPlus className="h-5 w-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold cv-text-primary">
+                    Transfer Incident {inc.id}
+                  </h3>
+                  <p className="text-xs cv-text-muted">
+                    Reassign ownership to another team or designated engineer
+                  </p>
+                </div>
+              </div>
               <button
-                onClick={() => setResolveModalOpen(false)}
-                className="rounded-lg p-1 cv-text-muted hover:cv-text-primary"
+                onClick={() => setTransferModalOpen(false)}
+                className="rounded-lg p-1 cv-text-muted hover:cv-text-primary hover:cv-surface-alt transition"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mt-2 text-xs cv-text-secondary">
-              Record the root cause and permanent fix applied before closing this incident.
-            </p>
-            <textarea
-              value={resolveNote}
-              onChange={(e) => setResolveNote(e.target.value)}
-              rows={4}
-              placeholder="e.g. Memory leak in worker patched, certificate renewed, hotfix deployed..."
-              className="mt-3 w-full rounded-xl border cv-border cv-surface-alt p-3 text-sm cv-text-primary placeholder:cv-text-muted"
-              autoFocus
-            />
-            <div className="mt-4 flex items-center justify-end gap-2">
+
+            <div className="mt-4 space-y-3.5">
+              {/* Target Team */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider cv-text-muted mb-1">
+                  Owning Team
+                </label>
+                <select
+                  value={transferTeam}
+                  onChange={(e) => setTransferTeam(e.target.value)}
+                  className="h-[40px] w-full rounded-xl border cv-border cv-surface-alt px-3 text-sm cv-text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                >
+                  {[...new Set([inc.owningTeam, ...teams])].filter(Boolean).map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Assignee */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider cv-text-muted mb-1">
+                  Assign To Engineer / Lead
+                </label>
+                <input
+                  type="text"
+                  value={transferAssignee}
+                  onChange={(e) => setTransferAssignee(e.target.value)}
+                  list="transfer-candidates-list"
+                  placeholder="e.g. devon@circuvent.com"
+                  className="h-[40px] w-full rounded-xl border cv-border cv-surface-alt px-3 text-sm cv-text-primary placeholder:cv-text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+                <datalist id="transfer-candidates-list">
+                  {mentionCandidates.map((c) => (
+                    <option key={c.email} value={c.email}>
+                      {c.name ? `${c.name} (${c.email})` : c.email}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Transfer Justification / Reason */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider cv-text-muted mb-1">
+                  Transfer Reason / Handover Notes
+                </label>
+                <textarea
+                  value={transferNote}
+                  onChange={(e) => setTransferNote(e.target.value)}
+                  rows={3}
+                  placeholder="Reason for transfer (e.g. Issue isolated to database replica; handing over to DBA team for failover)..."
+                  className="w-full rounded-xl border cv-border cv-surface-alt p-3 text-sm cv-text-primary placeholder:cv-text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5 border-t cv-border pt-4">
               <button
                 type="button"
-                onClick={() => setResolveModalOpen(false)}
-                className="rounded-lg border cv-border px-4 py-2 text-xs font-semibold cv-text-secondary hover:cv-surface-alt"
+                onClick={() => setTransferModalOpen(false)}
+                className="rounded-lg border cv-border px-4 py-2 text-xs font-semibold cv-text-secondary hover:cv-surface-alt transition"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || (!transferAssignee.trim() && transferTeam === inc.owningTeam)}
                 onClick={() => {
-                  send({ action: "resolve", note: resolveNote.trim() });
+                  send({
+                    action: "assign",
+                    owningTeam: transferTeam,
+                    assignedTo: transferAssignee.trim(),
+                    note: transferNote.trim() ? `Transferred: ${transferNote.trim()}` : "",
+                  });
+                  setTransferModalOpen(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-cyan-500 transition disabled:opacity-40"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                Confirm Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Resolve Modal */}
+      {resolveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-xl rounded-2xl border cv-border cv-surface p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b cv-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-lg bg-emerald-500/20 p-1.5 border border-emerald-500/40">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold cv-text-primary">
+                    Resolve Incident {inc.id}
+                  </h3>
+                  <p className="text-xs cv-text-muted">
+                    Confirm permanent fix deployed and close this incident
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setResolveModalOpen(false)}
+                className="rounded-lg p-1 cv-text-muted hover:cv-text-primary hover:cv-surface-alt transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {/* Root Cause Category */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider cv-text-muted mb-1.5">
+                  Root Cause Category
+                </label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 text-xs">
+                  {[
+                    { id: "code", label: "Software / Code Defect" },
+                    { id: "infra", label: "Infrastructure / Cloud" },
+                    { id: "config", label: "Configuration Drift" },
+                    { id: "capacity", label: "Capacity / Traffic Spike" },
+                    { id: "dependency", label: "3rd Party Dependency" },
+                    { id: "process", label: "Operational / Process" },
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setResolveRootCauseCategory(cat.id as any)}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        resolveRootCauseCategory === cat.id
+                          ? "border-emerald-500 bg-emerald-950/40 text-emerald-200 ring-1 ring-emerald-500/40"
+                          : "cv-border cv-surface-alt cv-text-secondary hover:cv-border-primary"
+                      }`}
+                    >
+                      <div className="font-semibold">{cat.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Permanent Fix & Justification */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider cv-text-muted mb-1.5">
+                  Permanent Resolution & Root Cause Justification <span className="text-emerald-400">*</span>
+                </label>
+                <textarea
+                  value={resolveNote}
+                  onChange={(e) => setResolveNote(e.target.value)}
+                  rows={4}
+                  placeholder="Record root cause details, fix version deployed, PR link, or permanent configuration applied..."
+                  className="w-full rounded-xl border cv-border cv-surface-alt p-3 text-sm cv-text-primary placeholder:cv-text-muted focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5 border-t cv-border pt-4">
+              <button
+                type="button"
+                onClick={() => setResolveModalOpen(false)}
+                className="rounded-lg border cv-border px-4 py-2 text-xs font-semibold cv-text-secondary hover:cv-surface-alt transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy || !resolveNote.trim()}
+                onClick={() => {
+                  const catLabels: Record<string, string> = {
+                    code: "Software / Code Defect",
+                    infra: "Infrastructure / Cloud",
+                    config: "Configuration Drift",
+                    capacity: "Capacity / Traffic Spike",
+                    dependency: "3rd Party Dependency",
+                    process: "Operational / Process",
+                  };
+                  const compiled = `[Root Cause: ${catLabels[resolveRootCauseCategory] || resolveRootCauseCategory}]\n${resolveNote.trim()}`;
+                  send({ action: "resolve", note: compiled });
                   setResolveModalOpen(false);
                   setResolveNote("");
                 }}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-500"
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-500 transition disabled:opacity-40"
               >
-                {busy ? "Resolving…" : "Confirm Resolution"}
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Confirm Resolution
               </button>
             </div>
           </div>

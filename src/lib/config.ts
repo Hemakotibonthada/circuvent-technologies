@@ -8,9 +8,9 @@
 // deployment, with sensible production defaults so the app never crashes on a
 // missing optional var.
 
-/** Canonical public origin for the customer space portal (myspace.circuvent.com). */
+/** Canonical public origin for Circuvent Technologies (circuvent.com). */
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://myspace.circuvent.com"
+  process.env.NEXT_PUBLIC_SITE_URL || "https://circuvent.com"
 ).replace(/\/$/, "");
 
 /**

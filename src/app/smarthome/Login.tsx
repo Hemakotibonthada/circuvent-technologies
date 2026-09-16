@@ -248,18 +248,24 @@ export default function Login({ attendance = false }: { attendance?: boolean }) 
                 </motion.div>
               </AnimatePresence>
 
-              {attendance && mode === "login" && step === "form" && (
+              {mode === "login" && step === "form" && (
                 <div className="mb-6">
                   {ssoError && <div role="alert" className="mb-3 text-sm text-red-300">{ssoError}</div>}
-                  <SsoCard href="/api/attendance/auth/sso/start" onClick={(event) => {
-                    const tab = new URL(window.location.href).searchParams.get("tab");
-                    if (tab) {
-                      event.preventDefault();
-                      window.location.assign(`/api/attendance/auth/sso/start?tab=${encodeURIComponent(tab)}`);
-                    }
-                  }} />
+                  <SsoCard
+                    href={attendance ? "/api/attendance/auth/sso/start" : "/api/admin/auth/sso/start"}
+                    onClick={(event) => {
+                      const tab = new URL(window.location.href).searchParams.get("tab");
+                      if (tab) {
+                        event.preventDefault();
+                        const target = attendance ? "/api/attendance/auth/sso/start" : "/api/admin/auth/sso/start";
+                        window.location.assign(`${target}?tab=${encodeURIComponent(tab)}`);
+                      }
+                    }}
+                  />
                   <p className="mt-2 text-center text-xs text-slate-400">Use your organization’s account to securely access your workspace.</p>
-                  <div className="mt-5 text-center text-xs text-slate-500">or sign in with your attendance account</div>
+                  <div className="mt-5 text-center text-xs text-slate-500">
+                    or sign in with your {attendance ? "attendance" : "console"} account
+                  </div>
                 </div>
               )}
 

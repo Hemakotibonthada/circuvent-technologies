@@ -53,7 +53,6 @@ export const metadata: Metadata = {
     type: "website",
     url: SITE_URL,
     siteName: "Circuvent Technologies",
-    images: [{ url: siteConfig.ogImage, width: 1200, height: 630, alt: siteConfig.name }],
   },
   twitter: {
     card: "summary_large_image",
@@ -65,11 +64,6 @@ export const metadata: Metadata = {
     ...(siteConfig.twitterHandle
       ? { site: siteConfig.twitterHandle, creator: siteConfig.twitterHandle }
       : {}),
-    // X reads twitter:image in preference to og:image and only falls back when
-    // it is absent. Naming it explicitly keeps the card from quietly
-    // downgrading to `summary` if that fallback ever changes, and it is the
-    // same artwork either way.
-    images: [{ url: siteConfig.ogImage, alt: siteConfig.name }],
   },
   // Mirrors robots.ts. Those two disagreeing is the kind of thing that only
   // surfaces once dev.circuvent.com is already in Google's index, which is very
