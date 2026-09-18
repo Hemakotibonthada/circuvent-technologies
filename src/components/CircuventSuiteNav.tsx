@@ -26,6 +26,8 @@ import {
   Check,
   User,
   ShieldCheck,
+  Search,
+  Bell,
 } from "lucide-react";
 
 export interface SuiteTab {
@@ -263,40 +265,35 @@ export function CircuventSuiteNav({
   const AppIcon = currentApp.icon || ClipboardCheck;
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-slate-950/90 backdrop-blur-xl shadow-lg shadow-black/30">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-xl shadow-[0_1px_3px_rgba(0,0,0,0.02)] text-slate-900">
       {/* ─── Top Bar ─── */}
       <div className="flex h-14 items-center justify-between px-3 sm:px-4 lg:px-6">
         {/* Left: Brand + App Badge + Tabs */}
-        <div className="flex items-center gap-3 md:gap-5 min-w-0 flex-1">
-          {/* App Brand Mark */}
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+          {/* Official Circuvent Mark + Brand Wordmark */}
           <Link
             href={currentApp.homeHref || "#"}
-            className="flex shrink-0 items-center gap-2.5 rounded-xl px-2 py-1 transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-cyan-400"
+            className="flex shrink-0 items-center gap-2 rounded-lg py-1 pr-2 transition hover:opacity-85 focus-visible:outline-2 focus-visible:outline-sky-500"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 via-indigo-500 to-violet-600 text-white shadow-md shadow-cyan-900/30">
-              <AppIcon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold tracking-tight text-white">
-                  {currentApp.name}
-                </span>
-                {currentApp.badge && (
-                  <span className="hidden sm:inline-flex rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.2 text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
-                    {currentApp.badge}
-                  </span>
-                )}
-              </div>
-              {currentApp.subtitle && (
-                <p className="hidden text-[10px] text-slate-400 leading-none lg:block">
-                  {currentApp.subtitle}
-                </p>
-              )}
+            <img
+              src="/logo-mark-96.png"
+              alt="Circuvent"
+              width={26}
+              height={26}
+              className="h-6.5 w-6.5 object-contain"
+            />
+            <div className="leading-tight">
+              <span className="block text-sm font-bold tracking-tight text-slate-900">
+                {currentApp.name}
+              </span>
+              <span className="block text-[10px] text-slate-400 font-normal">
+                {currentApp.subtitle || "Circuvent"}
+              </span>
             </div>
           </Link>
 
           {/* Divider */}
-          <div className="hidden h-5 w-px bg-white/10 sm:block" />
+          <div className="hidden h-5 w-px bg-slate-200 sm:block" />
 
           {/* Horizontal Top Options Navigation */}
           {tabs.length > 0 && (
@@ -310,12 +307,20 @@ export function CircuventSuiteNav({
 
                 const content = (
                   <>
-                    {Icon && <Icon className={`h-3.5 w-3.5 ${active ? "text-cyan-300" : "text-slate-400"}`} />}
+                    {Icon && (
+                      <Icon
+                        className={`h-3.5 w-3.5 shrink-0 ${
+                          active ? "text-sky-600" : "text-slate-500"
+                        }`}
+                      />
+                    )}
                     <span>{tab.label}</span>
                     {tab.badge !== undefined && (
                       <span
                         className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                          active ? "bg-cyan-400/20 text-cyan-200" : "bg-white/10 text-slate-400"
+                          active
+                            ? "bg-sky-200/60 text-sky-700"
+                            : "bg-slate-100 text-slate-500"
                         }`}
                       >
                         {tab.badge}
@@ -324,10 +329,10 @@ export function CircuventSuiteNav({
                   </>
                 );
 
-                const className = `flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                const className = `flex shrink-0 items-center gap-1.5 px-3 py-1 rounded-full text-xs transition-all ${
                   active
-                    ? "bg-cyan-500/15 text-cyan-200 border border-cyan-500/30 shadow-sm shadow-cyan-500/20"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200 border border-transparent"
+                    ? "bg-sky-50 text-sky-600 font-semibold border border-sky-200/70 shadow-none"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium border border-transparent"
                 }`;
 
                 const handleClick = (e: React.MouseEvent) => {
@@ -358,9 +363,30 @@ export function CircuventSuiteNav({
           )}
         </div>
 
-        {/* Right: Custom Actions + Suite App Launcher + Theme + Account */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {/* Right: Custom Actions + Search + Bell + Launcher + Theme + Avatar */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           {actions}
+
+          {/* Search Button */}
+          <button
+            type="button"
+            title="Search (Ctrl+K)"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+
+          {/* Notification Bell with Badge "4" */}
+          <button
+            type="button"
+            title="Notifications"
+            className="relative flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
+          >
+            <Bell className="h-4 w-4" />
+            <span className="absolute 0.5 top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white ring-2 ring-white">
+              4
+            </span>
+          </button>
 
           {/* ─── 9-Dot Suite App Launcher ─── */}
           <div className="relative" ref={launcherRef}>
@@ -369,23 +395,23 @@ export function CircuventSuiteNav({
               onClick={() => setLauncherOpen((o) => !o)}
               title="Circuvent Suite App Launcher"
               aria-expanded={launcherOpen}
-              className={`flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
                 launcherOpen
-                  ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-300 shadow-md shadow-cyan-500/20"
-                  : "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white"
+                  ? "bg-slate-100 text-slate-900"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
               <LayoutGrid className="h-4 w-4" />
             </button>
 
             {launcherOpen && (
-              <div className="absolute right-0 top-11 z-50 w-[340px] sm:w-[380px] rounded-2xl border border-white/15 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="absolute right-0 top-10 z-50 w-[340px] sm:w-[380px] rounded-2xl border border-slate-200 bg-white/98 p-4 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-50 text-sky-600">
                       <LayoutGrid className="h-3.5 w-3.5" />
                     </span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
                       Circuvent Suite
                     </span>
                   </div>
@@ -393,7 +419,7 @@ export function CircuventSuiteNav({
                     href="https://workspace.circuvent.com"
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1 text-[11px] font-medium text-cyan-400 hover:underline"
+                    className="flex items-center gap-1 text-[11px] font-semibold text-sky-600 hover:underline"
                   >
                     Open CV-365 <ExternalLink className="h-3 w-3" />
                   </a>
@@ -421,21 +447,21 @@ export function CircuventSuiteNav({
                                 onClick={() => setLauncherOpen(false)}
                                 className={`flex items-start gap-2.5 rounded-xl border p-2 text-left transition ${
                                   isCurrent
-                                    ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-200"
-                                    : "border-white/5 bg-white/[0.03] hover:border-white/15 hover:bg-white/10 text-slate-300"
+                                    ? "border-sky-300 bg-sky-50 text-sky-900"
+                                    : "border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-slate-100/70 text-slate-700"
                                 }`}
                               >
                                 <div
-                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white shadow"
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
                                   style={{ backgroundColor: app.color }}
                                 >
                                   <Icon className="h-4 w-4" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="truncate text-xs font-semibold text-white">
+                                  <p className="truncate text-xs font-semibold text-slate-900">
                                     {app.shortName}
                                   </p>
-                                  <p className="truncate text-[10px] text-slate-400">
+                                  <p className="truncate text-[10px] text-slate-500">
                                     {app.description}
                                   </p>
                                 </div>
@@ -458,7 +484,7 @@ export function CircuventSuiteNav({
                 type="button"
                 onClick={() => setThemeOpen((o) => !o)}
                 title="Theme appearance"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white transition"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
               >
                 {appearance === "dark" ? (
                   <Moon className="h-4 w-4" />
@@ -470,7 +496,7 @@ export function CircuventSuiteNav({
               </button>
 
               {themeOpen && (
-                <div className="absolute right-0 top-11 z-50 w-36 rounded-xl border border-white/15 bg-slate-950/95 p-1 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute right-0 top-10 z-50 w-36 rounded-xl border border-slate-200 bg-white p-1 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
                   {[
                     { id: "system", label: "Desktop", icon: Laptop },
                     { id: "dark", label: "Dark", icon: Moon },
@@ -485,15 +511,15 @@ export function CircuventSuiteNav({
                       }}
                       className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
                         appearance === id
-                          ? "bg-cyan-500/20 text-cyan-200"
-                          : "text-slate-300 hover:bg-white/5 hover:text-white"
+                          ? "bg-sky-50 text-sky-700 font-semibold"
+                          : "text-slate-700 hover:bg-slate-100/70"
                       }`}
                     >
                       <span className="flex items-center gap-2">
                         <Icon className="h-3.5 w-3.5" />
                         {label}
                       </span>
-                      {appearance === id && <Check className="h-3 w-3" />}
+                      {appearance === id && <Check className="h-3 w-3 text-sky-600" />}
                     </button>
                   ))}
                 </div>
@@ -507,34 +533,31 @@ export function CircuventSuiteNav({
               <button
                 type="button"
                 onClick={() => setProfileOpen((o) => !o)}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 py-1 pl-1.5 pr-2.5 transition hover:border-white/20 hover:bg-white/10"
+                className="flex items-center rounded-full p-0.5 hover:ring-2 hover:ring-slate-200 transition"
+                title={user.name || user.email || "User account"}
               >
                 {user.avatar ? (
                   <img
                     src={user.avatar}
                     alt={user.name || "User"}
-                    className="h-7 w-7 rounded-lg object-cover ring-1 ring-white/20"
+                    className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
                   />
                 ) : (
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-xs font-bold text-white">
-                    {(user.name || user.email || "U").slice(0, 2).toUpperCase()}
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-[11px] font-bold text-white shadow-sm ring-1 ring-slate-200">
+                    {(user.name || user.email || "H").slice(0, 1).toUpperCase()}
                   </div>
                 )}
-                <span className="hidden text-xs font-semibold text-slate-200 sm:inline max-w-[120px] truncate">
-                  {user.name || user.email?.split("@")[0]}
-                </span>
-                <ChevronDown className="h-3 w-3 text-slate-400" />
               </button>
 
               {profileOpen && (
-                <div className="absolute right-0 top-11 z-50 w-56 rounded-2xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
-                  <div className="border-b border-white/10 px-3 py-2.5">
-                    <p className="truncate text-xs font-bold text-white">
+                <div className="absolute right-0 top-10 z-50 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+                  <div className="border-b border-slate-100 px-3 py-2.5">
+                    <p className="truncate text-xs font-bold text-slate-900">
                       {user.name || "Circuvent Staff"}
                     </p>
-                    <p className="truncate text-[11px] text-slate-400">{user.email}</p>
+                    <p className="truncate text-[11px] text-slate-500">{user.email}</p>
                     {user.role && (
-                      <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-violet-300 capitalize">
+                      <span className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 capitalize">
                         <ShieldCheck className="h-3 w-3" /> {user.role}
                       </span>
                     )}
@@ -545,22 +568,22 @@ export function CircuventSuiteNav({
                       href="https://myaccount.circuvent.com/account"
                       target="_blank"
                       rel="noreferrer"
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/5 hover:text-white transition"
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
                     >
-                      <User className="h-3.5 w-3.5 text-slate-400" />
+                      <User className="h-3.5 w-3.5 text-slate-500" />
                       Manage my account
                     </a>
                   </div>
 
                   {onLogout && (
-                    <div className="border-t border-white/10 pt-1">
+                    <div className="border-t border-slate-100 pt-1">
                       <button
                         type="button"
                         onClick={() => {
                           setProfileOpen(false);
                           onLogout();
                         }}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition"
+                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition"
                       >
                         <LogOut className="h-3.5 w-3.5" />
                         Sign out

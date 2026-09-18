@@ -65,7 +65,7 @@ export function AttendanceShell({ children }: { children: React.ReactNode }) {
       <CircuventSuiteNav
         currentApp={{
           name: "Attendance",
-          subtitle: "Enterprise Workforce & Access Control",
+          subtitle: "Circuvent",
           icon: ClipboardCheck,
           homeHref: "/smarthome/attendance?tab=live",
           badge: "Workforce",

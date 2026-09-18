@@ -638,7 +638,7 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <VisitingBanner />
-        <main className="mx-auto max-w-7xl px-4 pb-28 pt-7 md:px-8 md:pb-12">{children}</main>
+        <main className="w-full px-4 pb-28 pt-7 sm:px-6 lg:px-8 md:pb-12">{children}</main>
         {/* One listener for every surface that sends a command. */}
         <CommandRefusalHost />
       </div>

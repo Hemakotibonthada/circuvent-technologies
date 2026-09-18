@@ -13,8 +13,29 @@
  */
 import { SsoCard } from "@/components/sso-card";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { KeyRound, LogIn, LogOut, Siren, Activity, Server, Package, ClipboardCheck, Settings } from "lucide-react";
+import {
+  KeyRound,
+  LogIn,
+  LogOut,
+  Siren,
+  Activity,
+  Server,
+  Package,
+  ClipboardCheck,
+  Settings,
+  LayoutGrid,
+  HeartPulse,
+  Clock,
+  ShieldCheck,
+  AlertTriangle,
+  CheckCircle2,
+  BarChart3,
+  Wifi,
+  Handshake,
+  Receipt,
+} from "lucide-react";
 import AdminPassword, { ForcePasswordChange } from "./AdminPassword";
 import Admin2fa from "./Admin2fa";
 import AdminPasskeys from "./AdminPasskeys";
@@ -43,6 +64,13 @@ export interface AdminProductShellProps {
   subtitle: string;
   children: ReactNode;
 }
+
+const PRODUCT_APP_NAMES: Record<string, string> = {
+  servers: "Servers",
+  icm: "ICM",
+  insights: "Insights",
+  assets: "Assets",
+};
 
 export default function AdminProductShell({
   product,
@@ -435,7 +463,10 @@ export default function AdminProductShell({
       ? Server
       : Package;
 
-  const productTabs = [
+  const searchParams = useSearchParams();
+  const currentTab = searchParams?.get("tab") || "home";
+
+  let productTabs = [
     { id: "icm", label: "Incident Command", icon: Siren, href: "/admin/icm" },
     { id: "insights", label: "App Insights", icon: Activity, href: "/admin/insights" },
     { id: "servers", label: "Servers & Nodes", icon: Server, href: "/admin/servers" },
@@ -443,13 +474,62 @@ export default function AdminProductShell({
     { id: "attendance", label: "Attendance", icon: ClipboardCheck, href: "/smarthome/attendance?tab=live" },
     { id: "admin", label: "Full Admin", icon: Settings, href: "/admin" },
   ];
+  let activeTabId: string = product;
+
+  if (product === "servers") {
+    productTabs = [
+      { id: "home", label: "Home", icon: LayoutGrid, href: "/admin/servers?tab=home" },
+      { id: "nodes", label: "Nodes", icon: Server, href: "/admin/servers?tab=nodes" },
+      { id: "telemetry", label: "Telemetry", icon: Activity, href: "/admin/servers?tab=telemetry" },
+      { id: "probes", label: "API Probes", icon: HeartPulse, href: "/admin/servers?tab=probes" },
+      { id: "jobs", label: "Scheduled Jobs", icon: Clock, href: "/admin/servers?tab=jobs" },
+      { id: "audit", label: "Audit Log", icon: ShieldCheck, href: "/admin/servers?tab=audit" },
+      { id: "icm", label: "ICM", icon: Siren, href: "/admin/icm" },
+      { id: "insights", label: "Insights", icon: Activity, href: "/admin/insights" },
+      { id: "assets", label: "Assets", icon: Package, href: "/admin/assets" },
+    ];
+    activeTabId = currentTab;
+  } else if (product === "icm") {
+    productTabs = [
+      { id: "home", label: "Home", icon: LayoutGrid, href: "/admin/icm?tab=home" },
+      { id: "active", label: "Active Queue", icon: AlertTriangle, href: "/admin/icm?tab=active" },
+      { id: "mitigated", label: "Mitigated", icon: CheckCircle2, href: "/admin/icm?tab=mitigated" },
+      { id: "analytics", label: "Analytics", icon: BarChart3, href: "/admin/icm?tab=analytics" },
+      { id: "servers", label: "Servers", icon: Server, href: "/admin/servers" },
+      { id: "insights", label: "Insights", icon: Activity, href: "/admin/insights" },
+      { id: "assets", label: "Assets", icon: Package, href: "/admin/assets" },
+    ];
+    activeTabId = currentTab;
+  } else if (product === "insights") {
+    productTabs = [
+      { id: "home", label: "Home", icon: LayoutGrid, href: "/admin/insights?tab=home" },
+      { id: "telemetry", label: "Telemetry", icon: Activity, href: "/admin/insights?tab=telemetry" },
+      { id: "endpoints", label: "Endpoints", icon: HeartPulse, href: "/admin/insights?tab=endpoints" },
+      { id: "stream", label: "Live Stream", icon: Wifi, href: "/admin/insights?tab=stream" },
+      { id: "servers", label: "Servers", icon: Server, href: "/admin/servers" },
+      { id: "icm", label: "ICM", icon: Siren, href: "/admin/icm" },
+      { id: "assets", label: "Assets", icon: Package, href: "/admin/assets" },
+    ];
+    activeTabId = currentTab;
+  } else if (product === "assets") {
+    productTabs = [
+      { id: "home", label: "Home", icon: LayoutGrid, href: "/admin/assets?tab=home" },
+      { id: "inventory", label: "Inventory", icon: Package, href: "/admin/assets?tab=inventory" },
+      { id: "suppliers", label: "Suppliers", icon: Handshake, href: "/admin/assets?tab=suppliers" },
+      { id: "orders", label: "Purchase Orders", icon: Receipt, href: "/admin/assets?tab=orders" },
+      { id: "servers", label: "Servers", icon: Server, href: "/admin/servers" },
+      { id: "icm", label: "ICM", icon: Siren, href: "/admin/icm" },
+      { id: "insights", label: "Insights", icon: Activity, href: "/admin/insights" },
+    ];
+    activeTabId = currentTab;
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#f8fafc] via-[#f1f5f9] to-[#edf2f9] text-slate-900">
       <CircuventSuiteNav
         currentApp={{
-          name: title,
-          subtitle,
+          name: PRODUCT_APP_NAMES[product] || title,
+          subtitle: "Circuvent",
           icon: ProductIcon,
           homeHref:
             product === "icm"
@@ -462,9 +542,9 @@ export default function AdminProductShell({
           badge: "Enterprise",
         }}
         tabs={productTabs}
-        activeTab={product}
+        activeTab={activeTabId}
         user={{
-          name: adminName || adminEmail?.split("@")[0] || "Admin",
+          name: adminName || adminEmail?.split("@")[0] || "Hema",
           email: adminEmail,
           role: role || "Administrator",
         }}
@@ -478,7 +558,7 @@ export default function AdminProductShell({
         }
       />
 
-      <div className="w-full flex-1 px-3 sm:px-5 lg:px-6 py-4">{children}</div>
+      <div className="w-full flex-1 px-4 sm:px-6 lg:px-8 py-4">{children}</div>
     </div>
   );
 }
