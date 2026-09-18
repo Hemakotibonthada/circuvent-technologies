@@ -34,6 +34,7 @@ const CSP_DIRECTIVES: Record<string, string[]> = {
     "https://lumberjack.razorpay.com",
     "https://*.razorpay.com",
     "https://vitals.vercel-insights.com",
+    "https://va.vercel-scripts.com",
     "https://*.googleapis.com",
     "https://*.firebaseio.com",
     "https://*.google-analytics.com",

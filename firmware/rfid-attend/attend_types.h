@@ -38,3 +38,19 @@ struct Punch {
   uint8_t  method;     // 0 = card, 1 = wiegand, 2 = rex
   uint8_t  reason;     // 0 ok, 1 unknown card, 2 offline, 3 duplicate
 };
+
+/*
+ * Feedback returned from the central Office Suite API (/api/attendance/device/punch)
+ */
+struct ServerFeedback {
+  bool ok;
+  bool doorRelease;
+  uint16_t durationMs;
+  char line1[32];
+  char line2[32];
+  char buzzerPattern[32];
+  char employeeName[48];
+  char employeeCode[16];
+  char direction[8];
+};
+

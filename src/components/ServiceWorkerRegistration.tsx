@@ -22,15 +22,22 @@ function wantsServiceWorker(hostname: string): boolean {
 
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
-    if (!("serviceWorker" in navigator) || process.env.NODE_ENV !== "production") {
+    if (!("serviceWorker" in navigator)) {
       return;
     }
 
     const host = window.location.hostname;
-    if (!wantsServiceWorker(host)) {
+    const isDev = process.env.NODE_ENV !== "production" || host === "localhost" || host === "127.0.0.1";
+
+    if (isDev || !wantsServiceWorker(host)) {
       void navigator.serviceWorker.getRegistrations().then((regs) => {
         for (const reg of regs) void reg.unregister();
       });
+      if (typeof window !== "undefined" && "caches" in window) {
+        void caches.keys().then((keys) => {
+          for (const key of keys) void caches.delete(key);
+        });
+      }
       return;
     }
 

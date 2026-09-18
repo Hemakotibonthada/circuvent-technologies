@@ -51,6 +51,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <time.h>
+#include <HTTPClient.h>
+#include <WiFiClient.h>
 #include "attend_types.h"
 
 // ---- pins ----
@@ -123,6 +125,17 @@ bool buzzerOn = true;
  * and in writing.
  */
 bool offlineFailOpen = false;
+
+/*
+ * Office Suite Cloud / Internal API Integration Settings
+ */
+String centralApiUrl = "http://192.168.1.100:3000";
+String deviceApiKey = "circuvent_hw_edge_sec_key_2026";
+String deviceId = "READER-HQ-01";
+unsigned long lastAclSyncMs = 0;
+unsigned long lastBatchSyncMs = 0;
+#define ACL_SYNC_INTERVAL_MS (30UL * 60UL * 1000UL) // every 30 minutes
+#define BATCH_SYNC_INTERVAL_MS (15UL * 1000UL)      // every 15 seconds
 
 /* ------------------------------------------------------------------ */
 /* The allow-list                                                      */
@@ -392,6 +405,159 @@ void drainQueue() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Central Office Suite REST Ingress                                  */
+/* ------------------------------------------------------------------ */
+
+bool httpPostPunch(const Punch &p, ServerFeedback &fb) {
+  if (WiFi.status() != WL_CONNECTED || centralApiUrl.length() == 0) return false;
+
+  HTTPClient http;
+  WiFiClient client;
+  String endpoint = centralApiUrl + "/api/attendance/device/punch";
+  if (!http.begin(client, endpoint)) return false;
+
+  http.setTimeout(2000);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + deviceApiKey);
+
+  JsonDocument doc;
+  doc["device_id"] = deviceId;
+  doc["firmware_version"] = CV_FW_VERSION;
+  doc["event_id"] = deviceId + "_" + String(p.seq) + "_" + String(millis());
+  doc["smartcard_uid"] = String(p.uid);
+  doc["direction"] = p.dir ? "out" : (direction == "auto" ? "auto" : "in");
+  doc["timestamp"] = (p.ts > 0) ? (long)p.ts : (long)time(nullptr);
+  doc["local_auth_result"] = p.granted ? "granted" : "denied";
+  doc["offline_buffered"] = false;
+  doc["signal_rssi"] = WiFi.RSSI();
+
+  String reqBody;
+  serializeJson(doc, reqBody);
+
+  int code = http.POST(reqBody);
+  bool success = false;
+
+  if (code == 200) {
+    String resp = http.getString();
+    JsonDocument respDoc;
+    DeserializationError err = deserializeJson(respDoc, resp);
+    if (!err && respDoc["ok"].as<bool>()) {
+      success = true;
+      fb.ok = true;
+      fb.doorRelease = respDoc["action"].is<const char*>() && strcmp(respDoc["action"], "door_release") == 0;
+      fb.durationMs = respDoc["duration_ms"].is<int>() ? respDoc["duration_ms"].as<int>() : 3000;
+
+      const char* l1 = respDoc["display"]["line1"].as<const char*>();
+      const char* l2 = respDoc["display"]["line2"].as<const char*>();
+      const char* bz = respDoc["buzzer_pattern"].as<const char*>();
+      const char* name = respDoc["employee"]["name"].as<const char*>();
+      const char* ecode = respDoc["employee"]["code"].as<const char*>();
+      const char* dir = respDoc["direction"].as<const char*>();
+
+      if (l1) strncpy(fb.line1, l1, sizeof(fb.line1) - 1);
+      if (l2) strncpy(fb.line2, l2, sizeof(fb.line2) - 1);
+      if (bz) strncpy(fb.buzzerPattern, bz, sizeof(fb.buzzerPattern) - 1);
+      if (name) strncpy(fb.employeeName, name, sizeof(fb.employeeName) - 1);
+      if (ecode) strncpy(fb.employeeCode, ecode, sizeof(fb.employeeCode) - 1);
+      if (dir) strncpy(fb.direction, dir, sizeof(fb.direction) - 1);
+    }
+  }
+  http.end();
+  return success;
+}
+
+void httpBatchSync() {
+  if (WiFi.status() != WL_CONNECTED || qCount == 0 || centralApiUrl.length() == 0) return;
+
+  HTTPClient http;
+  WiFiClient client;
+  String endpoint = centralApiUrl + "/api/attendance/device/batch-sync";
+  if (!http.begin(client, endpoint)) return;
+
+  http.setTimeout(3500);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + deviceApiKey);
+
+  JsonDocument doc;
+  doc["device_id"] = deviceId;
+  doc["batch_id"] = "batch_" + String(millis());
+
+  JsonArray arr = doc["punches"].to<JsonArray>();
+  int batchSize = qCount > 15 ? 15 : qCount;
+  for (int i = 0; i < batchSize; i++) {
+    int idx = (qHead + i) % QUEUE_MAX;
+    JsonObject item = arr.add<JsonObject>();
+    item["event_id"] = deviceId + "_q_" + String(queue[idx].seq);
+    item["timestamp"] = (long)queue[idx].ts;
+    item["smartcard_uid"] = String(queue[idx].uid);
+    item["direction"] = queue[idx].dir ? "out" : "in";
+    item["local_auth_result"] = queue[idx].granted ? "granted" : "denied";
+  }
+
+  String reqBody;
+  serializeJson(doc, reqBody);
+
+  int code = http.POST(reqBody);
+  if (code == 200) {
+    String resp = http.getString();
+    JsonDocument respDoc;
+    if (!deserializeJson(respDoc, resp) && respDoc["ok"].as<bool>()) {
+      int processed = respDoc["processed"].is<int>() ? respDoc["processed"].as<int>() : batchSize;
+      if (processed > 0 && processed <= qCount) {
+        qHead = (qHead + processed) % QUEUE_MAX;
+        qCount -= processed;
+        queueSave();
+        cv.set("queued", qCount);
+      }
+    }
+  }
+  http.end();
+}
+
+void httpAclSync() {
+  if (WiFi.status() != WL_CONNECTED || centralApiUrl.length() == 0) return;
+
+  HTTPClient http;
+  WiFiClient client;
+  String endpoint = centralApiUrl + "/api/attendance/device/acl-sync?version=" + String(aclVersion) + "&device_id=" + deviceId;
+  if (!http.begin(client, endpoint)) return;
+
+  http.setTimeout(3000);
+  http.addHeader("Authorization", "Bearer " + deviceApiKey);
+
+  int code = http.GET();
+  if (code == 200) {
+    String resp = http.getString();
+    JsonDocument doc;
+    if (!deserializeJson(doc, resp) && doc["ok"].as<bool>()) {
+      bool updateReq = doc["update_required"].is<bool>() ? doc["update_required"].as<bool>() : false;
+      long newVer = doc["acl_version"].is<long>() ? doc["acl_version"].as<long>() : aclVersion;
+
+      if (updateReq && doc["records"].is<JsonArrayConst>()) {
+        JsonArrayConst recs = doc["records"].as<JsonArrayConst>();
+        int count = 0;
+        for (JsonObjectConst r : recs) {
+          if (count >= ACL_MAX) break;
+          const char *cStr = r["card_uid"].as<const char *>();
+          if (cStr) {
+            uint32_t cardVal = (uint32_t)strtoul(cStr, nullptr, 10);
+            if (cardVal > 0) acl[count++] = cardVal;
+          }
+        }
+        if (count > 0) {
+          aclCount = count;
+          aclVersion = newVer;
+          aclSort(acl, aclCount);
+          aclSave();
+          banner("ACL SYNCED", String(aclCount) + " personnel", true, 2000);
+        }
+      }
+    }
+  }
+  http.end();
+}
+
+/* ------------------------------------------------------------------ */
 /* Deciding                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -399,12 +565,7 @@ void handleCard(uint32_t uid, uint8_t method) {
   if (!uid) return;
 
   /*
-   * One card presented twice in a few seconds is one person, not two.
-   *
-   * Readers re-read a card left sitting on them, and people tap again when
-   * they are not sure it worked. Without this a register shows somebody
-   * arriving three times, and on an in/out terminal it shows them leaving a
-   * second after they came in.
+   * Deduplication
    */
   if (uid == lastUid && millis() - lastUidAt < (unsigned long)dedupeSec * 1000UL) {
     banner("AGAIN?", "Already scanned", true, 1500);
@@ -415,21 +576,19 @@ void handleCard(uint32_t uid, uint8_t method) {
   lastUidAt = millis();
 
   bool known = aclFind(uid) >= 0;
-  bool online = cv.online();
+  bool isConnected = WiFi.status() == WL_CONNECTED;
   bool granted;
   uint8_t reason;
 
   if (known) {
     granted = true;
     reason = 0;
-  } else if (!online && offlineFailOpen) {
-    // A site that has chosen to fail open. Recorded as such, so the register
-    // shows plainly that nobody checked this one.
+  } else if (!isConnected && offlineFailOpen) {
     granted = true;
     reason = 2;
   } else {
     granted = false;
-    reason = online ? 1 : 2;
+    reason = isConnected ? 1 : 2;
   }
 
   // Attendance-only terminals never drive the relay, whatever the decision.
@@ -438,7 +597,7 @@ void handleCard(uint32_t uid, uint8_t method) {
   digitalWrite(granted ? LED_OK : LED_NO, HIGH);
   beep(granted ? 120 : 500);
   banner(granted ? "WELCOME" : "NO ENTRY",
-         granted ? (online ? String("Checking name...") : String("Recorded offline"))
+         granted ? (isConnected ? String("Verifying...") : String("Recorded offline"))
                  : (reason == 2 ? String("Network down") : String("Card not recognised")),
          granted);
 
@@ -455,8 +614,30 @@ void handleCard(uint32_t uid, uint8_t method) {
   p.method = method;
   p.reason = reason;
 
-  if (online) publishPunch(p, false);
-  else queuePush(p);
+  ServerFeedback fb;
+  memset(&fb, 0, sizeof(ServerFeedback));
+  fb.durationMs = 3000;
+
+  bool httpSynced = false;
+  if (isConnected) {
+    httpSynced = httpPostPunch(p, fb);
+    if (httpSynced && fb.ok) {
+      if (strlen(fb.line1) > 0) {
+        banner(granted ? "VERIFIED" : "DENIED", String(fb.line1), granted, 2500);
+      }
+      if (strcmp(fb.buzzerPattern, "beep_single_short") == 0) {
+        beep(80);
+      }
+    }
+  }
+
+  // Dual dispatch: Telemetry via MQTT if connected
+  if (cv.online()) publishPunch(p, false);
+
+  // If REST sync failed or we are completely offline, push to resilient NVS queue
+  if (!httpSynced) {
+    queuePush(p);
+  }
 
   store.putULong("seq", punchSeq);
   cv.set("scansToday", scansToday);
@@ -593,6 +774,8 @@ void onCommand(const String &action, JsonObjectConst p) {
 
   if (action == "sync") {
     drainQueue();
+    httpBatchSync();
+    httpAclSync();
     cv.publishStateNow();
     return;
   }
@@ -609,6 +792,18 @@ void onCommand(const String &action, JsonObjectConst p) {
     if (p["terminalName"].is<const char *>()) {
       terminalName = String(p["terminalName"].as<const char *>());
       store.putString("tname", terminalName);
+    }
+    if (p["apiUrl"].is<const char *>()) {
+      centralApiUrl = String(p["apiUrl"].as<const char *>());
+      store.putString("api_url", centralApiUrl);
+    }
+    if (p["apiKey"].is<const char *>()) {
+      deviceApiKey = String(p["apiKey"].as<const char *>());
+      store.putString("api_key", deviceApiKey);
+    }
+    if (p["deviceId"].is<const char *>()) {
+      deviceId = String(p["deviceId"].as<const char *>());
+      store.putString("dev_id", deviceId);
     }
     if (p["relaySec"].is<int>()) {
       int v = p["relaySec"].as<int>();
@@ -635,6 +830,8 @@ void onCommand(const String &action, JsonObjectConst p) {
     cv.set("mode", mode.c_str());
     cv.set("direction", direction.c_str());
     cv.set("terminalName", terminalName.c_str());
+    cv.set("apiUrl", centralApiUrl.c_str());
+    cv.set("deviceId", deviceId.c_str());
     cv.set("relaySec", relaySec);
     cv.set("dedupeSec", dedupeSec);
     cv.set("heldOpenSec", heldOpenSec);
@@ -691,6 +888,9 @@ void setup() {
   mode = store.getString("mode", mode);
   direction = store.getString("dir", direction);
   terminalName = store.getString("tname", terminalName);
+  centralApiUrl = store.getString("api_url", centralApiUrl);
+  deviceApiKey = store.getString("api_key", deviceApiKey);
+  deviceId = store.getString("dev_id", deviceId);
   relaySec = store.getInt("rsec", relaySec);
   dedupeSec = store.getInt("dsec", dedupeSec);
   heldOpenSec = store.getInt("hsec", heldOpenSec);
@@ -701,31 +901,6 @@ void setup() {
   queueLoad();
 
   cv.onCommand(onCommand);
-  /*
-   * Heartbeat cadence, not publish cadence.
-   *
-   * The library already publishes the moment something changes: `set()` marks
-   * the document dirty only when a value actually differs, so a scan, a door
-   * opening or the queue draining goes out immediately. This interval is the
-   * separate "still here" publish that happens when nothing has changed at all.
-   *
-   * At 15 s that was 5,760 full state documents a day from a device whose
-   * entire job is to answer whether somebody attended — and on a reader that
-   * sees a few dozen scans, almost every one of those publishes carried the
-   * same twenty fields as the last.
-   *
-   * 30 s is the useful floor rather than a round number. The control plane
-   * marks a device offline once `last_seen` is older than DEVICE_STALE_SECONDS,
-   * which is 90 — so three heartbeats fit inside the window and two can be lost
-   * back to back before a healthy reader is reported as down. Going to 45 s
-   * would leave only two, and a single dropped publish would land exactly on
-   * the boundary; a door that reads as offline sends somebody to check
-   * hardware that is fine.
-   *
-   * Halving the idle traffic is the whole gain here. Attendance itself is not
-   * affected: punches are telemetry, published when they happen and queued to
-   * flash when the link is down.
-   */
   cv.setInterval(30000);
   cv.setResetButton(RESET_BTN);
   cv.begin();
@@ -733,6 +908,8 @@ void setup() {
   cv.set("mode", mode.c_str());
   cv.set("direction", direction.c_str());
   cv.set("terminalName", terminalName.c_str());
+  cv.set("apiUrl", centralApiUrl.c_str());
+  cv.set("deviceId", deviceId.c_str());
   cv.set("relaySec", relaySec);
   cv.set("dedupeSec", dedupeSec);
   cv.set("heldOpenSec", heldOpenSec);
@@ -745,6 +922,11 @@ void setup() {
   cv.set("display", hasDisplay);
   cv.set("scansToday", scansToday);
   cv.publishStateNow();
+
+  // Initial roster sync if Wi-Fi is immediately available
+  if (WiFi.status() == WL_CONNECTED) {
+    httpAclSync();
+  }
   drawScreen();
 }
 
@@ -864,6 +1046,18 @@ void loop() {
   }
 
   drainQueue();
+
+  // Background HTTP batch sync for buffered punches and periodic ACL sync
+  if (WiFi.status() == WL_CONNECTED) {
+    if (qCount > 0 && (now - lastBatchSyncMs > BATCH_SYNC_INTERVAL_MS)) {
+      lastBatchSyncMs = now;
+      httpBatchSync();
+    }
+    if (now - lastAclSyncMs > ACL_SYNC_INTERVAL_MS) {
+      lastAclSyncMs = now;
+      httpAclSync();
+    }
+  }
 
   /*
    * Reset the day's counters at midnight — but only once the terminal has a

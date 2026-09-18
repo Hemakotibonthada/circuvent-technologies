@@ -1063,7 +1063,10 @@ async function req<T = unknown>(  path: string,
   }
   try {
     const startedAt = Date.now();
-    const res = await fetch(CONTROL_PLANE_URL + path, { ...opts, headers });
+    const targetUrl = path.startsWith("/attendance/access-requests")
+      ? (typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")) + "/api" + path
+      : CONTROL_PLANE_URL + path;
+    const res = await fetch(targetUrl, { ...opts, headers });
 
     /*
      * Recorded per network call, not per logical request. The 401 retry below

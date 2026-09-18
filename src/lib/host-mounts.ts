@@ -86,6 +86,8 @@ export const HOST_MOUNTS: HostMount[] = [
    */
   { hosts: /^icm\.circuvent\.com$/i, prefix: "/admin/icm", pages: [] },
   { hosts: /^insights\.circuvent\.com$/i, prefix: "/admin/insights", pages: [] },
+  { hosts: /^servers\.circuvent\.com$/i, prefix: "/admin/servers", pages: [] },
+  { hosts: /^assets\.circuvent\.com$/i, prefix: "/admin/assets", pages: [] },
 ];
 
 /**

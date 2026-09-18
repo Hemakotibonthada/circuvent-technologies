@@ -28,7 +28,11 @@ export function useTabParam(tabs: TabDef[], fallback?: string): [string, (id: st
     };
     read();
     window.addEventListener("popstate", read);
-    return () => window.removeEventListener("popstate", read);
+    window.addEventListener("tabchange", read);
+    return () => {
+      window.removeEventListener("popstate", read);
+      window.removeEventListener("tabchange", read);
+    };
     // Tab ids are static per section; re-running on every render would fight
     // the user's own selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -39,6 +43,10 @@ export function useTabParam(tabs: TabDef[], fallback?: string): [string, (id: st
     const url = new URL(window.location.href);
     url.searchParams.set("tab", id);
     window.history.replaceState(null, "", url.toString());
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("tabchange", { detail: id }));
+      window.dispatchEvent(new Event("popstate"));
+    }
   }, []);
 
   return [tab, select];

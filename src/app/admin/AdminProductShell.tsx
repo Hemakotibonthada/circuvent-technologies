@@ -14,11 +14,12 @@
 import { SsoCard } from "@/components/sso-card";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { KeyRound, LogIn, LogOut } from "lucide-react";
+import { KeyRound, LogIn, LogOut, Siren, Activity, Server, Package, ClipboardCheck, Settings } from "lucide-react";
 import AdminPassword, { ForcePasswordChange } from "./AdminPassword";
 import Admin2fa from "./Admin2fa";
 import AdminPasskeys from "./AdminPasskeys";
 import { usePasskey, usePasskeySupport } from "@/lib/usePasskey";
+import { CircuventSuiteNav } from "@/components/CircuventSuiteNav";
 
 const SSO_ERRORS: Record<string, string> = {
   access_denied: "Sign-in was cancelled.",
@@ -28,14 +29,16 @@ const SSO_ERRORS: Record<string, string> = {
   not_staff: "That Circuvent account is not on the staff roster for this console.",
 };
 
-/** Areas a role may open. Mirrors ROLE_AREAS in page.tsx for these two products. */
+/** Areas a role may open. Mirrors ROLE_AREAS in page.tsx for these products. */
 const PRODUCT_ROLES: Record<string, string[]> = {
   icm: ["superadmin", "manager", "support"],
   insights: ["superadmin", "manager"],
+  servers: ["superadmin", "manager", "support"],
+  assets: ["superadmin", "manager", "support"],
 };
 
 export interface AdminProductShellProps {
-  product: "icm" | "insights";
+  product: "icm" | "insights" | "servers" | "assets";
   title: string;
   subtitle: string;
   children: ReactNode;
@@ -423,98 +426,59 @@ export default function AdminProductShell({
     );
   }
 
+  const ProductIcon =
+    product === "icm"
+      ? Siren
+      : product === "insights"
+      ? Activity
+      : product === "servers"
+      ? Server
+      : Package;
+
+  const productTabs = [
+    { id: "icm", label: "Incident Command", icon: Siren, href: "/admin/icm" },
+    { id: "insights", label: "App Insights", icon: Activity, href: "/admin/insights" },
+    { id: "servers", label: "Servers & Nodes", icon: Server, href: "/admin/servers" },
+    { id: "assets", label: "Assets & Inventory", icon: Package, href: "/admin/assets" },
+    { id: "attendance", label: "Attendance", icon: ClipboardCheck, href: "/smarthome/attendance?tab=live" },
+    { id: "admin", label: "Full Admin", icon: Settings, href: "/admin" },
+  ];
+
   return (
-    <div className="min-h-screen">
-      <div
-        className="sticky top-0 z-30 backdrop-blur-xl"
-        style={{
-          background: "var(--bg-overlay)",
-          borderBottom: "1px solid var(--border-primary)",
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+      <CircuventSuiteNav
+        currentApp={{
+          name: title,
+          subtitle,
+          icon: ProductIcon,
+          homeHref:
+            product === "icm"
+              ? "/admin/icm"
+              : product === "insights"
+              ? "/admin/insights"
+              : product === "servers"
+              ? "/admin/servers"
+              : "/admin/assets",
+          badge: "Enterprise",
         }}
-      >
-        <div className="cv-app-width px-3 sm:px-5 lg:px-6">
-          <div className="flex items-center gap-2.5 py-2">
-            <img
-              src="/logo-mark-160.png"
-              alt="Circuvent"
-              width={30}
-              height={30}
-              className="shrink-0 rounded-lg"
-            />
-            <div className="min-w-0">
-              <h1
-                className="truncate text-[15px] font-bold leading-tight sm:text-[17px]"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {title}
-              </h1>
-              <p
-                className="hidden truncate text-[11px] leading-tight lg:block"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                {subtitle}
-              </p>
-            </div>
-
-            <div className="ml-auto flex min-w-0 items-center gap-1.5">
-              <div className="hidden items-center gap-1 md:flex">
-                <Admin2fa />
-                <AdminPasskeys />
-                <AdminPassword email={adminEmail} name={adminName} />
-              </div>
-              {/*
-                Absolute product hosts, not path links. On icm.circuvent.com a
-                relative /admin/insights would hit pages:[] and bounce to the
-                main site; the sibling hostname is the address people bookmark.
-              */}
-              <a
-                href={product === "icm" ? "https://insights.circuvent.com/" : "https://icm.circuvent.com/"}
-                className="hidden sm:inline-flex rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
-                style={{
-                  background: "var(--bg-glass)",
-                  border: "1px solid var(--border-primary)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                {product === "icm" ? "App Insights" : "Incidents"}
-              </a>
-              <a
-                href="https://circuvent.com/admin"
-                className="hidden sm:inline-flex rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
-                style={{
-                  background: "var(--bg-glass)",
-                  border: "1px solid var(--border-primary)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                Full admin
-              </a>
-              <span
-                className="hidden truncate text-xs lg:inline max-w-[160px]"
-                style={{ color: "var(--text-tertiary)" }}
-                title={adminEmail}
-              >
-                {adminName || adminEmail}
-              </span>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium"
-                style={{
-                  background: "var(--bg-glass)",
-                  border: "1px solid var(--border-primary)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Logout
-              </button>
-            </div>
+        tabs={productTabs}
+        activeTab={product}
+        user={{
+          name: adminName || adminEmail?.split("@")[0] || "Admin",
+          email: adminEmail,
+          role: role || "Administrator",
+        }}
+        onLogout={handleLogout}
+        actions={
+          <div className="hidden items-center gap-1 md:flex mr-1">
+            <Admin2fa />
+            <AdminPasskeys />
+            <AdminPassword email={adminEmail} name={adminName} />
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="cv-app-width px-3 sm:px-5 lg:px-6 py-4">{children}</div>
+      <div className="w-full flex-1 px-3 sm:px-5 lg:px-6 py-4">{children}</div>
     </div>
   );
 }

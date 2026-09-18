@@ -160,7 +160,9 @@ export default function Login({ attendance = false }: { attendance?: boolean }) 
             </div>
             <div>
               <div className="font-extrabold text-xl leading-none">Circuvent</div>
-              <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-400">Device Console</div>
+              <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-400">
+                {attendance ? "Attendance & Access" : "Device Console"}
+              </div>
             </div>
           </div>
 
@@ -170,30 +172,52 @@ export default function Login({ attendance = false }: { attendance?: boolean }) 
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
             <h2 className="text-4xl xl:text-5xl font-black leading-[1.05] tracking-tight">
-              Command your entire
-              <br />
-              <span
-                style={{
-                  background: "linear-gradient(135deg,#22d3ee,#a855f7)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                smart home.
-              </span>
+              {attendance ? (
+                <>
+                  Workforce time,
+                  <br />
+                  <span
+                    style={{
+                      background: "linear-gradient(135deg,#22d3ee,#a855f7)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
+                    doors & payroll.
+                  </span>
+                </>
+              ) : (
+                <>
+                  Command your entire
+                  <br />
+                  <span
+                    style={{
+                      background: "linear-gradient(135deg,#22d3ee,#a855f7)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
+                    smart home.
+                  </span>
+                </>
+              )}
             </h2>
             <p className="mt-5 max-w-md text-[15px] leading-relaxed text-slate-400">
-              Devices, energy, security, automations and live telemetry — one self-hosted control plane for everything you own.
+              {attendance
+                ? "Physical RFID & biometric card readers, multi-tenant company roll calls, door access control, and automated payroll timesheet synchronization."
+                : "Devices, energy, security, automations and live telemetry — one self-hosted control plane for everything you own."}
             </p>
 
             <div className="mt-10 grid max-w-md grid-cols-3 gap-3">
-              <Feature icon={<Radio className="h-4 w-4" />} label="Real-time" sub="live state" delay={0.15} />
-              <Feature icon={<ShieldCheck className="h-4 w-4" />} label="Secure" sub="E2E encrypted" delay={0.25} />
-              <Feature icon={<Zap className="h-4 w-4" />} label="Automated" sub="scenes & rules" delay={0.35} />
+              <Feature icon={<Radio className="h-4 w-4" />} label={attendance ? "RFID / NFC" : "Real-time"} sub={attendance ? "Wiegand & ESP32" : "live state"} delay={0.15} />
+              <Feature icon={<ShieldCheck className="h-4 w-4" />} label={attendance ? "Multi-Tenant" : "Secure"} sub={attendance ? "MySpace & SSO" : "E2E encrypted"} delay={0.25} />
+              <Feature icon={<Zap className="h-4 w-4" />} label={attendance ? "HRMS Synced" : "Automated"} sub={attendance ? "Payroll & Timesheet" : "scenes & rules"} delay={0.35} />
             </div>
           </motion.div>
 
-          <div className="text-xs text-slate-400">© Circuvent Technologies · self-hosted control plane</div>
+          <div className="text-xs text-slate-400">
+            {attendance ? "© Circuvent Technologies · Enterprise Workforce Attendance Platform" : "© Circuvent Technologies · self-hosted control plane"}
+          </div>
         </div>
 
         {/* Right form panel */}

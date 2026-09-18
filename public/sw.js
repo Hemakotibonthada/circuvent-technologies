@@ -8,11 +8,17 @@ const STATIC_ASSETS = [
   "/contact",
 ];
 
+// Immediately self-unregister if running on local dev
+if (typeof self !== "undefined" && self.location && (self.location.hostname === "localhost" || self.location.hostname === "127.0.0.1")) {
+  if (self.registration && typeof self.registration.unregister === "function") {
+    self.registration.unregister();
+  }
+}
+
 function isMarketingHost(hostname) {
   return (
     hostname === "circuvent.com" ||
     hostname === "www.circuvent.com" ||
-    hostname === "localhost" ||
     hostname.endsWith(".vercel.app")
   );
 }

@@ -218,8 +218,19 @@ function release(): void {
   }
   const ws = sock;
   sock = null;
+  if (!ws) return;
   try {
-    ws?.close();
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      ws.onopen = () => {
+        try {
+          ws.close();
+        } catch {}
+      };
+    } else {
+      ws.close();
+    }
   } catch {
     /* already closed */
   }
