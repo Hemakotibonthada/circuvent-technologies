@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   Search,
   Bell,
+  Cloud,
 } from "lucide-react";
 
 export interface SuiteTab {
@@ -206,6 +207,17 @@ const SUITE_APPS: AppLauncherItem[] = [
     href: "/admin/assets",
     icon: Package,
     color: "#eab308",
+  },
+  {
+    id: "platform",
+    name: "Platform Cloud",
+    shortName: "Platform",
+    category: "engineering",
+    description: "Self-hosted PaaS & AI Deploy",
+    href: "https://platform.circuvent.com",
+    icon: Cloud,
+    color: "#6366f1",
+    external: true,
   },
   {
     id: "devops",
