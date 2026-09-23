@@ -160,3 +160,4 @@ node_modules_*/
 
 .vscode/
 .env.production
+!.env.production.example
