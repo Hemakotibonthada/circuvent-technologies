@@ -45,6 +45,7 @@ yarn-error.log*
 # start tracking the root template, which holds a real administrator address.
 # Opt other templates in individually after checking their contents.
 !/platform/.env.example
+!/platform/.env.production.example
 
 # vercel
 .vercel

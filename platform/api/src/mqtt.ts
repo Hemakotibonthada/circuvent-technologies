@@ -1,4 +1,5 @@
-import mqtt, { type MqttClient } from "mqtt";
+import mqtt, { type MqttClient, type IClientOptions } from "mqtt";
+import { readFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import { config, topics, deviceIdFromTopic } from "./config";
 import { withDeviceLock } from "./device-lock";
@@ -68,13 +69,22 @@ export function __setMqttClientForTests(fake: MqttClient | null): void {
 
 export function connectMqtt(): Promise<void> {
   return new Promise((resolve) => {
-    client = mqtt.connect(config.MQTT_URL, {
+    const opts: IClientOptions = {
       clientId: `control-plane-${Math.random().toString(16).slice(2, 10)}`,
       username: config.MQTT_USERNAME,
       password: config.MQTT_PASSWORD,
       reconnectPeriod: 2000,
       clean: true,
-    });
+    };
+    // Platform deploy talks to the IoT VM broker over mqtts://mqtt.circuvent.com:8883
+    // with Circuvent Device CA. Local compose still uses mqtt://mosquitto:1883.
+    if (config.MQTT_CA_FILE) {
+      opts.ca = readFileSync(config.MQTT_CA_FILE);
+    }
+    if (config.MQTT_TLS_REJECT_UNAUTHORIZED === "false") {
+      opts.rejectUnauthorized = false;
+    }
+    client = mqtt.connect(config.MQTT_URL, opts);
 
     client.on("connect", () => {
       logger.info("MQTT connected");

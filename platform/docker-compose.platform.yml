@@ -1,0 +1,145 @@
+# Circuvent IoT HTTP API (+ optional face) on Platform Coolify VM.
+# Port 3018 published for pre-DNS smoke. Do not flip api.circuvent.com DNS until healthy.
+# MQTT broker stays on IoT VM 140.245.238.154 (mqtt.circuvent.com:8883). NO Mosquitto here.
+services:
+  iot-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      args:
+        BUILD_COMMIT: ${BUILD_COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    container_name: circuvent-iot-api
+    restart: always
+    env_file:
+      - .env.production
+    environment:
+      PORT: "8080"
+      NODE_ENV: production
+      MQTT_URL: ${MQTT_URL:-mqtts://mqtt.circuvent.com:8883}
+      MQTT_USERNAME: ${MQTT_USERNAME:-control-plane}
+      MQTT_PASSWORD: ${MQTT_CONTROL_PLANE_PASSWORD}
+      MQTT_CA_FILE: /certs/ca.crt
+      MQTT_TLS_REJECT_UNAUTHORIZED: "true"
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      SMARTHOME_CLIENT_ID: ${SMARTHOME_CLIENT_ID:-circuvent-smarthome}
+      SMARTHOME_CLIENT_SECRET: ${SMARTHOME_CLIENT_SECRET:-}
+      SMARTHOME_REDIRECT_URIS: ${SMARTHOME_REDIRECT_URIS:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Circuvent <onboarding@resend.dev>}
+      OTP_TTL_MIN: ${OTP_TTL_MIN:-10}
+      OTP_DEBUG: ${OTP_DEBUG:-false}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      FEDERATION_SECRET: ${FEDERATION_SECRET:-}
+      AUTH_ISSUER: ${AUTH_ISSUER:-https://auth.circuvent.com}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID:-}
+      ATTENDANCE_SSO_CLIENT_ID: ${ATTENDANCE_SSO_CLIENT_ID:-attendance}
+      ATTENDANCE_SSO_ISSUER: ${ATTENDANCE_SSO_ISSUER:-https://myaccount.circuvent.com}
+      FACE_EMBEDDER: ${FACE_EMBEDDER:-http}
+      FACE_BASE_URL: ${FACE_BASE_URL:-http://iot-face:8000}
+      FACE_API_KEY: ${FACE_API_KEY:-}
+      FACE_TIMEOUT_MS: ${FACE_TIMEOUT_MS:-10000}
+      GOOGLE_HOMEGRAPH_KEY: ${GOOGLE_HOMEGRAPH_KEY:-}
+      ALEXA_CLIENT_ID: ${ALEXA_CLIENT_ID:-}
+      ALEXA_CLIENT_SECRET: ${ALEXA_CLIENT_SECRET:-}
+      ALEXA_EVENT_GATEWAY: ${ALEXA_EVENT_GATEWAY:-https://api.amazonalexa.com/v3/events}
+      ANPR_PROVIDER: ${ANPR_PROVIDER:-none}
+      ANPR_BASE_URL: ${ANPR_BASE_URL:-}
+      ANPR_API_KEY: ${ANPR_API_KEY:-}
+      ANPR_MODEL: ${ANPR_MODEL:-gpt-4o-mini}
+      ANPR_REGION: ${ANPR_REGION:-in}
+      ANPR_TIMEOUT_MS: ${ANPR_TIMEOUT_MS:-12000}
+      ANPR_MIN_CONFIDENCE: ${ANPR_MIN_CONFIDENCE:-70}
+      ANPR_LOCAL_BINARY: ${ANPR_LOCAL_BINARY:-tesseract}
+      ANPR_LOCAL_LANG: ${ANPR_LOCAL_LANG:-eng}
+      ANPR_LOCAL_TIMEOUT_MS: ${ANPR_LOCAL_TIMEOUT_MS:-15000}
+      ANPR_LOCAL_MAX_REGIONS: ${ANPR_LOCAL_MAX_REGIONS:-3}
+      ANPR_RETENTION_DAYS: ${ANPR_RETENTION_DAYS:-90}
+      ANPR_IMAGE_RETENTION_DAYS: ${ANPR_IMAGE_RETENTION_DAYS:-30}
+      ANPR_THUMBNAIL_MAX_KB: ${ANPR_THUMBNAIL_MAX_KB:-96}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      S3_TIMEOUT_MS: ${S3_TIMEOUT_MS:-10000}
+      S3_PRESIGN_GET: ${S3_PRESIGN_GET:-false}
+      ANPR_IMAGE_MAX_KB: ${ANPR_IMAGE_MAX_KB:-1024}
+      REPORT_FROM: ${REPORT_FROM:-Circuvent <info@circuvent.com>}
+    volumes:
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    ports:
+      - "0.0.0.0:3018:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - platform-net
+    # Face is optional at runtime (FACE_EMBEDDER=none works). Do not block API start.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 8s
+      retries: 10
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  iot-face:
+    build:
+      context: ./face
+      dockerfile: Dockerfile
+    container_name: circuvent-iot-face
+    restart: always
+    environment:
+      PORT: "8000"
+      FACE_API_KEY: ${FACE_API_KEY:-}
+      FACE_SCORE_THRESHOLD: ${FACE_SCORE_THRESHOLD:-0.7}
+      FACE_MIN_PX: ${FACE_MIN_PX:-120}
+      FACE_MAX_DETECT_PX: ${FACE_MAX_DETECT_PX:-1024}
+      FACE_LOCK_WAIT_S: ${FACE_LOCK_WAIT_S:-6}
+    expose:
+      - "8000"
+    networks:
+      - platform-net
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=4).status==200 else 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  platform-net:
+    external: true
+    name: platform_platform-net

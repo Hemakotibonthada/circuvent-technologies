@@ -7,6 +7,11 @@ const schema = z.object({
   MQTT_URL: z.string().default("mqtt://mosquitto:1883"),
   MQTT_USERNAME: z.string().default("control-plane"),
   MQTT_PASSWORD: z.string().min(1, "MQTT_PASSWORD is required"),
+  // Optional PEM CA for mqtts:// when the broker uses Circuvent Device CA
+  // (mqtt.circuvent.com:8883). Empty keeps Node's default trust store.
+  MQTT_CA_FILE: z.string().default(""),
+  // Set "false" only for emergency mqtts debugging; prefer MQTT_CA_FILE.
+  MQTT_TLS_REJECT_UNAUTHORIZED: z.string().default("true"),
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 chars"),
   JWT_EXPIRES_IN: z.string().default("24h"),
   CORS_ORIGIN: z.string().default("*"),

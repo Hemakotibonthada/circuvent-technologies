@@ -11,3 +11,10 @@ pgdata/
 caddy_data/
 mosquitto/passwordfile
 mosquitto/certs/
+
+# Platform Option D1 — do not commit secrets / large models
+.env.production
+certs/*.key
+certs/*private*
+face/models/*.onnx
+face/Dockerfile.bak.*
