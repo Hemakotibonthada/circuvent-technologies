@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Camera, VideoOff, Radio } from "lucide-react";
 import {
@@ -21,6 +21,12 @@ import { deviceMeta } from "../DeviceControls";
 import { useCameraFrames, useNow } from "@/lib/control-plane-live";
 import { useFrameUrl } from "../useFrameUrl";
 import { isCameraDevice } from "../_data/device-type";
+import { AddCameraPanel } from "../camera/AddCameraPanel";
+import {
+  fetchExternalCameras,
+  fetchPhoneFrame,
+  type CameraEntry,
+} from "@/lib/smarthome-cameras";
 
 // Security devices that operators typically want visual status for
 const SECURITY_TYPES = new Set([
@@ -252,6 +258,8 @@ function CameraThumb({ device }: { device: SecurityDeviceCardProps["device"] }) 
 }
 
 export function CamerasPanel() {
+  const [extTick, setExtTick] = useState(0);
+
   const { devices, loading, error, refresh } = useFleet();
 
   const securityDevices = useMemo(
@@ -289,9 +297,12 @@ export function CamerasPanel() {
         <Kpi
           label="With live video"
           value={devicesWithStreams.length}
-          hint={devicesWithStreams.length === 0 ? "Add a camera to see live video" : undefined}
+          hint={devicesWithStreams.length === 0 ? "Add a Circuvent, other-brand, or phone camera to see live video" : undefined}
         />
       </KpiGrid>
+
+      <AddCameraPanel onChanged={() => setExtTick((n) => n + 1)} />
+      <ExternalSecurityCameras tick={extTick} />
 
       {devicesWithStreams.length === 0 && (
         <Callout tone="info">
@@ -305,7 +316,7 @@ export function CamerasPanel() {
         <EmptyState
           icon={Camera}
           title="No security devices registered"
-          body="Add a camera, facedoor, RFID gate, motion sensor, guardian, or smart lock to this fleet to see it here."
+          body="Add a Circuvent camera or security device to the fleet, or use Add camera below for other brands and phones."
         />
       ) : (
         <>
@@ -318,5 +329,74 @@ export function CamerasPanel() {
         </>
       )}
     </div>
+  );
+}
+
+
+function ExternalSecurityCameras({ tick }: { tick: number }) {
+  const [cams, setCams] = useState<CameraEntry[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const r = await fetchExternalCameras();
+      if (!cancelled) setCams(r.cameras);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tick]);
+  if (cams.length === 0) return null;
+  return (
+    <Surface>
+      <SectionTitle>Other brand & phone</SectionTitle>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {cams.map((c) => (
+          <ExternalSecurityTile key={c.id} cam={c} />
+        ))}
+      </div>
+    </Surface>
+  );
+}
+
+function ExternalSecurityTile({ cam }: { cam: CameraEntry }) {
+  const [src, setSrc] = useState<string | null>(
+    cam.kind === "phone" ? null : cam.playUrl || cam.snapshotUrl || null
+  );
+  useEffect(() => {
+    if (cam.kind !== "phone") {
+      setSrc(cam.playUrl || cam.snapshotUrl || null);
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      const f = await fetchPhoneFrame(cam.id);
+      if (!cancelled) setSrc(f ? `data:image/jpeg;base64,${f.jpegB64}` : null);
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [cam.id, cam.kind, cam.playUrl, cam.snapshotUrl]);
+  return (
+    <Surface padded={false}>
+      <div className="aspect-video bg-black">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={cam.name} className="h-full w-full object-contain" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs" style={{ color: "var(--cv-muted)" }}>
+            {cam.kind === "phone" ? "Waiting for phone…" : cam.needsRelay ? "Needs media relay" : "No preview"}
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="text-sm font-bold" style={{ color: "var(--cv-text)" }}>{cam.name}</div>
+        <div className="text-xs" style={{ color: "var(--cv-muted)" }}>
+          {cam.kind}{cam.roomName ? ` · ${cam.roomName}` : ""}{cam.online ? " · live" : ""}
+        </div>
+      </div>
+    </Surface>
   );
 }

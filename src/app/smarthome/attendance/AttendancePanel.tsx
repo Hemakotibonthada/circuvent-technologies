@@ -42,6 +42,7 @@ import {
 } from "@/lib/attendance-service";
 import { isAttendanceReader } from "@/lib/attendance-readers";
 import { Schedules } from "./Schedules";
+import { OfficeAccess, Reports } from "./AccessAndReports";
 import { useConsole } from "../ConsoleProvider";
 
 export type AttendanceView =
@@ -2104,6 +2105,25 @@ export function Terminals({ site }: { site: AttendanceSite }) {
 
   useEffect(() => { void load(); }, [load]);
 
+  const syncAllAcl = async () => {
+    if (terminals.length === 0) return;
+    if (!window.confirm(`Push the current card list to all ${terminals.length} readers?`)) return;
+    setBusyDevice("__all__"); setMessage("");
+    let ok = 0; let fail = 0;
+    try {
+      for (const t of terminals) {
+        try {
+          const result = await controlPlane.syncAttendanceTerminal(t.deviceId);
+          if (result.ok) ok += 1; else fail += 1;
+        } catch { fail += 1; }
+      }
+      setMessage(fail === 0
+        ? `ACL pushed to all ${ok} readers.`
+        : `ACL sync finished: ${ok} ok, ${fail} failed. Check offline readers.`);
+      await load();
+    } finally { setBusyDevice(null); }
+  };
+
   return (
     <div className="space-y-4">
       <form className="rounded-2xl border border-white/15 bg-black/30 p-5 space-y-3" onSubmit={async e => {
@@ -2135,6 +2155,22 @@ export function Terminals({ site }: { site: AttendanceSite }) {
       </form>
       {message && <p role="status" className="text-sm">{message}</p>}
       {!loading && terminals.length === 0 && <p className="text-sm text-slate-400">No readers registered for this site yet.</p>}
+      {terminals.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/25 bg-violet-500/10 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-violet-100">Push ACL to all readers</p>
+            <p className="text-xs text-violet-200/70">Sync the current card list to every registered reader at this site.</p>
+          </div>
+          <button
+            type="button"
+            disabled={busyDevice !== null}
+            onClick={() => void syncAllAcl()}
+            className="rounded-lg border border-violet-400/40 bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+          >
+            {busyDevice === "__all__" ? "Pushing…" : "Push ACL to all"}
+          </button>
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         {terminals.map((t) => (
           <div key={t.deviceId} className="rounded-2xl border border-white/15 bg-black/30 p-5 shadow-xl">
@@ -2191,227 +2227,6 @@ export function Terminals({ site }: { site: AttendanceSite }) {
             </div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function OfficeAccess({ site }: { site: AttendanceSite }) {
-  const [requests, setRequests] = useState<AttendanceAccessRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await controlPlane.attendanceAccessRequests(site.id).catch(() => ({ ok: false as const, data: { requests: [] } }));
-      if (r.ok && r.data?.requests) {
-        setRequests(r.data.requests);
-        setLoading(false);
-        return;
-      }
-    } catch {}
-    setRequests([]);
-    setLoading(false);
-  }, [site.id]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  return (
-    <div className="space-y-4">
-      <Panel title="Office Access Requests" hint="Pending card replacements and visitor passes">
-        <div className="divide-y divide-white/5">
-          {requests.length === 0 && <Muted>No pending access requests.</Muted>}
-          {requests.map((req) => (
-            <Row key={req.id}>
-              <div>
-                <div className="font-semibold text-slate-200">{req.personName}</div>
-                <div className="text-xs text-slate-400">{req.kind} — {req.reason}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={async () => {
-                    await controlPlane.decideAttendanceAccessRequest(req.id, { decision: "approved" });
-                    await load();
-                  }}
-                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200"
-                >
-                  Approve
-                </button>
-              </div>
-            </Row>
-          ))}
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function Reports({ site }: { site: AttendanceSite }) {
-  const [range, setRange] = useState({ from: daysAgo(30), to: today() });
-  const [downloading, setDownloading] = useState(false);
-  const [pushingPayroll, setPushingPayroll] = useState(false);
-  const [exportError, setExportError] = useState("");
-  const [payrollNotice, setPayrollNotice] = useState("");
-  const [people, setPeople] = useState<AttendancePerson[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    void fetchRosterFromDatabase({ domain: site.domain || "circuvent.com", siteId: site.id }).then((dbRes) => {
-      if (!active) return;
-      if (dbRes.ok && dbRes.people?.length) {
-        setPeople(dbRes.people);
-        return;
-      }
-      if (site.id >= 6) {
-        void controlPlane.attendancePeople(site.id).then((r) => {
-          if (active && r.ok && r.data?.people) setPeople(r.data.people);
-        });
-      }
-    });
-    return () => { active = false; };
-  }, [site.id, site.domain]);
-
-  const handlePushPayroll = async () => {
-    setPushingPayroll(true);
-    setPayrollNotice("");
-    setExportError("");
-    try {
-      const res = await syncAttendanceToPaystub({
-        siteId: site.id,
-        from: range.from,
-        to: range.to,
-        orgId: site.orgId ?? undefined,
-      });
-      if (res.ok) {
-        setPayrollNotice(
-          `Successfully synchronized ${res.recordsPushed || people.length || 8} employee timesheets to Paystub (Batch ID: ${res.batchId || "batch_verified"}). You can inspect the monthly payroll attendance grid at https://paystub.circuvent.com/attendance.`
-        );
-      } else {
-        setExportError(res.error || "Could not push timesheets to Paystub.");
-      }
-    } catch {
-      setExportError("Could not reach payroll service endpoint.");
-    } finally {
-      setPushingPayroll(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* ─── KPI Metrics ─── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile label="Shifts in Period" value="1,248" accent="#a855f7" icon={Clock} />
-        <Tile label="On-Time Punctuality" value="98.4%" accent="#22c55e" icon={CheckCircle2} />
-        <Tile label="Cumulative Overtime" value="54h 20m" accent="#38bdf8" icon={TrendingUp} />
-        <Tile label="Absenteeism Rate" value="1.6%" accent="#f59e0b" icon={UserX} />
-      </div>
-
-      {/* ─── Export & Sync Controls ─── */}
-      <div className="rounded-2xl border border-white/15 bg-black/30 p-6 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h4 className="text-base font-bold text-slate-100">Export &amp; Sync Monthly Timesheets</h4>
-            <p className="text-xs text-slate-400 mt-1">
-              Validate employee hours, overtime and push verified timesheet records to <strong>paystub.circuvent.com</strong>
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-              ● Payroll API Connected
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-end gap-3">
-          <div>
-            <label className="text-xs font-semibold text-slate-400">Period From</label>
-            <input
-              type="date"
-              value={range.from}
-              onChange={(e) => setRange({ ...range, from: e.target.value })}
-              className="mt-1 block min-h-[44px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100 outline-none focus:border-violet-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-400">Period To</label>
-            <input
-              type="date"
-              value={range.to}
-              onChange={(e) => setRange({ ...range, to: e.target.value })}
-              className="mt-1 block min-h-[44px] rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-slate-100 outline-none focus:border-violet-500"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              disabled={downloading || !range.from || !range.to || range.from > range.to}
-              onClick={async () => {
-                setDownloading(true);
-                setExportError("");
-                const result = await controlPlane.downloadAttendanceExport(site.id, "summary", range.from, range.to);
-                if (!result.ok) setExportError(result.error);
-                setDownloading(false);
-              }}
-              className="min-h-[44px] rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-2"
-            >
-              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV
-            </button>
-            <button
-              disabled={pushingPayroll || !range.from || !range.to || range.from > range.to}
-              onClick={handlePushPayroll}
-              className="min-h-[44px] rounded-xl border border-emerald-500/40 bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-40 transition flex items-center gap-2"
-            >
-              {pushingPayroll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Push to Paystub / Payroll
-            </button>
-          </div>
-        </div>
-
-        {payrollNotice && (
-          <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 text-xs text-emerald-200">
-            {payrollNotice}
-          </div>
-        )}
-        {exportError && <p role="alert" className="mt-3 text-sm text-rose-300">{exportError}</p>}
-      </div>
-
-      {/* ─── Timesheet Summary Table ─── */}
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20 shadow-xl">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <h5 className="font-semibold text-sm text-slate-200">Timesheet Preview ({range.from} ~ {range.to})</h5>
-          <span className="text-xs text-slate-400 font-mono">{people.length} Verified Records</span>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase text-slate-500">
-            <tr className="border-b border-white/10 bg-white/[0.02]">
-              <th className="p-3.5">Code</th>
-              <th className="p-3.5">Employee</th>
-              <th className="p-3.5">Department</th>
-              <th className="p-3.5">Worked Days</th>
-              <th className="p-3.5">Logged Hours</th>
-              <th className="p-3.5">Overtime</th>
-              <th className="p-3.5 text-right">Payroll Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {people.slice(0, 10).map((p, idx) => (
-              <tr key={p.id} className="hover:bg-white/5 transition">
-                <td className="p-3.5 font-mono text-xs text-violet-400 font-semibold">{p.code}</td>
-                <td className="p-3.5 font-semibold text-slate-200">{p.name}</td>
-                <td className="p-3.5 text-slate-400">{p.groupName || "Operations"}</td>
-                <td className="p-3.5 text-slate-300 font-mono">22 / 22</td>
-                <td className="p-3.5 font-mono text-slate-200">176h 00m</td>
-                <td className="p-3.5 font-mono text-emerald-400">{idx % 2 === 0 ? "4h 30m" : "—"}</td>
-                <td className="p-3.5 text-right">
-                  <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-                    Ready
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );

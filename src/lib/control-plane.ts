@@ -2063,7 +2063,8 @@ export const controlPlane = {
     req<{ success: boolean }>("/attendance/rules/" + id, { method: "DELETE" }),
 
   attendanceLeaves: (siteId: number) =>
-    req<{ leaves: AttendanceLeave[] }>("/attendance/leaves?siteId=" + siteId),  createAttendanceLeave: (body: Record<string, unknown>) =>
+    req<{ leaves: AttendanceLeave[] }>("/attendance/leaves?siteId=" + siteId),
+  createAttendanceLeave: (body: Record<string, unknown>) =>
     req<{ leave: { id: number } }>("/attendance/leaves", { method: "POST", body: JSON.stringify(body) }),
   deleteAttendanceLeave: (id: number) =>
     req<{ success: boolean }>("/attendance/leaves/" + id, { method: "DELETE" }),

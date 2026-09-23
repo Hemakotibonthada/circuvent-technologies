@@ -53,6 +53,12 @@ import { useCameraFrames, useNow } from "@/lib/control-plane-live";
 import { useFrameUrl } from "../useFrameUrl";
 import { isCameraDevice } from "../_data/device-type";
 import { controlPlane } from "@/lib/control-plane";
+import { AddCameraPanel } from "./AddCameraPanel";
+import {
+  fetchExternalCameras,
+  fetchPhoneFrame,
+  type CameraEntry,
+} from "@/lib/smarthome-cameras";
 
 /**
  * The live-frame relay refuses more than eight subscriptions per socket
@@ -626,6 +632,7 @@ export function CameraConsole() {
   const { devices, loading, error, refresh } = useFleet();
   const [layout, setLayout] = useState<LayoutKey>("4");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [extTick, setExtTick] = useState(0);
   const [note, setNote] = useState<string | null>(null);
 
   const cameras = useMemo(
@@ -702,11 +709,15 @@ export function CameraConsole() {
 
       {note && <Callout tone="warning">{note}</Callout>}
 
+      <AddCameraPanel onChanged={() => setExtTick((n) => n + 1)} />
+
+      <ExternalCamerasWall tick={extTick} />
+
       {cameras.length === 0 ? (
         <EmptyState
           icon={CameraIcon}
           title="No cameras yet"
-          body="Add a Circuvent camera, or a device that reports a video source, and it will appear here."
+          body="Add a Circuvent camera, an other-brand stream, or pair a phone as CCTV — use Add camera below."
         />
       ) : (
         <>
@@ -785,6 +796,98 @@ export function CameraConsole() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+
+/** Other-brand + phone cameras registered via /api/smarthome/cameras. */
+function ExternalCamerasWall({ tick }: { tick: number }) {
+  const [cams, setCams] = useState<CameraEntry[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const r = await fetchExternalCameras();
+      if (!cancelled) setCams(r.cameras);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tick]);
+
+  if (cams.length === 0) return null;
+
+  return (
+    <Surface>
+      <SectionTitle>Other brand & phone</SectionTitle>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {cams.map((c) => (
+          <ExternalTile key={c.id} cam={c} />
+        ))}
+      </div>
+    </Surface>
+  );
+}
+
+function ExternalTile({ cam }: { cam: CameraEntry }) {
+  const [src, setSrc] = useState<string | null>(
+    cam.kind === "phone" ? null : cam.playUrl || cam.snapshotUrl || null
+  );
+
+  useEffect(() => {
+    if (cam.kind !== "phone") {
+      setSrc(cam.playUrl || cam.snapshotUrl || null);
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      const f = await fetchPhoneFrame(cam.id);
+      if (cancelled) return;
+      setSrc(f ? `data:image/jpeg;base64,${f.jpegB64}` : null);
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [cam.id, cam.kind, cam.playUrl, cam.snapshotUrl]);
+
+  return (
+    <div
+      className="overflow-hidden rounded-2xl border"
+      style={{ borderColor: "var(--cv-border)", background: "#000" }}
+    >
+      <div className="relative aspect-video bg-black">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={cam.name} className="h-full w-full object-contain" />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-1 text-slate-500">
+            <VideoOff className="h-6 w-6" />
+            <span className="text-[11px]">
+              {cam.kind === "phone"
+                ? "Waiting for phone…"
+                : cam.needsRelay
+                  ? "Needs media relay"
+                  : "No preview"}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-2 px-3 py-2" style={{ background: "var(--cv-elevated)" }}>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold" style={{ color: "var(--cv-text)" }}>
+            {cam.name}
+          </div>
+          <div className="text-[11px]" style={{ color: "var(--cv-muted)" }}>
+            {cam.kind}
+            {cam.roomName ? ` · ${cam.roomName}` : ""}
+            {cam.online ? " · live" : ""}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

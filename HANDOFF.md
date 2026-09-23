@@ -1,14 +1,38 @@
 # WebSite on Platform VM — handoff
 
-**Updated:** 2026-09-23 21:35 IST (Asia/Calcutta)
+**Updated:** 2026-09-23 22:12 IST (Asia/Calcutta) — DNS cutover done
+
+
+## DNS cutover COMPLETE — 2026-09-23 22:12 IST
+
+User-approved cutover of apex + WebSite aliases to Platform **140.245.203.193** (TTL 600).
+
+| Host | Before | After (GoDaddy) |
+|------|--------|-----------------|
+| `circuvent.com` (@) | A `216.150.1.1` (Vercel, ttl3600) | A `140.245.203.193` (ttl600) |
+| `www.circuvent.com` | *(no record)* | A `140.245.203.193` (ttl600) |
+| `icm.circuvent.com` | CNAME vercel-dns-017 | A `140.245.203.193` (ttl600) |
+| `insights.circuvent.com` | CNAME vercel-dns-017 | A `140.245.203.193` (ttl600) |
+| `attendance.circuvent.com` | CNAME vercel-dns-017 | A `140.245.203.193` (ttl600) |
+| `iot.circuvent.com` | CNAME vercel-dns-017 | A `140.245.203.193` (ttl600) |
+| `home.circuvent.com` | CNAME vercel-dns-017 | A `140.245.203.193` (ttl600) |
+| `developer.circuvent.com` | CNAME vercel-dns-017 | A `140.245.203.193` (ttl600) |
+
+**Untouched:** `dev` (Vercel CNAME), `myspace` (A Platform), `mx` / MX@, `mqtt`. Vercel + Neon **not** decommissioned.
+
+**Smoke:** Traefik `--resolve` HTTPS root + `/api/health` → 200 for all 8 hosts. Public dig@8.8.8.8 already returns Platform IP for apex/www/icm/developer. SSO `/api/admin/auth/sso/start` → 307 `myaccount` with `client_id=website-admin`. LE certs issued after coolify-proxy restart (see LE note below).
+**LE:** After coolify-proxy restart post-DNS, all 8 hosts issued Let's Encrypt (YR1/YR2) by 2026-09-23 22:15 IST. Verified curl without `-k` → 200.
+
+
+Snapshot on VM: `/tmp/dns-cutover-website-20260923-164052/`
 
 ## Shipped
 - Next.js marketing/shop from `WebSite` (`circuvent-technologies`) as `circuvent-website` on **port 3022**.
 - Network `platform_platform-net`; app DB **`circuvent_website`** / role **`circuvent_website_app`** (Neon *Circuvent Shopping* `tiny-pine-85067325` / `ep-bitter-king` dump restored; **Neon not dropped**).
 - SSO OIDC: `ADMIN_SSO_CLIENT_ID=website-admin`, issuer `https://myaccount.circuvent.com` (PKCE).
 - Shop → CV-365 CRM sync uses Platform URLs: `CV365_URL=https://work.circuvent.com`.
-- Coolify Traefik: `/data/coolify/proxy/dynamic/circuvent.com.yaml` → `host.docker.internal:3022` (LE ready; DNS not cut).
-- **Public DNS for apex / consoles NOT changed** (still Vercel). GoDaddy unchanged.
+- Coolify Traefik: `/data/coolify/proxy/dynamic/circuvent.com.yaml` → `host.docker.internal:3022` (LE; **DNS cut over** 2026-09-23 22:12 IST).
+- **Public DNS for apex + www/icm/insights/attendance/iot/home/developer → Platform** (cutover 2026-09-23 22:12 IST).
 - Runtime DB: `pg` Pool when `DATABASE_DRIVER=pg` / non-Neon URL (Neon HTTP only on Vercel).
 
 
@@ -20,11 +44,11 @@
 | Traefik `--resolve circuvent.com:443:127.0.0.1` | 200 health |
 | `GET /api/admin/auth/sso/start` via Traefik | 307 → `myaccount.circuvent.com/authorize?client_id=website-admin&redirect_uri=https://circuvent.com/...` |
 | DB counts (app role) | accounts=7, admin_users=10, store_kv=35, page_views=3890, email_history=3730 |
-| Public apex A | still `216.150.1.1` (Vercel) — **unchanged** |
+| Public apex A | `140.245.203.193` (Platform) — cutover 2026-09-23 22:12 IST |
 | Auth/HRMS/ATS/Assets/Devices/Mail/IoT/CV-365/MySpace/Paystub | still healthy |
 | Neon *Circuvent Shopping* | **kept** (not dropped) |
 
-## Hostnames (for later cutover — DNS unchanged today)
+## Hostnames (post-cutover 2026-09-23 22:12 IST)
 | Host | Current public DNS | Traefik prepared? | Notes |
 |------|--------------------|-------------------|-------|
 | `circuvent.com` (apex) | A `216.150.1.1` (Vercel) | Yes | **High risk** — marketing + shop apex |
@@ -49,10 +73,10 @@
 | Note | Neon `neondb_owner` password was rotated 2026-09-23 to obtain dump URI; Vercel `DATABASE_URL` updated + production redeployed |
 
 ## Explicitly NOT done
-- No GoDaddy / DNS cutover (especially apex)
-- No Neon delete
-- No MX / MQTT changes
-- myspace remains its own Platform service
+- No Neon delete / no Vercel decommission
+- No MX / MQTT / `dev` changes
+- myspace remains its own Platform service (already on Platform IP)
+- `app.circuvent.com` left as-is (not in approved cutover list)
 
 ## Paths on VM
 - App: `/opt/circuvent/website/`

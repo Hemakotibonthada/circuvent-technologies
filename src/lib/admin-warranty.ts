@@ -94,11 +94,14 @@ export function listRegistrations(): WarrantyRegistration[] {
 }
 
 export function registerWarranty(input: Omit<WarrantyRegistration, "id" | "createdAt">): WarrantyRegistration {
-  return store.mutate((db) => {
-    const created: WarrantyRegistration = { ...input, id: shortId("wty"), createdAt: new Date().toISOString() };
-    db.registrations.unshift(created);
-    return created;
+  const created = store.mutate((db) => {
+    const row: WarrantyRegistration = { ...input, id: shortId("wty"), createdAt: new Date().toISOString() };
+    db.registrations.unshift(row);
+    return row;
   });
+  void syncWarrantyToCrm(created);
+  void syncCustomerToCrm({ email: created.customerEmail });
+  return created;
 }
 
 export function findRegistration(id: string): WarrantyRegistration | null {
@@ -128,16 +131,18 @@ export function listRmas(status?: RmaStatus): RmaCase[] {
 }
 
 export function createRma(registrationId: string, issueDescription: string): RmaCase {
-  return store.mutate((db) => {
+  const created = store.mutate((db) => {
     const now = new Date().toISOString();
-    const created: RmaCase = { id: shortId("rma"), registrationId, issueDescription, status: "requested", createdAt: now, updatedAt: now };
-    db.cases.unshift(created);
-    return created;
+    const row: RmaCase = { id: shortId("rma"), registrationId, issueDescription, status: "requested", createdAt: now, updatedAt: now };
+    db.cases.unshift(row);
+    return row;
   });
+  void syncRmaToCrm(created);
+  return created;
 }
 
 export function updateRmaStatus(id: string, status: RmaStatus, resolutionNote?: string): RmaCase | null {
-  return store.mutate((db) => {
+  const updated = store.mutate((db) => {
     const c = db.cases.find((x) => x.id === id);
     if (!c) return null;
     c.status = status;
@@ -145,6 +150,8 @@ export function updateRmaStatus(id: string, status: RmaStatus, resolutionNote?: 
     c.updatedAt = new Date().toISOString();
     return c;
   });
+  if (updated) void syncRmaToCrm(updated);
+  return updated;
 }
 
 export function warrantyStats(): { registrations: number; openCases: number; closedCases: number } {
@@ -196,10 +203,10 @@ export function autoRegisterForDeliveredOrder(order: DeliveredOrderLike): Warran
   const started = warrantyStart(order);
   if (!started) return []; // not delivered — the policy has not started
 
-  return store.mutate((db) => {
+  const created = store.mutate((db) => {
     if (db.registrations.some((r) => r.orderNo === order.orderNo && r.auto)) return [];
 
-    const created: WarrantyRegistration[] = [];
+    const rows: WarrantyRegistration[] = [];
     const items = Array.isArray(order.items) ? order.items : [];
     items.forEach((item, itemIndex) => {
       const qty = Math.max(1, Math.min(99, Number(item.qty) || 1));
@@ -210,7 +217,7 @@ export function autoRegisterForDeliveredOrder(order: DeliveredOrderLike): Warran
           ? Math.round(item.warrantyMonths as number)
           : WARRANTY_MONTHS;
       for (let unit = 0; unit < qty; unit++) {
-        created.push({
+        rows.push({
           id: shortId("wty"),
           orderNo: order.orderNo,
           productName: item.name,
@@ -225,9 +232,12 @@ export function autoRegisterForDeliveredOrder(order: DeliveredOrderLike): Warran
       }
     });
 
-    db.registrations.unshift(...created);
-    return created;
+    db.registrations.unshift(...rows);
+    return rows;
   });
+  for (const r of created) void syncWarrantyToCrm(r);
+  if (created[0]) void syncCustomerToCrm({ email: created[0].customerEmail });
+  return created;
 }
 
 /** Registrations for one order, for the invoice and the customer's account. */
@@ -242,5 +252,113 @@ export function assignSerial(registrationId: string, deviceOrSerial: string): Wa
     if (!r) return null;
     r.deviceOrSerial = deviceOrSerial.trim();
     return r;
+  });
+}
+
+
+/* ------------------------------------------------------------------ */
+/* CV-365 CRM bridge                                                  */
+/* ------------------------------------------------------------------ */
+
+function crmSyncBase(): string {
+  return (
+    process.env.CV365_URL ||
+    process.env.CRM_SYNC_URL ||
+    process.env.NEXT_PUBLIC_CV365_URL ||
+    "http://localhost:3013"
+  ).replace(/\/$/, "");
+}
+
+function crmSyncToken(): string {
+  return (
+    process.env.CROSS_APP_SYNC_TOKEN ||
+    process.env.CRM_SYNC_SECRET ||
+    ""
+  ).trim();
+}
+
+async function postToCrm(payload: Record<string, unknown>): Promise<void> {
+  const url = `${crmSyncBase()}/api/crm/warranty`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = crmSyncToken();
+  if (token) headers["x-service-token"] = token;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      // fire-and-forget friendly; do not block shop checkout on CRM
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) {
+      console.warn("[crm-sync] CV-365 responded", res.status, await res.text().catch(() => ""));
+    }
+  } catch (err) {
+    console.warn("[crm-sync] failed", err instanceof Error ? err.message : err);
+  }
+}
+
+/** Push one warranty registration to CV-365 Customer 360 / Warranty register. */
+export async function syncWarrantyToCrm(registration: WarrantyRegistration): Promise<void> {
+  await postToCrm({
+    type: "warranty",
+    warranty: {
+      id: registration.id,
+      customerEmail: registration.customerEmail,
+      orderNo: registration.orderNo,
+      productName: registration.productName,
+      deviceOrSerial: registration.deviceOrSerial,
+      purchaseDate: registration.purchaseDate,
+      warrantyMonths: registration.warrantyMonths,
+      basis: registration.basis || "delivered",
+      deliveryDate: registration.basis === "delivered" ? registration.purchaseDate : undefined,
+      auto: registration.auto,
+    },
+  });
+}
+
+/** Push an RMA case to CV-365 service queue. */
+export async function syncRmaToCrm(
+  rmaCase: RmaCase,
+  extras?: { customerEmail?: string; productName?: string; deviceOrSerial?: string; orderNo?: string }
+): Promise<void> {
+  const reg = findRegistration(rmaCase.registrationId);
+  await postToCrm({
+    type: "rma",
+    rma: {
+      id: rmaCase.id,
+      registrationId: rmaCase.registrationId,
+      customerEmail: extras?.customerEmail || reg?.customerEmail || "",
+      orderNo: extras?.orderNo || reg?.orderNo || "",
+      deviceOrSerial: extras?.deviceOrSerial || reg?.deviceOrSerial || "",
+      productName: extras?.productName || reg?.productName || "",
+      issueDescription: rmaCase.issueDescription,
+      status: rmaCase.status,
+      resolutionNote: rmaCase.resolutionNote,
+    },
+  });
+}
+
+/** Push a Circuvent.com shop customer into CV-365 Customer 360. */
+export async function syncCustomerToCrm(customer: {
+  email: string;
+  name?: string;
+  totalSpend?: number;
+  orderCount?: number;
+  phone?: string;
+  company?: string;
+}): Promise<void> {
+  if (!customer?.email) return;
+  await postToCrm({
+    type: "customer",
+    customer: {
+      email: customer.email,
+      name: customer.name,
+      totalSpend: customer.totalSpend || 0,
+      orderCount: customer.orderCount || 0,
+      phone: customer.phone,
+      company: customer.company,
+      tags: ["shop-admin"],
+    },
   });
 }
