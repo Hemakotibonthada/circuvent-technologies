@@ -17,6 +17,7 @@ import {
   strongerConsoleRole,
 } from "@/lib/admin-sso-provision";
 import { ssoLandingPath } from "@/lib/host-mounts";
+import { publicRequestOrigin } from "@/lib/public-origin";
 import { getAdminUser } from "@/lib/store";
 import { flushNow, revalidate, upsertAdminUser } from "@/lib/store";
 
@@ -64,10 +65,9 @@ function fail(origin: string, host: string, reason: string) {
  * console access would hand the console to the whole company.
  */
 export async function GET(request: NextRequest) {
-  const configured =
-    process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
-  const origin = configured || new URL(request.url).origin;
+  // Prefer X-Forwarded-Host from Traefik; FRONTEND_URL is apex-only and
+  // request.url is http://0.0.0.0:3022 on Platform.
+  const origin = publicRequestOrigin(request);
   const host = requestHost(request);
   const params = new URL(request.url).searchParams;
 

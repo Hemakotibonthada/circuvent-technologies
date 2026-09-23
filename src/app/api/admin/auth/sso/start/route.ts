@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { beginSso, packFlow, ssoConfigured, STATE_COOKIE, FLOW_TTL_MS } from "@/lib/admin-sso";
+import { publicRequestOrigin } from "@/lib/public-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,12 +22,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Prefer configured public URL so Platform (HOSTNAME=0.0.0.0 / Traefik)
-  // does not mint redirect_uri against 0.0.0.0.
-  const configured =
-    process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
-  const origin = configured || new URL(request.url).origin;
+  // Derive from the public Host / X-Forwarded-* (home / iot / icm /
+  // insights / apex…). Never FRONTEND_URL — that is the marketing site and
+  // would mint redirect_uri against circuvent.com for every console host.
+  // Never request.url.origin behind Platform bind (http://0.0.0.0:3022).
+  const origin = publicRequestOrigin(request);
   const redirectUri = `${origin}/api/admin/auth/sso/callback`;
   const { url, verifier, state } = beginSso(redirectUri);
 
