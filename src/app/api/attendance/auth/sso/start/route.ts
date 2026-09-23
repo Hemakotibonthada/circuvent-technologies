@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const origin = new URL(request.url).origin;
+    const configured =
+    process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+  const origin = configured || new URL(request.url).origin;
     const { flow, url } = beginAttendanceSso(origin, request.nextUrl.searchParams.get("tab"));
     const response = NextResponse.redirect(url);
     response.headers.set("Cache-Control", "no-store");

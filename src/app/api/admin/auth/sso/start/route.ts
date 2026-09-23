@@ -21,7 +21,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const origin = new URL(request.url).origin;
+  // Prefer configured public URL so Platform (HOSTNAME=0.0.0.0 / Traefik)
+  // does not mint redirect_uri against 0.0.0.0.
+  const configured =
+    process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+  const origin = configured || new URL(request.url).origin;
   const redirectUri = `${origin}/api/admin/auth/sso/callback`;
   const { url, verifier, state } = beginSso(redirectUri);
 

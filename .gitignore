@@ -159,3 +159,4 @@ pdf-verify.pdf
 node_modules_*/
 
 .vscode/
+.env.production

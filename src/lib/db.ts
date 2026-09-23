@@ -128,12 +128,43 @@ export function __setQueryForTests(fn: QueryFn | null): void {
   _initPromise = null;
 }
 
-/** Lazily builds the Neon HTTP query function. */
+/** Prefer node-postgres on Platform / self-hosted; Neon HTTP only for neon.tech. */
+function usePgDriver(url: string): boolean {
+  if (process.env.DATABASE_DRIVER === "pg") return true;
+  if (process.env.DATABASE_SSL === "false") return true;
+  return !url.toLowerCase().includes("neon.tech");
+}
+
+/** Lazily builds the query function (Neon HTTP or node-postgres Pool). */
 async function getQuery(): Promise<QueryFn> {
   if (_query) return _query;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
   assertNotProductionData(url);
+
+  if (usePgDriver(url)) {
+    const { Pool } = await import("pg");
+    const g = globalThis as unknown as { __circuventWebsitePgPool?: import("pg").Pool };
+    if (!g.__circuventWebsitePgPool) {
+      g.__circuventWebsitePgPool = new Pool({
+        connectionString: url,
+        max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 10_000,
+        ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false },
+      });
+      g.__circuventWebsitePgPool.on("error", (err) => {
+        console.error("Idle database client error:", err.message);
+      });
+    }
+    const pool = g.__circuventWebsitePgPool;
+    _query = async (text, params = []) => {
+      const res = await pool.query(text, params);
+      return res.rows as Record<string, unknown>[];
+    };
+    return _query;
+  }
+
   const { neon } = await import("@neondatabase/serverless");
   const client = neon(url);
   _query = (text, params = []) =>

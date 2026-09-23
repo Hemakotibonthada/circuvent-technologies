@@ -64,7 +64,10 @@ function fail(origin: string, host: string, reason: string) {
  * console access would hand the console to the whole company.
  */
 export async function GET(request: NextRequest) {
-  const origin = new URL(request.url).origin;
+  const configured =
+    process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+  const origin = configured || new URL(request.url).origin;
   const host = requestHost(request);
   const params = new URL(request.url).searchParams;
 
