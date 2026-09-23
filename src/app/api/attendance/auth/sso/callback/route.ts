@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ATTENDANCE_CLIENT_ID, ATTENDANCE_ISSUER, FLOW_COOKIE, SESSION_COOKIE, SESSION_TTL, SSO_PATH, boundIdentity, landingPath, openAttendance, sealAttendance, type AttendanceFlow, type AttendanceSession } from "@/lib/attendance-sso";
+import { ATTENDANCE_CLIENT_ID, ATTENDANCE_ISSUER, FLOW_COOKIE, SESSION_COOKIE, SESSION_TTL, SSO_PATH, boundIdentity, landingPath, openAttendance, publicRequestOrigin, sealAttendance, type AttendanceFlow, type AttendanceSession } from "@/lib/attendance-sso";
 import { CONTROL_PLANE_URL, federationAllowedHere } from "@/lib/sso";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const origin = new URL(request.url).origin;
+  // Prefer X-Forwarded-Host from Traefik; request.url is http://0.0.0.0:3022 on Platform.
+  const origin = publicRequestOrigin(request);
   const flow = openAttendance<AttendanceFlow>("flow", request.cookies.get(FLOW_COOKIE)?.value);
   const params = request.nextUrl.searchParams;
   const finish = (error?: string, session?: AttendanceSession) => {

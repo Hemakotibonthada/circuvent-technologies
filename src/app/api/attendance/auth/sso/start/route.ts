@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { beginAttendanceSso, FLOW_COOKIE, FLOW_TTL, SSO_PATH, sealAttendance } from "@/lib/attendance-sso";
+import { beginAttendanceSso, FLOW_COOKIE, FLOW_TTL, SSO_PATH, publicRequestOrigin, sealAttendance } from "@/lib/attendance-sso";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const configured =
-    process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
-  const origin = configured || new URL(request.url).origin;
+    // Derive from the public Host / X-Forwarded-* (attendance.circuvent.com,
+    // home, iot, apex…). Never FRONTEND_URL — that is the marketing site and
+    // would mint redirect_uri against circuvent.com for every console host.
+    // Never request.url.origin behind Platform bind (http://0.0.0.0:3022).
+    const origin = publicRequestOrigin(request);
     const { flow, url } = beginAttendanceSso(origin, request.nextUrl.searchParams.get("tab"));
     const response = NextResponse.redirect(url);
     response.headers.set("Cache-Control", "no-store");

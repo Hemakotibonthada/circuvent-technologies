@@ -1,7 +1,7 @@
 /** @jest-environment node */
 import crypto from "node:crypto";
 import { beginAttendanceSso, sealAttendance, openAttendance, boundIdentity, landingPath,
-  ATTENDANCE_CLIENT_ID, ATTENDANCE_ISSUER, SESSION_TTL } from "../src/lib/attendance-sso";
+  publicRequestOrigin, ATTENDANCE_CLIENT_ID, ATTENDANCE_ISSUER, SESSION_TTL } from "../src/lib/attendance-sso";
 
 describe("attendance SSO handshake", () => {
   const { flow, url } = beginAttendanceSso("https://attendance.circuvent.com", "people");
@@ -31,6 +31,36 @@ describe("attendance SSO handshake", () => {
     for (const invalid of [{ nonce: "other" }, { aud: "hrms" }, { iss: "https://evil.test" },
       { email_verified: false }, { sub: "" }, { exp: 1 }]) {
       expect(boundIdentity(token(invalid), flow)).toBeNull();
+    }
+  });
+});
+
+describe("publicRequestOrigin", () => {
+  const req = (url: string, headers: Record<string, string> = {}) => ({
+    url,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? headers[name] ?? null },
+  });
+  test("uses Traefik X-Forwarded-Host over bind-address request.url", () => {
+    expect(publicRequestOrigin(req("http://0.0.0.0:3022/api/attendance/auth/sso/start", {
+      "x-forwarded-host": "attendance.circuvent.com",
+      "x-forwarded-proto": "https",
+      host: "0.0.0.0:3022",
+    }))).toBe("https://attendance.circuvent.com");
+  });
+  test("uses Host when forwarded headers are absent", () => {
+    expect(publicRequestOrigin(req("https://attendance.circuvent.com/api/attendance/auth/sso/callback", {
+      host: "attendance.circuvent.com",
+    }))).toBe("https://attendance.circuvent.com");
+  });
+  test("does not invent 0.0.0.0 into the origin", () => {
+    const prev = process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.NEXT_PUBLIC_SITE_URL = "https://circuvent.com";
+    delete process.env.FRONTEND_URL;
+    try {
+      expect(publicRequestOrigin(req("http://0.0.0.0:3022/x", { host: "0.0.0.0:3022" }))).toBe("https://circuvent.com");
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+      else process.env.NEXT_PUBLIC_SITE_URL = prev;
     }
   });
 });
