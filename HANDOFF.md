@@ -33,6 +33,9 @@
 | `icm.circuvent.com` | Vercel CNAME | Yes | Console routes in this app |
 | `insights.circuvent.com` | Vercel CNAME | Yes | Console routes in this app |
 | `attendance.circuvent.com` | Vercel CNAME | Yes | Console routes in this app |
+| `iot.circuvent.com` | Vercel alias | Yes | Same Vercel project |
+| `home.circuvent.com` | Vercel alias | Yes | Same Vercel project |
+| `developer.circuvent.com` | Vercel alias | Yes | Same Vercel project |
 | `myspace.circuvent.com` | Vercel CNAME | **No** — separate `circuvent-myspace` :3020 | Do not steal |
 | `dev.circuvent.com` | Vercel preview | No | Leave on Vercel |
 
